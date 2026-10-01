@@ -22,7 +22,9 @@ A check is one of:
                   to <package>/<touch> (restored afterwards).
   native_outputs  globs under the consumer: native binaries the run must have built itself.
                   The fresh workspace must hold no native binaries before the checks run.
-A check without any of these keeps its recorded status and reason. Recipes see
+A check without any of these keeps its recorded status and reason. A consumer's
+`pin_file` (`<Name> <sha>` lines) is read at its commit and recorded as
+`pinned_package_commit`; the workspace always holds the candidate commit instead. Recipes see
 $ATLAS_COMPAT_WORKSPACE and $ATLAS_COMPAT_PACKAGE_COMMIT.
 
 Statuses: passed, failed, not-run, not-applicable, unavailable. A missing checkout, commit,
@@ -109,6 +111,8 @@ def toolchain(env):
         "just": _first_line(["just", "--version"], env),
         "xcodegen": _first_line(["xcodegen", "--version"], env),
         "git": _first_line(["git", "--version"], env),
+        "swift_sdks": _first_line(["swift", "sdk", "list"], env),
+        "android_ndk": sorted(p.name for p in (Path(env["ANDROID_HOME"]) / "ndk").glob("*")) if env.get("ANDROID_HOME") else None,
     }
 
 
@@ -141,6 +145,15 @@ def acquire(src, commit, dest):
     resolver.git(dest, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--detach", commit)
     if resolver.git(dest, "rev-parse", "HEAD") != commit:
         raise resolver.GitError(f"{dest.name} is not at {commit}")
+
+
+def read_pin(text, name):
+    """Commit pinned for `name` in a `<Name> <sha>` pin file (comments start with #), or None."""
+    for line in (text or "").splitlines():
+        bits = line.split("#", 1)[0].split()
+        if len(bits) == 2 and bits[0] == name:
+            return bits[1]
+    return None
 
 
 def native_binaries(top):
@@ -211,7 +224,8 @@ def run_recipe(check, ctx):
     if leaked:
         return dict(out, status="failed", reason=f"{ctx['package_name']} resolved outside the disposable workspace")
     if code != 0:
-        return dict(out, status="failed", reason=f"exit {code}")
+        errors = [ln for ln in text.splitlines() if re.search(r"\berror:|^e: ", ln)]
+        return dict(out, status="failed", reason=f"exit {code}", first_errors=[sanitize(ln, ctx["forms"]) for ln in list(dict.fromkeys(errors))[:5]])
     if missing:
         return dict(out, status="failed", reason=f"expected output missing: {missing}")
     if check.get("resolves_package") and not roots:
@@ -229,7 +243,7 @@ def run_fingerprint(check, ctx):
     original = target.read_bytes()
     try:
         target.write_bytes(original + b"\n")
-        after = run_shell(fp["command"], ctx["consumer_dir"], ctx["env"], ctx["log"], ctx["timeout"])
+        after = run_shell(fp["command"], ctx["consumer_dir"], ctx["env"], ctx["log"].with_suffix(".after.log"), ctx["timeout"])
     finally:
         target.write_bytes(original)
     out = {"duration_s": round(time.monotonic() - started, 1), "touched": f"{ctx['package_name']}/{fp['touch']}",
@@ -297,6 +311,9 @@ def run_consumer(cand, con, reg, root, env, patch, timeout, logdir):
             out["checks"] = [dict(_entry(c), status="unavailable", reason=reason) if c in todo else dict(_entry(c), **_static(c))
                              for c in con.get("checks", [])]
         else:
+            if con.get("pin_file"):
+                pins = ctx["consumer_dir"] / con["pin_file"]
+                out["consumer_pin"] = read_pin(pins.read_text() if pins.is_file() else "", pkg_name)
             ctx["prebuilt"] = native_binaries(ws)
             out["native_binaries_before_checks"] = ctx["prebuilt"]
             out["gradle"] = gradle_wrappers(ctx["consumer_dir"])
@@ -355,12 +372,18 @@ def cmd_run(args, reg, root):
     logdir = Path(root) / ".local" / "compat-logs" / args.candidate / started.replace(":", "")
     logdir.mkdir(parents=True, exist_ok=True)
     print(f"compat run {args.candidate}{' with injected break ' + patch.name if patch else ''}; logs in {logdir}")
-    records = []
+    records, tools = [], toolchain(env)
     for _, con in picked:
-        records.append(run_consumer(cand, con, reg, root, env, patch, args.timeout, logdir))
+        records.append(dict(run_consumer(cand, con, reg, root, env, patch, args.timeout, logdir), finished_at=_now(), toolchain=tools))
     record = {"schema_version": 1, "candidate": args.candidate, "mode": "inject-break" if patch else "clean",
               "started_at": started, "finished_at": _now(), "duration_s": round(time.monotonic() - t0, 1),
-              "atlas_version": resolver.ATLAS_VERSION, "toolchain": toolchain(env), "consumers": records}
+              "atlas_version": resolver.ATLAS_VERSION, "consumers": records}
+    previous = results_path(root, args.candidate, inject=bool(patch))
+    if args.consumer and previous.is_file():
+        # Keep the other consumers' last results; each consumer record carries its own time and toolchain.
+        order = [c["repo"] for c in cand["consumers"]]
+        kept = [r for r in json.loads(previous.read_text()).get("consumers", []) if r.get("repo") != args.consumer]
+        record["consumers"] = sorted(kept + records, key=lambda r: order.index(r["repo"]) if r["repo"] in order else len(order))
     if patch:
         record["break_patch"] = {"file": patch.name, "sha256": hashlib.sha256(patch.read_bytes()).hexdigest(),
                                  "files": sorted(set(re.findall(r"^\+\+\+ b/(\S+)", patch.read_text(), re.M)))}
@@ -375,6 +398,8 @@ def cmd_run(args, reg, root):
                     chk["reason"] = res["reason"]
                 if kind(chk) and res["status"] != "not-applicable":
                     chk["checked_at"] = record["finished_at"]
+            if con.get("pin_file"):
+                con["pinned_package_commit"] = rec.get("consumer_pin")
             cand["consumers"][i] = con
         cand["validated_at"] = record["finished_at"]
         cand["validated_by"] = "atlas compat run"
@@ -403,6 +428,10 @@ def cmd_plan(args, reg, root):
         for con in cand.get("consumers", []):
             con_src, con_why = source(reg, root, con["repo"], con["commit"], config)
             tip = resolver.rev(con_src, con["ref"]) if con_src and con.get("ref") else None
+            pin = None
+            if con_src and con.get("pin_file") and con["repo"] in reg and pkg["repo"] in reg:
+                text = resolver.git(con_src, "show", f"{con['commit']}:{con['pin_file']}", check=False)
+                pin = read_pin(text, reg[pkg["repo"]]["local_dir"])
             checks = []
             for c in con.get("checks", []):
                 if not kind(c) or c.get("status") == "not-applicable":
@@ -410,9 +439,9 @@ def cmd_plan(args, reg, root):
                     continue
                 why = pkg_why or con_why or missing_requirements(c, env)
                 checks.append(dict(_entry(c), would="unavailable" if why else "run", reason=why))
-            rows.append({"candidate": cand["id"], "package": f"{pkg['repo']}@{(pkg.get('commit') or 'none')[:12]}",
+            rows.append({"candidate": cand["id"], "package": f"{pkg['repo']}@{(pkg.get('commit') or 'none')[:12]}", "package_commit": pkg.get("commit"),
                          "consumer": con["repo"], "ref": con.get("ref"), "commit": con["commit"],
-                         "ref_tip": tip, "layout": [f"<workspace>/{reg[r]['local_dir']}" for r in (con["repo"], pkg["repo"]) if r in reg],
+                         "ref_tip": tip, "consumer_pin": pin, "layout": [f"<workspace>/{reg[r]['local_dir']}" for r in (con["repo"], pkg["repo"]) if r in reg],
                          "checks": checks})
     if args.json:
         print(json.dumps(rows, indent=2))
@@ -421,6 +450,9 @@ def cmd_plan(args, reg, root):
         moved = f" (ref tip now {r['ref_tip'][:12]})" if r["ref_tip"] and r["ref_tip"] != r["commit"] else ""
         print(f"{r['candidate']}: {r['package']} -> {r['consumer']}@{r['ref']} {r['commit'][:12]}{moved}")
         print(f"  workspace: {', '.join(r['layout'])}")
+        if r["consumer_pin"]:
+            same = "same as" if r["consumer_pin"] == r["package_commit"] else "differs from"
+            print(f"  consumer pins {r['consumer_pin'][:12]}, {same} the candidate under test")
         for c in r["checks"]:
             print(f"  {c['would']:12} {c['name']}{'  (' + c['reason'] + ')' if c.get('reason') else ''}")
     return OK

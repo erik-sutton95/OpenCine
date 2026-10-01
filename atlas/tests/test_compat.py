@@ -87,11 +87,13 @@ class Compat(AtlasCase):
 
     def test_workspace_removed_after_failure_and_interrupt(self):
         marker = self.ws / "workspace.txt"
-        self.write_candidates([{"name": "boom", "recipe": f'echo "$ATLAS_COMPAT_WORKSPACE" > {marker}; exit 7'}])
+        self.write_candidates([{"name": "boom", "recipe": f'echo "$ATLAS_COMPAT_WORKSPACE" > {marker}; echo "$PWD/A.swift:1:2: error: boom"; exit 7'}])
         code, _ = self.run_atlas("compat", "run", "c1")
         self.assertEqual(code, 1)
         self.assertEqual(self.statuses(), {"boom": "failed"})
-        self.assertIn("exit 7", self.result()["consumers"][0]["checks"][0]["reason"])
+        failed = self.result()["consumers"][0]["checks"][0]
+        self.assertIn("exit 7", failed["reason"])
+        self.assertEqual(failed["first_errors"], ["<workspace>/App/A.swift:1:2: error: boom"])
         self.assertFalse(Path(marker.read_text().strip()).exists())
 
         seen = []
@@ -147,6 +149,35 @@ class Compat(AtlasCase):
         self.assertIn("unavailable  tool  (missing tool atlas-no-such-tool)", out)
         self.assertIn("keep not-applicable na", out)
         self.assertIn("<workspace>/App, <workspace>/Lib", out)
+
+    def test_consumer_pin_is_recorded_and_replaced_by_the_candidate(self):
+        other = "d" * 40
+        self.app = make_repo(self.ws / "App2", {"pins.txt": f"# pins\nLib {other}\n"})
+        write_registry(self.root, [meta("app", "app", "App2", refs=[{"name": "main", "commit": self.app, "role": "baseline"}])])
+        self.write_candidates([{"name": "tested", "recipe": 'test "$(git -C ../Lib rev-parse HEAD)" = "$ATLAS_COMPAT_PACKAGE_COMMIT"'}])
+        doc = json.loads((self.root / "compat" / "candidates.json").read_text())
+        doc["candidates"][0]["consumers"][0]["pin_file"] = "pins.txt"
+        (self.root / "compat" / "candidates.json").write_text(json.dumps(doc))
+        self.assertIn(f"consumer pins {other[:12]}, differs from the candidate under test", self.run_atlas("compat", "plan")[1])
+        self.assertEqual(self.run_atlas("compat", "run", "c1")[0], 0)
+        con = json.loads((self.root / "compat" / "candidates.json").read_text())["candidates"][0]["consumers"][0]
+        self.assertEqual((con["pinned_package_commit"], con["checks"][0]["status"]), (other, "passed"))
+        self.assertEqual(self.result()["consumers"][0]["consumer_pin"], other)
+
+    def test_single_consumer_rerun_keeps_the_other_results(self):
+        other = make_repo(self.ws / "Other", {"README": "other\n"})
+        write_registry(self.root, [meta("other", "app", "Other", refs=[{"name": "main", "commit": other, "role": "baseline"}])])
+        self.write_candidates([{"name": "ok", "recipe": "true"}])
+        doc = json.loads((self.root / "compat" / "candidates.json").read_text())
+        doc["candidates"][0]["consumers"].append({"repo": "other", "commit": other, "checks": [{"name": "ok", "recipe": "false"}]})
+        (self.root / "compat" / "candidates.json").write_text(json.dumps(doc))
+        self.assertEqual(self.run_atlas("compat", "run", "c1")[0], 1)
+        first = self.result()["consumers"][0]
+        self.run_atlas("compat", "run", "c1", "--consumer", "other")
+        rec = self.result()["consumers"]
+        self.assertEqual([r["repo"] for r in rec], ["app", "other"])
+        self.assertEqual(rec[0], first)
+        self.assertTrue(rec[1]["toolchain"] and rec[1]["finished_at"])
 
     def test_check_validates_reasons_and_results(self):
         self.write_candidates([{"name": "na", "status": "not-applicable"}])
