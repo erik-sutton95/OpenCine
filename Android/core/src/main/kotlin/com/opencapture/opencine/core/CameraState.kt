@@ -18,7 +18,7 @@ public data class CaptureMode(
 /**
  * Camera-reported recording state only. Requested start/stop and pending confirmation are
  * operation progress ([CommandReceipt]), never a fabricated reported state. Unknown is
- * `Observation.value == null`.
+ * `ObservedValue.value == null`.
  */
 public enum class RecordingState {
     IDLE,
@@ -70,20 +70,20 @@ public enum class MediaState { READY, ABSENT, FULL, ERROR }
 public data class StorageVolume(
     /** Integration-owned volume identity, stable while the session lives. */
     public val id: String,
-    public val media: Observation<MediaState> = Observation.unknown,
-    public val freeBytes: Observation<Long> = Observation.unknown,
+    public val media: ObservedValue<MediaState> = ObservedValue.unknown,
+    public val freeBytes: ObservedValue<Long> = ObservedValue.unknown,
     /** Reported or estimated; the observation origin says which. */
-    public val remainingRecordingTime: Observation<Duration> = Observation.unknown,
+    public val remainingRecordingTime: ObservedValue<Duration> = ObservedValue.unknown,
 )
 
 /** Unknown storage is `value == null`; a camera reporting no volumes is an empty list. */
-public typealias StorageStatus = Observation<List<StorageVolume>>
+public typealias StorageStatus = ObservedValue<List<StorageVolume>>
 
 public data class PowerStatus(
     /** Fraction 0..1, with the camera's reporting precision. */
-    public val battery: Observation<Double> = Observation.unknown,
-    public val charging: Observation<Boolean> = Observation.unknown,
-    public val externalPower: Observation<Boolean> = Observation.unknown,
+    public val battery: ObservedValue<Double> = ObservedValue.unknown,
+    public val charging: ObservedValue<Boolean> = ObservedValue.unknown,
+    public val externalPower: ObservedValue<Boolean> = ObservedValue.unknown,
 ) {
     public companion object {
         public val unknown: PowerStatus = PowerStatus()
@@ -120,12 +120,12 @@ public data class CameraSnapshot(
     public val connection: ConnectionState = ConnectionState.Discovered,
     public val authority: ControlAuthority = ControlAuthority.Unavailable(UnavailableReason.Link),
     public val capabilities: CapabilitySnapshot = CapabilitySnapshot(),
-    public val mode: Observation<CaptureMode> = Observation.unknown,
+    public val mode: ObservedValue<CaptureMode> = ObservedValue.unknown,
     /** Keyed by [SettingValue.key]. A missing key is an unknown value. */
-    public val settings: Map<SettingKey, Observation<SettingValue>> = emptyMap(),
-    public val recording: Observation<RecordingState> = Observation.unknown,
+    public val settings: Map<SettingKey, ObservedValue<SettingValue>> = emptyMap(),
+    public val recording: ObservedValue<RecordingState> = ObservedValue.unknown,
     public val power: PowerStatus = PowerStatus.unknown,
-    public val storage: StorageStatus = Observation.unknown,
+    public val storage: StorageStatus = ObservedValue.unknown,
 ) {
-    public fun value(key: SettingKey): Observation<SettingValue> = settings[key] ?: Observation.unknown
+    public fun value(key: SettingKey): ObservedValue<SettingValue> = settings[key] ?: ObservedValue.unknown
 }

@@ -33,11 +33,11 @@ private fun kelvin(value: Int) = SettingValue.WhiteBalance(WhiteBalanceValue.Kel
 class ValuesTest {
     @Test
     fun unknownTelemetryIsNeverCoerced() {
-        assertNull(Observation.unknown.value)
-        assertNotEquals<Observation<Boolean>>(Observation.unknown, Observation(false, CAMERA_REPORTED, ZERO))
-        assertNotEquals<Observation<Double>>(Observation.unknown, Observation(0.0, CAMERA_REPORTED, ZERO))
-        assertNotEquals<Observation<String>>(Observation.unknown, Observation("", CAMERA_REPORTED, ZERO))
-        assertEquals(Freshness.UNKNOWN, Observation.unknown.freshness(ZERO, 1.seconds))
+        assertNull(ObservedValue.unknown.value)
+        assertNotEquals<ObservedValue<Boolean>>(ObservedValue.unknown, ObservedValue(false, CAMERA_REPORTED, ZERO))
+        assertNotEquals<ObservedValue<Double>>(ObservedValue.unknown, ObservedValue(0.0, CAMERA_REPORTED, ZERO))
+        assertNotEquals<ObservedValue<String>>(ObservedValue.unknown, ObservedValue("", CAMERA_REPORTED, ZERO))
+        assertEquals(Freshness.UNKNOWN, ObservedValue.unknown.freshness(ZERO, 1.seconds))
 
         val snapshot = CameraSnapshot(CameraSessionID())
         assertNull(snapshot.recording.value)
@@ -47,10 +47,10 @@ class ValuesTest {
 
     @Test
     fun freshnessIsComputedFromAge() {
-        val battery = Observation(0.5, CAMERA_REPORTED, ZERO)
+        val battery = ObservedValue(0.5, CAMERA_REPORTED, ZERO)
         assertEquals(Freshness.FRESH, battery.freshness(ZERO + 1.seconds, 2.seconds))
         assertEquals(Freshness.STALE, battery.freshness(ZERO + 3.seconds, 2.seconds))
-        val undated = Observation(0.5, ObservationOrigin.IMAGE_ESTIMATED, null)
+        val undated = ObservedValue(0.5, ObservationOrigin.IMAGE_ESTIMATED, null)
         assertEquals(Freshness.UNKNOWN, undated.freshness(ZERO, 2.seconds))
     }
 
@@ -84,6 +84,14 @@ class ValuesTest {
         assertFalse(wb.accepts(kelvin(12000)))
         assertFalse(wb.accepts(SettingValue.WhiteBalance(WhiteBalanceValue.Preset("daylight"))))
 
+        // Tint is its own setting: a separate key, range and step; unknown until reported.
+        val tint = SettingDescriptor(SettingKey.WHITE_BALANCE_TINT, domain = SettingDomain(range = -100.0..100.0, step = 1.0))
+        assertTrue(tint.accepts(SettingValue.WhiteBalanceTint(-12.0)))
+        assertFalse(tint.accepts(SettingValue.WhiteBalanceTint(0.5)))
+        assertFalse(tint.accepts(SettingValue.WhiteBalanceTint(150.0)))
+        assertFalse(wb.accepts(SettingValue.WhiteBalanceTint(0.0)))
+        assertEquals(ObservedValue.unknown, CameraSnapshot(CameraSessionID()).value(SettingKey.WHITE_BALANCE_TINT))
+
         val zoom = SettingDescriptor(SettingKey.ZOOM, domain = SettingDomain(range = 1.0..4.0, step = 0.1))
         assertTrue(zoom.accepts(SettingValue.Zoom(1.5)))
         assertFalse(zoom.accepts(SettingValue.Aperture(1.5)))
@@ -114,6 +122,7 @@ class ValuesTest {
         val readback = CommandReceipt(OperationID(), session, StartRecording, CommandStage.Accepted)
         assertFalse(readback.isFinished)
         assertTrue(readback.copy(stage = OutcomeUnknown).isFinished)
+        assertTrue(readback.copy(stage = CommandStage.Failed(CommandFailure.SUPERSEDED)).isFinished)
         val acknowledged = CommandReceipt(
             OperationID(), session, CameraCommandIntent.FocusPoint(0.0, 0.0), CommandStage.Accepted,
             SettingSemantics.Confirmation.ACKNOWLEDGEMENT_ONLY,
@@ -218,9 +227,15 @@ class FeedsTest {
         camera.advance(3.seconds)
         assertEquals(Confirmed, patient.await()?.stage)
 
+        val pending = camera.submit(Set(iso(3200)))
+        assertEquals(CommandStage.AwaitingObservation, camera.receipt(pending.operation)?.stage)
+        assertNull(camera.receipt(OperationID()))
+        camera.advance(3.seconds)
+        assertEquals(Confirmed, camera.receipt(pending.operation)?.stage)
+
         val interrupted = camera.submit(Set(iso(400)))
         val closing = async(start = CoroutineStart.UNDISPATCHED) { camera.outcome(interrupted.operation) }
-        camera.close(SessionCloseReason.REQUESTED)
+        camera.closeNow(SessionCloseReason.REQUESTED)
         assertEquals(OutcomeUnknown, closing.await()?.stage)
     }
 }

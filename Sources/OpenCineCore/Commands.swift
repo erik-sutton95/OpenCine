@@ -93,6 +93,9 @@ public enum CommandFailure: Hashable, Codable, Sendable {
     case notApplied
     /// The command never left the device.
     case notSent
+    /// A newer write to the same setting replaced this one before its outcome was known. The
+    /// camera may or may not have acted on it; the newer operation's receipt carries the outcome.
+    case superseded
 }
 
 /// ```text

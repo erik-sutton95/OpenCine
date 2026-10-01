@@ -23,7 +23,7 @@ public struct CaptureMode: Hashable, Codable, Sendable {
 
 /// Camera-reported recording state only. Requested start/stop and pending confirmation are
 /// operation progress (`CommandReceipt`), never a fabricated reported state. Unknown is
-/// `Observation.value == nil`.
+/// `ObservedValue.value == nil`.
 public enum RecordingState: Hashable, Codable, Sendable {
     case idle
     case recording
@@ -68,15 +68,15 @@ public enum MediaState: Hashable, Codable, Sendable {
 public struct StorageVolume: Hashable, Codable, Sendable {
     /// Integration-owned volume identity, stable while the session lives.
     public var id: String
-    public var media: Observation<MediaState>
-    public var freeBytes: Observation<UInt64>
+    public var media: ObservedValue<MediaState>
+    public var freeBytes: ObservedValue<UInt64>
     /// Reported or estimated; the observation origin says which.
-    public var remainingRecordingTime: Observation<Duration>
+    public var remainingRecordingTime: ObservedValue<Duration>
 
     public init(
-        id: String, media: Observation<MediaState> = .unknown,
-        freeBytes: Observation<UInt64> = .unknown,
-        remainingRecordingTime: Observation<Duration> = .unknown
+        id: String, media: ObservedValue<MediaState> = .unknown,
+        freeBytes: ObservedValue<UInt64> = .unknown,
+        remainingRecordingTime: ObservedValue<Duration> = .unknown
     ) {
         self.id = id
         self.media = media
@@ -86,17 +86,17 @@ public struct StorageVolume: Hashable, Codable, Sendable {
 }
 
 /// Unknown storage is `value == nil`; a camera reporting no volumes is `[]`.
-public typealias StorageStatus = Observation<[StorageVolume]>
+public typealias StorageStatus = ObservedValue<[StorageVolume]>
 
 public struct PowerStatus: Hashable, Codable, Sendable {
     /// Fraction 0...1, with the camera's reporting precision.
-    public var battery: Observation<Double>
-    public var charging: Observation<Bool>
-    public var externalPower: Observation<Bool>
+    public var battery: ObservedValue<Double>
+    public var charging: ObservedValue<Bool>
+    public var externalPower: ObservedValue<Bool>
 
     public init(
-        battery: Observation<Double> = .unknown, charging: Observation<Bool> = .unknown,
-        externalPower: Observation<Bool> = .unknown
+        battery: ObservedValue<Double> = .unknown, charging: ObservedValue<Bool> = .unknown,
+        externalPower: ObservedValue<Bool> = .unknown
     ) {
         self.battery = battery
         self.charging = charging
@@ -141,10 +141,10 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
     public var connection: ConnectionState
     public var authority: ControlAuthority
     public var capabilities: CapabilitySnapshot
-    public var mode: Observation<CaptureMode>
+    public var mode: ObservedValue<CaptureMode>
     /// Keyed by `SettingValue.key`. A missing key is an unknown value.
-    public var settings: [SettingKey: Observation<SettingValue>]
-    public var recording: Observation<RecordingState>
+    public var settings: [SettingKey: ObservedValue<SettingValue>]
+    public var recording: ObservedValue<RecordingState>
     public var power: PowerStatus
     public var storage: StorageStatus
 
@@ -167,7 +167,7 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
         self.storage = .unknown
     }
 
-    public func value(of key: SettingKey) -> Observation<SettingValue> {
+    public func value(of key: SettingKey) -> ObservedValue<SettingValue> {
         settings[key] ?? .unknown
     }
 }

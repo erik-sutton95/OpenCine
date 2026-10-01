@@ -31,13 +31,14 @@ public enum Freshness: Hashable, Sendable {
     case unknown
 }
 
-/// One observed value with its provenance.
+/// One observed value with its provenance. Named `ObservedValue`, not `Observation`, so importing
+/// OpenCineCore never shadows the Swift Observation module (`@Observable`).
 ///
 /// `value == nil` is unknown, whatever else is set. Unknown is never `false`, `0` or `""`:
 /// an unknown battery is not empty, unknown recording is not idle, unknown charging is not
 /// unplugged. Freshness is computed against a caller-supplied `now` instead of being stored, so
 /// a retained snapshot cannot claim to be fresh forever.
-public struct Observation<Value: Sendable>: Sendable {
+public struct ObservedValue<Value: Sendable>: Sendable {
     public var value: Value?
     public var origin: ObservationOrigin
     public var observedAt: MonotonicInstant?
@@ -73,6 +74,6 @@ public struct Observation<Value: Sendable>: Sendable {
     }
 }
 
-extension Observation: Equatable where Value: Equatable {}
-extension Observation: Hashable where Value: Hashable {}
-extension Observation: Codable where Value: Codable {}
+extension ObservedValue: Equatable where Value: Equatable {}
+extension ObservedValue: Hashable where Value: Hashable {}
+extension ObservedValue: Codable where Value: Codable {}

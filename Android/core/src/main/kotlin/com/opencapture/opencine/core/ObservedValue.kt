@@ -46,7 +46,7 @@ public enum class Freshness {
  * of being stored, so a retained snapshot cannot claim to be fresh forever.
  */
 @ConsistentCopyVisibility
-public data class Observation<out T : Any> private constructor(
+public data class ObservedValue<out T : Any> private constructor(
     public val value: T?,
     public val origin: ObservationOrigin,
     public val observedAt: MonotonicInstant?,
@@ -62,9 +62,9 @@ public data class Observation<out T : Any> private constructor(
     }
 
     public companion object {
-        /** Assignable to every `Observation<T>`. */
-        public val unknown: Observation<Nothing> =
-            Observation(null, ObservationOrigin.UNKNOWN, null, ObservationValidity.Valid, null)
+        /** Assignable to every `ObservedValue<T>`. */
+        public val unknown: ObservedValue<Nothing> =
+            ObservedValue(null, ObservationOrigin.UNKNOWN, null, ObservationValidity.Valid, null)
 
         /** A known value. */
         public operator fun <T : Any> invoke(
@@ -73,6 +73,6 @@ public data class Observation<out T : Any> private constructor(
             at: MonotonicInstant?,
             validity: ObservationValidity = ObservationValidity.Valid,
             precision: ObservationPrecision? = null,
-        ): Observation<T> = Observation(value, origin, observedAt = at, validity, precision)
+        ): ObservedValue<T> = ObservedValue(value, origin, observedAt = at, validity, precision)
     }
 }

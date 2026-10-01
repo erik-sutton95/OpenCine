@@ -5,11 +5,11 @@ import Testing
 
 @Suite struct Values {
     @Test func unknownTelemetryIsNeverCoerced() throws {
-        #expect(Observation<Double>.unknown.value == nil)
-        #expect(Observation<Bool>.unknown != Observation(false, origin: .cameraReported, at: .zero))
-        #expect(Observation<Double>.unknown != Observation(0, origin: .cameraReported, at: .zero))
-        #expect(Observation<String>.unknown != Observation("", origin: .cameraReported, at: .zero))
-        #expect(Observation<Double>.unknown.freshness(at: .zero, maxAge: .seconds(1)) == .unknown)
+        #expect(ObservedValue<Double>.unknown.value == nil)
+        #expect(ObservedValue<Bool>.unknown != ObservedValue(false, origin: .cameraReported, at: .zero))
+        #expect(ObservedValue<Double>.unknown != ObservedValue(0, origin: .cameraReported, at: .zero))
+        #expect(ObservedValue<String>.unknown != ObservedValue("", origin: .cameraReported, at: .zero))
+        #expect(ObservedValue<Double>.unknown.freshness(at: .zero, maxAge: .seconds(1)) == .unknown)
 
         let snapshot = CameraSnapshot(session: CameraSessionID())
         #expect(snapshot.recording.value == nil)
@@ -24,10 +24,10 @@ import Testing
     }
 
     @Test func freshnessIsComputedFromAge() {
-        let battery = Observation(0.5, origin: .cameraReported, at: .zero)
+        let battery = ObservedValue(0.5, origin: .cameraReported, at: .zero)
         #expect(battery.freshness(at: .zero + .seconds(1), maxAge: .seconds(2)) == .fresh)
         #expect(battery.freshness(at: .zero + .seconds(3), maxAge: .seconds(2)) == .stale)
-        let undated = Observation(0.5, origin: .imageEstimated, at: nil)
+        let undated = ObservedValue(0.5, origin: .imageEstimated, at: nil)
         #expect(undated.freshness(at: .zero, maxAge: .seconds(2)) == .unknown)
     }
 
@@ -61,6 +61,14 @@ import Testing
         #expect(!wb.accepts(.whiteBalance(.kelvin(12000))))
         #expect(!wb.accepts(.whiteBalance(.preset("daylight"))))
 
+        // Tint is its own setting: a separate key, range and step; unknown until reported.
+        let tint = SettingDescriptor(.whiteBalanceTint, domain: SettingDomain(range: -100...100, step: 1))
+        #expect(tint.accepts(.whiteBalanceTint(-12)))
+        #expect(!tint.accepts(.whiteBalanceTint(0.5)))
+        #expect(!tint.accepts(.whiteBalanceTint(150)))
+        #expect(!wb.accepts(.whiteBalanceTint(0)))
+        #expect(CameraSnapshot(session: CameraSessionID()).value(of: .whiteBalanceTint) == .unknown)
+
         let zoom = SettingDescriptor(.zoom, domain: SettingDomain(range: 1...4, step: 0.1))
         #expect(zoom.accepts(.zoom(1.5)))
         #expect(!zoom.accepts(.aperture(1.5)))
@@ -87,6 +95,8 @@ import Testing
             operation: OperationID(), session: session, intent: .startRecording, stage: .accepted)
         #expect(!readback.isFinished)
         readback.stage = .outcomeUnknown
+        #expect(readback.isFinished)
+        readback.stage = .failed(.superseded)
         #expect(readback.isFinished)
         let acknowledged = CommandReceipt(
             operation: OperationID(), session: session, intent: .focusPoint(x: 0, y: 0),
@@ -185,6 +195,12 @@ import Testing
         let patient = Task { await camera.outcome(of: waited.operation) }
         await camera.advance(by: .seconds(3))
         #expect(await patient.value?.stage == .confirmed)
+
+        let pending = await camera.submit(.set(.iso(.manual(3200))))
+        #expect(await camera.receipt(of: pending.operation)?.stage == .awaitingObservation)
+        #expect(await camera.receipt(of: OperationID()) == nil)
+        await camera.advance(by: .seconds(3))
+        #expect(await camera.receipt(of: pending.operation)?.stage == .confirmed)
 
         let interrupted = await camera.submit(.set(.iso(.manual(400))))
         let closing = Task { await camera.outcome(of: interrupted.operation) }

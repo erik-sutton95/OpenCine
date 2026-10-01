@@ -11,7 +11,7 @@
   curve) are parameters. Existing test numbers are golden: never edit one to make a refactor pass.
 - Value types for descriptions, snapshots, settings, observations and results. Add a protocol
   only where implementations actually vary. No DI framework, no plugin registry.
-- Unknown is `nil` in an `Observation`, never `false`, `0` or `""`.
+- Unknown is `nil` in an `ObservedValue`, never `false`, `0` or `""`.
 - Grow the setting vocabulary only for a real adapter use case, with a test.
 - Conformance scenarios (`Tests/OpenCineCoreTests/ConformanceTests.swift`) run through one harness
   for every fixture family and must not branch on the family.

@@ -79,6 +79,12 @@ public enum class CommandFailure {
 
     /** The command never left the device. */
     NOT_SENT,
+
+    /**
+     * A newer write to the same setting replaced this one before its outcome was known. The
+     * camera may or may not have acted on it; the newer operation's receipt carries the outcome.
+     */
+    SUPERSEDED,
 }
 
 /**

@@ -178,6 +178,26 @@ import Testing
         #expect(await camera.current.value(of: .whiteBalance).value == .whiteBalance(.kelvin(5600)))
     }
 
+    @Test("6. A newer write to the same setting supersedes an unfinished one", arguments: Fixture.allCases)
+    func newerWriteSupersedes(_ fixture: Fixture) async throws {
+        let camera = await reportedCamera(fixture)
+        let before = await camera.current
+        let first = try #require(someChange(in: before))
+        let second = try #require(
+            before.capabilities[first.key]?.domain?.choices.first {
+                $0 != first && $0 != before.value(of: first.key).value
+            })
+        let older = await camera.submit(.set(first))
+        let newer = await camera.submit(.set(second))
+        #expect(older.stage == .awaitingObservation)
+        #expect(await camera.receipt(of: older.operation)?.stage == .failed(.superseded))
+
+        await camera.advance(by: .seconds(10))
+        #expect(await camera.outcome(of: older.operation)?.stage == .failed(.superseded))
+        #expect(await camera.outcome(of: newer.operation)?.stage == .confirmed)
+        #expect(await camera.current.value(of: first.key).value == second)
+    }
+
     @Test("6. A deadline bounds the wait without inventing state")
     func deadlineBoundsWait() async {
         let camera = await reportedCamera(.djiLike)

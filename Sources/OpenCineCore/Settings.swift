@@ -40,6 +40,9 @@ public enum SettingKey: String, Hashable, Codable, Sendable, CaseIterable {
     case aperture
     case exposureCompensation
     case whiteBalance
+    /// White balance tint, a separate setting because cameras expose it apart from the white
+    /// balance mode (plan 5.6). A camera without tint lists it as unsupported.
+    case whiteBalanceTint
     case frameRate
     case focusMode
     case zoom
@@ -88,6 +91,9 @@ public enum SettingValue: Hashable, Codable, Sendable {
     /// Stops, for example -1/3.
     case exposureCompensation(Rational)
     case whiteBalance(WhiteBalanceValue)
+    /// Green-magenta offset on the integration's own scale (its domain gives range and step).
+    /// Positive is toward magenta. Applies on top of the white balance mode, auto included.
+    case whiteBalanceTint(Double)
     /// Recording frame rate in frames per second, for example 24000/1001.
     case frameRate(Rational)
     case focusMode(FocusMode)
@@ -101,6 +107,7 @@ public enum SettingValue: Hashable, Codable, Sendable {
         case .aperture: .aperture
         case .exposureCompensation: .exposureCompensation
         case .whiteBalance: .whiteBalance
+        case .whiteBalanceTint: .whiteBalanceTint
         case .frameRate: .frameRate
         case .focusMode: .focusMode
         case .zoom: .zoom
@@ -113,6 +120,7 @@ public enum SettingValue: Hashable, Codable, Sendable {
         case .iso(.manual(let iso)): Double(iso)
         case .aperture(let fNumber): fNumber
         case .whiteBalance(.kelvin(let kelvin)): Double(kelvin)
+        case .whiteBalanceTint(let tint): tint
         case .zoom(let ratio): ratio
         default: nil
         }

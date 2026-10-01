@@ -12,7 +12,7 @@ import Foundation
 /// - `close` yields a final snapshot whose connection is `.disconnected`, then finishes every
 ///   stream. A stream requested after close yields that final snapshot and finishes.
 ///
-/// Operations (`submit`, `outcome(of:)`):
+/// Operations (`submit`, `outcome(of:)`, `receipt(of:)`):
 /// - `submit` applies `CameraSnapshot.rejection(of:at:)` plus integration rules and returns the
 ///   receipt at its current stage, which may already be finished.
 /// - Resubmitting an `OperationID` the session knows returns that receipt and never acts again.
@@ -21,6 +21,12 @@ import Foundation
 /// - `outcome(of:)` suspends until the receipt is finished and returns `nil` for an operation this
 ///   session never received. Cancelling the waiting task returns the current, possibly unfinished,
 ///   receipt at once; it never cancels or alters the operation.
+/// - `receipt(of:)` returns the receipt at its current stage without waiting for it to finish
+///   (`nil` for an operation this session never received). It has no default: a default `async`
+///   overload would shadow a main-actor adapter's synchronous accessor in async callers.
+/// - A write may finish as `.failed(.superseded)` when a newer write to the same setting replaces
+///   it before its outcome is known (for example a coalesced drum step). Integrations that never
+///   coalesce never report it.
 ///
 /// Close (`close(_:)`):
 /// - Idempotent; later calls do nothing.
@@ -33,6 +39,7 @@ public protocol CameraSession: Sendable {
     func snapshots() async -> AsyncStream<CameraSnapshot>
     func submit(_ command: CameraCommand) async -> CommandReceipt
     func outcome(of operation: OperationID) async -> CommandReceipt?
+    func receipt(of operation: OperationID) async -> CommandReceipt?
     func close(_ reason: SessionCloseReason) async
 }
 

@@ -236,6 +236,7 @@ public actor FakeCameraSession: CameraSession {
             return transition(operation, .rejected(rejection))
         }
         transition(operation, .admitted)
+        supersedeEarlierWrites(to: command.intent, by: operation)
         if alreadyReported(command.intent) { return transition(operation, .confirmed) }
 
         wire.append(wireCommand(command.intent))
@@ -269,6 +270,8 @@ public actor FakeCameraSession: CameraSession {
         }
     }
 
+    public func receipt(of operation: OperationID) -> CommandReceipt? { receipts[operation] }
+
     public func close(_ reason: SessionCloseReason) {
         if case .disconnected = current.connection { return }
         for (operation, receipt) in receipts where !receipt.isFinished {
@@ -298,6 +301,16 @@ public actor FakeCameraSession: CameraSession {
             }
         case .set, .focusPoint:
             return nil
+        }
+    }
+
+    /// Coalescing policy: an admitted write retires every unfinished write to the same setting.
+    /// The camera still acts on what it already received; only the newest receipt can confirm.
+    private func supersedeEarlierWrites(to intent: CameraCommandIntent, by newer: OperationID) {
+        guard case .set(let value) = intent else { return }
+        for (operation, receipt) in receipts
+        where operation != newer && !receipt.isFinished && receipt.intent.key == value.key {
+            if case .set = receipt.intent { transition(operation, .failed(.superseded)) }
         }
     }
 
@@ -362,26 +375,26 @@ public actor FakeCameraSession: CameraSession {
             ?? CaptureMode(
                 role: .other, id: "\(behavior.integration.rawValue).raw.\(raw)",
                 title: "Mode \(raw)")
-        current.mode = Observation(mode, origin: .cameraReported, at: now)
+        current.mode = ObservedValue(mode, origin: .cameraReported, at: now)
         refreshCapabilities()
         current.settings = [:]
         for (key, value) in device.settings where current.capabilities[key] != nil {
-            current.settings[key] = Observation(value, origin: .cameraReported, at: now)
+            current.settings[key] = ObservedValue(value, origin: .cameraReported, at: now)
         }
         if let recording = device.recording {
-            current.recording = Observation(
+            current.recording = ObservedValue(
                 recording ? .recording : .idle, origin: .cameraReported, at: now)
         }
         if let percent = device.batteryPercent {
-            current.power.battery = Observation(
+            current.power.battery = ObservedValue(
                 Double(percent) / 100, origin: .cameraReported, at: now,
                 precision: .quantized(step: 0.01))
         }
         if let free = device.freeBytes {
             let volume = StorageVolume(
-                id: "card", media: Observation(.ready, origin: .cameraReported, at: now),
-                freeBytes: Observation(free, origin: .cameraReported, at: now))
-            current.storage = Observation([volume], origin: .cameraReported, at: now)
+                id: "card", media: ObservedValue(.ready, origin: .cameraReported, at: now),
+                freeBytes: ObservedValue(free, origin: .cameraReported, at: now))
+            current.storage = ObservedValue([volume], origin: .cameraReported, at: now)
         }
         publish()
     }

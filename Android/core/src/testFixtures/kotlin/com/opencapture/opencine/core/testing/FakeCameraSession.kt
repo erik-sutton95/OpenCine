@@ -20,7 +20,7 @@ import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MediaState
 import com.opencapture.opencine.core.MonotonicInstant
-import com.opencapture.opencine.core.Observation
+import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin.CAMERA_REPORTED
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
@@ -248,6 +248,7 @@ public class FakeCameraSession(
         val rejection = current.rejection(command, now) ?: integrationRejection(command.intent)
         if (rejection != null) return transition(operation, CommandStage.Rejected(rejection))
         transition(operation, CommandStage.Admitted)
+        supersedeEarlierWrites(command.intent, operation)
         if (alreadyReported(command.intent)) return transition(operation, CommandStage.Confirmed)
 
         sent += wireCommand(command.intent)
@@ -274,7 +275,12 @@ public class FakeCameraSession(
         return waiters.getOrPut(operation) { CompletableDeferred() }.await()
     }
 
-    override suspend fun close(reason: SessionCloseReason) {
+    override fun receipt(operation: OperationID): CommandReceipt? = receipts[operation]
+
+    override suspend fun close(reason: SessionCloseReason): Unit = closeNow(reason)
+
+    /** Closing does not suspend here, so the non-suspending form closes at once. */
+    override fun closeNow(reason: SessionCloseReason) {
         if (current.connection is ConnectionState.Disconnected) return
         for ((operation, receipt) in receipts.filterValues { !it.isFinished }) {
             val stage = when (receipt.stage) {
@@ -304,6 +310,19 @@ public class FakeCameraSession(
                 }
             is CameraCommandIntent.Set, is CameraCommandIntent.FocusPoint -> null
         }
+    }
+
+    /**
+     * Coalescing policy: an admitted write retires every unfinished write to the same setting.
+     * The camera still acts on what it already received; only the newest receipt can confirm.
+     */
+    private fun supersedeEarlierWrites(intent: CameraCommandIntent, newer: OperationID) {
+        if (intent !is CameraCommandIntent.Set) return
+        val earlier = receipts.filter { (operation, receipt) ->
+            operation != newer && !receipt.isFinished && receipt.intent is CameraCommandIntent.Set &&
+                receipt.intent.key == intent.key
+        }
+        for (operation in earlier.keys) transition(operation, CommandStage.Failed(CommandFailure.SUPERSEDED))
     }
 
     /**
@@ -363,28 +382,28 @@ public class FakeCameraSession(
         val raw = device.rawMode
         val mode = behavior.modes[raw]?.mode
             ?: CaptureMode(CaptureMode.Role.OTHER, "${behavior.integration.rawValue}.raw.$raw", "Mode $raw")
-        current = current.copy(mode = Observation(mode, CAMERA_REPORTED, now))
+        current = current.copy(mode = ObservedValue(mode, CAMERA_REPORTED, now))
         refreshCapabilities()
         var snapshot = current.copy(
             settings = device.settings
                 .filterKeys { current.capabilities[it] != null }
-                .mapValues { Observation(it.value, CAMERA_REPORTED, now) },
+                .mapValues { ObservedValue(it.value, CAMERA_REPORTED, now) },
         )
         device.recording?.let {
             val reported = if (it) RecordingState.RECORDING else RecordingState.IDLE
-            snapshot = snapshot.copy(recording = Observation(reported, CAMERA_REPORTED, now))
+            snapshot = snapshot.copy(recording = ObservedValue(reported, CAMERA_REPORTED, now))
         }
         device.batteryPercent?.let {
-            val battery = Observation(it / 100.0, CAMERA_REPORTED, now, precision = ObservationPrecision.Quantized(0.01))
+            val battery = ObservedValue(it / 100.0, CAMERA_REPORTED, now, precision = ObservationPrecision.Quantized(0.01))
             snapshot = snapshot.copy(power = snapshot.power.copy(battery = battery))
         }
         device.freeBytes?.let {
             val volume = StorageVolume(
                 "card",
-                media = Observation(MediaState.READY, CAMERA_REPORTED, now),
-                freeBytes = Observation(it, CAMERA_REPORTED, now),
+                media = ObservedValue(MediaState.READY, CAMERA_REPORTED, now),
+                freeBytes = ObservedValue(it, CAMERA_REPORTED, now),
             )
-            snapshot = snapshot.copy(storage = Observation(listOf(volume), CAMERA_REPORTED, now))
+            snapshot = snapshot.copy(storage = ObservedValue(listOf(volume), CAMERA_REPORTED, now))
         }
         current = snapshot
         publish()

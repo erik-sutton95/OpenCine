@@ -58,7 +58,7 @@ class ConformanceTest {
         val collector = launch(start = CoroutineStart.UNDISPATCHED) { a.snapshots.collect { seen += it } }
 
         a.close(SessionCloseReason.REQUESTED)
-        a.close(SessionCloseReason.REQUESTED)
+        a.closeNow(SessionCloseReason.REQUESTED)
         yield()
         collector.cancelAndJoin()
 
@@ -100,10 +100,10 @@ class ConformanceTest {
     fun `03 unknown recording, power and storage remain unknown`() = forEachFixture { fixture ->
         val camera = fixture.make()
         val fresh = camera.current
-        assertEquals(Observation.unknown, fresh.recording)
+        assertEquals(ObservedValue.unknown, fresh.recording)
         assertEquals(PowerStatus.unknown, fresh.power)
-        assertEquals(Observation.unknown, fresh.storage)
-        assertEquals(Observation.unknown, fresh.mode)
+        assertEquals(ObservedValue.unknown, fresh.storage)
+        assertEquals(ObservedValue.unknown, fresh.mode)
         assertTrue(fresh.settings.isEmpty())
         assertTrue(SettingKey.entries.all { fresh.capabilities.support(it) == SupportStatus.UNKNOWN })
         assertEquals(Rejected(CommandRejection.SupportUnknown), camera.submit(StartRecording).stage)
@@ -111,8 +111,8 @@ class ConformanceTest {
         camera.cameraReportsStatus()
         val reported = camera.current
         val device = camera.device
-        assertEquals(Observation.unknown, reported.power.charging)
-        assertEquals(Observation.unknown, reported.power.externalPower)
+        assertEquals(ObservedValue.unknown, reported.power.charging)
+        assertEquals(ObservedValue.unknown, reported.power.externalPower)
         assertEquals(device.batteryPercent != null, reported.power.battery.isKnown)
         assertEquals(device.freeBytes != null, reported.storage.isKnown)
         assertEquals(CAMERA_REPORTED, reported.recording.origin)
@@ -136,7 +136,7 @@ class ConformanceTest {
         val photo = camera.current
         assertEquals(CaptureMode.Role.PHOTO, photo.mode.value?.role)
         assertEquals(SupportStatus.UNSUPPORTED, photo.capabilities.support(FRAME_RATE))
-        assertEquals(Observation.unknown, photo.value(FRAME_RATE))
+        assertEquals(ObservedValue.unknown, photo.value(FRAME_RATE))
         assertEquals(
             Rejected(CommandRejection.Unavailable(UnavailableReason.Mode)),
             camera.submit(StartRecording).stage,
@@ -222,6 +222,27 @@ class ConformanceTest {
         camera.advance(3.seconds)
         assertEquals(Failed(CommandFailure.NOT_APPLIED), camera.outcome(dropped.operation)?.stage)
         assertEquals(kelvin(5600), camera.current.value(WHITE_BALANCE).value)
+    }
+
+    @Test
+    fun `06 a newer write to the same setting supersedes an unfinished one`() = forEachFixture { fixture ->
+        val camera = reportedCamera(fixture)
+        val before = camera.current
+        val first = assertNotNull(someChange(before))
+        val second = assertNotNull(
+            before.capabilities[first.key]?.domain?.choices?.firstOrNull {
+                it != first && it != before.value(first.key).value
+            },
+        )
+        val older = camera.submit(Set(first))
+        val newer = camera.submit(Set(second))
+        assertEquals(AwaitingObservation, older.stage)
+        assertEquals(Failed(CommandFailure.SUPERSEDED), camera.receipt(older.operation)?.stage)
+
+        camera.advance(10.seconds)
+        assertEquals(Failed(CommandFailure.SUPERSEDED), camera.outcome(older.operation)?.stage)
+        assertEquals(Confirmed, camera.outcome(newer.operation)?.stage)
+        assertEquals(second, camera.current.value(first.key).value)
     }
 
     @Test
@@ -396,7 +417,7 @@ class ConformanceTest {
         val camera = FakeCameraSession(template.behavior, template.device.copy(recording = null))
         camera.cameraReportsStatus()
         camera.setLiveViewReady(true)
-        assertEquals(Observation.unknown, camera.current.recording)
+        assertEquals(ObservedValue.unknown, camera.current.recording)
 
         val receipt = camera.submit(StartRecording)
         when (camera.behavior.recordWire) {

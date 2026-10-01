@@ -25,9 +25,18 @@ import kotlinx.coroutines.flow.StateFlow
  * - [outcome] suspends until the receipt is finished and returns `null` for an operation this
  *   session never received. Cancelling the waiting coroutine cancels only the wait; it never
  *   cancels or alters the operation.
+ * - [receipt] returns the receipt at its current stage without suspending or waiting for it to
+ *   finish (`null` for an operation this session never received). Call it from the session's
+ *   owner (a confined session); a `Mutex`-guarded session keeps receipts readable without the
+ *   lock.
+ * - A write may finish as `Failed(SUPERSEDED)` when a newer write to the same setting replaces it
+ *   before its outcome is known (for example a coalesced drum step). Integrations that never
+ *   coalesce never report it.
  *
- * Close ([close]):
- * - Idempotent; later calls do nothing.
+ * Close ([close], [closeNow]):
+ * - Idempotent; later calls do nothing. [closeNow] is the non-suspending form for callers that
+ *   cannot suspend (Compose `onDispose`): it schedules the same close on the session's own scope
+ *   and returns without waiting.
  * - Sent but unfinished operations become [CommandStage.OutcomeUnknown]; admitted but unsent ones
  *   become `Failed(NOT_SENT)`. Waiters resume.
  * - Closing never sends camera commands. In particular it never stops a recording.
@@ -42,5 +51,9 @@ public interface CameraSession {
 
     public suspend fun outcome(operation: OperationID): CommandReceipt?
 
+    public fun receipt(operation: OperationID): CommandReceipt?
+
     public suspend fun close(reason: SessionCloseReason)
+
+    public fun closeNow(reason: SessionCloseReason)
 }

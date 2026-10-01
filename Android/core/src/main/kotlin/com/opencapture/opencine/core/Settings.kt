@@ -46,6 +46,12 @@ public enum class SettingKey {
     APERTURE,
     EXPOSURE_COMPENSATION,
     WHITE_BALANCE,
+
+    /**
+     * White balance tint, a separate setting because cameras expose it apart from the white
+     * balance mode (plan 5.6). A camera without tint lists it as unsupported.
+     */
+    WHITE_BALANCE_TINT,
     FRAME_RATE,
     FOCUS_MODE,
     ZOOM,
@@ -104,6 +110,12 @@ public sealed interface SettingValue {
 
     public data class WhiteBalance(public val value: WhiteBalanceValue) : SettingValue
 
+    /**
+     * Green-magenta offset on the integration's own scale (its domain gives range and step).
+     * Positive is toward magenta. Applies on top of the white balance mode, auto included.
+     */
+    public data class WhiteBalanceTint(public val tint: Double) : SettingValue
+
     /** Recording frame rate in frames per second, for example 24000/1001. */
     public data class FrameRate(public val fps: Rational) : SettingValue
 
@@ -119,6 +131,7 @@ public sealed interface SettingValue {
             is Aperture -> SettingKey.APERTURE
             is ExposureCompensation -> SettingKey.EXPOSURE_COMPENSATION
             is WhiteBalance -> SettingKey.WHITE_BALANCE
+            is WhiteBalanceTint -> SettingKey.WHITE_BALANCE_TINT
             is FrameRate -> SettingKey.FRAME_RATE
             is FocusMode -> SettingKey.FOCUS_MODE
             is Zoom -> SettingKey.ZOOM
@@ -130,6 +143,7 @@ public sealed interface SettingValue {
             is Iso -> (value as? ISOValue.Manual)?.iso?.toDouble()
             is Aperture -> fNumber
             is WhiteBalance -> (value as? WhiteBalanceValue.Kelvin)?.kelvin?.toDouble()
+            is WhiteBalanceTint -> tint
             is Zoom -> ratio
             else -> null
         }

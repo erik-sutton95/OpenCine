@@ -44,7 +44,8 @@ interface changes driven by the first real adapter slices (CORE-02).
 
 ## Model in one screen
 
-- **Unknown is `nil`.** Every telemetry field is an `Observation` whose `value == nil` means
+- **Unknown is `nil`.** Every telemetry field is an `ObservedValue` (named so it never shadows
+  Swift's Observation module, so `@Observable` files can import OpenCineCore) whose `value == nil` means
   unknown, never `false`, `0` or `""`. Observations carry origin (camera-reported,
   protocol-derived, image-estimated, clock-derived, operator-provided, unknown), timestamp,
   validity and optional precision. Freshness is computed against a caller-supplied `now`.
@@ -53,12 +54,14 @@ interface changes driven by the first real adapter slices (CORE-02).
   acknowledgement only, qualification). Any change advances `CapabilityRevision`.
 - **Settings use a reviewed sum type** (`SettingValue`) whose case implies its key: ISO ladder or
   bounded auto, shutter as native duration or native angle, aperture, exposure compensation,
-  white balance, rational frame rate, focus mode, zoom. `recording` and `focusPoint` are
+  white balance, white balance tint (its own key, so a camera without tint lists it unsupported),
+  rational frame rate, focus mode, zoom. `recording` and `focusPoint` are
   command-only controls.
 - **Reported state is separate from requested state.** `RecordingState` is camera-reported only.
   Command progress lives in `CommandReceipt`, tracked by `OperationID`:
   `created > admitted > sent > accepted > awaitingObservation > confirmed`, or `rejected`,
-  `failed`, `timedOut`, `outcomeUnknown`.
+  `failed` (`notApplied`, `notSent`, or `superseded` by a newer write to the same setting),
+  `timedOut`, `outcomeUnknown`. `receipt(of:)` reads the current stage without waiting.
 - **Recording uses explicit start and stop.** UI toggles resolve against a fresh snapshot first.
 - **Admission is shared.** `CameraSnapshot.rejection(of:at:)` checks session, connection, control
   epoch, deadline, authority and lease, capability revision, support, access, availability and
@@ -117,8 +120,8 @@ Same names and semantics, in Kotlin idiom. Where they differ:
   `Counter<Kind>`). Counters hold a `Long` (Swift `UInt64`).
 - Cases without payload are `enum class` with `UPPER_SNAKE` constants; cases with payload are a
   `sealed interface` of `data object` and `data class`. Struct mutation is `copy(...)`.
-- `Observation` is covariant: `Observation.unknown` is an `Observation<Nothing>` assignable to any
-  `Observation<T>`, and its private constructor keeps a null value exclusive to it. Durations are
+- `ObservedValue` is covariant: `ObservedValue.unknown` is an `ObservedValue<Nothing>` assignable to any
+  `ObservedValue<T>`, and its private constructor keeps a null value exclusive to it. Durations are
   `kotlin.time.Duration`; `MonotonicInstant.zero` is `MonotonicInstant.ZERO`.
 - The feed is `val snapshots: StateFlow<CameraSnapshot>` (Swift `snapshots()` returning a
   `.bufferingNewest(1)` stream). Same latest-value conflation; `.value` replaces
@@ -126,6 +129,10 @@ Same names and semantics, in Kotlin idiom. Where they differ:
   snapshot in place instead of finishing streams; collectors end with their coroutine scope.
 - Cancelling an `outcome(operation)` wait throws `CancellationException` in the waiter instead of
   returning the unfinished receipt. As in Swift, the operation itself is never affected.
+  `receipt(operation)` (required on both, no default) does not suspend (Swift: `async`, because
+  sessions are actors), so a confined owner or Compose reads it directly.
+- `closeNow(reason)` is a Kotlin-only, non-suspending form of `close` for callers that cannot
+  suspend (Compose `onDispose`). It schedules the same idempotent close on the session's scope.
 - `MonitorEntryDescriptor.validate()` (typed throws) is `validationError(): MonitorEntryError?`.
   `rejection(of:at:)`, `support(of:)` and `value(of:)` are `rejection(command, now)`,
   `support(key)` and `value(key)`.
@@ -143,7 +150,7 @@ Kotlin together.
 
 | Swift (`Tests/OpenCineCoreTests`) | Kotlin (`Android/core/src/test`) |
 |---|---|
-| `Conformance` "1." to "15." (19 tests, 11, 12 and 15 disabled) | `ConformanceTest` `01` to `15`, same titles (11, 12 and 15 `@Ignore`) |
+| `Conformance` "1." to "15." (20 tests, 11, 12 and 15 disabled) | `ConformanceTest` `01` to `15`, same titles (11, 12 and 15 `@Ignore`) |
 | `Values` (6 tests) | `ValuesTest`, same method names |
 | `Entries.everyEntryNeedsARole` | `EntriesTest.everyEntryNeedsARole` |
 | `LayoutProjection.projectsWritableSectionsAndCarriesTheRest` | `LayoutProjectionTest`, same name |
