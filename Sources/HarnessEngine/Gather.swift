@@ -7,7 +7,7 @@ extension MulticamSnapshot {
     /// `now` for all of them.
     ///
     /// `now` must be on the same monotonic reference as every session's own clock. Today the
-    /// three integrations use three references (see docs/FINDINGS.md, F1), so a cross-brand app
+    /// three integrations use three references (see README.md, Seam findings, F1), so a cross-brand app
     /// cannot satisfy this yet.
     public static func gather(
         _ sessions: [any CameraSession], pictures: [StreamID: PictureHealth] = [:],

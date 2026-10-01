@@ -63,7 +63,7 @@ public struct IntegrationFactory: Hashable, Sendable {
 ///
 /// Main-actor isolated only because `DJICameraSessionAdapter.integration` and
 /// `NikonCameraSession.integration` are (their classes are `@MainActor`; Luna's is `nonisolated`).
-/// See docs/FINDINGS.md, F5.
+/// See README.md, Seam findings, F5.
 @MainActor
 public enum Composition {
     public static let factories: [IntegrationFactory] = [dji, nikon, luna, hdmiCapture]

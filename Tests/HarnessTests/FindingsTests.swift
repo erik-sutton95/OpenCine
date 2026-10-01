@@ -4,7 +4,7 @@ import OpenCineCore
 import OpenCineMulticam
 import Testing
 
-/// SIMULATED. Seam defects the harness found (docs/FINDINGS.md). Each test asserts the correct
+/// SIMULATED. Seam defects the harness found (README.md, Seam findings). Each test asserts the correct
 /// cross-brand behavior inside `withKnownIssue`, so it passes today, documents the defect, and
 /// fails as soon as the defect is fixed (then drop the wrapper).
 @MainActor

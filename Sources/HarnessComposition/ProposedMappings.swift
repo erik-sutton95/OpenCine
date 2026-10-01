@@ -7,7 +7,7 @@ import OpenCineNikon
 
 /// Integration-side translations the common sessions do not publish yet: audio meters, shutter
 /// angle and camera clock. They live here so the harness can show what each should carry; each is a
-/// proposed adapter addition (docs/FINDINGS.md), not package behavior. Shared code never calls
+/// proposed adapter addition (README.md, Seam findings), not package behavior. Shared code never calls
 /// them by brand; it only reads the `ObservedValue` they return.
 public enum ProposedMappings {
     // MARK: Audio (F3)
