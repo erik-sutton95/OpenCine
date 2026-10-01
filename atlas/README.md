@@ -37,6 +37,8 @@ dependencies.
 - Contracts and decisions: [docs/CONTRACTS.md](docs/CONTRACTS.md), [docs/architecture/](docs/architecture/).
 - Frozen baseline and donors: [docs/baseline/BASE-01.md](docs/baseline/BASE-01.md).
 - Publishing this and the new repos: [docs/PUBLISH.md](docs/PUBLISH.md).
+- Consumer revision sets for package candidates: [compat/candidates.json](compat/candidates.json).
+- Navigation evaluation cases: [evals/navigation/](evals/navigation/).
 
 ## Tool
 
