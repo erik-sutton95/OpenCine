@@ -54,6 +54,14 @@ interface changes driven by the first real adapter slices (CORE-02).
   fields stay optional so older peers keep decoding; unknown keys are ignored.
 - Sharing the package shares no credentials: each app keeps its own keychain namespace for the
   relay passcode.
+- OpenZCine keeps its own `MonitorRelayProtocol` (version 2, `_openzcine-mon._tcp`, JPEG or
+  HEVC frames, per-frame focus/box/sound metadata, a TCP presence beacon on port 15741, Android
+  and watch peers). Its framing bytes and kind numbers match version 1 here, and its 20 s parked
+  lease has the same rule, but every JSON body differs, so one product cannot serve both without
+  breaking a shipped peer. Unifying needs: a shared framing and lease layer parameterised by the
+  kind set and size limit, per-family message codecs behind it, a new joint version that both
+  hosts can offer alongside their current one, and golden tests for both existing wires before
+  anything moves.
 
 ## Import rules
 
