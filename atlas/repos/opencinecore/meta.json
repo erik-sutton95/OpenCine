@@ -33,9 +33,10 @@
       "manifest": "Package.swift"
     },
     {
-      "name": "core (com.opencapture.opencine:core)",
-      "kind": "gradle-library",
-      "manifest": "Android/settings.gradle.kts"
+      "name": ":core",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:core"
     }
   ],
   "instructions": [
