@@ -12,4 +12,16 @@ class MonitorMaterialTest {
         assertEquals(1f, MonitorMaterial.Scope.fallbackFill().alpha)
         assertEquals(6f / 255f, MonitorMaterial.Scope.fallbackFill().red, 0.001f)
     }
+
+    @Test fun iosParityLiftsUnsampledPlatesToTheCompositorTone() {
+        MonitorIosParity.enabled = true
+        try {
+            assertEquals(Color(0xFF1F2021), MonitorMaterial.Compact.fallbackFill())
+            assertEquals(Color(0xFF1F2021), MonitorMaterial.Record.fallbackFill())
+            assertEquals(Color(0xFF1F2021), MonitorMaterial.Expanded.fallbackFill())
+            assertEquals(6f / 255f, MonitorMaterial.Scope.fallbackFill().red, 0.001f)
+        } finally {
+            MonitorIosParity.enabled = false
+        }
+    }
 }

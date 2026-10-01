@@ -51,6 +51,17 @@ object MonitorPalette {
     val digitalCrop = Color(0xFFF0B23C)
 }
 
+/**
+ * Android fixes that already match the shared iOS MonitorUI but change current Pocket and Insta
+ * Android rendering: compositor-tone unsampled glass, iOS media tags, uppercased page kickers, and
+ * the pairing rail back button with a centred portrait footer. Off by default so those apps render
+ * exactly as before. OpenZCine turns it on at its root, like [MonitorPalette.accent]. Flip the
+ * default and delete this switch once Pocket and Insta accept the iOS look.
+ */
+object MonitorIosParity {
+    var enabled = false
+}
+
 /** Single-layer stand-in for callers that only have a TextStyle. Radii are points. */
 fun TextStyle.monitorReadoutGlow(density: Density): TextStyle = copy(
     shadow = Shadow(

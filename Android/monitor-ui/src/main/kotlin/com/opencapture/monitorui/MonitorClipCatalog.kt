@@ -37,11 +37,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Immutable
 data class MonitorClipValue(val id: String, val title: String, val detail: String,
     val duration: String?, val source: String, val favorite: Boolean,
-    val progress: Float? = null)
+    val progress: Float? = null,
+    /** iOS `stateTag` tint (green for a file already on the phone); used with [MonitorIosParity]. */
+    val sourceTint: Color = MonitorPalette.muted)
 
 /** Grid and list share one presentation value and one thumbnail-loader slot. */
 @Composable
@@ -109,8 +112,15 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
                     MonitorClipFavorite(clip.favorite, favoriteAction)
                 }
             }
-            ClipBadge(clip.source, Modifier.align(Alignment.BottomStart).padding(6.dp))
-            clip.duration?.let { ClipBadge(it, Modifier.align(Alignment.BottomEnd).padding(6.dp)) }
+            if (MonitorIosParity.enabled) {
+                IosClipTag(clip.source, clip.sourceTint, state = true, Modifier.align(Alignment.BottomStart).padding(6.dp))
+                clip.duration?.takeIf(String::isNotEmpty)?.let {
+                    IosClipTag(it, MonitorPalette.text, state = false, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+                }
+            } else {
+                ClipBadge(clip.source, Modifier.align(Alignment.BottomStart).padding(6.dp))
+                clip.duration?.let { ClipBadge(it, Modifier.align(Alignment.BottomEnd).padding(6.dp)) }
+            }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(clip.title, style = MonitorTypography.text(10.5f, FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -144,6 +154,16 @@ fun MonitorClipSelection(selected: Boolean, onClick: (() -> Unit)? = null) {
 private fun ClipBadge(text: String, modifier: Modifier = Modifier) {
     Text(text, modifier.background(Color.Black.copy(alpha = .55f), RoundedCornerShape(5.dp)).padding(5.dp, 3.dp),
         color = MonitorPalette.text, style = MonitorTypography.text(7.5f, FontWeight.SemiBold), maxLines = 1)
+}
+
+/** iOS `stateTag` (8pt bold, 0.4 tracking) and `durationTag` (9.5pt semibold digits). */
+@Composable
+private fun IosClipTag(text: String, tint: Color, state: Boolean, modifier: Modifier = Modifier) {
+    Text(text, modifier.background(Color.Black.copy(alpha = .66f), RoundedCornerShape(4.dp)).padding(5.dp, 3.dp),
+        color = tint,
+        style = if (state) MonitorTypography.text(8f, FontWeight.Bold).copy(letterSpacing = 0.4.sp)
+            else MonitorTypography.readout(9.5f, FontWeight.SemiBold),
+        maxLines = 1)
 }
 
 /** Mockup: 3+32+2+32+3 and 3+28×3+2×2+3 capsules, 6 dp apart. */
