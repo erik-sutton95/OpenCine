@@ -35,6 +35,11 @@ public enum ExclusionReason: Hashable, Sendable {
 public struct Exclusion: Hashable, Sendable {
     public var entry: MonitorEntryID
     public var reason: ExclusionReason
+
+    public init(entry: MonitorEntryID, reason: ExclusionReason) {
+        self.entry = entry
+        self.reason = reason
+    }
 }
 
 /// What one target's admission rested on. Routine telemetry (battery, storage, setting values,
@@ -139,9 +144,12 @@ public struct RecordPlan: Hashable, Sendable {
             default: targets.append(target)
             }
         }
+        // Requested order for display, whichever pass excluded the entry.
+        let position = Dictionary(requested.enumerated().map { ($1, $0) }) { first, _ in first }
         return RecordPlan(
             direction: direction, policy: policy, requested: requested, targets: targets,
-            satisfied: satisfied, exclusions: exclusions)
+            satisfied: satisfied,
+            exclusions: exclusions.sorted { position[$0.entry]! < position[$1.entry]! })
     }
 
     /// Whether the plan the operator approved still describes the cameras now: same members,
