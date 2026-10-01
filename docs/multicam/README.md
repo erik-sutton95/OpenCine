@@ -6,9 +6,10 @@ honest, coordinates editor leases, resource admission and recovery budgets, and 
 persisted layout. It works on [OpenCineCore](../OpenCineCore) values and the `CameraSession`
 seam, so it never knows which manufacturer is behind an entry.
 
-Status: pre-release. No app depends on it yet; app adoption is MULTI-02. Tested only against
-OpenCineCore fakes, so nothing here is hardware-qualified, and production multicam stays in the
-apps until an adapter replaces it per app.
+Status: pre-release. OpenPocketCine's local `opencine/multi-02` branch (iOS and Android
+Multiview) depends on it; Nikon's multicam is on an unmerged branch and not adapted yet. Tested
+against OpenCineCore fakes and Pocket's tile adapters in app tests only, so nothing here is
+hardware-qualified.
 
 ## Import rules
 
@@ -64,12 +65,12 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
 
 ## How apps adapt (MULTI-02)
 
-- Pocket: `MultiviewSession` tiles become `MonitorEntryDescriptor`s with their tile UUIDs as
-  entry IDs; `MultiviewRecordContext` becomes `RecordPlan.isCurrent`; `toggleAllRecording`
-  resolves the operator's toggle to a direction from a fresh snapshot and submits the plan;
-  the controls-only editor admission becomes an `EditorLease`; `MultiviewRecovery` keeps its
-  transport ladder and reports attempts to `RecoveryLedger`; station provisioning cleanup stays
-  in the integration.
+- Pocket (done, MULTI-02): each tile owns one `DJICameraSessionAdapter` over a record-only tile
+  port on its existing link and is an entry keyed by its tile UUID; the record confirmation holds
+  a strict `RecordPlan` and submits it; the controls-only editor keeps its borrowed session but
+  asks `EditorLeases.refusal(for:in:at:)` before every SET. Not adopted yet: `RecoveryLedger`
+  (the tile repair ladder keeps its own budget), `ResourceAdmission` (station provisioning and
+  the four-tile limit stay in the app), `GroupSummary`.
 - Nikon: `MulticamCoordinator` members become entries; `GroupRecordPlan`/`GroupRecordResult`
   map to `RecordPlan`/`RecordResult` with `.eligibleSubset`; `MulticamEligibilityPolicy` becomes
   resource claims plus a `ResourceBudget(qualifiedEntries: 4)`; the borrowed Live View session
