@@ -4,11 +4,34 @@
   "display_name": "OpenCineCore",
   "status": "candidate",
   "layer": "core",
-  "repository": {"url": null, "default_branch": "main"},
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
   "local_dir": "OpenCineCore",
-  "refs": [],
-  "products": [],
-  "instructions": [],
+  "refs": [
+    {
+      "name": "main",
+      "commit": "3785fb2d91351e6fe586bc05100a8652b84180db",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "OpenCineCore",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineCoreTestSupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
   "edges": [],
   "summary_review": null
 }
