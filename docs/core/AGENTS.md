@@ -17,6 +17,10 @@
   dependency (SwiftPM would resolve it for every Core consumer), no global mutable state, and no
   app credential namespace, keychain, defaults or bundle lookup; a test enforces it. Transport,
   token storage, clock and pause are injected; tests never touch the network or sleep.
+- `Sources/OpenCineApple` holds the OS media frameworks (VideoToolbox, AVFoundation, CoreMedia,
+  CoreVideo) behind `#if canImport`/`#if os` gates; nothing lower imports it, and it names no
+  manufacturer (a test enforces all three). Presentation policy and vendor predicates stay with
+  the owner and arrive as hooks.
 - Value types for descriptions, snapshots, settings, observations and results. Add a protocol
   only where implementations actually vary. No DI framework, no plugin registry.
 - Unknown is `nil` in an `ObservedValue`, never `false`, `0` or `""`.

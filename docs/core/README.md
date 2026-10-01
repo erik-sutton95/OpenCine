@@ -19,6 +19,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineFrameIO` | Optional Frame.io delivery: v4 request planning (`FrameioAPI`), OAuth PKCE primitives and IMS token requests (`FrameioOAuth`, `PKCE`), response models, the upload workflow with injected transport, token storage, clock and pause (`FrameioClient`), batch results with history and cleanup reporting (`FrameioDelivery`, `FrameioDeliveryReport`), and an Apple `URLSession` transport. Foundation only (CryptoKit on Apple platforms). See [OpenCineFrameIO](#opencineframeio). | Apps that deliver to Frame.io; Android JNI facades |
 | `OpenCineMotion` | Optional. The typed motion seam: `MotionCapabilities` (supported axes, reference frame, `MotionBounds` position bounds, optional rate bound, feedback max age, arrival tolerance), `MotionTarget` (made only inside the declared bounds) and feedback validity over `ObservedValue<GimbalWaypoint>`. Shared trajectory math: `GimbalWaypoint`, `GimbalProgram`, `GimbalProgramCurve`, `GimbalPath`, head-look math (`HeadTrack`) and bounded head tracking (`HeadTrackNative`). Foundation plus OpenCineCore; Core and Media never depend on it. | Gimbal integrations and app cores |
 | `OpenCineRelay` | Optional. The second-screen relay wire, protocol version 1: Bonjour service type, `[u32be length][u8 kind][payload]` framing, JSON messages (hello, state, control token, join denied, commands), the frame blob, exact version check in `WatcherRelayJoin`, the single-holder control lease (`WatcherRelayControlLease`, 20 s park for a dropped watcher), bitrate ladder, encode admission, watcher recovery and focus-point mapping. Golden wire tests pin every message kind. Foundation only; sockets, Bonjour, encoders and keychain stay in the apps. | App cores that host or watch a relay |
+| `OpenCineApple` | The Apple runtime (plan 3.2, MEDIA-02). `DecodedFrameLease` (stream, generation, format, timestamp and an explicitly released `CVPixelBuffer`) and `DecodedFrameFence` (the stream's current generation; publication refuses and releases a stale lease). `VideoToolboxDecoder`: the retained `AVSampleBufferDisplayLayer`, H.26x format descriptions from parameter sets, the `VTDecompressionSession` creation ladder, live sample buffers (`LiveViewPresentTiming`), generation-fenced decode into leases and the decode-error ledger, with integration hooks (rebuild-class statuses, journal, log subsystem). `UVCVideoSource`: an iPadOS HDMI/UVC capture source that lends each frame as a lease. Depends on OpenCineCore and OpenCineMedia; every file is gated with `#if canImport`/`#if os`. | iOS apps and Apple integrations |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 
@@ -76,6 +77,22 @@ interface changes driven by the first real adapter slices (CORE-02).
   kind set and size limit, per-family message codecs behind it, a new joint version that both
   hosts can offer alongside their current one, and golden tests for both existing wires before
   anything moves.
+
+## OpenCineApple rules
+
+- OS media frameworks (VideoToolbox, AVFoundation, CoreMedia, CoreVideo, UIKit for the UVC
+  hardware check) live here and nowhere lower: no other Core product imports them or this
+  product, and every file is gated so the package still resolves and builds off Apple platforms.
+  A test enforces both, plus no manufacturer names.
+- Codec runtime, not presentation policy. Which path shows the picture (compressed layer or
+  decoded buffers), assists, random-access holds and recovery requests stay with the app or
+  integration that owns the picture; vendor-measured predicates and logging arrive as `Hooks`.
+- The display layer lives as long as its decoder. Reparenting a host view never recreates the
+  session or advances the generation; only `invalidateSession()` (reset, rebuild, reconnect)
+  does, and it fences every in-flight output first.
+- A lease is lent, not given: consumers take their own `pixelBuffer` reference to keep pixels past
+  the callback. A refused or superseded lease is released at once.
+- Operator copy (for example the UVC state messages) stays in the app.
 
 ## Import rules
 
