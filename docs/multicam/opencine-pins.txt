@@ -1,0 +1,5 @@
+# Exact revisions of shared OpenCine packages this package builds against.
+# CI checks out these commits as siblings (scripts/checkout-opencine.sh) and verifies the SHA,
+# so a moved branch upstream cannot change what is tested.
+# Temporary: replaced by a SwiftPM url + exact version once OpenCineCore is published.
+OpenCineCore 8c2415c1df22cc599d32b48d1221c3a57af71030
