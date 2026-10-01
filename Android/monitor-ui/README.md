@@ -10,6 +10,15 @@ OpenInstaCine's `MonitorTheme.kt` (settable `MonitorPalette.accent`, default
 Pocket blue `0xFF00A3E0`). A brand shell assigns `accent` once before building
 any view.
 
+OpenZCine's engine-port copy (ef38a264) added `MonitorCardColumns` (port of iOS
+`MonitorCardColumns`) and four Android fixes that match the shared iOS look:
+compositor-tone unsampled glass, iOS media tags (`MonitorClipValue.sourceTint`),
+uppercased page kickers, and the pairing rail back button with a centred portrait
+footer. Those four change current Pocket/Insta Android rendering, so they sit
+behind `MonitorIosParity.enabled` (default `false`). OpenZCine sets it to `true`
+next to `accent`. Flip the default and delete the switch once Pocket and Insta
+accept the iOS look.
+
 ## Build and consume
 
 `Android/` is a standalone Gradle build. Coordinate:

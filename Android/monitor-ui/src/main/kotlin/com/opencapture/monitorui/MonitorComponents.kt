@@ -194,7 +194,8 @@ fun MonitorPageHeading(title: String, kicker: String) {
     val config = LocalConfiguration.current
     val tablet = minOf(config.screenWidthDp, config.screenHeightDp) >= 600
     Column(Modifier.fillMaxWidth().heightIn(min = 34.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(kicker, color = MonitorPalette.accent,
+        // iOS `MonitorPageHeading` uppercases the brand line.
+        Text(if (MonitorIosParity.enabled) kicker.uppercase() else kicker, color = MonitorPalette.accent,
             style = MonitorTypography.text(8.5f, FontWeight.Bold).copy(letterSpacing = 1.7.sp), maxLines = 1)
         Text(title, color = MonitorPalette.text,
             style = MonitorTypography.text(MonitorLayoutPolicy.cameraPageTitleSize(tablet), FontWeight.SemiBold)

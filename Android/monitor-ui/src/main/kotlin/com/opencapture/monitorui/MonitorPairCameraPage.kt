@@ -124,7 +124,7 @@ fun MonitorPairCameraPage(
         val railWidth = if (tablet) 268.dp else 210.dp
         if (portrait) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                PairingRail(presentation, true, onDiagnostics, onReportProblem, onWatchFeed)
+                PairingRail(presentation, true, onBack, onDiagnostics, onReportProblem, onWatchFeed)
                 PairingPane(
                     presentation, true, tablet, onSelect, onPrimary, onBack, extra,
                     Modifier.weight(1f),
@@ -137,7 +137,7 @@ fun MonitorPairCameraPage(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 PairingRail(
-                    presentation, false, onDiagnostics, onReportProblem, onWatchFeed,
+                    presentation, false, onBack, onDiagnostics, onReportProblem, onWatchFeed,
                     Modifier.width(railWidth).fillMaxHeight(),
                 )
                 PairingPane(
@@ -153,6 +153,7 @@ fun MonitorPairCameraPage(
 private fun PairingRail(
     presentation: MonitorPairingPresentation,
     portrait: Boolean,
+    onBack: () -> Unit,
     onDiagnostics: () -> Unit,
     onReportProblem: () -> Unit,
     onWatchFeed: (() -> Unit)?,
@@ -175,6 +176,21 @@ private fun PairingRail(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
+            presentation.backAction?.takeIf { MonitorIosParity.enabled }?.let { back ->
+                // iOS: 13pt back glyph in a 32pt tinted circle, 44pt hit target.
+                Box(
+                    Modifier.size(44.dp).clickable(role = Role.Button, onClick = onBack)
+                        .semantics { contentDescription = back },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.size(32.dp).background(MonitorPalette.secondary.copy(alpha = 0.12f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MonitorIcon(MonitorIcon.CHEVRON_LEFT, null, Modifier.size(13.dp), MonitorPalette.text)
+                    }
+                }
+            }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     "STEP ${current + 1} OF ${presentation.steps.size}",
@@ -703,7 +719,12 @@ private fun PairingFooter(
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            // Portrait centres the buttons under the hint (iOS HStack in a full-width frame).
+            horizontalArrangement = if (portrait && MonitorIosParity.enabled) {
+                Arrangement.spacedBy(9.dp, Alignment.CenterHorizontally)
+            } else {
+                Arrangement.spacedBy(9.dp)
+            },
         ) {
             if (!portrait) {
                 Text(

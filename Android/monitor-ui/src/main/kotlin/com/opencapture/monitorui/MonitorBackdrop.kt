@@ -53,11 +53,20 @@ data class MonitorMaterial(
         val Info = MonitorMaterial(Color(20, 22, 24).copy(alpha = .82f), 20f, hairline = .07f)
         val Delivery = MonitorMaterial(Color(20, 22, 24).copy(alpha = .86f), 20f, hairline = .08f)
         val Record = MonitorMaterial(Color.White.copy(alpha = .08f), 18f, hairline = .16f)
+        /** iOS `systemUltraThinMaterialDark` over the canvas, sampled from the reference captures. */
+        val COMPOSITOR_FALLBACK = Color(0xFF1F2021)
     }
 
-    /** iOS Reduce Transparency fill: canvas `0x08090A`, except scope keeps its opaque tint. */
-    fun fallbackFill(): Color =
-        if (this == Scope) tint.copy(alpha = 1f) else MonitorPalette.backgroundDeep
+    /**
+     * No sampled source. Default: the iOS Reduce Transparency fill, canvas `0x08090A`. With
+     * [MonitorIosParity] on: the iOS compositor fallback measured over that canvas, `0x1F2021`, so
+     * plates read as plates on the black stage and pages. Scope keeps its opaque tint either way.
+     */
+    fun fallbackFill(): Color = when {
+        this == Scope -> tint.copy(alpha = 1f)
+        MonitorIosParity.enabled -> COMPOSITOR_FALLBACK
+        else -> MonitorPalette.backgroundDeep
+    }
 }
 
 /**
@@ -101,8 +110,8 @@ fun Modifier.monitorBackdropSource(source: MonitorBackdropSource, imageRect: Rec
  * Controlled backdrop blur. ONLY image pixels are recorded into the RenderNode; foreground
  * and descendant nodes are never recorded. This structurally excludes backdrop recursion.
  * Each node is panel-sized plus a 3-sigma apron, with no CPU readback or full-window layer.
- * API 29/30, software Canvas, or an unavailable sample use canvas `0x08090A`
- * (scope keeps its opaque tint), matching iOS Reduce Transparency. Hairline
+ * API 29/30, software Canvas, or an unavailable sample use [MonitorMaterial.fallbackFill]
+ * (scope keeps its opaque tint). Hairline
  * width is 0.75 dp at the density alpha, drawn fully inside the clipped plate.
  */
 @Composable

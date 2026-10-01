@@ -51,6 +51,11 @@ MonitorTheme.accentRGB = 0xFFCF00  // e.g. OpenInstaCine yellow
 MonitorTheme.prepareResources()    // optional: register fonts early
 ```
 
+`CamerasPage(nearbyNote:)` sets the caption beside NEARBY (default `announcing over
+Bluetooth`; OpenZCine passes `on this network`). Android's brand inputs are
+`MonitorPalette.accent` and the transitional `MonitorIosParity.enabled`
+(see [Android/monitor-ui/README.md](Android/monitor-ui/README.md)).
+
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
 
