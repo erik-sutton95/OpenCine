@@ -20,5 +20,9 @@ Depends only on OpenCineCore's `OpenCineMedia` (sibling `../OpenCineCore`, pinne
 swift build && swift test
 ```
 
-Not here yet: the iOS `DJICameraSessionAdapter` and the Kotlin DJI session (see the Pocket
-`opencine/vendor-01-dji` notes for what blocks each).
+`DJICameraSessionAdapter` is OpenCineCore's `CameraSession` for ISO, white balance and record
+over a `DJIControlPort` the app's DJI session implements (Pocket: `CameraSession+DJIControlPort`).
+`DJICameraSessionAdapterPortTests` drive it with a fake port, without any app.
+
+Not here yet: the Kotlin DJI session and its adapter (`PocketControlPort`); they stay in the
+Pocket Android app for now.
