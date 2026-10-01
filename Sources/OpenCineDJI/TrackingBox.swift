@@ -543,7 +543,7 @@ public enum FaceStructurePolicy {
 }
 
 /// Face / padded-head zone so a face and its own head box never count as two people.
-public enum FaceHeadHandoff {
+enum FaceHeadHandoff {
     /// Grow the head before testing “same person” so a face on the cheek or
     /// under a cap still owns the skull and we never paint both boxes.
     public static let headMargin: Double = 0.16
@@ -580,7 +580,7 @@ public enum FaceHeadHandoff {
 }
 
 /// AF-C head lock thresholds.
-public enum HeadLock {
+enum HeadLock {
     /// Sitting still: reject a pose that leapt off the locked head.
     public static let stillJump: Double = 0.16
 }

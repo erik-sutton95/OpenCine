@@ -109,7 +109,7 @@ public enum AudioMeterBallistics {
 ///
 /// Values sit on OpenZCine's 0…14 segment scale while they stay ≤ 14; if the body
 /// ever reports 15…100 they map as percent of `@10`. Camera-held — no local decay.
-public enum CamAudioStatus {
+enum CamAudioStatus {
     /// OpenZCine `PTPLiveViewSoundIndicator.maxSegment`.
     public static let maxSegment = 14
     public static let subscribeKey = "cam_audio_status_v2"

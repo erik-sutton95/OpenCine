@@ -270,7 +270,7 @@ public enum DGamut2 {
 
 /// Scene-linear D-Gamut (v1) interchange, for D-Log footage. Same 2017 white
 /// paper as the D-Log curve. Decode D-Log **before** applying.
-public enum DGamut {
+enum DGamut {
     /// Linear D-Gamut RGB → ITU-R BT.709 RGB.
     public static let rgbToRec709 = ColorMatrix3(
         1.6746, -0.5797, -0.0949,

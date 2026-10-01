@@ -287,7 +287,7 @@ public enum CameraBodyFamily: Equatable, Sendable {
 }
 
 /// Model id -> display name, for the scan list. From Osmosis `BleConstants.MODEL_NAMES`.
-public enum ModelNames {
+enum ModelNames {
     public static let byId: [Int: String] = [
         0x0006: "OsmoAction", 0x0010: "OsmoAction2", 0x0012: "OsmoAction3", 0x0014: "OsmoAction4",
         0x0015: "OsmoAction5Pro", 0x0017: "Osmo360", 0x0018: "OsmoAction6", 0x0019: "OsmoNano",
