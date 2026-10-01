@@ -1,0 +1,34 @@
+{
+  "built_at": "2026-10-01T18:02:27Z",
+  "coverage": {
+    "edges": 46516,
+    "excluded": {
+      "binary-captures": 39,
+      "vendor-reference-copies": 52
+    },
+    "exported_files": 970,
+    "failed": 0,
+    "nodes": 18356,
+    "parsed": 826,
+    "skipped_non_code": 298,
+    "unsupported_or_empty_code": {}
+  },
+  "dirty": false,
+  "excluded_classes": [
+    "credentials",
+    "build-products",
+    "binary-captures",
+    "vendor-reference-copies"
+  ],
+  "ref_label": "main",
+  "repository_id": "openzcine",
+  "scan_config_hash": "547861df696b8f817ea7665a16ef804388d5b0ad2f0a4685b02211a1aaa77715",
+  "scope": "baseline",
+  "source_commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3",
+  "source_ref": null,
+  "source_tree": "b4c4973607eeaf693269aa9224a1e882dbfb831e",
+  "tool_versions": {
+    "atlas": "0.1.0",
+    "graphify": "0.9.11"
+  }
+}

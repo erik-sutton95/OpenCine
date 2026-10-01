@@ -159,15 +159,17 @@ def _sandboxed(cmd, scratch):
     )
     home = Path(scratch) / "home"
     home.mkdir(exist_ok=True)
-    env = {"PATH": "/usr/bin:/bin", "HOME": str(home), "TMPDIR": str(home), "GRAPHIFY_NO_TIPS": "1", "LANG": "en_US.UTF-8"}
-    return subprocess.run(["sandbox-exec", "-p", profile, *cmd], capture_output=True, text=True, env=env)
+    # cwd and GIT_CEILING_DIRECTORIES stop Graphify's `git rev-parse HEAD` from finding any
+    # repository (it once stamped the atlas's own HEAD); the atlas stamps the real commit.
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(home), "TMPDIR": str(home), "GRAPHIFY_NO_TIPS": "1",
+           "LANG": "en_US.UTF-8", "GIT_CEILING_DIRECTORIES": str(Path(scratch).parent)}
+    return subprocess.run(["sandbox-exec", "-p", profile, *cmd], capture_output=True, text=True, env=env, cwd=home)
 
 
 def _coverage(exported, graph_json, excluded):
     data = json.loads(graph_json.read_text())
     parsed = {n.get("source_file") for n in data.get("nodes", []) if n.get("source_file")}
-    parsed_names = {Path(p).name for p in parsed}
-    unparsed_code = Counter(Path(f).suffix for f in exported if Path(f).suffix in CODE_EXTS and Path(f).name not in parsed_names)
+    unparsed_code = Counter(Path(f).suffix for f in exported if Path(f).suffix in CODE_EXTS and f not in parsed)
     return {
         "exported_files": len(exported),
         "parsed": len(parsed),
@@ -178,6 +180,30 @@ def _coverage(exported, graph_json, excluded):
         "nodes": len(data.get("nodes", [])),
         "edges": len(data.get("links", data.get("edges", []))),
     }
+
+
+HUB_LIMIT = 40
+
+
+def compact_report(text, rid, ref, commit):
+    """Committed report: drop the per-community listing and Graphify's freshness stamp, cap the
+    hub list, and state the atlas provenance. The full report stays in the ignored graph."""
+    title, *sections = text.split("\n## ")
+    keep = []
+    for sec in sections:
+        name = sec.split("\n", 1)[0]
+        if name.startswith(("Communities", "Graph Freshness")):
+            continue
+        if name.startswith("Community Hubs"):
+            lines = sec.split("\n")
+            hubs = [line for line in lines[1:] if line.startswith("- ")]
+            if len(hubs) > HUB_LIMIT:
+                sec = "\n".join([lines[0], *hubs[:HUB_LIMIT], f"- ... {len(hubs) - HUB_LIMIT} more in graphify_labels.json", ""])
+        keep.append(sec)
+    provenance = (f"Atlas provenance\n- Source: `{rid}@{commit}` (ref `{ref['name']}`, {ref['role']})\n"
+                  "- Exact provenance, exclusions and coverage: `snapshot.json` beside this report.\n"
+                  "- Navigation aid only. Dependency facts come from `atlas deps` and `atlas impact`.\n")
+    return "\n## ".join([title.rstrip() + "\n", provenance, *keep]).rstrip() + "\n"
 
 
 def build(args, reg, root):
@@ -202,11 +228,16 @@ def build(args, reg, root):
         src = scratch / f"{rid}@{commit[:12]}"
         src.mkdir()
         exported, excluded = _export(res["path"], commit, src)
-        labels = out["snapshot"] / "graphify_labels.json"
-        if labels.is_file():  # keep a maintainer's edited labels as the starting point
-            (src / "graphify-out").mkdir()
-            shutil.copy(labels, src / "graphify-out" / ".graphify_labels.json")
-        run = _sandboxed([py, "-m", "graphify", "update", str(src)], scratch)
+        # Rebuilding the same commit: seed the previous graph so Graphify remaps communities to
+        # their old IDs, and the committed labels (including hand edits) stay on them.
+        seeds = {out["snapshot"] / "graphify_labels.json": ".graphify_labels.json",
+                 out["graph"] / "graph.json": "graph.json", out["graph"] / "GRAPH_REPORT.full.md": "GRAPH_REPORT.md"}
+        for seed, name in seeds.items():
+            if seed.is_file():
+                (src / "graphify-out").mkdir(exist_ok=True)
+                shutil.copy(seed, src / "graphify-out" / name)
+        # --force: the export is always a complete commit, so a smaller graph is real, not partial.
+        run = _sandboxed([py, "-m", "graphify", "update", "--force", str(src)], scratch)
         gout = src / "graphify-out"
         if run.returncode or not (gout / "graph.json").is_file():
             print(f"graph build FAILED for {rid}@{ref['name']} (exit {run.returncode}); nothing written", file=sys.stderr)
@@ -217,12 +248,16 @@ def build(args, reg, root):
         prov.update(ref_label=ref["name"], excluded_classes=list(SCAN_CONFIG["exclude"]),
                     coverage=_coverage(exported, gout / "graph.json", excluded))
         out["graph"].mkdir(parents=True, exist_ok=True)
-        for name in ("graph.json", "graph.html"):
-            if (gout / name).is_file():
-                shutil.copy(gout / name, out["graph"] / name)
+        full = json.loads((gout / "graph.json").read_text())
+        full["built_at_commit"] = commit
+        (out["graph"] / "graph.json").write_text(json.dumps(full))
+        if (gout / "graph.html").is_file():
+            shutil.copy(gout / "graph.html", out["graph"] / "graph.html")
+        shutil.copy(gout / "GRAPH_REPORT.md", out["graph"] / "GRAPH_REPORT.full.md")
         staged = scratch / "snapshot"
         staged.mkdir()
-        shutil.copy(gout / "GRAPH_REPORT.md", staged / "GRAPH_REPORT.md")
+        report = compact_report((gout / "GRAPH_REPORT.md").read_text(), rid, ref, commit)
+        (staged / "GRAPH_REPORT.md").write_text(report)
         if (gout / ".graphify_labels.json").is_file():
             shutil.copy(gout / ".graphify_labels.json", staged / "graphify_labels.json")
         (staged / "snapshot.json").write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n")
@@ -253,11 +288,14 @@ def merge(args, reg, root):
         print(f"need at least two locally built graphs; have {len(usable)} (run graph build first)", file=sys.stderr)
         return 3
     dest = root / "graphify-out"
-    run = _sandboxed([graphify_python(), "-m", "graphify", "merge-graphs", *[str(root / i["graph"]) for i in usable],
-                      "--out", str(dest / "merged-graph.json")], dest.resolve())
-    if run.returncode:
-        print(run.stdout + run.stderr, file=sys.stderr)
-        return 1
+    with tempfile.TemporaryDirectory(prefix="atlas-merge-") as tmp:
+        scratch = Path(tmp).resolve()
+        run = _sandboxed([graphify_python(), "-m", "graphify", "merge-graphs", *[str(root / i["graph"]) for i in usable],
+                          "--out", str(scratch / "merged-graph.json")], scratch)
+        if run.returncode:
+            print(run.stdout + run.stderr, file=sys.stderr)
+            return 1
+        shutil.move(scratch / "merged-graph.json", dest / "merged-graph.json")
     disclosure = {"note": MERGE_NOTE, "graphify": GRAPHIFY_VERSION, "inputs": inputs}
     (dest / "merged-inputs.json").write_text(json.dumps(disclosure, indent=2) + "\n")
     print(MERGE_NOTE)

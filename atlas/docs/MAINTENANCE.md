@@ -71,6 +71,17 @@ versions, build time, excluded classes and coverage. `atlas stale` reports a sna
 outdated when the scan configuration or Graphify version changes. Graph facts are navigation
 hints; dependency facts come from manifests and authored evidence.
 
+Known coverage gaps with Graphify 0.9.11 (absence of an edge is not absence of a call):
+
+- Kotlin `external fun` declarations are not linked to their JNI exports. In the Pocket
+  baseline graph the 21 `Java_com_opencapture_...` export symbols have no edge to any Kotlin
+  node. Follow JNI by name search.
+- Calls resolved only at runtime or by string (shader entry points, reflection, SwiftUI
+  result-builder bodies, `#if`-conditional sources) may be missing or attributed loosely.
+- About 8% of edges in each build are `INFERRED` by Graphify's extractor heuristics.
+- Files excluded by class (see `coverage.excluded` in each `snapshot.json`) are absent,
+  including Nikon's `reference/` tree.
+
 ## Writing style
 
 No em dash characters anywhere. No private machine paths in tracked files (`check` enforces
