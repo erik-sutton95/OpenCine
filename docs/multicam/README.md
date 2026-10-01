@@ -12,7 +12,8 @@ apps until an adapter replaces it per app.
 
 ## Import rules
 
-- `Sources/OpenCineMulticam` imports only `Foundation` and `OpenCineCore`. Never SwiftUI, UIKit,
+- `Sources/OpenCineMulticam` imports only `Foundation` and `OpenCineCore` (Kotlin: the stdlib,
+  coroutines and `com.opencapture.opencine.core`). Never SwiftUI, UIKit,
   Compose, a manufacturer integration, a transport or an app model. A test enforces the imports,
   the single package dependency and the absence of vendor and UI names.
 - No behavior is chosen from an `IntegrationID` or a manufacturer name.
@@ -86,7 +87,57 @@ swift build --build-tests -Xswiftc -strict-concurrency=complete -Xswiftc -warnin
 pinned in `opencine-pins.txt` with `scripts/checkout-opencine.sh` and verifies it; bump the pin
 when Core changes. When Core is published the dependency becomes a URL with an exact version.
 
-Android (a Kotlin mirror consuming `com.opencapture.opencine:core`) is not written yet.
+## Android
+
+`Android/` is a standalone Gradle build with one plain Kotlin/JVM module, `multicam`
+(`com.opencapture.opencine:multicam`, `0.1.0-SNAPSHOT`). It mirrors `Sources/OpenCineMulticam`
+type for type with the same semantics and depends only on `com.opencapture.opencine:core` (the
+Kotlin mirror of OpenCineCore) and kotlinx-coroutines. Kotlin 2.4.20, coroutines 1.11.0 and a
+JVM 17 target match OpenCineCore/Android; warnings are errors and explicit API mode is on.
+
+```sh
+scripts/checkout-opencine.sh      # CI: pinned ../OpenCineCore; locally it only reports the SHA
+cd Android && ./gradlew test      # JDK 17 or newer
+```
+
+Core is the sibling checkout `../OpenCineCore`, included as a named composite build
+(`includeBuild("../../OpenCineCore/Android") { name = "opencinecore" ... }` in
+`Android/settings.gradle.kts`), so tests use Core's fakes through `testFixtures`. Once Core is
+published the `includeBuild` goes and the catalog coordinate stays. An app consumes this module
+the same way it consumes Core: a named `includeBuild` of `OpenCineMulticam/Android` substituting
+`com.opencapture.opencine:multicam` with `project(":multicam")`, next to Core's.
+
+### Kotlin mapping
+
+Package `com.opencapture.opencine.multicam`. Same names and semantics, in Kotlin idiom, following
+OpenCineCore's mapping (payload-free cases are `enum class`, cases with payload a `sealed
+interface`, Swift labels become parameter names: `make(direction, policy, entries, group,
+state)`, `summary(state, telemetryMaxAge)`). Where they differ:
+
+| Swift | Kotlin | Difference |
+|---|---|---|
+| `MulticamGroup`, `EditorLeases`, `RecoveryBudget`, `RecoveryLedger` (`mutating` structs) | mutable classes | Not values: confine each to its owner (no lock), no equality. `MulticamGroup.entries` is replaced on every change, so a list read earlier never changes. |
+| `RecoveryLedger[entry]` get/set | `ledger[entry]` returns the live budget | Reading creates the entry's budget; mutate it in place. |
+| `throws(MulticamGroupError)`, `throws(RecordSubmissionError)`, `throws(EditorLeaseRefusal)` | `MulticamGroupException`, `RecordSubmissionException`, `EditorLeaseException` | Each exception carries the Swift-shaped value (`error` / `refusal`). |
+| `MulticamSnapshot` (vars) | class, read-only | Takes a camera list; `cameras` is the map keyed by session (last wins). |
+| `EntrySummary.init(_:at:telemetryMaxAge:)`, `TargetOutcome.init(_:)` | `EntrySummary(entry, state, maxAge)`, `TargetOutcome(stage)` via companion `invoke` | |
+| `RoleStatus<Value>` | `RoleStatus<out T>`: `Absent`, `Unreported`, `Reported(value)` | Covariant, as Core's `ObservedValue`. |
+| `RecordSubmission.current(sessions:) async` | `current(sessions)`, not suspending | Core's Kotlin `receipt` does not suspend. `finished` suspends. |
+| `submit(... maxConcurrent:)` task group | `coroutineScope` + `Semaphore` | Same bound; runs on the caller's dispatcher, so a confined session stays confined. |
+| `EditorLeaseID = Identifier<IdentityKind.EditorLease>` | `@JvmInline value class EditorLeaseID(uuid)` | As Core's IDs. |
+| `ResourceRequest.bitsPerSecond`, `ResourceBudget.bitsPerSecond` (`Int`) | `Long` | Swift `Int` is 64-bit. |
+| `ResourceClaim.infrastructureNetwork(_)`, `.usbInterface(_)` | `InfrastructureNetwork(network)`, `UsbInterface(name)` | Unlabeled payloads get names. |
+| `Codable` (`MulticamLayout`, claims, requests, budgets, direction, policy) | plain data classes and enums | No serialization, as in Core: the app maps `MulticamLayout` to its storage. Add kotlinx.serialization when a consumer needs it. |
+
+### Test mapping
+
+Suites and test names are the same (`Android/multicam/src/test`): `GroupTests` (2),
+`EditorLeaseTests` (2), `ResourceAdmissionTests` (2), `RecoveryTests` (2), `GroupRecordTests` (8),
+`ImportRuleTests` (1), 17 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
+checks the layout value instead of a JSON round trip, and the import rule is
+`engineImportsOnlyStdlibCoroutinesAndCoreAndNamesNoVendorOrUI` (imports `kotlin.*`,
+`kotlinx.coroutines.*`, `com.opencapture.opencine.core.*` and `java.util.UUID` only; the module's
+only dependencies are Core and coroutines; Core is the only included build).
 
 ## License
 
