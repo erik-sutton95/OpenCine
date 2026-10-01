@@ -15,8 +15,23 @@ interface changes driven by the first real adapter slices (CORE-02).
 |---|---|---|
 | `OpenCineCore` | Value types and the `CameraSession` protocol. Foundation only. | Integrations, multicam, UI presentation, apps |
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
+| `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. Foundation only; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
 
-Media algorithms (`OpenCineMedia`) will be a separate target in this repository.
+## OpenCineMedia rules
+
+- Pure functions and value types. No mutable global state: a test rejects `static var` and
+  `nonisolated(unsafe)` in `Sources/OpenCineMedia`.
+- No camera raw modes. `MonitorTransfer` names a published curve; mapping a camera's colour
+  mode or a tap fingerprint to a curve belongs to the integration.
+- Per-source inputs are parameters. The live clip ceiling (`clipByte`, measured per source by
+  the integration), the operator's LOG/709 reading and the official look's grey-axis curve
+  (`lookCurve`, derived from the integration's own cube) are passed in by the caller.
+- Numbers are golden. Moving or refactoring must not change a test value; a changed look needs
+  an explicit fixture review.
+- The 8-bit, 256-bin scope axis is the qualified implementation. Richer formats get new
+  descriptors, not a silent change to these functions.
+- Renderer size policy stays with the app (`colorCube` caps at 64 for Core Image; OpenZCine
+  resamples 65³ imports to 33³ with `resampled(to:)`).
 
 ## Import rules
 

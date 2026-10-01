@@ -3,6 +3,9 @@
 - Build and test: `swift build && swift test` (Swift 6 mode, Swift Testing).
 - `Sources/OpenCineCore` imports Foundation only and names no camera manufacturer; a test
   enforces both. Never import UI, an integration, Multicam or an app.
+- `Sources/OpenCineMedia` imports Foundation only, holds no mutable global state and takes no
+  camera raw mode; a test enforces it. Per-source values (clip ceiling, LOG/709 reading, look
+  curve) are parameters. Existing test numbers are golden: never edit one to make a refactor pass.
 - Value types for descriptions, snapshots, settings, observations and results. Add a protocol
   only where implementations actually vary. No DI framework, no plugin registry.
 - Unknown is `nil` in an `Observation`, never `false`, `0` or `""`.
