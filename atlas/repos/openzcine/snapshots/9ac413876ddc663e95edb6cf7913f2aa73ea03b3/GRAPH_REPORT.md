@@ -87,7 +87,7 @@
 ## Knowledge Gaps
 - **2995 isolated node(s):** `file-protection.sh script`, `post-swift-edit.sh script`, `session-start.sh script`, `npx`, `INCREMENTAL_BUILDS_ENABLED` (+2990 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **86 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **86 thin communities (<3 nodes) omitted from report** - run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

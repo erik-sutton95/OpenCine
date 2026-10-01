@@ -256,10 +256,12 @@ def build(args, reg, root):
         shutil.copy(gout / "GRAPH_REPORT.md", out["graph"] / "GRAPH_REPORT.full.md")
         staged = scratch / "snapshot"
         staged.mkdir()
+        # Committed text follows the atlas style rule: no em dash, even when quoted from source.
         report = compact_report((gout / "GRAPH_REPORT.md").read_text(), rid, ref, commit)
-        (staged / "GRAPH_REPORT.md").write_text(report)
+        (staged / "GRAPH_REPORT.md").write_text(report.replace("\u2014", "-"))
         if (gout / ".graphify_labels.json").is_file():
-            shutil.copy(gout / ".graphify_labels.json", staged / "graphify_labels.json")
+            labels = (gout / ".graphify_labels.json").read_text().replace("\u2014", "-")
+            (staged / "graphify_labels.json").write_text(labels)
         (staged / "snapshot.json").write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n")
         replaced = out["snapshot"].exists()
         if replaced:

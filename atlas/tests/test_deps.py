@@ -90,6 +90,7 @@ class Graph(AtlasCase):
         self.assertEqual(code, 0, out)
         waves = [[item["repo"] for item in wave] for wave in json.loads(out)["waves"]]
         self.assertEqual(waves, [["ui"], ["app"]])
+        self.assertEqual(json.loads(out)["copy_cycles"], [])
         code, out = self.run_atlas("impact", "ui", "--json")
         self.assertEqual([[i["repo"] for i in w] for w in json.loads(out)["waves"]], [["app"]])
         code, out = self.run_atlas("deps", "app", "--json")
@@ -153,13 +154,16 @@ class Graph(AtlasCase):
         self.assertEqual(code, 1)
         self.assertIn("candidate repository cannot have or be the target of a live edge", out)
 
-    def test_source_copy_is_not_a_build_cycle_and_propagates(self):
+    def test_copy_cycle_shares_a_wave_and_is_reported(self):
         copy = {"kind": "source-copy", "status": "live", "confidence": "inferred", "scope": ["x"], "mechanism": "script", "donor_revision": None}
         self.metas["core"]["edges"] = [dict(copy, to="app")]
         write_registry(self.root, [self.metas["core"]])
         self.assertEqual(self.run_atlas("check")[0], 0)
+        # core copies from app while app builds against ui and core: a real cycle, so no order
+        # inside it can be derived; both share wave 1 and the cycle is reported.
         code, out = self.run_atlas("impact", "app", "--json")
-        self.assertEqual([[i["repo"] for i in w] for w in json.loads(out)["waves"]], [["core"], ["ui"]])
+        self.assertEqual([[i["repo"] for i in w] for w in json.loads(out)["waves"]], [["core", "ui"]])
+        self.assertEqual(json.loads(out)["copy_cycles"], [["app", "core", "ui"]])
         code, out = self.run_atlas("impact", "app", "--json", "--registry-only")
         self.assertEqual([[i["repo"] for i in w] for w in json.loads(out)["waves"]], [["core"]])
         self.assertEqual(json.loads(out)["manifests"], "not checked")
@@ -174,6 +178,27 @@ class PrivatePaths(AtlasCase):
         code, out = self.run_atlas("check")
         self.assertEqual(code, 1)
         self.assertIn("notes.md:1: private machine path", out)
+
+
+
+class Candidates(AtlasCase):
+    def test_unverified_checks_never_pass(self):
+        write_registry(self.root, [meta("pkg", "ui"), meta("app", "app")])
+        (self.root / "compat").mkdir()
+        sha = "a" * 40
+        doc = {"candidates": [{"id": "c1", "package": {"repo": "pkg", "commit": None},
+                               "consumers": [{"repo": "app", "commit": sha, "checks": [{"recipe": "x", "status": "passed"}]}]}]}
+        (self.root / "compat" / "candidates.json").write_text(json.dumps(doc))
+        code, out = self.run_atlas("check")
+        self.assertEqual(code, 1)
+        self.assertIn("a passed check needs the exact package commit", out)
+        doc["candidates"][0]["package"]["commit"] = sha
+        doc["candidates"][0]["consumers"][0]["checks"][0]["status"] = "skipped"
+        (self.root / "compat" / "candidates.json").write_text(json.dumps(doc))
+        self.assertIn("check status must be one of", self.run_atlas("check")[1])
+        doc["candidates"][0]["consumers"][0]["checks"][0]["status"] = "unavailable"
+        (self.root / "compat" / "candidates.json").write_text(json.dumps(doc))
+        self.assertEqual(self.run_atlas("check")[0], 0)
 
 
 if __name__ == "__main__":

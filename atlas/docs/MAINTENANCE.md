@@ -36,6 +36,11 @@ needs `evidence.path` plus a full `evidence.source_commit`; otherwise `inferred`
 the donor revision was never recorded). Optional: `platforms`, `ref` (a registered ref name),
 `note`. A candidate repository never has, or is the target of, a `live` edge.
 
+`source-copy` edges may form cycles (today Pocket and Nikon copy from each other, and
+`opencineui` copies from Pocket while Pocket's branch consumes it). `atlas impact` puts every
+repo of such a cycle in one wave and prints the cycle, because no order inside it can be
+derived. Retiring copies removes the cycles. Build-kind cycles are errors.
+
 An inferred edge guides a search; it never controls release order. With `--sources`,
 `check` verifies that each confirmed edge's evidence file exists at its commit and, for
 build kinds, that the manifest really declares the dependency (comments do not count).
@@ -84,5 +89,5 @@ Known coverage gaps with Graphify 0.9.11 (absence of an edge is not absence of a
 
 ## Writing style
 
-No em dash characters anywhere. No private machine paths in tracked files (`check` enforces
-the paths; review enforces the style).
+No em dash characters anywhere, including generated reports (the Graphify adapter normalizes
+them). `check` rejects em dashes and private machine paths in every tracked file.

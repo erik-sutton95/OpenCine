@@ -345,35 +345,67 @@ def cmd_deps(args, reg, root):
     return code
 
 
+def _sccs(nodes, succ):
+    """Tarjan: strongly connected components, each emitted after the components it reaches."""
+    index, low, on, stack, out = {}, {}, set(), [], []
+
+    def visit(v):
+        index[v] = low[v] = len(index)
+        stack.append(v)
+        on.add(v)
+        for w in sorted(succ(v)):
+            if w not in index:
+                visit(w)
+                low[v] = min(low[v], low[w])
+            elif w in on:
+                low[v] = min(low[v], index[w])
+        if low[v] == index[v]:
+            comp = set()
+            while True:
+                w = stack.pop()
+                on.discard(w)
+                comp.add(w)
+                if w == v:
+                    break
+            out.append(comp)
+
+    for v in sorted(nodes):
+        if v not in index:
+            visit(v)
+    return out
+
+
 def impact_waves(target, edges):
-    """Consumer waves for a change in `target`. Returns (waves, verify_only)."""
-    consumers = defaultdict(list)
-    for e in edges:
-        consumers[e["to"]].append(e)
-    affected, queue = set(), [target]
-    while queue:
-        node = queue.pop()
-        for e in consumers[node]:
-            if e["kind"] in PROPAGATING and e["frm"] != target and e["frm"] not in affected:
-                affected.add(e["frm"])
-                queue.append(e["frm"])
-    level = {target: 0}
+    """Consumer waves for a change in `target`. Returns (waves, verify_only, cycles).
 
-    def depth(node, stack):
-        if node in level:
-            return level[node]
-        deps = [e["to"] for e in edges if e["frm"] == node and e["kind"] in PROPAGATING
-                and (e["to"] in affected or e["to"] == target) and e["to"] not in stack]
-        level[node] = 1 + max((depth(d, stack | {node}) for d in deps), default=0)
-        return level[node]
-
+    Copy edges may legitimately form cycles; repos in one cycle share a wave and the cycle is
+    reported, because their relative order cannot be derived."""
+    prop = [e for e in edges if e["kind"] in PROPAGATING]
+    users, deps = defaultdict(set), defaultdict(set)
+    for e in prop:
+        users[e["to"]].add(e["frm"])
+        deps[e["frm"]].add(e["to"])
+    affected, todo = set(), [target]
+    while todo:
+        for c in users[todo.pop()] - affected - {target}:
+            affected.add(c)
+            todo.append(c)
+    nodes = affected | {target}
+    level, cycles = {}, []
+    for comp in _sccs(nodes, lambda n: deps[n] & nodes):
+        if len(comp) > 1:
+            cycles.append(sorted(comp))
+        if target in comp:
+            level.update({n: 0 if n == target else 1 for n in comp})
+            continue
+        lv = 1 + max((level[d] for n in comp for d in deps[n] & nodes if d not in comp), default=0)
+        level.update(dict.fromkeys(comp, lv))
     waves = defaultdict(list)
     for node in sorted(affected):
-        via = [e for e in edges if e["frm"] == node and e["kind"] in PROPAGATING and (e["to"] in affected or e["to"] == target)]
-        waves[depth(node, frozenset())].append({"repo": node, "via": via})
-    verify = [e for node in affected | {target} for e in consumers[node]
-              if e["kind"] not in PROPAGATING and e["frm"] not in affected and e["frm"] != target]
-    return [waves[k] for k in sorted(waves)], verify
+        via = [e for e in prop if e["frm"] == node and e["to"] in nodes]
+        waves[level[node]].append({"repo": node, "via": via})
+    verify = [e for e in edges if e["kind"] not in PROPAGATING and e["to"] in nodes and e["frm"] not in nodes]
+    return [waves[k] for k in sorted(waves)], verify, cycles
 
 
 def cmd_impact(args, reg, root):
@@ -387,9 +419,9 @@ def cmd_impact(args, reg, root):
         edges += derived
     if not args.include_candidates:
         edges = [e for e in edges if e["status"] == "live"]
-    waves, verify = impact_waves(args.repo, edges)
+    waves, verify, cycles = impact_waves(args.repo, edges)
     code = INCOMPLETE if incomplete else OK
-    out = {"repo": args.repo, "waves": waves, "verify_only": verify, "incomplete": incomplete, "skipped": skipped,
+    out = {"repo": args.repo, "waves": waves, "verify_only": verify, "copy_cycles": cycles, "incomplete": incomplete, "skipped": skipped,
            "manifests": "not checked" if args.registry_only else "scanned",
            "edge_statuses": ["live", "candidate"] if args.include_candidates else ["live"]}
     if _print(out, args.json):
@@ -400,10 +432,16 @@ def cmd_impact(args, reg, root):
     for i, wave in enumerate(waves, 1):
         print(f"Wave {i}:")
         for item in wave:
+            seen = set()
             for e in item["via"]:
                 ref = f"@{e['ref']}" if e.get("ref") else ""
                 plat = f" [{','.join(e['platforms'])}]" if e.get("platforms") else ""
-                print(f"  {item['repo']}{ref}{plat}  via {e['kind']} to {e['to']} ({e['status']}, {e.get('origin')}) -> {ACTIONS[e['kind']]}")
+                line = f"  {item['repo']}{ref}{plat}  via {e['kind']} to {e['to']} ({e['status']}, {e.get('origin')}) -> {ACTIONS[e['kind']]}"
+                if line not in seen:
+                    seen.add(line)
+                    print(line)
+    for c in cycles:
+        print(f"Copy cycle (order inside it is not derivable): {' <-> '.join(c)}")
     for e in verify:
         print(f"Verify only: {e['frm']} {e['kind']} -> {ACTIONS[e['kind']]}")
     for rid, why in skipped.items():
@@ -476,6 +514,8 @@ def private_path_errors(root):
         for no, line in enumerate(text.splitlines(), 1):
             if PRIVATE_PATH_RE.search(line):
                 errors.append(f"{f.relative_to(root)}:{no}: private machine path")
+            if "\u2014" in line:
+                errors.append(f"{f.relative_to(root)}:{no}: em dash (atlas style forbids it)")
     return errors
 
 
@@ -538,6 +578,36 @@ def evidence_errors(reg, root):
     return errors, incomplete
 
 
+CHECK_STATUSES = {"passed", "failed", "not-run", "not-applicable", "unavailable"}
+
+
+def candidate_errors(root, reg):
+    """compat/candidates.json: registered repos, full SHAs, known statuses, and no `passed`
+    check without the exact package and consumer commits it ran against."""
+    p = root / "compat" / "candidates.json"
+    if not p.is_file():
+        return []
+    try:
+        data = json.loads(p.read_text())
+    except ValueError as exc:
+        return [f"compat/candidates.json: invalid JSON ({exc})"]
+    errors = []
+    for c in data.get("candidates", []):
+        where = f"compat/candidates.json: {c.get('id')}"
+        pkg = c.get("package") or {}
+        if pkg.get("repo") not in reg or not (pkg.get("commit") is None or _is_sha(pkg.get("commit"))):
+            errors.append(f"{where}: package needs a registered repo and a full commit (or null)")
+        for con in c.get("consumers", []):
+            if con.get("repo") not in reg or not _is_sha(con.get("commit")):
+                errors.append(f"{where}: consumer needs a registered repo and a full commit")
+            for chk in con.get("checks", []):
+                if chk.get("status") not in CHECK_STATUSES:
+                    errors.append(f"{where}: {con.get('repo')} check status must be one of {sorted(CHECK_STATUSES)}")
+                elif chk["status"] == "passed" and not pkg.get("commit"):
+                    errors.append(f"{where}: a passed check needs the exact package commit")
+    return errors
+
+
 def cmd_check(args, reg, root, load_errors):
     errors = load_errors + validate_registry(reg)
     edges = authored_edges(reg)
@@ -552,6 +622,7 @@ def cmd_check(args, reg, root, load_errors):
                    for msg in _direction_errors(reg[e["frm"]]["layer"], reg[e["to"]]["layer"], e["kind"])]
     errors += [f"build cycle: {' -> '.join(c)}" for c in build_cycles(edges)]
     errors += snapshot_errors(root, reg)
+    errors += candidate_errors(root, reg)
     errors += private_path_errors(root)
     for err in errors:
         print(f"ERROR {err}")

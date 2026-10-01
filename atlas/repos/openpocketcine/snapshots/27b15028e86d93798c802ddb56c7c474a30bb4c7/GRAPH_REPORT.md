@@ -87,7 +87,7 @@
 ## Knowledge Gaps
 - **2894 isolated node(s):** `command`, `swapchain`, `imageIndex`, `renderFinished`, `submit` (+2889 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **112 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **112 thin communities (<3 nodes) omitted from report** - run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

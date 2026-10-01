@@ -87,7 +87,7 @@
 ## Knowledge Gaps
 - **2744 isolated node(s):** `timelapse`, `normalImage`, `normalVideo`, `timeShift`, `slowMotion` (+2739 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **101 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **101 thin communities (<3 nodes) omitted from report** - run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

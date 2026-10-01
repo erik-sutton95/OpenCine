@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "note": "Package candidates and the consumer revisions they are validated against (plan 11.5, OPS-01). Status is per check: passed, failed, not-run, not-applicable, unavailable. Only passed counts as passed.",
+  "candidates": [
+    {
+      "id": "opencineui-ui01-ui02",
+      "package": {
+        "repo": "opencineui",
+        "commit": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f",
+        "products": ["MonitorPresentation", "MonitorUI", "monitor-ui (com.opencapture.opencine:monitor-ui)"],
+        "platforms": ["apple", "android"]
+      },
+      "consumers": [
+        {
+          "repo": "openpocketcine", "ref": "opencine/ui-01-swift", "commit": "8a5de7c83aa51c131f564014ac2114d411aeb343",
+          "dependency": "relative path (ADR 0002)", "platform": "apple",
+          "checks": [{"recipe": "just swift-test", "status": "not-run"}, {"recipe": "just ios-build", "status": "not-run"}]
+        },
+        {
+          "repo": "openpocketcine", "ref": "opencine/ui-02-android", "commit": "ec28f99471050dda48f3ba37e1c0c957267d298b",
+          "dependency": "Gradle includeBuild (ADR 0002)", "platform": "android",
+          "checks": [{"recipe": "just android-check", "status": "not-run"}]
+        },
+        {
+          "repo": "openinstacine", "ref": "main", "commit": "35b6f33b20cbd791a4c24b6380046f180f1ee454",
+          "dependency": null, "platform": "apple+android",
+          "checks": [{"recipe": "adoption", "status": "not-applicable", "reason": "not adopted yet (UI-03)"}]
+        },
+        {
+          "repo": "openzcine", "ref": "feat/monitor-engine-port", "commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62",
+          "dependency": null, "platform": "apple+android",
+          "checks": [{"recipe": "adoption", "status": "not-applicable", "reason": "candidate branch; reconciliation is UI-03"}]
+        }
+      ],
+      "recorded_at": "2026-10-01T19:05:00Z",
+      "recorded_by": "ATLAS-07 (schema seed; OPS-01 owns running and updating the checks)"
+    }
+  ]
+}
