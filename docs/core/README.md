@@ -17,6 +17,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
 | `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. The encoded-unit seam: `EncodedVideoUnit` (stream, generation, codec, Annex-B or JPEG payload, random access, parameter sets, host arrival, optional PTS and format), HEVC/AVC NAL math (`Hevc`, `Avc`, `LiveVideo`), decoder parameter-set policy (`EncoderPresentPath`), present policy (`FeedPresentPolicy`, `SerialSessionGate`, `ExtraMirrorHold`), `DeliveryCadence`, and the Apple-only scope tap `LiveFrameTap`. Foundation plus OpenCineCore; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
 | `OpenCineFrameIO` | Optional Frame.io delivery: v4 request planning (`FrameioAPI`), OAuth PKCE primitives and IMS token requests (`FrameioOAuth`, `PKCE`), response models, the upload workflow with injected transport, token storage, clock and pause (`FrameioClient`), batch results with history and cleanup reporting (`FrameioDelivery`, `FrameioDeliveryReport`), and an Apple `URLSession` transport. Foundation only (CryptoKit on Apple platforms). See [OpenCineFrameIO](#opencineframeio). | Apps that deliver to Frame.io; Android JNI facades |
+| `OpenCineRelay` | Optional. The second-screen relay wire, protocol version 1: Bonjour service type, `[u32be length][u8 kind][payload]` framing, JSON messages (hello, state, control token, join denied, commands), the frame blob, exact version check in `WatcherRelayJoin`, the single-holder control lease (`WatcherRelayControlLease`, 20 s park for a dropped watcher), bitrate ladder, encode admission, watcher recovery and focus-point mapping. Golden wire tests pin every message kind. Foundation only; sockets, Bonjour, encoders and keychain stay in the apps. | App cores that host or watch a relay |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 
@@ -40,6 +41,19 @@ interface changes driven by the first real adapter slices (CORE-02).
   descriptors, not a silent change to these functions.
 - Renderer size policy stays with the app (`colorCube` caps at 64 for Core Image; OpenZCine
   resamples 65³ imports to 33³ with `resampled(to:)`).
+
+## OpenCineRelay rules
+
+- Optional: no other Core product imports it (a test enforces it). Foundation only, no
+  manufacturer or app names; user-facing copy that crosses the wire (the version-mismatch
+  reason) is a parameter supplied by the app.
+- The wire is frozen at `WatcherRelayProtocol.version` 1. Golden tests pin header bytes, the
+  frame blob and every JSON message; changing one is a wire break that needs a new version, a
+  negotiation path for old watchers and an adapter, not an edit to the golden.
+- Version negotiation is exact (host and watcher must both speak version 1). New optional JSON
+  fields stay optional so older peers keep decoding; unknown keys are ignored.
+- Sharing the package shares no credentials: each app keeps its own keychain namespace for the
+  relay passcode.
 
 ## Import rules
 

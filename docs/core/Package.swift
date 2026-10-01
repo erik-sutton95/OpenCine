@@ -11,6 +11,9 @@ import PackageDescription
 // OpenCineFrameIO is an optional delivery product: Frame.io request planning, OAuth PKCE
 // primitives and the upload workflow. Foundation only (CryptoKit on Apple platforms, a system
 // framework); no package dependency, so no Core consumer resolves anything for it.
+// OpenCineRelay is optional: the second-screen relay wire (framing, messages, version check,
+// frame blob), the control lease and relay pacing policy. Foundation only; sockets, Bonjour,
+// encoders and keychain stay in the apps.
 let package = Package(
     name: "OpenCineCore",
     platforms: [.iOS(.v17), .macOS(.v13), .watchOS(.v10)],
@@ -18,6 +21,7 @@ let package = Package(
         .library(name: "OpenCineCore", targets: ["OpenCineCore"]),
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
+        .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         // Fakes for consumers' test targets only; never link it into an app.
         .library(name: "OpenCineCoreTestSupport", targets: ["OpenCineCoreTestSupport"]),
     ],
@@ -34,5 +38,7 @@ let package = Package(
         // No Core values genuinely help Frame.io delivery, so it depends on nothing.
         .target(name: "OpenCineFrameIO"),
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
+        .target(name: "OpenCineRelay"),
+        .testTarget(name: "OpenCineRelayTests", dependencies: ["OpenCineRelay"]),
     ]
 )
