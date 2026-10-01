@@ -237,4 +237,25 @@ import Testing
         #expect(await submission.finished(sessions: [:]).outcomes == [dji.id: .failed(.notSent)])
         #expect(await dji.wire.isEmpty)
     }
+
+    @Test func unreportedRecordingStateIsExcludedNeverCommanded() async throws {
+        let dji = await reported(.djiLike())
+        let silent = await reported(
+            FakeCameraSession(
+                behavior: FakeCameraSession.djiLike().behavior,
+                device: FakeDevice(rawMode: 0x01, settings: [], recording: nil)))
+        let cameras = [dji, silent]
+        let a = entry("A", dji)
+        let b = entry("B", silent)
+        let g = try group([a, b])
+        let live = await state(cameras)
+        let strict = RecordPlan.make(.start, policy: .strict, entries: [a.id, b.id], in: g, at: live)
+        #expect(strict.isRefused)
+        #expect(strict.exclusions == [Exclusion(entry: b.id, reason: .rejected(.recordingStateUnknown))])
+        let subset = RecordPlan.make(
+            .start, policy: .eligibleSubset, entries: [a.id, b.id], in: g, at: live)
+        #expect(subset.targets.map(\.session) == [dji.id])
+        _ = try await subset.submit(in: g, at: live, sessions: sessions(cameras))
+        #expect(await silent.wire.isEmpty)
+    }
 }

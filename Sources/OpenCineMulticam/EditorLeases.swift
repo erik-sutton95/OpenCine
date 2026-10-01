@@ -83,7 +83,9 @@ public struct EditorLeases: Hashable, Sendable {
             intent, preconditions: CommandPreconditions(state.cameras[lease.session]!, deadline: deadline))
     }
 
-    private func refusal(for lease: EditorLease, in group: MulticamGroup, at state: MulticamSnapshot)
+    /// Why `lease` no longer holds, or `nil` while it does. An app whose existing command path
+    /// asks "may this editor send now?" calls this at send time.
+    public func refusal(for lease: EditorLease, in group: MulticamGroup, at state: MulticamSnapshot)
         -> EditorLeaseRefusal?
     {
         guard active[lease.entry] == lease, let entry = group[lease.entry],

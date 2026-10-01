@@ -31,7 +31,7 @@ apps until an adapter replaces it per app.
 | `RecordPlan` | Group start/stop plan: targets deduplicated by control session, satisfied cameras, exclusions with reasons, strict or eligible-subset policy, `isCurrent` revalidation, bounded `submit` |
 | `AdmissionFingerprint` | Per-target session, epoch, capability revision, authority, mode and reported recording; routine telemetry is excluded |
 | `RecordSubmission`, `RecordResult`, `TargetOutcome` | Per-target outcomes (pending, accepted, confirmed, rejected, failed, timedOut, outcomeUnknown, superseded), mapped back to entries |
-| `EditorLeases`, `EditorLease` | Per-entry settings/detail-view leases that retire when the entry's session, epoch or authority changes, or when closed or reopened |
+| `EditorLeases`, `EditorLease` | Per-entry settings/detail-view leases that retire when the entry's session, epoch or authority changes, or when closed or reopened; `refusal(for:in:at:)` answers "may this editor send now?" for an app's existing command path |
 | `ResourceAdmission`, `ResourceRequest`, `ResourceClaim`, `ResourceBudget` | Route claims (camera access point, infrastructure network, USB interface, Bluetooth commissioning, bandwidth and decoder estimates) and feasibility with reasons; the app's qualification limit is an injected budget value |
 | `RecoveryBudget`, `RecoveryLedger` | Independent bounded recovery budget per entry, restored after sustained health |
 | `MulticamLayout` | Codable slot order, names, devices, routes and stage; the app chooses storage |
@@ -41,7 +41,8 @@ apps until an adapter replaces it per app.
 1. `RecordPlan.make(.start, policy:, entries:, in:, at:)` groups the requested entries by camera
    session, so two entries showing one camera get one command and share its result. Eligibility
    is Core's `CameraSnapshot.rejection(of:at:)` plus "has command authority", "has reported",
-   "not busy" and "not transitioning". Cameras already in the requested state are `satisfied`.
+   "not busy", "has reported its recording state" (else `.rejected(.recordingStateUnknown)`)
+   and "not transitioning". Cameras already in the requested state are `satisfied`.
 2. Show `targets`, `satisfied` and `exclusions`. With `.strict` any exclusion refuses the plan;
    with `.eligibleSubset` the exclusions are listed and the rest proceed.
 3. `submit` rebuilds the plan from fresh state and refuses with `.stale` unless it is equal.
@@ -132,8 +133,8 @@ state)`, `summary(state, telemetryMaxAge)`). Where they differ:
 ### Test mapping
 
 Suites and test names are the same (`Android/multicam/src/test`): `GroupTests` (2),
-`EditorLeaseTests` (2), `ResourceAdmissionTests` (2), `RecoveryTests` (2), `GroupRecordTests` (8),
-`ImportRuleTests` (1), 17 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
+`EditorLeaseTests` (2), `ResourceAdmissionTests` (2), `RecoveryTests` (2), `GroupRecordTests` (9),
+`ImportRuleTests` (1), 18 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
 checks the layout value instead of a JSON round trip, and the import rule is
 `engineImportsOnlyStdlibCoroutinesAndCoreAndNamesNoVendorOrUI` (imports `kotlin.*`,
 `kotlinx.coroutines.*`, `com.opencapture.opencine.core.*` and `java.util.UUID` only; the module's

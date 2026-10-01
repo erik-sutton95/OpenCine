@@ -28,7 +28,8 @@ public enum ExclusionReason: Hashable, Sendable {
     case busy
     /// The camera itself reports it is starting or stopping.
     case cameraTransitioning
-    /// Core's shared admission rule (`CameraSnapshot.rejection(of:at:)`).
+    /// Core's shared admission rule (`CameraSnapshot.rejection(of:at:)`), or
+    /// `.recordingStateUnknown` when the camera has not reported whether it is recording.
     case rejected(CommandRejection)
 }
 
@@ -134,6 +135,12 @@ public struct RecordPlan: Hashable, Sendable {
                 direction.intent, preconditions: CommandPreconditions(snapshot))
             if let rejection = snapshot.rejection(of: probe, at: state.now) {
                 exclude(.rejected(rejection))
+                continue
+            }
+            // A camera that has not reported its recording state cannot be sorted into target or
+            // already-satisfied, and a later report could not be told from the approved state.
+            guard snapshot.recording.isKnown else {
+                exclude(.rejected(.recordingStateUnknown))
                 continue
             }
             let target = RecordTarget(

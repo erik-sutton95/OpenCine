@@ -68,6 +68,7 @@ import Testing
         var leases = EditorLeases()
         var live = await state([nikon])
         let lease = try leases.open(a.id, in: g, at: live)
+        #expect(leases.refusal(for: lease, in: g, at: live) == nil)
         let iso = SettingValue.iso(.manual(800))
         let edit = try leases.command(.set(iso), under: lease, in: g, at: live)
         #expect(await nikon.submit(edit).stage == .awaitingObservation)
@@ -76,6 +77,7 @@ import Testing
         let queued = try leases.command(.set(.iso(.manual(1600))), under: lease, in: g, at: live)
         await nikon.completeAttempt(await nikon.loseLink())
         live = await state([nikon])
+        #expect(leases.refusal(for: lease, in: g, at: live) == .retired)
         #expect(throws: EditorLeaseRefusal.retired) {
             try leases.command(.set(iso), under: lease, in: g, at: live)
         }

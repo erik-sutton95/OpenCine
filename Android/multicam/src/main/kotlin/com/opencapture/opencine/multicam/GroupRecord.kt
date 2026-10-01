@@ -62,7 +62,10 @@ public sealed interface ExclusionReason {
     /** The camera itself reports it is starting or stopping. */
     public data object CameraTransitioning : ExclusionReason
 
-    /** Core's shared admission rule ([CameraSnapshot.rejection]). */
+    /**
+     * Core's shared admission rule ([CameraSnapshot.rejection]), or
+     * [CommandRejection.RecordingStateUnknown] when the camera has not reported whether it records.
+     */
     public data class Rejected(public val rejection: CommandRejection) : ExclusionReason
 }
 
@@ -232,6 +235,12 @@ public data class RecordPlan internal constructor(
                 val rejection = snapshot.rejection(probe, state.now)
                 if (rejection != null) {
                     exclude(ExclusionReason.Rejected(rejection))
+                    continue
+                }
+                // A camera that has not reported its recording state cannot be sorted into target or
+                // already-satisfied, and a later report could not be told from the approved state.
+                if (!snapshot.recording.isKnown) {
+                    exclude(ExclusionReason.Rejected(CommandRejection.RecordingStateUnknown))
                     continue
                 }
                 val target = RecordTarget(session, ids, AdmissionFingerprint(snapshot))

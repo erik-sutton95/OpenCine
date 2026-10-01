@@ -106,7 +106,11 @@ public class EditorLeases {
         return CameraCommand(intent, CommandPreconditions(state.cameras.getValue(lease.session), deadline))
     }
 
-    private fun refusal(lease: EditorLease, group: MulticamGroup, state: MulticamSnapshot): EditorLeaseRefusal? {
+    /**
+     * Why [lease] no longer holds, or `null` while it does. An app whose existing command path
+     * asks "may this editor send now?" calls this at send time.
+     */
+    public fun refusal(lease: EditorLease, group: MulticamGroup, state: MulticamSnapshot): EditorLeaseRefusal? {
         val entry = group[lease.entry]
         val snapshot = state.cameras[lease.session]
         val holds = active[lease.entry] == lease && entry != null && entry.cameraSession == lease.session &&

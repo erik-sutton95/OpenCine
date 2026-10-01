@@ -11,6 +11,7 @@ import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.testing.FakeCameraSession
+import com.opencapture.opencine.core.testing.FakeDevice
 import com.opencapture.opencine.core.testing.FakeEntries
 import com.opencapture.opencine.core.testing.FakePictureSource
 import com.opencapture.opencine.core.testing.djiLike
@@ -274,5 +275,31 @@ class GroupRecordTests {
             submission.finished(emptyMap()).outcomes,
         )
         assertTrue(dji.wire.isEmpty())
+    }
+
+    @Test
+    fun unreportedRecordingStateIsExcludedNeverCommanded() = scenario {
+        val dji = reported(FakeCameraSession.djiLike())
+        val silent = reported(
+            FakeCameraSession(
+                FakeCameraSession.djiLike().behavior,
+                FakeDevice(rawMode = 0x01, settings = emptyMap(), recording = null),
+            ),
+        )
+        val cameras = listOf(dji, silent)
+        val a = entry("A", dji)
+        val b = entry("B", silent)
+        val g = group(listOf(a, b))
+        val live = state(cameras)
+        val strict = RecordPlan.make(START, STRICT, listOf(a.id, b.id), g, live)
+        assertTrue(strict.isRefused)
+        assertEquals(
+            listOf(Exclusion(b.id, ExclusionReason.Rejected(CommandRejection.RecordingStateUnknown))),
+            strict.exclusions,
+        )
+        val subset = RecordPlan.make(START, ELIGIBLE_SUBSET, listOf(a.id, b.id), g, live)
+        assertEquals(listOf(dji.id), subset.targets.map { it.session })
+        subset.submit(g, live, sessions(cameras))
+        assertTrue(silent.wire.isEmpty())
     }
 }
