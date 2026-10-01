@@ -6,7 +6,7 @@ from support import AtlasCase, make_repo, meta, tree_digest, write_registry
 
 READ_ONLY = [
     ("doctor",), ("check",), ("check", "--sources"), ("stale",), ("locate", "app"),
-    ("deps", "app"), ("impact", "app"), ("impact", "app", "--include-candidates"), ("graph", "plan"),
+    ("deps", "app"), ("impact", "app"), ("impact", "app", "--include-candidates"), ("graph", "plan"), ("compat", "plan"),
 ]
 
 

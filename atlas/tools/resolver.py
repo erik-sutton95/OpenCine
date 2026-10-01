@@ -14,6 +14,10 @@ from pathlib import Path
 
 ATLAS_VERSION = "0.1.0"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+# Built so this source line itself never matches.
+PRIVATE_PATH_RE = re.compile(
+    r"(?<![\w.])(?:/(?:Users|home)/[\w.-]+|/private/(?:tmp|var)/|/var/(?:folders)/|[A-Za-z]:\\Users\\)"
+)
 
 
 class GitError(RuntimeError):

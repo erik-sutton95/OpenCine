@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """opencapture-atlas CLI. Standard library only.
 
-Read-only commands: doctor, locate, deps, impact, stale, check, graph plan.
+Read-only commands: doctor, locate, deps, impact, stale, check, graph plan, compat plan.
+`compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
 Exit codes: 0 ok, 1 failed check, 2 unusable input, 3 incomplete (something requested
 could not be obtained or parsed; never reported as success).
 """
@@ -43,10 +44,7 @@ ACTIONS = {
     "documents": "update documentation",
 }
 OK, FAIL, USAGE, INCOMPLETE = 0, 1, 2, 3
-# Built so this source line itself never matches.
-PRIVATE_PATH_RE = re.compile(
-    r"(?<![\w.])(?:/(?:Users|home)/[\w.-]+|/private/(?:tmp|var)/|/var/(?:folders)/|[A-Za-z]:\\Users\\)"
-)
+PRIVATE_PATH_RE = resolver.PRIVATE_PATH_RE
 
 
 def atlas_root():
@@ -605,7 +603,10 @@ def candidate_errors(root, reg):
                     errors.append(f"{where}: {con.get('repo')} check status must be one of {sorted(CHECK_STATUSES)}")
                 elif chk["status"] == "passed" and not pkg.get("commit"):
                     errors.append(f"{where}: a passed check needs the exact package commit")
-    return errors
+                elif chk["status"] == "not-applicable" and not chk.get("reason"):
+                    errors.append(f"{where}: {con.get('repo')} not-applicable check needs a reason")
+    import compat  # noqa: PLC0415
+    return errors + compat.result_errors(root, reg)
 
 
 def cmd_check(args, reg, root, load_errors):
@@ -683,6 +684,15 @@ def main(argv=None):
     p.add_argument("target", help="repo or repo@ref")
     p.add_argument("--local-only", action="store_true", required=True, help="required: no model or network calls")
     p = gp.add_parser("merge", help="namespaced local navigation view of built snapshots")
+    cp = sub.add_parser("compat", help="candidate package versus recorded consumers (OPS-01)").add_subparsers(dest="ccmd", required=True)
+    p = cp.add_parser("plan", help="read-only: workspace layout and what each check would do")
+    p.add_argument("candidate", nargs="?")
+    p.add_argument("--json", action="store_true")
+    p = cp.add_parser("run", help="build consumers against the candidate in disposable workspaces")
+    p.add_argument("candidate")
+    p.add_argument("--consumer", help="only this consumer repo id")
+    p.add_argument("--inject-break", metavar="PATCH", help="apply PATCH to the package inside the workspace only; results go to <candidate>.inject-break.json")
+    p.add_argument("--timeout", type=int, default=5400, help="seconds per check (default 5400)")
     args = ap.parse_args(argv)
 
     root = atlas_root()
@@ -697,6 +707,9 @@ def main(argv=None):
     if args.cmd == "graph":
         import graph  # noqa: PLC0415
         return graph.run(args, reg, root)
+    if args.cmd == "compat":
+        import compat  # noqa: PLC0415
+        return compat.run(args, reg, root)
     return {"locate": cmd_locate, "deps": cmd_deps, "impact": cmd_impact, "stale": cmd_stale}[args.cmd](args, reg, root)
 
 
