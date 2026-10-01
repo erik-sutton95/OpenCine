@@ -3,3 +3,8 @@
 *.xcodeproj
 xcuserdata/
 .DS_Store
+# Android (Gradle)
+.gradle/
+build/
+.kotlin/
+local.properties
