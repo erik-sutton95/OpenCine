@@ -43,7 +43,7 @@ dependencies.
 ## Tool
 
 `tools/atlas.py` is a Python 3 standard-library CLI. Every command except
-`graph build`/`graph merge` is read-only.
+`graph build`/`graph merge` and `compat run` is read-only.
 
 ```sh
 python3 tools/atlas.py doctor              # registry, local paths, tooling, snapshots
@@ -53,5 +53,7 @@ python3 tools/atlas.py impact openpocketcine
 python3 tools/atlas.py stale
 python3 tools/atlas.py check               # CI gate
 python3 tools/atlas.py graph plan          # what a Graphify build would read and write
+python3 tools/atlas.py compat plan         # candidate consumer matrix (read-only)
+python3 tools/atlas.py compat run <id>     # build consumers against a candidate (macOS, docs/EXECUTION.md)
 python3 -m unittest discover -s tests
 ```
