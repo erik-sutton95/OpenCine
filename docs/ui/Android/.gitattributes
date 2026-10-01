@@ -1,0 +1,2 @@
+# Windows wrapper script keeps CRLF on checkout (Gradle default).
+*.bat text eol=crlf
