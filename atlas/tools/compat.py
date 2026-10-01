@@ -333,6 +333,10 @@ def run_consumer(cand, con, reg, root, env, patch, timeout, logdir):
                       f"{' ' + str(res['duration_s']) + ' s' if 'duration_s' in res else ''}", flush=True)
                 out["checks"].append(dict(entry, **res))
     out["workspace_was_removed"] = not ws.exists()
+    # SwiftPM leaves empty lock files named after the workspace path in the system temp folder.
+    for stray in Path(tempfile.gettempdir()).glob(f"*{ws.name}*"):
+        if stray.is_file() and not stray.stat().st_size:
+            stray.unlink()
     return out
 
 

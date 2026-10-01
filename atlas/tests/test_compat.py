@@ -1,5 +1,6 @@
 """compat plan/run: status semantics, workspace isolation, cleanup, injected breaks."""
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -87,14 +88,17 @@ class Compat(AtlasCase):
 
     def test_workspace_removed_after_failure_and_interrupt(self):
         marker = self.ws / "workspace.txt"
-        self.write_candidates([{"name": "boom", "recipe": f'echo "$ATLAS_COMPAT_WORKSPACE" > {marker}; echo "$PWD/A.swift:1:2: error: boom"; exit 7'}])
+        stray = 'touch "$(python3 -c "import tempfile; print(tempfile.gettempdir())")/lock_$(basename "$ATLAS_COMPAT_WORKSPACE").lock"'
+        self.write_candidates([{"name": "boom", "recipe": f'echo "$ATLAS_COMPAT_WORKSPACE" > {marker}; {stray}; echo "$PWD/A.swift:1:2: error: boom"; exit 7'}])
         code, _ = self.run_atlas("compat", "run", "c1")
         self.assertEqual(code, 1)
         self.assertEqual(self.statuses(), {"boom": "failed"})
         failed = self.result()["consumers"][0]["checks"][0]
         self.assertIn("exit 7", failed["reason"])
         self.assertEqual(failed["first_errors"], ["<workspace>/App/A.swift:1:2: error: boom"])
-        self.assertFalse(Path(marker.read_text().strip()).exists())
+        workspace = Path(marker.read_text().strip())
+        self.assertFalse(workspace.exists())
+        self.assertEqual(list(Path(tempfile.gettempdir()).glob(f"*{workspace.name}*")), [], "stray lock files left behind")
 
         seen = []
 
