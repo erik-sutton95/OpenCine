@@ -1,0 +1,18 @@
+# Versions match the OpenInstaCine catalog this build was extracted from (and OpenCineCore /
+# OpenCineUI), so a consumer's included build resolves one AGP, Kotlin and coroutines closure.
+[versions]
+androidCompileSdk = "37"
+agp = "9.4.1"
+kotlin = "2.4.20"
+coroutines = "1.11.0"
+opencine-core = "0.1.0-SNAPSHOT"
+
+[libraries]
+opencine-core = { module = "com.opencapture.opencine:core", version.ref = "opencine-core" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

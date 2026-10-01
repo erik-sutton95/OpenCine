@@ -3,6 +3,9 @@
 - Build and test: `swift build && swift test` (Swift 6 language mode, XCTest). Also build the iOS
   device slice: `xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS'
   CODE_SIGNING_ALLOWED=NO build` (the NEHotspotConfiguration branch compiles only there).
+- Android (`Android/`, JDK 21+): `./gradlew test lint assembleRelease`. `:insta360-shell` (JVM) is the
+  app shell contract, `:insta360-luna` (Android library) the Luna adapter. Never change
+  `LunaBackend.DEFAULT_CLIENT_IDENTITY_PREFERENCES`: OpenInstaCine's saved camera approvals live there.
 - Depends only on `../OpenCineCore` (pinned in `opencine-pins.txt`). Never modify Core from here:
   propose Core changes to its owner, then bump the pin.
 - No UI, no app types, no brand strings. Anything an app names (keychain service, app name in

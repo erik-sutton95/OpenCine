@@ -52,11 +52,40 @@ Needs a sibling `../OpenCineCore` checkout at the pinned commit (`scripts/checko
 Hardware behavior (pairing, Wi-Fi join, settle timing) is qualified only on a physical Luna Ultra
 through the consuming app.
 
-## Kotlin
+## Kotlin (Android/)
 
-The Android `luna-adapter` still lives in OpenInstaCine: it implements that app's shell
-contract (`:core-api`, `CameraBackend`/`CameraControls`/`CameraMediaStore`), which has no
-OpenCineCore equivalent yet. See OpenInstaCine `docs/implementation/opencine-integration.md`.
+Standalone Gradle build (wrapper and version catalog, AGP/Kotlin matching OpenCineUI and the apps),
+OpenCineCore from the sibling checkout as the included build `opencinecore`.
+
+| Module | Coordinate | What it holds |
+|---|---|---|
+| `:insta360-shell` | `com.opencapture.opencine:insta360-shell` | Kotlin/JVM app shell contract, the Kotlin twin of the Swift `CameraBackend` seam: `CameraBackend` (discovery, connection, frames), `CameraControls` (Luna live controls), `CameraMediaStore`, `CoreSessionSource` (hands out the OpenCineCore `CameraSession`) and their Luna-shaped values. Package `com.opencapture.opencine.insta360.shell`. |
+| `:insta360-luna` | `com.opencapture.opencine:insta360-luna` | Android library: `LunaBackend` (BLE, camera Wi-Fi, TCP 6666, HEVC preview, media), `LunaCameraSession` (OpenCineCore session), wire/status/IMU code. Package and namespace `com.opencapture.opencine.insta360.luna`. compileSdk 37, no AAR-metadata exemption. |
+
+The shell contract is not in OpenCineCore: its values are Luna-shaped (shooting, gimbal and focus
+modes, program and storage codes) and Core already owns the neutral command and state contract.
+Moved from OpenInstaCine `:core-api` and `luna-adapter` (CORE-API); OpenPocketCine's
+`ConnectionPhase` stays with the DJI integration.
+
+`LunaBackend(context, savedWifi, saveWifi, clientIdentityPreferences)`: the last argument names the
+SharedPreferences file holding the camera authorization identity. Its default
+`openinstacine.client-identity` keeps OpenInstaCine's saved approvals; another app passes its own.
+
+```sh
+cd Android && ./gradlew test lint assembleRelease
+```
+
+A consumer includes this build by name and substitutes both coordinates:
+
+```kotlin
+includeBuild("../../../OpenCineInsta360/Android") {
+    name = "opencineinsta360"
+    dependencySubstitution {
+        substitute(module("com.opencapture.opencine:insta360-shell")).using(project(":insta360-shell"))
+        substitute(module("com.opencapture.opencine:insta360-luna")).using(project(":insta360-luna"))
+    }
+}
+```
 
 ## License
 
