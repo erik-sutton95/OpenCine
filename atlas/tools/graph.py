@@ -1,0 +1,271 @@
+"""Graphify navigation snapshots: plan, local-only build, namespaced merge.
+
+A build exports one identified commit with `git archive` into a temporary folder (the
+shared checkout is never touched), removes excluded file classes, and runs the pinned
+Graphify `update` command (code-only AST extraction, deterministic hub labels) inside a
+macOS sandbox that denies all network access and every write outside the temporary
+folder. If any of that cannot be verified, the build refuses to run.
+"""
+from __future__ import annotations
+
+import fnmatch
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+from collections import Counter
+from pathlib import Path
+
+import resolver
+
+# Inspected version: `graphify update` runs watch._rebuild_code, which imports no LLM
+# client and names communities by their highest-degree member. Re-inspect before bumping.
+GRAPHIFY_VERSION = "0.9.11"
+SCAN_CONFIG = {
+    "graphify": {"package": "graphifyy", "version": GRAPHIFY_VERSION, "command": ["update", "<export>"]},
+    "isolation": "git archive export; sandbox-exec denies network and writes outside the export",
+    "exclude": {
+        "credentials": ["*.p12", "*.pem", "*.key", "*.keystore", "*.jks", "*.mobileprovision", "*.provisionprofile",
+                        ".env", ".env.*", "*.local.xcconfig", "google-services.json", "GoogleService-Info.plist",
+                        ".local/*", "*.properties.local"],
+        "build-products": ["build/*", ".build/*", "DerivedData/*", "node_modules/*", "dist/*", ".gradle/*",
+                           "*.so", "*.a", "*.dylib", "*.apk", "*.aab", "*.ipa", "*.xcframework/*", "jniLibs/*"],
+        "binary-captures": ["*.pcap", "*.pcapng", "*.mp4", "*.mov", "*.m4v", "*.h264", "*.h265", "*.hevc", "*.bin",
+                            "*.raw", "*.dng", "*.jpg", "*.jpeg", "*.png", "*.heic", "*.cube", "*.wav", "*.zip"],
+        "vendor-reference-copies": ["vendor/*", "Vendor/*", "reference/*", "ref/*", "third_party/*", "ThirdParty/*"],
+    },
+}
+CODE_EXTS = {".swift", ".kt", ".kts", ".java", ".c", ".h", ".cpp", ".hpp", ".cc", ".m", ".mm", ".metal", ".py", ".js", ".ts", ".sh", ".rb", ".go", ".rs"}
+MERGE_NOTE = ("Navigation view only. Graphify merge-graphs composes repo-prefixed nodes into one undirected graph; "
+              "it does not discover cross-repo dependencies and drops edge direction. Use `atlas deps` and "
+              "`atlas impact` for dependency facts.")
+
+
+def graphify_python():
+    exe = shutil.which("graphify")
+    if not exe:
+        return None
+    first = Path(exe).read_bytes().split(b"\n", 1)[0].decode(errors="replace")
+    return first[2:].strip().split()[0] if first.startswith("#!") else None
+
+
+def installed_graphify_version():
+    py = graphify_python()
+    if not py:
+        return None
+    r = subprocess.run([py, "-c", "import importlib.metadata as m; print(m.version('graphifyy'))"], capture_output=True, text=True)
+    return r.stdout.strip() or None
+
+
+def sandbox_available():
+    return sys.platform == "darwin" and shutil.which("sandbox-exec") is not None
+
+
+def local_only_problems():
+    problems = []
+    version = installed_graphify_version()
+    if version is None:
+        problems.append("graphify is not installed")
+    elif version != GRAPHIFY_VERSION:
+        problems.append(f"installed graphify {version} is not the inspected {GRAPHIFY_VERSION}")
+    if not sandbox_available():
+        problems.append("sandbox-exec is unavailable, so no-network cannot be enforced")
+    return problems
+
+
+def excluded_class(rel):
+    parts = rel.split("/")
+    suffixes = ["/".join(parts[i:]) for i in range(len(parts))]
+    for cls, patterns in SCAN_CONFIG["exclude"].items():
+        if any(fnmatch.fnmatchcase(s, p) for p in patterns for s in suffixes):
+            return cls
+    return None
+
+
+def select_targets(reg, specs):
+    """[(repo_id, ref)] for 'repo' (every registered ref) or 'repo@name-or-sha-prefix'."""
+    if not specs:
+        return [(rid, ref) for rid, m in sorted(reg.items()) for ref in m["refs"]]
+    out = []
+    for spec in specs:
+        rid, _, want = spec.partition("@")
+        if rid not in reg:
+            raise SystemExit(f"unknown repo {rid!r}")
+        refs = [r for r in reg[rid]["refs"] if not want or r["name"] == want or (len(want) >= 7 and r["commit"].startswith(want))]
+        if not refs:
+            raise SystemExit(f"{spec}: no registered ref matches (register it in repos/{rid}/meta.json first)")
+        out += [(rid, r) for r in refs]
+    return out
+
+
+def paths_for(root, rid, commit):
+    return {
+        "snapshot": root / "repos" / rid / "snapshots" / commit,
+        "graph": root / "graphify-out" / f"{rid}@{commit[:12]}" / "graph",
+    }
+
+
+def plan(args, reg, root):
+    problems = local_only_problems()
+    config_hash = resolver.config_hash(SCAN_CONFIG)
+    for rid, ref in select_targets(reg, args.targets):
+        res = resolver.resolve(reg[rid], root)
+        p = paths_for(root, rid, ref["commit"])
+        snap = p["snapshot"] / "snapshot.json"
+        cache = "none"
+        if snap.is_file():
+            cache = "current snapshot (build would replace it)" if json.loads(snap.read_text()).get("scan_config_hash") == config_hash else "outdated snapshot (scan config changed)"
+        available = res["status"] == "ok" and resolver.rev(res["path"], ref["commit"])
+        print(f"{rid}@{ref['name']} ({ref['role']})")
+        print(f"  source: git archive {ref['commit']} from {'the resolved checkout' if available else 'UNAVAILABLE: ' + res['reason']}")
+        print(f"  excluded classes: {', '.join(SCAN_CONFIG['exclude'])}")
+        print(f"  writes (committed): {p['snapshot'].relative_to(root)}/{{snapshot.json,GRAPH_REPORT.md,graphify_labels.json}}")
+        print(f"  writes (ignored):   {p['graph'].relative_to(root)}/{{graph.json,graph.html}}")
+        print(f"  cache: {cache}")
+    print(f"scan config hash: {config_hash}")
+    if problems:
+        print("model/network: build REFUSED, local-only mode not verifiable: " + "; ".join(problems))
+    else:
+        print(f"model/network: none. graphify {GRAPHIFY_VERSION} `update` (code-only) under sandbox-exec with network denied")
+    return 0
+
+
+def _export(checkout, commit, dest):
+    """git archive into dest, skipping excluded classes. Returns (exported_paths, excluded Counter)."""
+    exported, excluded = [], Counter()
+    proc = subprocess.Popen(["git", "-C", str(checkout), "archive", "--format=tar", commit], stdout=subprocess.PIPE, env=resolver.GIT_ENV)
+    with tarfile.open(fileobj=proc.stdout, mode="r|") as tar:
+        for member in tar:
+            if not member.isfile():
+                continue
+            cls = excluded_class(member.name)
+            if cls:
+                excluded[cls] += 1
+                continue
+            tar.extract(member, dest, filter="data")
+            exported.append(member.name)
+    if proc.wait():
+        raise resolver.GitError(f"git archive {commit} failed")
+    return exported, excluded
+
+
+def _sandboxed(cmd, scratch):
+    profile = (
+        '(version 1)(allow default)(deny network*)(deny file-write*)'
+        f'(allow file-write* (subpath "{scratch}") (literal "/dev/null") (literal "/dev/tty") (regex #"^/dev/fd/"))'
+    )
+    home = Path(scratch) / "home"
+    home.mkdir(exist_ok=True)
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(home), "TMPDIR": str(home), "GRAPHIFY_NO_TIPS": "1", "LANG": "en_US.UTF-8"}
+    return subprocess.run(["sandbox-exec", "-p", profile, *cmd], capture_output=True, text=True, env=env)
+
+
+def _coverage(exported, graph_json, excluded):
+    data = json.loads(graph_json.read_text())
+    parsed = {n.get("source_file") for n in data.get("nodes", []) if n.get("source_file")}
+    parsed_names = {Path(p).name for p in parsed}
+    unparsed_code = Counter(Path(f).suffix for f in exported if Path(f).suffix in CODE_EXTS and Path(f).name not in parsed_names)
+    return {
+        "exported_files": len(exported),
+        "parsed": len(parsed),
+        "skipped_non_code": sum(1 for f in exported if Path(f).suffix not in CODE_EXTS),
+        "unsupported_or_empty_code": dict(sorted(unparsed_code.items())),
+        "excluded": dict(sorted(excluded.items())),
+        "failed": 0,
+        "nodes": len(data.get("nodes", [])),
+        "edges": len(data.get("links", data.get("edges", []))),
+    }
+
+
+def build(args, reg, root):
+    problems = local_only_problems()
+    if problems:
+        print("graph build refused: local-only mode is not verifiable: " + "; ".join(problems), file=sys.stderr)
+        return 1
+    targets = select_targets(reg, [args.target])
+    if len(targets) != 1:
+        print(f"{args.target} names {len(targets)} refs; pick one with repo@ref", file=sys.stderr)
+        return 2
+    rid, ref = targets[0]
+    res = resolver.resolve(reg[rid], root)
+    if res["status"] != "ok" or not resolver.rev(res["path"], ref["commit"]):
+        print(f"{rid}@{ref['name']}: source unavailable ({res['reason']}); nothing built", file=sys.stderr)
+        return 3
+    commit = ref["commit"]
+    out = paths_for(root, rid, commit)
+    py = graphify_python()
+    with tempfile.TemporaryDirectory(prefix="atlas-graph-") as tmp:
+        scratch = Path(tmp).resolve()
+        src = scratch / f"{rid}@{commit[:12]}"
+        src.mkdir()
+        exported, excluded = _export(res["path"], commit, src)
+        labels = out["snapshot"] / "graphify_labels.json"
+        if labels.is_file():  # keep a maintainer's edited labels as the starting point
+            (src / "graphify-out").mkdir()
+            shutil.copy(labels, src / "graphify-out" / ".graphify_labels.json")
+        run = _sandboxed([py, "-m", "graphify", "update", str(src)], scratch)
+        gout = src / "graphify-out"
+        if run.returncode or not (gout / "graph.json").is_file():
+            print(f"graph build FAILED for {rid}@{ref['name']} (exit {run.returncode}); nothing written", file=sys.stderr)
+            print((run.stdout + run.stderr)[-2000:], file=sys.stderr)
+            return 1
+        prov = resolver.snapshot_provenance(rid, res["path"], commit, SCAN_CONFIG,
+                                            {"atlas": resolver.ATLAS_VERSION, "graphify": GRAPHIFY_VERSION}, scope=ref["role"])
+        prov.update(ref_label=ref["name"], excluded_classes=list(SCAN_CONFIG["exclude"]),
+                    coverage=_coverage(exported, gout / "graph.json", excluded))
+        out["graph"].mkdir(parents=True, exist_ok=True)
+        for name in ("graph.json", "graph.html"):
+            if (gout / name).is_file():
+                shutil.copy(gout / name, out["graph"] / name)
+        staged = scratch / "snapshot"
+        staged.mkdir()
+        shutil.copy(gout / "GRAPH_REPORT.md", staged / "GRAPH_REPORT.md")
+        if (gout / ".graphify_labels.json").is_file():
+            shutil.copy(gout / ".graphify_labels.json", staged / "graphify_labels.json")
+        (staged / "snapshot.json").write_text(json.dumps(prov, indent=2, sort_keys=True) + "\n")
+        replaced = out["snapshot"].exists()
+        if replaced:
+            shutil.rmtree(out["snapshot"])
+        out["snapshot"].parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(staged, out["snapshot"])
+    c = prov["coverage"]
+    print(f"built {rid}@{ref['name']} {commit}: {c['nodes']} nodes, {c['edges']} edges, {c['parsed']} files parsed, "
+          f"excluded {c['excluded']}{' (replaced the snapshot for this commit)' if replaced else ''}")
+    return 0
+
+
+def merge(args, reg, root):
+    problems = local_only_problems()
+    if problems:
+        print("graph merge refused: " + "; ".join(problems), file=sys.stderr)
+        return 1
+    inputs = []
+    for snap in sorted((root / "repos").glob("*/snapshots/*/snapshot.json")):
+        s = json.loads(snap.read_text())
+        g = paths_for(root, s["repository_id"], s["source_commit"])["graph"] / "graph.json"
+        inputs.append({"snapshot": f"{s['repository_id']}@{s['source_commit']}", "ref": s.get("ref_label"),
+                       "scope": s.get("scope"), "graph": str(g.relative_to(root)), "available": g.is_file()})
+    usable = [i for i in inputs if i["available"]]
+    if len(usable) < 2:
+        print(f"need at least two locally built graphs; have {len(usable)} (run graph build first)", file=sys.stderr)
+        return 3
+    dest = root / "graphify-out"
+    run = _sandboxed([graphify_python(), "-m", "graphify", "merge-graphs", *[str(root / i["graph"]) for i in usable],
+                      "--out", str(dest / "merged-graph.json")], dest.resolve())
+    if run.returncode:
+        print(run.stdout + run.stderr, file=sys.stderr)
+        return 1
+    disclosure = {"note": MERGE_NOTE, "graphify": GRAPHIFY_VERSION, "inputs": inputs}
+    (dest / "merged-inputs.json").write_text(json.dumps(disclosure, indent=2) + "\n")
+    print(MERGE_NOTE)
+    for i in inputs:
+        print(f"  {'merged ' if i['available'] else 'MISSING'} {i['snapshot']} ({i['ref']}, {i['scope']})")
+    print(run.stdout.strip().splitlines()[-2] if run.stdout.strip() else "")
+    return 0 if len(usable) == len(inputs) else 3
+
+
+def run(args, reg, root):
+    return {"plan": plan, "build": build, "merge": merge}[args.gcmd](args, reg, root)
