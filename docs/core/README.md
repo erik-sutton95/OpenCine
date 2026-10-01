@@ -18,6 +18,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. The encoded-unit seam: `EncodedVideoUnit` (stream, generation, codec, Annex-B or JPEG payload, random access, parameter sets, host arrival, optional PTS and format), HEVC/AVC NAL math (`Hevc`, `Avc`, `LiveVideo`), decoder parameter-set policy (`EncoderPresentPath`), present policy (`FeedPresentPolicy`, `SerialSessionGate`, `ExtraMirrorHold`), `DeliveryCadence`, and the Apple-only scope tap `LiveFrameTap`. Foundation plus OpenCineCore; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
 | `OpenCineFrameIO` | Optional Frame.io delivery: v4 request planning (`FrameioAPI`), OAuth PKCE primitives and IMS token requests (`FrameioOAuth`, `PKCE`), response models, the upload workflow with injected transport, token storage, clock and pause (`FrameioClient`), batch results with history and cleanup reporting (`FrameioDelivery`, `FrameioDeliveryReport`), and an Apple `URLSession` transport. Foundation only (CryptoKit on Apple platforms). See [OpenCineFrameIO](#opencineframeio). | Apps that deliver to Frame.io; Android JNI facades |
 | `OpenCineMotion` | Optional. The typed motion seam: `MotionCapabilities` (supported axes, reference frame, `MotionBounds` position bounds, optional rate bound, feedback max age, arrival tolerance), `MotionTarget` (made only inside the declared bounds) and feedback validity over `ObservedValue<GimbalWaypoint>`. Shared trajectory math: `GimbalWaypoint`, `GimbalProgram`, `GimbalProgramCurve`, `GimbalPath`, head-look math (`HeadTrack`) and bounded head tracking (`HeadTrackNative`). Foundation plus OpenCineCore; Core and Media never depend on it. | Gimbal integrations and app cores |
+| `OpenCineRelay` | Optional. The second-screen relay wire, protocol version 1: Bonjour service type, `[u32be length][u8 kind][payload]` framing, JSON messages (hello, state, control token, join denied, commands), the frame blob, exact version check in `WatcherRelayJoin`, the single-holder control lease (`WatcherRelayControlLease`, 20 s park for a dropped watcher), bitrate ladder, encode admission, watcher recovery and focus-point mapping. Golden wire tests pin every message kind. Foundation only; sockets, Bonjour, encoders and keychain stay in the apps. | App cores that host or watch a relay |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 
@@ -55,6 +56,26 @@ interface changes driven by the first real adapter slices (CORE-02).
   stay in the integration. A world reference frame needs the camera to hold one; a phone IMU
   sample alone does not establish it.
 - Moved test numbers are golden.
+## OpenCineRelay rules
+
+- Optional: no other Core product imports it (a test enforces it). Foundation only, no
+  manufacturer or app names; user-facing copy that crosses the wire (the version-mismatch
+  reason) is a parameter supplied by the app.
+- The wire is frozen at `WatcherRelayProtocol.version` 1. Golden tests pin header bytes, the
+  frame blob and every JSON message; changing one is a wire break that needs a new version, a
+  negotiation path for old watchers and an adapter, not an edit to the golden.
+- Version negotiation is exact (host and watcher must both speak version 1). New optional JSON
+  fields stay optional so older peers keep decoding; unknown keys are ignored.
+- Sharing the package shares no credentials: each app keeps its own keychain namespace for the
+  relay passcode.
+- OpenZCine keeps its own `MonitorRelayProtocol` (version 2, `_openzcine-mon._tcp`, JPEG or
+  HEVC frames, per-frame focus/box/sound metadata, a TCP presence beacon on port 15741, Android
+  and watch peers). Its framing bytes and kind numbers match version 1 here, and its 20 s parked
+  lease has the same rule, but every JSON body differs, so one product cannot serve both without
+  breaking a shipped peer. Unifying needs: a shared framing and lease layer parameterised by the
+  kind set and size limit, per-family message codecs behind it, a new joint version that both
+  hosts can offer alongside their current one, and golden tests for both existing wires before
+  anything moves.
 
 ## Import rules
 

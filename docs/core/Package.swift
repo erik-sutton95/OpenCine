@@ -14,6 +14,9 @@ import PackageDescription
 // OpenCineMotion is optional: the typed motion seam (axes, reference frame, position and rate
 // bounds, feedback validity) plus trajectory math shared by gimbal integrations. Foundation plus
 // OpenCineCore; neither OpenCineCore nor OpenCineMedia depends on it.
+// OpenCineRelay is optional: the second-screen relay wire (framing, messages, version check,
+// frame blob), the control lease and relay pacing policy. Foundation only; sockets, Bonjour,
+// encoders and keychain stay in the apps.
 let package = Package(
     name: "OpenCineCore",
     platforms: [.iOS(.v17), .macOS(.v13), .watchOS(.v10)],
@@ -22,6 +25,7 @@ let package = Package(
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
+        .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         // Fakes for consumers' test targets only; never link it into an app.
         .library(name: "OpenCineCoreTestSupport", targets: ["OpenCineCoreTestSupport"]),
     ],
@@ -40,5 +44,7 @@ let package = Package(
         .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
+        .target(name: "OpenCineRelay"),
+        .testTarget(name: "OpenCineRelayTests", dependencies: ["OpenCineRelay"]),
     ]
 )
