@@ -1,0 +1,11 @@
+OpenCineCore
+Copyright 2026 Erik Sutton and OpenCine contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The contracts are informed by OpenPocketCine, OpenInstaCine and OpenZCine (Apache 2.0,
+same authors). No third-party code and no manufacturer SDK or documentation is included.
+
+Test fixtures name camera families ("DJI-like", "Nikon-like", "Luna-like") only to describe
+the behavior they imitate. DJI, Nikon, Insta360 and Luna are trademarks of their respective
+owners, used for identification only. This project is not affiliated with or endorsed by them.
