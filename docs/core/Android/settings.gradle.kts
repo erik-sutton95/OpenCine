@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "opencinecore-android"
 
-include(":core")
+include(":core", ":media")

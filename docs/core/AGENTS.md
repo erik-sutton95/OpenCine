@@ -4,6 +4,10 @@
 - Android: `cd Android && ./gradlew build` (JDK 17+). `core` is plain Kotlin/JVM and mirrors
   `Sources/OpenCineCore`; the fakes are its test fixtures. Change a contract and its mirrored
   test in Swift and Kotlin in the same commit (README "Test mapping").
+- Android `media` is plain Kotlin/JVM: the decoder policy and NAL math the apps' MediaCodec path
+  uses. No `android.*` there. `Fixtures/live-video-nal-vectors.tsv` pins Swift and Kotlin `LiveVideo`
+  to the same answers; regenerate with `OPENCINE_WRITE_FIXTURES=1 swift test --filter
+  LiveVideoNalVectorTests`, never by hand.
 - `Sources/OpenCineCore` imports Foundation only and names no camera manufacturer; a test
   enforces both. Never import UI, an integration, Multicam or an app.
 - `Sources/OpenCineMedia` imports Foundation only, holds no mutable global state and takes no

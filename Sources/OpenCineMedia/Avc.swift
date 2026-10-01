@@ -65,4 +65,37 @@ public enum LiveVideo {
     public static func detect(headers: [UInt8]) -> LiveVideoCodec? {
         headers.lazy.compactMap(codec(ofNAL:)).first
     }
+
+    // The Android decoder's per-unit classification (Kotlin `LiveVideo`). Each reads the codec
+    // from the unit itself, HEVC when it carries no parameter set. Fixtures/live-video-nal-vectors.tsv
+    // pins Swift and Kotlin to the same answers.
+
+    /// The unit's parameter-set NALs (HEVC VPS/SPS/PPS, or AVC SPS/PPS), each behind a 4-byte
+    /// start code, in stream order; nil when it carries none.
+    public static func parameterSetAnnexB(_ annexB: [UInt8]) -> [UInt8]? {
+        let avc = detect(annexB: annexB) == .avc
+        var out: [UInt8] = []
+        for range in Hevc.nalRanges(annexB) {
+            let first = annexB[range.lowerBound]
+            let keep =
+                avc
+                ? [Avc.sps, Avc.pps].contains(Avc.nalType(first))
+                : [Hevc.vps, Hevc.sps, Hevc.pps].contains(Hevc.nalType(first))
+            if keep { out += [0, 0, 0, 1] + annexB[range] }
+        }
+        return out.isEmpty ? nil : out
+    }
+
+    /// Distinct NAL types in ascending order, comma separated (`"1,32,33"`).
+    public static func nalTypeSummary(_ annexB: [UInt8]) -> String {
+        let headers = Hevc.nalHeaders(annexB)
+        let avc = detect(headers: headers) == .avc
+        return Set(headers.map { avc ? Avc.nalType($0) : Hevc.nalType($0) })
+            .sorted().map(String.init).joined(separator: ",")
+    }
+
+    /// Parameter sets or a random-access picture, typed by the unit's own codec.
+    public static func accessUnitCarriesKeyframe(_ annexB: [UInt8]) -> Bool {
+        accessUnitCarriesKeyframe(annexB, codec: detect(annexB: annexB) ?? .hevc)
+    }
 }
