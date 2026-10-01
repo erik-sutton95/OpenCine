@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "opencinemulticam",
+  "display_name": "OpenCineMulticam",
+  "status": "candidate",
+  "layer": "multicam",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCineMulticam",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "d2ad2029e3a1687e328d84a0f823754a3848663c",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "OpenCineMulticam",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "opencinecore",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency ../OpenCineCore pinned in opencine-pins.txt",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "d2ad2029e3a1687e328d84a0f823754a3848663c"
+      }
+    }
+  ],
+  "summary_review": null
+}

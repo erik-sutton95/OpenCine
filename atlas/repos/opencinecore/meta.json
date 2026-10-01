@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "3785fb2d91351e6fe586bc05100a8652b84180db",
+      "commit": "8c2415c1df22cc599d32b48d1221c3a57af71030",
       "role": "baseline"
     }
   ],
@@ -26,6 +26,16 @@
       "name": "OpenCineCoreTestSupport",
       "kind": "swift-library",
       "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMedia",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "core (com.opencapture.opencine:core)",
+      "kind": "gradle-library",
+      "manifest": "Android/settings.gradle.kts"
     }
   ],
   "instructions": [
