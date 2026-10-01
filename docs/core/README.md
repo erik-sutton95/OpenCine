@@ -15,6 +15,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 |---|---|---|
 | `OpenCineCore` | Value types and the `CameraSession` protocol. Foundation only. | Integrations, multicam, UI presentation, apps |
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
+| Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 
 Media algorithms (`OpenCineMedia`) will be a separate target in this repository.
 
@@ -54,11 +55,96 @@ Media algorithms (`OpenCineMedia`) will be a separate target in this repository.
 - **`MonitorLayoutCapabilities`** is a separate ten-field layout projection matching the UI's
   current `MonitorCapabilities`, derived from the richer model where Core has vocabulary.
 
+## Android
+
+`Android/` is a standalone Gradle build with one plain Kotlin/JVM module, `core`
+(`com.opencapture.opencine:core`, `0.1.0-SNAPSHOT`). It has no Android framework dependency, so
+app modules depend on it directly and its tests run on the JVM. It mirrors `Sources/OpenCineCore`
+type for type with the same semantics, and `FakeCameraSession`, the three fixture families,
+`FakePictureSource` and `FakeEntries` are its test fixtures (package
+`com.opencapture.opencine.core.testing`). Kotlin 2.4.20, kotlinx-coroutines 1.11.0 and a JVM 17
+target match the OpenPocketCine catalog; warnings are errors and explicit API mode is on.
+
+```sh
+cd Android && ./gradlew build   # JDK 17 or newer
+```
+
+Consume it from an app on a candidate branch with a composite build (path from `Apps/Android`
+to a sibling checkout). Name the included build: OpenCineUI's Gradle build also lives in a
+directory called `Android`, and two included builds cannot share a name.
+
+```kotlin
+// settings.gradle.kts
+includeBuild("../../../OpenCineCore/Android") {
+    name = "opencinecore"
+    dependencySubstitution {
+        substitute(module("com.opencapture.opencine:core")).using(project(":core"))
+    }
+}
+
+// module build.gradle.kts
+dependencies {
+    implementation("com.opencapture.opencine:core:0.1.0-SNAPSHOT")
+    testImplementation(testFixtures("com.opencapture.opencine:core:0.1.0-SNAPSHOT"))
+}
+```
+
+Once published, drop `includeBuild` and use the Maven coordinate
+`com.opencapture.opencine:core:<version>` (plus `testFixtures(...)` for the fakes); the group may
+move to the verified Maven Central namespace at publish time. Local multi-repo work then becomes
+an opt-in `includeBuild` behind an untracked property.
+
+### Kotlin mapping
+
+Same names and semantics, in Kotlin idiom. Where they differ:
+
+- Each ID is its own `@JvmInline value class` (Swift: generic `Identifier<Kind>` and
+  `Counter<Kind>`). Counters hold a `Long` (Swift `UInt64`).
+- Cases without payload are `enum class` with `UPPER_SNAKE` constants; cases with payload are a
+  `sealed interface` of `data object` and `data class`. Struct mutation is `copy(...)`.
+- `Observation` is covariant: `Observation.unknown` is an `Observation<Nothing>` assignable to any
+  `Observation<T>`, and its private constructor keeps a null value exclusive to it. Durations are
+  `kotlin.time.Duration`; `MonotonicInstant.zero` is `MonotonicInstant.ZERO`.
+- The feed is `val snapshots: StateFlow<CameraSnapshot>` (Swift `snapshots()` returning a
+  `.bufferingNewest(1)` stream). Same latest-value conflation; `.value` replaces
+  `currentSnapshot()`. A `StateFlow` never completes, so `close` leaves the final `Disconnected`
+  snapshot in place instead of finishing streams; collectors end with their coroutine scope.
+- Cancelling an `outcome(operation)` wait throws `CancellationException` in the waiter instead of
+  returning the unfinished receipt. As in Swift, the operation itself is never affected.
+- `MonitorEntryDescriptor.validate()` (typed throws) is `validationError(): MonitorEntryError?`.
+  `rejection(of:at:)`, `support(of:)` and `value(of:)` are `rejection(command, now)`,
+  `support(key)` and `value(key)`.
+- No serialization: Swift's `Codable` has no Kotlin counterpart until a consumer persists or sends
+  these values (then add kotlinx.serialization). A zero `Rational` denominator throws
+  `IllegalArgumentException` at construction.
+- Fakes: raw modes are `Int` (Swift `UInt8`), `FakeDevice.settings` is a map, and the fake is
+  confined to one thread instead of being an actor.
+
+### Test mapping
+
+Scenarios are action sequences, so shared JSON fixtures would need an interpreter on both sides.
+The suites are mirrored by name instead; change a contract and its mirrored test in Swift and
+Kotlin together.
+
+| Swift (`Tests/OpenCineCoreTests`) | Kotlin (`Android/core/src/test`) |
+|---|---|
+| `Conformance` "1." to "15." (19 tests, 11, 12 and 15 disabled) | `ConformanceTest` `01` to `15`, same titles (11, 12 and 15 `@Ignore`) |
+| `Values` (6 tests) | `ValuesTest`, same method names |
+| `Entries.everyEntryNeedsARole` | `EntriesTest.everyEntryNeedsARole` |
+| `LayoutProjection.projectsWritableSectionsAndCarriesTheRest` | `LayoutProjectionTest`, same name |
+| `Feeds` (3 tests) | `FeedsTest`, same method names |
+| `Portability.coreImportsOnlyFoundationAndNamesNoManufacturer` | `PortabilityTest.coreImportsOnlyStdlibAndCoroutinesAndNamesNoManufacturer` |
+| `Portability.portableStateHoldsNoNativeFrameOrObject` | Not ported: the Kotlin import rule (only `kotlin.*`, `kotlinx.coroutines.flow.*` and `java.util.UUID`) keeps platform types out |
+| `GroupTargets.strictAndEligibleSubsetFromAdmission` | `GroupTargetsTest`, same name |
+
+Parameterized Swift scenarios run each fixture family inside one JUnit test.
+
 ## Development
 
 ```sh
 swift build
 swift test
+cd Android && ./gradlew build
 ```
 
 The package uses Swift 6 language mode (complete concurrency checking). Platforms: iOS 17,

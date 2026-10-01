@@ -1,6 +1,9 @@
 # OpenCineCore agent guide
 
 - Build and test: `swift build && swift test` (Swift 6 mode, Swift Testing).
+- Android: `cd Android && ./gradlew build` (JDK 17+). `core` is plain Kotlin/JVM and mirrors
+  `Sources/OpenCineCore`; the fakes are its test fixtures. Change a contract and its mirrored
+  test in Swift and Kotlin in the same commit (README "Test mapping").
 - `Sources/OpenCineCore` imports Foundation only and names no camera manufacturer; a test
   enforces both. Never import UI, an integration, Multicam or an app.
 - Value types for descriptions, snapshots, settings, observations and results. Add a protocol
