@@ -16,6 +16,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineCore` | Value types and the `CameraSession` protocol. Foundation only. | Integrations, multicam, UI presentation, apps |
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
 | `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. The encoded-unit seam: `EncodedVideoUnit` (stream, generation, codec, Annex-B or JPEG payload, random access, parameter sets, host arrival, optional PTS and format), HEVC/AVC NAL math (`Hevc`, `Avc`, `LiveVideo`), decoder parameter-set policy (`EncoderPresentPath`), present policy (`FeedPresentPolicy`, `SerialSessionGate`, `ExtraMirrorHold`), `DeliveryCadence`, and the Apple-only scope tap `LiveFrameTap`. Foundation plus OpenCineCore; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
+| `OpenCineMotion` | Optional. The typed motion seam: `MotionCapabilities` (supported axes, reference frame, `MotionBounds` position bounds, optional rate bound, feedback max age, arrival tolerance), `MotionTarget` (made only inside the declared bounds) and feedback validity over `ObservedValue<GimbalWaypoint>`. Shared trajectory math: `GimbalWaypoint`, `GimbalProgram`, `GimbalProgramCurve`, `GimbalPath`, head-look math (`HeadTrack`) and bounded head tracking (`HeadTrackNative`). Foundation plus OpenCineCore; Core and Media never depend on it. | Gimbal integrations and app cores |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 
@@ -39,6 +40,20 @@ interface changes driven by the first real adapter slices (CORE-02).
   descriptors, not a silent change to these functions.
 - Renderer size policy stays with the app (`colorCube` caps at 64 for Core Image; OpenZCine
   resamples 65³ imports to 33³ with `resampled(to:)`).
+
+## OpenCineMotion rules
+
+- Optional: nothing in `OpenCineCore` or `OpenCineMedia` imports it, and no camera session is
+  required to offer motion. A test enforces both, plus Foundation and OpenCineCore imports only
+  and no manufacturer names.
+- The integration declares `MotionCapabilities`; shared math takes the declared `MotionBounds`
+  as a parameter. A `MotionTarget` exists only inside the bounds, head tracking projects into
+  them, and `admits(_:)` rejects a program with an unreachable point, an undeclared zoom change
+  or a leg over the declared rate (fuzzed gate tests).
+- Raw wire units, coordinate transforms, command pacing, tracking encoders and stick shaping
+  stay in the integration. A world reference frame needs the camera to hold one; a phone IMU
+  sample alone does not establish it.
+- Moved test numbers are golden.
 
 ## Import rules
 
