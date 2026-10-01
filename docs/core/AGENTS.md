@@ -13,6 +13,10 @@
 - `Sources/OpenCineMedia` imports Foundation only, holds no mutable global state and takes no
   camera raw mode; a test enforces it. Per-source values (clip ceiling, LOG/709 reading, look
   curve) are parameters. Existing test numbers are golden: never edit one to make a refactor pass.
+- `Sources/OpenCineFrameIO` is optional: Foundation only (CryptoKit gated on Apple), no package
+  dependency (SwiftPM would resolve it for every Core consumer), no global mutable state, and no
+  app credential namespace, keychain, defaults or bundle lookup; a test enforces it. Transport,
+  token storage, clock and pause are injected; tests never touch the network or sleep.
 - Value types for descriptions, snapshots, settings, observations and results. Add a protocol
   only where implementations actually vary. No DI framework, no plugin registry.
 - Unknown is `nil` in an `ObservedValue`, never `false`, `0` or `""`.

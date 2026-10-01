@@ -8,12 +8,16 @@ import PackageDescription
 // present policy, EncodedVideoUnit). Foundation plus OpenCineCore; it also builds with the
 // Swift Android SDK because Android JNI facades link it. LiveFrameTap is Apple-only
 // (`#if canImport(CoreVideo)`).
+// OpenCineFrameIO is an optional delivery product: Frame.io request planning, OAuth PKCE
+// primitives and the upload workflow. Foundation only (CryptoKit on Apple platforms, a system
+// framework); no package dependency, so no Core consumer resolves anything for it.
 let package = Package(
     name: "OpenCineCore",
     platforms: [.iOS(.v17), .macOS(.v13), .watchOS(.v10)],
     products: [
         .library(name: "OpenCineCore", targets: ["OpenCineCore"]),
         .library(name: "OpenCineMedia", targets: ["OpenCineMedia"]),
+        .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         // Fakes for consumers' test targets only; never link it into an app.
         .library(name: "OpenCineCoreTestSupport", targets: ["OpenCineCoreTestSupport"]),
     ],
@@ -27,5 +31,8 @@ let package = Package(
         // EncodedVideoUnit names its stream with Core's StreamID and StreamGeneration.
         .target(name: "OpenCineMedia", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMediaTests", dependencies: ["OpenCineMedia"]),
+        // No Core values genuinely help Frame.io delivery, so it depends on nothing.
+        .target(name: "OpenCineFrameIO"),
+        .testTarget(name: "OpenCineFrameIOTests", dependencies: ["OpenCineFrameIO"]),
     ]
 )

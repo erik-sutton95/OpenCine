@@ -11,6 +11,12 @@ authors). The `.cube` parser (`CubeLUT`), `FrameRateSampler`, the custom LUT ind
 traffic-light meter are adapted from OpenZCine (Apache 2.0, same authors), as are the merged
 CubeLUT and frame-rate tests.
 
+OpenCineFrameIO moves the Frame.io request planning, OAuth PKCE, response models and their
+tests from OpenZCine, and the iOS upload client from OpenZCine and OpenPocketCine (Apache 2.0,
+same authors). It talks to the public Frame.io Platform API v4 and Adobe IMS; no Adobe SDK or
+documentation is included. Frame.io and Adobe are trademarks of Adobe, used for identification
+only.
+
 Transfer curve constants are implemented from published specifications: ITU-R BT.709-6,
 ITU-R BT.2100 and BT.2408 (HLG); the DJI D-Log / D-Gamut white paper (2017); the D-Log2 white
 paper by Gamut (Revision 1.0, 2026-06-30); and the Insta360 10-bit I-Log white paper (June
