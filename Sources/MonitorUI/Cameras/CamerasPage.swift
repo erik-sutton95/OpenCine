@@ -8,6 +8,8 @@
         public var brandName: String
         public var paired: [CameraListItem]
         public var nearby: [CameraListItem]
+        /// Caption beside NEARBY: how this brand finds unsaved cameras (Android `note`).
+        public var nearbyNote: String
         public var scanning: Bool
         public var busy: Bool
         public var safeArea: EdgeInsets
@@ -33,7 +35,8 @@
 
         public init(
             brandName: String, paired: [CameraListItem], nearby: [CameraListItem],
-            scanning: Bool, busy: Bool, safeArea: EdgeInsets = EdgeInsets(),
+            nearbyNote: String = "announcing over Bluetooth", scanning: Bool, busy: Bool,
+            safeArea: EdgeInsets = EdgeInsets(),
             onConnect: @escaping (String) -> Void, onPair: @escaping (String?) -> Void,
             onCancel: @escaping () -> Void, onMedia: @escaping () -> Void,
             onSettings: @escaping () -> Void, onMultiview: (() -> Void)? = nil,
@@ -47,6 +50,7 @@
             self.brandName = brandName
             self.paired = paired
             self.nearby = nearby
+            self.nearbyNote = nearbyNote
             self.scanning = scanning
             self.busy = busy
             self.safeArea = safeArea
@@ -82,7 +86,7 @@
                                 tablet: tablet)
                             if !nearby.isEmpty {
                                 cameraGroup(
-                                    "NEARBY", note: "announcing over Bluetooth", items: nearby,
+                                    "NEARBY", note: nearbyNote, items: nearby,
                                     saved: false, tablet: tablet)
                             }
                             if paired.isEmpty && nearby.isEmpty {
