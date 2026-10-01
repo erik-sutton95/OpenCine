@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "opencineui",
+  "display_name": "OpenCineUI",
+  "status": "candidate",
+  "layer": "ui",
+  "repository": {"url": null, "default_branch": "main"},
+  "local_dir": "OpenCineUI",
+  "refs": [],
+  "products": [
+    {"name": "MonitorPresentation", "kind": "swift-library", "manifest": "Package.swift"},
+    {"name": "MonitorUI", "kind": "swift-library", "manifest": "Package.swift"}
+  ],
+  "instructions": [],
+  "edges": [
+    {
+      "to": "openpocketcine",
+      "kind": "source-copy",
+      "status": "candidate",
+      "confidence": "inferred",
+      "platforms": ["apple", "android"],
+      "scope": ["Sources/MonitorPresentation", "Sources/MonitorUI", "Tests/MonitorPresentationTests", "Apps/Android/monitor-ui"],
+      "mechanism": "UI-01/UI-02 extraction from the frozen BASE-01 donor",
+      "donor_revision": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
+      "note": "Local candidate created in parallel; confirm against its first commit"
+    },
+    {
+      "to": "openinstacine",
+      "kind": "source-copy",
+      "status": "candidate",
+      "confidence": "inferred",
+      "platforms": ["apple", "android"],
+      "scope": ["Sources/MonitorUI/MonitorTheme.swift", "Apps/Android/monitor-ui MonitorTheme.kt"],
+      "mechanism": "theme reconciliation (ADR 0004)",
+      "donor_revision": "35b6f33b20cbd791a4c24b6380046f180f1ee454",
+      "note": "Settable accent theme taken from Insta"
+    }
+  ],
+  "summary_review": null
+}

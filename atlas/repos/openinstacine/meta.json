@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "id": "openinstacine",
+  "display_name": "OpenInstaCine",
+  "status": "active",
+  "layer": "app",
+  "repository": {"url": "https://github.com/erik-sutton95/OpenInstaCine", "default_branch": "main"},
+  "local_dir": "OpenInstaCine",
+  "refs": [
+    {"name": "main", "commit": "35b6f33b20cbd791a4c24b6380046f180f1ee454", "role": "baseline"}
+  ],
+  "products": [
+    {"name": "MonitorPresentation", "kind": "swift-library", "manifest": "Package.swift"},
+    {"name": "MonitorUI", "kind": "swift-library", "manifest": "Package.swift"},
+    {"name": "MonitorContracts", "kind": "swift-library", "manifest": "Package.swift"},
+    {"name": "OpenPocketViewCore", "kind": "swift-library", "manifest": "Package.swift"},
+    {"name": "OpenPocketCineAndroid", "kind": "swift-library", "manifest": "Package.swift"},
+    {"name": "Insta360Protocol", "kind": "swift-library", "manifest": "Adapters/Insta360Protocol/Package.swift"},
+    {"name": "Insta360Apple", "kind": "xcode-target", "manifest": "ios/project.yml"},
+    {"name": "OpenInstaCine", "kind": "xcode-target", "manifest": "ios/project.yml"},
+    {"name": "OpenInstaCineWatch", "kind": "xcode-target", "manifest": "ios/project.yml"},
+    {"name": ":app", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
+    {"name": ":core-api", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
+    {"name": ":monitor", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
+    {"name": ":monitor-ui", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
+    {"name": ":luna-adapter", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"}
+  ],
+  "instructions": ["README.md", "docs/DEVELOPMENT.md"],
+  "edges": [
+    {
+      "to": "openpocketcine",
+      "kind": "source-copy",
+      "status": "live",
+      "confidence": "confirmed",
+      "platforms": ["apple"],
+      "scope": [
+        "Sources/MonitorPresentation", "Sources/MonitorUI", "Sources/OpenPocketViewCore",
+        "Sources/CJNI", "Sources/OpenPocketCineAndroidFacade", "Tests", "ios (renamed shell)",
+        "tools (stamp-source-revision.sh, build-identity.py, pull-control-log.sh, analyze-live-log.py)"
+      ],
+      "mechanism": "scripts/sync-openpocketcine.sh (three-way apply plus brand overlays)",
+      "donor_revision": "9e306c91a4ba5d6bfa5fb2745875e8ce413089f9",
+      "evidence": {"path": "docs/implementation/openpocketcine-sync-commit.txt", "source_commit": "35b6f33b20cbd791a4c24b6380046f180f1ee454"},
+      "note": "Luna-owned and Osmo-only files are excluded by the script"
+    },
+    {
+      "to": "openpocketcine",
+      "kind": "source-copy",
+      "status": "live",
+      "confidence": "confirmed",
+      "platforms": ["android"],
+      "scope": ["Apps/Android/monitor-ui", "Apps/Android/monitor", "Apps/Android/core-api"],
+      "mechanism": "manual copy; not covered by the sync script",
+      "donor_revision": "9e306c91a4ba5d6bfa5fb2745875e8ce413089f9",
+      "evidence": {"path": "docs/DEVELOPMENT.md", "source_commit": "35b6f33b20cbd791a4c24b6380046f180f1ee454"},
+      "note": "Android shell recorded as synced to upstream 9e306c91"
+    }
+  ],
+  "summary_review": {"source_commit": "35b6f33b20cbd791a4c24b6380046f180f1ee454", "reviewed_at": "2026-10-01T17:39:17Z"}
+}

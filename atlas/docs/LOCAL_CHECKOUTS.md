@@ -1,0 +1,43 @@
+# Local checkouts and worktrees
+
+Shared registry files never contain machine paths. Each machine keeps its own mapping in
+the ignored file `.local/checkouts.json`, copied from
+[`checkouts.example.json`](../checkouts.example.json). `python3 tools/atlas.py check` fails
+if a tracked file contains a private absolute path.
+
+## Resolution
+
+One resolver (`tools/resolver.py`) serves every command:
+
+1. An explicit `repos.<id>` path in `.local/checkouts.json` wins. If that path is missing
+   the repo is reported **missing**; the resolver does not silently fall back.
+2. Otherwise it looks for `<workspace>/<local_dir>` in each of: `workspace` from the
+   config, the `OPENCAPTURE_WORKSPACE` environment variable, and the folder that contains
+   this atlas checkout. More than one distinct checkout is **ambiguous**: add an explicit
+   mapping.
+3. A candidate must be the top level of a Git checkout (a primary clone with a `.git`
+   directory or a linked worktree with a `.git` file) and, when the registry records a
+   canonical URL, one of its remotes must match it. Symlinked paths and paths with spaces
+   are resolved to their real location first.
+
+`python3 tools/atlas.py locate <id>` prints the verified path, current branch, commit,
+dirty state and every linked worktree with its branch. Use `--json` for scripts.
+
+## Worktree model
+
+- Primary checkouts are shared. Other sessions and the user may be working in them, with
+  uncommitted changes on any branch. Never switch, reset, clean or pull them from a task.
+- Read pinned sources with Git objects: `git -C <checkout> show <sha>:<path>`,
+  `git -C <checkout> ls-tree -r <sha>`, or `git archive <sha>` into a temporary folder.
+- Edit only in a task-owned worktree created from an explicit base, for example
+  `git -C <checkout> worktree add -b <task-branch> <workspace>/<Repo>-worktrees/<task> origin/main`.
+- A worktree's folder name is not branch evidence. `locate` reports the branch Git records.
+- The atlas does not create or delete worktrees. That is part of an authorized
+  implementation task (see [EXECUTION.md](EXECUTION.md)).
+
+## Apple and Android local overrides
+
+During candidate validation an app may point at a sibling package checkout by relative
+path (SwiftPM `.package(path:)`, XcodeGen `path:`, Gradle `includeBuild`). Those overrides
+belong on a task branch, never in a release configuration. [PUBLISH.md](PUBLISH.md)
+describes the swap to URL plus version once remotes exist.

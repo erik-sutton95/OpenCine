@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "opencinecore",
+  "display_name": "OpenCineCore",
+  "status": "candidate",
+  "layer": "core",
+  "repository": {"url": null, "default_branch": "main"},
+  "local_dir": "OpenCineCore",
+  "refs": [],
+  "products": [],
+  "instructions": [],
+  "edges": [],
+  "summary_review": null
+}
