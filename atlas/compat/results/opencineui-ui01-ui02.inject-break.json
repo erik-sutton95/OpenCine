@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "candidate": "opencineui-ui01-ui02",
+  "mode": "inject-break",
+  "started_at": "2026-10-01T18:49:03Z",
+  "finished_at": "2026-10-01T18:53:29Z",
+  "duration_s": 265.5,
+  "atlas_version": "0.1.0",
+  "consumers": [
+    {
+      "repo": "openpocketcine",
+      "ref": "opencine/ui",
+      "commit": "79e4648101d073650d818c47bb76ecec7e4882a5",
+      "package": {
+        "repo": "opencineui",
+        "commit": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f"
+      },
+      "checks": [
+        {
+          "name": "pinned-revision",
+          "recipe": "grep -Fqx \"OpenCineUI $ATLAS_COMPAT_PACKAGE_COMMIT\" opencine-pins.txt",
+          "exit_code": 0,
+          "duration_s": 0.0,
+          "log_tail": [],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "swift-test",
+          "recipe": "just swift-test",
+          "exit_code": 0,
+          "duration_s": 79.4,
+          "log_tail": [
+            "\u2714 Test liveTapCeilingUsesMeasuredPreviewMax() passed after 0.001 seconds.",
+            "\u25c7 Test dGamut2PaperMatrices() started.",
+            "\u2714 Test dGamut2PaperMatrices() passed after 0.001 seconds.",
+            "\u25c7 Test dGamutV1PaperMatrices() started.",
+            "\u2714 Test dGamutV1PaperMatrices() passed after 0.001 seconds.",
+            "\u25c7 Test noNaNsAcrossEncodedSweep() started.",
+            "\u2714 Test noNaNsAcrossEncodedSweep() passed after 0.013 seconds.",
+            "\u2714 Suite LiveColorScienceTests passed after 0.678 seconds.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .burst to packetAndControlStorm(profile:) started.",
+            "\u2714 Test colorCubeDownsamplesSize65To64() passed after 0.803 seconds.",
+            "\u2714 Suite CubeLUTTests passed after 0.823 seconds.",
+            "\u2714 Test networkReportSpansNotifications() passed after 0.891 seconds.",
+            "\u2714 Suite DumlNotificationAssemblerTests passed after 0.911 seconds.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .jitter to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .duplicate to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .congestion to packetAndControlStorm(profile:) started.",
+            "\u2714 Test largeFrameScalesToTapWidth() passed after 1.729 seconds.",
+            "\u2714 Suite LiveFrameTapTests passed after 1.735 seconds.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .blackout to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .combined to packetAndControlStorm(profile:) started.",
+            "\u2714 Test packetAndControlStorm(profile:) with 8 test cases passed after 2.247 seconds.",
+            "\u2714 Suite \"Seeded connection chaos\" passed after 2.259 seconds.",
+            "\u2714 Test packedLimitsPaintsTheWholeClipShelf() passed after 2.373 seconds.",
+            "\u2714 Test packedLimitsWeightHasHoles() passed after 3.036 seconds.",
+            "\u2714 Test packedCineStopPaintsEveryStopFlat() passed after 3.898 seconds.",
+            "\u2714 Test packedOpaqueWeightFillsTheCube(ordinal:scale:) with 3 test cases passed after 3.898 seconds.",
+            "\u2714 Test packedCineStopPaintsTheWholeClipShelfFullyRed() passed after 3.900 seconds.",
+            "\u2714 Test packedIREOrdinalFiveReadsDLog2GreyThroughTheRec709Look() passed after 4.436 seconds.",
+            "\u2714 Suite FeedEffectsWireTests passed after 4.441 seconds.",
+            "\u2714 Test run with 820 tests in 104 suites passed after 4.442 seconds."
+          ],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "ios-resolution",
+          "recipe": "just ios-generate && xcodebuild -resolvePackageDependencies -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution",
+          "exit_code": 0,
+          "duration_s": 22.5,
+          "log_tail": [
+            "cd ios && xcodegen generate",
+            "\u2699\ufe0f  Generating plists...",
+            "\u2699\ufe0f  Generating project...",
+            "\u2699\ufe0f  Writing project...",
+            "Created project at <workspace>/OpenPocketCine/ios/OpenPocketCine.xcodeproj",
+            "Command line invocation:",
+            "    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -derivedDataPath <workspace>/DerivedData -disableAutomaticPackageResolution",
+            "",
+            "Resolve Package Graph",
+            "",
+            "Fetching from https://github.com/getsentry/sentry-cocoa (cached)",
+            "",
+            "Creating working copy of package \u2018sentry-cocoa\u2019",
+            "",
+            "Checking out 9.24.0 of package \u2018sentry-cocoa\u2019",
+            "",
+            "Resolve Package Graph",
+            "",
+            "",
+            "Resolved source packages:",
+            "  OpenPocketViewCore: <workspace>/OpenPocketCine",
+            "  Sentry: https://github.com/getsentry/sentry-cocoa @ 9.24.0",
+            "  OpenCineUI: <workspace>/OpenCineUI",
+            "",
+            "resolved source packages: OpenPocketViewCore, Sentry, OpenCineUI"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build",
+          "recipe": "just ios-generate && xcodebuild -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build",
+          "exit_code": 65,
+          "duration_s": 47.4,
+          "log_tail": [
+            "",
+            "SwiftCompile normal x86_64 <workspace>/OpenPocketCine/ios/OpenPocketCine/ReliabilityReportingPrivacy.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    ",
+            "",
+            "SwiftCompile normal x86_64 <workspace>/OpenPocketCine/ios/OpenPocketCine/ReliabilityReportingVerification.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    ",
+            "",
+            "SwiftDriverJobDiscovery normal arm64 Compiling MonitorTabStrip.swift, MonitorValueDrum.swift (in target 'MonitorUI' from project 'OpenCineUI')",
+            "",
+            "SwiftCompile normal x86_64 Compiling\\ SavedCameraStore.swift,\\ SavedCamerasView.swift,\\ ScopePanelPlacement.swift,\\ ScopeTraceMetalView.swift,\\ SettingsRootView.swift,\\ SharedWiFiPath.swift,\\ StartupChrome.swift,\\ StationNetworkSetupView.swift,\\ TrafficLightsAssist.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/SavedCameraStore.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/SavedCamerasView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/ScopePanelPlacement.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/ScopeTraceMetalView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/SettingsRootView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/SharedWiFiPath.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/StartupChrome.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/StationNetworkSetupView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/Assists/TrafficLightsAssist.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "",
+            "note: Run script build phase 'Stamp source revision' will be run during every build because the option to run the script phase \"Based on dependency analysis\" is unchecked. (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "** BUILD FAILED **",
+            "",
+            "",
+            "The following build commands failed:",
+            "\tSwiftCompile normal arm64 Compiling\\ VectorscopeAssist.swift,\\ VideoView.swift,\\ WatchRelay.swift,\\ WatcherBrowseView.swift,\\ WatcherLiveView.swift,\\ WatcherRelayBrowser.swift,\\ WatcherRelayClient.swift,\\ WatcherRelayEncoder.swift,\\ WatcherRelayHost.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/Assists/VectorscopeAssist.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/VideoView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatchRelay.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherBrowseView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherLiveView.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayBrowser.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayClient.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayEncoder.swift <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayHost.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/Assists/VectorscopeAssist.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/VideoView.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatchRelay.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherBrowseView.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherLiveView.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayBrowser.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayClient.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayEncoder.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tSwiftCompile normal arm64 <workspace>/OpenPocketCine/ios/OpenPocketCine/WatcherRelayHost.swift (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "\tBuilding project OpenPocketCine with scheme OpenPocketCine",
+            "(11 failures)"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "failed",
+          "reason": "exit 65"
+        },
+        {
+          "name": "ios-build-identity",
+          "fingerprint": {
+            "command": "python3 tools/build-identity.py --platform ios --configuration Debug",
+            "touch": "Sources/MonitorUI/MonitorTheme.swift"
+          },
+          "duration_s": 0.3,
+          "touched": "OpenCineUI/Sources/MonitorUI/MonitorTheme.swift",
+          "before": "ios-1147e3bd0b174333aae7ea5ffdc1031e",
+          "after": "ios-b53400ff4039734b4611e49895607ac2",
+          "status": "passed"
+        },
+        {
+          "name": "android-resolution",
+          "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+          "exit_code": 0,
+          "duration_s": 6.9,
+          "log_tail": [
+            "projectDir: <workspace>/OpenCineUI/Android/monitor-ui",
+            "com.opencapture.opencine:monitor-ui:0.1.0-SNAPSHOT -> project ':Android:monitor-ui'"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "android-check",
+          "recipe": "just android-check",
+          "exit_code": 1,
+          "duration_s": 103.3,
+          "log_tail": [
+            "",
+            "[Incubating] Problems report is available at: file://<workspace>/OpenPocketCine/Apps/Android/build/reports/problems/problems-report.html",
+            "",
+            "FAILURE: Build failed with an exception.",
+            "",
+            "* What went wrong:",
+            "Execution failed for task ':app:compileDebugKotlin' (registered by plugin 'com.android.internal.application').",
+            "> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork",
+            "   > Kotlin compiler: DELEGATE_SPECIAL_FUNCTION_NONE_APPLICABLE",
+            "       Kotlin compiler error",
+            "         Property delegate must have a 'getValue(AppModel, KMutableProperty1<AppModel, ??? (Unknown type for type parameter T)>)' method. None of the following functions is applicable:",
+            "         fun <T> State<T>.getValue(thisObj: Any?, property: KProperty<*>): T",
+            "         Location: <workspace>/OpenPocketCine/Apps/Android/app/src/main/kotlin/com/opencapture/openpocketcine/AppModel.kt:93",
+            "",
+            "* Try:",
+            "> Run with --stacktrace option to get the stack trace.",
+            "> Run with --info or --debug option to get more log output.",
+            "> Run with --scan to get full insights from a Build Scan (powered by Develocity).",
+            "> Get more help at https://help.gradle.org.",
+            "",
+            "Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.",
+            "",
+            "You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.",
+            "",
+            "For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.",
+            "",
+            "BUILD FAILED in 1m 42s",
+            "84 actionable tasks: 84 executed",
+            "Configuration cache entry stored.",
+            "error: recipe `android-check` failed on line 248 with exit code 1"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "failed",
+          "reason": "exit 1"
+        },
+        {
+          "name": "fresh-native-binaries",
+          "native_outputs": [
+            "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+          ],
+          "outputs": [
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libBlocksRuntime.so",
+              "bytes": 14720,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundation.so",
+              "bytes": 9068488,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationEssentials.so",
+              "bytes": 10238824,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationInternationalization.so",
+              "bytes": 3760864,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libOpenPocketCineAndroid.so",
+              "bytes": 2519344,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/lib_FoundationICU.so",
+              "bytes": 42530232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libc++_shared.so",
+              "bytes": 1794776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libdispatch.so",
+              "bytes": 426328,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftAndroid.so",
+              "bytes": 79888,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftCore.so",
+              "bytes": 9964392,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftDispatch.so",
+              "bytes": 352288,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftSynchronization.so",
+              "bytes": 119200,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Builtin_float.so",
+              "bytes": 12232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Concurrency.so",
+              "bytes": 1448712,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_RegexParser.so",
+              "bytes": 1562776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_StringProcessing.so",
+              "bytes": 1086672,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_math.so",
+              "bytes": 11008,
+              "built_this_run": true
+            }
+          ],
+          "prebuilt": [],
+          "status": "passed"
+        },
+        {
+          "name": "android-build-identity",
+          "fingerprint": {
+            "command": "python3 tools/build-identity.py --platform android --configuration debug",
+            "touch": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt"
+          },
+          "duration_s": 0.3,
+          "touched": "OpenCineUI/Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt",
+          "before": "android-14e113846568b697041adc85836a0dd9",
+          "after": "android-14e113846568b697041adc85836a0dd9",
+          "status": "failed",
+          "reason": "fingerprint unchanged by a one-byte edit to the candidate package"
+        },
+        {
+          "name": "android-native-staging",
+          "status": "not-applicable",
+          "reason": "stageSwiftCore inputs are Package.swift, Package.resolved and Sources/** of the consumer; its Package.swift has no OpenCineUI dependency, so the JNI core cannot contain package code. Recheck when OpenCineCore/OpenCineMedia become dependencies (MEDIA-01)."
+        }
+      ],
+      "layout": {
+        "consumer": "<workspace>/OpenPocketCine",
+        "package": "<workspace>/OpenCineUI"
+      },
+      "workspace_was_removed": true,
+      "native_binaries_before_checks": [],
+      "gradle": {
+        "Apps/Android/gradle/wrapper/gradle-wrapper.properties": "9.8.0"
+      },
+      "finished_at": "2026-10-01T18:53:29Z",
+      "toolchain": {
+        "swift": "Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)",
+        "xcodebuild": "Xcode 26.2 Build version 17C52",
+        "java": "openjdk version \"26.0.1\" 2026-04-21",
+        "just": "just 1.56.0",
+        "xcodegen": "Version: 2.46.0",
+        "git": "git version 2.50.1 (Apple Git-155)",
+        "swift_sdks": "swift-6.3.3-RELEASE_android",
+        "android_ndk": [
+          "28.2.13676358"
+        ]
+      }
+    }
+  ],
+  "break_patch": {
+    "file": "opencineui-rename-MonitorJoystickSize.patch",
+    "sha256": "f680b4c3a8e8286d25c1f8878d1b7f9d9bd2b5a05d80cbaab08224ba77436b63",
+    "files": [
+      "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorLayoutPolicy.kt",
+      "Android/monitor-ui/src/test/kotlin/com/opencapture/monitorui/MonitorLayoutPolicyTest.kt",
+      "Sources/MonitorPresentation/FieldMonitorLayout.swift",
+      "Tests/MonitorPresentationTests/FieldMonitorLayoutTests.swift"
+    ]
+  },
+  "note": "Deliberately incompatible package; applied only inside the disposable workspace. Never recorded as a candidate status."
+}

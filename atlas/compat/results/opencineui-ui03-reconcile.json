@@ -1,0 +1,987 @@
+{
+  "schema_version": 1,
+  "candidate": "opencineui-ui03-reconcile",
+  "mode": "clean",
+  "started_at": "2026-10-01T19:19:43Z",
+  "finished_at": "2026-10-01T19:25:20Z",
+  "duration_s": 337.1,
+  "atlas_version": "0.1.0",
+  "consumers": [
+    {
+      "repo": "openpocketcine",
+      "ref": "opencine/ui",
+      "commit": "79e4648101d073650d818c47bb76ecec7e4882a5",
+      "package": {
+        "repo": "opencineui",
+        "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94"
+      },
+      "checks": [
+        {
+          "name": "swift-test",
+          "recipe": "just swift-test",
+          "exit_code": 0,
+          "duration_s": 53.5,
+          "log_tail": [
+            "\u2714 Test liveTapCeilingUsesMeasuredPreviewMax() passed after 0.001 seconds.",
+            "\u25c7 Test dGamut2PaperMatrices() started.",
+            "\u2714 Test dGamut2PaperMatrices() passed after 0.001 seconds.",
+            "\u25c7 Test dGamutV1PaperMatrices() started.",
+            "\u2714 Test dGamutV1PaperMatrices() passed after 0.001 seconds.",
+            "\u25c7 Test noNaNsAcrossEncodedSweep() started.",
+            "\u2714 Test networkReportSpansNotifications() passed after 0.392 seconds.",
+            "\u2714 Suite DumlNotificationAssemblerTests passed after 0.395 seconds.",
+            "\u2714 Test noNaNsAcrossEncodedSweep() passed after 0.014 seconds.",
+            "\u2714 Suite LiveColorScienceTests passed after 0.400 seconds.",
+            "\u2714 Test zoomTraversesTheFullLinearRangeDuringTheWholeLeg() passed after 0.415 seconds.",
+            "\u2714 Suite NativeProgramZoomTests passed after 0.421 seconds.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .burst to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .jitter to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .duplicate to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .congestion to packetAndControlStorm(profile:) started.",
+            "\u2714 Test largeFrameScalesToTapWidth() passed after 1.119 seconds.",
+            "\u2714 Suite LiveFrameTapTests passed after 1.124 seconds.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .blackout to packetAndControlStorm(profile:) started.",
+            "\u25c7 Test case passing 1 argument profile \u2192 .combined to packetAndControlStorm(profile:) started.",
+            "\u2714 Test packetAndControlStorm(profile:) with 8 test cases passed after 1.510 seconds.",
+            "\u2714 Suite \"Seeded connection chaos\" passed after 1.512 seconds.",
+            "\u2714 Test packedLimitsWeightHasHoles() passed after 2.121 seconds.",
+            "\u2714 Test packedCineStopPaintsEveryStopFlat() passed after 2.341 seconds.",
+            "\u2714 Test packedCineStopPaintsTheWholeClipShelfFullyRed() passed after 2.345 seconds.",
+            "\u2714 Test packedOpaqueWeightFillsTheCube(ordinal:scale:) with 3 test cases passed after 2.347 seconds.",
+            "\u2714 Test packedLimitsPaintsTheWholeClipShelf() passed after 2.434 seconds.",
+            "\u2714 Test packedIREOrdinalFiveReadsDLog2GreyThroughTheRec709Look() passed after 2.814 seconds.",
+            "\u2714 Suite FeedEffectsWireTests passed after 2.817 seconds.",
+            "\u2714 Test run with 820 tests in 104 suites passed after 2.817 seconds."
+          ],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "ios-resolution",
+          "recipe": "just ios-generate && xcodebuild -resolvePackageDependencies -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution",
+          "exit_code": 0,
+          "duration_s": 13.5,
+          "log_tail": [
+            "cd ios && xcodegen generate",
+            "\u2699\ufe0f  Generating plists...",
+            "\u2699\ufe0f  Generating project...",
+            "\u2699\ufe0f  Writing project...",
+            "Created project at <workspace>/OpenPocketCine/ios/OpenPocketCine.xcodeproj",
+            "Command line invocation:",
+            "    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -derivedDataPath <workspace>/DerivedData -disableAutomaticPackageResolution",
+            "",
+            "Resolve Package Graph",
+            "",
+            "Fetching from https://github.com/getsentry/sentry-cocoa (cached)",
+            "",
+            "Creating working copy of package \u2018sentry-cocoa\u2019",
+            "",
+            "Checking out 9.24.0 of package \u2018sentry-cocoa\u2019",
+            "",
+            "Resolve Package Graph",
+            "",
+            "",
+            "Resolved source packages:",
+            "  OpenPocketViewCore: <workspace>/OpenPocketCine",
+            "  Sentry: https://github.com/getsentry/sentry-cocoa @ 9.24.0",
+            "  OpenCineUI: <workspace>/OpenCineUI",
+            "",
+            "resolved source packages: OpenPocketViewCore, Sentry, OpenCineUI"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build",
+          "recipe": "just ios-generate && xcodebuild -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build",
+          "exit_code": 0,
+          "duration_s": 153.2,
+          "log_tail": [
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Mpp6I7/Metal.xctoolchain --module-name OpenPocketCine --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C52 --platform-family iOS --deployment-target 17.0 --bundle-identifier com.opencapture.openpocketcine --output <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app --target-triple arm64-apple-ios17.0-simulator --target-triple x86_64-apple-ios17.0-simulator --binary-file <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/OpenPocketCine --dependency-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/arm64/OpenPocketCine_dependency_info.dat --dependency-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/x86_64/OpenPocketCine_dependency_info.dat --stringsdata-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --stringsdata-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/x86_64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/arm64/OpenPocketCine.SwiftFileList --source-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/x86_64/OpenPocketCine.SwiftFileList --metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/OpenPocketCine.DependencyMetadataFileList --static-metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/OpenPocketCine.DependencyStaticMetadataFileList --swift-const-vals-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/arm64/OpenPocketCine.SwiftConstValuesFileList --swift-const-vals-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/Objects-normal/x86_64/OpenPocketCine.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization",
+            "2026-10-01 21:00:30.360 appintentsmetadataprocessor[79928:3321655] Starting appintentsmetadataprocessor export",
+            "2026-10-01 21:00:30.368 appintentsmetadataprocessor[79928:3321655] warning: Metadata extraction skipped. No AppIntents.framework dependency found.",
+            "",
+            "CopySwiftLibs <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    builtin-swiftStdLibTool --copy --verbose --scan-executable <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/OpenPocketCine.debug.dylib --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/Frameworks --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/PlugIns --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/SystemExtensions --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/Extensions --platform iphonesimulator --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Mpp6I7/Metal.xctoolchain --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span",
+            "Ignoring --strip-bitcode because --sign was not passed",
+            "",
+            "AppIntentsSSUTraining (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/Info.plist --temp-dir-path <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/ssu --bundle-id com.opencapture.openpocketcine --product-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app --extracted-metadata-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app/Metadata.appintents --metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenPocketCine.build/Debug-iphonesimulator/OpenPocketCine.build/OpenPocketCine.DependencyMetadataFileList --archive-ssu-assets",
+            "2026-10-01 21:00:30.411 appintentsnltrainingprocessor[79946:3321692] Parsing options for appintentsnltrainingprocessor",
+            "2026-10-01 21:00:30.413 appintentsnltrainingprocessor[79946:3321692] No AppShortcuts found - Skipping.",
+            "",
+            "RegisterExecutionPolicyException <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    builtin-RegisterExecutionPolicyException <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app",
+            "",
+            "Validate <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    builtin-validationUtility <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app -shallow-bundle -infoplist-subpath Info.plist",
+            "",
+            "Touch <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "    cd <workspace>/OpenPocketCine/ios",
+            "    /usr/bin/touch -c <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenPocketCine.app",
+            "",
+            "note: Run script build phase 'Stamp source revision' will be run during every build because the option to run the script phase \"Based on dependency analysis\" is unchecked. (in target 'OpenPocketCine' from project 'OpenPocketCine')",
+            "** BUILD SUCCEEDED **"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build-identity",
+          "fingerprint": {
+            "command": "python3 tools/build-identity.py --platform ios --configuration Debug",
+            "touch": "Sources/MonitorUI/MonitorTheme.swift"
+          },
+          "duration_s": 0.6,
+          "touched": "OpenCineUI/Sources/MonitorUI/MonitorTheme.swift",
+          "before": "ios-3456bf6054efe59efa3f6f140d00f5db",
+          "after": "ios-016e6404373e48eb98f16a7a4c12e1a5",
+          "status": "passed"
+        },
+        {
+          "name": "android-resolution",
+          "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+          "exit_code": 0,
+          "duration_s": 69.9,
+          "log_tail": [
+            "projectDir: <workspace>/OpenCineUI/Android/monitor-ui",
+            "com.opencapture.opencine:monitor-ui:0.1.0-SNAPSHOT -> project ':Android:monitor-ui'"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "android-check",
+          "recipe": "just android-check",
+          "exit_code": 0,
+          "duration_s": 161.3,
+          "log_tail": [
+            "> Task :app:lintAnalyzeDebugAndroidTest",
+            "WARNING: A restricted method in java.lang.System has been called",
+            "WARNING: java.lang.System::loadLibrary has been called by com.opencapture.openpocketcine.bridge.SwiftCore in an unnamed module (file:<workspace>/OpenPocketCine/Apps/Android/app/build/intermediates/runtime_app_classes_jar/debug/bundleDebugClassesToRuntimeJar/classes.jar)",
+            "WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module",
+            "WARNING: Restricted methods will be blocked in a future release unless native access is enabled",
+            "",
+            "> Task :app:testDebugUnitTest",
+            "> Task :app:test",
+            "> Task :app:lintAnalyzeDebugUnitTest",
+            "> Task :app:lintAnalyzeDebug",
+            "",
+            "> Task :app:lintReportDebug",
+            "Lint found 2 hints (and 73 errors and 3 hints filtered by baseline lint-baseline.xml)",
+            "",
+            "12 errors/warnings were listed in the baseline file (<workspace>/OpenPocketCine/Apps/Android/app/lint-baseline.xml) but not found in the project; perhaps they have been fixed?",
+            "",
+            "> Task :app:lintDebug",
+            "> Task :app:lint",
+            "",
+            "[Incubating] Problems report is available at: file://<workspace>/OpenPocketCine/Apps/Android/build/reports/problems/problems-report.html",
+            "",
+            "Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.",
+            "",
+            "You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.",
+            "",
+            "For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.",
+            "",
+            "BUILD SUCCESSFUL in 2m 34s",
+            "104 actionable tasks: 104 executed",
+            "Configuration cache entry stored."
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-native-binaries",
+          "native_outputs": [
+            "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+          ],
+          "outputs": [
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libBlocksRuntime.so",
+              "bytes": 14720,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundation.so",
+              "bytes": 9068488,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationEssentials.so",
+              "bytes": 10238824,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationInternationalization.so",
+              "bytes": 3760864,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libOpenPocketCineAndroid.so",
+              "bytes": 2519344,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/lib_FoundationICU.so",
+              "bytes": 42530232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libc++_shared.so",
+              "bytes": 1794776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libdispatch.so",
+              "bytes": 426328,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftAndroid.so",
+              "bytes": 79888,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftCore.so",
+              "bytes": 9964392,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftDispatch.so",
+              "bytes": 352288,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftSynchronization.so",
+              "bytes": 119200,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Builtin_float.so",
+              "bytes": 12232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Concurrency.so",
+              "bytes": 1448712,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_RegexParser.so",
+              "bytes": 1562776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_StringProcessing.so",
+              "bytes": 1086672,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_math.so",
+              "bytes": 11008,
+              "built_this_run": true
+            }
+          ],
+          "prebuilt": [],
+          "status": "passed"
+        },
+        {
+          "name": "android-build-identity",
+          "fingerprint": {
+            "command": "python3 tools/build-identity.py --platform android --configuration debug",
+            "touch": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt"
+          },
+          "duration_s": 0.6,
+          "touched": "OpenCineUI/Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt",
+          "before": "android-14e113846568b697041adc85836a0dd9",
+          "after": "android-14e113846568b697041adc85836a0dd9",
+          "status": "failed",
+          "reason": "fingerprint unchanged by a one-byte edit to the candidate package"
+        },
+        {
+          "name": "android-native-staging",
+          "status": "not-applicable",
+          "reason": "stageSwiftCore inputs are Package.swift, Package.resolved and Sources/** of the consumer; its Package.swift has no OpenCineUI dependency, so the JNI core cannot contain package code. Recheck when OpenCineCore/OpenCineMedia become dependencies (MEDIA-01)."
+        }
+      ],
+      "layout": {
+        "consumer": "<workspace>/OpenPocketCine",
+        "package": "<workspace>/OpenCineUI"
+      },
+      "workspace_was_removed": true,
+      "consumer_pin": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f",
+      "native_binaries_before_checks": [],
+      "gradle": {
+        "Apps/Android/gradle/wrapper/gradle-wrapper.properties": "9.8.0"
+      },
+      "finished_at": "2026-10-01T19:18:36Z",
+      "toolchain": {
+        "swift": "Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)",
+        "xcodebuild": "Xcode 26.2 Build version 17C52",
+        "java": "openjdk version \"26.0.1\" 2026-04-21",
+        "just": "just 1.56.0",
+        "xcodegen": "Version: 2.46.0",
+        "git": "git version 2.50.1 (Apple Git-155)",
+        "swift_sdks": "swift-6.3.3-RELEASE_android",
+        "android_ndk": [
+          "28.2.13676358"
+        ]
+      }
+    },
+    {
+      "repo": "openinstacine",
+      "ref": "opencine/ui-03-shared-ui",
+      "commit": "2cbca12d983dd134f10151a68dc51a4a4779f6ea",
+      "package": {
+        "repo": "opencineui",
+        "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94"
+      },
+      "checks": [
+        {
+          "name": "core-test",
+          "recipe": "just core-test",
+          "exit_code": 0,
+          "duration_s": 81.8,
+          "log_tail": [
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testCorruptionAndNoiseRecoverWithExactDiagnostics]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testCorruptionAndNoiseRecoverWithExactDiagnostics]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testCounterWrapsSequenceAndKeepsRequestIDsIndependent]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testCounterWrapsSequenceAndKeepsRequestIDsIndependent]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testIndependentScheme3EnvelopeFixture]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testIndependentScheme3EnvelopeFixture]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testLargeInputIsProcessedWithBoundedPendingState]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testLargeInputIsProcessedWithBoundedPendingState]' passed (0.001 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testNonZeroBasedDataSlices]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testNonZeroBasedDataSlices]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testOversizedAndInvalidHeadersCannotHoldFollowingFrame]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testOversizedAndInvalidHeadersCannotHoldFollowingFrame]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testResponseMatchingEncryptionAndCameraFailure]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testResponseMatchingEncryptionAndCameraFailure]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testStreamingChecksumIndependentVector]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testStreamingChecksumIndependentVector]' passed (0.010 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testStrictFrameAndMessageValidation]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testStrictFrameAndMessageValidation]' passed (0.000 seconds).",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testUnknownMessageFlagsAndReservedBytesRoundTrip]' started.",
+            "Test Case '-[Insta360ProtocolTests.UCD2Tests testUnknownMessageFlagsAndReservedBytesRoundTrip]' passed (0.000 seconds).",
+            "Test Suite 'UCD2Tests' passed at 2026-10-01 21:05:55.058.",
+            "\t Executed 13 tests, with 0 failures (0 unexpected) in 0.012 (0.012) seconds",
+            "Test Suite 'Insta360ProtocolPackageTests.xctest' passed at 2026-10-01 21:05:55.058.",
+            "\t Executed 51 tests, with 0 failures (0 unexpected) in 0.026 (0.029) seconds",
+            "Test Suite 'All tests' passed at 2026-10-01 21:05:55.058.",
+            "\t Executed 51 tests, with 0 failures (0 unexpected) in 0.026 (0.035) seconds",
+            "\u25c7 Test run started.",
+            "\u21b3 Testing Library Version: 1501",
+            "\u21b3 Target Platform: arm64e-apple-macos14.0",
+            "\u2714 Test run with 0 tests in 0 suites passed after 0.001 seconds."
+          ],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "ios-resolution",
+          "recipe": "just ios-generate && xcodebuild -resolvePackageDependencies -project ios/OpenInstaCine.xcodeproj -scheme OpenInstaCine -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution",
+          "exit_code": 0,
+          "duration_s": 20.0,
+          "log_tail": [
+            "cd ios && xcodegen generate",
+            "\u2699\ufe0f  Generating plists...",
+            "\u2699\ufe0f  Generating project...",
+            "\u2699\ufe0f  Writing project...",
+            "Created project at <workspace>/OpenInstaCine/ios/OpenInstaCine.xcodeproj",
+            "Command line invocation:",
+            "    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -project ios/OpenInstaCine.xcodeproj -scheme OpenInstaCine -derivedDataPath <workspace>/DerivedData -disableAutomaticPackageResolution",
+            "",
+            "Resolve Package Graph",
+            "",
+            "Fetching from https://github.com/getsentry/sentry-cocoa (cached)",
+            "",
+            "Creating working copy of package \u2018sentry-cocoa\u2019",
+            "",
+            "Checking out 9.24.0 of package \u2018sentry-cocoa\u2019",
+            "",
+            "Resolve Package Graph",
+            "",
+            "",
+            "Resolved source packages:",
+            "  OpenCineUI: <workspace>/OpenCineUI",
+            "  Insta360Protocol: <workspace>/OpenInstaCine/Adapters/Insta360Protocol",
+            "  OpenPocketViewCore: <workspace>/OpenInstaCine",
+            "  Sentry: https://github.com/getsentry/sentry-cocoa @ 9.24.0",
+            "",
+            "resolved source packages: OpenCineUI, Insta360Protocol, OpenPocketViewCore, Sentry"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build",
+          "recipe": "just ios-generate && xcodebuild -project ios/OpenInstaCine.xcodeproj -scheme OpenInstaCine -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build",
+          "exit_code": 0,
+          "duration_s": 122.2,
+          "log_tail": [
+            "    cd <workspace>/OpenInstaCine/ios",
+            "    builtin-swiftStdLibTool --copy --verbose --scan-executable <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/OpenInstaCine.debug.dylib --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/Frameworks --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/PlugIns --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/SystemExtensions --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/Extensions --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/PackageFrameworks/MonitorContracts_-68B65AA567F37057_PackageProduct.framework --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/PackageFrameworks/Insta360Protocol_-4E17754C4EBB8006_PackageProduct.framework --scan-folder <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Insta360Apple.framework --platform iphonesimulator --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Mpp6I7/Metal.xctoolchain --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span",
+            "Ignoring --strip-bitcode because --sign was not passed",
+            "",
+            "ExtractAppIntentsMetadata (in target 'OpenInstaCine' from project 'OpenInstaCine')",
+            "    cd <workspace>/OpenInstaCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Mpp6I7/Metal.xctoolchain --module-name OpenInstaCine --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C52 --platform-family iOS --deployment-target 17.0 --bundle-identifier com.opencapture.openinstacine --output <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app --target-triple arm64-apple-ios17.0-simulator --target-triple x86_64-apple-ios17.0-simulator --binary-file <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/OpenInstaCine --dependency-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/arm64/OpenInstaCine_dependency_info.dat --dependency-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/x86_64/OpenInstaCine_dependency_info.dat --stringsdata-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --stringsdata-file <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/x86_64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/arm64/OpenInstaCine.SwiftFileList --source-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/x86_64/OpenInstaCine.SwiftFileList --metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/OpenInstaCine.DependencyMetadataFileList --static-metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/OpenInstaCine.DependencyStaticMetadataFileList --swift-const-vals-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/arm64/OpenInstaCine.SwiftConstValuesFileList --swift-const-vals-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/Objects-normal/x86_64/OpenInstaCine.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization",
+            "2026-10-01 21:08:15.709 appintentsmetadataprocessor[13276:3446182] Starting appintentsmetadataprocessor export",
+            "2026-10-01 21:08:15.712 appintentsmetadataprocessor[13276:3446182] warning: Metadata extraction skipped. No AppIntents.framework dependency found.",
+            "",
+            "AppIntentsSSUTraining (in target 'OpenInstaCine' from project 'OpenInstaCine')",
+            "    cd <workspace>/OpenInstaCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/Info.plist --temp-dir-path <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/ssu --bundle-id com.opencapture.openinstacine --product-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app --extracted-metadata-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app/Metadata.appintents --metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/OpenInstaCine.build/Debug-iphonesimulator/OpenInstaCine.build/OpenInstaCine.DependencyMetadataFileList --archive-ssu-assets",
+            "2026-10-01 21:08:15.742 appintentsnltrainingprocessor[13277:3446187] Parsing options for appintentsnltrainingprocessor",
+            "2026-10-01 21:08:15.742 appintentsnltrainingprocessor[13277:3446187] No AppShortcuts found - Skipping.",
+            "",
+            "RegisterExecutionPolicyException <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app (in target 'OpenInstaCine' from project 'OpenInstaCine')",
+            "    cd <workspace>/OpenInstaCine/ios",
+            "    builtin-RegisterExecutionPolicyException <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app",
+            "",
+            "Validate <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app (in target 'OpenInstaCine' from project 'OpenInstaCine')",
+            "    cd <workspace>/OpenInstaCine/ios",
+            "    builtin-validationUtility <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app -shallow-bundle -infoplist-subpath Info.plist",
+            "",
+            "Touch <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app (in target 'OpenInstaCine' from project 'OpenInstaCine')",
+            "    cd <workspace>/OpenInstaCine/ios",
+            "    /usr/bin/touch -c <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/OpenInstaCine.app",
+            "",
+            "note: Run script build phase 'Stamp source revision' will be run during every build because the option to run the script phase \"Based on dependency analysis\" is unchecked. (in target 'OpenInstaCine' from project 'OpenInstaCine')",
+            "** BUILD SUCCEEDED **"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build-identity",
+          "fingerprint": {
+            "command": "python3 tools/build-identity.py --platform ios --configuration Debug",
+            "touch": "Sources/MonitorUI/MonitorTheme.swift"
+          },
+          "duration_s": 0.3,
+          "touched": "OpenCineUI/Sources/MonitorUI/MonitorTheme.swift",
+          "before": "ios-08e121d58fb37a0c409941453650404d",
+          "after": "ios-3f1f77e58c17c4bbae609a1d532d59e3",
+          "status": "passed"
+        },
+        {
+          "name": "android-resolution",
+          "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+          "exit_code": 0,
+          "duration_s": 8.5,
+          "log_tail": [
+            "projectDir: <workspace>/OpenCineUI/Android/monitor-ui",
+            "com.opencapture.opencine:monitor-ui:0.1.0-SNAPSHOT -> project ':Android:monitor-ui'"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "android-check",
+          "recipe": "just android-check",
+          "exit_code": 0,
+          "duration_s": 131.7,
+          "log_tail": [
+            "> Task :app:mergeLibDexDebug",
+            "> Task :app:packageDebug",
+            "> Task :app:assembleDebug",
+            "> Task :app:createDebugApkListingFileRedirect",
+            "> Task :monitor:lintAnalyzeDebug",
+            "",
+            "> Task :monitor:lintReportDebug",
+            "Wrote HTML report to file://<workspace>/OpenInstaCine/Apps/Android/monitor/build/reports/lint-results-debug.html",
+            "Wrote SARIF report to file://<workspace>/OpenInstaCine/Apps/Android/monitor/build/reports/lint-results-debug.sarif",
+            "",
+            "> Task :monitor:lintDebug",
+            "> Task :app:lintAnalyzeDebug",
+            "",
+            "> Task :app:lintReportDebug",
+            "Wrote HTML report to file://<workspace>/OpenInstaCine/Apps/Android/app/build/reports/lint-results-debug.html",
+            "Wrote SARIF report to file://<workspace>/OpenInstaCine/Apps/Android/app/build/reports/lint-results-debug.sarif",
+            "",
+            "> Task :app:lintDebug",
+            "",
+            "[Incubating] Problems report is available at: file://<workspace>/OpenInstaCine/Apps/Android/build/reports/problems/problems-report.html",
+            "",
+            "Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.",
+            "",
+            "You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.",
+            "",
+            "For more on this, please refer to https://docs.gradle.org/9.8.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.",
+            "",
+            "BUILD SUCCESSFUL in 2m 11s",
+            "185 actionable tasks: 185 executed",
+            "Configuration cache entry stored."
+          ],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-native-binaries",
+          "native_outputs": [
+            "Apps/Android/monitor/build/generated/swiftCore/jniLibs/**/*.so"
+          ],
+          "outputs": [
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libBlocksRuntime.so",
+              "bytes": 14720,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundation.so",
+              "bytes": 9068488,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationEssentials.so",
+              "bytes": 10238824,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationInternationalization.so",
+              "bytes": 3760864,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libOpenPocketCineAndroid.so",
+              "bytes": 2532048,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/lib_FoundationICU.so",
+              "bytes": 42530232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libc++_shared.so",
+              "bytes": 1794776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libdispatch.so",
+              "bytes": 426328,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftAndroid.so",
+              "bytes": 79888,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftCore.so",
+              "bytes": 9964392,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftDispatch.so",
+              "bytes": 352288,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftSynchronization.so",
+              "bytes": 119200,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Builtin_float.so",
+              "bytes": 12232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Concurrency.so",
+              "bytes": 1448712,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_RegexParser.so",
+              "bytes": 1562776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_StringProcessing.so",
+              "bytes": 1086672,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/monitor/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_math.so",
+              "bytes": 11008,
+              "built_this_run": true
+            }
+          ],
+          "prebuilt": [],
+          "status": "passed"
+        },
+        {
+          "name": "android-build-identity",
+          "fingerprint": {
+            "command": "python3 tools/build-identity.py --platform android --configuration debug",
+            "touch": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt"
+          },
+          "duration_s": 0.2,
+          "touched": "OpenCineUI/Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt",
+          "before": "android-c9988f0b13f99ef89cd01183cacfec4d",
+          "after": "android-c9988f0b13f99ef89cd01183cacfec4d",
+          "status": "failed",
+          "reason": "fingerprint unchanged by a one-byte edit to the candidate package"
+        },
+        {
+          "name": "android-native-staging",
+          "status": "not-applicable",
+          "reason": "stageSwiftCore inputs are Package.swift, Package.resolved, Sources/** and Adapters/OsmoCompatibility/Sources/** of the consumer; its Package.swift has no OpenCineUI dependency."
+        }
+      ],
+      "layout": {
+        "consumer": "<workspace>/OpenInstaCine",
+        "package": "<workspace>/OpenCineUI"
+      },
+      "workspace_was_removed": true,
+      "consumer_pin": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f",
+      "native_binaries_before_checks": [],
+      "gradle": {
+        "Apps/Android/gradle/wrapper/gradle-wrapper.properties": "9.8.0"
+      },
+      "finished_at": "2026-10-01T19:18:36Z",
+      "toolchain": {
+        "swift": "Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)",
+        "xcodebuild": "Xcode 26.2 Build version 17C52",
+        "java": "openjdk version \"26.0.1\" 2026-04-21",
+        "just": "just 1.56.0",
+        "xcodegen": "Version: 2.46.0",
+        "git": "git version 2.50.1 (Apple Git-155)",
+        "swift_sdks": "swift-6.3.3-RELEASE_android",
+        "android_ndk": [
+          "28.2.13676358"
+        ]
+      }
+    },
+    {
+      "repo": "openzcine",
+      "ref": "opencine/ui-03-engine-port-candidate",
+      "commit": "a9d615556885c0581af69a46535e99efabebf170",
+      "package": {
+        "repo": "opencineui",
+        "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94"
+      },
+      "checks": [
+        {
+          "name": "swift-test",
+          "recipe": "just swift-test",
+          "exit_code": 0,
+          "duration_s": 97.9,
+          "log_tail": [
+            "\u2714 Test \"Dead zone suppresses directional fill near centre\" passed after 1.813 seconds.",
+            "\u2714 Suite \"Traffic Lights meter\" passed after 1.954 seconds.",
+            "\u2714 Suite \"ReconnectBackoff\" passed after 1.963 seconds.",
+            "\u2714 Test \"Every sensitivity separates in-focus detail from defocused background\" passed after 2.075 seconds.",
+            "\u2714 Suite \"Focus peaking\" passed after 2.166 seconds.",
+            "\u2714 Test \"False-colour grid matches the core cube and paints the documented clip zone\" passed after 4.481 seconds.",
+            "\u2714 Suite FeedEffectsWireTests passed after 4.516 seconds.",
+            "\u2714 Test \"a 65\u00b3 Resolve cube validates and packs as the 33\u00b3 renderer grid\" passed after 4.515 seconds.",
+            "\u2714 Suite LUTLibraryWireTests passed after 4.553 seconds.",
+            "\u2714 Test streamsStandardObjectIntoOrderedChunks() passed after 5.181 seconds.",
+            "\u2714 Suite MediaTransferPumpTests passed after 5.229 seconds.",
+            "\u2714 Test \"Limits paint and weight cubes flag the zones and clear the midrange\" passed after 5.183 seconds.",
+            "\u2714 Test \"The generated IRE cube retains narrow shadow and highlight warnings\" passed after 7.513 seconds.",
+            "\u2714 Suite \"False colour mapping\" passed after 7.659 seconds.",
+            "\u2714 Test distinctNoisyFramesGetDistinctSignatures() passed after 11.469 seconds.",
+            "\u2714 Test \"Low paints less than High on the same real frame\" passed after 18.168 seconds.",
+            "\u2714 Test \"A fully defocused frame paints far less than a focused one\" passed after 20.001 seconds.",
+            "\u2714 Test \"A sensitivity step means the same thing on log and display-referred feeds\" passed after 24.316 seconds.",
+            "\u2714 Test \"Full defocus paints nothing at all, and best focus paints lines\" passed after 26.688 seconds.",
+            "frame          ink     fragmented",
+            "zr-sweep-00    0.000%       0.0%",
+            "zr-sweep-12    0.013%      78.8%",
+            "zr-sweep-19    2.309%      14.8%",
+            "zr-sweep-24    0.032%      83.1%",
+            "Low gate 0.00522  focused ink  0.524%  defocused ink  0.000%",
+            "Med gate 0.00174  focused ink  2.309%  defocused ink  0.000%",
+            "High gate 0.00058  focused ink  5.173%  defocused ink  0.000%",
+            "\u2714 Test \"The sweep is scored end to end, and the numbers are recorded\" passed after 40.740 seconds.",
+            "\u2714 Suite \"Focus peaking on real ZR frames\" passed after 40.792 seconds.",
+            "\u2714 Test run with 1408 tests in 72 suites passed after 40.794 seconds."
+          ],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "ios-resolution",
+          "recipe": "xcodebuild -resolvePackageDependencies -project ios/Runner.xcodeproj -scheme Runner -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\"",
+          "exit_code": 0,
+          "duration_s": 3.0,
+          "log_tail": [
+            "Command line invocation:",
+            "    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -project ios/Runner.xcodeproj -scheme Runner -derivedDataPath <workspace>/DerivedData",
+            "",
+            "Resolve Package Graph",
+            "",
+            "Fetching from https://github.com/weichsel/ZIPFoundation.git (cached)",
+            "",
+            "Creating working copy of package \u2018ZIPFoundation\u2019",
+            "",
+            "Checking out 0.9.20 of package \u2018ZIPFoundation\u2019",
+            "",
+            "",
+            "Resolved source packages:",
+            "  OpenCineUI: <workspace>/OpenCineUI @ local",
+            "  ZIPFoundation: https://github.com/weichsel/ZIPFoundation.git @ 0.9.20",
+            "",
+            "resolved source packages: OpenCineUI, ZIPFoundation"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build",
+          "recipe": "xcodebuild -project ios/Runner.xcodeproj -scheme Runner -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" CODE_SIGNING_ALLOWED=NO build",
+          "exit_code": 0,
+          "duration_s": 64.3,
+          "log_tail": [
+            "",
+            "ExtractAppIntentsMetadata (in target 'Runner' from project 'Runner')",
+            "    cd <workspace>/OpenZCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.Mpp6I7/Metal.xctoolchain --module-name Runner --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C52 --platform-family iOS --deployment-target 17.0 --bundle-identifier com.opencapture.openzcine --output <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app --target-triple arm64-apple-ios17.0-simulator --target-triple x86_64-apple-ios17.0-simulator --binary-file <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app/Runner --dependency-file <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/arm64/Runner_dependency_info.dat --dependency-file <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/x86_64/Runner_dependency_info.dat --stringsdata-file <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --stringsdata-file <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/x86_64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/arm64/Runner.SwiftFileList --source-file-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/x86_64/Runner.SwiftFileList --metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Runner.DependencyMetadataFileList --static-metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Runner.DependencyStaticMetadataFileList --swift-const-vals-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/arm64/Runner.SwiftConstValuesFileList --swift-const-vals-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Objects-normal/x86_64/Runner.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization",
+            "2026-10-01 21:22:29.407 appintentsmetadataprocessor[73475:3688571] Starting appintentsmetadataprocessor export",
+            "2026-10-01 21:22:29.409 appintentsmetadataprocessor[73475:3688571] warning: Metadata extraction skipped. No AppIntents.framework dependency found.",
+            "",
+            "ValidateEmbeddedBinary <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app/Watch/OpenZCineWatch.app (in target 'Runner' from project 'Runner')",
+            "    cd <workspace>/OpenZCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/usr/bin/embeddedBinaryValidationUtility <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app/Watch/OpenZCineWatch.app -info-plist-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app/Info.plist",
+            "",
+            "AppIntentsSSUTraining (in target 'Runner' from project 'Runner')",
+            "    cd <workspace>/OpenZCine/ios",
+            "    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app/Info.plist --temp-dir-path <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/ssu --bundle-id com.opencapture.openzcine --product-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app --extracted-metadata-path <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app/Metadata.appintents --metadata-file-list <workspace>/DerivedData/Build/Intermediates.noindex/Runner.build/Debug-iphonesimulator/Runner.build/Runner.DependencyMetadataFileList --archive-ssu-assets",
+            "2026-10-01 21:22:29.422 appintentsnltrainingprocessor[73478:3688578] Parsing options for appintentsnltrainingprocessor",
+            "2026-10-01 21:22:29.423 appintentsnltrainingprocessor[73478:3688578] No AppShortcuts found - Skipping.",
+            "",
+            "RegisterExecutionPolicyException <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app (in target 'Runner' from project 'Runner')",
+            "    cd <workspace>/OpenZCine/ios",
+            "    builtin-RegisterExecutionPolicyException <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app",
+            "",
+            "Validate <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app (in target 'Runner' from project 'Runner')",
+            "    cd <workspace>/OpenZCine/ios",
+            "    builtin-validationUtility <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app -shallow-bundle -infoplist-subpath Info.plist",
+            "",
+            "Touch <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app (in target 'Runner' from project 'Runner')",
+            "    cd <workspace>/OpenZCine/ios",
+            "    /usr/bin/touch -c <workspace>/DerivedData/Build/Products/Debug-iphonesimulator/Runner.app",
+            "",
+            "** BUILD SUCCEEDED **"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "ios-build-identity",
+          "status": "not-applicable",
+          "reason": "this branch has no build identity tool (tools/build-identity.py is Pocket/Insta only)"
+        },
+        {
+          "name": "android-resolution",
+          "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+          "exit_code": 0,
+          "duration_s": 6.1,
+          "log_tail": [
+            "projectDir: <workspace>/OpenCineUI/Android/monitor-ui",
+            "com.opencapture.opencine:monitor-ui:0.1.0-SNAPSHOT -> project ':Android:monitor-ui'"
+          ],
+          "package_roots": [
+            "<workspace>"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "android-check",
+          "recipe": "just android-check",
+          "exit_code": 0,
+          "duration_s": 161.1,
+          "log_tail": [
+            "",
+            "> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE",
+            "> Task :app:processDebugUnitTestJavaRes",
+            "> Task :app:dexBuilderDebug",
+            "WARNING: A restricted method in java.lang.System has been called",
+            "WARNING: java.lang.System::loadLibrary has been called by com.opencapture.openzcine.bridge.SwiftCore in an unnamed module (file:<workspace>/OpenZCine/Apps/Android/app/build/intermediates/runtime_app_classes_jar/debug/bundleDebugClassesToRuntimeJar/classes.jar)",
+            "WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module",
+            "WARNING: Restricted methods will be blocked in a future release unless native access is enabled",
+            "",
+            "> Task :app:mergeProjectDexDebug",
+            "> Task :app:packageDebug",
+            "> Task :app:assembleDebug",
+            "> Task :app:createDebugApkListingFileRedirect",
+            "> Task :app:testDebugUnitTest",
+            "> Task :app:test",
+            "> Task :app:lintAnalyzeDebugUnitTest",
+            "> Task :app:lintAnalyzeDebug",
+            "",
+            "> Task :app:lintReportDebug",
+            "Wrote HTML report to file://<workspace>/OpenZCine/Apps/Android/app/build/reports/lint-results-debug.html",
+            "Wrote SARIF report to file://<workspace>/OpenZCine/Apps/Android/app/build/reports/lint-results-debug.sarif",
+            "",
+            "> Task :app:lintDebug",
+            "> Task :app:lint",
+            "",
+            "[Incubating] Problems report is available at: file://<workspace>/OpenZCine/Apps/Android/build/reports/problems/problems-report.html",
+            "",
+            "BUILD SUCCESSFUL in 2m 40s",
+            "259 actionable tasks: 259 executed",
+            "Configuration cache entry stored."
+          ],
+          "package_roots": [],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-native-binaries",
+          "native_outputs": [
+            "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+          ],
+          "outputs": [
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libBlocksRuntime.so",
+              "bytes": 14720,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundation.so",
+              "bytes": 9068488,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationEssentials.so",
+              "bytes": 10238824,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libFoundationInternationalization.so",
+              "bytes": 3760864,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libOpenZCineAndroid.so",
+              "bytes": 5964440,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/lib_FoundationICU.so",
+              "bytes": 42530232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libc++_shared.so",
+              "bytes": 1794776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libdispatch.so",
+              "bytes": 426328,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftAndroid.so",
+              "bytes": 79888,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftCore.so",
+              "bytes": 9964392,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftDispatch.so",
+              "bytes": 352288,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswiftSynchronization.so",
+              "bytes": 119200,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Builtin_float.so",
+              "bytes": 12232,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_Concurrency.so",
+              "bytes": 1448712,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_RegexParser.so",
+              "bytes": 1562776,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_StringProcessing.so",
+              "bytes": 1086672,
+              "built_this_run": true
+            },
+            {
+              "path": "Apps/Android/app/build/generated/swiftCore/jniLibs/arm64-v8a/libswift_math.so",
+              "bytes": 11008,
+              "built_this_run": true
+            }
+          ],
+          "prebuilt": [],
+          "status": "passed"
+        },
+        {
+          "name": "android-build-identity",
+          "status": "not-applicable",
+          "reason": "this branch has no build identity tool"
+        },
+        {
+          "name": "android-native-staging",
+          "status": "not-applicable",
+          "reason": "stageSwiftCore inputs are Package.swift, Package.resolved and Sources/** of the consumer; its Package.swift depends only on swift-crypto, not OpenCineUI."
+        }
+      ],
+      "layout": {
+        "consumer": "<workspace>/OpenZCine",
+        "package": "<workspace>/OpenCineUI"
+      },
+      "workspace_was_removed": true,
+      "consumer_pin": "597ac2fa3d81d4322e771425bd133a1733d4a644",
+      "native_binaries_before_checks": [],
+      "gradle": {
+        "Apps/Android/gradle/wrapper/gradle-wrapper.properties": "9.6.1"
+      },
+      "finished_at": "2026-10-01T19:25:20Z",
+      "toolchain": {
+        "swift": "Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)",
+        "xcodebuild": "Xcode 26.2 Build version 17C52",
+        "java": "openjdk version \"26.0.1\" 2026-04-21",
+        "just": "just 1.56.0",
+        "xcodegen": "Version: 2.46.0",
+        "git": "git version 2.50.1 (Apple Git-155)",
+        "swift_sdks": "swift-6.3.3-RELEASE_android",
+        "android_ndk": [
+          "28.2.13676358"
+        ]
+      }
+    }
+  ]
+}
