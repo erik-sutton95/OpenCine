@@ -16,6 +16,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineCore` | Value types and the `CameraSession` protocol. Foundation only. | Integrations, multicam, UI presentation, apps |
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
 | `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. The encoded-unit seam: `EncodedVideoUnit` (stream, generation, codec, Annex-B or JPEG payload, random access, parameter sets, host arrival, optional PTS and format), HEVC/AVC NAL math (`Hevc`, `Avc`, `LiveVideo`), decoder parameter-set policy (`EncoderPresentPath`), present policy (`FeedPresentPolicy`, `SerialSessionGate`, `ExtraMirrorHold`), `DeliveryCadence`, and the Apple-only scope tap `LiveFrameTap`. Foundation plus OpenCineCore; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
+| `OpenCineFrameIO` | Optional Frame.io delivery: v4 request planning (`FrameioAPI`), OAuth PKCE primitives and IMS token requests (`FrameioOAuth`, `PKCE`), response models, the upload workflow with injected transport, token storage, clock and pause (`FrameioClient`), batch results with history and cleanup reporting (`FrameioDelivery`, `FrameioDeliveryReport`), and an Apple `URLSession` transport. Foundation only (CryptoKit on Apple platforms). See [OpenCineFrameIO](#opencineframeio). | Apps that deliver to Frame.io; Android JNI facades |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 
@@ -78,6 +79,44 @@ interface changes driven by the first real adapter slices (CORE-02).
   comment specifies buffering, cancellation and close semantics.
 - **`MonitorLayoutCapabilities`** is a separate ten-field layout projection matching the UI's
   current `MonitorCapabilities`, derived from the richer model where Core has vocabulary.
+
+## OpenCineFrameIO
+
+Optional. A camera-only consumer never links it: depending on the `OpenCineCore` or
+`OpenCineMedia` product compiles nothing from it, and it declares no package dependency, so
+`swift package show-dependencies` for a Core-only consumer lists no remote packages. (SwiftPM
+resolves every package dependency a manifest declares, even one only an unused product needs;
+that is why PKCE takes an injected SHA-256 on non-Apple platforms instead of this package
+depending on swift-crypto. An Android facade passes swift-crypto's SHA-256 from its own package.)
+
+The app owns, and this product never names:
+
+- OAuth presentation (`ASWebAuthenticationSession`, Custom Tabs), callback URL schemes and the
+  Adobe client ID / redirect URI from its build configuration.
+- Credential storage: `FrameioTokenStorage` is implemented by the app over its own keychain or
+  keystore namespace (for example service `OpenPocketCine.frameio`). Sharing this package never
+  shares a sign-in. `StoredFrameioToken` keeps the Codable shape the apps already stored.
+- Upload destination preferences, media preparation (exports, LUT bake, sidecars) and history
+  storage (`FrameioUploadHistory`).
+
+### Network hops and camera claims
+
+Every Frame.io byte, including token refresh and upload parts, goes through
+`FrameioHTTPTransport.send`. That is the single place an app enforces route ownership:
+
+1. While the phone's Wi-Fi is a camera access point, the transport refuses (throws) unless the
+   operator approved an internet hop for this delivery.
+2. Before starting a hop, the app asks whether leaving the current network would take a route
+   from a live camera. With OpenCineMulticam, model the hop as a candidate
+   `ResourceRequest(entry: <delivery entry>, device: nil, claims: [.infrastructureNetwork(<internet network>)])`
+   and call `ResourceAdmission.reasons(admitting:alongside:budget:)` with the live members. Any
+   `.wifiNetworkConflict` or `.accessPointTaken` reason means another camera owns the phone's
+   Wi-Fi: show it to the operator and do not hop silently.
+3. The hop's owner rejoins the camera when delivery ends, on every exit path (success, failure,
+   cancellation).
+
+This product deliberately does not depend on OpenCineMulticam or a reachability API; the app
+composes them.
 
 ## Android
 
