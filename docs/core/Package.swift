@@ -4,8 +4,10 @@ import PackageDescription
 // Portable common camera, monitoring and capability contracts. Foundation only.
 // Core never imports UI, manufacturer integrations or Multicam (see README.md).
 // OpenCineMedia holds portable media math (LUTs, transfer curves, scope and false-colour
-// math, shutter angle, frame timing, framing). Foundation only; it also builds with the
-// Swift Android SDK because Android JNI facades link it.
+// math, shutter angle, frame timing, framing) and the encoded-unit seam (H.26x NAL math,
+// present policy, EncodedVideoUnit). Foundation plus OpenCineCore; it also builds with the
+// Swift Android SDK because Android JNI facades link it. LiveFrameTap is Apple-only
+// (`#if canImport(CoreVideo)`).
 let package = Package(
     name: "OpenCineCore",
     platforms: [.iOS(.v17), .macOS(.v13), .watchOS(.v10)],
@@ -22,8 +24,8 @@ let package = Package(
             name: "OpenCineCoreTests",
             dependencies: ["OpenCineCore", "OpenCineCoreTestSupport"]
         ),
-        // ponytail: no OpenCineCore dependency until a media API needs a Core type.
-        .target(name: "OpenCineMedia"),
+        // EncodedVideoUnit names its stream with Core's StreamID and StreamGeneration.
+        .target(name: "OpenCineMedia", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMediaTests", dependencies: ["OpenCineMedia"]),
     ]
 )

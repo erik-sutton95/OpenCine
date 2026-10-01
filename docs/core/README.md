@@ -15,13 +15,18 @@ interface changes driven by the first real adapter slices (CORE-02).
 |---|---|---|
 | `OpenCineCore` | Value types and the `CameraSession` protocol. Foundation only. | Integrations, multicam, UI presentation, apps |
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
-| `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. Foundation only; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
+| `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing. The encoded-unit seam: `EncodedVideoUnit` (stream, generation, codec, Annex-B or JPEG payload, random access, parameter sets, host arrival, optional PTS and format), HEVC/AVC NAL math (`Hevc`, `Avc`, `LiveVideo`), decoder parameter-set policy (`EncoderPresentPath`), present policy (`FeedPresentPolicy`, `SerialSessionGate`, `ExtraMirrorHold`), `DeliveryCadence`, and the Apple-only scope tap `LiveFrameTap`. Foundation plus OpenCineCore; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 
 ## OpenCineMedia rules
 
 - Pure functions and value types. No mutable global state: a test rejects `static var` and
   `nonisolated(unsafe)` in `Sources/OpenCineMedia`.
+- Imports Foundation and OpenCineCore only. `LiveFrameTap` (CVPixelBuffer to BGRA8) is the one
+  Apple-only helper and sits behind `#if canImport(CoreVideo)`. Platform decoders, sample buffers
+  and surfaces stay in native runtimes; `EncodedVideoUnit` carries bytes and identity only.
+- Vendor framing stays with the integration: a private marker NAL or a vendor live-view enable
+  request is stripped or decided before units reach these helpers.
 - No camera raw modes. `MonitorTransfer` names a published curve; mapping a camera's colour
   mode or a tap fingerprint to a curve belongs to the integration.
 - Per-source inputs are parameters. The live clip ceiling (`clipByte`, measured per source by
