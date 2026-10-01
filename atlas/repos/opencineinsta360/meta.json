@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "opencineinsta360",
+  "display_name": "OpenCineInsta360",
+  "status": "candidate",
+  "layer": "vendor",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCineInsta360",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "57a354f263e379e478c5fe8a91ba886e8b010674",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "Insta360Protocol",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "Insta360Apple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "opencinecore",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency ../OpenCineCore pinned in opencine-pins.txt",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "57a354f263e379e478c5fe8a91ba886e8b010674"
+      }
+    }
+  ],
+  "summary_review": null
+}

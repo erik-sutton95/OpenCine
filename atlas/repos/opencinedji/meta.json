@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "opencinedji",
+  "display_name": "OpenCineDJI",
+  "status": "candidate",
+  "layer": "vendor",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCineDJI",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "e254af11f37fdde305dd231cfbd4a61c080d3318",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "OpenCineDJI",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "opencinecore",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency ../OpenCineCore pinned in opencine-pins.txt",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "e254af11f37fdde305dd231cfbd4a61c080d3318"
+      }
+    }
+  ],
+  "summary_review": null
+}
