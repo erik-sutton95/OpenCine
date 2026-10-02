@@ -11,7 +11,7 @@ class NikonMulticamTest {
     /** Swift `qualificationPreservesSavedPathPolicy`. */
     @Test
     fun qualificationPreservesSavedPathPolicy() {
-        fun verdict(path: RouteKind?, reachable: Boolean = true, photo: Boolean = false) =
+        fun verdict(path: RouteKind?, reachable: Boolean = true, photo: Boolean? = null) =
             NikonMulticamPolicy.qualification(path, reachable, photo, device = null, members = emptyList())
         for (path in listOf(RouteKind.USB, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)) {
             assertEquals(MulticamQualification.Qualified, verdict(path))
@@ -29,5 +29,26 @@ class NikonMulticamTest {
         assertEquals(device, NikonMulticamPolicy.device(" test "))
         assertNull(NikonMulticamPolicy.device(null))
         assertNull(NikonMulticamPolicy.device("  "))
+    }
+
+    /** Swift `qualificationDoesNotInventUnknownCameraMode`. */
+    @Test
+    fun qualificationDoesNotInventUnknownCameraMode() {
+        for (path in listOf(RouteKind.USB, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)) {
+            fun verdict(photo: Boolean?) =
+                NikonMulticamPolicy.qualification(path, true, photo, device = null, members = emptyList())
+            // Unknown mode permits opening this saved path, without asserting movie eligibility.
+            assertEquals(MulticamQualification.Qualified, verdict(null))
+            assertEquals(MulticamQualification.Qualified, verdict(false))
+            assertEquals(
+                MulticamQualification.Refused(MulticamQualificationRefusal.OPERATION_UNAVAILABLE), verdict(true))
+        }
+        assertEquals(
+            MulticamQualification.Refused(MulticamQualificationRefusal.UNSUPPORTED_CONFIGURATION),
+            NikonMulticamPolicy.qualification(RouteKind.CAMERA_ACCESS_POINT, true, null, null, emptyList()))
+        val device = requireNotNull(NikonMulticamPolicy.device("test"))
+        assertEquals(
+            MulticamQualification.Refused(MulticamQualificationRefusal.ALREADY_MEMBER),
+            NikonMulticamPolicy.qualification(RouteKind.USB, true, null, device, listOf(device)))
     }
 }

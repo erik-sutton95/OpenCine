@@ -198,7 +198,7 @@ struct NikonMulticamTests {
     // MARK: Identity and eligibility
 
     @Test func qualificationPreservesSavedPathPolicy() {
-        func verdict(_ path: CameraPath?, reachable: Bool = true, photo: Bool = false)
+        func verdict(_ path: CameraPath?, reachable: Bool = true, photo: Bool? = nil)
             -> MulticamQualification
         {
             NikonMulticamPolicy.qualification(
@@ -218,6 +218,29 @@ struct NikonMulticamTests {
             NikonMulticamPolicy.qualification(
                 path: .usbC, reachable: true, isPhotography: false, device: device,
                 members: [device])
+                == .refused(.alreadyMember))
+    }
+
+    @Test func qualificationDoesNotInventUnknownCameraMode() {
+        for path: CameraPath in [.usbC, .infrastructure(networkName: "Set"), .phoneHotspot] {
+            func verdict(_ photo: Bool?) -> MulticamQualification {
+                NikonMulticamPolicy.qualification(
+                    path: path, reachable: true, isPhotography: photo, device: nil,
+                    members: [CameraDeviceID]())
+            }
+            // Unknown mode permits opening this saved path, without asserting movie eligibility.
+            #expect(verdict(nil) == .qualified)
+            #expect(verdict(false) == .qualified)
+            #expect(verdict(true) == .refused(.operationUnavailable))
+        }
+        #expect(
+            NikonMulticamPolicy.qualification(
+                path: .cameraAccessPoint(ssid: "test"), reachable: true, isPhotography: nil,
+                device: nil, members: [CameraDeviceID]()) == .refused(.unsupportedConfiguration))
+        let device = CameraDeviceID.durable("test", integration: IntegrationID("test.cameras"))
+        #expect(
+            NikonMulticamPolicy.qualification(
+                path: .usbC, reachable: true, isPhotography: nil, device: device, members: [device])
                 == .refused(.alreadyMember))
     }
 

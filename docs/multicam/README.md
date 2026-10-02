@@ -65,18 +65,26 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
 
 ## How apps adapt (MULTI-02)
 
-- Pocket (done, MULTI-02): each tile owns one `DJICameraSessionAdapter` over a record-only tile
-  port on its existing link and is an entry keyed by its tile UUID; the record confirmation holds
-  a strict `RecordPlan` and submits it; the controls-only editor keeps its borrowed session but
-  asks `EditorLeases.refusal(for:in:at:)` before every SET. Not adopted yet: `RecoveryLedger`
-  (the tile repair ladder keeps its own budget), `ResourceAdmission` (station provisioning and
-  the four-tile limit stay in the app), `GroupSummary`.
-- Nikon (NIKON-01): each member is an entry keyed by its body serial with its own
-  `NikonCameraSession` over an OpenCineNikon `NikonMemberControl`; group record is a
-  `.eligibleSubset` `RecordPlan` with per-member `RecordResult`s; eligibility is
-  `NikonMulticamPolicy` plus `ResourceAdmission` with `ResourceBudget(qualifiedEntries: 4)`; a
-  member borrowed into full Live View holds an `EditorLease`, is `busy` for group plans and keeps
-  its session (no CloseSession). Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
+- Pocket (done, MULTI-02): each tile owns one `DJICameraSessionAdapter` over a
+  record-only tile port on its existing link and is an entry keyed by its tile
+  UUID; the record confirmation holds a strict `RecordPlan` and submits it. The
+  controls-only editor keeps its borrowed session but asks
+  `EditorLeases.refusal(for:in:at:)` before every SET. `ResourceAdmission` combines
+  the DJI configuration qualification with the app's
+  `ResourceBudget(qualifiedEntries: 4)` before station provisioning; the same
+  budget supplies the tile and saved-stage limits. Not adopted yet:
+  `RecoveryLedger` (the tile repair ladder keeps its own budget) and
+  `GroupSummary`.
+- Nikon (NIKON-01): each member is an entry keyed by its body serial with its
+  own `NikonCameraSession` over an OpenCineNikon `NikonMemberControl`. Group record
+  is an `.eligibleSubset` `RecordPlan` with per-member `RecordResult`s. Saved-path
+  admission uses `NikonMulticamPolicy` plus `ResourceAdmission` with
+  `ResourceBudget(qualifiedEntries: 4)`. Photography observation is optional
+  before connect: an eligible route may open while mode is unknown, and
+  camera-reported mode is checked after connect before any record operation.
+  A member borrowed into full Live View holds an `EditorLease`, is `busy` for
+  group plans and keeps its session (no CloseSession).
+  Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
 - Each app keeps its own qualified camera count, routes, copy and confirmation UI.
 
 ## Build and test
