@@ -33,6 +33,13 @@ public final class MonitorControlModel {
         let domain: SettingDomain?
     }
 
+    /// An explicit record confirmation authorizes exactly this camera state.
+    public struct RecordEditor: Hashable, Sendable {
+        public let recording: Bool
+        let editor: Editor
+        let mode: CaptureMode
+    }
+
     /// The session the controls drive; `nil` when nothing is bound.
     public private(set) var session: (any CameraSession)?
     /// The latest snapshot of `session`.
@@ -55,7 +62,7 @@ public final class MonitorControlModel {
     @ObservationIgnored private let sleep: @MainActor (Duration) async -> Void
     @ObservationIgnored private var binding = 0
     @ObservationIgnored private var feed: Task<Void, Never>?
-    @ObservationIgnored private var operations: [SettingKey: (operation: OperationID, label: String)] = [:]
+    @ObservationIgnored private var operations: [SettingKey: (operation: OperationID, label: String, editor: Editor?)] = [:]
     @ObservationIgnored private var scheduled: Set<SettingKey> = []
     @ObservationIgnored private var recordOperation: OperationID?
 
@@ -153,18 +160,34 @@ public final class MonitorControlModel {
     /// Sets `value` from an open editor. Refused (`false`, nothing sent) once the editor is obsolete.
     @discardableResult
     public func commit(_ value: SettingValue, from editor: Editor, label: String) -> Bool {
-        guard value.key == editor.key, isCurrent(editor) else { return false }
-        set(value, label: label)
+        guard admits(value, from: editor) else { return false }
+        set(value, label: label, editor: editor)
         return true
+    }
+
+    private func admits(_ value: SettingValue, from editor: Editor) -> Bool {
+        guard value.key == editor.key, isCurrent(editor), let snapshot,
+            snapshot.connection == .ready, let descriptor = snapshot.capabilities[editor.key],
+            descriptor.access == .readWrite, descriptor.availability == .available,
+            descriptor.accepts(value)
+        else { return false }
+        switch snapshot.authority {
+        case .owner, .lease: return true
+        default: return false
+        }
     }
 
     /// Shows `value` at once and sends it after the coalescing window; a newer value for the
     /// same setting replaces it. `label` names it in operator notes ("ISO 800").
     public func set(_ value: SettingValue, label: String) {
+        set(value, label: label, editor: nil)
+    }
+
+    private func set(_ value: SettingValue, label: String, editor: Editor?) {
         guard session != nil else { return onNote(Self.connectFirst) }
         let key = value.key
         pending[key] = value
-        operations[key] = (OperationID(), label)
+        operations[key] = (OperationID(), label, editor)
         onChange()
         guard scheduled.insert(key).inserted else { return }
         let current = binding
@@ -178,7 +201,10 @@ public final class MonitorControlModel {
     }
 
     private func submit(_ key: SettingKey) {
-        guard let (operation, label) = operations[key], let value = pending[key] else { return }
+        guard let (operation, label, editor) = operations[key], let value = pending[key] else { return }
+        if let editor, !admits(value, from: editor) {
+            return finish(key, operation, binding, note: nil)
+        }
         guard let session, let snapshot else {
             return finish(key, operation, binding, note: Self.connectFirst)
         }
@@ -202,17 +228,74 @@ public final class MonitorControlModel {
 
     // MARK: Record
 
+    /// Unknown recording, mode, access or control readiness cannot be confirmed.
+    public func recordEditor() -> RecordEditor? {
+        guard !recordPending, let snapshot else { return nil }
+        return recordEditor(in: snapshot)
+    }
+
+    private func recordEditor(in snapshot: CameraSnapshot) -> RecordEditor? {
+        guard snapshot.connection == .ready, let mode = snapshot.mode.value, mode.role == .video,
+            let descriptor = snapshot.capabilities[.recording], descriptor.access == .readWrite,
+            descriptor.availability == .available
+        else { return nil }
+        switch snapshot.authority {
+        case .owner, .lease: break
+        default: return nil
+        }
+        let recording: Bool
+        switch snapshot.recording.value {
+        case .idle?: recording = false
+        case .recording?: recording = true
+        default: return nil
+        }
+        return RecordEditor(
+            recording: recording,
+            editor: Editor(key: .recording, binding: binding, session: snapshot.session,
+                epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain),
+            mode: mode)
+    }
+
+    /// Approval is retired on mode, epoch, authority, binding or recording changes.
+    @discardableResult public func commitRecord(from editor: RecordEditor) -> Bool {
+        guard recordEditor() == editor else { return false }
+        record(start: !editor.recording, approved: editor)
+        return true
+    }
+
     /// Starts (`true`) or stops (`false`) recording; `nil` resolves from a fresh report (stop
     /// while recording, start while idle). Unknown sends nothing. One record operation at a time.
     public func record(start: Bool?) {
-        guard !recordPending else { return }
-        guard let session else { return onNote(Self.connectFirst) }
+        beginRecord(start: start, approved: nil)
+    }
+
+    private func record(start: Bool?, approved: RecordEditor?) {
+        beginRecord(start: start, approved: approved)
+    }
+
+    /// Waits for the same terminal receipt as `record`; nil means no operation or a retired binding.
+    public func recordAndWait(start: Bool?) async -> CommandReceipt? {
+        await beginRecord(start: start, approved: nil)?.value
+    }
+
+    @discardableResult private func beginRecord(start: Bool?, approved: RecordEditor?) -> Task<CommandReceipt?, Never>? {
+        guard !recordPending else { return nil }
+        guard let session else { onNote(Self.connectFirst); return nil }
         let operation = OperationID()
         let current = binding
         recordOperation = operation
         recordPending = true
-        Task { [weak self] in
+        return Task { [weak self] in
             let fresh = await session.currentSnapshot()
+            guard let self, self.binding == current else { return nil }
+            if let approved {
+                guard let fresh,
+                    self.recordEditor(in: fresh) == approved
+                else {
+                    self.finishRecord(operation, current, note: nil, receipt: nil)
+                    return nil
+                }
+            }
             let intent: CameraCommandIntent? =
                 switch (start, fresh?.recording.value) {
                 case (true?, _): .startRecording
@@ -222,14 +305,16 @@ public final class MonitorControlModel {
                 default: nil
                 }
             guard let intent, let fresh else {
-                self?.finishRecord(operation, current, note: Self.recordingUnknown, receipt: nil)
-                return
+                self.finishRecord(operation, current, note: Self.recordingUnknown, receipt: nil)
+                return nil
             }
             let command = CameraCommand(intent, preconditions: CommandPreconditions(fresh), operation: operation)
             let receipt = await Self.finished(command, on: session)
-            self?.finishRecord(
+            guard self.binding == current, self.recordOperation == operation else { return nil }
+            self.finishRecord(
                 operation, current, note: Self.note(for: receipt.stage, intent == .startRecording ? "Record" : "Stop"),
                 receipt: receipt)
+            return receipt
         }
     }
 

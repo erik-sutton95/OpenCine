@@ -85,6 +85,9 @@ public final class ShellModel {
 
     /// Shows `camera` on the monitor; this shell owns and later closes its session.
     public func present(_ camera: ConnectedCamera) {
+        // A delayed connection callback for the already-presented session is not a replacement.
+        // Keep its picture host, ownership, cover and open editors intact.
+        guard monitor?.session.id != camera.session.id else { return }
         show(Monitor(camera: camera, ownership: .owned))
     }
 

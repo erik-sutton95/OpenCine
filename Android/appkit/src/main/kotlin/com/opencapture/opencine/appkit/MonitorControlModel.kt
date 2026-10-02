@@ -5,6 +5,9 @@ import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CaptureMode
+import com.opencapture.opencine.core.Availability
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandReceipt
@@ -21,7 +24,9 @@ import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.UnavailableReason
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +67,13 @@ public class MonitorControlModel(
         internal val domain: SettingDomain?,
     )
 
+    /** An explicit record confirmation authorizes exactly this camera state. */
+    public data class RecordEditor internal constructor(
+        public val recording: Boolean,
+        internal val editor: Editor,
+        internal val mode: CaptureMode,
+    )
+
     public data class State(
         /** The session the controls drive; `null` when nothing is bound. */
         public val session: CameraSession? = null,
@@ -91,7 +103,8 @@ public class MonitorControlModel(
 
     private var binding = 0
     private var feed: Job? = null
-    private val operations = HashMap<SettingKey, Pair<OperationID, String>>()
+    private data class PendingEdit(val operation: OperationID, val label: String, val editor: Editor?)
+    private val operations = HashMap<SettingKey, PendingEdit>()
     private val scheduled = HashSet<SettingKey>()
     private var recordOperation: OperationID? = null
 
@@ -170,20 +183,30 @@ public class MonitorControlModel(
 
     /** Sets [value] from an open editor. Refused (`false`, nothing sent) once the editor is obsolete. */
     public fun commit(value: SettingValue, editor: Editor, label: String): Boolean {
-        if (value.key != editor.key || !isCurrent(editor)) return false
-        set(value, label)
+        if (!admits(value, editor)) return false
+        set(value, label, editor)
         return true
+    }
+
+    private fun admits(value: SettingValue, editor: Editor): Boolean {
+        val snapshot = state.value.snapshot ?: return false
+        val descriptor = snapshot.capabilities[editor.key] ?: return false
+        return value.key == editor.key && isCurrent(editor) && snapshot.connection == ConnectionState.Ready &&
+            descriptor.access == SettingAccess.READ_WRITE && descriptor.availability == Availability.Available &&
+            descriptor.accepts(value) && (snapshot.authority == ControlAuthority.Owner || snapshot.authority is ControlAuthority.Lease)
     }
 
     /**
      * Shows [value] at once and sends it after the coalescing window; a newer value for the same
      * setting replaces it. [label] names it in operator notes ("ISO 800").
      */
-    public fun set(value: SettingValue, label: String) {
+    public fun set(value: SettingValue, label: String): Unit = set(value, label, null)
+
+    private fun set(value: SettingValue, label: String, editor: Editor?) {
         if (state.value.session == null) return onNote(CONNECT_FIRST)
         val key = value.key
         mutable.update { it.copy(pending = it.pending + (key to value)) }
-        operations[key] = OperationID() to label
+        operations[key] = PendingEdit(OperationID(), label, editor)
         onChange()
         if (!scheduled.add(key)) return
         val current = binding
@@ -196,8 +219,9 @@ public class MonitorControlModel(
     }
 
     private fun submit(key: SettingKey) {
-        val (operation, label) = operations[key] ?: return
+        val (operation, label, editor) = operations[key] ?: return
         val value = state.value.pending[key] ?: return
+        if (editor != null && !admits(value, editor)) return finish(key, operation, binding, null)
         val session = state.value.session
         val snapshot = state.value.snapshot
         if (session == null || snapshot == null) return finish(key, operation, binding, CONNECT_FIRST)
@@ -208,7 +232,7 @@ public class MonitorControlModel(
 
     private fun finish(key: SettingKey, operation: OperationID, from: Int, note: String?) {
         // A retired binding, or a newer edit of the same setting, owns the control now.
-        if (from != binding || operations[key]?.first != operation) return
+        if (from != binding || operations[key]?.operation != operation) return
         operations.remove(key)
         mutable.update { it.copy(pending = it.pending - key) }
         onChange()
@@ -221,15 +245,52 @@ public class MonitorControlModel(
      * Starts (`true`) or stops (`false`) recording; `null` resolves from the current report (stop
      * while recording, start while idle). Unknown sends nothing. One record operation at a time.
      */
-    public fun record(start: Boolean?) {
-        if (state.value.recordPending) return
-        val session = state.value.session ?: return onNote(CONNECT_FIRST)
+    /** Unknown recording, mode, access or control readiness cannot be confirmed. */
+    public fun recordEditor(): RecordEditor? = if (state.value.recordPending) null
+        else state.value.snapshot?.let(::recordEditor)
+
+    private fun recordEditor(snapshot: CameraSnapshot): RecordEditor? {
+        val mode = snapshot.mode.value ?: return null
+        val descriptor = snapshot.capabilities[SettingKey.RECORDING] ?: return null
+        if (snapshot.connection != ConnectionState.Ready || mode.role != CaptureMode.Role.VIDEO ||
+            descriptor.access != SettingAccess.READ_WRITE || descriptor.availability != Availability.Available ||
+            (snapshot.authority != ControlAuthority.Owner && snapshot.authority !is ControlAuthority.Lease)) return null
+        val recording = when (snapshot.recording.value) {
+            RecordingState.IDLE -> false
+            RecordingState.RECORDING -> true
+            else -> return null
+        }
+        return RecordEditor(recording, Editor(SettingKey.RECORDING, binding, snapshot.session,
+            snapshot.epoch, snapshot.authority, descriptor.domain), mode)
+    }
+
+    /** Approval is retired on mode, epoch, authority, binding or recording changes. */
+    public fun commitRecord(editor: RecordEditor): Boolean {
+        if (recordEditor() != editor) return false
+        record(!editor.recording, editor)
+        return true
+    }
+
+    public fun record(start: Boolean?) { beginRecord(start, null) }
+
+    /** Waits for the same terminal receipt as [record]; null means no operation or a retired binding. */
+    public suspend fun recordAndWait(start: Boolean?): CommandReceipt? = beginRecord(start, null)?.await()
+
+    private fun record(start: Boolean?, approved: RecordEditor?) { beginRecord(start, approved) }
+
+    private fun beginRecord(start: Boolean?, approved: RecordEditor?): Deferred<CommandReceipt?>? {
+        if (state.value.recordPending) return null
+        val session = state.value.session ?: run { onNote(CONNECT_FIRST); return null }
         val operation = OperationID()
         val current = binding
         recordOperation = operation
         mutable.update { it.copy(recordPending = true) }
-        scope.launch {
+        return scope.async {
             val fresh = session.snapshots.value
+            if (binding != current || (approved != null && recordEditor(fresh) != approved)) {
+                finishRecord(operation, current, null, null)
+                return@async null
+            }
             val intent = when {
                 start == true -> CameraCommandIntent.StartRecording
                 start == false -> CameraCommandIntent.StopRecording
@@ -237,10 +298,15 @@ public class MonitorControlModel(
                 fresh.recording.value == RecordingState.IDLE -> CameraCommandIntent.StartRecording
                 else -> null
             }
-            if (intent == null) return@launch finishRecord(operation, current, RECORDING_UNKNOWN, null)
+            if (intent == null) {
+                finishRecord(operation, current, RECORDING_UNKNOWN, null)
+                return@async null
+            }
             val receipt = finished(session, CameraCommand(intent, CommandPreconditions(fresh), operation))
             val label = if (intent == CameraCommandIntent.StartRecording) "Record" else "Stop"
+            if (binding != current || recordOperation != operation) return@async null
             finishRecord(operation, current, note(receipt.stage, label), receipt)
+            receipt
         }
     }
 

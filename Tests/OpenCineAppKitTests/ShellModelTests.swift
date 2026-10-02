@@ -74,6 +74,23 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func presentingTheSameSessionPreservesTheMonitorLifetime() async throws {
+        let shell = shell()
+        let camera = Counted(FakeCameraSession.lunaLike())
+        await camera.fake.cameraReportsStatus()
+        #expect(await connect(shell, T.camera, camera))
+        #expect(await eventually { shell.control.captureField(.iso)?.isEditable == true })
+        let first = try #require(shell.monitor)
+        let editor = try #require(shell.control.edit(.iso))
+        shell.open(.settings)
+        shell.present(first.camera)
+        for _ in 0..<200 { await Task.yield() }
+        #expect(shell.monitor?.id == first.id && shell.cover == .settings)
+        #expect(shell.control.isCurrent(editor))
+        #expect(await camera.closes.isEmpty)
+    }
+
+    @available(macOS 14, *)
     @Test func closeOnce() async {
         let shell = shell()
         let camera = Counted(FakeCameraSession.lunaLike())
