@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
+      "commit": "68a381e62a0fb641bc4004714399bc37ab96ac1e",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
-        "where": "SHELL-02 follow-ups: Swift595, just check/handbook27; helper-free private iPhone/iPad502 each (one existing skip); Android test lint assembleRelease555tasks monitor696; installed five-stage exact legacy and credential readbacks both platforms; legal/rename/clear UI both platforms and orientations, 60 iOS attachments. scratchpad/codex-pages-insta/logs; hardware untested."
+        "commit": "68a381e62a0fb641bc4004714399bc37ab96ac1e",
+        "where": "Insta just check/root595 passed; private iPhone+iPad502 each (1 existing skip) and page UI evidence retained; final pin f0f5a52 Android696 app JVM/test lint debug+release passed; JNI8 parity and real emulator native probes passed. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
       }
     },
     {
