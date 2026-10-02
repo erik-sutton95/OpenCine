@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "e76687542c919bfed61bcb41cd5d3d2b7cf3b79d",
+      "commit": "f488e5f7179138838764118f7df1d431d9eacb4c",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "e76687542c919bfed61bcb41cd5d3d2b7cf3b79d",
-        "where": "OpenPocketCine e7668754 (2026-10-02, SHELL-01 steps 4-5 Android: live monitor laid out from the :dji projection, preview feeds a review body) against OpenCine 340452a (pinned): just android-check + gradlew test lint assembleRelease green (app 507 = 508 minus the deleted Nano/Atto name-check test; monitor-ui 119), root swift test 339; no iOS source change (iOS 628/0 at c1908e39; the OpenCine Swift change is in targets the iOS app does not link). Android emulator screenshots identical except Nano live timecode (progress.d/shell-01-screens)."
+        "commit": "f488e5f7179138838764118f7df1d431d9eacb4c",
+        "where": "SHELL-02 step7 f488e5f: just check331 Swift+99handbook pages; iPhone633/iPad633 zero failures; Android504 JVM plus check/release; installed5-stage loops iOS+Android with Keychain/Keystore readback, favorites and stable route IDs; JNI41/41;70 reviewed screenshots. Logs scratchpad/s02p/resume-check-final.log, resume-ios-phone-final.log, resume-ios-ipad-final.log, resume-android-check.log, resume-android-release.log, resume-android-upgrade2.log, resume-android-verify.log, resume-ios-upgrade-final2.log, resume-keychain-final.log, jni/parity.txt. Physical checks untested."
       }
     },
     {
