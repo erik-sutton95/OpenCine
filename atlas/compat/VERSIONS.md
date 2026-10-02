@@ -37,11 +37,11 @@ OpenCine: unreleased (main) at `f0f5a52ed35b`. Products by layer (meta.json `lay
 
 Released app `main` branches take no shared package yet. Each candidate branch below takes OpenCine:
 
-### OpenPocketCine `opencine/integration` at `23e89d02973d`
+### OpenPocketCine `opencine/integration` at `8cb7c6885cea`
 
 | Package | Apple | Android sibling pin |
 |---|---|---|
-| OpenCine | sibling path at `f58035eb81f0` | `f58035eb81f0` |
+| OpenCine | sibling path at `f0f5a52ed35b` | `f0f5a52ed35b` |
 
 ### OpenInstaCine `opencine/integration` at `689523aa1994`
 
