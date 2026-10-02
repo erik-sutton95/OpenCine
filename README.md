@@ -36,7 +36,7 @@ coordinates `com.opencapture.opencine:<module>`.
 | Core | `OpenCineCoreTestSupport` (tests only) | `core` test fixtures | `OpenCineCore` |
 | UI | `MonitorPresentation`, `MonitorUI` | `monitor-ui` | nothing |
 | Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
-| DJI | `OpenCineDJI` | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia` / `core`, `media` |
+| DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia` / `core`, `media` |
 | Nikon | `OpenCineNikon` | | `OpenCineCore` |
 | Insta360 | `Insta360Protocol`, `Insta360Apple` (+ C target `CKcp`), `Insta360AppleTestSupport` (tests only) | `insta360-shell`, `insta360-luna` | `OpenCineCore` / `core` |
 | Harness | none (targets `HarnessEngine`, `HarnessComposition`, `HarnessTests`; SIMULATED, never ships) | | everything above except UI |
@@ -47,7 +47,7 @@ The package has no third-party dependencies, so linking one product resolves not
 
 | App | Swift products | Android modules |
 |---|---|---|
-| OpenPocketCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineDJI` | `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji` |
+| OpenPocketCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineDJI`, `OpenCineDJIAndroid` (Android .so) | `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji` |
 | OpenInstaCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineApple`, `Insta360Protocol`, `Insta360Apple` (+ `Insta360AppleTestSupport` in tests) | `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `insta360-shell`, `insta360-luna` |
 | OpenZCine (`opencine/integration`) | `OpenCineCore`, `OpenCineMedia`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineNikon` | `core` |
 | OpenZCine engine-port candidate | `MonitorUI`, `MonitorPresentation` | `monitor-ui` |

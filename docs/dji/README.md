@@ -36,10 +36,12 @@ the native program runner, connection and live-view policies (`LiveViewEnablePol
 `SessionRecovery`), Multiview `StationJoin`, `ConnectionPhase`, and `DjiCameraSessionAdapter`
 (OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core` and `media` only.
 
-Wire bytes come from the app's Swift Android library through `DjiNative`, a JNI facade whose class
-name is part of the native symbols (`Java_com_opencapture_opencine_dji_DjiNative_<name>`): the
-app's facade over this Swift package exports them, and `consumer-rules.pro` keeps the class in
-minified apps. The app calls `DjiNative.load(<its library>)` once at startup and points `DjiLog.sink`
+Wire bytes come through `DjiNative`, a JNI facade whose class name is part of the native symbols
+(`Java_com_opencapture_opencine_dji_DjiNative_<name>`). The Swift side is the product
+`OpenCineDJIAndroid` (`Sources/OpenCineDJIAndroid`: the `@_cdecl` exports, `#if os(Android)`, and
+the Darwin-testable `DjiNativeWire` helpers over OpenCineDJI, with the `OpenCineJNI` header shim).
+An app adds the product to the target that builds its Swift Android library and the 30 exports
+ship in that `.so`; `consumer-rules.pro` keeps the Kotlin class in minified apps. The app calls `DjiNative.load(<its library>)` once at startup and points `DjiLog.sink`
 at its diagnostics. Swift and Kotlin `CamFov` share `Fixtures/camfov-vectors.tsv`.
 
 Still in the app: the session orchestration (`PocketCameraSession`: diagnostics and feed incidents,

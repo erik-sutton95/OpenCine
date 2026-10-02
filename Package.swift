@@ -36,6 +36,9 @@ let package = Package(
         .library(name: "OpenCineMulticam", targets: ["OpenCineMulticam"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
+        // The Swift side of the Android `DjiNative` JNI facade: an app links it into its Swift
+        // Android library (the exports ship in that .so). Its wire helpers also build on Darwin.
+        .library(name: "OpenCineDJIAndroid", targets: ["OpenCineDJIAndroid"]),
         .library(name: "OpenCineNikon", targets: ["OpenCineNikon"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
@@ -93,6 +96,10 @@ let package = Package(
         // DJIControlPort the app implements). Builds with the Swift Android SDK.
         .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia"]),
         .testTarget(name: "OpenCineDJITests", dependencies: ["OpenCineDJI"], exclude: ["Fixtures"]),
+        // Header-only shim for the NDK's <jni.h>; empty on Darwin.
+        .target(name: "OpenCineJNI"),
+        .target(name: "OpenCineDJIAndroid", dependencies: ["OpenCineDJI", "OpenCineJNI"]),
+        .testTarget(name: "OpenCineDJIAndroidTests", dependencies: ["OpenCineDJIAndroid", "OpenCineDJI"]),
 
         // MARK: Nikon
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and
