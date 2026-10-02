@@ -1,0 +1,167 @@
+import Foundation
+import OpenCineCore
+import OpenCineCoreTestSupport
+import Testing
+@testable import OpenCineAppKit
+
+/// SIMULATED descriptor and confirmation scenarios. Kotlin mirrors the same names.
+@MainActor
+@Suite struct MonitorCapturePresentationTests {
+    @available(macOS 14, *)
+    @Test func absentReportDoesNotSelectTheFirstDrumDetent() async throws {
+        let camera = FakeCameraSession(behavior: FakeCameraSession.lunaLike().behavior,
+            device: FakeDevice(rawMode: 0x01, settings: [], recording: nil))
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.snapshot?.mode.isKnown == true })
+        let field = try #require(control.captureField(.iso))
+        #expect(field.selection == nil && field.label == nil)
+        #expect(!field.choices.isEmpty)
+        #expect(control.recordEditor() == nil)
+    }
+
+    @available(macOS 14, *)
+    @Test func typedDetentsCoalesceWithoutChangingTheReportedValue() async throws {
+        let clock = ManualClock()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel(sleep: { await clock.sleep($0) })
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.iso)?.isEditable == true })
+        let field = try #require(control.captureField(.iso))
+        for iso in [400, 800] {
+            let choice = try #require(field.choices.first { $0.value == .iso(.manual(iso)) })
+            #expect(control.commit(choice, from: field))
+        }
+        #expect(control.captureField(.iso)?.label == "800")
+        #expect(await camera.current.value(of: .iso).value == .iso(.manual(200)))
+        await clock.tick(.milliseconds(120))
+        #expect(await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] })
+    }
+
+    @available(macOS 14, *)
+    @Test func changedDomainRetiresTheOpenCaptureField() async throws {
+        let camera = FakeCameraSession.djiLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.shutter)?.isEditable == true })
+        let field = try #require(control.captureField(.shutter))
+        let choice = try #require(field.choices.last)
+        await camera.cameraSwitchesMode(raw: 0x02)
+        #expect(await eventually { control.captureField(.shutter)?.editor != field.editor })
+        #expect(!control.commit(choice, from: field))
+        #expect(await camera.wire.isEmpty)
+    }
+
+    @available(macOS 14, *)
+    @Test func domainChangeDuringCoalescingRetiresTheQueuedEdit() async throws {
+        let clock = ManualClock()
+        let camera = FakeCameraSession.djiLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel(sleep: { await clock.sleep($0) })
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.shutter)?.isEditable == true })
+        let field = try #require(control.captureField(.shutter))
+        #expect(control.commit(try #require(field.choices.last), from: field))
+        await camera.cameraSwitchesMode(raw: 0x02)
+        #expect(await eventually { control.captureField(.shutter)?.editor != field.editor })
+        await clock.tick(.milliseconds(120))
+        #expect(await eventually { control.pending.isEmpty })
+        #expect(await camera.wire.isEmpty)
+    }
+
+    @available(macOS 14, *)
+    @Test func readOnlyStillShowsTheReportButCannotCommit() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.iso)?.isEditable == true })
+        let field = try #require(control.captureField(.iso))
+        await camera.setAuthority(.readOnly)
+        #expect(await eventually { control.captureField(.iso)?.isEditable == false })
+        #expect(control.captureField(.iso)?.label == "200")
+        #expect(!control.commit(try #require(field.choices.last), from: field))
+        #expect(await camera.wire.isEmpty)
+    }
+
+    @available(macOS 14, *)
+    @Test func kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
+        let values = MonitorCapturePresentation.choices(.whiteBalance,
+            domain: SettingDomain(choices: [.whiteBalance(.auto)], range: 2000...2200, step: 50))
+        #expect(values.map(\.label) == ["Auto", "2000K", "2050K", "2100K", "2150K", "2200K"])
+        #expect(MonitorCapturePresentation.choices(.whiteBalance,
+            domain: SettingDomain(range: 0...1_000_000, step: 1)).isEmpty)
+    }
+
+    @available(macOS 14, *)
+    @Test func recordAndWaitReturnsTheCameraReceiptAndPreservesExplicitRetries() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        let operation = Task { await control.recordAndWait(start: true) }
+        #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
+        #expect(control.recordPending)
+        await camera.advance(by: .seconds(3))
+        #expect(await operation.value?.stage == .confirmed)
+        #expect(!control.recordPending)
+        #expect(await control.recordAndWait(start: true)?.stage == .confirmed)
+        #expect(await camera.wire == ["record-start"])
+    }
+
+    @available(macOS 14, *)
+    @Test func recordAndWaitDropsTheRetiredCamerasReceipt() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        let operation = Task { await control.recordAndWait(start: true) }
+        #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
+        control.unbind()
+        await camera.advance(by: .seconds(3))
+        #expect(await operation.value == nil)
+        #expect(await control.recordAndWait(start: true) == nil)
+    }
+
+    @available(macOS 14, *)
+    @Test func recordingChangeRetiresTheApprovalWithoutSendingStop() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        let approval = try #require(control.recordEditor())
+        #expect(!approval.recording)
+        control.record(start: true)
+        #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { control.isRecording == true && !control.recordPending })
+        #expect(!control.commitRecord(from: approval))
+        #expect(await camera.wire == ["record-start"])
+    }
+
+    @available(macOS 14, *)
+    @Test func recoveryEpochAndReplacementRetireTheApproval() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        let approval = try #require(control.recordEditor())
+        let attempt = await camera.loseLink()
+        #expect(await eventually { control.recordEditor() == nil })
+        await camera.completeAttempt(attempt)
+        #expect(await eventually { control.recordEditor() != nil })
+        #expect(!control.commitRecord(from: approval))
+        let nextApproval = try #require(control.recordEditor())
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        #expect(!control.commitRecord(from: nextApproval))
+        #expect(await camera.wire.isEmpty)
+    }
+}
