@@ -3,7 +3,7 @@
 Manufacturer-independent multicam engine for the OpenCine camera monitor apps (plan work
 package MULTI-01). It decides which cameras a group operation reaches, keeps per-camera results
 honest, coordinates editor leases, resource admission and recovery budgets, and describes the
-persisted layout. It works on [OpenCineCore](../OpenCineCore) values and the `CameraSession`
+persisted layout. It works on [OpenCineCore](../core/README.md) values and the `CameraSession`
 seam, so it never knows which manufacturer is behind an entry.
 
 Status: pre-release. OpenPocketCine's local `opencine/multi-02` branch (iOS and Android
@@ -85,29 +85,24 @@ swift test
 swift build --build-tests -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 ```
 
-`OpenCineCore` is resolved from the sibling checkout `../OpenCineCore`. CI checks out the commit
-pinned in `opencine-pins.txt` with `scripts/checkout-opencine.sh` and verifies it; bump the pin
-when Core changes. When Core is published the dependency becomes a URL with an exact version.
+`OpenCineCore` is a target of the same package (root `Package.swift`); the target edge
+`OpenCineMulticam -> OpenCineCore` is the only one allowed (`ImportRuleTests`).
 
 ## Android
 
-`Android/` is a standalone Gradle build with one plain Kotlin/JVM module, `multicam`
+`:multicam` is a plain Kotlin/JVM module of the platform Gradle build (`Android/`), `multicam`
 (`com.opencapture.opencine:multicam`, `0.1.0-SNAPSHOT`). It mirrors `Sources/OpenCineMulticam`
 type for type with the same semantics and depends only on `com.opencapture.opencine:core` (the
 Kotlin mirror of OpenCineCore) and kotlinx-coroutines. Kotlin 2.4.20, coroutines 1.11.0 and a
-JVM 17 target match OpenCineCore/Android; warnings are errors and explicit API mode is on.
+JVM 17 target match `:core`; warnings are errors and explicit API mode is on.
 
 ```sh
-scripts/checkout-opencine.sh      # CI: pinned ../OpenCineCore; locally it only reports the SHA
-cd Android && ./gradlew test      # JDK 17 or newer
+cd Android && ./gradlew :multicam:test   # JDK 17 or newer
 ```
 
-Core is the sibling checkout `../OpenCineCore`, included as a named composite build
-(`includeBuild("../../OpenCineCore/Android") { name = "opencinecore" ... }` in
-`Android/settings.gradle.kts`), so tests use Core's fakes through `testFixtures`. Once Core is
-published the `includeBuild` goes and the catalog coordinate stays. An app consumes this module
-the same way it consumes Core: a named `includeBuild` of `OpenCineMulticam/Android` substituting
-`com.opencapture.opencine:multicam` with `project(":multicam")`, next to Core's.
+Core is `project(":core")` in the same build, so tests use Core's fakes through `testFixtures`.
+An app consumes this module like the others: its one named `includeBuild` of `OpenCine/Android`
+(`name = "opencine"`) substitutes `com.opencapture.opencine:multicam` with `project(":multicam")`.
 
 ### Kotlin mapping
 
@@ -143,4 +138,4 @@ only dependencies are Core and coroutines; Core is the only included build).
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache 2.0. See the root [LICENSE](../../LICENSE) and [NOTICE](../../NOTICE).

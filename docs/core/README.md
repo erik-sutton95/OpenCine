@@ -178,9 +178,9 @@ composes them.
 
 ## Android
 
-`Android/` is a standalone Gradle build with an Android library, `vulkan` (the native renderer;
-building the project therefore needs an Android SDK through `ANDROID_HOME` or
-`Android/local.properties`, also when a JVM-only build such as OpenCineMulticam includes it), and two
+The Core modules of the platform Gradle build (`Android/`) are an Android library, `vulkan` (the
+native renderer; building the platform build therefore needs an Android SDK through `ANDROID_HOME`
+or `Android/local.properties`), and two
 plain Kotlin/JVM modules, `core`
 (`com.opencapture.opencine:core`, `0.1.0-SNAPSHOT`) and `media` (`com.opencapture.opencine:media`,
 moved from the Pocket/Insta apps; it depends on `core` and keeps the moved code's shape, so explicit
@@ -196,13 +196,14 @@ cd Android && ./gradlew build   # JDK 17 or newer
 ```
 
 Consume it from an app on a candidate branch with a composite build (path from `Apps/Android`
-to a sibling checkout). Name the included build: OpenCineUI's Gradle build also lives in a
-directory called `Android`, and two included builds cannot share a name.
+to a sibling OpenCine checkout). Name the included build `opencine`: the app's own Gradle build
+also lives in a directory called `Android`, and two builds cannot share a name. One include
+serves every OpenCine module the app uses.
 
 ```kotlin
 // settings.gradle.kts
-includeBuild("../../../OpenCineCore/Android") {
-    name = "opencinecore"
+includeBuild("../../../OpenCine/Android") {
+    name = "opencine"
     dependencySubstitution {
         substitute(module("com.opencapture.opencine:core")).using(project(":core"))
         substitute(module("com.opencapture.opencine:media")).using(project(":media"))
@@ -307,4 +308,4 @@ macOS 13, watchOS 10.
 
 ## License
 
-Apache License 2.0. See `LICENSE` and `NOTICE`.
+Apache License 2.0. See the root `LICENSE` and `NOTICE`.

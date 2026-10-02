@@ -30,12 +30,13 @@ cd Android
 ./gradlew :monitor-ui:testDebugUnitTest :monitor-ui:lint
 ```
 
-An app includes this build from a sibling checkout and substitutes the
-coordinate (Gradle composite build):
+An app includes the platform build from a sibling OpenCine checkout and substitutes the
+coordinate (Gradle composite build; one named include serves every OpenCine module):
 
 ```kotlin
 // settings.gradle.kts
-includeBuild("../../../OpenCineUI/Android") {
+includeBuild("../../../OpenCine/Android") {
+    name = "opencine"
     dependencySubstitution {
         substitute(module("com.opencapture.opencine:monitor-ui")).using(project(":monitor-ui"))
     }
@@ -45,7 +46,7 @@ implementation("com.opencapture.opencine:monitor-ui")
 ```
 
 Consumers keep the same AGP, Kotlin and Compose BOM versions as
-`gradle/libs.versions.toml` here. `MonitorIconCatalogTest` compares the Android
+`Android/gradle/libs.versions.toml`. `MonitorIconCatalogTest` compares the Android
 SVGs byte for byte with `Sources/MonitorUI/Resources/Icons` in this repository.
 
 ## Assets and licenses

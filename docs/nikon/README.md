@@ -16,12 +16,12 @@ OpenZCine `Sources/OpenZCineCore` without behavior change (plan work package VEN
   `NikonControlDriver` the app's control service implements (OpenZCine: `NativeAppModel`).
   Settings need no picture; record keeps its live-view preflight.
 
-Depends only on OpenCineCore (sibling `../OpenCineCore`, pinned in `opencine-pins.txt`). No UI
+Depends only on `OpenCineCore` (same package; root `Package.swift`). No UI
 and no app types. OpenZCine re-exports this module from `OpenZCineCore`, so its iOS app and
 Android JNI facade keep their imports.
 
 ```sh
-swift build && swift test
+swift build && swift test --filter OpenCineNikonTests   # from the repository root
 ```
 
 Not here (yet): the generic monitor/assist/preferences stack, the contributed LUT table and

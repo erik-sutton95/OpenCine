@@ -27,18 +27,18 @@ never sets it renders as before.
 
 ## Using it
 
-Candidate (local) dependency, with OpenCineUI checked out next to the app repository:
+Candidate (local) dependency, with OpenCine checked out next to the app repository:
 
 ```yaml
 # XcodeGen project.yml in <app>/ios/
 packages:
-  OpenCineUI:
-    path: ../../OpenCineUI
+  OpenCine:
+    path: ../../OpenCine
 ```
 
 ```swift
 // Package.swift
-.package(path: "../OpenCineUI")
+.package(path: "../OpenCine")   // products MonitorUI, MonitorPresentation
 ```
 
 Once a remote exists, switch to `url:` plus an exact version (or `from:`) and commit the
@@ -54,7 +54,7 @@ MonitorTheme.prepareResources()    // optional: register fonts early
 `CamerasPage(nearbyNote:)` sets the caption beside NEARBY (default `announcing over
 Bluetooth`; OpenZCine passes `on this network`). Android's brand inputs are
 `MonitorPalette.accent` and the transitional `MonitorIosParity.enabled`
-(see [Android/monitor-ui/README.md](Android/monitor-ui/README.md)).
+(see [Android/monitor-ui/README.md](../../Android/monitor-ui/README.md)).
 
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
@@ -69,12 +69,12 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
 ## Checks
 
 ```sh
-swift build && swift test                       # MonitorPresentationTests on macOS
+swift build && swift test --filter MonitorPresentationTests   # macOS
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
 python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iOS + Android)
 ```
 
 ## License
 
-Apache 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). Bundled fonts and icons:
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Apache 2.0 ([LICENSE](../../LICENSE), [NOTICE](../../NOTICE)). Bundled fonts and icons:
+[THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).

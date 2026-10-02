@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift:
+    name: Swift package (macOS host tests, iOS builds)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: Build, strict concurrency
+        run: swift build --build-tests -Xswiftc -strict-concurrency=complete
+      # Core and Multicam areas held warning-free, as their former repositories were.
+      - name: Core and Multicam, strict concurrency, warnings are errors
+        run: |
+          for target in OpenCineCore OpenCineCoreTestSupport OpenCineMedia OpenCineFrameIO \
+            OpenCineMotion OpenCineRelay OpenCineApple OpenCineMulticam OpenCineCoreTests \
+            OpenCineMediaTests OpenCineFrameIOTests OpenCineMotionTests OpenCineRelayTests \
+            OpenCineAppleTests OpenCineMulticamTests; do
+            swift build --target "$target" -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          done
+      - name: Test (fails on a duplicate class warning)
+        shell: bash  # -o pipefail, so a failing swift test fails the step
+        run: |
+          swift test 2>&1 | tee test.log
+          ! grep -q "implemented in both" test.log
+      - name: Build MonitorUI (iOS Simulator)
+        run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
+      - name: Build OpenCineApple (iOS Simulator)
+        run: xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
+      # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
+      - name: Build Insta360Apple (iOS devices)
+        run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+
+  android:
+    name: Android (test, lint, assemble, Vulkan regression)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
+        run: ./gradlew test lint assembleRelease
+      - name: Vulkan present synchronization regression (host CPU)
+        working-directory: .
+        run: scripts/android-vulkan-sync-test.sh
+
+  atlas:
+    # Nothing here builds an app, touches another repository, publishes, schedules or merges.
+    # The Graphify build test and the pinned-path eval test skip without app checkouts and report
+    # as skipped, not passed.
+    name: Atlas check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: python3 -m unittest discover -s atlas/tests -v
+      - name: Registry, direction, cycles, snapshots, candidates and private paths
+        run: python3 atlas/tools/atlas.py check
+      # Informational: consumer builds (`compat run`) need macOS, Xcode and the Android SDK.
+      - name: Candidate consumer matrix
+        run: python3 atlas/tools/atlas.py compat plan

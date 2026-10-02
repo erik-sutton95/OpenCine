@@ -12,12 +12,11 @@ OpenPocketCine `Sources/OpenPocketViewCore` without behavior change (plan work p
   target stream, native program zoom, gimbal reach.
 - DJI colour data: log curves, monitor LUT catalogue, clip colour profiles.
 
-Depends only on OpenCineCore's `OpenCineMedia` (sibling `../OpenCineCore`, pinned in
-`opencine-pins.txt`). No UI and no app types. OpenPocketCine re-exports this module from
+Depends only on `OpenCineCore` and `OpenCineMedia` (same package; root `Package.swift`). No UI and no app types. OpenPocketCine re-exports this module from
 `OpenPocketViewCore`, so its app and Android JNI facade import nothing new.
 
 ```sh
-swift build && swift test
+swift build && swift test --filter OpenCineDJITests   # from the repository root
 ```
 
 `DJICameraSessionAdapter` is OpenCineCore's `CameraSession` for ISO, white balance and record

@@ -39,23 +39,22 @@ join the camera Wi-Fi.
 - No UI: never import SwiftUI, UIKit or OpenCineUI.
 - No app types and no brand: app names, keychain service and log prefix come from
   `LunaIntegrationConfiguration`.
-- Depends only on `../OpenCineCore` (pinned in `opencine-pins.txt`).
+- Depends only on `OpenCineCore` (same package; root `Package.swift`).
 
 ## Build and test
 
 ```sh
-swift build && swift test                       # macOS: protocol, session, harness tests
+swift build && swift test --filter Insta360    # macOS: protocol, session, harness tests
 xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-Needs a sibling `../OpenCineCore` checkout at the pinned commit (`scripts/checkout-opencine.sh`).
 Hardware behavior (pairing, Wi-Fi join, settle timing) is qualified only on a physical Luna Ultra
 through the consuming app.
 
 ## Kotlin (Android/)
 
-Standalone Gradle build (wrapper and version catalog, AGP/Kotlin matching OpenCineUI and the apps),
-OpenCineCore from the sibling checkout as the included build `opencinecore`.
+Two modules of the platform Gradle build (`Android/` at the repository root: one wrapper and
+version catalog, AGP/Kotlin matching the apps); `:insta360-shell` depends on `project(":core")`.
 
 | Module | Coordinate | What it holds |
 |---|---|---|
@@ -72,14 +71,15 @@ SharedPreferences file holding the camera authorization identity. Its default
 `openinstacine.client-identity` keeps OpenInstaCine's saved approvals; another app passes its own.
 
 ```sh
-cd Android && ./gradlew test lint assembleRelease
+cd Android && ./gradlew :insta360-shell:test :insta360-luna:test :insta360-luna:lint :insta360-luna:assembleRelease
 ```
 
-A consumer includes this build by name and substitutes both coordinates:
+A consumer includes the platform build by name and substitutes both coordinates (plus any other
+OpenCine modules it uses, in the same block):
 
 ```kotlin
-includeBuild("../../../OpenCineInsta360/Android") {
-    name = "opencineinsta360"
+includeBuild("../../../OpenCine/Android") {
+    name = "opencine"
     dependencySubstitution {
         substitute(module("com.opencapture.opencine:insta360-shell")).using(project(":insta360-shell"))
         substitute(module("com.opencapture.opencine:insta360-luna")).using(project(":insta360-luna"))
@@ -89,5 +89,5 @@ includeBuild("../../../OpenCineInsta360/Android") {
 
 ## License
 
-Apache 2.0 (LICENSE, NOTICE). KCP and the Luna protocol reference are MIT
-(THIRD-PARTY-NOTICES.md, `Sources/CKcp/LICENSE`).
+Apache 2.0 (root LICENSE, NOTICE). KCP and the Luna protocol reference are MIT
+(root THIRD-PARTY-NOTICES.md, `Sources/CKcp/LICENSE`).

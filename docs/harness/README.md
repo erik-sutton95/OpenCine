@@ -24,17 +24,15 @@ OpenCineMulticam's sources for vendor and UI names.
 ## Run
 
 ```sh
-scripts/checkout-opencine.sh   # CI: pinned sibling checkouts; locally it only reports drift
-scripts/check-closure.sh       # one checkout per package
-swift build --build-tests
-swift test
-# optional: the libraries also build for iOS
-xcodebuild -scheme OpenCineHarness-Package -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+swift build --build-tests                 # from the repository root
+swift test --filter HarnessTests
+# optional: everything also builds for iOS
+xcodebuild -scheme OpenCine-Package -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-Needs the five packages as siblings (`../OpenCineCore`, `../OpenCineMulticam`, `../OpenCineDJI`,
-`../OpenCineNikon`, `../OpenCineInsta360`) at the SHAs in `opencine-pins.txt`. CI
-(`.github/workflows/ci.yml`) checks them out and verifies each SHA; it has never run (no remotes).
+The harness targets live in the platform package beside everything they compose, so there is one
+dependency closure by construction (the former `check-closure.sh` is gone). They are targets, not
+products: nothing here ships.
 
 Last local run (2026-10-02, Swift 6.2.3, Xcode 26.2, macOS 26, after the findings fix wave):
 `swift test` 26 tests in 7 suites passed, no known issues; 0 "implemented in both" warnings;
@@ -52,7 +50,7 @@ generic iOS build succeeded. All five packages at the pinned SHAs.
 | `AdmissionTests` | 8.4 | Luna's access point conflicts with a router the others use; two camera access points cannot share a phone; Nikon USB control plus HDMI capture coexist; the qualified count is a budget value |
 | `FindingsTests` | 15.6 | F1 regression: one group deadline and one freshness check mean the same instant to every session |
 
-Physical combinations: [docs/TOPOLOGY.md](docs/TOPOLOGY.md) (nothing qualified).
+Physical combinations: [TOPOLOGY.md](TOPOLOGY.md) (nothing qualified).
 
 ## What simulation proves, and what it does not
 
@@ -100,7 +98,8 @@ findings and what changed:
   `ada2871`, the three integrations `6b0e6ea`, Core main is `727baa0`. Sibling paths hide it (one
   checkout, verified), but with exact remote versions a cross-brand app could not resolve. Fix
   (RELEASE-01): libraries declare a range on Core (`from:` / `.upToNextMinor`); only apps pin
-  exactly via `Package.resolved`.
+  exactly via `Package.resolved`. **Resolved by the consolidation:** every product now ships from
+  one package at one version, so there is no cross-package Core range to reconcile.
 - **F3, DJI audio meters default to silence.** `CameraStatus.audioMeters` is `.silent` before any
   audio push, indistinguishable from a silent input. Core has no audio vocabulary yet, so nothing
   shared shows it today. Fix: publish `ObservedValue<AudioMeterLevels>`, unknown until
@@ -136,20 +135,19 @@ and `AnalysisConfiguration` here are proposals for those homes.
 ## Android
 
 No Kotlin harness yet: the Kotlin DJI session (`PocketControlPort` and its adapter) and the Kotlin
-Nikon session still live in their apps, and only OpenCineCore, OpenCineMulticam and
-OpenCineInsta360 (`:insta360-shell`, `:insta360-luna`) have Gradle builds. A Kotlin harness would
+Nikon session still live in their apps, and only the Core, Multicam and Insta360 areas
+(`:core`, `:media`, `:multicam`, `:insta360-shell`, `:insta360-luna`) have Gradle modules. A Kotlin harness would
 need:
 
-1. `OpenCineDJI/Android` with the Kotlin `DjiCameraSessionAdapter` over `PocketControlPort` (blocked
+1. A DJI module in `Android/` with the Kotlin `DjiCameraSessionAdapter` over `PocketControlPort` (blocked
    on app-package imports in `PocketCameraSession.kt` and the fixed JNI class name, VENDOR-01).
-2. `OpenCineNikon/Android` with the Kotlin Nikon session over its control-driver port and the JNI
+2. A Nikon module in `Android/` with the Kotlin Nikon session over its control-driver port and the JNI
    facade (`PTPIPClientSession`, `AndroidSessionOwnerRegistry`, VENDOR-02 follow-up).
 3. A JVM-testable Luna session: `:insta360-luna` is an Android library, so either Robolectric or
    splitting `LunaCameraSession` and its wire code into a JVM module with a fake link like
    `FakeLuna`.
-4. A Gradle build here including the five builds by name (`opencinecore`, `opencinemulticam`,
-   `opencinedji`, `opencinenikon`, `opencineinsta360`) with dependency substitution, and the same
-   scenarios mirrored by name, as OpenCineCore and OpenCineMulticam already do.
+4. A harness test module in the platform Gradle build depending on those modules by project, and
+   the same scenarios mirrored by name, as Core and Multicam already do.
 5. A native closure check: the DJI and Nikon JNI facades each link a Swift Android runtime and
    OpenCineCore; one APK must carry one copy of each `.so` and no colliding `JNI_OnLoad` (plan
    15.6, "native/Android packaging has a coherent dependency closure").
