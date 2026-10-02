@@ -23,6 +23,27 @@ public enum NikonMulticamRefusal: Hashable, Sendable {
 }
 
 public enum NikonMulticamPolicy {
+    /// Qualification for opening a saved member path. A path qualified before connect still
+    /// rechecks body identity and camera-reported mode after connect; it asserts neither a
+    /// serial nor movie mode that the camera has not reported.
+    public static func qualification(
+        path: CameraPath?, reachable: Bool, isPhotography: Bool, device: CameraDeviceID?,
+        members: some Collection<CameraDeviceID>
+    ) -> MulticamQualification {
+        guard
+            let reason = refusal(
+                path: path, reachable: reachable, isPhotography: isPhotography, device: device,
+                members: members)
+        else { return .qualified }
+        let common: MulticamQualificationRefusal = switch reason {
+        case .alreadyMember: .alreadyMember
+        case .cameraAccessPoint: .unsupportedConfiguration
+        case .hdmiCapture, .photographyMode: .operationUnavailable
+        case .notReachable: .notReachable
+        }
+        return .refused(common)
+    }
+
     /// The member identity of a body: its serial, the same `CameraDeviceID` its
     /// `NikonCameraSession` reports. `nil` until a connect has stamped the serial; such a path is
     /// checked again once its session reports one.

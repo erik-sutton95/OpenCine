@@ -197,6 +197,30 @@ struct NikonMulticamTests {
 
     // MARK: Identity and eligibility
 
+    @Test func qualificationPreservesSavedPathPolicy() {
+        func verdict(_ path: CameraPath?, reachable: Bool = true, photo: Bool = false)
+            -> MulticamQualification
+        {
+            NikonMulticamPolicy.qualification(
+                path: path, reachable: reachable, isPhotography: photo, device: nil,
+                members: [CameraDeviceID]())
+        }
+        for path: CameraPath in [.usbC, .infrastructure(networkName: "Set"), .phoneHotspot] {
+            #expect(verdict(path) == .qualified)
+        }
+        #expect(verdict(.cameraAccessPoint(ssid: "test")) == .refused(.unsupportedConfiguration))
+        #expect(verdict(.hdmiCapture) == .refused(.operationUnavailable))
+        #expect(verdict(.usbC, photo: true) == .refused(.operationUnavailable))
+        #expect(verdict(.usbC, reachable: false) == .refused(.notReachable))
+        #expect(verdict(nil) == .refused(.notReachable))
+        let device = CameraDeviceID.durable("test", integration: IntegrationID("test.cameras"))
+        #expect(
+            NikonMulticamPolicy.qualification(
+                path: .usbC, reachable: true, isPhotography: false, device: device,
+                members: [device])
+                == .refused(.alreadyMember))
+    }
+
     @Test("Member identity is the serial, not host or path")
     func identityIsTheSerial() {
         let usb = PTPIPSavedCameraRecord(
