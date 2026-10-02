@@ -36,5 +36,9 @@ enum class RecoveryReason(val wire: String) {
 
 object RecoveryEffectLog {
     fun line(action: RecoveryAction, effect: RecoveryEffect, reason: RecoveryReason): String =
-        "recovery: action=${action.wire} effect=${effect.wire} reason=${reason.wire}"
+        com.opencapture.opencine.media.RecoveryEffectLog.line(
+            com.opencapture.opencine.media.RecoveryAction.valueOf(action.name),
+            com.opencapture.opencine.media.RecoveryEffect.valueOf(effect.name),
+            com.opencapture.opencine.media.RecoveryReason.valueOf(reason.name),
+        )
 }

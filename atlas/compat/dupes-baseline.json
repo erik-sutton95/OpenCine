@@ -32,12 +32,12 @@
       "lines": 154
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 30643,
-      "blocks": 1605,
+      "block_lines": 30873,
+      "blocks": 1617,
       "exact_files": 227,
-      "file_lines": 54540,
-      "files": 343,
-      "lines": 85183
+      "file_lines": 53871,
+      "files": 341,
+      "lines": 84744
     },
     "openinstacine|openzcine": {
       "block_lines": 1575,
@@ -58,9 +58,9 @@
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at 39a0acfb8e96a20448bb47200b5b53b897540c8c",
-    "openinstacine": "opencine/integration 68a381e62a0fb641bc4004714399bc37ab96ac1e",
-    "openpocketcine": "opencine/integration 8cb7c6885cea0539ca219de3fa0b1d3446348802",
-    "openzcine": "opencine/integration e303396228ad8fd10ab1ad5d8fe6d82b9e291778"
+    "opencine": "working tree at 44971711b477490f164d15476d0c0ee331e96413",
+    "openinstacine": "opencine/integration 9dd78f9a6d11772a6b8239d24ba7cbb248450eca",
+    "openpocketcine": "opencine/integration 49dfb4e00568b7127621e37cdb7bcfd10c4b04f8",
+    "openzcine": "opencine/integration a64234c24f84ecbd7af26f62f19a39c2895439d2"
   }
 }

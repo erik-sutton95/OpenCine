@@ -1,74 +1,36 @@
 package com.opencapture.opencine.dji
 
-import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.round
-
-/** Operator shutter-angle ladder. Body only accepts 1/N; convert locally. */
+/** Compatibility adapter preserving existing Android capture values. */
 object ShutterAngle {
-    val degrees: List<Double> =
-        listOf(5.6, 11.2, 22.5, 45.0, 72.0, 86.4, 90.0, 108.0, 144.0, 172.0, 180.0, 216.0, 288.0, 346.0, 360.0)
+    val degrees: List<Double> = com.opencapture.opencine.media.ShutterAngle.degrees
     const val DEFAULT_DEGREES = 180.0
-    val labels: List<String> = degrees.map { label(it) }
+    val labels: List<String> = com.opencapture.opencine.media.ShutterAngle.labels
 
-    fun effectiveFps(fps: Int): Int = if (fps in 8..240) fps else 24
+    fun effectiveFps(fps: Int): Int = com.opencapture.opencine.media.ShutterAngle.effectiveFps(fps)
 
     fun rematchesFormat(
         usesAngle: Boolean, manual: Boolean, isPhoto: Boolean,
         previousFps: Int, nextFps: Int, alreadyPending: Boolean = false,
-    ): Boolean = usesAngle && manual && !isPhoto && previousFps > 0 && nextFps > 0 &&
-        (previousFps != nextFps || alreadyPending)
+    ): Boolean = com.opencapture.opencine.media.ShutterAngle.rematchesFormat(
+        usesAngle, manual, isPhoto, previousFps, nextFps, alreadyPending,
+    )
 
-    fun label(value: Double): String {
-        val rounded = round(value)
-        return if (abs(value - rounded) < 0.05) {
-            "${rounded.toInt()}°"
-        } else {
-            String.format(Locale.US, "%.1f°", value)
-        }
-    }
+    fun label(value: Double): String = com.opencapture.opencine.media.ShutterAngle.label(value)
+    fun parse(label: String): Double? = com.opencapture.opencine.media.ShutterAngle.parse(label)
+    fun denom(degrees: Double, fps: Int): Int = com.opencapture.opencine.media.ShutterAngle.denom(degrees, fps)
+    fun denom(degrees: Double, fps: Int, available: List<Int>): Int =
+        com.opencapture.opencine.media.ShutterAngle.denom(degrees, fps, available)
 
-    fun parse(label: String): Double? {
-        val trimmed = label.replace("°", "").trim()
-        val value = trimmed.toDoubleOrNull() ?: return null
-        if (value <= 0.0 || value > 360.0) return null
-        return value
-    }
+    fun degrees(denom: Int, fps: Int): Double =
+        com.opencapture.opencine.media.ShutterAngle.degrees(denom, effectiveFps(fps)) ?: DEFAULT_DEGREES
 
-    fun denom(degrees: Double, fps: Int): Int {
-        val angle = degrees.coerceAtLeast(0.1)
-        val rate = effectiveFps(fps).toDouble()
-        val raw = round(360.0 * rate / angle).toInt()
-        return raw.coerceIn(1, 16_000)
-    }
-
-    fun denom(degrees: Double, fps: Int, available: List<Int>): Int {
-        val ideal = denom(degrees, fps)
-        return CaptureWheels.nearestDenom(ideal, available) ?: ideal
-    }
-
-    fun degrees(denom: Int, fps: Int): Double {
-        if (denom <= 0) return DEFAULT_DEGREES
-        return 360.0 * effectiveFps(fps).toDouble() / denom.toDouble()
-    }
-
-    fun nearestDegrees(value: Double): Double =
-        degrees.minByOrNull { abs(it - value) } ?: DEFAULT_DEGREES
-
+    fun nearestDegrees(value: Double): Double = com.opencapture.opencine.media.ShutterAngle.nearestDegrees(value)
     fun nearestLabel(denom: Int, fps: Int): String = label(nearestDegrees(degrees(denom, fps)))
 }
 
 data class EvComp(val thirds: Int) {
     val rawValue: Int get() = 0x10 + thirds
-
-    val label: String
-        get() {
-            if (thirds == 0) return "0.0"
-            val sign = if (thirds > 0) "+" else MINUS
-            val absThirds = abs(thirds)
-            val frac = listOf(".0", ".3", ".7")[absThirds % 3]
-            return "$sign${absThirds / 3}$frac"
-        }
+    val label: String get() = com.opencapture.opencine.media.ExposureCompensation.label(thirds)
 
     companion object {
         const val MINUS = "\u2212"
@@ -78,32 +40,8 @@ data class EvComp(val thirds: Int) {
         val allCases: List<EvComp> = (MIN_THIRDS..MAX_THIRDS).map { EvComp(it) }
 
         fun fromThirds(thirds: Int): EvComp = EvComp(thirds.coerceIn(MIN_THIRDS, MAX_THIRDS))
-
-        fun fromRaw(raw: Int): EvComp? {
-            val t = raw - 0x10
-            return if (t in MIN_THIRDS..MAX_THIRDS) EvComp(t) else null
-        }
-
-        fun fromLabel(label: String): EvComp? {
-            if (label == "0.0") return EvComp(0)
-            val negative = label.startsWith(MINUS) || label.startsWith("-")
-            val positive = label.startsWith("+")
-            if (!negative && !positive) return null
-            val body = label.drop(1)
-            val parts = body.split('.', limit = 2)
-            if (parts.size != 2) return null
-            val whole = parts[0].toIntOrNull() ?: return null
-            val frac = parts[1].toIntOrNull() ?: return null
-            val fracThirds =
-                when (frac) {
-                    0 -> 0
-                    3 -> 1
-                    7 -> 2
-                    else -> return null
-                }
-            val t = whole * 3 + fracThirds
-            if (t !in 0..9) return null
-            return EvComp(if (negative) -t else t)
-        }
+        fun fromRaw(raw: Int): EvComp? = (raw - 0x10).takeIf { it in MIN_THIRDS..MAX_THIRDS }?.let(::EvComp)
+        fun fromLabel(label: String): EvComp? =
+            com.opencapture.opencine.media.ExposureCompensation.fromLabel(label, MIN_THIRDS..MAX_THIRDS)?.let(::EvComp)
     }
 }
