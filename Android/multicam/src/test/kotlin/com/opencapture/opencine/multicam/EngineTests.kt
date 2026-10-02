@@ -15,6 +15,8 @@ import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MonitorEntryDescriptor
 import com.opencapture.opencine.core.MonitorEntryError
 import com.opencapture.opencine.core.MonitorEntryID
+import com.opencapture.opencine.core.MulticamQualification
+import com.opencapture.opencine.core.MulticamQualificationRefusal
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.PictureHealth
 import com.opencapture.opencine.core.RecordingState
@@ -172,6 +174,28 @@ class ResourceAdmissionTests {
 
     private fun reasons(candidate: ResourceRequest, members: List<ResourceRequest>) =
         ResourceAdmission.reasons(candidate, members, budget)
+
+    @Test
+    fun qualificationIsRequiredAndResourceLimitsStillApply() {
+        val members = (0 until 4).map { request(device("$it"), emptyList()) }
+        val candidate = request(device("candidate"), emptyList())
+        fun qualifiedReasons(verdict: MulticamQualification, alongside: List<ResourceRequest>) =
+            ResourceAdmission.reasons(candidate, verdict, alongside, budget)
+        val qualified = MulticamQualification.Qualified
+        val unknown = MulticamQualification.Unknown
+        val refused = MulticamQualification.Refused(MulticamQualificationRefusal.UNSUPPORTED_CONFIGURATION)
+        assertEquals(emptyList(), qualifiedReasons(qualified, emptyList()))
+        assertEquals(listOf(AdmissionReason.QualificationUnknown), qualifiedReasons(unknown, emptyList()))
+        assertEquals(listOf(AdmissionReason.IntegrationRefused(refused.reason)), qualifiedReasons(refused, emptyList()))
+        assertEquals(listOf(AdmissionReason.OverQualifiedLimit(4)), qualifiedReasons(qualified, members))
+        assertEquals(
+            listOf(AdmissionReason.QualificationUnknown, AdmissionReason.OverQualifiedLimit(4)),
+            qualifiedReasons(unknown, members))
+        assertEquals(emptyList(), qualifiedReasons(qualified, members.take(3) + candidate))
+        assertEquals(
+            listOf(AdmissionReason.QualificationUnknown),
+            ResourceAdmission.reasons(candidate, unknown, members, ResourceBudget(qualifiedEntries = null)))
+    }
 
     @Test
     fun conflictingClaimsAreRejectedWithReasons() {

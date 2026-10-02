@@ -42,6 +42,8 @@ Moved from OpenZCine's Android facade and Kotlin bridge without behavior change 
   health, session recovery, camera Wi-Fi parsing wires, and `NikonNativeJNI.swift`, the JNI exports
   of the Kotlin class `NikonNative`. Everything but the JNI exports builds and tests on Darwin
   against scripted fake cameras (`OpenCineNikonAndroidTests`).
+  Its JNI exports and USB transport use the same `OpenCineJNISupport` string, buffer
+  and method lookup helpers as the other integration and app facades.
 - Kotlin `:nikon` (package `com.opencapture.opencine.nikon`): the Nikon session contract
   (`CameraSession`, `LiveFrameSource`, `FakeCameraSession`), `SwiftCoreCameraSession` and
   `SwiftCoreLiveFrameSource` over `NikonNative`, the property and metadata wires, ISO and

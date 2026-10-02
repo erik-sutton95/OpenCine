@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import Testing
 
 @testable import OpenCineDJI
@@ -78,6 +79,19 @@ struct MulticamTests {
 }
 
 struct MulticamSupportTests {
+    @Test func qualificationPreservesCapturedPreviewAndExperimentalPolicy() {
+        #expect(MulticamSupport.qualification(nil) == .unknown)
+        #expect(MulticamSupport.qualification(nil, experimental: true) == .unknown)
+        let captured = CameraModel.resolve(modelId: 0x20, name: "Osmo Pocket 3")
+        #expect(MulticamSupport.qualification(captured) == .qualified)
+        let experimental = CameraModel.resolve(modelId: 0x14, name: "Osmo Action 4")
+        #expect(MulticamSupport.qualification(experimental) == .refused(.unsupportedConfiguration))
+        #expect(MulticamSupport.qualification(experimental, experimental: true) == .qualified)
+        let unlisted = CameraModel.resolve(modelId: 0x7e, name: "DJI Neo")
+        #expect(
+            MulticamSupport.qualification(unlisted, experimental: true)
+                == .refused(.unsupportedConfiguration))
+    }
     @Test func previewIsLimitedToCapturedLiveEnableBodies() {
         for (id, name) in [
             (0x20, "Osmo Pocket 3"), (0x21, "Osmo Pocket 4"), (0x22, "Osmo Pocket 4 Pro"),

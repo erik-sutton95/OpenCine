@@ -2,6 +2,8 @@ package com.opencapture.opencine.multicam
 
 import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.MonitorEntryID
+import com.opencapture.opencine.core.MulticamQualification
+import com.opencapture.opencine.core.MulticamQualificationRefusal
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedRoute
 
@@ -88,6 +90,8 @@ public data class ResourceBudget(
 )
 
 public sealed interface AdmissionReason {
+    public data object QualificationUnknown : AdmissionReason
+    public data class IntegrationRefused(public val reason: MulticamQualificationRefusal) : AdmissionReason
     public data class OverQualifiedLimit(public val limit: Int) : AdmissionReason
 
     /** The candidate needs a different phone Wi-Fi network than this member. */
@@ -106,6 +110,25 @@ public sealed interface AdmissionReason {
  * transition (joining a network, claiming USB). It describes; it never provisions or releases.
  */
 public object ResourceAdmission {
+    /**
+     * Combines the integration's configuration qualification with the app's resource budget.
+     * Unknown qualification blocks admission; this never infers camera observations or sends
+     * a command. The resource-only overload remains useful for single connection feasibility.
+     */
+    public fun reasons(
+        candidate: ResourceRequest,
+        qualification: MulticamQualification,
+        members: List<ResourceRequest>,
+        budget: ResourceBudget,
+    ): List<AdmissionReason> {
+        val qualificationReasons = when (qualification) {
+            MulticamQualification.Qualified -> emptyList()
+            MulticamQualification.Unknown -> listOf(AdmissionReason.QualificationUnknown)
+            is MulticamQualification.Refused -> listOf(AdmissionReason.IntegrationRefused(qualification.reason))
+        }
+        return qualificationReasons + reasons(candidate, members, budget)
+    }
+
     /** Empty when [candidate] may join. */
     public fun reasons(
         candidate: ResourceRequest,

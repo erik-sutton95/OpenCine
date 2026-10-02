@@ -43,6 +43,7 @@
         guard let value else { return nil }
         let fns = table(env)
         let length = Int(fns.GetArrayLength!(env, value))
+        guard length >= 0 else { return nil }
         guard maximumCount.map({ length <= $0 }) ?? true else { return nil }
         guard length > 0 else { return [] }
         var out = [UInt8](repeating: 0, count: length)
@@ -121,13 +122,9 @@
         return values
     }
 
-    /// Resolves an optional Kotlin callback without leaving a pending
-    /// `NoSuchMethodError` when an older listener has not implemented it.
-    ///
-    /// This is used for additive listener callbacks: the legacy descriptor
-    /// remains a working fallback while newly built Kotlin code receives the
-    /// richer metadata descriptor.
-    public func optionalInstanceMethod(
+    /// Looks up an instance method and clears a missing-method exception. The caller decides
+    /// whether an absent method is acceptable or makes its adapter unavailable.
+    public func instanceMethod(
         _ env: UnsafeMutablePointer<JNIEnv?>, _ type: jclass?,
         _ name: String, _ signature: String
     ) -> jmethodID? {
@@ -139,6 +136,14 @@
         }
         if method == nil { fns.ExceptionClear!(env) }
         return method
+    }
+
+    /// Resolves an additive listener callback while preserving the legacy-descriptor fallback.
+    public func optionalInstanceMethod(
+        _ env: UnsafeMutablePointer<JNIEnv?>, _ type: jclass?,
+        _ name: String, _ signature: String
+    ) -> jmethodID? {
+        instanceMethod(env, type, name, signature)
     }
 
 #endif

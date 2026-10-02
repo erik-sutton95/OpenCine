@@ -140,6 +140,32 @@ import Testing
         ResourceAdmission.reasons(admitting: candidate, alongside: members, budget: budget)
     }
 
+    @Test func qualificationIsRequiredAndResourceLimitsStillApply() {
+        let members = (0..<4).map { request(device("\($0)"), []) }
+        let candidate = request(device("candidate"), [])
+        func qualifiedReasons(_ verdict: MulticamQualification, _ alongside: [ResourceRequest])
+            -> [AdmissionReason]
+        {
+            ResourceAdmission.reasons(
+                admitting: candidate, qualification: verdict, alongside: alongside, budget: budget)
+        }
+        #expect(qualifiedReasons(.qualified, []).isEmpty)
+        #expect(qualifiedReasons(.unknown, []) == [.qualificationUnknown])
+        #expect(
+            qualifiedReasons(.refused(.unsupportedConfiguration), [])
+                == [.integrationRefused(.unsupportedConfiguration)])
+        #expect(qualifiedReasons(.qualified, members) == [.overQualifiedLimit(4)])
+        #expect(
+            qualifiedReasons(.unknown, members) == [.qualificationUnknown, .overQualifiedLimit(4)])
+        // Replacing this entry does not consume a second slot.
+        #expect(qualifiedReasons(.qualified, Array(members.prefix(3)) + [candidate]).isEmpty)
+        // Unlimited resource capacity still cannot qualify an unknown configuration.
+        #expect(
+            ResourceAdmission.reasons(
+                admitting: candidate, qualification: .unknown, alongside: members,
+                budget: ResourceBudget(qualifiedEntries: nil)) == [.qualificationUnknown])
+    }
+
     @Test func conflictingClaimsAreRejectedWithReasons() {
         let apOne = request(device("1"), [.cameraAccessPoint(network: "CAM-1")])
         let apTwo = request(device("2"), [.cameraAccessPoint(network: "CAM-2")])
