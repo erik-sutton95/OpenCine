@@ -17,6 +17,10 @@ import PackageDescription
 // OpenCineRelay is optional: the second-screen relay wire (framing, messages, version check,
 // frame blob), the control lease and relay pacing policy. Foundation only; sockets, Bonjour,
 // encoders and keychain stay in the apps.
+// OpenCineApple is the Apple runtime: decoded-frame leases, the VideoToolbox H.26x decoder
+// runtime with its retained display layer, and the AVFoundation UVC capture source. OS media
+// frameworks are contained here; every file sits behind `#if canImport(...)`, so the package
+// still resolves and builds off Apple platforms. Core and Media never depend on it.
 let package = Package(
     name: "OpenCineCore",
     platforms: [.iOS(.v17), .macOS(.v13), .watchOS(.v10)],
@@ -26,6 +30,7 @@ let package = Package(
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
+        .library(name: "OpenCineApple", targets: ["OpenCineApple"]),
         // Fakes for consumers' test targets only; never link it into an app.
         .library(name: "OpenCineCoreTestSupport", targets: ["OpenCineCoreTestSupport"]),
     ],
@@ -46,5 +51,7 @@ let package = Package(
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
         .target(name: "OpenCineRelay"),
         .testTarget(name: "OpenCineRelayTests", dependencies: ["OpenCineRelay"]),
+        .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia"]),
+        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple"]),
     ]
 )
