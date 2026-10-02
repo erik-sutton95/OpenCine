@@ -1,0 +1,33 @@
+{
+  "built_at": "2026-10-02T10:06:44Z",
+  "coverage": {
+    "edges": 29080,
+    "excluded": {
+      "binary-captures": 1
+    },
+    "exported_files": 989,
+    "failed": 0,
+    "nodes": 12054,
+    "parsed": 617,
+    "skipped_non_code": 419,
+    "unsupported_or_empty_code": {}
+  },
+  "dirty": false,
+  "excluded_classes": [
+    "credentials",
+    "build-products",
+    "binary-captures",
+    "vendor-reference-copies"
+  ],
+  "ref_label": "main",
+  "repository_id": "opencine",
+  "scan_config_hash": "547861df696b8f817ea7665a16ef804388d5b0ad2f0a4685b02211a1aaa77715",
+  "scope": "baseline",
+  "source_commit": "491ce302352cc9ccc71169719c5cfb533393c085",
+  "source_ref": null,
+  "source_tree": "924d25452a51318cf18bc0fc675b9e6fc2fee533",
+  "tool_versions": {
+    "atlas": "0.1.0",
+    "graphify": "0.9.11"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "built_at": "2026-10-02T10:07:39Z",
+  "coverage": {
+    "edges": 42880,
+    "excluded": {
+      "binary-captures": 41
+    },
+    "exported_files": 981,
+    "failed": 0,
+    "nodes": 17687,
+    "parsed": 879,
+    "skipped_non_code": 237,
+    "unsupported_or_empty_code": {}
+  },
+  "dirty": false,
+  "excluded_classes": [
+    "credentials",
+    "build-products",
+    "binary-captures",
+    "vendor-reference-copies"
+  ],
+  "ref_label": "opencine/integration",
+  "repository_id": "openpocketcine",
+  "scan_config_hash": "547861df696b8f817ea7665a16ef804388d5b0ad2f0a4685b02211a1aaa77715",
+  "scope": "candidate",
+  "source_commit": "b7164c9e96ef236b5abdb1a8c93bc840275726ea",
+  "source_ref": null,
+  "source_tree": "7145adcb7c9dbacaeb0e96836469300112dfe9d8",
+  "tool_versions": {
+    "atlas": "0.1.0",
+    "graphify": "0.9.11"
+  }
+}

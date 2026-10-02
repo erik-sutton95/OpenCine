@@ -1,0 +1,34 @@
+{
+  "built_at": "2026-10-02T10:08:15Z",
+  "coverage": {
+    "edges": 40789,
+    "excluded": {
+      "binary-captures": 39,
+      "vendor-reference-copies": 52
+    },
+    "exported_files": 870,
+    "failed": 0,
+    "nodes": 16294,
+    "parsed": 725,
+    "skipped_non_code": 300,
+    "unsupported_or_empty_code": {}
+  },
+  "dirty": false,
+  "excluded_classes": [
+    "credentials",
+    "build-products",
+    "binary-captures",
+    "vendor-reference-copies"
+  ],
+  "ref_label": "opencine/integration",
+  "repository_id": "openzcine",
+  "scan_config_hash": "547861df696b8f817ea7665a16ef804388d5b0ad2f0a4685b02211a1aaa77715",
+  "scope": "candidate",
+  "source_commit": "1b5d2cc1750a69cb11719d0d1ca80ac7b3350cd1",
+  "source_ref": null,
+  "source_tree": "7ff2e2e8a95fce1326b4024ec8be87d6784c07f9",
+  "tool_versions": {
+    "atlas": "0.1.0",
+    "graphify": "0.9.11"
+  }
+}
