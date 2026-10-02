@@ -40,6 +40,12 @@ let package = Package(
         // Android library (the exports ship in that .so). Its wire helpers also build on Darwin.
         .library(name: "OpenCineDJIAndroid", targets: ["OpenCineDJIAndroid"]),
         .library(name: "OpenCineNikon", targets: ["OpenCineNikon"]),
+        // Nikon Android facade: the PTP/IP and USB session layer and the NikonNative JNI exports
+        // an app's Swift Android library links.
+        .library(name: "OpenCineNikonAndroid", targets: ["OpenCineNikonAndroid"]),
+        // JNI copy helpers (and the NDK <jni.h> shim OpenCineJNI, re-exported) for an app's own
+        // Swift Android exports.
+        .library(name: "OpenCineJNISupport", targets: ["OpenCineJNISupport"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -113,6 +119,19 @@ let package = Package(
         .testTarget(
             name: "OpenCineNikonTests",
             dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMulticam"]),
+        // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
+        // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
+        // media browse and the JNI exports of the Kotlin class
+        // com.opencapture.opencine.nikon.NikonNative (Android `:nikon`). Everything but the JNI
+        // exports also builds and tests on Darwin against scripted fake cameras.
+        .target(name: "OpenCineNikonAndroid", dependencies: ["OpenCineNikon", "OpenCineJNISupport"]),
+        .testTarget(
+            name: "OpenCineNikonAndroidTests",
+            dependencies: ["OpenCineNikonAndroid", "OpenCineNikon"]),
+
+        // MARK: JNI
+        // JNI copy helpers over the header-only OpenCineJNI shim (re-exported). Empty on Darwin.
+        .target(name: "OpenCineJNISupport", dependencies: ["OpenCineJNI"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation only) and the Apple I/O adapter with its KCP C code.

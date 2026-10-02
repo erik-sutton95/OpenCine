@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "5d19af2e65c836fd6e38d6fd888223dc517535b4",
+      "commit": "33e75a7ca483ca8e765c196429208fa6c08947c5",
       "role": "baseline"
     }
   ],
@@ -48,6 +48,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineJNISupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineCoreTestSupport",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -79,6 +84,11 @@
     },
     {
       "name": "OpenCineNikon",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineNikonAndroid",
       "kind": "swift-library",
       "manifest": "Package.swift"
     },
@@ -140,6 +150,12 @@
       "coordinates": "com.opencapture.opencine:dji"
     },
     {
+      "name": ":nikon",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:nikon"
+    },
+    {
       "name": ":insta360-shell",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -187,10 +203,13 @@
       "OpenCineDJI",
       "OpenCineDJITests",
       "OpenCineJNI",
+      "OpenCineJNISupport",
       "OpenCineDJIAndroid",
       "OpenCineDJIAndroidTests",
       "OpenCineNikon",
       "OpenCineNikonTests",
+      "OpenCineNikonAndroid",
+      "OpenCineNikonAndroidTests",
       "Insta360Protocol",
       "Insta360ProtocolTests",
       "CKcp",
@@ -198,6 +217,7 @@
       "Insta360AppleTestSupport",
       "Insta360AppleTests",
       ":dji",
+      ":nikon",
       ":insta360-shell",
       ":insta360-luna"
     ],

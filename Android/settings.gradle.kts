@@ -30,6 +30,9 @@ include(
     ":multicam",
     // DJI: BLE link, datalink, wire models, gimbal programs, CameraSession adapter (JNI facade DjiNative).
     ":dji",
+    // Nikon: session contract, PTP-IP / USB PTP session over the Swift layer (JNI facade
+    // NikonNative), live-view source, picker policy, CameraSession adapter.
+    ":nikon",
     // Insta360: app shell contract (Kotlin/JVM) and the Luna adapter.
     ":insta360-shell", ":insta360-luna",
 )

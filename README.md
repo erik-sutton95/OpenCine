@@ -34,10 +34,11 @@ coordinates `com.opencapture.opencine:<module>`.
 | Core | `OpenCineRelay` (optional) | | nothing |
 | Core | `OpenCineApple` | `vulkan` (native renderer) | `OpenCineCore`, `OpenCineMedia` |
 | Core | `OpenCineCoreTestSupport` (tests only) | `core` test fixtures | `OpenCineCore` |
+| Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |
 | UI | `MonitorPresentation`, `MonitorUI` | `monitor-ui` | nothing |
 | Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
 | DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia` / `core`, `media` |
-| Nikon | `OpenCineNikon` | | `OpenCineCore` |
+| Nikon | `OpenCineNikon`, `OpenCineNikonAndroid` (Swift side of `NikonNative`: Android session layer and JNI exports) | `nikon` (JNI facade `NikonNative`) | `OpenCineCore`, `OpenCineJNISupport` / `core` |
 | Insta360 | `Insta360Protocol`, `Insta360Apple` (+ C target `CKcp`), `Insta360AppleTestSupport` (tests only) | `insta360-shell`, `insta360-luna` | `OpenCineCore` / `core` |
 | Harness | none (targets `HarnessEngine`, `HarnessComposition`, `HarnessTests`; SIMULATED, never ships) | | everything above except UI |
 
@@ -49,7 +50,7 @@ The package has no third-party dependencies, so linking one product resolves not
 |---|---|---|
 | OpenPocketCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineDJI`, `OpenCineDJIAndroid` (Android .so) | `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji` |
 | OpenInstaCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineApple`, `Insta360Protocol`, `Insta360Apple` (+ `Insta360AppleTestSupport` in tests) | `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `insta360-shell`, `insta360-luna` |
-| OpenZCine (`opencine/integration`) | `OpenCineCore`, `OpenCineMedia`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineNikon` | `core` |
+| OpenZCine (`opencine/integration`) | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineNikon`, `OpenCineNikonAndroid` and `OpenCineJNISupport` (Android .so) | `core`, `monitor-ui`, `multicam`, `nikon` |
 | OpenZCine engine-port candidate | `MonitorUI`, `MonitorPresentation` | `monitor-ui` |
 
 Each app pins one commit of this repository in its `opencine-pins.txt` (`OpenCine <sha>`);

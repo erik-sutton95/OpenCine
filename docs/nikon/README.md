@@ -32,7 +32,34 @@ Android JNI facade keep their imports.
 swift build && swift test --filter OpenCineNikonTests   # from the repository root
 ```
 
+## Android (`OpenCineNikonAndroid`, `Android/nikon`, `com.opencapture.opencine:nikon`)
+
+Moved from OpenZCine's Android facade and Kotlin bridge without behavior change (SHELL-04):
+
+- Swift `OpenCineNikonAndroid` (over `OpenCineNikon` and `OpenCineJNISupport`): `PTPIPClientSession`
+  (PTP-IP and USB PTP session layer, live-view pump, property readback, media browse and
+  transfer), the USB transaction transport, the owner-keyed `AndroidSessionOwnerRegistry`, link
+  health, session recovery, camera Wi-Fi parsing wires, and `NikonNativeJNI.swift`, the JNI exports
+  of the Kotlin class `NikonNative`. Everything but the JNI exports builds and tests on Darwin
+  against scripted fake cameras (`OpenCineNikonAndroidTests`).
+- Kotlin `:nikon` (package `com.opencapture.opencine.nikon`): the Nikon session contract
+  (`CameraSession`, `LiveFrameSource`, `FakeCameraSession`), `SwiftCoreCameraSession` and
+  `SwiftCoreLiveFrameSource` over `NikonNative`, the property and metadata wires, ISO and
+  white-balance picker policy, the PTP-IP initiator identity (same bytes as Swift's
+  `PTPIPInitiator.appGUID`), the `UsbPtpTransport` seam, and `NikonOpenCineSession`, OpenCineCore's
+  Kotlin `CameraSession` over the Nikon session.
+
+The app links `OpenCineNikonAndroid` into its Swift Android library (which therefore exports
+`Java_com_opencapture_opencine_nikon_NikonNative_*`), loads that library once through
+`NikonNative.load(<its library>)` before any session exists, and supplies the Android USB host
+(`UsbPtpTransport` implementation), discovery, pairing, preferences and UI. `consumer-rules.pro`
+keeps the package and every `UsbPtpTransport` and listener implementation in minified apps.
+
+```sh
+swift test --filter OpenCineNikonAndroidTests          # from the repository root
+(cd Android && ./gradlew :nikon:test)
+```
+
 Not here (yet): the generic monitor/assist/preferences stack, the contributed LUT table and
 Frame.io (plan OPTIONAL-01) stay in OpenZCine; the iOS PTP transports (`PTPIPTransport`,
-`USBCameraTransport`, `NativeCameraSession`) and the Android JNI facade
-(`PTPIPClientSession`, `AndroidSessionOwnerRegistry`) stay in the app for now.
+`USBCameraTransport`, `NativeCameraSession`) stay in the app for now.
