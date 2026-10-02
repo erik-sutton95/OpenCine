@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.opencapture.monitorui.MonitorCameraFooter
 import com.opencapture.monitorui.MonitorCameraAction
 import com.opencapture.monitorui.MonitorCameraCard
 import com.opencapture.monitorui.MonitorCameraPage
@@ -47,6 +48,7 @@ import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.SavedCamera
+import com.opencapture.opencine.core.SavedRoute
 import kotlinx.coroutines.launch
 
 /**
@@ -69,12 +71,15 @@ public fun CamerasScreen(
     /** The app's own NEARBY rows after the sightings (a notice, a feed to watch); a tap calls [onExtraNearby]. */
     extraNearby: List<CameraItem> = emptyList(),
     onExtraNearby: (String) -> Unit = {},
+    onPrivacy: (() -> Unit)? = null,
+    onTerms: (() -> Unit)? = null,
 ) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var adding by remember { mutableStateOf<SavedCamera?>(null) }
     var renaming by remember { mutableStateOf<SavedCamera?>(null) }
+    var renamingSetup by remember { mutableStateOf<Pair<String, SavedRoute>?>(null) }
     var removing by remember { mutableStateOf<SavedCamera?>(null) }
     val busy = state.attempts.isNotEmpty()
     fun saved(id: String) = state.saved.firstOrNull { it.id == id }
@@ -148,6 +153,9 @@ public fun CamerasScreen(
                 onForgetSetup = { chip ->
                     camera?.routes?.firstOrNull { it.id.text == chip.id }?.let { model.forgetRoute(it.id, camera.id) }
                 },
+                onRenameSetup = { chip ->
+                    camera?.routes?.firstOrNull { it.id.text == chip.id }?.let { renamingSetup = camera.id to it }
+                },
                 steps = item.steps,
                 failure = item.failure,
                 onFailureAction = { id ->
@@ -156,18 +164,20 @@ public fun CamerasScreen(
             )
         },
         footer = {
-            MonitorCameraAction(
-                text = "Pair a new camera",
-                primary = false,
-                enabled = !busy,
-                contentDescription = "Pair a new camera",
-                onClick = {
-                    model.select(null)
-                    onPair()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                icon = { tint -> MonitorIcon(MonitorIcon.PLUS, null, Modifier.size(14.dp), tint = tint) },
-            )
+            MonitorCameraFooter(onPrivacy, onTerms) {
+                MonitorCameraAction(
+                    text = "Pair a new camera",
+                    primary = false,
+                    enabled = !busy,
+                    contentDescription = "Pair a new camera",
+                    onClick = {
+                        model.select(null)
+                        onPair()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = { tint -> MonitorIcon(MonitorIcon.PLUS, null, Modifier.size(14.dp), tint = tint) },
+                )
+            }
         },
     )
     adding?.let { camera ->
@@ -205,6 +215,26 @@ public fun CamerasScreen(
             dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } },
         )
     }
+    renamingSetup?.let { (cameraID, route) ->
+        var text by remember(cameraID, route.id) { mutableStateOf(CamerasMapping.title(route)) }
+        AlertDialog(
+            onDismissRequest = { renamingSetup = null },
+            title = { Text("Rename setup") },
+            text = {
+                Column {
+                    Text("Name this connection setup. Leave it blank to use the default name.")
+                    OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("Name") })
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !busy, onClick = {
+                    if (!busy) model.renameRoute(route.id, cameraID, text)
+                    renamingSetup = null
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { renamingSetup = null }) { Text("Cancel") } },
+        )
+    }
     removing?.let { camera ->
         AlertDialog(
             onDismissRequest = { removing = null },
@@ -236,6 +266,8 @@ public fun PairScreen(
     modifier: Modifier = Modifier,
     onWatchFeed: (() -> Unit)? = null,
     pairingFlow: IntegrationPairingFlow? = null,
+    onPrivacy: (() -> Unit)? = null,
+    onTerms: (() -> Unit)? = null,
 ) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
@@ -265,6 +297,7 @@ public fun PairScreen(
         onReportProblem = onReportProblem,
         modifier = modifier,
         onWatchFeed = onWatchFeed,
+        onPrivacy = onPrivacy, onTerms = onTerms,
         extra = {
             if (pairingFlow != null) {
                 pairingFlow.content()

@@ -67,7 +67,7 @@ public class SavedCamerasStore(private val document: StoredString, private val l
         }
         if (legacy != null) {
             legacy.data.read()?.let(legacy.codec::cameras)?.let {
-                current = current.merge(it, legacy.source, legacy.codec.heldExtras)
+                current = current.merge(it, legacy.source, legacy.codec.heldExtras, legacy.codec.holdsRouteTitles)
             }
         }
         cameras = current.cameras

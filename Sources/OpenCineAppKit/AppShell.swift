@@ -20,19 +20,24 @@
         public var reportProblem: () -> Void
         public var watchFeed: (() -> Void)?
         public var multiview: (() -> Void)?
+        public var privacy: (() -> Void)?
+        public var terms: (() -> Void)?
         /// Camera id, integration action id (`RecoveryAction.integration`).
         public var integrationAction: ((String, String) -> Void)?
 
         public init(
             diagnostics: @escaping () -> Void, reportProblem: @escaping () -> Void,
             watchFeed: (() -> Void)? = nil, multiview: (() -> Void)? = nil,
-            integrationAction: ((String, String) -> Void)? = nil
+            integrationAction: ((String, String) -> Void)? = nil,
+            privacy: (() -> Void)? = nil, terms: (() -> Void)? = nil
         ) {
             self.diagnostics = diagnostics
             self.reportProblem = reportProblem
             self.watchFeed = watchFeed
             self.multiview = multiview
             self.integrationAction = integrationAction
+            self.privacy = privacy
+            self.terms = terms
         }
     }
 
@@ -86,14 +91,16 @@
                 PairScreen(
                     model: model.cameras, safeArea: insets, onDone: { model.endPairing() },
                     onDiagnostics: actions.diagnostics, onReportProblem: actions.reportProblem,
-                    onWatchFeed: actions.watchFeed)
+                    onWatchFeed: actions.watchFeed, onPrivacy: actions.privacy,
+                    onTerms: actions.terms)
             } else {
                 CamerasScreen(
                     model: model.cameras, brandName: brand.name, nearbyNote: brand.nearbyNote,
                     safeArea: insets, onPair: { model.beginPairing() },
                     onMedia: { model.open(.media) }, onSettings: { model.open(.settings) },
                     onMultiview: actions.multiview, onWatchFeed: actions.watchFeed,
-                    onIntegrationAction: actions.integrationAction)
+                    onIntegrationAction: actions.integrationAction, onPrivacy: actions.privacy,
+                    onTerms: actions.terms)
             }
         }
     }

@@ -211,6 +211,46 @@ class CamerasModelTest {
     }
 
     @Test
+    fun renameRouteKeepsItsIdentityAndOtherSetups() = runTest {
+        val model = model()
+        model.renameRoute(Values.wifi.id, Values.camera.id, "  Stage right ")
+        val expected = Values.camera.copy(routes = listOf(Values.ap, Values.wifi.copy(title = "Stage right")))
+        assertEquals(listOf(expected), model.now.saved)
+        assertEquals("Stage right", CamerasMapping.paired(model)[0].setups[1].title)
+        model.reloadSaved()
+        assertEquals(listOf(expected), model.now.saved)
+        model.renameRoute(com.opencapture.opencine.core.ConnectionRouteID(), Values.camera.id, "Unknown route")
+        model.renameRoute(Values.wifi.id, "missing", "Unknown camera")
+        assertEquals(listOf(expected), model.now.saved)
+        model.renameRoute(Values.wifi.id, Values.camera.id, " \n ")
+        assertEquals(listOf(Values.camera), model.now.saved)
+        assertEquals("Wi-Fi · studio", CamerasMapping.paired(model)[0].setups[1].title)
+    }
+
+    @Test
+    fun singleRouteCanBeRenamedAndReset() = runTest {
+        val camera = Values.camera.copy(routes = listOf(Values.ap))
+        val model = model(listOf(camera))
+        model.renameRoute(Values.ap.id, camera.id, "Rig")
+        assertEquals("Rig", model.now.saved[0].routes[0].title)
+        assertFalse(CamerasMapping.paired(model)[0].setups[0].canForget)
+        model.renameRoute(Values.ap.id, camera.id, null)
+        model.reloadSaved()
+        assertEquals(listOf(camera), model.now.saved)
+    }
+
+    @Test
+    fun setupRenameWaitsUntilConnectionAttemptEnds() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        model.renameRoute(Values.ap.id, Values.camera.id, "Rig")
+        assertEquals(listOf(Values.camera), model.now.saved)
+        model.cancel(Values.camera.id)
+        model.renameRoute(Values.ap.id, Values.camera.id, "Rig")
+        assertEquals("Rig", model.now.saved[0].routes[0].title)
+    }
+
+    @Test
     fun renameAndForgetARoute() = runTest {
         val model = model()
         model.rename("camera-1", "  A cam ")

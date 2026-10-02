@@ -170,9 +170,47 @@
             #expect(type(of: page) == PairCameraPage<EmptyView>.self)
         }
 
-        func write(_ view: some View, _ name: String) throws {
-            let host = UIHostingController(rootView: view.preferredColorScheme(.dark))
-            let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        /// Legal links remain reachable on startup and cameras; a lone setup still has its title.
+        @Test func legalAndSingleSetupFixturesRender() throws {
+            let fake = FakeIntegration(id: IntegrationID("test.cameras"))
+            var single = T.camera
+            single.routes = [T.ap]
+            let listed = model(fake, saved: [single])
+            listed.renameRoute(T.ap.id, of: single.id, to: "Stage left")
+            let layouts: [(String, CGSize, EdgeInsets)] = [
+                ("phone-portrait", size, safeArea),
+                (
+                    "phone-landscape", CGSize(width: 874, height: 402),
+                    EdgeInsets(top: 0, leading: 62, bottom: 21, trailing: 62)
+                ),
+                (
+                    "ipad-portrait", CGSize(width: 1032, height: 1376),
+                    EdgeInsets(top: 24, leading: 0, bottom: 20, trailing: 0)
+                ),
+                (
+                    "ipad-landscape", CGSize(width: 1376, height: 1032),
+                    EdgeInsets(top: 24, leading: 0, bottom: 20, trailing: 0)
+                ),
+            ]
+            for (name, bounds, insets) in layouts {
+                try write(
+                    CamerasScreen(
+                        model: listed, brandName: "REVIEW (SIMULATED)", safeArea: insets,
+                        onPair: {}, onMedia: {}, onSettings: {}, onPrivacy: {}, onTerms: {}),
+                    "17-cameras-legal-single-setup-\(name)", size: bounds)
+                try write(
+                    PairScreen(
+                        model: model(fake, saved: []), safeArea: insets,
+                        onDone: {}, onDiagnostics: {}, onReportProblem: {}, onPrivacy: {},
+                        onTerms: {}),
+                    "18-pair-startup-legal-\(name)", size: bounds)
+            }
+        }
+
+        func write(_ view: some View, _ name: String, size: CGSize? = nil) throws {
+            // Fixtures pass their own viewport insets, including when rendering a different orientation.
+            let host = UIHostingController(rootView: view.preferredColorScheme(.dark).ignoresSafeArea())
+            let window = UIWindow(frame: CGRect(origin: .zero, size: size ?? self.size))
             window.rootViewController = host
             window.isHidden = false
             host.view.frame = window.bounds

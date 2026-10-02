@@ -18,6 +18,9 @@
         public var onSettings: () -> Void
         public var onMultiview: (() -> Void)?
         public var onWatchFeed: (() -> Void)?
+        /// App-owned legal destinations; nil hides the corresponding link.
+        public var onPrivacy: (() -> Void)?
+        public var onTerms: (() -> Void)?
         /// Camera id, integration action id (`RecoveryAction.integration`).
         public var onIntegrationAction: ((String, String) -> Void)?
         /// The app's own NEARBY rows after the sightings (a notice, a feed to watch); a tap
@@ -33,7 +36,8 @@
             onMedia: @escaping () -> Void, onSettings: @escaping () -> Void,
             onMultiview: (() -> Void)? = nil, onWatchFeed: (() -> Void)? = nil,
             onIntegrationAction: ((String, String) -> Void)? = nil,
-            extraNearby: [CameraListItem] = [], onExtraNearby: @escaping (String) -> Void = { _ in }
+            extraNearby: [CameraListItem] = [], onExtraNearby: @escaping (String) -> Void = { _ in },
+            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil
         ) {
             self.model = model
             self.brandName = brandName
@@ -44,6 +48,8 @@
             self.onSettings = onSettings
             self.onMultiview = onMultiview
             self.onWatchFeed = onWatchFeed
+            self.onPrivacy = onPrivacy
+            self.onTerms = onTerms
             self.onIntegrationAction = onIntegrationAction
             self.extraNearby = extraNearby
             self.onExtraNearby = onExtraNearby
@@ -78,7 +84,13 @@
                 onFailureAction: { id, action in
                     guard let action = CamerasMapping.action(action, of: id, in: model) else { return }
                     handle(model.perform(action, for: id))
-                }
+                },
+                onRenameSetup: { id, route, name in
+                    if let camera = camera(id), let route = routeID(route, of: camera) {
+                        model.renameRoute(route, of: id, to: name)
+                    }
+                },
+                onPrivacy: onPrivacy, onTerms: onTerms
             )
             .sheet(item: $adding) { camera in
                 slots(of: camera.integration).addRoute?(camera) { draft in
@@ -146,12 +158,16 @@
         public var onDiagnostics: () -> Void
         public var onReportProblem: () -> Void
         public var onWatchFeed: (() -> Void)?
+        /// App-owned legal destinations; nil hides the corresponding link.
+        public var onPrivacy: (() -> Void)?
+        public var onTerms: (() -> Void)?
 
         public init(
             model: CamerasModel, safeArea: EdgeInsets = EdgeInsets(), onDone: @escaping () -> Void,
             onDiagnostics: @escaping () -> Void, onReportProblem: @escaping () -> Void,
             onWatchFeed: (() -> Void)? = nil,
-            pairingFlow: IntegrationPairingFlow? = nil
+            pairingFlow: IntegrationPairingFlow? = nil,
+            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil
         ) {
             self.model = model
             self.safeArea = safeArea
@@ -159,6 +175,8 @@
             self.onDiagnostics = onDiagnostics
             self.onReportProblem = onReportProblem
             self.onWatchFeed = onWatchFeed
+            self.onPrivacy = onPrivacy
+            self.onTerms = onTerms
             self.pairingFlow = pairingFlow
         }
 
@@ -167,7 +185,8 @@
                 presentation: pairingFlow?.presentation ?? CamerasMapping.pairing(model), safeArea: safeArea,
                 onSelect: pairingFlow?.onSelect ?? { model.selection = $0 },
                 onPrimary: pairingFlow?.onPrimary ?? primary, onBack: pairingFlow?.onBack ?? back,
-                onDiagnostics: onDiagnostics, onReportProblem: onReportProblem, onWatchFeed: onWatchFeed
+                onDiagnostics: onDiagnostics, onReportProblem: onReportProblem, onWatchFeed: onWatchFeed,
+                onPrivacy: onPrivacy, onTerms: onTerms
             ) {
                 extra
             }

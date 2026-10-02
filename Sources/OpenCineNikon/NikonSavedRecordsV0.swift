@@ -34,6 +34,7 @@ public struct NikonSavedRecordsV0: LegacySavedCameraCodec {
     }
 
     public var heldExtras: Set<String> { [] }
+    public var holdsRouteTitles: Bool { true }
 
     public init() {}
 

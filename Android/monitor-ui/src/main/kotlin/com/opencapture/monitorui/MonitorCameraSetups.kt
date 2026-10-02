@@ -102,6 +102,7 @@ internal fun MonitorSetupChips(
     onSetup: (MonitorSetupChip) -> Unit,
     onAddSetup: (() -> Unit)?,
     onForgetSetup: ((MonitorSetupChip) -> Unit)?,
+    onRenameSetup: ((MonitorSetupChip) -> Unit)? = null,
 ) {
     val scroll = rememberScrollState()
     Row(
@@ -117,7 +118,8 @@ internal fun MonitorSetupChips(
                 Modifier.heightIn(min = 44.dp)
                     .combinedClickable(
                         enabled = enabled, role = Role.Button, onClick = { onSetup(setup) },
-                        onLongClick = if (setup.canForget && onForgetSetup != null) ({ menu = true }) else null,
+                        onLongClickLabel = "Setup options",
+                        onLongClick = if (onRenameSetup != null || setup.canForget && onForgetSetup != null) ({ menu = true }) else null,
                     )
                     .semantics { contentDescription = "Connect $cameraName over ${setup.title}" }
                     .testTag("cameras.setup.${setup.id}"),
@@ -134,10 +136,18 @@ internal fun MonitorSetupChips(
                         .padding(horizontal = 12.dp, vertical = 9.dp),
                 )
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Forget ${setup.title} setup", color = MonitorPalette.recording) },
-                        onClick = { menu = false; onForgetSetup?.invoke(setup) },
-                    )
+                    if (onRenameSetup != null) {
+                        DropdownMenuItem(
+                            text = { Text("Rename setup") }, enabled = enabled,
+                            onClick = { menu = false; if (enabled) onRenameSetup(setup) },
+                        )
+                    }
+                    if (setup.canForget && onForgetSetup != null) {
+                        DropdownMenuItem(
+                            text = { Text("Forget ${setup.title} setup", color = MonitorPalette.recording) }, enabled = enabled,
+                            onClick = { menu = false; if (enabled) onForgetSetup(setup) },
+                        )
+                    }
                 }
             }
         }

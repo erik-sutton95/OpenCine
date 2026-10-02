@@ -23,7 +23,8 @@ flow add, migrate, remove; the mirror goes in a later release).
 - `load()` does a three-way merge per legacy source (base: the record hashes stored in the
   document; theirs: the legacy records now; ours: the document). Legacy edits made by an older
   build win for the fields legacy holds; document-only fields (route ids, a learned serial, route
-  titles) survive; cameras removed in legacy are removed. A read never writes legacy.
+  titles for formats without setup names) survive; cameras removed in legacy are removed.
+  A read never writes legacy.
 - `save(_:)` patches the legacy records in place (changed fields only; unknown fields and
   undecodable records kept verbatim; forgotten cameras removed; new ones appended), then writes
   the document with the new merge base.
@@ -51,7 +52,9 @@ attempt per camera (progress and prompt), the last failure per camera and the pa
   integration actions come back as a `Request` for the app).
 - A connect upserts the integration's record and calls `onConnected` with the `ConnectedCamera`.
   `forget` asks the integration to drop its per-camera data, then removes the camera; `rename` and
-  `forgetRoute` edit the document.
+  `forgetRoute` edit the document. `renameRoute` changes one setup title without changing its
+  identity or camera name; blank restores the generated title. A codec that owns setup titles
+  declares `holdsRouteTitles`, so a name cleared by an older build stays cleared on upgrade.
 
 `CamerasMapping` turns the model into the shared page values (`CameraListItem`, setup chips,
 connect steps, failure banners, `CameraPairingPresentation`; Kotlin `CameraItem` and the `Monitor*`
@@ -69,7 +72,13 @@ still owns the rail, layout, diagnostics and help controls. This replaces the or
 and its extra content for that render; passing `nil` (Kotlin `null`) resumes the connection
 model's progress and recovery presentation. Discovery keeps the same pairing lifecycle.
 
-Review fixtures: `ReviewScreens` (iOS simulator only) renders eight states and writes PNGs when
+Setup chips offer Rename setup even for a camera's only route. The cameras and pair pages accept
+optional `onPrivacy` and `onTerms` actions; `ShellActions.privacy` and `.terms` forward them through
+`AppShell`. Apps keep their existing URLs or in-app legal documents. These actions do not alter
+connection state or own discovery.
+
+Review fixtures: `ReviewScreens` (iOS simulator only) renders camera, pairing and shell states,
+including legal links and a named single setup in phone and tablet orientations. It writes PNGs when
 `OPENCINE_SCREENSHOTS` is set (`TEST_RUNNER_OPENCINE_SCREENSHOTS=<dir> xcodebuild test -scheme
 OpenCine-Package -destination <private simulator> -only-testing:OpenCineAppKitTests`).
 

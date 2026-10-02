@@ -29,6 +29,12 @@
         /// Camera id, `CameraConnectFailure.Action` id.
         public var onFailureAction: ((String, String) -> Void)?
 
+        /// Camera id, setup id, and the operator's new name. Blank restores the default.
+        public var onRenameSetup: ((String, String, String) -> Void)?
+        public var onPrivacy: (() -> Void)?
+        public var onTerms: (() -> Void)?
+
+        @State private var renamingSetup: (camera: String, setup: CameraSetupChip)?
         @State private var renameItem: CameraListItem?
         @State private var removeItem: CameraListItem?
         @State private var renameText = ""
@@ -45,7 +51,9 @@
             onConnectSetup: ((String, String) -> Void)? = nil,
             onAddSetup: ((String) -> Void)? = nil,
             onForgetSetup: ((String, String) -> Void)? = nil,
-            onFailureAction: ((String, String) -> Void)? = nil
+            onFailureAction: ((String, String) -> Void)? = nil,
+            onRenameSetup: ((String, String, String) -> Void)? = nil,
+            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil
         ) {
             self.brandName = brandName
             self.paired = paired
@@ -67,6 +75,9 @@
             self.onAddSetup = onAddSetup
             self.onForgetSetup = onForgetSetup
             self.onFailureAction = onFailureAction
+            self.onRenameSetup = onRenameSetup
+            self.onPrivacy = onPrivacy
+            self.onTerms = onTerms
         }
 
         @Environment(\.monitorWindowGeometry) private var windowGeometry
@@ -105,25 +116,14 @@
                         .padding(.bottom, 2)
                     }
                     .monitorScrollFade()
-                    Button {
-                        onPair(nil)
-                    } label: {
-                        HStack(spacing: 9) {
-                            CameraPageGlyph(icon: .plus).frame(width: 14, height: 14)
-                            Text("Pair a new camera").font(MonitorTheme.font(13, weight: .semibold))
+                    let footer = landscape ? AnyLayout(HStackLayout(spacing: 12)) : AnyLayout(VStackLayout(spacing: 12))
+                    footer {
+                        pairButton
+                        if onPrivacy != nil || onTerms != nil {
+                            CameraLegalLinks(onPrivacy: onPrivacy, onTerms: onTerms)
+                                .fixedSize(horizontal: landscape, vertical: false)
                         }
-                        .frame(maxWidth: .infinity).frame(height: 46)
-                        .background(
-                            Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 11)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 11).stroke(
-                                MonitorTheme.secondary.opacity(0.22), lineWidth: 1)
-                        )
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).disabled(busy).opacity(busy ? 0.4 : 1)
-                    .accessibilityIdentifier("cameras.pair")
                 }
                 .padding(.top, safeArea.top + windowGeometry.topControlInset + 14)
                 .padding(.leading, (landscape ? sideInset : safeArea.leading) + 18)
@@ -147,6 +147,22 @@
                 Text("Give this camera a name you'll recognize.")
             }
             .alert(
+                "Rename setup",
+                isPresented: Binding(
+                    get: { renamingSetup != nil }, set: { if !$0 { renamingSetup = nil } })
+            ) {
+                TextField("Name", text: $renameText)
+                Button("Cancel", role: .cancel) { renamingSetup = nil }
+                Button("Save") {
+                    if let target = renamingSetup, !busy {
+                        onRenameSetup?(target.camera, target.setup.id, renameText)
+                    }
+                    renamingSetup = nil
+                }.disabled(busy)
+            } message: {
+                Text("Name this connection setup. Leave it blank to use the default name.")
+            }
+            .alert(
                 "Remove camera?",
                 isPresented: Binding(
                     get: { removeItem != nil }, set: { if !$0 { removeItem = nil } })
@@ -161,6 +177,28 @@
                     "This removes \(removeItem?.name ?? "the camera") from this phone. You can pair it again later."
                 )
             }
+        }
+
+        private var pairButton: some View {
+            Button {
+                onPair(nil)
+            } label: {
+                HStack(spacing: 9) {
+                    CameraPageGlyph(icon: .plus).frame(width: 14, height: 14)
+                    Text("Pair a new camera").font(MonitorTheme.font(13, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity).frame(height: 46)
+                .background(
+                    Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 11)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11).stroke(
+                        MonitorTheme.secondary.opacity(0.22), lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).disabled(busy).opacity(busy ? 0.4 : 1)
+            .accessibilityIdentifier("cameras.pair")
         }
 
         private func header(tablet: Bool, fullLabels: Bool) -> some View {
@@ -294,6 +332,14 @@
             if let onForgetSetup {
                 forgetSetup = { item, setup in if !busy { onForgetSetup(item.id, setup.id) } }
             }
+            var renameSetup: (@MainActor @Sendable (CameraListItem, CameraSetupChip) -> Void)?
+            if onRenameSetup != nil {
+                renameSetup = { item, setup in
+                    guard !busy else { return }
+                    renameText = setup.title
+                    renamingSetup = (item.id, setup)
+                }
+            }
             var failureAction: (@MainActor @Sendable (CameraListItem, String) -> Void)?
             if let onFailureAction {
                 failureAction = { item, action in if !busy { onFailureAction(item.id, action) } }
@@ -301,7 +347,7 @@
             let actions = CameraCatalogActions(
                 activate: { activate($0, saved: saved) }, cancel: { onCancel() },
                 rename: rename, remove: remove, connectSetup: connectSetup, addSetup: addSetup,
-                forgetSetup: forgetSetup, failureAction: failureAction)
+                forgetSetup: forgetSetup, renameSetup: renameSetup, failureAction: failureAction)
             return CameraCatalogRows.make(items, saved: saved, busy: busy, actions: actions)
         }
 
@@ -320,6 +366,7 @@
         var connectSetup: (@MainActor @Sendable (CameraListItem, CameraSetupChip) -> Void)? = nil
         var addSetup: (@MainActor @Sendable (CameraListItem) -> Void)? = nil
         var forgetSetup: (@MainActor @Sendable (CameraListItem, CameraSetupChip) -> Void)? = nil
+        var renameSetup: (@MainActor @Sendable (CameraListItem, CameraSetupChip) -> Void)? = nil
         var failureAction: (@MainActor @Sendable (CameraListItem, String) -> Void)? = nil
     }
 
@@ -493,6 +540,9 @@
                         }
                         .buttonStyle(.plain).disabled(busy)
                         .contextMenu {
+                            if let rename = actions.renameSetup {
+                                Button("Rename setup") { rename(item, setup) }.disabled(busy)
+                            }
                             if setup.canForget, let forget = actions.forgetSetup {
                                 Button("Forget \(setup.title) setup", role: .destructive) {
                                     forget(item, setup)

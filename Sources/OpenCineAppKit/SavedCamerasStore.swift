@@ -66,7 +66,9 @@ public final class SavedCamerasStore {
                 ?? SavedCamerasDocument()
         }
         if let legacy, let records = legacy.data.read().flatMap(legacy.codec.cameras(in:)) {
-            document.merge(records, from: legacy.source, heldExtras: legacy.codec.heldExtras)
+            document.merge(
+                records, from: legacy.source, heldExtras: legacy.codec.heldExtras,
+                holdsRouteTitles: legacy.codec.holdsRouteTitles)
         }
         cameras = document.cameras
         guard writesDocument, let encoded = try? Self.encoder.encode(document), encoded != data else { return }

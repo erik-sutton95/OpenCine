@@ -43,6 +43,7 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
     }
 
     override val heldExtras: Set<String> = emptySet()
+    override val holdsRouteTitles: Boolean = true
 
     /** One stored element that decodes as a record. */
     internal class Record(val index: Int, val json: JSONObject) {

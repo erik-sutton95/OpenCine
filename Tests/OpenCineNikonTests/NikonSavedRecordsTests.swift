@@ -75,7 +75,9 @@ final class SavedCamerasStore {
         let stored = defaults.values["document"]
         document = stored.flatMap { try? JSONDecoder.milliseconds.decode(SavedCamerasDocument.self, from: $0) } ?? .init()
         if let records = defaults.values["legacy"].flatMap(codec.cameras(in:)) {
-            document.merge(records, from: "records", heldExtras: codec.heldExtras)
+            document.merge(
+                records, from: "records", heldExtras: codec.heldExtras,
+                holdsRouteTitles: codec.holdsRouteTitles)
         }
         cameras = document.cameras
         write()
@@ -205,6 +207,50 @@ final class SavedCamerasStore {
         let again = self.store(defaults)
         again.load()
         #expect(again.cameras == store.cameras && defaults.values["legacy"] == legacy)
+    }
+
+    @Test func downgradeCanClearASetupName() throws {
+        try clearSetupName(oldStoreLoads: false)
+    }
+
+    @Test func legacyFingerprintDoesNotHideClearedSetupName() throws {
+        try clearSetupName(oldStoreLoads: true)
+    }
+
+    private func clearSetupName(oldStoreLoads: Bool) throws {
+        let defaults = NikonDefaults(["legacy": try Data(contentsOf: fixture)])
+        let store = SavedCamerasStore(defaults)
+        store.load()
+        var cameras = store.cameras
+        let index = try #require(cameras[0].routes.firstIndex { $0.kind == .infrastructureNetwork })
+        cameras[0].routes[index].title = "Stage right"
+        store.save(cameras)
+        var old = try JSONDecoder().decode(
+            [PTPIPSavedCameraRecord].self, from: #require(defaults.values["legacy"]))
+        #expect(old.first { $0.pathKind == .infrastructure }?.setupName == "Stage right")
+        old = PTPIPSavedCameraRecords.updatingSetupName(
+            host: "192.168.50.23", pathKind: .infrastructure, setupName: nil, in: old)
+        defaults.values["legacy"] = try appEncoded(old)
+        if oldStoreLoads {
+            var document = try JSONDecoder.milliseconds.decode(
+                SavedCamerasDocument.self, from: #require(defaults.values["document"]))
+            let legacyData = try #require(defaults.values["legacy"])
+            let records = try #require(NikonSavedRecordsV0().cameras(in: legacyData))
+            // The prior store records the new fingerprint but retains the cleared document title.
+            document.merge(records, from: "records", heldExtras: [])
+            #expect(document.cameras[0].routes[index].title == "Stage right")
+            // With unchanged fingerprints, repairing the title must leave all other fields alone.
+            document.cameras[0].name = "Document camera"
+            cameras[0].name = "Document camera"
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .millisecondsSince1970
+            defaults.values["document"] = try encoder.encode(document)
+        }
+        store.load()
+        cameras[0].routes[index].title = nil
+        #expect(store.cameras == cameras)
+        store.load()
+        #expect(store.cameras == cameras)
     }
 
     @Test func downgradeEditsMergeBackOnUpgrade() throws {

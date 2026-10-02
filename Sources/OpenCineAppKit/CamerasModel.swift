@@ -242,6 +242,21 @@ public final class CamerasModel {
         edit(cameraID) { $0.name = trimmed?.isEmpty == false ? trimmed : nil }
     }
 
+    /// Renames only this setup. `nil` or a blank name restores its default title.
+    public func renameRoute(_ route: ConnectionRouteID, of cameraID: String, to name: String?) {
+        guard attempts.isEmpty else { return }
+        guard
+            saved.contains(where: {
+                $0.id == cameraID && $0.routes.contains(where: { $0.id == route })
+            })
+        else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        edit(cameraID) { camera in
+            guard let index = camera.routes.firstIndex(where: { $0.id == route }) else { return }
+            camera.routes[index].title = trimmed?.isEmpty == false ? trimmed : nil
+        }
+    }
+
     /// Asks the integration to drop what it stores for the camera, then removes it.
     public func forget(_ cameraID: String) async {
         guard let camera = saved.first(where: { $0.id == cameraID }) else { return }

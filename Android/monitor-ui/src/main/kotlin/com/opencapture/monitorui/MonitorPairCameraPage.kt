@@ -117,6 +117,25 @@ fun MonitorPairCameraPage(
     modifier: Modifier = Modifier,
     onWatchFeed: (() -> Unit)? = null,
     extra: @Composable ColumnScope.() -> Unit = {},
+) = MonitorPairCameraPage(
+    presentation, onSelect, onPrimary, onBack, onDiagnostics, onReportProblem,
+    modifier, onWatchFeed, onPrivacy = null, onTerms = null, extra = extra,
+)
+
+/** The app supplies its existing legal destinations; the original overload retains positional callers. */
+@Composable
+fun MonitorPairCameraPage(
+    presentation: MonitorPairingPresentation,
+    onSelect: (String) -> Unit,
+    onPrimary: () -> Unit,
+    onBack: () -> Unit,
+    onDiagnostics: () -> Unit,
+    onReportProblem: () -> Unit,
+    modifier: Modifier = Modifier,
+    onWatchFeed: (() -> Unit)? = null,
+    onPrivacy: (() -> Unit)?,
+    onTerms: (() -> Unit)?,
+    extra: @Composable ColumnScope.() -> Unit = {},
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(MonitorPalette.background)) {
         val portrait = maxHeight > maxWidth
@@ -124,7 +143,7 @@ fun MonitorPairCameraPage(
         val railWidth = if (tablet) 268.dp else 210.dp
         if (portrait) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                PairingRail(presentation, true, onBack, onDiagnostics, onReportProblem, onWatchFeed)
+                PairingRail(presentation, true, onBack, onDiagnostics, onReportProblem, onWatchFeed, onPrivacy, onTerms)
                 PairingPane(
                     presentation, true, tablet, onSelect, onPrimary, onBack, extra,
                     Modifier.weight(1f),
@@ -137,7 +156,7 @@ fun MonitorPairCameraPage(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 PairingRail(
-                    presentation, false, onBack, onDiagnostics, onReportProblem, onWatchFeed,
+                    presentation, false, onBack, onDiagnostics, onReportProblem, onWatchFeed, onPrivacy, onTerms,
                     Modifier.width(railWidth).fillMaxHeight(),
                 )
                 PairingPane(
@@ -157,6 +176,8 @@ private fun PairingRail(
     onDiagnostics: () -> Unit,
     onReportProblem: () -> Unit,
     onWatchFeed: (() -> Unit)?,
+    onPrivacy: (() -> Unit)?,
+    onTerms: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(12.dp)
@@ -257,6 +278,7 @@ private fun PairingRail(
                 style = MonitorTypography.text(12f, FontWeight.SemiBold),
             )
         }
+        MonitorLegalLinks(onPrivacy, onTerms)
     }
 }
 
