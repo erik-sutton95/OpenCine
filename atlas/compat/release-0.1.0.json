@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "fe6a4c51e0bf7be2863a65a0fdc6f69e22359ef1",
+    "commit": "5f40a919e63e5a4f8f69a7c190bbdcf8860752f9",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "fe6a4c51e0bf7be2863a65a0fdc6f69e22359ef1",
-      "where": "OpenCine main at fe6a4c5: code identical to 57d4b42 (recorded green with OpenPocketCine c1908e39); later commits are atlas/ only (records, duplication baseline)."
+      "commit": "5f40a919e63e5a4f8f69a7c190bbdcf8860752f9",
+      "where": "OpenCine main at 5f40a91 (SHELL-04 Nikon JPEG decoder in OpenCineApple, lending DecodedFrameLeases; merged with the DJI session move): swift build --build-tests + swift test 1607 + 72 XCTest pass (+3 JPEGPixelBufferDecoderTests), OpenCineApple iOS Simulator build clean, Android ./gradlew test lint assembleRelease green (:nikon 92, :dji 334), OpenZCine at aaa08a92 green against it."
     }
   },
   "apps": [
