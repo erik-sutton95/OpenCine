@@ -1,0 +1,6 @@
+# Exact revisions of shared OpenCine packages this package builds against.
+# CI checks out these commits as siblings (scripts/checkout-opencine.sh) and verifies the SHA,
+# so a moved branch upstream cannot change what is tested.
+# Temporary: replaced by a SwiftPM url + exact version (and the Maven coordinate in
+# Android/gradle/libs.versions.toml) once OpenCineCore is published.
+OpenCineCore 3e60644d7ab20e1ef64662ada06deffbf8aa8c04
