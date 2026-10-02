@@ -345,6 +345,8 @@ class EndToEnd(AtlasCase):
         pins = sh(self.remote / "App", "show", f"{branch}:opencine-pins.txt")
         self.assertIn(f"Lib {tag}", pins)
         self.assertIn(f"base=${{1:-{self.base}}}", sh(self.remote / "App", "show", f"{branch}:scripts/checkout-opencine.sh"))
+        msg = sh(self.remote / "App", "log", "-1", "--format=%B", branch)
+        self.assertIn(f"resolve Core, Lib 0.1.0 from {self.base}", msg.replace("\n", " "))
         body = (self.root / ".local" / "publish" / "App-pr.md").read_text()
         self.assertTrue(body.rstrip().endswith(publish.FOOTER))
         self.assertNotIn(chr(0x2014), body)
