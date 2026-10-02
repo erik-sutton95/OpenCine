@@ -28,7 +28,7 @@ import Testing
 
         #expect(writable(dji) == [.iso, .whiteBalance, .whiteBalanceTint, .recording])
         #expect(writable(nikon) == [.iso, .whiteBalance, .recording])
-        #expect(writable(luna) == [.iso, .shutter, .whiteBalance, .recording])
+        #expect(writable(luna) == [.iso, .shutter, .whiteBalance, .focusMode, .recording])
         // Nikon offers the body's presets; DJI and Luna only Auto plus Kelvin.
         #expect(nikon.capabilities[.whiteBalance]?.domain?.choices.contains(.whiteBalance(.preset("Cloudy"))) == true)
         #expect(dji.capabilities[.whiteBalance]?.domain?.choices == [.whiteBalance(.auto)])

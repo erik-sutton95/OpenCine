@@ -18,6 +18,7 @@ import com.opencapture.opencine.core.ConnectionAttemptID
 import com.opencapture.opencine.core.ConnectionPhase
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
+import com.opencapture.opencine.core.FocusMode
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MediaState
@@ -58,6 +59,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlin.math.abs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -87,6 +89,7 @@ class LunaCameraSession internal constructor(
     private val readCapture: suspend () -> Unit,
     private val scope: CoroutineScope,
     private val timing: Timing = Timing.LUNA,
+    private val now: () -> MonotonicInstant = { MonotonicInstant(System.nanoTime().nanoseconds) },
 ) : CameraSession {
     /**
      * How long an acknowledged write may take to show in readback, and how often to ask.
@@ -117,6 +120,7 @@ class LunaCameraSession internal constructor(
         private set
 
     private var shootingMode: LunaShootingMode? = null
+    private var zoomDomain: ClosedFloatingPointRange<Double>? = null
     private val reportedAt = mutableMapOf<SettingKey, MonotonicInstant>()
     private val receipts = mutableMapOf<OperationID, CommandReceipt>()
     private val awaiting = mutableMapOf<OperationID, Awaiting>()
@@ -133,6 +137,19 @@ class LunaCameraSession internal constructor(
     }
 
     // Link and telemetry (from the backend).
+
+    /** Configured connection lens range; absent/invalid ranges leave zoom undescribed. */
+    fun configureLens(zoomDomain: ClosedFloatingPointRange<Double>?) {
+        synchronized(lock) {
+            if (closed) return
+            this.zoomDomain = zoomDomain?.takeIf {
+                it.start.isFinite() && it.endInclusive.isFinite() && it.start >= 1.0 &&
+                    it.endInclusive <= LunaControl.MAXIMUM_ZOOM && it.start <= it.endInclusive
+            }
+            refreshCapabilities()
+            publish()
+        }
+    }
 
     /** The backend's link phase. LIVE is a usable control link and a new control epoch. */
     internal fun linkChanged(phase: LinkPhase, serial: String? = null) {
@@ -220,6 +237,24 @@ class LunaCameraSession internal constructor(
             if (carries(35)) {
                 settings.colorMode?.let(::profileID)?.let { recordingProfile = ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) }
             }
+            if (carries(53) && (settings.zoom != null || 53 in settings.types)) {
+                val zoom = settings.zoom?.takeIf { it.isFinite() && it in 1.0..LunaControl.MAXIMUM_ZOOM }
+                values[SettingKey.ZOOM] = zoom?.let {
+                    ObservedValue(SettingValue.Zoom(it), ObservationOrigin.CAMERA_REPORTED, at)
+                } ?: ObservedValue.unknown
+                if (zoom != null) reportedAt[SettingKey.ZOOM] = at else reportedAt.remove(SettingKey.ZOOM)
+            }
+            if (carries(93) && (settings.afMode != null || 93 in settings.types)) {
+                val focus = when (settings.afMode) {
+                    1L -> FocusMode.SINGLE
+                    3L -> FocusMode.CONTINUOUS
+                    else -> null // Product Showcase remains an integration-owned extension.
+                }
+                values[SettingKey.FOCUS_MODE] = focus?.let {
+                    ObservedValue(SettingValue.FocusMode(it), ObservationOrigin.CAMERA_REPORTED, at)
+                } ?: ObservedValue.unknown
+                if (focus != null) reportedAt[SettingKey.FOCUS_MODE] = at else reportedAt.remove(SettingKey.FOCUS_MODE)
+            }
             current = current.copy(settings = values)
             refreshCapabilities()
             settle()
@@ -262,10 +297,7 @@ class LunaCameraSession internal constructor(
      */
     fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
         val capabilities = synchronized(lock) { current.capabilities }
-        // ponytail: the app drives zoom and focus mode through the backend's own controls, not
-        // this session, so they are not descriptors; every Luna body has both. Delete this copy
-        // once the session routes them.
-        return MonitorLayoutCapabilities(capabilities, MOTION, base).copy(zoom = true, focus = true)
+        return MonitorLayoutCapabilities(capabilities, MOTION, base)
     }
 
     // CameraSession.
@@ -366,6 +398,12 @@ class LunaCameraSession internal constructor(
             is CameraCommandIntent.Set -> when (val value = intent.value) {
                 is SettingValue.Iso -> exposure(value.value, (target(SettingKey.SHUTTER) as? SettingValue.Shutter)?.value, bank)
                 is SettingValue.Shutter -> exposure((target(SettingKey.ISO) as? SettingValue.Iso)?.value, value.value, bank)
+                is SettingValue.Zoom -> LunaControl.zoom(value.ratio, bank)
+                is SettingValue.FocusMode -> when (value.mode) {
+                    FocusMode.SINGLE -> LunaControl.afMode(1, bank)
+                    FocusMode.CONTINUOUS -> LunaControl.afMode(3, bank)
+                    FocusMode.MANUAL -> null
+                }
                 is SettingValue.WhiteBalance -> when (val balance = value.value) {
                     WhiteBalanceValue.Auto -> LunaControl.whiteBalanceAuto(bank)
                     is WhiteBalanceValue.Kelvin -> LunaControl.whiteBalanceKelvin(balance.kelvin.toLong(), bank)
@@ -397,7 +435,12 @@ class LunaCameraSession internal constructor(
     }
 
     private fun reportShows(intent: CameraCommandIntent) = when (intent) {
-        is CameraCommandIntent.Set -> current.value(intent.value.key).value == intent.value
+        is CameraCommandIntent.Set -> when (val target = intent.value) {
+            is SettingValue.Zoom -> (current.value(SettingKey.ZOOM).value as? SettingValue.Zoom)?.let {
+                abs(target.ratio - it.ratio) < 0.05
+            } == true
+            else -> current.value(target.key).value == target
+        }
         CameraCommandIntent.StartRecording -> current.recording.value == RecordingState.RECORDING
         CameraCommandIntent.StopRecording -> current.recording.value == RecordingState.IDLE
         is CameraCommandIntent.FocusPoint -> false
@@ -487,7 +530,7 @@ class LunaCameraSession internal constructor(
             shootingMode?.isPhoto == true -> Availability.Unavailable(UnavailableReason.Mode)
             else -> Availability.Available
         }
-        val descriptors = listOf(
+        val descriptors = mutableListOf(
             SettingDescriptor(
                 SettingKey.ISO, availability = exposure,
                 domain = SettingDomain(listOf<SettingValue>(SettingValue.Iso(ISOValue.Auto)) + ISO_VALUES.map { SettingValue.Iso(ISOValue.Manual(it)) }),
@@ -504,7 +547,12 @@ class LunaCameraSession internal constructor(
                 domain = SettingDomain(listOf(SettingValue.WhiteBalance(WhiteBalanceValue.Auto)), range = 2000.0..10000.0),
             ),
             SettingDescriptor(SettingKey.RECORDING, availability = recording),
+            SettingDescriptor(
+                SettingKey.FOCUS_MODE,
+                domain = SettingDomain(listOf(SettingValue.FocusMode(FocusMode.SINGLE), SettingValue.FocusMode(FocusMode.CONTINUOUS))),
+            ),
         )
+        zoomDomain?.let { descriptors += SettingDescriptor(SettingKey.ZOOM, domain = SettingDomain(range = it)) }
         // Timecode is host-derived time of day ([ingest]); Luna reports no audio levels.
         val declared = CapabilitySnapshot(
             current.capabilities.revision, descriptors,
@@ -513,8 +561,6 @@ class LunaCameraSession internal constructor(
         if (declared == current.capabilities) return
         current = current.copy(capabilities = declared.copy(revision = declared.revision.next()))
     }
-
-    private fun now() = MonotonicInstant(System.nanoTime().nanoseconds)
 
     companion object {
         /**
