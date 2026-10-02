@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "ee71891e5bb1aa3d4823d3f08ad1579f1cee15d9",
+    "commit": "491ce302352cc9ccc71169719c5cfb533393c085",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "ee71891e5bb1aa3d4823d3f08ad1579f1cee15d9",
-      "where": "OpenCine-Execution-Progress.d/CONSOLIDATE.md step 2 (2026-10-02: swift build, swift test 1410 Swift Testing + 71 XCTest, Android test lint assembleRelease)"
+      "commit": "491ce302352cc9ccc71169719c5cfb533393c085",
+      "where": "OpenCine 491ce30 (2026-10-02, consolidation): swift test 1410 Swift Testing + 71 XCTest = former packages 1478 + 3 UI XCTest; strict-concurrency build OK, Core+Multicam warnings-as-errors OK; xcodebuild MonitorUI + OpenCineApple (iOS Simulator), Insta360Apple (iOS) succeeded; Android test lint assembleRelease green (core 34/3 skip, media 64, monitor-ui 117, multicam 18, luna 51, equal to former builds); Vulkan sync test passed; atlas 69 tests + check. Code identical to ee71891 where Android/iOS app suites ran."
     }
   },
   "apps": [
