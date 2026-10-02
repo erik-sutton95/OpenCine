@@ -33,7 +33,7 @@ hardware-qualified.
 | `AdmissionFingerprint` | Per-target session, epoch, capability revision, authority, mode and reported recording; routine telemetry is excluded |
 | `RecordSubmission`, `RecordResult`, `TargetOutcome` | Per-target outcomes (pending, accepted, confirmed, rejected, failed, timedOut, outcomeUnknown, superseded), mapped back to entries |
 | `EditorLeases`, `EditorLease` | Per-entry settings/detail-view leases that retire when the entry's session, epoch or authority changes, or when closed or reopened; `refusal(for:in:at:)` answers "may this editor send now?" for an app's existing command path |
-| `ResourceAdmission`, `ResourceRequest`, `ResourceClaim`, `ResourceBudget` | Route claims (camera access point, infrastructure network, USB interface, Bluetooth commissioning, bandwidth and decoder estimates) and feasibility with reasons; the app's qualification limit is an injected budget value. `ResourceClaim.claims(for:)` and `ResourceRequest(entry:device:route:picture:bitsPerSecond:)` map a Core `SavedRoute` (access point, infrastructure, hotspot as `hotspot:<network>`, USB and capture interface, plus commissioning for a Bluetooth route) |
+| `ResourceAdmission`, `ResourceRequest`, `ResourceClaim`, `ResourceBudget` | Route claims (camera access point, infrastructure network, USB interface, Bluetooth commissioning, bandwidth and decoder estimates) and feasibility with reasons; the app's qualification limit is an injected budget value. The explicit `qualification` overload consumes Core `MulticamQualification`; unknown and refused verdicts block multiview admission. The resource-only overload remains available for single connection feasibility. `ResourceClaim.claims(for:)` and `ResourceRequest(entry:device:route:picture:bitsPerSecond:)` map a Core `SavedRoute` (access point, infrastructure, hotspot as `hotspot:<network>`, USB and capture interface, plus commissioning for a Bluetooth route) |
 | `RecoveryBudget`, `RecoveryLedger` | Independent bounded recovery budget per entry, restored after sustained health |
 | `MulticamLayout` | Codable slot order, names, devices, routes and stage; the app chooses storage |
 
@@ -65,18 +65,26 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
 
 ## How apps adapt (MULTI-02)
 
-- Pocket (done, MULTI-02): each tile owns one `DJICameraSessionAdapter` over a record-only tile
-  port on its existing link and is an entry keyed by its tile UUID; the record confirmation holds
-  a strict `RecordPlan` and submits it; the controls-only editor keeps its borrowed session but
-  asks `EditorLeases.refusal(for:in:at:)` before every SET. Not adopted yet: `RecoveryLedger`
-  (the tile repair ladder keeps its own budget), `ResourceAdmission` (station provisioning and
-  the four-tile limit stay in the app), `GroupSummary`.
-- Nikon (NIKON-01): each member is an entry keyed by its body serial with its own
-  `NikonCameraSession` over an OpenCineNikon `NikonMemberControl`; group record is a
-  `.eligibleSubset` `RecordPlan` with per-member `RecordResult`s; eligibility is
-  `NikonMulticamPolicy` plus `ResourceAdmission` with `ResourceBudget(qualifiedEntries: 4)`; a
-  member borrowed into full Live View holds an `EditorLease`, is `busy` for group plans and keeps
-  its session (no CloseSession). Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
+- Pocket (done, MULTI-02): each tile owns one `DJICameraSessionAdapter` over a
+  record-only tile port on its existing link and is an entry keyed by its tile
+  UUID; the record confirmation holds a strict `RecordPlan` and submits it. The
+  controls-only editor keeps its borrowed session but asks
+  `EditorLeases.refusal(for:in:at:)` before every SET. `ResourceAdmission` combines
+  the DJI configuration qualification with the app's
+  `ResourceBudget(qualifiedEntries: 4)` before station provisioning; the same
+  budget supplies the tile and saved-stage limits. Not adopted yet:
+  `RecoveryLedger` (the tile repair ladder keeps its own budget) and
+  `GroupSummary`.
+- Nikon (NIKON-01): each member is an entry keyed by its body serial with its
+  own `NikonCameraSession` over an OpenCineNikon `NikonMemberControl`. Group record
+  is an `.eligibleSubset` `RecordPlan` with per-member `RecordResult`s. Saved-path
+  admission uses `NikonMulticamPolicy` plus `ResourceAdmission` with
+  `ResourceBudget(qualifiedEntries: 4)`. Photography observation is optional
+  before connect: an eligible route may open while mode is unknown, and
+  camera-reported mode is checked after connect before any record operation.
+  A member borrowed into full Live View holds an `EditorLease`, is `busy` for
+  group plans and keeps its session (no CloseSession).
+  Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
 - Each app keeps its own qualified camera count, routes, copy and confirmation UI.
 
 ## Build and test
@@ -132,8 +140,8 @@ state)`, `summary(state, telemetryMaxAge)`). Where they differ:
 ### Test mapping
 
 Suites and test names are the same (`Android/multicam/src/test`): `GroupTests` (2),
-`EditorLeaseTests` (2), `ResourceAdmissionTests` (3), `RecoveryTests` (2), `GroupRecordTests` (9),
-`ImportRuleTests` (1), 19 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
+`EditorLeaseTests` (2), `ResourceAdmissionTests` (4), `RecoveryTests` (2), `GroupRecordTests` (9),
+`ImportRuleTests` (1), 20 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
 checks the layout value instead of a JSON round trip, and the import rule is
 `engineImportsOnlyStdlibCoroutinesAndCoreAndNamesNoVendorOrUI` (imports `kotlin.*`,
 `kotlinx.coroutines.*`, `com.opencapture.opencine.core.*` and `java.util.UUID` only; the module's

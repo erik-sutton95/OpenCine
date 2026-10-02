@@ -89,6 +89,8 @@ public struct ResourceBudget: Hashable, Codable, Sendable {
 }
 
 public enum AdmissionReason: Hashable, Sendable {
+    case qualificationUnknown
+    case integrationRefused(MulticamQualificationRefusal)
     case overQualifiedLimit(Int)
     /// The candidate needs a different phone Wi-Fi network than this member.
     case wifiNetworkConflict(with: MonitorEntryID)
@@ -103,6 +105,23 @@ public enum AdmissionReason: Hashable, Sendable {
 /// Feasibility of adding one route next to the current members, checked before any disruptive
 /// transition (joining a network, claiming USB). It describes; it never provisions or releases.
 public enum ResourceAdmission {
+    /// Combines the integration's configuration qualification with the app's resource budget.
+    /// Unknown qualification blocks admission; this never infers camera observations or sends
+    /// a command. The resource-only overload remains useful for single connection feasibility.
+    public static func reasons(
+        admitting candidate: ResourceRequest, qualification: MulticamQualification,
+        alongside members: [ResourceRequest], budget: ResourceBudget
+    ) -> [AdmissionReason] {
+        let qualificationReasons: [AdmissionReason] =
+            switch qualification {
+            case .qualified: []
+            case .unknown: [.qualificationUnknown]
+            case .refused(let reason): [.integrationRefused(reason)]
+            }
+        return qualificationReasons
+            + reasons(admitting: candidate, alongside: members, budget: budget)
+    }
+
     /// Empty when the candidate may join.
     public static func reasons(
         admitting candidate: ResourceRequest, alongside members: [ResourceRequest],
