@@ -201,7 +201,7 @@ def publish_and_check(args, real, rel, top, remote, base, atlas, repos, bares, r
         files = git(bare, "ls-tree", "-r", "--name-only", head).splitlines()
         lock = [f for f in a.get("lockfiles", []) if f in files]
         report.append(f"  {real.name(a['repo'])}: {a['branch']} -> {head[:12]}, lockfiles committed {lock}")
-    report.append(f"  {name} main (atlas registry update after the tag) -> {git(bare, 'rev-parse', 'main')[:12]}")
+    report.append(f"  {name} main (atlas registry update after the tag) -> {git(remote / name, 'rev-parse', 'main')[:12]}")
 
     # 6. a new consumer: OpenCine at exactly the tag from the file remote, building one product
     consumer = top / "consumer"
