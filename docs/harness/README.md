@@ -101,10 +101,11 @@ findings and what changed:
   exactly via `Package.resolved`. **Resolved by the consolidation:** every product now ships from
   one package at one version, so there is no cross-package Core range to reconcile.
 - **F3, DJI audio meters default to silence.** `CameraStatus.audioMeters` is `.silent` before any
-  audio push, indistinguishable from a silent input. Core has no audio vocabulary yet, so nothing
-  shared shows it today. Fix: publish `ObservedValue<AudioMeterLevels>`, unknown until
+  audio push, indistinguishable from a silent input. Core had no audio vocabulary, so nothing
+  shared showed it. Fix: publish `ObservedValue<AudioMeterLevels>`, unknown until
   `audioStatusRaw` arrives (`ProposedMappings.djiAudioMeters`). **Fixed:** `audioMeters` is
-  `nil` until the camera reports.
+  `nil` until the camera reports. Core now has `CameraSnapshot.audioLevels` with
+  `CapabilitySnapshot.audioLevels` support; the DJI session publishing it is SHELL-01 step 4.
 - **F4, shutter unpublished and a fabricating helper.** DJI and Nikon sessions do not describe
   shutter. `ShutterAngle.degrees(denom:fps:)` (OpenCineMedia) answers 180 for a non-positive
   denominator and treats an unknown frame rate as 24. Fix: Nikon publishes `.angle`

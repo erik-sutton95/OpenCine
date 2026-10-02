@@ -135,8 +135,16 @@ interface changes driven by the first real adapter slices (CORE-02).
   optional camera session, telemetry and control authority; at least one role must exist.
 - **`CameraSession`** offers a bounded latest-value snapshot feed and reliable outcomes. Its doc
   comment specifies buffering, cancellation and close semantics.
+- **Timecode and live audio levels are observations, not settings.** `CameraSnapshot.timecode`
+  (`CameraTimecode`; time of day derived from a clock is `.clockDerived` and never claims sync)
+  and `CameraSnapshot.audioLevels` (`AudioLevels`, stereo dBFS with optional held peaks), with
+  support in `CapabilitySnapshot.timecode` and `.audioLevels`. Live audio samples, camera audio
+  settings and clip audio metadata are separate and never imply live levels.
 - **`MonitorLayoutCapabilities`** is a separate ten-field layout projection matching the UI's
-  current `MonitorCapabilities`, derived from the richer model where Core has vocabulary.
+  current `MonitorCapabilities`, derived from the richer model where Core has vocabulary:
+  zoom, focus and iris from writable settings (unknown is no section), timecode and audio from
+  observation support (unknown keeps the app's `base`), gimbal and head tracking from
+  OpenCineMotion's overload.
 
 ## OpenCineFrameIO
 
@@ -282,7 +290,7 @@ Kotlin together.
 | `Conformance` "1." to "15." (20 tests, 11, 12 and 15 disabled) | `ConformanceTest` `01` to `15`, same titles (11, 12 and 15 `@Ignore`) |
 | `Values` (6 tests) | `ValuesTest`, same method names |
 | `Entries.everyEntryNeedsARole` | `EntriesTest.everyEntryNeedsARole` |
-| `LayoutProjection.projectsWritableSectionsAndCarriesTheRest` | `LayoutProjectionTest`, same name |
+| `LayoutProjection` (2 tests) | `LayoutProjectionTest`, same method names |
 | `Feeds` (3 tests) | `FeedsTest`, same method names |
 | `Portability.coreImportsOnlyFoundationAndNamesNoManufacturer` | `PortabilityTest.coreImportsOnlyStdlibAndCoroutinesAndNamesNoManufacturer` |
 | `Portability.portableStateHoldsNoNativeFrameOrObject` | Not ported: the Kotlin import rule (only `kotlin.*`, `kotlinx.coroutines.flow.*` and `java.util.UUID`) keeps platform types out |

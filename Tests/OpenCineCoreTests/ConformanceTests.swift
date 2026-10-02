@@ -53,13 +53,18 @@ import Testing
         #expect(await camera.current.epoch == ControlEpoch(2))
     }
 
-    @Test("3. Unknown recording, power and storage remain unknown", arguments: Fixture.allCases)
+    @Test(
+        "3. Unknown recording, power, storage, timecode and audio levels remain unknown",
+        arguments: Fixture.allCases)
     func unknownStaysUnknown(_ fixture: Fixture) async {
         let camera = fixture.make()
         let fresh = await camera.current
         #expect(fresh.recording == .unknown)
         #expect(fresh.power == .unknown)
         #expect(fresh.storage == .unknown)
+        #expect(fresh.timecode == .unknown && fresh.audioLevels == .unknown)
+        #expect(fresh.capabilities.timecode == .unknown)
+        #expect(fresh.capabilities.audioLevels == .unknown)
         #expect(fresh.mode == .unknown)
         #expect(fresh.settings.isEmpty)
         #expect(SettingKey.allCases.allSatisfy { fresh.capabilities.support(of: $0) == .unknown })
@@ -73,6 +78,15 @@ import Testing
         #expect(reported.power.battery.isKnown == (device.batteryPercent != nil))
         #expect(reported.storage.isKnown == (device.freeBytes != nil))
         #expect(reported.recording.origin == .cameraReported)
+        // An observation is reported only where it is supported; a derived time says so.
+        let capabilities = reported.capabilities
+        #expect(capabilities.timecode != .unknown && capabilities.audioLevels != .unknown)
+        #expect(reported.timecode.isKnown == (capabilities.timecode == .supported && device.timecode != nil))
+        #expect(
+            reported.audioLevels.isKnown
+                == (capabilities.audioLevels == .supported && device.audioLevels != nil))
+        #expect(!reported.timecode.isKnown || [.cameraReported, .clockDerived].contains(reported.timecode.origin))
+        #expect(!reported.audioLevels.isKnown || reported.audioLevels.origin == .cameraReported)
     }
 
     @Test("4. Values and domains follow the reported mode")

@@ -43,6 +43,10 @@ class ValuesTest {
         assertNull(snapshot.recording.value)
         assertEquals(PowerStatus.unknown, snapshot.power)
         assertNull(snapshot.storage.value)
+        assertNull(snapshot.timecode.value)
+        assertNull(snapshot.audioLevels.value)
+        assertEquals(SupportStatus.UNKNOWN, snapshot.capabilities.timecode)
+        assertEquals(SupportStatus.UNKNOWN, snapshot.capabilities.audioLevels)
     }
 
     @Test
@@ -187,6 +191,25 @@ class LayoutProjectionTest {
         assertTrue(!b.zoom && b.iris && b.focus && !b.gimbal)
         val c = MonitorLayoutCapabilities(reportedCamera(Fixture.LUNA_LIKE).current.capabilities)
         assertTrue(c.zoom && !c.iris && c.focus)
+    }
+
+    /** Supported observations show, unsupported ones hide, and unknown support keeps the base. */
+    @Test
+    fun projectsObservationSupportAndKeepsTheBaseWhileUnknown() {
+        val base = MonitorLayoutCapabilities(audio = true, timecode = true)
+        assertEquals(base, MonitorLayoutCapabilities(CapabilitySnapshot(), base))
+        assertFalse(MonitorLayoutCapabilities(CapabilitySnapshot()).audio)
+
+        val dji = reportedCamera(Fixture.DJI_LIKE)
+        val video = MonitorLayoutCapabilities(dji.current.capabilities)
+        assertTrue(video.timecode && video.audio)
+        dji.cameraSwitchesMode(0x05)
+        dji.cameraReportsStatus()
+        val photo = MonitorLayoutCapabilities(dji.current.capabilities, base)
+        assertTrue(!photo.timecode && !photo.audio)
+
+        val luna = MonitorLayoutCapabilities(reportedCamera(Fixture.LUNA_LIKE).current.capabilities, base)
+        assertTrue(luna.timecode && !luna.audio)
     }
 }
 

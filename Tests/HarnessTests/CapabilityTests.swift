@@ -116,14 +116,17 @@ import Testing
         #expect(plan.exclusions.map(\.reason) == Array(repeating: .rejected(.recordingStateUnknown), count: 3))
     }
 
-    /// Audio: OpenCineCore has no audio vocabulary, so no shared surface can draw a meter from a
-    /// session. The DJI raw meters are unknown until the camera reports (F3 fixed).
+    /// Audio: OpenCineCore has live level vocabulary (`CameraSnapshot.audioLevels`), but the DJI
+    /// session does not publish it yet, so its support stays unknown and no shared surface draws a
+    /// meter from the session. The DJI raw meters are unknown until the camera reports (F3 fixed).
     @Test func audioAbsenceNeverFabricatesMeters() async throws {
         let rig = Rig()
         let snapshot = try #require(await rig.dji.currentSnapshot())
-        let fields = Mirror(reflecting: snapshot).children.compactMap(\.label)
-        #expect(!fields.contains { $0.lowercased().contains("audio") })
-        #expect(MonitorLayoutCapabilities().audio == false, "only an integration's base turns it on")
+        #expect(snapshot.audioLevels == .unknown)
+        #expect(snapshot.capabilities.audioLevels == .unknown)
+        #expect(
+            MonitorLayoutCapabilities(snapshot.capabilities).audio == false,
+            "unknown support keeps the base, which an integration or app supplies")
 
         let pocket = CameraStatus()
         #expect(pocket.audioMeters == nil, "no report is unknown, never measured silence")

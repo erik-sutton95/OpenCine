@@ -97,12 +97,16 @@ class ConformanceTest {
     }
 
     @Test
-    fun `03 unknown recording, power and storage remain unknown`() = forEachFixture { fixture ->
+    fun `03 unknown recording, power, storage, timecode and audio levels remain unknown`() = forEachFixture { fixture ->
         val camera = fixture.make()
         val fresh = camera.current
         assertEquals(ObservedValue.unknown, fresh.recording)
         assertEquals(PowerStatus.unknown, fresh.power)
         assertEquals(ObservedValue.unknown, fresh.storage)
+        assertEquals(ObservedValue.unknown, fresh.timecode)
+        assertEquals(ObservedValue.unknown, fresh.audioLevels)
+        assertEquals(SupportStatus.UNKNOWN, fresh.capabilities.timecode)
+        assertEquals(SupportStatus.UNKNOWN, fresh.capabilities.audioLevels)
         assertEquals(ObservedValue.unknown, fresh.mode)
         assertTrue(fresh.settings.isEmpty())
         assertTrue(SettingKey.entries.all { fresh.capabilities.support(it) == SupportStatus.UNKNOWN })
@@ -116,6 +120,13 @@ class ConformanceTest {
         assertEquals(device.batteryPercent != null, reported.power.battery.isKnown)
         assertEquals(device.freeBytes != null, reported.storage.isKnown)
         assertEquals(CAMERA_REPORTED, reported.recording.origin)
+        // An observation is reported only where it is supported; a derived time says so.
+        val capabilities = reported.capabilities
+        assertTrue(capabilities.timecode != SupportStatus.UNKNOWN && capabilities.audioLevels != SupportStatus.UNKNOWN)
+        assertEquals(capabilities.timecode == SupportStatus.SUPPORTED && device.timecode != null, reported.timecode.isKnown)
+        assertEquals(capabilities.audioLevels == SupportStatus.SUPPORTED && device.audioLevels != null, reported.audioLevels.isKnown)
+        assertTrue(!reported.timecode.isKnown || reported.timecode.origin in setOf(CAMERA_REPORTED, ObservationOrigin.CLOCK_DERIVED))
+        assertTrue(!reported.audioLevels.isKnown || reported.audioLevels.origin == CAMERA_REPORTED)
     }
 
     @Test

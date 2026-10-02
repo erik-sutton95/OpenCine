@@ -1,7 +1,9 @@
 package com.opencapture.opencine.core.testing
 
+import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CaptureMode.Role.PHOTO
 import com.opencapture.opencine.core.CaptureMode.Role.VIDEO
@@ -10,6 +12,7 @@ import com.opencapture.opencine.core.FocusMode
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MonitorEntryDescriptor
+import com.opencapture.opencine.core.ObservationOrigin.CLOCK_DERIVED
 import com.opencapture.opencine.core.PictureHealth
 import com.opencapture.opencine.core.PictureSourceDescriptor
 import com.opencapture.opencine.core.Rational
@@ -29,6 +32,8 @@ import com.opencapture.opencine.core.SettingKey.ZOOM
 import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.core.SupportStatus.SUPPORTED
+import com.opencapture.opencine.core.SupportStatus.UNSUPPORTED
 import com.opencapture.opencine.core.TelemetrySource
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
@@ -55,7 +60,8 @@ private val thirds = (-9..9).map { SettingValue.ExposureCompensation(Rational(it
 
 /**
  * DJI-like: raw status mode bytes map to common modes whose domains differ, recording is a
- * toggle on the wire, and every change is confirmed by the next status push 0.5 s later.
+ * toggle on the wire, every change is confirmed by the next status push 0.5 s later, and video
+ * modes report timecode and live audio levels (photo mode reports neither).
  */
 public fun FakeCameraSession.Companion.djiLike(): FakeCameraSession {
     val video = CaptureMode(VIDEO, "test.dji-like.video", "Video")
@@ -72,12 +78,12 @@ public fun FakeCameraSession.Companion.djiLike(): FakeCameraSession {
         0x01 to FakeMode(
             video,
             listOf(iso, shutter(50, 100, 200, 400), ev, wb, fps(24, 25, 30, 48, 50, 60), zoom, SettingDescriptor(RECORDING)),
-            unsupported = setOf(APERTURE),
+            unsupported = setOf(APERTURE), timecode = SUPPORTED, audioLevels = SUPPORTED,
         ),
         0x02 to FakeMode(
             slow,
             listOf(iso, shutter(250, 500, 1000), ev, wb, fps(120, 240), zoom, SettingDescriptor(RECORDING)),
-            unsupported = setOf(APERTURE),
+            unsupported = setOf(APERTURE), timecode = SUPPORTED, audioLevels = SUPPORTED,
         ),
         0x05 to FakeMode(
             photo,
@@ -85,7 +91,7 @@ public fun FakeCameraSession.Companion.djiLike(): FakeCameraSession {
                 iso, shutter(50, 100, 200, 400), ev, wb, zoom,
                 SettingDescriptor(RECORDING, availability = Availability.Unavailable(UnavailableReason.Mode)),
             ),
-            unsupported = setOf(APERTURE, FRAME_RATE),
+            unsupported = setOf(APERTURE, FRAME_RATE), timecode = UNSUPPORTED, audioLevels = UNSUPPORTED,
         ),
     )
     return FakeCameraSession(
@@ -98,14 +104,16 @@ public fun FakeCameraSession.Companion.djiLike(): FakeCameraSession {
             settings = settings(isoValue(800), durationValue(50), zeroEV, kelvinValue(5600), fpsValue(24), SettingValue.Zoom(1.0)),
             batteryPercent = 76,
             freeBytes = 64_000_000_000,
+            timecode = CameraTimecode(1, 2, 3, 4),
+            audioLevels = AudioLevels(AudioLevels.Channel(-20.0, -12.0), AudioLevels.Channel(-18.0, -10.0)),
         ),
     )
 }
 
 /**
  * Nikon-like: shutter in native angle mode, explicit record commands that need the camera's
- * own live view, an acknowledgement-only focus point, and control that does not depend on
- * which picture is displayed.
+ * own live view, an acknowledgement-only focus point, control that does not depend on which
+ * picture is displayed, and audio levels without held peaks.
  */
 public fun FakeCameraSession.Companion.nikonLike(): FakeCameraSession {
     val iso = choices(listOf(100, 200, 400, 800, 1600, 3200, 6400), ::isoValue).let {
@@ -141,7 +149,7 @@ public fun FakeCameraSession.Companion.nikonLike(): FakeCameraSession {
             ),
             SettingDescriptor(RECORDING),
         ),
-        unsupported = setOf(ZOOM),
+        unsupported = setOf(ZOOM), timecode = SUPPORTED, audioLevels = SUPPORTED,
     )
     return FakeCameraSession(
         FakeCameraBehavior(
@@ -157,13 +165,16 @@ public fun FakeCameraSession.Companion.nikonLike(): FakeCameraSession {
             ),
             batteryPercent = 90,
             freeBytes = 128_000_000_000,
+            timecode = CameraTimecode(10, 0, 0, 0, dropFrame = false),
+            audioLevels = AudioLevels(AudioLevels.Channel(-30.0), AudioLevels.Channel(-31.0)),
         ),
     )
 }
 
 /**
  * Luna-like: settings settle for 2.5 s before readback, an accepted write may not stick,
- * the fixed aperture is read-only, and storage is never reported.
+ * the fixed aperture is read-only, storage is never reported, timecode is time of day derived
+ * from a clock, and there are no live audio levels.
  */
 public fun FakeCameraSession.Companion.lunaLike(): FakeCameraSession {
     val video = FakeMode(
@@ -188,12 +199,12 @@ public fun FakeCameraSession.Companion.lunaLike(): FakeCameraSession {
             ),
             SettingDescriptor(RECORDING),
         ),
-        unsupported = emptySet(),
+        unsupported = emptySet(), timecode = SUPPORTED, audioLevels = UNSUPPORTED,
     )
     return FakeCameraSession(
         FakeCameraBehavior(
             IntegrationID("test.luna-like"), reportDelay = 2500.milliseconds, observationTimeout = 6.seconds,
-            recordWire = RecordWire.EXPLICIT, modes = mapOf(0x01 to video),
+            recordWire = RecordWire.EXPLICIT, modes = mapOf(0x01 to video), timecodeOrigin = CLOCK_DERIVED,
         ),
         FakeDevice(
             rawMode = 0x01,
@@ -202,6 +213,7 @@ public fun FakeCameraSession.Companion.lunaLike(): FakeCameraSession {
                 SettingValue.Zoom(1.0), SettingValue.FocusMode(FocusMode.CONTINUOUS),
             ),
             batteryPercent = 55,
+            timecode = CameraTimecode(9, 30, 0, 12),
         ),
     )
 }

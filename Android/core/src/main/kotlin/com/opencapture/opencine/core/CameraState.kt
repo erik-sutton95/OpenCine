@@ -111,6 +111,33 @@ public sealed interface ControlAuthority {
     public val leaseID: ControlLeaseID? get() = (this as? Lease)?.lease?.id
 }
 
+/**
+ * SMPTE-style timecode: the camera's own counter, or time of day an integration derives from a
+ * clock (origin `CLOCK_DERIVED`, which never claims that cameras are synchronized). The counter
+ * runs at the `FRAME_RATE` setting.
+ */
+public data class CameraTimecode(
+    public val hours: Int,
+    public val minutes: Int,
+    public val seconds: Int,
+    public val frames: Int,
+    /** `null` when the camera does not say whether it counts drop-frame. */
+    public val dropFrame: Boolean? = null,
+)
+
+/**
+ * Live audio level telemetry in dBFS (0 is full scale). Live levels only: live audio samples,
+ * camera audio settings and recorded clip audio metadata are separate, and none of them implies
+ * that a camera reports levels (plan 6.5).
+ */
+public data class AudioLevels(public val left: Channel, public val right: Channel) {
+    public data class Channel(
+        public val level: Double,
+        /** The camera's held peak; `null` when it reports none. */
+        public val peak: Double? = null,
+    )
+}
+
 /** The latest state of one camera session. Missing data stays unknown. */
 public data class CameraSnapshot(
     public val session: CameraSessionID,
@@ -126,6 +153,10 @@ public data class CameraSnapshot(
     public val recording: ObservedValue<RecordingState> = ObservedValue.unknown,
     public val power: PowerStatus = PowerStatus.unknown,
     public val storage: StorageStatus = ObservedValue.unknown,
+    /** Support is [CapabilitySnapshot.timecode]. */
+    public val timecode: ObservedValue<CameraTimecode> = ObservedValue.unknown,
+    /** Support is [CapabilitySnapshot.audioLevels]. */
+    public val audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
 ) {
     public fun value(key: SettingKey): ObservedValue<SettingValue> = settings[key] ?: ObservedValue.unknown
 }

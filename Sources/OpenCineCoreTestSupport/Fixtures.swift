@@ -9,7 +9,8 @@ private let thirds = (-9...9).map { SettingValue.exposureCompensation(Rational($
 
 extension FakeCameraSession {
     /// DJI-like: raw status mode bytes map to common modes whose domains differ, recording is a
-    /// toggle on the wire, and every change is confirmed by the next status push 0.5 s later.
+    /// toggle on the wire, every change is confirmed by the next status push 0.5 s later, and
+    /// video modes report timecode and live audio levels (photo mode reports neither).
     public static func djiLike() -> FakeCameraSession {
         let video = CaptureMode(role: .video, id: "test.dji-like.video", title: "Video")
         let slow = CaptureMode(role: .video, id: "test.dji-like.slow-motion", title: "Slow Motion")
@@ -34,17 +35,18 @@ extension FakeCameraSession {
                 video,
                 [iso, shutter([50, 100, 200, 400]), ev, wb, fps([24, 25, 30, 48, 50, 60]), zoom,
                  SettingDescriptor(.recording)],
-                unsupported: [.aperture]),
+                unsupported: [.aperture], timecode: .supported, audioLevels: .supported),
             0x02: FakeMode(
                 slow,
                 [iso, shutter([250, 500, 1000]), ev, wb, fps([120, 240]), zoom,
                  SettingDescriptor(.recording)],
-                unsupported: [.aperture]),
+                unsupported: [.aperture], timecode: .supported, audioLevels: .supported),
             0x05: FakeMode(
                 photo,
                 [iso, shutter([50, 100, 200, 400]), ev, wb, zoom,
                  SettingDescriptor(.recording, availability: .unavailable(.mode))],
-                unsupported: [.aperture, .frameRate]),
+                unsupported: [.aperture, .frameRate], timecode: .unsupported,
+                audioLevels: .unsupported),
         ]
         return FakeCameraSession(
             behavior: FakeCameraBehavior(
@@ -57,12 +59,15 @@ extension FakeCameraSession {
                     .exposureCompensation(Rational(0)), .whiteBalance(.kelvin(5600)),
                     .frameRate(Rational(24)), .zoom(1),
                 ],
-                batteryPercent: 76, freeBytes: 64_000_000_000))
+                batteryPercent: 76, freeBytes: 64_000_000_000,
+                timecode: CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 4),
+                audioLevels: AudioLevels(
+                    left: .init(level: -20, peak: -12), right: .init(level: -18, peak: -10))))
     }
 
     /// Nikon-like: shutter in native angle mode, explicit record commands that need the camera's
-    /// own live view, an acknowledgement-only focus point, and control that does not depend on
-    /// which picture is displayed.
+    /// own live view, an acknowledgement-only focus point, control that does not depend on
+    /// which picture is displayed, and audio levels without held peaks.
     public static func nikonLike() -> FakeCameraSession {
         var iso = choices([100, 200, 400, 800, 1600, 3200, 6400]) { SettingValue.iso(.manual($0)) }
         iso.choices.append(.iso(.autoLimited(maximum: 6400)))
@@ -94,7 +99,7 @@ extension FakeCameraSession {
                     .focusPoint, semantics: SettingSemantics(confirmation: .acknowledgementOnly)),
                 SettingDescriptor(.recording),
             ],
-            unsupported: [.zoom])
+            unsupported: [.zoom], timecode: .supported, audioLevels: .supported)
         return FakeCameraSession(
             behavior: FakeCameraBehavior(
                 integration: IntegrationID("test.nikon-like"), reportDelay: .milliseconds(200),
@@ -107,11 +112,14 @@ extension FakeCameraSession {
                     .exposureCompensation(Rational(0)), .whiteBalance(.preset("daylight")),
                     .frameRate(Rational(24)), .focusMode(.continuous),
                 ],
-                batteryPercent: 90, freeBytes: 128_000_000_000))
+                batteryPercent: 90, freeBytes: 128_000_000_000,
+                timecode: CameraTimecode(hours: 10, minutes: 0, seconds: 0, frames: 0, dropFrame: false),
+                audioLevels: AudioLevels(left: .init(level: -30), right: .init(level: -31))))
     }
 
     /// Luna-like: settings settle for 2.5 s before readback, an accepted write may not stick,
-    /// the fixed aperture is read-only, and storage is never reported.
+    /// the fixed aperture is read-only, storage is never reported, timecode is time of day derived
+    /// from a clock, and there are no live audio levels.
     public static func lunaLike() -> FakeCameraSession {
         var iso = choices([100, 200, 400, 800, 1600, 3200, 6400]) { SettingValue.iso(.manual($0)) }
         iso.choices.insert(.iso(.auto), at: 0)
@@ -135,11 +143,12 @@ extension FakeCameraSession {
                     .focusMode, domain: choices([FocusMode.single, .continuous]) { .focusMode($0) }),
                 SettingDescriptor(.recording),
             ],
-            unsupported: [])
+            unsupported: [], timecode: .supported, audioLevels: .unsupported)
         return FakeCameraSession(
             behavior: FakeCameraBehavior(
                 integration: IntegrationID("test.luna-like"), reportDelay: .milliseconds(2500),
-                observationTimeout: .seconds(6), recordWire: .explicit, modes: [0x01: video]),
+                observationTimeout: .seconds(6), recordWire: .explicit, modes: [0x01: video],
+                timecodeOrigin: .clockDerived),
             device: FakeDevice(
                 rawMode: 0x01,
                 settings: [
@@ -147,7 +156,8 @@ extension FakeCameraSession {
                     .exposureCompensation(Rational(0)), .whiteBalance(.kelvin(4000)),
                     .frameRate(Rational(30)), .zoom(1), .focusMode(.continuous),
                 ],
-                batteryPercent: 55))
+                batteryPercent: 55,
+                timecode: CameraTimecode(hours: 9, minutes: 30, seconds: 0, frames: 12)))
     }
 }
 

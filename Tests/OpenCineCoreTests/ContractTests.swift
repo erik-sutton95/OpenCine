@@ -15,6 +15,9 @@ import Testing
         #expect(snapshot.recording.value == nil)
         #expect(snapshot.power == .unknown)
         #expect(snapshot.storage.value == nil)
+        #expect(snapshot.timecode.value == nil && snapshot.audioLevels.value == nil)
+        #expect(snapshot.capabilities.timecode == .unknown)
+        #expect(snapshot.capabilities.audioLevels == .unknown)
 
         // Serialization keeps unknown unknown.
         let data = try JSONEncoder().encode(snapshot)
@@ -156,6 +159,27 @@ import Testing
         #expect(!b.zoom && b.iris && b.focus && !b.gimbal)
         let c = MonitorLayoutCapabilities(third)
         #expect(c.zoom && !c.iris && c.focus)
+    }
+
+    /// Supported observations show, unsupported ones hide, and unknown support keeps the base.
+    @Test func projectsObservationSupportAndKeepsTheBaseWhileUnknown() async {
+        var base = MonitorLayoutCapabilities()
+        base.audio = true
+        base.timecode = true
+        #expect(MonitorLayoutCapabilities(CapabilitySnapshot(), base: base) == base)
+        #expect(MonitorLayoutCapabilities(CapabilitySnapshot()).audio == false)
+
+        let dji = await reportedCamera(.djiLike)
+        let video = MonitorLayoutCapabilities(await dji.current.capabilities)
+        #expect(video.timecode && video.audio)
+        await dji.cameraSwitchesMode(raw: 0x05)
+        await dji.cameraReportsStatus()
+        let photo = MonitorLayoutCapabilities(await dji.current.capabilities, base: base)
+        #expect(!photo.timecode && !photo.audio)
+
+        let luna = MonitorLayoutCapabilities(
+            await reportedCamera(.lunaLike).current.capabilities, base: base)
+        #expect(luna.timecode && !luna.audio)
     }
 }
 

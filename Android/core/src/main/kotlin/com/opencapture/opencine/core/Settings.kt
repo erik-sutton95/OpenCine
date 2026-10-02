@@ -242,20 +242,27 @@ public data class SettingDescriptor(
 }
 
 /**
- * The revisioned set of setting descriptors. A key that is neither described nor listed as
- * unsupported has unknown support. Missing groups (no aperture, say) never block the rest.
+ * The revisioned set of setting descriptors, plus support for the observations that are not
+ * settings. A key that is neither described nor listed as unsupported has unknown support.
+ * Missing groups (no aperture, say) never block the rest.
  */
 public data class CapabilitySnapshot(
     public val revision: CapabilityRevision = CapabilityRevision(),
     public val descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
     public val unsupported: Set<SettingKey> = emptySet(),
+    /** Whether the camera reports [CameraSnapshot.timecode]. */
+    public val timecode: SupportStatus = SupportStatus.UNKNOWN,
+    /** Whether the camera reports live [CameraSnapshot.audioLevels]. */
+    public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
 ) {
     /** Later descriptors for the same key replace earlier ones. */
     public constructor(
         revision: CapabilityRevision = CapabilityRevision(),
         descriptors: List<SettingDescriptor>,
         unsupported: Set<SettingKey> = emptySet(),
-    ) : this(revision, descriptors.associateBy { it.key }, unsupported)
+        timecode: SupportStatus = SupportStatus.UNKNOWN,
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(revision, descriptors.associateBy { it.key }, unsupported, timecode, audioLevels)
 
     public operator fun get(key: SettingKey): SettingDescriptor? = descriptors[key]
 

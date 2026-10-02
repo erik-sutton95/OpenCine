@@ -132,6 +132,50 @@ public enum ControlAuthority: Hashable, Codable, Sendable {
     }
 }
 
+/// SMPTE-style timecode: the camera's own counter, or time of day an integration derives from a
+/// clock (origin `.clockDerived`, which never claims that cameras are synchronized). The counter
+/// runs at the `frameRate` setting.
+public struct CameraTimecode: Hashable, Codable, Sendable {
+    public var hours: Int
+    public var minutes: Int
+    public var seconds: Int
+    public var frames: Int
+    /// `nil` when the camera does not say whether it counts drop-frame.
+    public var dropFrame: Bool?
+
+    public init(hours: Int, minutes: Int, seconds: Int, frames: Int, dropFrame: Bool? = nil) {
+        self.hours = hours
+        self.minutes = minutes
+        self.seconds = seconds
+        self.frames = frames
+        self.dropFrame = dropFrame
+    }
+}
+
+/// Live audio level telemetry in dBFS (0 is full scale). Live levels only: live audio samples,
+/// camera audio settings and recorded clip audio metadata are separate, and none of them implies
+/// that a camera reports levels (plan 6.5).
+public struct AudioLevels: Hashable, Codable, Sendable {
+    public struct Channel: Hashable, Codable, Sendable {
+        public var level: Double
+        /// The camera's held peak; `nil` when it reports none.
+        public var peak: Double?
+
+        public init(level: Double, peak: Double? = nil) {
+            self.level = level
+            self.peak = peak
+        }
+    }
+
+    public var left: Channel
+    public var right: Channel
+
+    public init(left: Channel, right: Channel) {
+        self.left = left
+        self.right = right
+    }
+}
+
 /// The latest state of one camera session. Missing data stays unknown.
 public struct CameraSnapshot: Hashable, Codable, Sendable {
     public var session: CameraSessionID
@@ -147,6 +191,10 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
     public var recording: ObservedValue<RecordingState>
     public var power: PowerStatus
     public var storage: StorageStatus
+    /// Support is `capabilities.timecode`.
+    public var timecode: ObservedValue<CameraTimecode>
+    /// Support is `capabilities.audioLevels`.
+    public var audioLevels: ObservedValue<AudioLevels>
 
     public init(
         session: CameraSessionID, epoch: ControlEpoch = .init(), device: CameraDeviceID? = nil,
@@ -165,6 +213,8 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
         self.recording = .unknown
         self.power = .unknown
         self.storage = .unknown
+        self.timecode = .unknown
+        self.audioLevels = .unknown
     }
 
     public func value(of key: SettingKey) -> ObservedValue<SettingValue> {

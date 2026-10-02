@@ -6,9 +6,9 @@ package com.opencapture.opencine.core
  * The ten fields mirror the UI's existing `MonitorCapabilities` one to one, so the UI can keep
  * its type and map this value into it. They answer "is there a control section to lay out", not
  * "is the control enabled now": availability and observations still come from the snapshot, and
- * read-only settings are readouts, not sections. Support that is still unknown projects to
- * `false` here; that is a layout choice (reserve no space until discovered) and never a
- * statement about telemetry.
+ * read-only settings are readouts, not sections. A setting whose support is still unknown
+ * projects to `false` (reserve no space until discovered); an observation whose support is
+ * still unknown keeps the `base` value. Neither is a statement about telemetry.
  */
 public data class MonitorLayoutCapabilities(
     public val gimbal: Boolean = false,
@@ -23,8 +23,11 @@ public data class MonitorLayoutCapabilities(
     public val timecode: Boolean = false,
 ) {
     /**
-     * Derives [zoom], [focus] and [iris] from writable settings. The other seven fields have no
-     * Core vocabulary yet and are copied from [base], which the integration or app supplies.
+     * Derives [zoom], [focus] and [iris] from writable settings, and [timecode] and [audio] from
+     * observation support (audio means live levels; clip audio metadata never turns it on).
+     * [gimbal] and [headTracking] come from the motion overload; the other three fields have no
+     * Core vocabulary yet. Everything not derived is copied from [base], which the integration or
+     * app supplies.
      */
     public constructor(
         capabilities: CapabilitySnapshot,
@@ -34,13 +37,20 @@ public data class MonitorLayoutCapabilities(
         zoom = capabilities.writable(SettingKey.ZOOM),
         focus = capabilities.writable(SettingKey.FOCUS_MODE) || capabilities.writable(SettingKey.FOCUS_POINT),
         iris = capabilities.writable(SettingKey.APERTURE),
-        audio = base.audio,
+        audio = capabilities.audioLevels.shown(base.audio),
         headTracking = base.headTracking,
         clipDelete = base.clipDelete,
         clipStar = base.clipStar,
         requiresInternetHop = base.requiresInternetHop,
-        timecode = base.timecode,
+        timecode = capabilities.timecode.shown(base.timecode),
     )
+}
+
+/** Supported shows, unsupported hides, unknown keeps [base]. */
+internal fun SupportStatus.shown(base: Boolean): Boolean = when (this) {
+    SupportStatus.SUPPORTED -> true
+    SupportStatus.UNSUPPORTED -> false
+    SupportStatus.UNKNOWN -> base
 }
 
 private fun CapabilitySnapshot.writable(key: SettingKey): Boolean = this[key]?.access == SettingAccess.READ_WRITE

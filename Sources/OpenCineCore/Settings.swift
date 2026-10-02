@@ -244,20 +244,28 @@ public struct SettingDescriptor: Hashable, Codable, Sendable {
     }
 }
 
-/// The revisioned set of setting descriptors. A key that is neither described nor listed as
-/// unsupported has unknown support. Missing groups (no aperture, say) never block the rest.
+/// The revisioned set of setting descriptors, plus support for the observations that are not
+/// settings. A key that is neither described nor listed as unsupported has unknown support.
+/// Missing groups (no aperture, say) never block the rest.
 public struct CapabilitySnapshot: Hashable, Codable, Sendable {
     public var revision: CapabilityRevision
     public var descriptors: [SettingKey: SettingDescriptor]
     public var unsupported: Set<SettingKey>
+    /// Whether the camera reports `CameraSnapshot.timecode`.
+    public var timecode: SupportStatus
+    /// Whether the camera reports live `CameraSnapshot.audioLevels`.
+    public var audioLevels: SupportStatus
 
     public init(
         revision: CapabilityRevision = .init(), descriptors: [SettingDescriptor] = [],
-        unsupported: Set<SettingKey> = []
+        unsupported: Set<SettingKey> = [], timecode: SupportStatus = .unknown,
+        audioLevels: SupportStatus = .unknown
     ) {
         self.revision = revision
         self.descriptors = Dictionary(descriptors.map { ($0.key, $0) }) { _, last in last }
         self.unsupported = unsupported
+        self.timecode = timecode
+        self.audioLevels = audioLevels
     }
 
     public subscript(key: SettingKey) -> SettingDescriptor? { descriptors[key] }

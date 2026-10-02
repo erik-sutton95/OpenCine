@@ -1,5 +1,6 @@
 package com.opencapture.opencine.core.testing
 
+import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
@@ -7,6 +8,7 @@ import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CommandFailure
@@ -21,6 +23,7 @@ import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MediaState
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservedValue
+import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.ObservationOrigin.CAMERA_REPORTED
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
@@ -31,6 +34,7 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.StorageVolume
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.rejection
 import kotlinx.coroutines.CompletableDeferred
@@ -44,6 +48,8 @@ public data class FakeMode(
     public val mode: CaptureMode,
     public val descriptors: List<SettingDescriptor>,
     public val unsupported: Set<SettingKey>,
+    public val timecode: SupportStatus = SupportStatus.UNKNOWN,
+    public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
 )
 
 /** Behavior knobs. Each fixture family is one combination; shared tests never ask which. */
@@ -61,6 +67,8 @@ public data class FakeCameraBehavior(
      * as an OTHER mode with unknown capabilities.
      */
     public val modes: Map<Int, FakeMode>,
+    /** `CLOCK_DERIVED` for a camera whose time of day the integration derives from a clock. */
+    public val timecodeOrigin: ObservationOrigin = ObservationOrigin.CAMERA_REPORTED,
 ) {
     public enum class RecordWire {
         /** One wire command flips recording, so it is only safe with a known reported state. */
@@ -79,6 +87,10 @@ public data class FakeDevice(
     public val batteryPercent: Int? = null,
     /** `null`: this camera never reports storage. */
     public val freeBytes: Long? = null,
+    /** Reported only in a mode that supports it. */
+    public val timecode: CameraTimecode? = null,
+    /** Reported only in a mode that supports it. */
+    public val audioLevels: AudioLevels? = null,
 )
 
 /**
@@ -405,6 +417,13 @@ public class FakeCameraSession(
             )
             snapshot = snapshot.copy(storage = ObservedValue(listOf(volume), CAMERA_REPORTED, now))
         }
+        val capabilities = snapshot.capabilities
+        snapshot = snapshot.copy(
+            timecode = device.timecode?.takeIf { capabilities.timecode == SupportStatus.SUPPORTED }
+                ?.let { ObservedValue(it, behavior.timecodeOrigin, now) } ?: ObservedValue.unknown,
+            audioLevels = device.audioLevels?.takeIf { capabilities.audioLevels == SupportStatus.SUPPORTED }
+                ?.let { ObservedValue(it, CAMERA_REPORTED, now) } ?: ObservedValue.unknown,
+        )
         current = snapshot
         publish()
     }
@@ -423,8 +442,11 @@ public class FakeCameraSession(
             }
         }
         val revision = current.capabilities.revision
-        if (CapabilitySnapshot(revision, descriptors, unsupported) == current.capabilities) return
-        current = current.copy(capabilities = CapabilitySnapshot(revision.next(), descriptors, unsupported))
+        val timecode = fakeMode?.timecode ?: SupportStatus.UNKNOWN
+        val audioLevels = fakeMode?.audioLevels ?: SupportStatus.UNKNOWN
+        val next = CapabilitySnapshot(revision, descriptors, unsupported, timecode, audioLevels)
+        if (next == current.capabilities) return
+        current = current.copy(capabilities = next.copy(revision = revision.next()))
     }
 
     private fun publish() {

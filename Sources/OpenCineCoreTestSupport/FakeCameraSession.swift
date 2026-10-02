@@ -6,11 +6,18 @@ public struct FakeMode: Sendable {
     public var mode: CaptureMode
     public var descriptors: [SettingDescriptor]
     public var unsupported: Set<SettingKey>
+    public var timecode: SupportStatus
+    public var audioLevels: SupportStatus
 
-    public init(_ mode: CaptureMode, _ descriptors: [SettingDescriptor], unsupported: Set<SettingKey>) {
+    public init(
+        _ mode: CaptureMode, _ descriptors: [SettingDescriptor], unsupported: Set<SettingKey>,
+        timecode: SupportStatus = .unknown, audioLevels: SupportStatus = .unknown
+    ) {
         self.mode = mode
         self.descriptors = descriptors
         self.unsupported = unsupported
+        self.timecode = timecode
+        self.audioLevels = audioLevels
     }
 }
 
@@ -33,10 +40,13 @@ public struct FakeCameraBehavior: Sendable {
     /// Raw wire mode to common mode (the adapter-owned mapping). An unmapped raw mode is reported
     /// as an `.other` mode with unknown capabilities.
     public var modes: [UInt8: FakeMode]
+    /// `.clockDerived` for a camera whose time of day the integration derives from a clock.
+    public var timecodeOrigin: ObservationOrigin
 
     public init(
         integration: IntegrationID, reportDelay: Duration, observationTimeout: Duration,
-        recordWire: RecordWire, recordNeedsLiveView: Bool = false, modes: [UInt8: FakeMode]
+        recordWire: RecordWire, recordNeedsLiveView: Bool = false, modes: [UInt8: FakeMode],
+        timecodeOrigin: ObservationOrigin = .cameraReported
     ) {
         self.integration = integration
         self.reportDelay = reportDelay
@@ -44,6 +54,7 @@ public struct FakeCameraBehavior: Sendable {
         self.recordWire = recordWire
         self.recordNeedsLiveView = recordNeedsLiveView
         self.modes = modes
+        self.timecodeOrigin = timecodeOrigin
     }
 }
 
@@ -57,16 +68,23 @@ public struct FakeDevice: Sendable {
     public var batteryPercent: Int?
     /// `nil`: this camera never reports storage.
     public var freeBytes: UInt64?
+    /// Reported only in a mode that supports it.
+    public var timecode: CameraTimecode?
+    /// Reported only in a mode that supports it.
+    public var audioLevels: AudioLevels?
 
     public init(
         rawMode: UInt8, settings: [SettingValue], recording: Bool? = false,
-        batteryPercent: Int? = nil, freeBytes: UInt64? = nil
+        batteryPercent: Int? = nil, freeBytes: UInt64? = nil, timecode: CameraTimecode? = nil,
+        audioLevels: AudioLevels? = nil
     ) {
         self.rawMode = rawMode
         self.settings = Dictionary(settings.map { ($0.key, $0) }) { _, last in last }
         self.recording = recording
         self.batteryPercent = batteryPercent
         self.freeBytes = freeBytes
+        self.timecode = timecode
+        self.audioLevels = audioLevels
     }
 }
 
@@ -396,6 +414,14 @@ public actor FakeCameraSession: CameraSession {
                 freeBytes: ObservedValue(free, origin: .cameraReported, at: now))
             current.storage = ObservedValue([volume], origin: .cameraReported, at: now)
         }
+        current.timecode = .unknown
+        if current.capabilities.timecode == .supported, let timecode = device.timecode {
+            current.timecode = ObservedValue(timecode, origin: behavior.timecodeOrigin, at: now)
+        }
+        current.audioLevels = .unknown
+        if current.capabilities.audioLevels == .supported, let levels = device.audioLevels {
+            current.audioLevels = ObservedValue(levels, origin: .cameraReported, at: now)
+        }
         publish()
     }
 
@@ -408,12 +434,14 @@ public actor FakeCameraSession: CameraSession {
         {
             descriptors[index].availability = .unavailable(.notReady)
         }
-        let revision = current.capabilities.revision
-        let next = CapabilitySnapshot(
-            revision: revision, descriptors: descriptors, unsupported: unsupported)
+        let fakeMode = behavior.modes[device.rawMode]
+        var next = CapabilitySnapshot(
+            revision: current.capabilities.revision, descriptors: descriptors,
+            unsupported: unsupported, timecode: fakeMode?.timecode ?? .unknown,
+            audioLevels: fakeMode?.audioLevels ?? .unknown)
         guard next != current.capabilities else { return }
-        current.capabilities = CapabilitySnapshot(
-            revision: revision.next(), descriptors: descriptors, unsupported: unsupported)
+        next.revision = next.revision.next()
+        current.capabilities = next
     }
 
     private func publish() {
