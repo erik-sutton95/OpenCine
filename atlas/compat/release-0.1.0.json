@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "0f1692e190b4235f886cedcc4220e72ef41d826c",
+      "commit": "e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "0f1692e190b4235f886cedcc4220e72ef41d826c",
-        "where": "OpenInstaCine 0f1692e (2026-10-02, SHELL-04 decoder) against OpenCine 70023e2: gradlew test assembleDebug lint green (monitor 844 = 845 minus the HevcDecoder test moved to OpenCine :decoder), root swift test 717. Only Android sources and docs changed since 31d3a3c, so the iOS results stand."
+        "commit": "e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
+        "where": "OpenInstaCine e9d7dc8 (2026-10-02, SHELL-04 Insta cleanup: DJI code the Luna build never runs deleted) against OpenCine 70023e2 (pin unchanged): gradlew test assembleDebug lint assembleRelease + androidTest compile green (monitor 700 = 844 minus 144 tests of deleted DJI code); JNI 8 exports = 8 Kotlin externals; root swift test 611 (717 minus tests of deleted code); iOS OpenInstaCine scheme on a private iOS 26.2 simulator 500 XCTest (1 skip) + 11 Swift Testing (539 before), OpenInstaCineUIReview build-for-testing OK."
       }
     },
     {
