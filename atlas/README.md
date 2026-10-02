@@ -20,8 +20,13 @@ different responsibilities. Do not rename existing projects to match either one.
 | `openpocketcine` | active | app | DJI Osmo Pocket app; donor of UI 2.0 and Multi View |
 | `openinstacine` | active | app | Insta360 Luna app; source-copy of the Pocket shell |
 | `openzcine` | active | app | Nikon Z app; `main` plus the unmerged `feat/monitor-engine-port` candidate |
-| `opencineui` | candidate | ui | Shared design system being extracted (UI-01/UI-02) |
-| `opencinecore` | candidate | core | Shared contracts being defined (CORE-01) |
+| `opencineui` | candidate | ui | Shared design system (UI-01/UI-02), SwiftUI and Compose |
+| `opencinecore` | candidate | core | Shared contracts, media math, optional Frame.io/motion/relay, Apple media runtime |
+| `opencinemulticam` | candidate | multicam | Manufacturer-independent multicam engine (MULTI-01/02) |
+| `opencinedji` | candidate | vendor | DJI integration (VENDOR-01) |
+| `opencinenikon` | candidate | vendor | Nikon integration (VENDOR-02) |
+| `opencineinsta360` | candidate | vendor | Insta360 Luna integration (VENDOR-03) |
+| `opencineharness` | candidate | harness | Developer-only cross-brand harness, simulated cameras (MULTI-03) |
 | `opencapture-atlas` | active | atlas | This repository (registered so nothing can depend on it) |
 
 Registry entries live in `repos/<id>/meta.json` (authored facts, typed edges, pinned refs)
@@ -36,7 +41,8 @@ dependencies.
 - Keeping the atlas correct: [docs/MAINTENANCE.md](docs/MAINTENANCE.md).
 - Contracts and decisions: [docs/CONTRACTS.md](docs/CONTRACTS.md), [docs/architecture/](docs/architecture/).
 - Frozen baseline and donors: [docs/baseline/BASE-01.md](docs/baseline/BASE-01.md).
-- Publishing this and the new repos: [docs/PUBLISH.md](docs/PUBLISH.md).
+- Publishing this and the new repos (one resumable command, `tools/publish.py`): [docs/PUBLISH.md](docs/PUBLISH.md).
+- Versions, version policy and app pins: [compat/VERSIONS.md](compat/VERSIONS.md).
 - Consumer revision sets for package candidates: [compat/candidates.json](compat/candidates.json).
 - Navigation evaluation cases: [evals/navigation/](evals/navigation/).
 
@@ -55,5 +61,7 @@ python3 tools/atlas.py check               # CI gate
 python3 tools/atlas.py graph plan          # what a Graphify build would read and write
 python3 tools/atlas.py compat plan         # candidate consumer matrix (read-only)
 python3 tools/atlas.py compat run <id>     # build consumers against a candidate (macOS, docs/EXECUTION.md)
+python3 tools/publish.py                   # publish plan, dry run (docs/PUBLISH.md); --execute acts
+python3 tools/rehearse_publish.py          # the whole publish against file:// remotes on disposable clones
 python3 -m unittest discover -s tests
 ```
