@@ -153,6 +153,14 @@ edges as `live` with manifest evidence, remove `source-copy` edges only for path
 longer copies (for Insta, also drop them from `scripts/sync-openpocketcine.sh`), run
 `python3 tools/atlas.py check --sources` and push the atlas.
 
+For OpenInstaCine the narrowed edges are already known (RELEASE-01 sync audit, Insta
+`opencine/integration` 705d316): the Apple `source-copy` edge keeps only the renamed iOS shell
+(minus Luna-owned and DJI-only files) and `tools/` (`stamp-source-revision.sh`,
+`pull-control-log.sh`, `analyze-live-log.py`); the Android edge keeps only `Apps/Android/monitor`;
+`:core-api`, `:monitor-ui` and `:luna-adapter` leave the product list. Before the next Pocket sync,
+point the sync base at Pocket's post-integration main and decide whether Insta adopts
+OpenCineFrameIO (Pocket's shell imports it now).
+
 ## 7. Local development after publishing
 
 Manifests never switch on environment variables: the committed manifest and lock file must
