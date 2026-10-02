@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "8d11aa422e0fb78588f48eba5659d611ea1cd9f5",
+    "commit": "628cdd631b18e2a7f81620bb4983b6eec44d62d8",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "8d11aa422e0fb78588f48eba5659d611ea1cd9f5",
-      "where": "OpenCine main at 8d11aa4: code unchanged since cc3b7d3 recorded by NIKON-01 except atlas/; SHELL-04 stage A changed only OpenInstaCine (recorded e9d7dc8) and the duplication baseline; atlas check --sources and dupes --check pass."
+      "commit": "628cdd631b18e2a7f81620bb4983b6eec44d62d8",
+      "where": "SHELL-01 steps 4-5 Swift 2026-10-02: swift test 1427 swift-testing / 152 suites + 72 XCTest; xcodebuild Insta360Apple, OpenCineDJI (iOS Simulator); atlas check --sources; Pocket 360 + iOS 628, Insta 611, Nikon 782 root builds against 628cdd6"
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "e9a4473295ca102fba3e7a70b7d0944b93f8a734",
+      "commit": "c41946b1678cde5673856d8d1cafa79c1ee48219",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "e9a4473295ca102fba3e7a70b7d0944b93f8a734",
-        "where": "OpenPocketCine e9a44732 (2026-10-02, SHELL-04 DJI part) against OpenCine 70023e2: just android-check green (app 556 unit tests = 841 before minus 285 moved to OpenCine :dji; monitor-ui 117; Vulkan sync test), gradlew test lint assembleRelease green, root swift test 360 (= 362 minus the 2 CamFov vector tests moved to OpenCine), build-identity tests 13; debug APK libOpenPocketCineAndroid.so 41 Java_ exports set-equal to the 41 Kotlin externals (30 DjiNative + 11 SwiftCore). iOS sources unchanged since b7164c9e except the Android-only JNI facade and one test comment, so the iOS results stand."
+        "commit": "c41946b1678cde5673856d8d1cafa79c1ee48219",
+        "where": "SHELL-01 steps 4-5 iOS 2026-10-02: root swift test 360; iOS 628/0 on a private iPhone 16 Pro simulator (iOS 26.2); Swift Android library builds; simulator screenshots identical except Nano live timecode and review FOCUS (capability)"
       }
     },
     {

@@ -1,6 +1,7 @@
 import Foundation
 import Insta360Protocol
 import OpenCineCore
+import OpenCineMotion
 
 /// The OpenCineCore session for one Luna camera: the single command path for its common
 /// controls and the only source of their reported state.
@@ -23,6 +24,15 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     /// What every Luna body lacks: a fixed-aperture lens (MULTI-03 F6). Other undescribed keys stay
     /// unknown.
     public nonisolated static let unsupported: Set<SettingKey> = [.aperture]
+    /// What Luna Ultra (fw 1.1.15) declares to shared motion: handle-frame pan and tilt
+    /// (cmd 226 SET_ANGLE), pitch -57...90, yaw one arc from about -125 through 180 to -58.5
+    /// (unwrapped -58.5...235), no zoom in moves, no client rate cap (each SET re-plans), its
+    /// GET_ANGLE is the pose (older than 0.3 s is not feedback), aim ends within 0.5 degrees.
+    public nonisolated static let motion = MotionCapabilities(
+        axes: [.pan, .tilt], frame: .handle,
+        bounds: MotionBounds(pan: -58.5...235, tilt: -57...90),
+        maxRateDegPerSec: nil, feedbackMaxAge: .milliseconds(300), arrivalToleranceDeg: 0.5,
+        pose: .supported)
     /// Official Video shutter wheel, slowest last. fw 1.1.15 adds 1/15 to 1/5.
     public nonisolated static let shutterDenominators = [
         8000, 6400, 5000, 4000, 3200, 2500, 2000, 1600, 1250, 1000, 800, 640, 500, 400, 320, 250,
@@ -202,6 +212,14 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             current.recording = .unknown
         }
         settle()
+        publish()
+    }
+
+    /// Time of day the host derives for the live picture: the phone sets the camera clock and
+    /// pins frame stamps to its own, so the value is `.clockDerived`, never a camera counter.
+    public func ingest(timecode: CameraTimecode) {
+        guard !closed else { return }
+        current.timecode = ObservedValue(timecode, origin: .clockDerived, at: now())
         publish()
     }
 
@@ -468,14 +486,13 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 domain: SettingDomain(choices: [.whiteBalance(.auto)], range: 2000...10000)),
             SettingDescriptor(.recording, availability: recording),
         ]
-        let revision = current.capabilities.revision
-        guard
-            CapabilitySnapshot(
-                revision: revision, descriptors: descriptors, unsupported: Self.unsupported)
-                != current.capabilities
-        else { return }
-        current.capabilities = CapabilitySnapshot(
-            revision: revision.next(), descriptors: descriptors, unsupported: Self.unsupported)
+        // Timecode is host-derived time of day (`ingest(timecode:)`); Luna reports no audio levels.
+        var declared = CapabilitySnapshot(
+            revision: current.capabilities.revision, descriptors: descriptors,
+            unsupported: Self.unsupported, timecode: .supported, audioLevels: .unsupported)
+        guard declared != current.capabilities else { return }
+        declared.revision = declared.revision.next()
+        current.capabilities = declared
     }
 
     /// Programs 0, 2, 4, 5 choose the ISO; 1 and 3 hold the reported one.

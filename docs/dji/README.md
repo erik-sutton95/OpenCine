@@ -12,7 +12,8 @@ OpenPocketCine `Sources/OpenPocketViewCore` without behavior change (plan work p
   target stream, native program zoom, gimbal reach.
 - DJI colour data: log curves, monitor LUT catalogue, clip colour profiles.
 
-Depends only on `OpenCineCore` and `OpenCineMedia` (same package; root `Package.swift`). No UI and no app types. OpenPocketCine re-exports this module from
+Depends only on `OpenCineCore`, `OpenCineMedia` and `OpenCineMotion` (same package; root
+`Package.swift`). No UI and no app types. OpenPocketCine re-exports this module from
 `OpenPocketViewCore`, so its app and Android JNI facade import nothing new.
 
 ```sh
@@ -24,7 +25,12 @@ over a `DJIControlPort` the app's DJI session implements (Pocket: `CameraSession
 `DJICameraSessionAdapterPortTests` drive it with a fake port, without any app. The adapter reads
 time from OpenCineCore's shared `MonotonicInstant.now()` (injectable), lists what the connected
 body cannot do (`CameraModel` flags: aperture, focus, zoom) as unsupported, and leaves everything
-else unknown. `CameraStatus.audioMeters` is `nil` until the camera reports audio. DJI's official
+else unknown. It publishes timecode (`timecode_info`; Nano: unsupported) and live audio levels
+(`cam_audio_status_v2` in dBFS; every known body), each unknown until the camera reports
+(`CameraStatus.audioMeters` is `nil` until then). `CameraModel.motion` is what a body declares to
+OpenCineMotion (`MotionCapabilities.pocketGimbal` with camera-reported pose; `nil` without a gimbal),
+and `layout(base:)` projects the snapshot and that motion for a monitor; zoom, focus and aperture
+still come from the body flags there because the app drives them outside the seam. DJI's official
 Rec.709 look curves live in `DJILook`, not on the neutral `LiveColorScience`.
 
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
