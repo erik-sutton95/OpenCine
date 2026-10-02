@@ -8,6 +8,7 @@ READ_ONLY = [
     ("doctor",), ("check",), ("check", "--sources"), ("stale",), ("locate", "app"),
     ("deps", "app"), ("impact", "app"), ("impact", "app", "--include-candidates"), ("graph", "plan"), ("compat", "plan"),
     ("ensure", "--check"), ("impact", "SomeSymbol"), ("impact", "Package.swift"),
+    ("dupes",), ("dupes", "--check", "--top", "2"),
 ]
 
 

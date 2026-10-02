@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """OpenCine atlas CLI (formerly opencapture-atlas). Standard library only.
 
-Read-only commands: doctor, locate, deps, impact, stale, check, issues, ensure --check, graph plan,
-compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
+Read-only commands: doctor, locate, deps, impact, stale, check, issues, ensure --check, dupes
+(without --write-baseline), graph plan, compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
 `ensure` clones missing checkouts; `task start` creates task worktrees and a brief (never commits).
 Exit codes: 0 ok, 1 failed check, 2 unusable input, 3 incomplete (something requested
 could not be obtained or parsed; never reported as success).
@@ -787,6 +787,10 @@ def main(argv=None):
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("check", help="registry, direction, cycles, snapshots, private paths")
     p.add_argument("--sources", action="store_true", help="also verify evidence and manifests against local checkouts")
+    p = sub.add_parser("dupes", help="duplicated code between OpenCine and the apps, against compat/dupes-baseline.json")
+    p.add_argument("--check", action="store_true", help="fail when a repository pair has more duplicated lines than the baseline")
+    p.add_argument("--write-baseline", action="store_true", help="record the current numbers as the baseline")
+    p.add_argument("--top", type=int, default=0, metavar="N", help="also list the N largest duplicated files per pair")
     gp = sub.add_parser("graph", help="Graphify navigation snapshots").add_subparsers(dest="gcmd", required=True)
     p = gp.add_parser("plan", help="read-only: what a build would read, exclude and write")
     p.add_argument("targets", nargs="*", help="repo or repo@ref; default every registered ref")
@@ -821,6 +825,9 @@ def main(argv=None):
     if args.cmd == "compat":
         import compat  # noqa: PLC0415
         return compat.run(args, reg, root)
+    if args.cmd == "dupes":
+        import dupes  # noqa: PLC0415
+        return dupes.run(args, reg, root)
     if args.cmd in ("ensure", "issues", "task") or (args.cmd == "impact" and args.repo not in reg):
         import hub  # noqa: PLC0415
         if args.cmd == "impact":
