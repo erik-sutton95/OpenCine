@@ -45,7 +45,7 @@
     {
       "repo": "opencinemulticam",
       "branch": "main",
-      "commit": "03f05fbc1cb27c5e53defa81ed326680d1cecd7e",
+      "commit": "48b0730c050b22a0f53b912c2ca75da4bd9551c0",
       "description": "Manufacturer-independent multicam engine for OpenCine apps (Swift and Kotlin)",
       "verify": [
         "swift build --build-tests -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors",
@@ -55,8 +55,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "03f05fbc1cb27c5e53defa81ed326680d1cecd7e",
-        "where": "RELEASE-01 rehearsal fix: clean copy with sibling OpenCineCore 7fe6b8c, strict-concurrency build + swift test 18/6 suites passed, and the same tests passed with OpenCineCore by file:// URL (progress.d/RELEASE-01.md)"
+        "commit": "48b0730c050b22a0f53b912c2ca75da4bd9551c0",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
       }
     },
     {
