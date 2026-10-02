@@ -16,7 +16,7 @@
     {
       "repo": "opencinecore",
       "branch": "main",
-      "commit": "7fe6b8c02c0aa678691fc13ffcfffaccf98fbeca",
+      "commit": "23adfdf02366eee0b6e4cb84c2d5ac887adb157f",
       "description": "OpenCine shared camera contracts, media math, optional Frame.io, motion and relay, and the Apple media runtime (Swift and Kotlin)",
       "verify": [
         "swift build --build-tests -Xswiftc -warnings-as-errors",
@@ -24,8 +24,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "7fe6b8c02c0aa678691fc13ffcfffaccf98fbeca",
-        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 283 tests / 39 suites (progress.d/RELEASE-01.md)"
+        "commit": "23adfdf02366eee0b6e4cb84c2d5ac887adb157f",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
       }
     },
     {
