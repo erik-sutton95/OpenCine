@@ -27,21 +27,21 @@ OpenCine: unreleased (main) at `f88239f78c34`. Products by layer (meta.json `lay
 
 | Layer | Swift products | Gradle modules |
 |---|---|---|
-| core | OpenCineCore, OpenCineCoreTestSupport, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineApple | `com.opencapture.opencine:core`, `com.opencapture.opencine:media`, `com.opencapture.opencine:vulkan` |
+| core | OpenCineCore, OpenCineCoreTestSupport, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineApple | `com.opencapture.opencine:core`, `com.opencapture.opencine:media`, `com.opencapture.opencine:decoder`, `com.opencapture.opencine:vulkan` |
 | ui | MonitorPresentation, MonitorUI | `com.opencapture.opencine:monitor-ui` |
 | multicam | OpenCineMulticam | `com.opencapture.opencine:multicam` |
-| vendor | OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport | `com.opencapture.opencine:insta360-shell`, `com.opencapture.opencine:insta360-luna` |
+| vendor | OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport | `com.opencapture.opencine:dji`, `com.opencapture.opencine:insta360-shell`, `com.opencapture.opencine:insta360-luna` |
 | harness | none | none |
 
 ## Applications
 
 Released app `main` branches take no shared package yet. Each candidate branch below takes OpenCine:
 
-### OpenPocketCine `opencine/integration` at `b7164c9e96ef`
+### OpenPocketCine `opencine/integration` at `e9a4473295ca`
 
 | Package | Apple | Android sibling pin |
 |---|---|---|
-| OpenCine | sibling path at `491ce302352c` | `491ce302352c` |
+| OpenCine | sibling path at `70023e207dd6` | `70023e207dd6` |
 
 ### OpenInstaCine `opencine/integration` at `31d3a3c274c9`
 

@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "b7164c9e96ef236b5abdb1a8c93bc840275726ea",
+      "commit": "e9a4473295ca102fba3e7a70b7d0944b93f8a734",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "b7164c9e96ef236b5abdb1a8c93bc840275726ea",
-        "where": "opencine/integration b7164c9e pins OpenCine 491ce30 (2026-10-02): root swift test 362; iOS unit suite 627/0 on a private simulator (626 baseline + 1 test added in MEDIA-02 step 4); just android-check green (app 842, monitor-ui 117, Vulkan sync test); one OpenCine in SwiftPM/Xcode/Gradle, one libopc_vulkan.so. iOS/Android ran at OpenCine ee71891 (code-identical)."
+        "commit": "e9a4473295ca102fba3e7a70b7d0944b93f8a734",
+        "where": "OpenPocketCine e9a44732 (2026-10-02, SHELL-04 DJI part) against OpenCine 70023e2: just android-check green (app 556 unit tests = 841 before minus 285 moved to OpenCine :dji; monitor-ui 117; Vulkan sync test), gradlew test lint assembleRelease green, root swift test 360 (= 362 minus the 2 CamFov vector tests moved to OpenCine), build-identity tests 13; debug APK libOpenPocketCineAndroid.so 41 Java_ exports set-equal to the 41 Kotlin externals (30 DjiNative + 11 SwiftCore). iOS sources unchanged since b7164c9e except the Android-only JNI facade and one test comment, so the iOS results stand."
       }
     },
     {
