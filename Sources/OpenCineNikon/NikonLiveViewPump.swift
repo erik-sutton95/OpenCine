@@ -93,6 +93,8 @@ public final class NikonLiveViewPump {
             guard let pending else { return .cancelled }
             let first = try await pending.value
             guard current(isCurrent) else { return .cancelled }
+            // The donor validates one decodable picture even on command-mode entry, then
+            // switches to header-only pulls. Keep that startup and recovery evidence.
             guard
                 await consume(
                     first,

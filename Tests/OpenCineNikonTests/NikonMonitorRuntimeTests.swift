@@ -145,6 +145,51 @@ struct NikonMonitorRuntimeTests {
         #expect(link.closes == 0)
     }
 
+    @Test("Repeated event-drain starts serialize kept reads and retirement retains both owners")
+    func repeatedEventStartsDrainPriorOwner() async {
+        let link = Link()
+        link.holdEvent = true
+        let runtime = NikonMonitorRuntime(link: link, ownsLink: false)
+        runtime.startEventDrain(receive: { _ in Issue.record("late event") }, unexpectedEnd: {})
+        await link.waitUntilHeld()
+        runtime.startEventDrain(receive: { _ in Issue.record("late event") }, unexpectedEnd: {})
+        await Task.yield()
+        #expect(link.eventReads == 1)
+        link.releaseWrite()
+        await link.waitUntilHeld()
+        #expect(link.eventReads == 2)
+        let retirement = runtime.retirePumps()
+        link.releaseWrite()
+        await retirement?.value
+        #expect(link.activeReaders == 0)
+        #expect(link.maxReaders == 1)
+        #expect(!link.wireWasCancelled)
+        #expect(link.closes == 0)
+    }
+
+    @Test("Repeated keepalive starts drain the kept ping before its successor or borrowed return")
+    func repeatedKeepAliveStartsDrainPriorOwner() async {
+        let link = Link()
+        link.holdPing = true
+        let runtime = NikonMonitorRuntime(
+            link: link, ownsLink: false, backgroundSleep: { _ in await Task.yield() })
+        runtime.startKeepAlive(isBusy: { false }, failures: { _ in }, recover: {})
+        await link.waitUntilHeld()
+        runtime.startKeepAlive(isBusy: { false }, failures: { _ in }, recover: {})
+        await Task.yield()
+        #expect(link.pings == 1)
+        link.releaseWrite()
+        await link.waitUntilHeld()
+        #expect(link.pings == 2)
+        let retirement = runtime.retirePumps()
+        link.releaseWrite()
+        await retirement?.value
+        #expect(link.activeReaders == 0)
+        #expect(link.maxReaders == 1)
+        #expect(!link.wireWasCancelled)
+        #expect(link.closes == 0)
+    }
+
     @Test("Owned close releases the native session once without stopping recording")
     func ownedCloseIsOnce() async {
         let link = Link()
@@ -164,9 +209,14 @@ private final class Link: NikonMonitorLink {
     private(set) var closes = 0
     var holdWrite = false
     var holdEvent = false
+    var holdPing = false
+    var eventReads = 0
+    var pings = 0
+    var activeReaders = 0
+    var maxReaders = 0
     var wireWasCancelled = false
     private var properties: [PTPPropertyCode: Data] = [:]
-    private var held: CheckedContinuation<Void, Never>?
+    private var held: [CheckedContinuation<Void, Never>] = []
     private var heldWaiter: CheckedContinuation<Void, Never>?
 
     func supportsProperty(_ property: PTPPropertyCode) -> Bool { true }
@@ -177,8 +227,19 @@ private final class Link: NikonMonitorLink {
         throw NativeCameraSessionError.connectionClosed
     }
     func readLastCommandRoundTripMilliseconds() -> Double? { nil }
-    func sendKeepAlive() async throws {}
+    func sendKeepAlive() async throws {
+        pings += 1
+        activeReaders += 1
+        maxReaders = max(maxReaders, activeReaders)
+        defer { activeReaders -= 1 }
+        if holdPing { await hold() }
+        wireWasCancelled = wireWasCancelled || Task.isCancelled
+    }
     func nextEvent() async throws -> PTPEvent {
+        eventReads += 1
+        activeReaders += 1
+        maxReaders = max(maxReaders, activeReaders)
+        defer { activeReaders -= 1 }
         if holdEvent { await hold() }
         wireWasCancelled = wireWasCancelled || Task.isCancelled
         throw NativeCameraSessionError.connectionClosed
@@ -201,17 +262,16 @@ private final class Link: NikonMonitorLink {
     func stopRecording() async throws { commands.append("record-stop") }
     private func hold() async {
         await withCheckedContinuation { continuation in
-            held = continuation
+            held.append(continuation)
             heldWaiter?.resume()
             heldWaiter = nil
         }
     }
     func waitUntilHeld() async {
-        if held != nil { return }
+        if !held.isEmpty { return }
         await withCheckedContinuation { heldWaiter = $0 }
     }
     func releaseWrite() {
-        held?.resume()
-        held = nil
+        if !held.isEmpty { held.removeFirst().resume() }
     }
 }

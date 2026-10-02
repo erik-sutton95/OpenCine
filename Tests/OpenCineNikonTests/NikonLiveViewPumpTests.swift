@@ -90,6 +90,35 @@ struct NikonLiveViewPumpTests {
         #expect(!link.fetchWasCancelled)
     }
 
+    @Test("Command-mode entry validates one picture before switching to header-only pulls")
+    func commandModeEntryKeepsDonorStartup() async {
+        let link = PreviewLink()
+        var alive = true
+        var pictures = 0
+        var headers = 0
+        let pump = NikonLiveViewPump(link: link, sleep: { _ in })
+        _ = await pump.run(
+            demand: { NikonPreviewDemand(mode: .headerOnly, size: 0, compression: 1) },
+            isCurrent: { alive },
+            consume: { _, delivery in
+                if delivery.first {
+                    #expect(!delivery.headerOnly)
+                    pictures += 1
+                } else {
+                    #expect(delivery.headerOnly)
+                    headers += 1
+                    alive = false
+                }
+                return true
+            }, safePoint: { _, _ in })
+        await pump.drain()
+        #expect(pictures == 1)
+        #expect(headers == 1)
+        #expect(link.starts == 2)
+        #expect(link.stops == 1)
+        #expect(!link.fetchWasCancelled)
+    }
+
     @Test("HDMI control-only mode carries headers and keeps its own picture untouched")
     func controlOnly() async {
         let link = PreviewLink()

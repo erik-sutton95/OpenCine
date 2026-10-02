@@ -60,6 +60,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
 
     private let serialNumber: String
     private let ownsLink: Bool
+    private let backgroundSleep: @MainActor (Duration) async -> Void
     private let now: @Sendable () -> MonotonicInstant
     private lazy var common = NikonCameraSession(
         driver: self, serialNumber: serialNumber, now: now,
@@ -75,11 +76,15 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     public init(
         link: any NikonMonitorLink, ownsLink: Bool = true,
         facts: NikonControlFacts = NikonControlFacts(),
+        backgroundSleep: @escaping @MainActor (Duration) async -> Void = {
+            try? await Task.sleep(for: $0)
+        },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         self.link = link
         serialNumber = link.serialNumber
         self.ownsLink = ownsLink
+        self.backgroundSleep = backgroundSleep
         nikonControlFacts = facts
         self.now = now
     }
@@ -323,13 +328,19 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         failures: @escaping @MainActor (Int) -> Void,
         recover: @escaping @MainActor () -> Void
     ) {
-        keepAliveTask?.cancel()
         guard !closed, let link else { return }
+        let previous = keepAliveTask
+        previous?.cancel()
+        let earlier = backgroundRetirement
+        let sleep = backgroundSleep
         let current = generation
         keepAliveTask = Task { [weak self] in
+            // Replacement retains the previous owner until its kept ping has drained.
+            await previous?.value
+            await earlier?.value
             var count = 0
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(10))
+                await sleep(.seconds(10))
                 guard let self, !Task.isCancelled, !closed, generation == current else { return }
                 if isBusy() { continue }
                 do {
@@ -355,10 +366,15 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         receive: @escaping @MainActor (PTPEvent) async -> Void,
         unexpectedEnd: @escaping @MainActor () -> Void
     ) {
-        eventTask?.cancel()
         guard !closed, let link else { return }
+        let previous = eventTask
+        previous?.cancel()
+        let earlier = backgroundRetirement
         let current = generation
         eventTask = Task { [weak self] in
+            // Foreground restarts cannot add a reader while the old bounded read drains.
+            await previous?.value
+            await earlier?.value
             while !Task.isCancelled {
                 guard let self, !closed, generation == current else { return }
                 do {
