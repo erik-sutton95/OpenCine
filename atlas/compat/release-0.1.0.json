@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "c4cb35c7f005a8aeed60809e3cd0cd629514f1af",
+    "commit": "a3a0cc06cb1ef285b7598fe6c5deace8bf9b524a",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "c4cb35c7f005a8aeed60809e3cd0cd629514f1af",
-      "where": "SHELL-02 step 4: swift test 1651 tests + 72 XCTest (step 3: 1643; LunaIntegrationTests 8), strict build clean, xcodebuild MonitorUI/OpenCineAppKit/OpenCineApple simulator and Insta360Apple iOS device + simulator OK, gradle test lint assembleRelease green (765 JVM; insta360-luna 60 incl. LunaIntegrationTest 8, LunaDataCompatibilityTest unchanged), atlas unittest + check passed, 3 app consumers swift build --build-tests and Android assembleDebug green"
+      "commit": "a3a0cc06cb1ef285b7598fe6c5deace8bf9b524a",
+      "where": "SHELL-02 step 6: swift test 1659 tests + 72 XCTest (DJIIntegrationTests 8), strict build clean, xcodebuild MonitorUI/OpenCineAppKit/OpenCineApple simulator + Insta360Apple device OK, gradle test lint assembleRelease green (773 JVM; dji 345 incl. DjiIntegrationTest 8; DjiNative unchanged), atlas unittest + check passed, 3 app consumers swift build --build-tests and Android assembleDebug green"
     }
   },
   "apps": [
