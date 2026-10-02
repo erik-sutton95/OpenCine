@@ -239,6 +239,7 @@ import Testing
         }
         let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
         let packages = manifest.matches(of: try Regex(#"\.package\("#)).count
-        #expect(packages == 1 && manifest.contains(#".package(path: "../OpenCineCore")"#))
+        // One dependency, OpenCineCore: the sibling path while unpublished, its URL once published.
+        #expect(packages == 1 && manifest.contains(#"OpenCineCore""#))
     }
 }
