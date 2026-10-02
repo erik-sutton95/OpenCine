@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
+      "commit": "0d88fc0ab8f70f01bd7c92e450427c196b827c4e",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
-        "where": "OpenInstaCine e9d7dc8 (2026-10-02, SHELL-04 Insta cleanup: DJI code the Luna build never runs deleted) against OpenCine 70023e2 (pin unchanged): gradlew test assembleDebug lint assembleRelease + androidTest compile green (monitor 700 = 844 minus 144 tests of deleted DJI code); JNI 8 exports = 8 Kotlin externals; root swift test 611 (717 minus tests of deleted code); iOS OpenInstaCine scheme on a private iOS 26.2 simulator 500 XCTest (1 skip) + 11 Swift Testing (539 before), OpenInstaCineUIReview build-for-testing OK."
+        "commit": "0d88fc0ab8f70f01bd7c92e450427c196b827c4e",
+        "where": "OpenInstaCine 0d88fc0 (2026-10-02, SHELL-01 step 6: iOS and Android lay out the Luna integration's projection; lunaUltra and constant audio/timecode flags gone; no multicam budget) against OpenCine 340452a (pinned): gradlew test lint assembleRelease green (monitor 700), root swift test 611, iOS OpenInstaCine scheme on a private iOS 26.2 simulator 501 XCTest (1 skip; +1 projection test) + 11 Swift Testing. Simulator and emulator screenshots identical before and after (progress.d/shell-01-screens)."
       }
     },
     {
