@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """OpenCine atlas CLI (formerly opencapture-atlas). Standard library only.
 
-Read-only commands: doctor, locate, deps, impact, stale, check, graph plan, compat plan.
-`compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
+Read-only commands: doctor, locate, deps, impact, stale, check, issues, ensure --check, graph plan,
+compat plan. `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
+`ensure` clones missing checkouts; `task start` creates task worktrees and a brief (never commits).
 Exit codes: 0 ok, 1 failed check, 2 unusable input, 3 incomplete (something requested
 could not be obtained or parsed; never reported as success).
 """
@@ -760,12 +761,26 @@ def main(argv=None):
     p.add_argument("repo")
     p.add_argument("--json", action="store_true")
     for name in ("deps", "impact"):
-        p = sub.add_parser(name)
-        p.add_argument("repo")
+        p = sub.add_parser(name, help="typed edges of a repo" if name == "deps" else
+                           "consumer waves of a repo, or for a symbol or path: owner, linking apps, call sites")
+        p.add_argument("repo", metavar="repo" if name == "deps" else "repo|symbol|path")
         p.add_argument("--json", action="store_true")
         p.add_argument("--registry-only", action="store_true", help="skip manifest scanning (reported as not checked)")
         if name == "impact":
             p.add_argument("--include-candidates", action="store_true", help="include candidate branches and repos")
+            p.add_argument("--limit", type=int, default=10, help="call sites shown per repository (symbol or path)")
+    p = sub.add_parser("ensure", help="resolve or clone every registered checkout next to OpenCine")
+    p.add_argument("--check", action="store_true", help="report only; write nothing")
+    p = sub.add_parser("issues", help="open issues across the registered GitHub repositories (gh, offline-safe)")
+    p.add_argument("repos", nargs="*", help="repo ids (default: all)")
+    p.add_argument("--limit", type=int, default=50, help="per repository")
+    p.add_argument("--json", action="store_true")
+    tp = sub.add_parser("task", help="start work on an issue").add_subparsers(dest="tcmd", required=True)
+    p = tp.add_parser("start", help="task folder with one worktree per repository and TASK.md; never commits or pushes")
+    p.add_argument("issue", help="<repo>#<number>, e.g. openpocketcine#12")
+    p.add_argument("--with", dest="with_repos", action="append", default=[], metavar="REPO",
+                   help="also give this repository a worktree on the task branch (opencine for a shared fix); repeatable")
+    p.add_argument("--base", help="base ref for the issue's repository (default: the ref it consumes OpenCine on)")
     p = sub.add_parser("stale", help="pinned refs and snapshots versus current sources")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("check", help="registry, direction, cycles, snapshots, private paths")
@@ -774,7 +789,8 @@ def main(argv=None):
     p = gp.add_parser("plan", help="read-only: what a build would read, exclude and write")
     p.add_argument("targets", nargs="*", help="repo or repo@ref; default every registered ref")
     p = gp.add_parser("build", help="code-only build from an exported commit")
-    p.add_argument("target", help="repo or repo@ref")
+    p.add_argument("target", nargs="?", help="repo or repo@ref")
+    p.add_argument("--all", action="store_true", help="every repository at its working ref, then the merged navigation view")
     p.add_argument("--local-only", action="store_true", required=True, help="required: no model or network calls")
     p = gp.add_parser("merge", help="namespaced local navigation view of built snapshots")
     cp = sub.add_parser("compat", help="candidate package versus recorded consumers (OPS-01)").add_subparsers(dest="ccmd", required=True)
@@ -803,6 +819,11 @@ def main(argv=None):
     if args.cmd == "compat":
         import compat  # noqa: PLC0415
         return compat.run(args, reg, root)
+    if args.cmd in ("ensure", "issues", "task") or (args.cmd == "impact" and args.repo not in reg):
+        import hub  # noqa: PLC0415
+        if args.cmd == "impact":
+            return hub.cmd_impact_symbol(args, reg, root)
+        return {"ensure": hub.cmd_ensure, "issues": hub.cmd_issues, "task": hub.cmd_task_start}[args.cmd](args, reg, root)
     return {"locate": cmd_locate, "deps": cmd_deps, "impact": cmd_impact, "stale": cmd_stale}[args.cmd](args, reg, root)
 
 

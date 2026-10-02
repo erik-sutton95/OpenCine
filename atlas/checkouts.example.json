@@ -3,5 +3,9 @@
   "repos": {
     "openpocketcine": "<absolute path of an OpenPocketCine checkout>",
     "openzcine": "<absolute path of an OpenZCine checkout>"
+  },
+  "identity": {
+    "name": "<your name>",
+    "email": "<the email your commits use>"
   }
 }

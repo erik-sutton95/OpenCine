@@ -210,12 +210,34 @@ def build(args, reg, root):
     problems = local_only_problems()
     if problems:
         print("graph build refused: local-only mode is not verifiable: " + "; ".join(problems), file=sys.stderr)
-        return 1
+        if args.all:
+            print("Graphify is optional: `atlas impact <symbol|path>` works from manifests and source search alone.", file=sys.stderr)
+        return 3 if args.all else 1
+    if bool(args.all) == bool(args.target):
+        print("name one repo@ref, or pass --all", file=sys.stderr)
+        return 2
+    if args.all:
+        return build_all(reg, root)
     targets = select_targets(reg, [args.target])
     if len(targets) != 1:
         print(f"{args.target} names {len(targets)} refs; pick one with repo@ref", file=sys.stderr)
         return 2
-    rid, ref = targets[0]
+    return build_one(reg, root, *targets[0])
+
+
+def build_all(reg, root):
+    """Each repository at its working ref (atlas impact uses the same refs), then merge only those."""
+    import hub  # noqa: PLC0415
+    pid = next((rid for rid, m in reg.items() if m.get("layers")), None)
+    picked = [(rid, ref) for rid, m in sorted(reg.items()) if (ref := hub.primary_ref(m, pid))]
+    codes = [build_one(reg, root, rid, ref) for rid, ref in picked]
+    if any(c not in (0, 3) for c in codes) or codes.count(0) < 2:
+        return max(codes or [3])
+    code = merge(None, reg, root, only={(rid, ref["commit"]) for (rid, ref), c in zip(picked, codes) if c == 0})
+    return code or (3 if 3 in codes else 0)
+
+
+def build_one(reg, root, rid, ref):
     res = resolver.resolve(reg[rid], root)
     if res["status"] != "ok" or not resolver.rev(res["path"], ref["commit"]):
         print(f"{rid}@{ref['name']}: source unavailable ({res['reason']}); nothing built", file=sys.stderr)
@@ -274,7 +296,8 @@ def build(args, reg, root):
     return 0
 
 
-def merge(args, reg, root):
+def merge(args, reg, root, only=None):
+    """Merge built graphs; `only` limits it to {(repo, commit)} (build --all)."""
     problems = local_only_problems()
     if problems:
         print("graph merge refused: " + "; ".join(problems), file=sys.stderr)
@@ -282,6 +305,8 @@ def merge(args, reg, root):
     inputs = []
     for snap in sorted((root / "repos").glob("*/snapshots/*/snapshot.json")):
         s = json.loads(snap.read_text())
+        if only is not None and (s["repository_id"], s["source_commit"]) not in only:
+            continue
         g = paths_for(root, s["repository_id"], s["source_commit"])["graph"] / "graph.json"
         inputs.append({"snapshot": f"{s['repository_id']}@{s['source_commit']}", "ref": s.get("ref_label"),
                        "scope": s.get("scope"), "graph": str(g.relative_to(root)), "available": g.is_file()})
@@ -304,6 +329,7 @@ def merge(args, reg, root):
     for i in inputs:
         print(f"  {'merged ' if i['available'] else 'MISSING'} {i['snapshot']} ({i['ref']}, {i['scope']})")
     print(run.stdout.strip().splitlines()[-2] if run.stdout.strip() else "")
+    print(f"navigation: `atlas impact <symbol>` reads it; or graphify query|explain|affected \"<X>\" --graph {(dest / 'merged-graph.json').relative_to(root.parent)}")
     return 0 if len(usable) == len(inputs) else 3
 
 
