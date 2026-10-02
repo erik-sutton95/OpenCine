@@ -22,8 +22,8 @@ rootProject.name = "opencine-android"
 
 include(
     // Core: Kotlin/JVM contracts (+ test fixtures), media policy, live-view MediaCodec decoder,
-    // native Vulkan renderer.
-    ":core", ":media", ":platform", ":decoder", ":vulkan",
+    // native Vulkan renderer and effects runtime.
+    ":core", ":media", ":platform", ":decoder", ":vulkan", ":native-runtime",
     // UI: Compose monitor UI.
     ":monitor-ui",
     // Multicam engine (Kotlin/JVM).
