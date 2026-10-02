@@ -440,6 +440,7 @@ public final class LunaCameraBackend: CameraBackend {
             },
             readSettings: { [weak self] in await self?.refreshSettings() },
             readCapture: { [weak self] in await self?.refreshCapture() })
+        next.configureLens(zoomDomain: 1...LunaProtocol.maximumZoomScale)
         session = next
         previous?.close(.replaced)
         if isControlReady { next.linkChanged(.streaming, serial: deviceInformation?.serial) }

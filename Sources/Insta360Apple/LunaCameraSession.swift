@@ -6,7 +6,7 @@ import OpenCineMotion
 /// The OpenCineCore session for one Luna camera: the single command path for its common
 /// controls and the only source of their reported state.
 ///
-/// CORE-02 slice: link and status, ISO, shutter, white balance and explicit record start/stop.
+/// Common controls: link and status, ISO, shutter, white balance, lens and explicit record start/stop.
 /// ISO and shutter travel in one Luna exposure message (program + ISO + shutter), so the
 /// session owns both and composes each write from the other's pending or reported value.
 ///
@@ -79,6 +79,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     /// The shared host clock (`MonotonicInstant.now`); tests inject their own.
     private let now: @Sendable () -> MonotonicInstant
     private var shootingMode: LunaShootingMode?
+    private var zoomDomain: ClosedRange<Double>?
     /// When each key last had a known camera report.
     private var reportedAt: [SettingKey: MonotonicInstant] = [:]
     private var receipts: [OperationID: CommandReceipt] = [:]
@@ -113,6 +114,20 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     // MARK: - Link and telemetry (from the backend)
+
+    /// The connection's configured lens range. Without a valid range zoom stays undescribed;
+    /// neither an unknown report nor a missing configuration invents a widest-lens value.
+    /// A changed domain invalidates commands prepared against the previous capability revision.
+    public func configureLens(zoomDomain: ClosedRange<Double>?) {
+        guard !closed else { return }
+        self.zoomDomain = zoomDomain.flatMap { range in
+            range.lowerBound.isFinite && range.upperBound.isFinite
+                && range.lowerBound >= 1 && range.upperBound <= LunaProtocol.maximumZoomScale
+                ? range : nil
+        }
+        refreshCapabilities()
+        publish()
+    }
 
     /// The backend's link phase. `.streaming` is a usable control link and a new control epoch.
     public func linkChanged(_ phase: CameraConnectionPhase, serial: String?) {
@@ -155,7 +170,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             current.power.externalPower = ObservedValue(
                 battery.powerType != 0, origin: .protocolDerived, at: at)
         }
-        let volumes = device.storageList.isEmpty ? device.storage.map { [$0] } ?? [] : device.storageList
+        let volumes =
+            device.storageList.isEmpty ? device.storage.map { [$0] } ?? [] : device.storageList
         if !volumes.isEmpty {
             current.storage = ObservedValue(
                 volumes.map { Self.volume($0, at: at) }, origin: .cameraReported, at: at)
@@ -169,14 +185,19 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         // A reply for another mode's settings bank says nothing about the active one.
         if let bank = settings.functionMode, bank != functionMode() { return }
         let at = now()
-        func carries(_ type: UInt32) -> Bool { settings.types.isEmpty || settings.types.contains(type) }
+        func carries(_ type: UInt32) -> Bool {
+            settings.types.isEmpty || settings.types.contains(type)
+        }
         let photo = shootingMode?.isPhoto == true
         let exposure =
             photo
-            ? (carries(20) ? settings.stillExposure : nil) ?? (carries(21) ? settings.videoExposure : nil)
-            : (carries(21) ? settings.videoExposure : nil) ?? (carries(20) ? settings.stillExposure : nil)
+            ? (carries(20) ? settings.stillExposure : nil)
+                ?? (carries(21) ? settings.videoExposure : nil)
+            : (carries(21) ? settings.videoExposure : nil)
+                ?? (carries(20) ? settings.stillExposure : nil)
         if let exposure {
-            current.settings[.iso] = ObservedValue(.iso(Self.iso(exposure)), origin: .cameraReported, at: at)
+            current.settings[.iso] = ObservedValue(
+                .iso(Self.iso(exposure)), origin: .cameraReported, at: at)
             current.settings[.shutter] = ObservedValue(
                 .shutter(Self.shutter(exposure)), origin: .cameraReported, at: at)
             reportedAt[.iso] = at
@@ -194,6 +215,31 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         }
         if carries(35), let color = settings.color {
             recordingProfile = ObservedValue(Self.profileID(color), origin: .cameraReported, at: at)
+        }
+        if carries(53), settings.zoom != nil || settings.types.contains(53) {
+            if let zoom = settings.zoom, zoom.isFinite,
+                (1...LunaProtocol.maximumZoomScale).contains(zoom)
+            {
+                current.settings[.zoom] = ObservedValue(
+                    .zoom(zoom), origin: .cameraReported, at: at)
+                reportedAt[.zoom] = at
+            } else {
+                current.settings[.zoom] = .unknown
+                reportedAt[.zoom] = nil
+            }
+        }
+        if carries(93), settings.afMode != nil || settings.types.contains(93) {
+            let focus: FocusMode? =
+                switch settings.afMode {
+                case LunaAFMode.single.rawValue?: .single
+                case LunaAFMode.continuous.rawValue?: .continuous
+                default: nil  // Product Showcase is an integration-owned extension.
+                }
+            current.settings[.focusMode] =
+                focus.map {
+                    ObservedValue(.focusMode($0), origin: .cameraReported, at: at)
+                } ?? .unknown
+            reportedAt[.focusMode] = focus == nil ? nil : at
         }
         refreshCapabilities()
         settle()
@@ -226,13 +272,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     /// What a monitor lays out for this camera: the Core projection of `current` plus the Luna
     /// gimbal (`motion`). `base` carries what Core has no vocabulary for yet.
     public func layout(base: MonitorLayoutCapabilities = .init()) -> MonitorLayoutCapabilities {
-        var layout = MonitorLayoutCapabilities(current.capabilities, motion: Self.motion, base: base)
-        // ponytail: the app drives zoom and focus mode through the backend's own requests, not this
-        // session, so they are not descriptors; every Luna body has both. Delete these two lines
-        // once the session routes them.
-        layout.zoom = true
-        layout.focus = true
-        return layout
+        MonitorLayoutCapabilities(current.capabilities, motion: Self.motion, base: base)
     }
 
     // MARK: - CameraSession
@@ -296,7 +336,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         let acceptedAt = now()
         var deadline = acceptedAt + (timing.settle[key] ?? .seconds(4))
         if let limit = command.preconditions.deadline, limit < deadline { deadline = limit }
-        awaiting[operation] = Awaiting(intent: command.intent, acceptedAt: acceptedAt, deadline: deadline)
+        awaiting[operation] = Awaiting(
+            intent: command.intent, acceptedAt: acceptedAt, deadline: deadline)
         transition(operation, .awaitingObservation)
         settle()
         if pump == nil { pump = Task { [weak self] in await self?.readBackUntilSettled() } }
@@ -338,13 +379,21 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         let bank = functionMode()
         switch intent {
         case .set(.iso(let iso)):
-            return try exposure(iso: iso, shutter: target(.shutter).flatMap(Self.shutterValue), bank)
+            return try exposure(
+                iso: iso, shutter: target(.shutter).flatMap(Self.shutterValue), bank)
         case .set(.shutter(let shutter)):
             return try exposure(iso: target(.iso).flatMap(Self.isoValue), shutter: shutter, bank)
         case .set(.whiteBalance(.auto)):
             return try LunaProtocol.setWhiteBalanceAuto(functionMode: bank)
         case .set(.whiteBalance(.kelvin(let kelvin))):
-            return try LunaProtocol.setWhiteBalanceKelvin(UInt64(max(kelvin, 0)), functionMode: bank)
+            return try LunaProtocol.setWhiteBalanceKelvin(
+                UInt64(max(kelvin, 0)), functionMode: bank)
+        case .set(.zoom(let factor)):
+            return try LunaProtocol.setZoomScale(factor, functionMode: bank)
+        case .set(.focusMode(.single)):
+            return try LunaProtocol.setAFMode(.single, functionMode: bank)
+        case .set(.focusMode(.continuous)):
+            return try LunaProtocol.setAFMode(.continuous, functionMode: bank)
         case .startRecording:
             return try shootingMode.map(LunaProtocol.startCaptureRequest(for:))
         case .stopRecording:
@@ -359,7 +408,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         targets[key]?.value ?? current.value(of: key).value
     }
 
-    private func exposure(iso: ISOValue?, shutter: ShutterValue?, _ bank: UInt32) throws -> LunaRequest {
+    private func exposure(iso: ISOValue?, shutter: ShutterValue?, _ bank: UInt32) throws
+        -> LunaRequest
+    {
         var manualISO: UInt64?
         if case .manual(let value)? = iso { manualISO = UInt64(max(value, 0)) }
         var seconds: Double?
@@ -387,10 +438,14 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
 
     private func reportShows(_ intent: CameraCommandIntent) -> Bool {
         switch intent {
-        case .set(let value): current.value(of: value.key).value == value
-        case .startRecording: current.recording.value == .recording
-        case .stopRecording: current.recording.value == .idle
-        case .focusPoint: false
+        case .set(.zoom(let target)):
+            guard case .zoom(let reported)? = current.value(of: .zoom).value else { return false }
+            // Preserve the established app tolerance while the physical lens ramps.
+            return abs(target - reported) < 0.05
+        case .set(let value): return current.value(of: value.key).value == value
+        case .startRecording: return current.recording.value == .recording
+        case .stopRecording: return current.recording.value == .idle
+        case .focusPoint: return false
         }
     }
 
@@ -490,14 +545,20 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         var shutter = SettingDomain(
             choices: Self.shutterDenominators.map { .shutter(.duration(Rational(1, $0))) })
         shutter.choices.insert(.shutter(.auto), at: 0)
-        let descriptors = [
+        var descriptors = [
             SettingDescriptor(.iso, domain: iso, availability: exposure),
             SettingDescriptor(.shutter, domain: shutter, availability: exposure),
             SettingDescriptor(
                 .whiteBalance,
                 domain: SettingDomain(choices: [.whiteBalance(.auto)], range: 2000...10000)),
             SettingDescriptor(.recording, availability: recording),
+            SettingDescriptor(
+                .focusMode,
+                domain: SettingDomain(choices: [.focusMode(.single), .focusMode(.continuous)])),
         ]
+        if let zoomDomain {
+            descriptors.append(SettingDescriptor(.zoom, domain: SettingDomain(range: zoomDomain)))
+        }
         // Timecode is host-derived time of day (`ingest(timecode:)`); Luna reports no audio levels.
         var declared = CapabilitySnapshot(
             revision: current.capabilities.revision, descriptors: descriptors,

@@ -64,6 +64,22 @@ join the camera Wi-Fi.
 - Tests: `LunaIntegrationTests` / `LunaIntegrationTest` against `FakeLunaPort` (Swift test support,
   Kotlin test source), same method names.
 
+## Common lens controls
+
+`LunaCameraSession.configureLens(zoomDomain:)` (Kotlin `configureLens(range)`)
+describes the connection's configured zoom range, within the protocol's 1...15
+range. An absent or invalid range leaves zoom support unknown. The backend
+configures its existing maximum; an app can supply its own connection ceiling.
+Zoom and AF-S/AF-C use the common setting commands and camera-authored readbacks.
+Acknowledgement is pending until observation; a ramp confirms within the existing
+0.05 zoom tolerance. Changing the range invalidates editors from the old capability
+revision. Unreported lens values remain unknown.
+
+Product Showcase (option 93 value 6) remains an integration-owned focus extension,
+never a substitute for the common continuous focus observation. Partial replies
+preserve unrelated values; an explicit missing/invalid lens reply clears that
+observation. Closing or replacing a session cannot confirm a late old command.
+
 ## Import rules
 
 - No UI: never import SwiftUI, UIKit or OpenCineUI.

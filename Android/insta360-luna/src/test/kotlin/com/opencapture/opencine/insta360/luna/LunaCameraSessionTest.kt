@@ -56,6 +56,8 @@ private class FakeLuna(private val scope: CoroutineScope) {
     var shutterSeconds = 0.0
     var kelvin = 5600L
     var colorMode: Long? = null
+    var zoom = 1.0
+    var afMode = 1L
     /** Capture state (cmd 15); null sends no reply at all. */
     var captureState: Long? = 0
     /** The camera acknowledges SETs and record commands but stores nothing. */
@@ -106,6 +108,8 @@ private class FakeLuna(private val scope: CoroutineScope) {
                     val set = LunaPhotographySettings.parse(request.body)
                     if (21 in set.types) set.videoExposure?.let { program = it.program; iso = it.iso; shutterSeconds = it.shutterSeconds }
                     if (39 in set.types) kelvin = set.whiteBalanceKelvin ?: 0
+                    if (53 in set.types) set.zoom?.let { zoom = it }
+                    if (93 in set.types) set.afMode?.let { afMode = it }
                 }
                 4 -> captureState = 1
                 5 -> captureState = 0
@@ -123,10 +127,11 @@ private class FakeLuna(private val scope: CoroutineScope) {
     fun reportSettings() {
         if (silent) return
         val body = synchronized(lock) {
-            val types = mutableListOf(21, 39)
+            val types = mutableListOf(21, 39, 53, 93)
             var exposure = LunaWire.integer(1, program) + LunaWire.integer(2, iso)
             if (shutterSeconds > 0) exposure += double(3, shutterSeconds)
             var nested = LunaWire.blob(21, exposure) + LunaWire.integer(39, kelvin)
+            nested += double(53, zoom) + LunaWire.integer(93, afMode)
             colorMode?.let { types += 35; nested += LunaWire.integer(35, it) }
             val packed = types.fold(ByteArray(0)) { acc, t -> acc + LunaWire.varint(t.toLong()) }
             LunaWire.blob(1, packed) + LunaWire.blob(2, nested) + LunaWire.integer(3, LunaControl.FUNCTION_MODE_VIDEO.toLong())
@@ -165,6 +170,7 @@ class LunaCameraSessionTest {
     @Test fun everyAdvertisedWritableCapabilityReachesTheCamera() = runBlocking {
         val camera = FakeLuna(scope)
         val session = camera.connectedSession()
+        session.configureLens(1.0..4.0)
         val described = session.snapshots.value.capabilities.descriptors.values.filter { it.access == SettingAccess.READ_WRITE }
         assertTrue(
             described.map { it.key }.containsAll(listOf(SettingKey.ISO, SettingKey.SHUTTER, SettingKey.WHITE_BALANCE, SettingKey.RECORDING)),
@@ -174,6 +180,8 @@ class LunaCameraSessionTest {
             assertEquals(com.opencapture.opencine.core.Availability.Available, descriptor.availability, "${descriptor.key}")
             val intent = if (descriptor.key == SettingKey.RECORDING) {
                 CameraCommandIntent.StartRecording
+            } else if (descriptor.key == SettingKey.ZOOM) {
+                CameraCommandIntent.Set(SettingValue.Zoom(descriptor.domain!!.range!!.endInclusive))
             } else {
                 val reported = session.snapshots.value.value(descriptor.key).value
                 CameraCommandIntent.Set(descriptor.domain?.choices?.lastOrNull { it != reported } ?: fail("${descriptor.key} has no value"))
@@ -321,7 +329,7 @@ class LunaCameraSessionTest {
         assertFalse(MotionAxis.ZOOM in LunaCameraSession.MOTION.axes, "moves keep one zoom")
         // Audio off although the base has it (unsupported overrides); no iris (fixed aperture).
         assertEquals(
-            MonitorLayoutCapabilities(gimbal = true, zoom = true, focus = true, headTracking = true, clipDelete = true, timecode = true),
+            MonitorLayoutCapabilities(gimbal = true, focus = true, headTracking = true, clipDelete = true, timecode = true),
             session.layout(MonitorLayoutCapabilities(audio = true, clipDelete = true)),
         )
         assertNull(session.snapshots.value.timecode.value, "nothing derived yet: unknown")

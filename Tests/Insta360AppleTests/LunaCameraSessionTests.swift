@@ -22,6 +22,7 @@ final class LunaCameraSessionTests: XCTestCase {
     func testEveryAdvertisedWritableCapabilityReachesTheCamera() async {
         let camera = FakeLuna()
         let session = camera.connectedSession()
+        session.configureLens(zoomDomain: 1...4)
         let described = session.current.capabilities.descriptors.values.filter {
             $0.access == .readWrite
         }
@@ -33,6 +34,8 @@ final class LunaCameraSessionTests: XCTestCase {
             let intent: CameraCommandIntent
             if descriptor.key == .recording {
                 intent = .startRecording
+            } else if descriptor.key == .zoom, let range = descriptor.domain?.range {
+                intent = .set(.zoom(range.upperBound))
             } else {
                 let reported = session.current.value(of: descriptor.key).value
                 guard let value = descriptor.domain?.choices.last(where: { $0 != reported }) else {
@@ -44,7 +47,8 @@ final class LunaCameraSessionTests: XCTestCase {
             let before = camera.sent.count
             let (_, outcome) = await submit(intent, to: session)
             XCTAssertEqual(outcome.stage, .confirmed, "\(descriptor.key): \(outcome.stage)")
-            XCTAssertEqual(camera.sent.count, before + 1, "\(descriptor.key) never reached the camera")
+            XCTAssertEqual(
+                camera.sent.count, before + 1, "\(descriptor.key) never reached the camera")
         }
     }
 
@@ -55,7 +59,8 @@ final class LunaCameraSessionTests: XCTestCase {
         let (submitted, outcome) = await submit(.set(.iso(.manual(800))), to: session)
         XCTAssertEqual(submitted.stage, .awaitingObservation, "acknowledged is not confirmed")
         XCTAssertEqual(outcome.stage, .failed(.notApplied))
-        XCTAssertEqual(session.current.value(of: .iso).value, .iso(.auto), "reported stays reported")
+        XCTAssertEqual(
+            session.current.value(of: .iso).value, .iso(.auto), "reported stays reported")
     }
 
     func testSlowSettleStaysPendingAndConfirmsFromReadback() async {
@@ -63,7 +68,8 @@ final class LunaCameraSessionTests: XCTestCase {
         let session = camera.connectedSession()
         camera.applyDelay = .milliseconds(300)
         let command = CameraCommand(
-            .set(.whiteBalance(.kelvin(3200))), preconditions: CommandPreconditions(session.current))
+            .set(.whiteBalance(.kelvin(3200))), preconditions: CommandPreconditions(session.current)
+        )
         let submitted = await session.submit(command)
         XCTAssertEqual(submitted.stage, .awaitingObservation)
         XCTAssertEqual(
@@ -103,7 +109,8 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(session.current.capabilities.support(of: .zoom), .unknown)
         let stamped = session.current.value(of: .iso).observedAt
         let now = MonotonicInstant.now()
-        XCTAssertTrue(stamped.map { $0 <= now && now - $0 < .seconds(5) } == true, "\(stamped as Any)")
+        XCTAssertTrue(
+            stamped.map { $0 <= now && now - $0 < .seconds(5) } == true, "\(stamped as Any)")
     }
 
     /// SHELL-01: Luna publishes its gimbal with camera-reported pose, host-derived timecode and no
@@ -117,16 +124,14 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertFalse(LunaCameraSession.motion.axes.contains(.zoom), "moves keep one zoom")
         var base = MonitorLayoutCapabilities()
         base.audio = true
-        let layout = MonitorLayoutCapabilities(capabilities, motion: LunaCameraSession.motion, base: base)
+        let layout = MonitorLayoutCapabilities(
+            capabilities, motion: LunaCameraSession.motion, base: base)
         XCTAssertTrue(layout.gimbal)
         XCTAssertTrue(layout.headTracking)
         XCTAssertTrue(layout.timecode)
         XCTAssertFalse(layout.audio, "unsupported overrides the base")
         XCTAssertFalse(layout.iris, "fixed aperture")
-        // The session's own layout adds zoom and focus, which the app drives outside the session.
-        var expected = layout
-        (expected.zoom, expected.focus) = (true, true)
-        XCTAssertEqual(session.layout(base: base), expected)
+        XCTAssertEqual(session.layout(base: base), layout)
 
         XCTAssertNil(session.current.timecode.value, "nothing derived yet: unknown")
         session.ingest(timecode: CameraTimecode(hours: 15, minutes: 39, seconds: 50, frames: 12))
@@ -155,7 +160,8 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(session.current.recording.origin, .cameraReported)
         camera.captureState = 4
         camera.reportCapture()
-        XCTAssertNil(session.current.recording.value, "an unreadable state does not keep a stale one")
+        XCTAssertNil(
+            session.current.recording.value, "an unreadable state does not keep a stale one")
     }
 
     func testRecordingIsUnavailableUntilTheModeIsKnownAndISOUntilExposureIsKnown() async {
@@ -186,7 +192,8 @@ final class LunaCameraSessionTests: XCTestCase {
         let camera = FakeLuna()
         let session = camera.connectedSession()
         camera.applyDelay = .milliseconds(150)
-        let command = CameraCommand(.startRecording, preconditions: CommandPreconditions(session.current))
+        let command = CameraCommand(
+            .startRecording, preconditions: CommandPreconditions(session.current))
         let submitted = await session.submit(command)
         XCTAssertEqual(submitted.stage, .awaitingObservation)
         XCTAssertEqual(session.current.recording.value, .idle, "ACK is not a recording report")
@@ -216,7 +223,8 @@ final class LunaCameraSessionTests: XCTestCase {
         let isoOutcome = await session.outcome(of: iso.operation)
         XCTAssertEqual(shutterOutcome?.stage, .confirmed)
         XCTAssertEqual(isoOutcome?.stage, .confirmed)
-        XCTAssertEqual(session.current.value(of: .shutter).value, .shutter(.duration(Rational(1, 100))))
+        XCTAssertEqual(
+            session.current.value(of: .shutter).value, .shutter(.duration(Rational(1, 100))))
     }
 
     func testRecordingProfileIsCameraReportedOrUnknown() {
@@ -225,7 +233,8 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertNil(session.recordingProfile.value)
         camera.colorMode = LunaColorMode.iLog.rawValue
         camera.reportSettings()
-        XCTAssertEqual(session.recordingProfile.value, "com.opencapture.insta360.luna.profile.i-log")
+        XCTAssertEqual(
+            session.recordingProfile.value, "com.opencapture.insta360.luna.profile.i-log")
         XCTAssertEqual(session.recordingProfile.origin, .cameraReported)
         XCTAssertEqual(session.current.mode.value?.role, .video)
     }
@@ -235,10 +244,12 @@ final class LunaCameraSessionTests: XCTestCase {
         let session = camera.connectedSession(settle: .seconds(5))
         camera.applyDelay = .seconds(10)
         let older = await session.submit(
-            CameraCommand(.set(.iso(.manual(400))), preconditions: CommandPreconditions(session.current)))
+            CameraCommand(
+                .set(.iso(.manual(400))), preconditions: CommandPreconditions(session.current)))
         XCTAssertEqual(session.receipt(of: older.operation)?.stage, .awaitingObservation)
         _ = await session.submit(
-            CameraCommand(.set(.iso(.manual(1600))), preconditions: CommandPreconditions(session.current)))
+            CameraCommand(
+                .set(.iso(.manual(1600))), preconditions: CommandPreconditions(session.current)))
         XCTAssertEqual(session.receipt(of: older.operation)?.stage, .failed(.superseded))
         session.close(.requested)
     }

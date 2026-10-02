@@ -393,6 +393,7 @@ class LunaBackend(
             readCapture = ::refreshCapture,
             scope = scope,
         )
+        next.configureLens(zoomRange)
         session = next
         previous?.closeNow(com.opencapture.opencine.core.SessionCloseReason.REPLACED)
         if (_phase.value == ConnectionPhase.LIVE) next.linkChanged(ConnectionPhase.LIVE)
@@ -445,7 +446,23 @@ class LunaBackend(
         val request = runCatching(build).getOrElse { return false }
         return runCatching { channel.request(request.code, request.body) }.isSuccess
     }
-    override suspend fun setZoom(factor: Double) = send { LunaControl.zoom(factor.coerceIn(zoomRange), functionMode) }
+    private suspend fun commonSetting(value: com.opencapture.opencine.core.SettingValue): Boolean {
+        val common = session ?: return false
+        val receipt = common.submit(
+            com.opencapture.opencine.core.CameraCommand(
+                com.opencapture.opencine.core.CameraCommandIntent.Set(value),
+                com.opencapture.opencine.core.CommandPreconditions(common.snapshots.value),
+            ),
+        )
+        return when (receipt.stage) {
+            com.opencapture.opencine.core.CommandStage.Accepted,
+            com.opencapture.opencine.core.CommandStage.AwaitingObservation,
+            com.opencapture.opencine.core.CommandStage.Confirmed -> true
+            else -> false
+        }
+    }
+    override suspend fun setZoom(factor: Double) =
+        commonSetting(com.opencapture.opencine.core.SettingValue.Zoom(factor.coerceIn(zoomRange)))
     override suspend fun gimbalStick(pan: Double, tilt: Double): Boolean {
         if (pan != 0.0 || tilt != 0.0) gimbalCommandAt = android.os.SystemClock.elapsedRealtime()
         return send { LunaControl.gimbalStick(pan, tilt) }
@@ -492,7 +509,11 @@ class LunaBackend(
     }
     override suspend fun setGimbalMode(mode: CameraGimbalMode) = with(LunaReadout) { send { LunaControl.gimbalMode(gimbalModes.key(mode), functionMode) } }
     override suspend fun setGimbalSpeed(speed: CameraGimbalSpeed) = with(LunaReadout) { send { LunaControl.gimbalFollowSpeed(gimbalSpeeds.key(speed), functionMode) } }
-    override suspend fun setFocusMode(mode: CameraFocusMode) = with(LunaReadout) { send { LunaControl.afMode(focusModes.key(mode), functionMode) } }
+    override suspend fun setFocusMode(mode: CameraFocusMode): Boolean = when (mode) {
+        CameraFocusMode.SINGLE -> commonSetting(com.opencapture.opencine.core.SettingValue.FocusMode(com.opencapture.opencine.core.FocusMode.SINGLE))
+        CameraFocusMode.CONTINUOUS -> commonSetting(com.opencapture.opencine.core.SettingValue.FocusMode(com.opencapture.opencine.core.FocusMode.CONTINUOUS))
+        CameraFocusMode.PRODUCT_SHOWCASE -> send { LunaControl.afMode(6, functionMode) }
+    }
     override suspend fun setFaceMetering(on: Boolean) = send { LunaControl.faceMetering(on, functionMode) }
 
     // Media: cmd 13/38 list, cmd 11 thumbnail, cmd 12 delete; files over HTTP on 192.168.42.1.
