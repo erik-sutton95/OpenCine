@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
+      "commit": "e303396228ad8fd10ab1ad5d8fe6d82b9e291778",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
-        "where": "SHELL-02 follow-ups: Swift626; private iPhone/iPad140 XCTest (2 skip)+98 Swift Testing each, exact-pin migration11 iOS/9 Android; Android test lint assembleRelease936app; JNI73 matches baseline; installed rename/clear/repeated-upgrade payload cycles both platforms; 36 settled captures and legal/back actions. scratchpad/codex-pages-nikon/logs; pre-existing aggregate lint baseline documented; hardware untested."
+        "commit": "e303396228ad8fd10ab1ad5d8fe6d82b9e291778",
+        "where": "Nikon root626 passed; private iPhone+iPad236 unique passed each (2 skips) qualification evidence retained; optional-mode correction targeted Swift10/Kotlin2+6 and iOS compile passed; final pin f0f5a52 Android949 app JVM/test lint debug+release passed; JNI73 parity and real emulator native probes passed. Baseline broad Swift lint111 failures remains. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
       }
     }
   ]
