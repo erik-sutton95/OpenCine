@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "be2da87e329aad8553470076eb1c24b5ea440888",
+    "commit": "b85ae07ff2047e0bc1fbcf41d12477ef086c51f0",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "be2da87e329aad8553470076eb1c24b5ea440888",
-      "where": "SHELL-02 step 9 be2da87 (core merge: a setup removed from per-setup legacy records leaves the document, Swift+Kotlin; on c0fd529 NikonSavedRecordsV0 subnet label) on main a32474d: swift test 1689 Swift Testing + 72 XCTest pass; strict-concurrency build clean; xcodebuild MonitorUI, OpenCineAppKit, OpenCineApple (generic iOS Simulator) OK; atlas unittest pass; gradle test lint assembleRelease green (JVM 799, nikon 113, core 50, appkit 25); consumers OpenPocketCine e7668754, OpenInstaCine c97e9e0, OpenZCine opencine/shell-02 064daba8 root swift build --build-tests green. Logs in the session scratchpad s09/oc-logs/be2da87."
+      "commit": "b85ae07ff2047e0bc1fbcf41d12477ef086c51f0",
+      "where": "SHELL-02 step 7 b85ae07 (DJI integration Pocket save rules Swift+Kotlin, Android card copy, public CamerasModel.upsert) on main 6b5bc70: swift test 1693 Swift Testing + 72 XCTest pass; strict-concurrency build clean; xcodebuild MonitorUI, OpenCineApple, OpenCineAppKit (generic iOS Simulator) OK; atlas unittest 91 + check; gradle test lint assembleRelease green (JVM 802: dji 350, appkit 26, nikon 112, monitor-ui 119, insta360-luna 61 (LunaCameraSessionTest concurrency case flaked once, 3 of 3 reruns pass), core 50, media 64, multicam 19, decoder 1); vulkan sync test; consumers OpenPocketCine e7668754, OpenInstaCine c97e9e0, OpenZCine aaa08a92 root swift build --build-tests and Android assembleDebug green. Notes: OpenCine-Execution-Progress.d/SHELL-02.md step 7"
     }
   },
   "apps": [
