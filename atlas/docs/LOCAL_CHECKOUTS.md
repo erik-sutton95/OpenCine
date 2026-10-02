@@ -24,6 +24,12 @@ One resolver (`tools/resolver.py`) serves every command:
 `python3 tools/atlas.py locate <id>` prints the verified path, current branch, commit,
 dirty state and every linked worktree with its branch. Use `--json` for scripts.
 
+`python3 tools/atlas.py ensure --check` runs the same resolution for every registered repository
+and reports what is missing; `ensure` clones a missing one from its registered URL into its
+explicit mapping or `<workspace>/<local_dir>`, never over an existing folder. With an `identity`
+(`name`, `email`) in `.local/checkouts.json` it sets that identity in each new clone, and
+`task start` warns when a task worktree would commit as someone else.
+
 ## Worktree model
 
 - Primary checkouts are shared. Other sessions and the user may be working in them, with
@@ -33,8 +39,13 @@ dirty state and every linked worktree with its branch. Use `--json` for scripts.
 - Edit only in a task-owned worktree created from an explicit base, for example
   `git -C <checkout> worktree add -b <task-branch> <workspace>/<Repo>-worktrees/<task> origin/main`.
 - A worktree's folder name is not branch evidence. `locate` reports the branch Git records.
-- The atlas does not create or delete worktrees. That is part of an authorized
-  implementation task (see [EXECUTION.md](EXECUTION.md)).
+- `python3 tools/atlas.py task start <repo>#<n> [--with <repo>]` creates the worktrees of an
+  authorized implementation task in `<workspace>/OpenCine-tasks/<repo>-<n>/`, one per
+  repository, named by `local_dir`, so an app's `../OpenCine` is the task's own OpenCine
+  (the task branch with `--with opencine`, otherwise detached at the app's pin). Branch
+  `issue/<repo>-<n>`; base: `--base`, else the ref the repository builds OpenCine on (its
+  registry edge), else its baseline. It never commits, pushes or deletes; `TASK.md` ends with
+  the `git worktree remove` commands. Other worktrees are created by hand as above.
 
 ## Apple and Android local overrides
 

@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from support import AtlasCase, commit, make_repo, meta, sh, tree_digest, write_registry
@@ -241,6 +242,63 @@ def run_publish(*argv):
     return code, out.getvalue()
 
 
+class IssueRouting(unittest.TestCase):
+    URL = "https://github.com/o/OpenCine"
+    CONFIG = "blank_issues_enabled: false\n\ncontact_links:\n  - name: Question\n    url: https://x/discussions\n    about: Ask.\n"
+    FORM = "name: Report a problem\nbody:\n  - type: textarea\n    id: what\n    attributes:\n      label: What went wrong?\n"
+
+    def test_chooser_links_opencine_first_and_form_asks_app_or_shared(self):
+        config = publish.route_issue_templates(".github/ISSUE_TEMPLATE/config.yml", self.CONFIG, self.URL)
+        self.assertIn("contact_links:\n  - name: Shared camera, UI or multicam code (OpenCine)\n    url: https://github.com/o/OpenCine/issues/new/choose", config)
+        self.assertTrue(config.endswith("  - name: Question\n    url: https://x/discussions\n    about: Ask.\n"))
+        form = publish.route_issue_templates(".github/ISSUE_TEMPLATE/bug_report.yml", self.FORM, self.URL)
+        self.assertTrue(form.startswith(self.FORM))
+        self.assertIn("id: shared", form)
+        self.assertIn("- Only in this app", form)
+        for rel, text in ((".github/ISSUE_TEMPLATE/config.yml", config), (".github/ISSUE_TEMPLATE/bug_report.yml", form)):
+            self.assertEqual(publish.route_issue_templates(rel, text, self.URL), text, "a second run changes nothing")
+            self.assertNotIn(chr(0x2014), text)
+
+
+class Project(unittest.TestCase):
+    """The GitHub project step against a scripted gh: find or create, link, add only missing issues."""
+
+    def run_sync(self, existing_project, items, issues):
+        calls = []
+
+        def gh(*args, check=True):
+            calls.append(args)
+            out = {("project", "list"): {"projects": [existing_project] if existing_project else []},
+                   ("project", "create"): {"number": 7, "url": "https://github.com/users/o/projects/7"},
+                   ("project", "item-list"): {"items": [{"content": {"url": u}} for u in items]}}.get(args[:2])
+            if args[:2] == ("issue", "list"):
+                out = [{"url": u} for u in issues.get(args[args.index("--repo") + 1], [])]
+            if args[:2] == ("project", "link"):
+                return subprocess.CompletedProcess(args, 1 if args[-1].endswith("App") else 0, "", "already linked")
+            return subprocess.CompletedProcess(args, 0, json.dumps(out if out is not None else {}), "")
+
+        reg = {"app": {"repository": {"url": "https://github.com/o/App"}}}
+        run = SimpleNamespace(owner="o", gh=gh, release={"apps": [{"repo": "app"}]}, reg=reg, platform_id="platform",
+                              name=lambda rid: "OpenCine")
+        run.project_repos = lambda: publish.Run.project_repos(run)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return publish.Run.sync_project(run), calls
+
+    def test_creates_links_and_adds_open_issues(self):
+        result, calls = self.run_sync(None, [], {"o/OpenCine": ["https://github.com/o/OpenCine/issues/1"],
+                                                 "o/App": ["https://github.com/o/App/issues/2"]})
+        self.assertEqual((result["number"], result["added"]), (7, 2))
+        self.assertIn(("project", "create", "--owner", "o", "--title", publish.PROJECT_TITLE, "--format", "json"), calls)
+        self.assertEqual([c[-1] for c in calls if c[:2] == ("project", "link")], ["o/OpenCine", "o/App"])
+
+    def test_rerun_finds_the_project_and_adds_only_missing_issues(self):
+        result, calls = self.run_sync({"number": 3, "title": publish.PROJECT_TITLE}, ["https://github.com/o/App/issues/2"],
+                                      {"o/App": ["https://github.com/o/App/issues/2", "https://github.com/o/App/issues/5"]})
+        self.assertEqual(result["added"], 1)
+        self.assertFalse([c for c in calls if c[:2] == ("project", "create")])
+        self.assertEqual([c[-1] for c in calls if c[:2] == ("project", "item-add")], ["https://github.com/o/App/issues/5"])
+
+
 class EndToEnd(AtlasCase):
     """The platform repository (with the atlas inside it at atlas/) and an app branch that takes it
     by path, published to bare repositories behind a file:// base."""
@@ -276,6 +334,8 @@ class EndToEnd(AtlasCase):
             "opencine-pins.txt": f"# pins\nPlatform {plat}\n",
             "scripts/checkout-opencine.sh": "base=${1:-https://github.com/example}\n",
             ".github/workflows/ci.yml": WORKFLOW.replace("OpenCineCore", "Platform"),
+            ".github/ISSUE_TEMPLATE/config.yml": IssueRouting.CONFIG,
+            ".github/ISSUE_TEMPLATE/bug_report.yml": IssueRouting.FORM,
         }, "integration")
         evidence = lambda sha: {"status": "passed", "commit": sha, "where": "fixture"}  # noqa: E731
         self.release = {
@@ -311,6 +371,8 @@ class EndToEnd(AtlasCase):
         self.assertIn("would  verify a clean clone of main", out)
         self.assertIn(f'+        .package(url: "{self.base}/Platform", exact: "0.1.0"),', out)
         self.assertIn("<Platform 0.1.0 tag commit>", out)  # app pins preview before the tag exists
+        self.assertIn(f"+    url: {self.base}/Platform/issues/new/choose", out)
+        self.assertIn("skip   GitHub project (custom --remote-base)", out)
 
     def test_publish_resume_and_idempotence(self):
         code, out = self.publish("--execute", "--open-prs")
@@ -336,6 +398,7 @@ class EndToEnd(AtlasCase):
         self.assertIn(f"Platform {tag}", sh(self.remote / "App", "show", f"{branch}:opencine-pins.txt"))
         self.assertIn(f"base=${{1:-{self.base}}}", sh(self.remote / "App", "show", f"{branch}:scripts/checkout-opencine.sh"))
         self.assertIn("checkout-opencine", sh(self.remote / "App", "show", f"{branch}:.github/workflows/ci.yml"))  # Android keeps it
+        self.assertIn("id: shared", sh(self.remote / "App", "show", f"{branch}:.github/ISSUE_TEMPLATE/bug_report.yml"))
         msg = sh(self.remote / "App", "log", "-1", "--format=%B", branch)
         self.assertIn(f"resolve Platform 0.1.0 from {self.base}", msg.replace("\n", " "))
         body = (self.root / ".local" / "publish" / "App-pr.md").read_text()

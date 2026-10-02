@@ -1,0 +1,33 @@
+{
+  "built_at": "2026-10-02T10:07:07Z",
+  "coverage": {
+    "edges": 46328,
+    "excluded": {
+      "binary-captures": 24
+    },
+    "exported_files": 990,
+    "failed": 0,
+    "nodes": 18918,
+    "parsed": 897,
+    "skipped_non_code": 174,
+    "unsupported_or_empty_code": {}
+  },
+  "dirty": false,
+  "excluded_classes": [
+    "credentials",
+    "build-products",
+    "binary-captures",
+    "vendor-reference-copies"
+  ],
+  "ref_label": "opencine/integration",
+  "repository_id": "openinstacine",
+  "scan_config_hash": "547861df696b8f817ea7665a16ef804388d5b0ad2f0a4685b02211a1aaa77715",
+  "scope": "candidate",
+  "source_commit": "31d3a3c274c9ea998cf450fd2b7cee749c5a8d6b",
+  "source_ref": null,
+  "source_tree": "4fa28c8a482dd4765a73a79251983d52bfaf07b7",
+  "tool_versions": {
+    "atlas": "0.1.0",
+    "graphify": "0.9.11"
+  }
+}

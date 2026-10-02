@@ -1,0 +1,56 @@
+name: Shared code problem
+description: A bug or gap in code the apps share (core, media, UI, multicam, the DJI, Nikon or Insta360 integration, atlas).
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OpenCine is the code OpenPocketCine, OpenInstaCine and OpenZCine share. A problem seen in one
+        app belongs in that app's tracker unless the cause is here; maintainers move issues both ways.
+        From a checkout, `python3 atlas/tools/atlas.py impact <symbol or path>` shows which apps a
+        piece of shared code reaches. Do not include camera Wi-Fi passwords, captures or other secrets.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong?
+      description: Expected and actual behavior. Name the symbol, file or product if you know it.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: apps
+    attributes:
+      label: Apps where you saw it
+      options:
+        - label: OpenPocketCine
+        - label: OpenInstaCine
+        - label: OpenZCine
+        - label: Not seen in an app (found in code or tests)
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Not sure
+        - Core and media (OpenCineCore, OpenCineMedia, OpenCineApple, Android core/media/vulkan)
+        - UI (MonitorPresentation, MonitorUI, Android monitor-ui)
+        - Multicam (OpenCineMulticam, Android multicam)
+        - DJI integration (OpenCineDJI)
+        - Nikon integration (OpenCineNikon)
+        - Insta360 integration (Insta360Protocol, Insta360Apple, Android insta360-*)
+        - Atlas and tooling
+
+  - type: input
+    id: related
+    attributes:
+      label: Related app issues (optional)
+      placeholder: erik-sutton95/OpenPocketCine#123
+
+  - type: input
+    id: version
+    attributes:
+      label: OpenCine version or commit (optional)
+      description: An app's opencine-pins.txt or Package.resolved names it.
+      placeholder: 0.1.0 or a commit SHA

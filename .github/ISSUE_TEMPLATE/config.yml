@@ -1,0 +1,18 @@
+blank_issues_enabled: true
+
+contact_links:
+  - name: A problem in the OpenPocketCine app (DJI Osmo Pocket)
+    url: https://github.com/erik-sutton95/OpenPocketCine/issues/new/choose
+    about: Seen in one app, or not sure where it comes from? Report it in that app. Maintainers move shared problems here.
+
+  - name: A problem in the OpenInstaCine app (Insta360 Luna)
+    url: https://github.com/erik-sutton95/OpenInstaCine/issues/new/choose
+    about: App behavior, setup and device problems go to the app first.
+
+  - name: A problem in the OpenZCine app (Nikon Z)
+    url: https://github.com/erik-sutton95/OpenZCine/issues/new/choose
+    about: App behavior, setup and device problems go to the app first.
+
+  - name: Security vulnerability
+    url: https://github.com/erik-sutton95/OpenCine/security/advisories/new
+    about: Report security issues privately, not as public issues.
