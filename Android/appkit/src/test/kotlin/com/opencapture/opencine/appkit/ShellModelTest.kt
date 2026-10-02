@@ -96,6 +96,23 @@ class ShellModelTest {
     }
 
     @Test
+    fun presentingTheSameSessionPreservesTheMonitorLifetime() = runTest {
+        val shell = shell()
+        val camera = Counted(FakeCameraSession.lunaLike())
+        camera.fake.cameraReportsStatus()
+        connect(shell, Values.camera, camera)
+        val first = assertNotNull(shell.monitor)
+        val editor = assertNotNull(shell.control.edit(SettingKey.ISO))
+        shell.open(ShellModel.Cover.SETTINGS)
+        shell.present(first.camera)
+        runCurrent()
+        assertEquals(first.id, shell.monitor?.id)
+        assertEquals(ShellModel.Cover.SETTINGS, shell.cover)
+        assertTrue(shell.control.isCurrent(editor))
+        assertTrue(camera.closes.isEmpty())
+    }
+
+    @Test
     fun closeOnce() = runTest {
         val shell = shell()
         val camera = Counted(FakeCameraSession.lunaLike())

@@ -66,6 +66,8 @@ class NikonOpenCineSession(
     private val recordObservationTimeout: Duration = 5.seconds,
     /** The shared host clock (MULTI-03 F1); tests inject their own. */
     private val clock: () -> MonotonicInstant = { MonotonicInstant.now() },
+    /** Owned monitor teardown. Borrowed shells release their owner instead of calling close. */
+    private val onClose: (SessionCloseReason) -> Unit = {},
 ) : OpenCineCameraSession {
     override val id: CameraSessionID = CameraSessionID()
     private val lock = Any()
@@ -86,6 +88,7 @@ class NikonOpenCineSession(
     private var wasReady = false
     private var everReady = false
     private var closed = false
+    private var holdsControl = true
     private val feed: Job
 
     init {
@@ -163,7 +166,7 @@ class NikonOpenCineSession(
 
     override suspend fun close(reason: SessionCloseReason): Unit = closeNow(reason)
 
-    /** Never sends a command. */
+    /** Retires this common lifetime; an optional owned teardown hook runs once. */
     override fun closeNow(reason: SessionCloseReason) {
         synchronized(lock) {
             if (closed) return
@@ -192,6 +195,16 @@ class NikonOpenCineSession(
                 )
         }
         feed.cancel()
+        onClose(reason)
+    }
+
+    /** The app reports its actual relay-control ownership; it never changes camera observations. */
+    fun setHoldsControl(holdsControl: Boolean) {
+        synchronized(lock) {
+            if (this.holdsControl == holdsControl || closed) return
+            this.holdsControl = holdsControl
+            refreshLocked()
+        }
     }
 
     /** The operator acting on what the camera reports right now. */
@@ -304,7 +317,11 @@ class NikonOpenCineSession(
                         everReady -> ConnectionState.Recovering(attempt)
                         else -> ConnectionState.Connecting(attempt, ConnectionPhase.LINK)
                     },
-                authority = if (ready) ControlAuthority.Owner else ControlAuthority.Unavailable(UnavailableReason.Link),
+                authority = when {
+                    !ready -> ControlAuthority.Unavailable(UnavailableReason.Link)
+                    holdsControl -> ControlAuthority.Owner
+                    else -> ControlAuthority.Unavailable(UnavailableReason.Authority)
+                },
                 capabilities = capabilities,
                 mode = current.mode.observe(properties.captureSelector?.let { captureMode(photography) }, at),
                 recording =
