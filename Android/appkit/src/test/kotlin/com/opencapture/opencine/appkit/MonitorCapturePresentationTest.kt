@@ -26,6 +26,11 @@ import kotlin.time.Duration.Companion.seconds
 /** SIMULATED descriptor and confirmation scenarios; Swift mirrors the same names. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorCapturePresentationTest {
+    @Test fun apertureUsesTheCommonCapturePresentation() {
+        assertEquals("IRIS", MonitorCapturePresentation.title(SettingKey.APERTURE))
+        assertEquals("f/2.8", MonitorCapturePresentation.label(SettingValue.Aperture(2.8)))
+    }
+
     @Test fun absentReportDoesNotSelectTheFirstDrumDetent() = runTest {
         val camera = FakeCameraSession(FakeCameraSession.lunaLike().behavior,
             FakeDevice(0x01, emptyMap(), recording = null))
@@ -146,6 +151,39 @@ class MonitorCapturePresentationTest {
         camera.advance(3.seconds); runCurrent()
         assertFalse(control.commitRecord(approval))
         assertEquals(listOf("record-start"), camera.wire)
+    }
+
+    @Test fun explicitTargetApprovalNeverInvertsWhenTheCameraStartsMeanwhile() = runTest {
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        val approval = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
+        control.record(true); runCurrent()
+        camera.advance(3.seconds); runCurrent()
+        assertTrue(control.canCommitRecord(approval))
+        assertTrue(control.commitRecord(approval)); runCurrent()
+        assertFalse(control.state.value.recordPending)
+        assertEquals(listOf("record-start"), camera.wire)
+        val stop = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
+        camera.setAuthority(ControlAuthority.ReadOnly); runCurrent()
+        assertFalse(control.canCommitRecord(stop))
+        assertFalse(control.commitRecord(stop))
+        assertEquals(listOf("record-start"), camera.wire)
+    }
+
+    @Test fun explicitApprovalRetiresWithUnknownModeAndReplacement() = runTest {
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        val approval = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
+        camera.cameraSwitchesMode(0xff); runCurrent()
+        assertFalse(control.canCommitRecord(approval))
+        assertFalse(control.commitRecord(approval))
+        control.bind(camera)
+        assertFalse(control.commitRecord(approval))
+        assertTrue(camera.wire.isEmpty())
     }
 
     @Test fun recoveryEpochAndReplacementRetireTheApproval() = runTest {

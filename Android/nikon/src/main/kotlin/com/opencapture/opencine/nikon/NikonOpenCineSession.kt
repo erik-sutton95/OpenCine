@@ -95,7 +95,7 @@ class NikonOpenCineSession(
         refresh()
         feed =
             scope.launch {
-                combine(session.state, session.cameraProperties, session.reportedRecording) { _, _, _ -> }
+                combine(session.state, session.reportedCameraProperties, session.reportedRecording) { _, _, _ -> }
                     .collect { refresh() }
             }
     }
@@ -126,7 +126,7 @@ class NikonOpenCineSession(
             transition(operation, CommandStage.Admitted)
             when (val intent = command.intent) {
                 is CameraCommandIntent.Set -> {
-                    controlWrite = writeLabel(intent.value)
+                    controlWrite = writeLabel(intent.value, session.reportedCameraProperties.value)
                         ?: return transition(operation, CommandStage.Failed(CommandFailure.NOT_SENT))
                     start = null
                 }
@@ -290,7 +290,7 @@ class NikonOpenCineSession(
         val current = _snapshots.value
         if (closed) return current
         val state = session.state.value
-        val properties = session.cameraProperties.value
+        val properties = session.reportedCameraProperties.value
         val reported = session.reportedRecording.value
         val at = now()
         val ready = state is CameraSessionState.Connected
@@ -406,7 +406,7 @@ class NikonOpenCineSession(
                 SettingDescriptor(SettingKey.ISO, domain = SettingDomain(iso), availability = isoAvailability),
                 SettingDescriptor(SettingKey.WHITE_BALANCE, domain = whiteBalance),
                 SettingDescriptor(SettingKey.RECORDING),
-            )
+            ) + NikonExposureSettings.descriptors(properties)
         }
 
         /** The common value for a monitor label, or `null` outside this slice. */
@@ -414,11 +414,13 @@ class NikonOpenCineSession(
             when (control) {
                 CameraControl.ISO -> label.trim().toIntOrNull()?.let { SettingValue.Iso(ISOValue.Manual(it)) }
                 CameraControl.WHITE_BALANCE -> SettingValue.WhiteBalance(whiteBalance(label))
+                CameraControl.SHUTTER -> NikonExposureSettings.shutter(label)
+                CameraControl.IRIS -> NikonExposureSettings.aperture(label)
                 else -> null
             }
 
         /** The control and label the Swift core takes for a common value. */
-        fun writeLabel(value: SettingValue): Pair<CameraControl, String>? =
+        fun writeLabel(value: SettingValue, properties: CameraPropertySnapshot? = null): Pair<CameraControl, String>? =
             when (value) {
                 is SettingValue.Iso -> (value.value as? ISOValue.Manual)?.let { CameraControl.ISO to it.iso.toString() }
                 is SettingValue.WhiteBalance ->
@@ -428,6 +430,10 @@ class NikonOpenCineSession(
                             is WhiteBalanceValue.Preset -> balance.id
                             is WhiteBalanceValue.Kelvin -> "${balance.kelvin}K"
                         }
+                is SettingValue.Shutter -> NikonExposureSettings.label(value, properties?.controlCapabilities?.shutterValues.orEmpty())
+                    ?.let { CameraControl.SHUTTER to it }
+                is SettingValue.Aperture -> NikonExposureSettings.label(value, properties?.controlCapabilities?.irisValues.orEmpty())
+                    ?.let { CameraControl.IRIS to it }
                 else -> null
             }
 
@@ -461,7 +467,7 @@ class NikonOpenCineSession(
                 } else {
                     mode?.let { SettingValue.WhiteBalance(whiteBalance(it)) }
                 }
-            return mapOf(SettingKey.ISO to iso, SettingKey.WHITE_BALANCE to whiteBalance)
+            return mapOf(SettingKey.ISO to iso, SettingKey.WHITE_BALANCE to whiteBalance) + NikonExposureSettings.reported(properties)
         }
 
         private fun captureMode(photography: Boolean): CaptureMode =

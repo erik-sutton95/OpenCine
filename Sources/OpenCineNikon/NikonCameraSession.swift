@@ -2,7 +2,7 @@ import Foundation
 import OpenCineCore
 
 // CORE-02 (OpenCine platform plan, section 13): the Nikon PTP control slice behind the common
-// camera-session seam. Connect/status, movie ISO, white balance and explicit record start/stop.
+// camera-session seam. Connect/status, movie exposure, white balance and explicit record start/stop.
 //
 // The adapter owns admission, operation receipts and the PTP-to-common mapping. Its
 // integration-owned NikonMonitorRuntime keeps the command queue and wire safe point; a legacy
@@ -25,17 +25,23 @@ public struct NikonControlFacts: Sendable {
     /// White-balance presets the body advertises for the active chrome, or the picker's list
     /// before the descriptor has been read.
     public var whiteBalancePresets: [String] = []
+    /// Active movie shutter and lens aperture options, from the same authoritative picker domains.
+    public var shutterLabels: [String] = []
+    public var apertureLabels: [String] = []
 
     public init(
         holdsControl: Bool = true, liveViewReady: Bool = false,
         reported: PTPCameraPropertySnapshot = PTPCameraPropertySnapshot(), recording: Bool? = nil,
-        whiteBalancePresets: [String] = [], connection: ConnectionState = .ready
+        whiteBalancePresets: [String] = [], connection: ConnectionState = .ready,
+        shutterLabels: [String] = [], apertureLabels: [String] = []
     ) {
         self.holdsControl = holdsControl
         self.liveViewReady = liveViewReady
         self.reported = reported
         self.recording = recording
         self.whiteBalancePresets = whiteBalancePresets
+        self.shutterLabels = shutterLabels
+        self.apertureLabels = apertureLabels
         self.connection = connection
     }
 }
@@ -44,12 +50,26 @@ public struct NikonControlFacts: Sendable {
 public enum NikonControlSetting: Sendable, Equatable {
     case iso
     case whiteBalance
+    case shutter
+    case aperture
+
+    /// The common capability/editor key, distinct from the Nikon wire property family.
+    public var key: SettingKey {
+        switch self {
+        case .iso: .iso
+        case .whiteBalance: .whiteBalance
+        case .shutter: .shutter
+        case .aperture: .aperture
+        }
+    }
 
     /// The control the write encoder (`PTPCameraPropertyWrite.requests`) takes for this setting.
     public var cameraControl: PTPCameraControl {
         switch self {
         case .iso: .iso
         case .whiteBalance: .whiteBalanceKelvin
+        case .shutter: .shutter
+        case .aperture: .iris
         }
     }
 }
@@ -380,6 +400,8 @@ public final class NikonCameraSession: CameraSession {
                 .recording,
                 availability: facts.liveViewReady ? .available : .unavailable(.notReady)),
         ]
+            + NikonExposureSettings.descriptors(
+                reported, shutterLabels: facts.shutterLabels, apertureLabels: facts.apertureLabels)
     }
 
     /// The setting and label the app's write encoder takes for a common value.
@@ -390,6 +412,10 @@ public final class NikonCameraSession: CameraSession {
         case .whiteBalance(.preset(let label)): (.whiteBalance, label)
         case .whiteBalance(.kelvin(let kelvin)):
             (.whiteBalance, WhiteBalanceKelvinPolicy.label(for: kelvin))
+        case .shutter:
+            NikonExposureSettings.label(value).map { (.shutter, $0) }
+        case .aperture:
+            NikonExposureSettings.label(value).map { (.aperture, $0) }
         default: nil
         }
     }
@@ -402,6 +428,8 @@ public final class NikonCameraSession: CameraSession {
         case .whiteBalance:
             WhiteBalanceKelvinPolicy.kelvin(from: label).map { .whiteBalance(.kelvin($0)) }
                 ?? whiteBalance(preset: label)
+        case .shutter: NikonExposureSettings.shutter(label)
+        case .aperture: NikonExposureSettings.aperture(label)
         }
     }
 
@@ -435,6 +463,7 @@ public final class NikonCameraSession: CameraSession {
             : wbMode.map(whiteBalance(preset:))
         // Photo chrome reports the stills ISO, which is not this slice's movie ISO setting.
         return [.iso: photography ? nil : iso, .whiteBalance: whiteBalance]
+            .merging(NikonExposureSettings.reported(reported)) { _, exposure in exposure }
     }
 
     private static func mode(_ reported: PTPCameraPropertySnapshot) -> CaptureMode? {

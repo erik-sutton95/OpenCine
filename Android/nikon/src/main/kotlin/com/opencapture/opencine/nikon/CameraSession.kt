@@ -872,7 +872,7 @@ public interface CameraSession {
         get() = noReportedRecording
 
     /**
-     * The latest real camera-property readback.
+     * The latest display snapshot, including a session's pending control projection.
      *
      * Production sessions populate this after connection, then update it with
      * low-rate polling and debounced `DevicePropChanged` events. Transport-only
@@ -880,6 +880,13 @@ public interface CameraSession {
      */
     public val cameraProperties: StateFlow<CameraPropertySnapshot>
         get() = noCameraProperties
+
+    /**
+     * Properties exactly as the camera last reported them. Pending command targets never enter
+     * this flow. Sessions without an optimistic display projection can use [cameraProperties].
+     */
+    public val reportedCameraProperties: StateFlow<CameraPropertySnapshot>
+        get() = cameraProperties
 
     /**
      * Activity/failure state for [cameraProperties]. A degraded readback does

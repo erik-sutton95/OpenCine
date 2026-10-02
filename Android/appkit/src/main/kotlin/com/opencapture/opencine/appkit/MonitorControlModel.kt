@@ -67,9 +67,13 @@ public class MonitorControlModel(
         internal val domain: SettingDomain?,
     )
 
-    /** An explicit record confirmation authorizes exactly this camera state. */
+    /** Which recording report changes retire the captured Start or Stop target. */
+    public enum class RecordConfirmationPolicy { UNCHANGED_RECORDING, EXPLICIT_TARGET }
+
+    /** A captured target under binding, mode, epoch, authority and domain assumptions. */
     public data class RecordEditor internal constructor(
         public val recording: Boolean,
+        public val policy: RecordConfirmationPolicy,
         internal val editor: Editor,
         internal val mode: CaptureMode,
     )
@@ -246,10 +250,12 @@ public class MonitorControlModel(
      * while recording, start while idle). Unknown sends nothing. One record operation at a time.
      */
     /** Unknown recording, mode, access or control readiness cannot be confirmed. */
-    public fun recordEditor(): RecordEditor? = if (state.value.recordPending) null
-        else state.value.snapshot?.let(::recordEditor)
+    public fun recordEditor(
+        policy: RecordConfirmationPolicy = RecordConfirmationPolicy.UNCHANGED_RECORDING,
+    ): RecordEditor? = if (state.value.recordPending) null
+        else state.value.snapshot?.let { recordEditor(it, policy) }
 
-    private fun recordEditor(snapshot: CameraSnapshot): RecordEditor? {
+    private fun recordEditor(snapshot: CameraSnapshot, policy: RecordConfirmationPolicy): RecordEditor? {
         val mode = snapshot.mode.value ?: return null
         val descriptor = snapshot.capabilities[SettingKey.RECORDING] ?: return null
         if (snapshot.connection != ConnectionState.Ready || mode.role != CaptureMode.Role.VIDEO ||
@@ -260,13 +266,23 @@ public class MonitorControlModel(
             RecordingState.RECORDING -> true
             else -> return null
         }
-        return RecordEditor(recording, Editor(SettingKey.RECORDING, binding, snapshot.session,
+        return RecordEditor(recording, policy, Editor(SettingKey.RECORDING, binding, snapshot.session,
             snapshot.epoch, snapshot.authority, descriptor.domain), mode)
     }
 
-    /** Approval is retired on mode, epoch, authority, binding or recording changes. */
+    /** Checks the captured assumptions and policy; unknown observation always retires approval. */
+    public fun canCommitRecord(editor: RecordEditor): Boolean = !state.value.recordPending &&
+        state.value.snapshot?.let { recordApprovalMatches(editor, it) } == true
+
+    private fun recordApprovalMatches(editor: RecordEditor, snapshot: CameraSnapshot): Boolean {
+        val current = recordEditor(snapshot, editor.policy) ?: return false
+        return current.editor == editor.editor && current.mode == editor.mode &&
+            (editor.policy == RecordConfirmationPolicy.EXPLICIT_TARGET || current.recording == editor.recording)
+    }
+
+    /** Sends the captured target, rechecked against the fresh snapshot before dispatch. */
     public fun commitRecord(editor: RecordEditor): Boolean {
-        if (recordEditor() != editor) return false
+        if (!canCommitRecord(editor)) return false
         record(!editor.recording, editor)
         return true
     }
@@ -287,7 +303,7 @@ public class MonitorControlModel(
         mutable.update { it.copy(recordPending = true) }
         return scope.async {
             val fresh = session.snapshots.value
-            if (binding != current || (approved != null && recordEditor(fresh) != approved)) {
+            if (binding != current || (approved != null && !recordApprovalMatches(approved, fresh))) {
                 finishRecord(operation, current, null, null)
                 return@async null
             }

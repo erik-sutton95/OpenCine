@@ -32,6 +32,7 @@ public enum MonitorCapturePresentation {
         switch key {
         case .iso: "ISO"
         case .shutter: "SHUTTER"
+        case .aperture: "IRIS"
         case .whiteBalance: "WB"
         default: nil
         }
@@ -46,6 +47,7 @@ public enum MonitorCapturePresentation {
         case .shutter(.duration(let seconds)):
             seconds.numerator == 1 ? "1/\(seconds.denominator)" : "\(number(seconds.doubleValue))s"
         case .shutter(.angle(let angle)): "\(number(angle))°"
+        case .aperture(let aperture): "f/\(number(aperture))"
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"
@@ -95,7 +97,8 @@ extension MonitorControlModel {
         case .owner, .lease: authorized = true
         default: authorized = false
         }
-        let writable = authorized && snapshot.connection == .ready
+        let writable =
+            authorized && snapshot.connection == .ready
             && descriptor.access == .readWrite && descriptor.availability == .available
         return MonitorCaptureField(
             key: key, title: title, selection: shown(key),
@@ -104,7 +107,9 @@ extension MonitorControlModel {
     }
 
     /// Both held gestures and persistent drums commit the editor they opened, never a new one.
-    @discardableResult public func commit(_ choice: MonitorCaptureChoice, from field: MonitorCaptureField) -> Bool {
+    @discardableResult public func commit(
+        _ choice: MonitorCaptureChoice, from field: MonitorCaptureField
+    ) -> Bool {
         guard let editor = field.editor, field.choices.contains(choice),
             let current = captureField(field.key), current.isEditable,
             current.editor == editor

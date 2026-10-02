@@ -25,6 +25,28 @@ struct NikonMonitorRuntimeTests {
         #expect(link.commands.dropFirst().allSatisfy { $0.hasPrefix("write ") })
     }
 
+    @Test("A movie exposure queued before a selector change never reaches the body")
+    func queuedExposureRetiresAtTheSafePoint() async {
+        let link = Link()
+        var facts = NikonCameraSessionTests.movieFacts()
+        facts.reported = facts.reported
+            .applying(
+                property: .movieShutterMode,
+                data: Data([PTPCameraPropertyDecoders.shutterModeCode(.speed)])
+            )
+            .applying(property: .movieShutterSpeed, data: Data(ByteCoding.uint32LE(1 << 16 | 50)))
+        facts.shutterLabels = ["1/50", "1/100"]
+        let runtime = NikonMonitorRuntime(link: link, facts: facts)
+        let queued = runtime.session.request(.set(.shutter(.duration(Rational(1, 100)))))
+        #expect(queued.stage == .admitted)
+        facts.reported = facts.reported.applying(property: .liveViewSelector, data: Data([0]))
+        runtime.updateFacts(facts)
+        #expect(await runtime.serviceControlSafePoint())
+        #expect(link.commands.isEmpty)
+        #expect(runtime.session.receipt(of: queued.operation)?.stage == .failed(.notSent))
+        #expect(!runtime.hasQueuedCommands)
+    }
+
     @Test("The latest ISO target coalesces without losing dependent writes")
     func coalescesLatestTarget() async {
         let link = Link()
