@@ -23,6 +23,33 @@ public enum NikonMulticamRefusal: Hashable, Sendable {
 }
 
 public enum NikonMulticamPolicy {
+    /// Qualification for opening a saved member path. A path qualified before connect still
+    /// rechecks body identity and camera-reported mode after connect; it asserts neither a
+    /// serial nor movie mode that the camera has not reported. An unknown photography observation
+    /// permits opening an eligible saved path only, never a movie record operation.
+    public static func qualification(
+        path: CameraPath?, reachable: Bool, isPhotography: Bool?, device: CameraDeviceID?,
+        members: some Collection<CameraDeviceID>
+    ) -> MulticamQualification {
+        let reason: NikonMulticamRefusal?
+        if let device, members.contains(device) {
+            reason = .alreadyMember
+        } else if let isPhotography, isPhotography {
+            reason = .photographyMode
+        } else {
+            reason = pathRefusal(path: path, reachable: reachable)
+        }
+        guard let reason else { return .qualified }
+        let common: MulticamQualificationRefusal =
+            switch reason {
+            case .alreadyMember: .alreadyMember
+            case .cameraAccessPoint: .unsupportedConfiguration
+            case .hdmiCapture, .photographyMode: .operationUnavailable
+            case .notReachable: .notReachable
+            }
+        return .refused(common)
+    }
+
     /// The member identity of a body: its serial, the same `CameraDeviceID` its
     /// `NikonCameraSession` reports. `nil` until a connect has stamped the serial; such a path is
     /// checked again once its session reports one.
@@ -38,6 +65,11 @@ public enum NikonMulticamPolicy {
     ) -> NikonMulticamRefusal? {
         if let device, members.contains(device) { return .alreadyMember }
         if isPhotography { return .photographyMode }
+        return pathRefusal(path: path, reachable: reachable)
+    }
+
+    /// Route eligibility is independent of a camera mode observation.
+    private static func pathRefusal(path: CameraPath?, reachable: Bool) -> NikonMulticamRefusal? {
         switch path?.kind {
         case .cameraAccessPoint?: return .cameraAccessPoint
         case .hdmiCapture?: return .hdmiCapture

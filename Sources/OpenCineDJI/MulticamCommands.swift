@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Experimental Pocket 4 Pro station-Wi-Fi and livestream provisioning.
 /// Network role and shooting mode are separate commands, observed on hardware.
@@ -81,6 +82,18 @@ public enum MulticamStationPolicy {
 
 /// Which bodies Multiview lists and previews. Unknown preview commands are not guessed.
 public enum MulticamSupport {
+    /// The existing captured-preview policy, with the operator's explicit experimental opt-in.
+    /// A missing model is unknown; an experimental request still requires a listed body.
+    public static func qualification(
+        _ model: CameraModel?, experimental: Bool = false
+    ) -> MulticamQualification {
+        guard let model else { return .unknown }
+        guard appears(model), hasPreview(model) || experimental else {
+            return .refused(.unsupportedConfiguration)
+        }
+        return .qualified
+    }
+
     public static func appears(_ model: CameraModel) -> Bool {
         !model.isDrone && (model.name.lowercased().contains("osmo") || model.family != .other)
     }

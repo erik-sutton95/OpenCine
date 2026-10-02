@@ -49,7 +49,9 @@ focus and aperture.
 Wire bytes come through `DjiNative`, a JNI facade whose class name is part of the native symbols
 (`Java_com_opencapture_opencine_dji_DjiNative_<name>`). The Swift side is the product
 `OpenCineDJIAndroid` (`Sources/OpenCineDJIAndroid`: the `@_cdecl` exports, `#if os(Android)`, and
-the Darwin-testable `DjiNativeWire` helpers over OpenCineDJI, with the `OpenCineJNI` header shim).
+the Darwin-testable `DjiNativeWire` helpers over OpenCineDJI). `OpenCineJNISupport`
+owns JNI string, buffer and method lookup helpers over the `OpenCineJNI` header shim;
+integration and app facades use that one implementation.
 An app adds the product to the target that builds its Swift Android library and the 30 exports
 ship in that `.so`; `consumer-rules.pro` keeps the Kotlin class in minified apps. The app calls `DjiNative.load(<its library>)` once at startup and points `DjiLog.sink`
 at its diagnostics. Swift and Kotlin `CamFov` share `Fixtures/camfov-vectors.tsv`.

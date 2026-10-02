@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "9ae27021dc34bceca2ae8e8e9fa2bcdfe9d2541d",
+    "commit": "f0f5a52ed35b6131319678a92b1817c3e44554c8",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "9ae27021dc34bceca2ae8e8e9fa2bcdfe9d2541d",
-      "where": "Shared SHELL-02 follow-ups f58035e: Swift1715+72; strict concurrency; Android test lint assembleRelease471tasks; private iPhone/iPad AppKit tests; MonitorUI/Apple builds, atlas91+check and Vulkan sync. All consumers built at this exact candidate, migration/visual evidence in scratchpad/s02-followups and codex-pages-{pocket,insta,nikon}/logs. Hardware untested."
+      "commit": "f0f5a52ed35b6131319678a92b1817c3e44554c8",
+      "where": "SHELL-01 step8 + SHELL-04 JNI, shared f0f5a52: Swift1719+72, strict build, Android830 JVM (2 existing skips), test lint release, MonitorUI/Apple generic iOS, atlas91/check sources and Vulkan passed. scratchpad/jni-helper-task/combined-* and evidence; device checks untested."
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "f488e5f7179138838764118f7df1d431d9eacb4c",
+      "commit": "8cb7c6885cea0539ca219de3fa0b1d3446348802",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "f488e5f7179138838764118f7df1d431d9eacb4c",
-        "where": "SHELL-02 step7 f488e5f: just check331 Swift+99handbook pages; iPhone633/iPad633 zero failures; Android504 JVM plus check/release; installed5-stage loops iOS+Android with Keychain/Keystore readback, favorites and stable route IDs; JNI41/41;70 reviewed screenshots. Logs scratchpad/s02p/resume-check-final.log, resume-ios-phone-final.log, resume-ios-ipad-final.log, resume-android-check.log, resume-android-release.log, resume-android-upgrade2.log, resume-android-verify.log, resume-ios-upgrade-final2.log, resume-keychain-final.log, jni/parity.txt. Physical checks untested."
+        "commit": "8cb7c6885cea0539ca219de3fa0b1d3446348802",
+        "where": "Pocket just check/root331/handbook99 passed; full private iPhone+iPad633 each/watch/relay12 qualification evidence retained; final pin f0f5a52 Android504 app JVM/test lint debug+release passed; JNI41 parity and real emulator native probes passed. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
+      "commit": "68a381e62a0fb641bc4004714399bc37ab96ac1e",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
-        "where": "SHELL-02 follow-ups: Swift595, just check/handbook27; helper-free private iPhone/iPad502 each (one existing skip); Android test lint assembleRelease555tasks monitor696; installed five-stage exact legacy and credential readbacks both platforms; legal/rename/clear UI both platforms and orientations, 60 iOS attachments. scratchpad/codex-pages-insta/logs; hardware untested."
+        "commit": "68a381e62a0fb641bc4004714399bc37ab96ac1e",
+        "where": "Insta just check/root595 passed; private iPhone+iPad502 each (1 existing skip) and page UI evidence retained; final pin f0f5a52 Android696 app JVM/test lint debug+release passed; JNI8 parity and real emulator native probes passed. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
+      "commit": "e303396228ad8fd10ab1ad5d8fe6d82b9e291778",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
-        "where": "SHELL-02 follow-ups: Swift626; private iPhone/iPad140 XCTest (2 skip)+98 Swift Testing each, exact-pin migration11 iOS/9 Android; Android test lint assembleRelease936app; JNI73 matches baseline; installed rename/clear/repeated-upgrade payload cycles both platforms; 36 settled captures and legal/back actions. scratchpad/codex-pages-nikon/logs; pre-existing aggregate lint baseline documented; hardware untested."
+        "commit": "e303396228ad8fd10ab1ad5d8fe6d82b9e291778",
+        "where": "Nikon root626 passed; private iPhone+iPad236 unique passed each (2 skips) qualification evidence retained; optional-mode correction targeted Swift10/Kotlin2+6 and iOS compile passed; final pin f0f5a52 Android949 app JVM/test lint debug+release passed; JNI73 parity and real emulator native probes passed. Baseline broad Swift lint111 failures remains. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
       }
     }
   ]
