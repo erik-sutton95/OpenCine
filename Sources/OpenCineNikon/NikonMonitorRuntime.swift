@@ -158,6 +158,19 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         }
         guard allowWrites, !writes.isEmpty else { return false }
         let (write, operation) = writes.removeFirst()
+        // Movie exposure can wait behind another safe-point operation. The body's selector,
+        // shutter convention, lock and advertised domain must still admit it before wire I/O.
+        // Legacy writes retain their existing native admission path.
+        if let operation, case .set(let value) = common.receipt(of: operation)?.intent,
+            value.key == .shutter || value.key == .aperture
+        {
+            let descriptor = common.refresh().capabilities[value.key]
+            guard descriptor?.availability == .available, descriptor?.accepts(value) == true else {
+                common.operationDropped(operation)
+                writes.removeAll { $0.operation == operation }
+                return true
+            }
+        }
         if let operation { common.operationSent(operation) }
         do {
             try await link.writeCameraProperty(write)

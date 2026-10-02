@@ -408,6 +408,8 @@ public data class CameraControlCapabilities(
      * can never name a combination this body did not offer.
      */
     val codecBitDepths: List<CodecBitDepthOption> = emptyList(),
+    /** Actual f-number descriptor choices, excluding the legacy body/lens fallback. */
+    val advertisedIrisValues: List<String> = emptyList(),
 ) {
     /** Returns the advertised labels for one descriptor-dependent control. */
     public fun options(control: CameraControl): List<String> =
@@ -872,7 +874,7 @@ public interface CameraSession {
         get() = noReportedRecording
 
     /**
-     * The latest real camera-property readback.
+     * The latest display snapshot, including a session's pending control projection.
      *
      * Production sessions populate this after connection, then update it with
      * low-rate polling and debounced `DevicePropChanged` events. Transport-only
@@ -880,6 +882,13 @@ public interface CameraSession {
      */
     public val cameraProperties: StateFlow<CameraPropertySnapshot>
         get() = noCameraProperties
+
+    /**
+     * Properties exactly as the camera last reported them. Pending command targets never enter
+     * this flow. Sessions without an optimistic display projection can use [cameraProperties].
+     */
+    public val reportedCameraProperties: StateFlow<CameraPropertySnapshot>
+        get() = cameraProperties
 
     /**
      * Activity/failure state for [cameraProperties]. A degraded readback does

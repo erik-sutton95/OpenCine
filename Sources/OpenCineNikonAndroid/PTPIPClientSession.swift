@@ -275,6 +275,7 @@ private struct AndroidRawControlCatalog: Sendable {
     var vibrationReduction: [AndroidRawControlMode<UInt8>] = []
     var electronicVR: [AndroidRawControlMode<UInt8>] = []
     var allowsApertureFallback = false
+    var apertureDescriptorProperty: PTPPropertyCode?
     // Photo-mode descriptor domains (iOS `cameraControlOptions` stills equivalents).
     var stillShutterSpeeds: [AndroidRawControlMode<UInt32>] = []
     var stillWhiteBalanceModes: [AndroidRawControlMode<UInt16>] = []
@@ -448,7 +449,10 @@ private struct AndroidRawControlCatalog: Sendable {
             pictureControls: pictureControls.map(\.label),
             rawCompressions: rawCompressions.map(\.label),
             codecBitDepths: codecBitDepthWireEntries,
-            codecBitDepth: currentCodecBitDepthLabel(properties.fileType)
+            codecBitDepth: currentCodecBitDepthLabel(properties.fileType),
+            advertisedIrisValues: apertureDescriptorProperty
+                == PTPIPClientSession.apertureDescriptorProperty(
+                    captureSelector: properties.captureSelector) ? apertures.map(\.label) : []
         )
     }
 
@@ -1958,6 +1962,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
     private func refreshAndroidApertureDescriptor() throws {
         androidControlCatalog.apertures = []
         androidControlCatalog.allowsApertureFallback = false
+        androidControlCatalog.apertureDescriptorProperty = nil
         // Photo mode describes the STANDARD aperture property for the mounted
         // lens; the movie enum is not authoritative there (iOS
         // refreshLensApertures routing). A flip marks descriptors due, so the
@@ -1975,6 +1980,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     property.rawValue)
             }
             androidControlCatalog.apertures = modes
+            androidControlCatalog.apertureDescriptorProperty = property
             androidControlCatalog.allowsApertureFallback = raw.isEmpty && usesNikonZRFallbacks
         } catch let error as PTPIPClientSessionError {
             guard usesNikonZRFallbacks, isDescriptorFallbackEligible(error) else { throw error }

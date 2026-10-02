@@ -62,6 +62,113 @@ class DjiCameraSessionAdapterTest {
     }
 
     @Test
+    fun captureCapabilitiesUseActualReportsAndReachThePort() = runTest {
+        val targets = listOf(
+            SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100))) to "shutter 100",
+            SettingValue.ExposureCompensation(Rational(2, 3)) to "ev 2",
+            SettingValue.FocusMode(com.opencapture.opencine.core.FocusMode.CONTINUOUS) to "focus 2",
+            SettingValue.Zoom(2.0) to "zoom 2.0",
+        )
+        for ((value, call) in targets) {
+            val port = capturePort()
+            val seam = adapter(port)
+            val receipt = seam.request(CameraCommandIntent.Set(value))
+            assertEquals(CommandStage.Sent, receipt.stage)
+            assertEquals(listOf(call), port.fired)
+            port.answer(ControlWireEvent.CONFIRMED)
+            assertEquals(CommandStage.AwaitingObservation, seam.receipt(receipt.operation)?.stage)
+            assertTrue(seam.current.value(value.key).value != value)
+        }
+    }
+
+    @Test
+    fun optimisticFocusCannotConfirmOrReplaceReportedFocus() = runTest {
+        val port = capturePort()
+        val seam = adapter(port)
+        val receipt = seam.request(CameraCommandIntent.Set(
+            SettingValue.FocusMode(com.opencapture.opencine.core.FocusMode.CONTINUOUS)))
+        // The legacy HUD changed, but the separate actual capture report did not.
+        port.presentation = assertNotNull(port.capture).reported.copy(focusMode = CameraCommands.FOCUS_CONTINUOUS)
+        seam.sessionDidChange()
+        assertEquals(CommandStage.Sent, seam.receipt(receipt.operation)?.stage)
+        assertEquals(SettingValue.FocusMode(com.opencapture.opencine.core.FocusMode.SINGLE),
+            seam.current.value(SettingKey.FOCUS_MODE).value)
+        val capture = assertNotNull(port.capture)
+        port.capture = capture.copy(reported = capture.reported.copy(focusMode = CameraCommands.FOCUS_CONTINUOUS))
+        seam.sessionDidChange()
+        assertEquals(CommandStage.Confirmed, seam.receipt(receipt.operation)?.stage)
+    }
+
+    @Test
+    fun actualZoomReportCanConfirmBeforeAnAck() = runTest {
+        val port = capturePort()
+        val seam = adapter(port)
+        val receipt = seam.request(CameraCommandIntent.Set(SettingValue.Zoom(2.0)))
+        val capture = assertNotNull(port.capture)
+        port.capture = capture.copy(reported = capture.reported.copy(zoomFactor = 2.0))
+        seam.sessionDidChange()
+        assertEquals(CommandStage.Confirmed, seam.receipt(receipt.operation)?.stage)
+        port.answer(ControlWireEvent.REFUSED)
+        assertEquals(CommandStage.Confirmed, seam.receipt(receipt.operation)?.stage)
+    }
+
+    @Test
+    fun changedCaptureDomainRejectsQueuedEdit() = runTest {
+        val port = capturePort()
+        val seam = adapter(port)
+        val command = CameraCommand(CameraCommandIntent.Set(
+            SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100)))), CommandPreconditions(seam.current))
+        val capture = assertNotNull(port.capture)
+        port.capture = capture.copy(reported = capture.reported.copy(availableShutterDenoms = listOf(50)))
+        assertEquals(CommandStage.Rejected(CommandRejection.StaleCapabilities), seam.submit(command).stage)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    @Test
+    fun commonShutterNeverChangesExposureModeImplicitly() = runTest {
+        val port = capturePort()
+        val capture = assertNotNull(port.capture)
+        port.capture = capture.copy(reported = capture.reported.copy(expoMode = CameraCommands.EXPO_AUTO))
+        val seam = adapter(port)
+        assertEquals(CommandStage.Rejected(CommandRejection.Unavailable(
+            com.opencapture.opencine.core.UnavailableReason.Mode)),
+            seam.request(CameraCommandIntent.Set(SettingValue.Shutter(
+                ShutterValue.Duration(Rational(1, 100))))).stage)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    @Test
+    fun captureUnknownsStayNilAndMechanicalIrisIsReadOnly() = runTest {
+        val port = capturePort()
+        val model = CameraModel(name = "Osmo Action 6", family = "other",
+            supportsFocusMode = false, supportsZoom = false, hasGimbal = false)
+        port.state = port.state.copy(model = model)
+        port.capture = DjiCaptureControlState(CameraStatus(), model)
+        val seam = adapter(port)
+        for (key in listOf(SettingKey.SHUTTER, SettingKey.EXPOSURE_COMPENSATION,
+            SettingKey.FOCUS_MODE, SettingKey.ZOOM, SettingKey.APERTURE)) {
+            assertNull(seam.current.value(key).value)
+        }
+        port.capture = DjiCaptureControlState(CameraStatus(irisHundredths = 280), model)
+        assertEquals(SettingValue.Aperture(2.8), seam.current.value(SettingKey.APERTURE).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
+            seam.request(CameraCommandIntent.Set(SettingValue.Aperture(2.0))).stage)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    private fun capturePort(): FakePort {
+        val port = FakePort()
+        val model = CameraModel(name = "Osmo Pocket 3")
+        port.state = port.state.copy(model = model)
+        port.capture = DjiCaptureControlState(CameraStatus(
+            expoMode = CameraCommands.EXPO_MANUAL, shutterDenom = 50,
+            availableShutterDenoms = listOf(50, 100), evComp = EvComp.ZERO.rawValue,
+            focusMode = CameraCommands.FOCUS_SINGLE, zoomFactor = 1.0,
+        ), model)
+        return port
+    }
+
+    @Test
     fun undeclaredSettingStaysUnknownInsteadOfPretending() = runTest {
         val receipt = adapter(FakePort()).request(
             CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50)))),
@@ -363,6 +470,8 @@ class DjiCameraSessionAdapterTest {
                 whiteBalance = ReportedWhiteBalance(CameraCommands.WB_AUTO, 0, 0),
                 recording = recording,
             )
+        var capture: DjiCaptureControlState? = null
+        var presentation: CameraStatus = CameraStatus()
         val fired = mutableListOf<String>()
         var note: String? = null
         private var stage: ((ControlWireEvent) -> Unit)? = null
@@ -376,6 +485,16 @@ class DjiCameraSessionAdapterTest {
             stage = onStage
             onStage?.invoke(ControlWireEvent.SENT)
         }
+
+        override fun captureControlState() = capture
+        override fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) =
+            fire("shutter $denominator", onStage)
+        override fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) =
+            fire("ev ${value.thirds}", onStage)
+        override fun writeFocusMode(continuous: Boolean, onStage: (ControlWireEvent) -> Unit) =
+            fire("focus ${if (continuous) 2 else 1}", onStage)
+        override fun writeZoom(ratio: Double, onStage: (ControlWireEvent) -> Unit) =
+            fire("zoom $ratio", onStage)
 
         override fun controlState() = state
 

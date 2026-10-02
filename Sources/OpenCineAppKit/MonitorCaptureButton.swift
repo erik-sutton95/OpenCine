@@ -11,6 +11,7 @@
         private let photo: Bool
         private let confirm: Bool
         private let haptics: Bool
+        private let confirmationPolicy: MonitorControlModel.RecordConfirmationPolicy
         private let takePhoto: () -> Void
         private let openMode: (() -> Void)?
         @State private var confirmOpen = false
@@ -18,7 +19,9 @@
 
         public init(
             control: MonitorControlModel, diameter: CGFloat, enabled: Bool, photo: Bool = false,
-            confirm: Bool = false, haptics: Bool = true, takePhoto: @escaping () -> Void = {},
+            confirm: Bool = false, haptics: Bool = true,
+            confirmationPolicy: MonitorControlModel.RecordConfirmationPolicy = .unchangedRecording,
+            takePhoto: @escaping () -> Void = {},
             openMode: (() -> Void)? = nil
         ) {
             self.control = control
@@ -27,12 +30,17 @@
             self.photo = photo
             self.confirm = confirm
             self.haptics = haptics
+            self.confirmationPolicy = confirmationPolicy
             self.takePhoto = takePhoto
             self.openMode = openMode
         }
 
-        private var editor: MonitorControlModel.RecordEditor? { control.recordEditor() }
-        private var interactive: Bool { enabled && !control.recordPending && (photo || editor != nil) }
+        private var editor: MonitorControlModel.RecordEditor? {
+            control.recordEditor(policy: confirmationPolicy)
+        }
+        private var interactive: Bool {
+            enabled && !control.recordPending && (photo || editor != nil)
+        }
         private var recording: Bool { control.isRecording == true }
 
         public var body: some View {
@@ -51,7 +59,8 @@
                 .opacity(enabled ? (recording && control.recordPending ? 0.72 : 1) : 0.4)
                 .sensoryFeedback(
                     haptics ? .impact(weight: .heavy) : .impact(flexibility: .solid, intensity: 0),
-                    trigger: control.isRecording)
+                    trigger: control.isRecording
+                )
                 .confirmationDialog(
                     approved?.recording == true ? "Stop recording?" : "Start recording?",
                     isPresented: $confirmOpen, titleVisibility: .visible
@@ -66,9 +75,12 @@
                     }
                     Button("Cancel", role: .cancel) { approved = nil }
                 }
-                .onChange(of: editor) { _, _ in retireApproval() }
+                .onChange(of: editor) { _, _ in
+                    if let approved, !control.canCommitRecord(from: approved) { retireApproval() }
+                }
                 .onChange(of: enabled) { _, _ in retireApproval() }
                 .onChange(of: photo) { _, _ in retireApproval() }
+                .onChange(of: confirmationPolicy) { _, _ in retireApproval() }
                 .accessibilityHidden(false)
                 .accessibilityLabel(accessibility)
                 .accessibilityAddTraits(.isButton)
@@ -86,11 +98,16 @@
 
         private func press() {
             guard interactive else { return }
-            if photo { takePhoto() }
-            else if confirm {
+            if photo {
+                takePhoto()
+            } else if confirm {
                 approved = editor
                 confirmOpen = approved != nil
-            } else { control.record(start: nil) }
+            } else if confirmationPolicy == .explicitTarget, let editor {
+                control.commitRecord(from: editor)
+            } else {
+                control.record(start: nil)
+            }
         }
 
         private func retireApproval() {

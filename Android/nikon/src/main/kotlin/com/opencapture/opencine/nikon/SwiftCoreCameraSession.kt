@@ -486,6 +486,9 @@ class SwiftCoreCameraSession internal constructor(
     private val _cameraProperties = MutableStateFlow(CameraPropertySnapshot())
     override val cameraProperties: StateFlow<CameraPropertySnapshot> = _cameraProperties.asStateFlow()
 
+    private val _reportedCameraProperties = MutableStateFlow(CameraPropertySnapshot())
+    override val reportedCameraProperties: StateFlow<CameraPropertySnapshot> = _reportedCameraProperties.asStateFlow()
+
     private val _propertyRefreshStatus =
         MutableStateFlow<CameraPropertyRefreshStatus>(CameraPropertyRefreshStatus.Idle)
     override val propertyRefreshStatus: StateFlow<CameraPropertyRefreshStatus> =
@@ -604,6 +607,7 @@ class SwiftCoreCameraSession internal constructor(
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
                             _cameraProperties.value = CameraPropertySnapshot()
+                            _reportedCameraProperties.value = CameraPropertySnapshot()
                             _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
                             (liveFrames as? SwiftCoreLiveFrameSource)?.noteSessionConnected()
                             updateRoundTripMeasurement()
@@ -1077,6 +1081,7 @@ class SwiftCoreCameraSession internal constructor(
                     _recordingState.value = CameraRecordingState.STANDBY
                     _reportedRecording.value = null
                     _cameraProperties.value = CameraPropertySnapshot()
+                    _reportedCameraProperties.value = CameraPropertySnapshot()
                     _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
                     _latestCommandRoundTripMilliseconds.value = null
                     _state.value = CameraSessionState.Disconnected
@@ -1430,6 +1435,7 @@ class SwiftCoreCameraSession internal constructor(
         }
         if (clearSnapshot) {
             _cameraProperties.value = CameraPropertySnapshot()
+            _reportedCameraProperties.value = CameraPropertySnapshot()
         }
         _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
         _initialMonitorPropertiesReady.value = false
@@ -1531,6 +1537,9 @@ class SwiftCoreCameraSession internal constructor(
                     // Avoid rewriting an equal snapshot; property StateFlow
                     // collectors recompose the whole property bar otherwise.
                     val next = readback.snapshot
+                    if (next != _reportedCameraProperties.value) {
+                        _reportedCameraProperties.value = next
+                    }
                     if (next != _cameraProperties.value) {
                         _cameraProperties.value = next
                     }
