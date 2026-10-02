@@ -360,6 +360,49 @@ struct MultiviewPresentationLayoutTests {
             "Secondary feeds should scroll instead of shrinking")
     }
 
+    /// Given the window's physical insets, Exit, the layout toggle (`network`) and every
+    /// visible picture stay out of a landscape Dynamic Island in either orientation, whether
+    /// the host passes UIKit's symmetric report or only the island edge. The island band is
+    /// measured on an iPhone 16 Pro simulator (iOS 26.2): 14...50 pt from its edge, 125 pt
+    /// long, centred; padded here to 51 x 126.
+    @Test func landscapeSessionControlsAndPicturesClearTheDynamicIsland() {
+        for (width, height, inset, bottom) in [
+            (852.0, 393.0, 59.0, 21.0), (874, 402, 62, 20), (932, 430, 59, 21), (956, 440, 62, 20),
+        ] {
+            for islandOnTrailing in [false, true] {
+                let island = MonitorRect(
+                    x: islandOnTrailing ? width - 51 : 0, y: height / 2 - 63, width: 51,
+                    height: 126)
+                for symmetric in [true, false] {
+                    let safe = MonitorSafeArea(
+                        leading: symmetric || !islandOnTrailing ? inset : 0, bottom: bottom,
+                        trailing: symmetric || islandOnTrailing ? inset : 0)
+                    for arrangement in [MultiviewPresentationLayout.Arrangement.grid, .centerStage]
+                    {
+                        for selected in 0..<4 {
+                            let layout = MultiviewPresentationLayout(
+                                width: width, height: height, safeArea: safe,
+                                arrangement: arrangement, selected: selected)
+                            let pictures = layout.tiles.enumerated().map { index, tile in
+                                layout.secondaryIndices.contains(index)
+                                    ? clipped(tile, to: layout.secondaryViewport!) : tile
+                            }
+                            for frame in [layout.sessionControls, layout.network] + pictures
+                            where frame.height > 0 {
+                                #expect(
+                                    !overlaps(frame, island),
+                                    "\(width)x\(height) trailing:\(islandOnTrailing) symmetric:\(symmetric) \(arrangement) \(frame)"
+                                )
+                            }
+                            #expect(layout.network.width >= 44 && layout.network.height >= 44)
+                            #expect(layout.sessionControls.height >= 44)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func clipped(_ tile: MonitorRect, to viewport: MonitorRect) -> MonitorRect {
         .init(
             x: max(tile.x, viewport.x), y: max(tile.y, viewport.y),

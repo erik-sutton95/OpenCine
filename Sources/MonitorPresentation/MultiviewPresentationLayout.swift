@@ -23,6 +23,9 @@ public struct MultiviewPresentationLayout: Equatable, Sendable {
     /// Grid tiles carry the selected camera's values as a small row above the footer.
     public static let gridReadoutHeight = 24.0
 
+    /// `safeArea` must be the window's physical insets (MonitorUI `monitorWindowGeometry`),
+    /// not a `GeometryReader` under `ignoresSafeArea()`, which reports zero: zero reads as a
+    /// phone without a cutout and puts the layout toggle and the strip under a landscape island.
     public init(
         width: Double, height: Double, safeArea: MonitorSafeArea = .init(),
         arrangement: Arrangement, selected: Int, topControlInset: Double = 0
