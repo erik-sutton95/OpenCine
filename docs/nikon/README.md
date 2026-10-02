@@ -60,6 +60,18 @@ swift test --filter OpenCineNikonAndroidTests          # from the repository roo
 (cd Android && ./gradlew :nikon:test)
 ```
 
+## iOS transports (SHELL-04)
+
+`PTPIPTransport` (two BSD TCP sockets, the PTP-IP Init handshake and framing, port probes for
+discovery) and the USB-C transport (`USBCameraDeviceBrowser`, `USBCameraTransport` over
+ImageCaptureCore, `DeviceUSBConnector`), both `CameraTransport`s, and `NativeCameraSessionError`
+moved here from OpenZCine `ios/Runner` without behavior change. They sit behind a file-wide
+`#if canImport(Darwin)` / `#if os(iOS)`, so the Android build (and, for USB, `swift test` on
+macOS) compiles them out; the import rule test allows Darwin, os and ImageCaptureCore only that
+way. The app sets two hooks at launch: `PTPIPTransport.connectionLog` and
+`USBCameraDeviceBrowser.shared.onEvent` (authorization, attach, detach). Logs use subsystem
+`OpenCineNikon`.
+
 Not here (yet): the generic monitor/assist/preferences stack, the contributed LUT table and
-Frame.io (plan OPTIONAL-01) stay in OpenZCine; the iOS PTP transports (`PTPIPTransport`,
-`USBCameraTransport`, `NativeCameraSession`) stay in the app for now.
+Frame.io (plan OPTIONAL-01) stay in OpenZCine; the iOS session orchestration
+(`NativeCameraSession`, with its saved-camera store) stays in the app for now.
