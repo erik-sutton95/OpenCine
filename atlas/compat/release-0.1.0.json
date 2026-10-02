@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "90a801f3a68ed00810774980c4d61d1e43e95dd8",
+      "commit": "627d602d6b5c4f13039316bafade910158d5f064",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "90a801f3a68ed00810774980c4d61d1e43e95dd8",
-        "where": "Pin8d9d3f44 shared I2 composition; unchanged app root626 tests passed. Log local scratchpad/i2-integration-checks/nikon.log. Last native platform gates retained from prior pin030fa040; Z1 MonitorScreen adoption is separate WIP. Physical cameras untested."
+        "commit": "627d602d6b5c4f13039316bafade910158d5f064",
+        "where": "Z1 source8a3fbca: phone/pad140 XCTest+92 SwiftTesting each (2 existing skips), canonical Android952/install9/JNI73. local scratchpad/codex-shell03-z1-nikon/logs. Exact combined SDK0549153 root626/generic iOS build-for-testing/Android main+unit compile80tasks passed, local scratchpad/dji-common-controls/capture-union-nikon-*.log. Physical cameras untested."
       }
     }
   ]
