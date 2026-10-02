@@ -434,7 +434,7 @@ class NikonOpenCineSession(
                         }
                 is SettingValue.Shutter -> NikonExposureSettings.label(value, properties?.controlCapabilities?.shutterValues.orEmpty())
                     ?.let { CameraControl.SHUTTER to it }
-                is SettingValue.Aperture -> NikonExposureSettings.label(value, properties?.controlCapabilities?.irisValues.orEmpty())
+                is SettingValue.Aperture -> NikonExposureSettings.label(value, properties?.controlCapabilities?.advertisedIrisValues.orEmpty())
                     ?.let { CameraControl.IRIS to it }
                 else -> null
             }

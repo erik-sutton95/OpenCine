@@ -65,7 +65,7 @@ public object NikonExposureSettings {
                 null -> false
             }
         }).distinct()
-        val apertures = properties.controlCapabilities.irisValues.mapNotNull(::aperture).distinct()
+        val apertures = properties.controlCapabilities.advertisedIrisValues.mapNotNull(::aperture).distinct()
         return buildList {
             if (shutters.isNotEmpty() || reported[SettingKey.SHUTTER] != null) add(SettingDescriptor(SettingKey.SHUTTER,
                 domain = SettingDomain(shutters),

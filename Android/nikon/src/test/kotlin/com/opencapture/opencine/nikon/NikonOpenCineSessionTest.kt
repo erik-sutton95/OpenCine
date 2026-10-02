@@ -45,6 +45,7 @@ class NikonOpenCineSessionTest {
             controlCapabilities = movie().controlCapabilities.copy(
                 shutterValues = listOf("2/100", "1/100", "180°", "1/0", "Bulb"),
                 irisValues = listOf("f/2.8", "f/4.0", "f/NaN", "unknown"),
+                advertisedIrisValues = listOf("f/2.8", "f/4.0", "f/NaN", "unknown"),
             ),
         )
         val native = FakeNikon(properties)
@@ -82,6 +83,28 @@ class NikonOpenCineSessionTest {
         val unknown = properties.copy(shutterMode = null, iris = null)
         assertNull(NikonExposureSettings.reported(unknown)[SettingKey.SHUTTER])
         assertTrue(NikonExposureSettings.descriptors(unknown).isEmpty())
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test
+    fun `legacy lens fallback stays visible without authorizing common aperture writes`() = runTest {
+        val properties = movie().copy(
+            iris = "f/2.8",
+            controlCapabilities = movie().controlCapabilities.copy(irisValues = listOf("f/2.8", "f/4.0")),
+        )
+        val native = FakeNikon(properties)
+        val seam = NikonOpenCineSession(native, backgroundScope)
+        assertEquals(SettingValue.Aperture(2.8), seam.refresh().value(SettingKey.APERTURE).value)
+        assertTrue(seam.refresh().capabilities[SettingKey.APERTURE]!!.domain!!.choices.isEmpty())
+        assertEquals(CommandStage.Rejected(CommandRejection.Unavailable(UnavailableReason.NotReady)),
+            seam.request(CameraCommandIntent.Set(SettingValue.Aperture(4.0))).stage)
+        assertTrue(native.writes.isEmpty())
+        native.cameraProperties.value = properties.copy(controlCapabilities = properties.controlCapabilities.copy(
+            advertisedIrisValues = listOf("f/4.0")))
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain),
+            seam.request(CameraCommandIntent.Set(SettingValue.Aperture(2.8))).stage)
+        assertEquals(CommandStage.Confirmed, seam.request(CameraCommandIntent.Set(SettingValue.Aperture(4.0))).stage)
+        assertEquals(listOf(CameraControl.IRIS to "f/4.0"), native.writes)
         seam.closeNow(SessionCloseReason.REQUESTED)
     }
 
