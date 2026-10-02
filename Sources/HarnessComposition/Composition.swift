@@ -9,44 +9,28 @@ import OpenCineNikon
 /// Routes describe; they never provision. Every route here is hardware-untested in combination
 /// (docs/TOPOLOGY.md).
 public struct RouteOffer: Hashable, Sendable {
-    public enum Kind: Hashable, Sendable {
-        /// The phone joins the camera's own Wi-Fi access point (one association per phone).
-        case cameraAccessPoint
-        /// Phone and camera share a router or hotspot.
-        case infrastructureNetwork
-        /// Camera control (PTP) over a USB interface.
-        case usb
-        /// A UVC/HDMI capture device: picture only, no camera control.
-        case captureCard
-    }
-
-    public var kind: Kind
+    public var kind: RouteKind
     public var picture: Bool
     public var control: Bool
     /// ponytail: rough unmeasured estimate for admission budgets; measure per route on hardware.
     public var bitsPerSecond: Int
 
-    public init(_ kind: Kind, picture: Bool, control: Bool, bitsPerSecond: Int = 0) {
+    public init(_ kind: RouteKind, picture: Bool, control: Bool, bitsPerSecond: Int = 0) {
         self.kind = kind
         self.picture = picture
         self.control = control
         self.bitsPerSecond = bitsPerSecond
     }
 
-    /// The admission request for one entry on this route. `resource` names the network (SSID) or
-    /// USB interface the operator chose.
+    /// The admission request for one entry on this route, through OpenCineMulticam's route
+    /// claims. `resource` names the network (SSID) or USB interface the operator chose.
     public func request(
         entry: MonitorEntryID, device: CameraDeviceID?, resource: String
     ) -> ResourceRequest {
-        let claim: ResourceClaim =
-            switch kind {
-            case .cameraAccessPoint: .cameraAccessPoint(network: resource)
-            case .infrastructureNetwork: .infrastructureNetwork(resource)
-            case .usb, .captureCard: .usbInterface(resource)
-            }
-        return ResourceRequest(
-            entry: entry, device: device, claims: [claim], bitsPerSecond: bitsPerSecond,
-            decoders: picture ? 1 : 0)
+        ResourceRequest(
+            entry: entry, device: device,
+            route: SavedRoute(key: kind.rawValue, kind: kind, network: resource), picture: picture,
+            bitsPerSecond: bitsPerSecond)
     }
 }
 
@@ -94,7 +78,7 @@ public enum Composition {
     /// A UVC/HDMI capture device: picture only, no camera behind it as far as the app knows.
     public static let hdmiCapture = IntegrationFactory(
         id: IntegrationID("org.opencapture.harness.uvc-capture"),
-        routes: [RouteOffer(.captureCard, picture: true, control: false, bitsPerSecond: 0)])
+        routes: [RouteOffer(.captureDevice, picture: true, control: false, bitsPerSecond: 0)])
 
     // MARK: Sessions, one typed constructor per integration
 

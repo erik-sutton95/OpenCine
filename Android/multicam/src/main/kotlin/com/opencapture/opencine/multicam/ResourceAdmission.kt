@@ -2,6 +2,8 @@ package com.opencapture.opencine.multicam
 
 import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.MonitorEntryID
+import com.opencapture.opencine.core.RouteKind
+import com.opencapture.opencine.core.SavedRoute
 
 /**
  * A host resource a connection route needs. Integrations declare them; they know how to
@@ -26,6 +28,28 @@ public sealed interface ResourceClaim {
 
     /** Temporary Bluetooth commissioning or provisioning. One device at a time. */
     public data object BluetoothCommissioning : ResourceClaim
+
+    public companion object {
+        /**
+         * What a saved route claims on the phone. A hotspot is an infrastructure network named
+         * `hotspot:<network>`, so it conflicts with any other Wi-Fi. A USB or capture route claims
+         * its interface. A route that needs Bluetooth first also claims commissioning.
+         */
+        public fun claims(route: SavedRoute): List<ResourceClaim> {
+            // ponytail: an unknown network or interface is this route's own name, so it never
+            // matches another route's; a known name replaces it once the route reports one.
+            val name = route.network ?: "route:${route.id.uuid.toString().uppercase()}"
+            val claim = when (route.kind) {
+                RouteKind.CAMERA_ACCESS_POINT -> CameraAccessPoint(name)
+                RouteKind.INFRASTRUCTURE_NETWORK -> InfrastructureNetwork(name)
+                RouteKind.PHONE_HOTSPOT -> InfrastructureNetwork("hotspot:$name")
+                RouteKind.USB, RouteKind.CAPTURE_DEVICE -> UsbInterface(name)
+            }
+            // ponytail: commissioning is claimed for the whole entry; split candidate and member
+            // requests when a multicam app admits members that commission over Bluetooth.
+            return if (route.bluetooth) listOf(claim, BluetoothCommissioning) else listOf(claim)
+        }
+    }
 }
 
 /**
@@ -39,7 +63,19 @@ public data class ResourceRequest(
     /** Estimates; zero when the route carries no picture. */
     public val bitsPerSecond: Long = 0,
     public val decoders: Int = 0,
-)
+) {
+    /**
+     * The request for one entry on a saved route: its claims, one decoder when it carries the
+     * picture, and the caller's bandwidth estimate.
+     */
+    public constructor(
+        entry: MonitorEntryID,
+        device: CameraDeviceID?,
+        route: SavedRoute,
+        picture: Boolean,
+        bitsPerSecond: Long = 0,
+    ) : this(entry, device, ResourceClaim.claims(route), bitsPerSecond, if (picture) 1 else 0)
+}
 
 /**
  * The app's limits. [qualifiedEntries] is the tested product limit (for example four), never an

@@ -20,10 +20,13 @@ import com.opencapture.opencine.core.SettingKey.ISO
 import com.opencapture.opencine.core.SettingKey.WHITE_BALANCE
 import com.opencapture.opencine.core.testing.FakeCameraBehavior.RecordWire
 import com.opencapture.opencine.core.testing.FakeCameraSession
+import com.opencapture.opencine.core.testing.FakeIntegration
 import com.opencapture.opencine.core.testing.FakePictureSource
 import com.opencapture.opencine.core.testing.nikonLike
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import kotlin.test.Ignore
@@ -444,7 +447,24 @@ class ConformanceTest {
         }
     }
 
-    @Ignore // N/A for CORE-01: discovery is integration-owned; Core has no discovery API.
+    /** Against the scripted integration; each integration runs it with its own fake transports. */
     @Test
-    fun `15 discovery follows passive and active policy`() = Unit
+    fun `15 discovery follows passive and active policy`() = scenario {
+        val both = FakeIntegration(endpoints = listOf("10.0.0.2", "10.0.0.3"))
+        both.discover(DiscoveryMode.PASSIVE).first()
+        assertTrue(both.dials.isNotEmpty())
+        assertTrue(both.dials.all { it.purpose == FakeIntegration.DialPurpose.PRESENCE })
+
+        both.discover(DiscoveryMode.ACTIVE).first()
+        assertEquals(
+            listOf("10.0.0.2", "10.0.0.3"),
+            both.dials.filter { it.purpose == FakeIntegration.DialPurpose.CAMERA_CONTROL }.map { it.endpoint },
+        )
+        assertEquals(listOf(DiscoveryMode.PASSIVE, DiscoveryMode.ACTIVE), both.discoveries)
+
+        // An integration that only listens never runs an active discovery.
+        val listening = FakeIntegration(discoveryModes = setOf(DiscoveryMode.PASSIVE), endpoints = listOf("10.0.0.2"))
+        assertTrue(listening.discover(DiscoveryMode.ACTIVE).toList().isEmpty())
+        assertTrue(listening.dials.isEmpty())
+    }
 }

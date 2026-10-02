@@ -33,7 +33,7 @@ hardware-qualified.
 | `AdmissionFingerprint` | Per-target session, epoch, capability revision, authority, mode and reported recording; routine telemetry is excluded |
 | `RecordSubmission`, `RecordResult`, `TargetOutcome` | Per-target outcomes (pending, accepted, confirmed, rejected, failed, timedOut, outcomeUnknown, superseded), mapped back to entries |
 | `EditorLeases`, `EditorLease` | Per-entry settings/detail-view leases that retire when the entry's session, epoch or authority changes, or when closed or reopened; `refusal(for:in:at:)` answers "may this editor send now?" for an app's existing command path |
-| `ResourceAdmission`, `ResourceRequest`, `ResourceClaim`, `ResourceBudget` | Route claims (camera access point, infrastructure network, USB interface, Bluetooth commissioning, bandwidth and decoder estimates) and feasibility with reasons; the app's qualification limit is an injected budget value |
+| `ResourceAdmission`, `ResourceRequest`, `ResourceClaim`, `ResourceBudget` | Route claims (camera access point, infrastructure network, USB interface, Bluetooth commissioning, bandwidth and decoder estimates) and feasibility with reasons; the app's qualification limit is an injected budget value. `ResourceClaim.claims(for:)` and `ResourceRequest(entry:device:route:picture:bitsPerSecond:)` map a Core `SavedRoute` (access point, infrastructure, hotspot as `hotspot:<network>`, USB and capture interface, plus commissioning for a Bluetooth route) |
 | `RecoveryBudget`, `RecoveryLedger` | Independent bounded recovery budget per entry, restored after sustained health |
 | `MulticamLayout` | Codable slot order, names, devices, routes and stage; the app chooses storage |
 
@@ -126,13 +126,14 @@ state)`, `summary(state, telemetryMaxAge)`). Where they differ:
 | `EditorLeaseID = Identifier<IdentityKind.EditorLease>` | `@JvmInline value class EditorLeaseID(uuid)` | As Core's IDs. |
 | `ResourceRequest.bitsPerSecond`, `ResourceBudget.bitsPerSecond` (`Int`) | `Long` | Swift `Int` is 64-bit. |
 | `ResourceClaim.infrastructureNetwork(_)`, `.usbInterface(_)` | `InfrastructureNetwork(network)`, `UsbInterface(name)` | Unlabeled payloads get names. |
+| `ResourceClaim.claims(for:)`, `ResourceRequest(entry:device:route:picture:bitsPerSecond:)` | `ResourceClaim.claims(route)`, secondary constructor `ResourceRequest(entry, device, route, picture, bitsPerSecond)` | |
 | `Codable` (`MulticamLayout`, claims, requests, budgets, direction, policy) | plain data classes and enums | No serialization, as in Core: the app maps `MulticamLayout` to its storage. Add kotlinx.serialization when a consumer needs it. |
 
 ### Test mapping
 
 Suites and test names are the same (`Android/multicam/src/test`): `GroupTests` (2),
-`EditorLeaseTests` (2), `ResourceAdmissionTests` (2), `RecoveryTests` (2), `GroupRecordTests` (9),
-`ImportRuleTests` (1), 18 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
+`EditorLeaseTests` (2), `ResourceAdmissionTests` (3), `RecoveryTests` (2), `GroupRecordTests` (9),
+`ImportRuleTests` (1), 19 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
 checks the layout value instead of a JSON round trip, and the import rule is
 `engineImportsOnlyStdlibCoroutinesAndCoreAndNamesNoVendorOrUI` (imports `kotlin.*`,
 `kotlinx.coroutines.*`, `com.opencapture.opencine.core.*` and `java.util.UUID` only; the module's

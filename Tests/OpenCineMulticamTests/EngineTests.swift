@@ -175,6 +175,33 @@ import Testing
                 budget: ResourceBudget(qualifiedEntries: 6, bitsPerSecond: 45))
                 == [.bandwidthExceeded(needed: 50, limit: 45)])
     }
+
+    @Test func savedRoutesClaimByTheTable() {
+        func claims(_ kind: RouteKind, _ network: String?, bluetooth: Bool = false) -> [ResourceClaim] {
+            ResourceClaim.claims(for: SavedRoute(key: "k", kind: kind, network: network, bluetooth: bluetooth))
+        }
+        #expect(claims(.cameraAccessPoint, "CAM-1") == [.cameraAccessPoint(network: "CAM-1")])
+        #expect(claims(.infrastructureNetwork, "studio") == [.infrastructureNetwork("studio")])
+        #expect(claims(.phoneHotspot, "phone") == [.infrastructureNetwork("hotspot:phone")])
+        #expect(claims(.usb, "usb-0") == [.usbInterface("usb-0")])
+        #expect(claims(.captureDevice, "capture-0") == [.usbInterface("capture-0")])
+        #expect(
+            claims(.cameraAccessPoint, "CAM-1", bluetooth: true)
+                == [.cameraAccessPoint(network: "CAM-1"), .bluetoothCommissioning])
+        // Unknown networks never match each other.
+        #expect(claims(.infrastructureNetwork, nil) != claims(.infrastructureNetwork, nil))
+
+        // A hotspot conflicts with the router network a member uses.
+        let router = ResourceRequest(
+            entry: MonitorEntryID(), device: device("1"),
+            route: SavedRoute(key: "wifi", kind: .infrastructureNetwork, network: "studio"), picture: true)
+        let hotspot = ResourceRequest(
+            entry: MonitorEntryID(), device: device("2"),
+            route: SavedRoute(key: "hotspot", kind: .phoneHotspot, network: "studio"), picture: true,
+            bitsPerSecond: 10)
+        #expect(router.decoders == 1 && hotspot.bitsPerSecond == 10)
+        #expect(reasons(hotspot, [router]) == [.wifiNetworkConflict(with: router.entry)])
+    }
 }
 
 @Suite struct RecoveryTests {

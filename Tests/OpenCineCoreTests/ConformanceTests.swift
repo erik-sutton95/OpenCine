@@ -403,7 +403,24 @@ import Testing
         }
     }
 
-    @Test("15. Discovery follows passive/active policy",
-          .disabled("N/A for CORE-01: discovery is integration-owned; Core has no discovery API"))
-    func discoveryFollowsPolicy() {}
+    /// Against the scripted integration; each integration runs it with its own fake transports.
+    @MainActor
+    @Test("15. Discovery follows passive/active policy")
+    func discoveryFollowsPolicy() async {
+        let both = FakeIntegration(discoveryModes: [.passive, .active], endpoints: ["10.0.0.2", "10.0.0.3"])
+        var passive = both.discover(.passive).makeAsyncIterator()
+        _ = await passive.next()
+        #expect(!both.dials.isEmpty)
+        #expect(both.dials.allSatisfy { $0.purpose == .presence })
+
+        var active = both.discover(.active).makeAsyncIterator()
+        _ = await active.next()
+        #expect(both.dials.filter { $0.purpose == .cameraControl }.map(\.endpoint) == ["10.0.0.2", "10.0.0.3"])
+        #expect(both.discoveries == [.passive, .active])
+
+        // An integration that only listens never runs an active discovery.
+        let listening = FakeIntegration(discoveryModes: [.passive], endpoints: ["10.0.0.2"])
+        for await _ in listening.discover(.active) { Issue.record("active ran") }
+        #expect(listening.dials.isEmpty)
+    }
 }

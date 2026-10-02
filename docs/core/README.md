@@ -151,6 +151,34 @@ interface changes driven by the first real adapter slices (CORE-02).
   observation support (unknown keeps the app's `base`), gimbal and head tracking from
   OpenCineMotion's overload.
 
+## Integration contract (SHELL-02)
+
+`Integration.swift` and `SavedCameras.swift` (Kotlin `Integration.kt`, `SavedCameras.kt`): how shared
+code finds, pairs, connects and forgets cameras of any integration. Apps list their integrations
+explicitly; integration copy (steps, failures, prompts) is rendered, never rewritten.
+
+- **`CameraIntegration`** (main actor): `id`, `profiles` (`CameraProfile`: routes and addable routes),
+  `discoveryModes`, `discover(_:)` (latest `[NearbyCamera]` per element), `connect(_:)` (one attempt
+  as `ConnectionEvent`s: progress with an optional prompt, then `connected` or `failed`, both
+  terminal) and `forget(_:)` (route credentials, never the per-install identity).
+- **Passive or active discovery.** `.passive` listens and may dial presence only; it never opens a
+  control-port connection or sends protocol bytes. `.active` is for an operator pairing or adding
+  a setup. A mode the integration does not list finishes at once (conformance scenario 15).
+- **One attempt per camera.** `ConnectTarget.cameraID` names the camera; once a newer attempt for it
+  starts, the older one emits nothing. Cancelling the consumer cancels the attempt.
+- **Typed failures and recovery.** `ConnectionFailure` carries a `Reason` (permission, radio off,
+  not found, timed out, not approved, held elsewhere, ...), integration copy, a stable diagnostics
+  `code` and `RecoveryAction`s (retry, use or edit a route, pair again, open settings, or an
+  integration action).
+- **Prompts.** `approveOnCamera`, `acceptNetworkJoin`, or an integration-owned `IntegrationPrompt`
+  for the app's prompt slot. `RouteDraft` never prints its secret.
+- **`ConnectedCamera`**: the saved record to upsert, the `CameraSession` and typed optional
+  `CameraServices` looked up by type (Kotlin `get<T>()`).
+- **Saved cameras.** `SavedCamera` (id = the legacy record id, verbatim) with `SavedRoute`s (route
+  id minted once, codec-stable `key`, kind, title, network, Bluetooth, last connected, verbatim
+  `extras`). Dates are epoch milliseconds in stored JSON on both platforms.
+- `FakeIntegration` (test support, Kotlin test fixtures) scripts discovery, attempts and a dial log.
+
 ## OpenCineFrameIO
 
 Optional. A camera-only consumer never links it: depending on the `OpenCineCore` or
@@ -282,7 +310,12 @@ Same names and semantics, in Kotlin idiom. Where they differ:
   these values (then add kotlinx.serialization). A zero `Rational` denominator throws
   `IllegalArgumentException` at construction.
 - Fakes: raw modes are `Int` (Swift `UInt8`), `FakeDevice.settings` is a map, and the fake is
-  confined to one thread instead of being an actor.
+  confined to one thread instead of being an actor. `FakeIntegration`'s flows are cold: discovery
+  and an attempt start when collected (Swift: when called).
+- Integration contract: `discover` and `connect` return `Flow`; `ConnectionEvent`,
+  `ConnectionPrompt`, `ConnectionFailure.Reason` and `RecoveryAction` are sealed interfaces;
+  `CameraServices` is an immutable map keyed by `KClass` (`get<T>()`, `plus(type, service)`); saved
+  dates are `Long?` epoch milliseconds; `RouteKind.rawValue` is the Swift case name.
 
 ### Test mapping
 
@@ -292,7 +325,8 @@ Kotlin together.
 
 | Swift (`Tests/OpenCineCoreTests`) | Kotlin (`Android/core/src/test`) |
 |---|---|
-| `Conformance` "1." to "15." (20 tests, 11, 12 and 15 disabled) | `ConformanceTest` `01` to `15`, same titles (11, 12 and 15 `@Ignore`) |
+| `Conformance` "1." to "15." (20 tests, 11 and 12 disabled) | `ConformanceTest` `01` to `15`, same titles (11 and 12 `@Ignore`) |
+| `IntegrationContract` (12 tests, against `FakeIntegration`) | `IntegrationContractTest`, same method names |
 | `Values` (6 tests) | `ValuesTest`, same method names |
 | `Entries.everyEntryNeedsARole` | `EntriesTest.everyEntryNeedsARole` |
 | `LayoutProjection` (2 tests) | `LayoutProjectionTest`, same method names |

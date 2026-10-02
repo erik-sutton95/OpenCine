@@ -18,6 +18,8 @@ import com.opencapture.opencine.core.MonitorEntryID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.PictureHealth
 import com.opencapture.opencine.core.RecordingState
+import com.opencapture.opencine.core.RouteKind
+import com.opencapture.opencine.core.SavedRoute
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.testing.FakeCameraSession
 import com.opencapture.opencine.core.testing.FakeEntries
@@ -28,6 +30,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -209,6 +212,36 @@ class ResourceAdmissionTests {
             listOf(AdmissionReason.BandwidthExceeded(needed = 50, limit = 45)),
             ResourceAdmission.reasons(fifth, members, ResourceBudget(qualifiedEntries = 6, bitsPerSecond = 45)),
         )
+    }
+
+    @Test
+    fun savedRoutesClaimByTheTable() {
+        fun claims(kind: RouteKind, network: String?, bluetooth: Boolean = false) =
+            ResourceClaim.claims(SavedRoute(key = "k", kind = kind, network = network, bluetooth = bluetooth))
+        assertEquals(listOf(ResourceClaim.CameraAccessPoint("CAM-1")), claims(RouteKind.CAMERA_ACCESS_POINT, "CAM-1"))
+        assertEquals(listOf(ResourceClaim.InfrastructureNetwork("studio")), claims(RouteKind.INFRASTRUCTURE_NETWORK, "studio"))
+        assertEquals(listOf(ResourceClaim.InfrastructureNetwork("hotspot:phone")), claims(RouteKind.PHONE_HOTSPOT, "phone"))
+        assertEquals(listOf(ResourceClaim.UsbInterface("usb-0")), claims(RouteKind.USB, "usb-0"))
+        assertEquals(listOf(ResourceClaim.UsbInterface("capture-0")), claims(RouteKind.CAPTURE_DEVICE, "capture-0"))
+        assertEquals(
+            listOf(ResourceClaim.CameraAccessPoint("CAM-1"), ResourceClaim.BluetoothCommissioning),
+            claims(RouteKind.CAMERA_ACCESS_POINT, "CAM-1", bluetooth = true),
+        )
+        // Unknown networks never match each other.
+        assertNotEquals(claims(RouteKind.INFRASTRUCTURE_NETWORK, null), claims(RouteKind.INFRASTRUCTURE_NETWORK, null))
+
+        // A hotspot conflicts with the router network a member uses.
+        val router = ResourceRequest(
+            MonitorEntryID(), device("1"),
+            SavedRoute(key = "wifi", kind = RouteKind.INFRASTRUCTURE_NETWORK, network = "studio"), picture = true,
+        )
+        val hotspot = ResourceRequest(
+            MonitorEntryID(), device("2"),
+            SavedRoute(key = "hotspot", kind = RouteKind.PHONE_HOTSPOT, network = "studio"), picture = true,
+            bitsPerSecond = 10,
+        )
+        assertTrue(router.decoders == 1 && hotspot.bitsPerSecond == 10L)
+        assertEquals(listOf(AdmissionReason.WifiNetworkConflict(router.entry)), reasons(hotspot, listOf(router)))
     }
 }
 

@@ -10,7 +10,7 @@ import Testing
 @Suite struct AdmissionTests {
     private let budget = ResourceBudget(qualifiedEntries: 4)
 
-    private func route(_ factory: IntegrationFactory, _ kind: RouteOffer.Kind) throws -> RouteOffer {
+    private func route(_ factory: IntegrationFactory, _ kind: RouteKind) throws -> RouteOffer {
         try #require(factory.routes.first { $0.kind == kind })
     }
 
@@ -59,7 +59,7 @@ import Testing
         let control = try route(Composition.nikon, .usb).request(
             entry: MonitorEntryID(), device: z, resource: "usb:ptp")
         // The HDMI picture is of the same body, on a separate capture interface.
-        let picture = try route(Composition.hdmiCapture, .captureCard).request(
+        let picture = try route(Composition.hdmiCapture, .captureDevice).request(
             entry: MonitorEntryID(), device: z, resource: "usb:uvc")
         #expect(ResourceAdmission.reasons(admitting: picture, alongside: [control], budget: budget).isEmpty)
 

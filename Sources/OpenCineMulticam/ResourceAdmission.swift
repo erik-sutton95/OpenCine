@@ -39,6 +39,41 @@ public struct ResourceRequest: Hashable, Codable, Sendable {
     }
 }
 
+extension ResourceClaim {
+    /// What a saved route claims on the phone. A hotspot is an infrastructure network named
+    /// `hotspot:<network>`, so it conflicts with any other Wi-Fi. A USB or capture route claims its
+    /// interface. A route that needs Bluetooth first also claims commissioning.
+    public static func claims(for route: SavedRoute) -> [ResourceClaim] {
+        // ponytail: an unknown network or interface is this route's own name, so it never
+        // matches another route's; a known name replaces it once the route reports one.
+        let name = route.network ?? "route:\(route.id)"
+        var claims: [ResourceClaim] =
+            switch route.kind {
+            case .cameraAccessPoint: [.cameraAccessPoint(network: name)]
+            case .infrastructureNetwork: [.infrastructureNetwork(name)]
+            case .phoneHotspot: [.infrastructureNetwork("hotspot:" + name)]
+            case .usb, .captureDevice: [.usbInterface(name)]
+            }
+        // ponytail: commissioning is claimed for the whole entry; split candidate and member
+        // requests when a multicam app admits members that commission over Bluetooth.
+        if route.bluetooth { claims.append(.bluetoothCommissioning) }
+        return claims
+    }
+}
+
+extension ResourceRequest {
+    /// The request for one entry on a saved route: its claims, one decoder when it carries the
+    /// picture, and the caller's bandwidth estimate.
+    public init(
+        entry: MonitorEntryID, device: CameraDeviceID?, route: SavedRoute, picture: Bool,
+        bitsPerSecond: Int = 0
+    ) {
+        self.init(
+            entry: entry, device: device, claims: ResourceClaim.claims(for: route),
+            bitsPerSecond: bitsPerSecond, decoders: picture ? 1 : 0)
+    }
+}
+
 /// The app's limits. `qualifiedEntries` is the tested product limit (for example four), never an
 /// engine constant; `nil` means unlimited.
 public struct ResourceBudget: Hashable, Codable, Sendable {
