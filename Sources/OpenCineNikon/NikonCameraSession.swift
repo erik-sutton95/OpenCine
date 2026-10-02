@@ -94,14 +94,20 @@ public final class NikonCameraSession: CameraSession {
         self.driver = driver
         self.now = now
         self.recordObservationTimeout = recordObservationTimeout
-        let device: CameraDeviceID =
-            serialNumber.isEmpty
-            ? .provisional(integration: Self.integration)
-            : .durable(serialNumber, integration: Self.integration)
+        let device =
+            Self.durableDevice(serialNumber: serialNumber)
+            ?? .provisional(integration: Self.integration)
         current = CameraSnapshot(
             session: session, epoch: ControlEpoch(1), device: device, connection: .ready,
             authority: .owner)
         refresh()
+    }
+
+    /// The body's lasting identity: its serial (trimmed), `nil` when none is known yet. Saved
+    /// records stamp the same serial, so a group entry and its session name the same device.
+    public nonisolated static func durableDevice(serialNumber: String?) -> CameraDeviceID? {
+        let serial = serialNumber?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return serial.isEmpty ? nil : .durable(serial, integration: integration)
     }
 
     private var isClosed: Bool {

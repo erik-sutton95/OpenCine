@@ -6,9 +6,9 @@ honest, coordinates editor leases, resource admission and recovery budgets, and 
 persisted layout. It works on [OpenCineCore](../core/README.md) values and the `CameraSession`
 seam, so it never knows which manufacturer is behind an entry.
 
-Status: pre-release. OpenPocketCine's local `opencine/multi-02` branch (iOS and Android
-Multiview) depends on it; Nikon's multicam is on an unmerged branch and not adapted yet. Tested
-against OpenCineCore fakes and Pocket's tile adapters in app tests only, so nothing here is
+Status: pre-release. OpenPocketCine's Multiview (MULTI-02) and OpenZCine's multicam (NIKON-01)
+depend on it. Tested against OpenCineCore
+fakes, real `NikonCameraSession`s over scripted links and the apps' adapters, so nothing here is
 hardware-qualified.
 
 ## Import rules
@@ -71,10 +71,12 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   asks `EditorLeases.refusal(for:in:at:)` before every SET. Not adopted yet: `RecoveryLedger`
   (the tile repair ladder keeps its own budget), `ResourceAdmission` (station provisioning and
   the four-tile limit stay in the app), `GroupSummary`.
-- Nikon: `MulticamCoordinator` members become entries; `GroupRecordPlan`/`GroupRecordResult`
-  map to `RecordPlan`/`RecordResult` with `.eligibleSubset`; `MulticamEligibilityPolicy` becomes
-  resource claims plus a `ResourceBudget(qualifiedEntries: 4)`; the borrowed Live View session
-  uses an `EditorLease`.
+- Nikon (NIKON-01): each member is an entry keyed by its body serial with its own
+  `NikonCameraSession` over an OpenCineNikon `NikonMemberControl`; group record is a
+  `.eligibleSubset` `RecordPlan` with per-member `RecordResult`s; eligibility is
+  `NikonMulticamPolicy` plus `ResourceAdmission` with `ResourceBudget(qualifiedEntries: 4)`; a
+  member borrowed into full Live View holds an `EditorLease`, is `busy` for group plans and keeps
+  its session (no CloseSession). Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
 - Each app keeps its own qualified camera count, routes, copy and confirmation UI.
 
 ## Build and test

@@ -15,6 +15,14 @@ OpenZCine `Sources/OpenZCineCore` without behavior change (plan work package VEN
 - `NikonCameraSession`: OpenCineCore's `CameraSession` for ISO, white balance and record over a
   `NikonControlDriver` the app's control service implements (OpenZCine: `NativeAppModel`).
   Settings need no picture; record keeps its live-view preflight.
+- Multicam (NIKON-01, `NikonMulticam.swift`): `NikonMulticamPolicy` (which saved paths may join:
+  USB-C, router and hotspot yes; camera access point, HDMI capture, photography mode and offline
+  no; a member is its body serial, never its host or path) and `NikonMemberControl`, the command
+  side of one member's own control pump: per-member coalescing write queue with readback into
+  that member's `NikonCameraSession`, record requests, and `lend`/`reclaim` for a full Live View
+  that borrows the link without CloseSession. The member limit is the app's
+  `ResourceBudget(qualifiedEntries:)`. `NikonMulticamTests` run 2, 3 and 4 bodies through
+  OpenCineMulticam (test-only dependency).
 
 Depends only on `OpenCineCore` (same package; root `Package.swift`). No UI
 and no app types. OpenZCine re-exports this module from `OpenZCineCore`, so its iOS app and

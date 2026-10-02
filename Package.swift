@@ -98,7 +98,11 @@ let package = Package(
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and
         // NikonCameraSession (OpenCineCore.CameraSession over the app's NikonControlDriver).
         .target(name: "OpenCineNikon", dependencies: ["OpenCineCore"]),
-        .testTarget(name: "OpenCineNikonTests", dependencies: ["OpenCineNikon", "OpenCineCore"]),
+        // OpenCineMulticam is a test-only dependency: the multi-body tests run real
+        // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
+        .testTarget(
+            name: "OpenCineNikonTests",
+            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMulticam"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation only) and the Apple I/O adapter with its KCP C code.
