@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "6672d135fb1572be3686c872db4719c46446d925",
+    "commit": "f88239f78c34d11eea3f4d5a2299d7da99adc792",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "6672d135fb1572be3686c872db4719c46446d925",
-      "where": "OpenCine 6672d13 (2026-10-02, HUB-01): swift build --build-tests + swift test 1410 Swift Testing + 71 XCTest; atlas 88 tests, check and check --sources pass. Since 491ce30 only docs, .github, .claude and atlas/ changed (no Swift or Android source), so the 491ce30 strict-concurrency, xcodebuild, Android and Vulkan results stand."
+      "commit": "f88239f78c34d11eea3f4d5a2299d7da99adc792",
+      "where": "OpenCine f88239f (2026-10-02, SHELL-00): swift build --build-tests + swift test 1410 Swift Testing + 71 XCTest; atlas 91 tests, check and check --sources pass; atlas dupes --check passes against the new baseline. Since 491ce30 only docs, .github, .claude and atlas/ changed (no Swift or Android source), so the 491ce30 strict-concurrency, xcodebuild, Android and Vulkan results stand."
     }
   },
   "apps": [
