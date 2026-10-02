@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "f3a144acd52d3bb5e22968884fcd98498b1fab4b",
+      "commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "f3a144acd52d3bb5e22968884fcd98498b1fab4b",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
+        "commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961",
+        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-nikon.md (2026-10-02: root swift test 781, iOS suite 219 + 2 skip on a private simulator, Android 999/12/5/3 + assembleDebug + lint)"
       }
     }
   ]
