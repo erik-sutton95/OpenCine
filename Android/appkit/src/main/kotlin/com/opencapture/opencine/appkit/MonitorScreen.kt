@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,6 +63,7 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim).then(commonAccessibility),
             contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonInteractive) }
         if (presentation.captureMounted) Box(Modifier.frame(layout.values)
+            .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
             .visible(commonVisible && !presentation.captureHidden, dim * if (presentation.locked) .4f else 1f).then(commonAccessibility),
             contentAlignment = Alignment.BottomCenter) { capture(commonInteractive && !presentation.locked && presentation.captureInteractive && !presentation.captureHidden) }
         Box(Modifier.fillMaxSize().visible(commonVisible, dim).then(commonAccessibility)
