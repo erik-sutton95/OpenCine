@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "809fda5d1157669e59b4a6c1275264fd504bc024",
+    "commit": "12925bc4125a8081b18ef42d4e3d74377e8482d4",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "809fda5d1157669e59b4a6c1275264fd504bc024",
-      "where": "809fda5 JPEG decoder memory-safety fix (Apple-only Swift): swift build --build-tests strict-concurrency=complete, swift test 1607 Swift Testing incl. JPEGPixelBufferDecoderTests real VideoToolbox decodes; Android untouched since 5f40a91 (recorded green)"
+      "commit": "12925bc4125a8081b18ef42d4e3d74377e8482d4",
+      "where": "SHELL-02 step 1: swift test 1620 tests + 72 XCTest (was 1607 + 72), strict-concurrency build clean, gradle test lint assembleRelease green (core 50 JVM tests incl. 12 IntegrationContractTest + conformance 15, multicam 19), atlas unittest + check --sources passed, 3 app consumers swift build --build-tests and Android assembleDebug green"
     }
   },
   "apps": [
