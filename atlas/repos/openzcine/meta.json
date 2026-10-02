@@ -22,7 +22,7 @@
     },
     {
       "name": "opencine/integration",
-      "commit": "1b5d2cc1750a69cb11719d0d1ca80ac7b3350cd1",
+      "commit": "c6d628ff6679bc756b322767bd90de3a81a991f4",
       "role": "candidate"
     }
   ],
@@ -118,7 +118,7 @@
       ],
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "1b5d2cc1750a69cb11719d0d1ca80ac7b3350cd1"
+        "source_commit": "c6d628ff6679bc756b322767bd90de3a81a991f4"
       },
       "note": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt"
     }

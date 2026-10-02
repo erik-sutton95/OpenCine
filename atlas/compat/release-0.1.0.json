@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "1b5d2cc1750a69cb11719d0d1ca80ac7b3350cd1",
+      "commit": "c6d628ff6679bc756b322767bd90de3a81a991f4",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "1b5d2cc1750a69cb11719d0d1ca80ac7b3350cd1",
-        "where": "opencine/integration 1b5d2cc1 pins OpenCine 491ce30 (2026-10-02): root swift test 781; iOS Runner 219 (217 pass, 2 skip, same as before; MediaTimecodeTests/testTruncatedFastStartProxyExportWritesPlayableFile skipped, hangs on this simulator before and after) on a private simulator; ./gradlew test assembleDebug lint green (999/12/5/3); one OpenCine in SwiftPM/Xcode/Gradle. iOS/Android ran at OpenCine ee71891 (code-identical)."
+        "commit": "c6d628ff6679bc756b322767bd90de3a81a991f4",
+        "where": "NIKON-01 2026-10-02 at c6d628ff against OpenCine cc3b7d3: root swift test 782; Runner xcodebuild test on private sim iOS 26.2 227 (225 passed, 2 skipped, known-hanging MediaTimecode proxy test skipped); Android test lint assembleRelease + androidTest assembly with Swift core staging (app 1005, core-api 12, wear 5, wear-relay 3); notes progress.d/NIKON-01.md"
       }
     }
   ]
