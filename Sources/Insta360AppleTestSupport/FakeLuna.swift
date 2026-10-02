@@ -13,6 +13,8 @@ public final class FakeLuna {
     public var shutterSeconds = 0.0
     public var kelvin: UInt64 = 5600
     public var colorMode: UInt64?
+    public var zoom = 1.0
+    public var afMode: UInt64 = 1
     /// Capture state (cmd 15); nil sends no reply at all.
     public var captureState: UInt64? = 0
     /// The camera acknowledges SETs and record commands but stores nothing.
@@ -33,7 +35,10 @@ public final class FakeLuna {
             readSettings: { [unowned self] in self.reportSettings() },
             readCapture: { [unowned self] in self.reportCapture() },
             timing: .init(
-                settle: [.iso: settle, .shutter: settle, .whiteBalance: settle, .recording: settle],
+                settle: [
+                    .iso: settle, .shutter: settle, .whiteBalance: settle, .recording: settle,
+                    .zoom: settle, .focusMode: settle,
+                ],
                 readbackInterval: .milliseconds(40)))
         self.session = session
         return session
@@ -71,9 +76,13 @@ public final class FakeLuna {
         case .setPhotographyOptions:
             let set = try! LunaPhotographySettings(response: request.body)
             if set.types.contains(21), let exposure = set.videoExposure {
-                (program, iso, shutterSeconds) = (exposure.program, exposure.iso, exposure.shutterSeconds)
+                (program, iso, shutterSeconds) = (
+                    exposure.program, exposure.iso, exposure.shutterSeconds
+                )
             }
             if set.types.contains(39) { kelvin = set.whiteBalanceKelvin ?? 0 }
+            if set.types.contains(53), let value = set.zoom { zoom = value }
+            if set.types.contains(93), let value = set.afMode { afMode = value }
         case .startCapture: captureState = 1
         case .stopCapture: captureState = 0
         default: break
@@ -82,18 +91,25 @@ public final class FakeLuna {
 
     public func reportSettings() {
         guard !silent else { return }
-        var types = [21, 39]
-        var exposure = try! ProtoMessage.integer(field: 1, value: program)
+        var types = [21, 39, 53, 93]
+        var exposure =
+            try! ProtoMessage.integer(field: 1, value: program)
             + ProtoMessage.integer(field: 2, value: iso)
-        if shutterSeconds > 0 { exposure += try! ProtoMessage.double(field: 3, value: shutterSeconds) }
-        var nested = try! ProtoMessage.blob(field: 21, value: exposure)
+        if shutterSeconds > 0 {
+            exposure += try! ProtoMessage.double(field: 3, value: shutterSeconds)
+        }
+        var nested =
+            try! ProtoMessage.blob(field: 21, value: exposure)
             + ProtoMessage.integer(field: 39, value: kelvin)
+            + ProtoMessage.double(field: 53, value: zoom)
+            + ProtoMessage.integer(field: 93, value: afMode)
         if let colorMode {
             types.append(35)
             nested += try! ProtoMessage.integer(field: 35, value: colorMode)
         }
         let packed = types.reduce(into: Data()) { $0 += ProtoMessage.varint(UInt64($1)) }
-        let body = try! ProtoMessage.blob(field: 1, value: packed)
+        let body =
+            try! ProtoMessage.blob(field: 1, value: packed)
             + ProtoMessage.blob(field: 2, value: nested)
             + ProtoMessage.integer(field: 3, value: UInt64(LunaFunctionMode.normalVideo.rawValue))
         session?.ingest(settings: try! LunaPhotographySettings(response: body))
@@ -108,9 +124,10 @@ public final class FakeLuna {
 
     /// Video mode, no battery or storage fields.
     public func reportDevice() {
-        let nested = try! ProtoMessage.integer(field: 40, value: 100)
+        let nested =
+            try! ProtoMessage.integer(field: 40, value: 100)
             + ProtoMessage.integer(field: 41, value: 0)
-        session?.ingest(device: try! LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
+        session?.ingest(
+            device: try! LunaDeviceStatus(response: ProtoMessage.blob(field: 2, value: nested)))
     }
 }
-

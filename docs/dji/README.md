@@ -40,7 +40,7 @@ link and initialization, the Wi-Fi datalink driver, DUML command and status mode
 (`CameraCommands`, `CameraStatus`, `CameraModel`, `VideoFormat`, `CamFov`), gimbal programs and
 the native program runner, connection and live-view policies (`LiveViewEnablePolicy`,
 `SessionRecovery`), Multiview `StationJoin`, `ConnectionPhase`, and `DjiCameraSessionAdapter`
-(OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core` and `media` only.
+(OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core`, `media`, `decoder` and `platform`; Android framework adapters stay outside portable policy.
 The adapter mirrors the Swift one for SHELL-01: timecode and audio level support and values
 (`CameraStatus.audioMetersReported` keeps "not reported" apart from silence across the facade),
 `pocketGimbal` and `CameraModel.motion`, and `layout(base)` with the same body-flag rule for zoom,
@@ -56,17 +56,17 @@ An app adds the product to the target that builds its Swift Android library and 
 ship in that `.so`; `consumer-rules.pro` keeps the Kotlin class in minified apps. The app calls `DjiNative.load(<its library>)` once at startup and points `DjiLog.sink`
 at its diagnostics. Swift and Kotlin `CamFov` share `Fixtures/camfov-vectors.tsv`.
 
-The session itself is here too: `PocketCameraSession` (BLE to pairing to camera Wi-Fi to datalink to
+The session itself is here too: `DjiCameraSession` (BLE to pairing to camera Wi-Fi to datalink to
 live picture, recovery, operator commands, Multiview station join), with the Wi-Fi joining and saved
 credential stores, feed incident models, capture value lists and gamepad actions it uses. What
-stays with the app comes in through `PocketSessionHost`: operator preferences, the feed incident
+stays with the app comes in through `DjiSessionHost`: operator preferences, the feed incident
 recorder and reliability reporting, build identity, and the face detector (`FaceDetectorPort`; the
 app keeps ML Kit). The app keeps all UI.
 
 ## Integration contract (SHELL-02)
 
 `DJIIntegration` (Swift, over a `DJIConnectPort` the app's DJI connect pipeline implements in
-step 7) and `DjiIntegration` (Kotlin `:dji`, over a `DjiConnectPort` that `PocketCameraSession`
+step 7) and `DjiIntegration` (Kotlin `:dji`, over a `DjiConnectPort` that `DjiCameraSession`
 implements) are DJI's Core `CameraIntegration`:
 
 - Discovery is `.passive` only (Bluetooth adverts). Profiles: the verified bodies; those that list
@@ -84,3 +84,33 @@ implements) are DJI's Core `CameraIntegration`:
 - The record after a connect: the used route preferred, the joined camera network, the advertised
   model id (`extras["modelId"]`), the time. `forget` drops the camera's saved Wi-Fi only.
 - Tests: `DJIIntegrationTests` / `DjiIntegrationTest` against fake ports, same method names.
+
+## Neutral Android utility ownership (SHELL-04)
+
+`:media` owns incident classification, recovery-effect values/logging, diagnostic redaction,
+shutter-angle math and EV display/parse math. DJI retains its existing incident DTO JVM paths
+and methods as compatibility adapters through private Media value projections; they keep the
+same schema, enum wire strings and export shape. New consumers use the neutral Media values.
+The DJI EV `0x10` wire offset and supported +/-3 EV range remain integration-owned.
+
+`:platform` owns Android Keystore sealing and configured Wi-Fi credential storage. It imports
+no integration, UI or app and adds no third-party packages. Existing DJI and app wrapper classes
+supply the unchanged `openpocketcine.camera-wifi` preferences namespace and key alias, camera
+`.ssid`/`.password` keys and trimmed `ssid:` index. The envelope remains Base64 IV, colon,
+Base64 AES/GCM payload, 128-bit tag and no AAD; unreadable ciphertext stays unknown and legacy
+plaintext migrates idempotently. Multiview network storage keeps its existing separate alias.
+
+Media's redactor defaults to redacting all SSIDs. The compatibility wrappers supply the
+existing safe-network policy so neither app's exported diagnostic behavior changes. Neutral
+shutter observations return `null` for unknown shutter/rate, matching Swift Media; legacy
+Android capture wrappers keep their existing 180-degree/24-fps display fallback until their
+callers migrate explicitly.
+
+## Session names and compatibility
+
+Android apps compose `DjiCameraSession` with a `DjiSessionHost`. These preferred
+integration-level names are source aliases of the existing JVM types
+`PocketCameraSession` and `PocketSessionHost`. The same class, constructor,
+private fields and runtime owner remain in use. Legacy callers and compiled
+entry points remain compatible; retirement of the old names belongs to a later
+minor release after all consumers migrate. JNI class/member names are unchanged.
