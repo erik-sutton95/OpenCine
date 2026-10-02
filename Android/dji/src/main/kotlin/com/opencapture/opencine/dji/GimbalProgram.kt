@@ -1,5 +1,10 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.motion.MotionAxis
+import com.opencapture.opencine.motion.MotionBounds
+import com.opencapture.opencine.motion.MotionCapabilities
+import com.opencapture.opencine.motion.MotionReferenceFrame
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -8,6 +13,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.tan
+import kotlin.time.Duration.Companion.milliseconds
 
 data class GimbalWaypoint(
     val yawDeg: Double,
@@ -46,6 +52,28 @@ data class GimbalWaypoint(
             nativePitchDeg,
         )
 }
+
+/**
+ * What the Pocket gimbal declares to shared motion (Swift `MotionCapabilities.pocketGimbal`):
+ * handle-frame pan and tilt inside the operator-confirmed reach, zoom through native program
+ * zoom, firmware-paced timed targets (no client rate cap), the `0x04/0x05` attitude it reports is
+ * the pose (older than 0.3 s is not feedback), arrival within 0.15 degrees.
+ */
+val pocketGimbal = MotionCapabilities(
+    axes = setOf(MotionAxis.PAN, MotionAxis.TILT, MotionAxis.ZOOM),
+    frame = MotionReferenceFrame.HANDLE,
+    bounds = MotionBounds(
+        GimbalWaypoint.PAN_MIN_DEG..GimbalWaypoint.PAN_MAX_DEG,
+        GimbalWaypoint.TILT_MIN_DEG..GimbalWaypoint.TILT_MAX_DEG,
+    ),
+    maxRateDegPerSec = null,
+    feedbackMaxAge = 300.milliseconds,
+    arrivalToleranceDeg = 0.15,
+    pose = SupportStatus.SUPPORTED,
+)
+
+/** The body's motion service: the Pocket gimbal, or `null` for a body without one. */
+val CameraModel.motion: MotionCapabilities? get() = if (hasGimbal) pocketGimbal else null
 
 enum class GimbalWaypointSlot(val letter: String) {
     A("A"),

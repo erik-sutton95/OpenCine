@@ -7,6 +7,7 @@ import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CommandFailure
@@ -20,6 +21,7 @@ import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MediaState
+import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin
@@ -35,9 +37,15 @@ import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.StorageVolume
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
+import com.opencapture.opencine.motion.MonitorLayoutCapabilities
+import com.opencapture.opencine.motion.MotionAxis
+import com.opencapture.opencine.motion.MotionBounds
+import com.opencapture.opencine.motion.MotionCapabilities
+import com.opencapture.opencine.motion.MotionReferenceFrame
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +59,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
@@ -233,6 +242,30 @@ class LunaCameraSession internal constructor(
             settle()
             publish()
         }
+    }
+
+    /**
+     * Time of day the host derives for the live picture: the phone sets the camera clock and pins
+     * frame stamps to its own, so the value is `CLOCK_DERIVED`, never a camera counter.
+     */
+    fun ingest(timecode: CameraTimecode) {
+        synchronized(lock) {
+            if (closed) return
+            current = current.copy(timecode = ObservedValue(timecode, ObservationOrigin.CLOCK_DERIVED, now()))
+            publish()
+        }
+    }
+
+    /**
+     * What a monitor lays out for this camera (Swift `layout(base:)`): the Core projection of the
+     * snapshot plus the Luna gimbal ([MOTION]). [base] carries what Core has no vocabulary for yet.
+     */
+    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
+        val capabilities = synchronized(lock) { current.capabilities }
+        // ponytail: the app drives zoom and focus mode through the backend's own controls, not
+        // this session, so they are not descriptors; every Luna body has both. Delete this copy
+        // once the session routes them.
+        return MonitorLayoutCapabilities(capabilities, MOTION, base).copy(zoom = true, focus = true)
     }
 
     // CameraSession.
@@ -472,36 +505,53 @@ class LunaCameraSession internal constructor(
             ),
             SettingDescriptor(SettingKey.RECORDING, availability = recording),
         )
-        val revision = current.capabilities.revision
-        if (CapabilitySnapshot(revision, descriptors) == current.capabilities) return
-        current = current.copy(capabilities = CapabilitySnapshot(revision.next(), descriptors))
+        // Timecode is host-derived time of day ([ingest]); Luna reports no audio levels.
+        val declared = CapabilitySnapshot(
+            current.capabilities.revision, descriptors,
+            timecode = SupportStatus.SUPPORTED, audioLevels = SupportStatus.UNSUPPORTED,
+        )
+        if (declared == current.capabilities) return
+        current = current.copy(capabilities = declared.copy(revision = declared.revision.next()))
     }
 
     private fun now() = MonotonicInstant(System.nanoTime().nanoseconds)
 
-    internal companion object {
-        val INTEGRATION = IntegrationID("com.opencapture.insta360.luna")
+    companion object {
+        /**
+         * What Luna Ultra (fw 1.1.15) declares to shared motion (Swift `LunaCameraSession.motion`):
+         * handle-frame pan and tilt (cmd 226 SET_ANGLE), pitch -57...90, yaw one arc from about
+         * -125 through 180 to -58.5 (unwrapped -58.5...235), no zoom in moves, no client rate cap
+         * (each SET re-plans), its GET_ANGLE is the pose (older than 0.3 s is not feedback), aim
+         * ends within 0.5 degrees.
+         */
+        val MOTION = MotionCapabilities(
+            axes = setOf(MotionAxis.PAN, MotionAxis.TILT), frame = MotionReferenceFrame.HANDLE,
+            bounds = MotionBounds(-58.5..235.0, -57.0..90.0),
+            maxRateDegPerSec = null, feedbackMaxAge = 300.milliseconds, arrivalToleranceDeg = 0.5,
+            pose = SupportStatus.SUPPORTED,
+        )
+        internal val INTEGRATION = IntegrationID("com.opencapture.insta360.luna")
         /** Official Video ISO wheel. */
-        val ISO_VALUES = listOf(100, 160, 200, 400, 800, 1600, 3200, 6400)
+        internal val ISO_VALUES = listOf(100, 160, 200, 400, 800, 1600, 3200, 6400)
         /** Official Video shutter wheel, slowest last. fw 1.1.15 adds 1/15 to 1/5. */
-        val SHUTTER_DENOMINATORS = listOf(
+        internal val SHUTTER_DENOMINATORS = listOf(
             8000, 6400, 5000, 4000, 3200, 2500, 2000, 1600, 1250, 1000, 800, 640, 500, 400, 320, 250,
             200, 160, 125, 100, 80, 60, 50, 40, 30, 25, 15, 10, 5,
         )
 
         /** Programs 1 and 3 hold the reported ISO; the rest choose it. */
-        fun iso(exposure: LunaExposure): ISOValue =
+        internal fun iso(exposure: LunaExposure): ISOValue =
             if (exposure.program in setOf(1L, 3L) && exposure.iso > 0) ISOValue.Manual(exposure.iso.toInt()) else ISOValue.Auto
 
         /** Programs 2 and 3 hold the reported shutter; the rest choose it. */
-        fun shutter(exposure: LunaExposure): ShutterValue =
+        internal fun shutter(exposure: LunaExposure): ShutterValue =
             if (exposure.program in setOf(2L, 3L) && exposure.shutterSeconds > 0) {
                 ShutterValue.Duration(Rational(1, (1 / exposure.shutterSeconds).roundToInt()))
             } else {
                 ShutterValue.Auto
             }
 
-        fun captureMode(mode: LunaShootingMode): CaptureMode {
+        internal fun captureMode(mode: LunaShootingMode): CaptureMode {
             val (name, title) = when (mode) {
                 LunaShootingMode.VIDEO -> "video" to "Video"
                 LunaShootingMode.TIMELAPSE -> "timelapse" to "Timelapse"
@@ -515,7 +565,7 @@ class LunaCameraSession internal constructor(
             return CaptureMode(role, "${INTEGRATION.rawValue}.mode.$name", title)
         }
 
-        fun profileID(color: Long): String? =
+        internal fun profileID(color: Long): String? =
             mapOf(1L to "standard", 2L to "i-log", 3L to "vivid", 4L to "hdr", 5L to "dolby-vision")[color]
                 ?.let { "${INTEGRATION.rawValue}.profile.$it" }
 

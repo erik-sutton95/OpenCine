@@ -329,6 +329,8 @@ data class CameraStatus(
     val audioMetersRight: Double = -60.0,
     val audioPeakLeft: Double = -60.0,
     val audioPeakRight: Double = -60.0,
+    /** The camera has sent `cam_audio_status_v2`; until then the meters above are unknown, not silence. */
+    val audioMetersReported: Boolean = false,
     /** Action 6 iris, hundredths of an f-number (`cam_expo_param` `@13`). `-1` unknown. */
     val irisHundredths: Int = -1,
     /** Action 6 `cam_aperture_ctrl_strategy` ([ApertureStrategy]). `-1` unknown. */
@@ -557,6 +559,7 @@ data class CameraStatus(
             audioMetersRight = prev.audioMetersRight,
             audioPeakLeft = prev.audioPeakLeft,
             audioPeakRight = prev.audioPeakRight,
+            audioMetersReported = prev.audioMetersReported,
         )
 
     /** The JNI status JSON does not carry the Action 6 aperture fields; keep them across it. */
@@ -628,6 +631,7 @@ data class CameraStatus(
             .put("audioMetersRight", audioMetersRight)
             .put("audioPeakLeft", audioPeakLeft)
             .put("audioPeakRight", audioPeakRight)
+            .put("audioMetersReported", audioMetersReported)
             .toString()
 
     /** Interleaved `[res, fps, …]` matching JNI `statusJSON`. */
@@ -728,6 +732,7 @@ data class CameraStatus(
                     audioMetersRight = obj.optDouble("audioMetersRight", -60.0),
                     audioPeakLeft = obj.optDouble("audioPeakLeft", -60.0),
                     audioPeakRight = obj.optDouble("audioPeakRight", -60.0),
+                    audioMetersReported = obj.optBoolean("audioMetersReported", false),
                 ).withAudioDspAt2()
             }.getOrElse { CameraStatus() }
         }

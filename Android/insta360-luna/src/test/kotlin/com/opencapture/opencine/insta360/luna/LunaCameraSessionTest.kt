@@ -2,6 +2,7 @@ package com.opencapture.opencine.insta360.luna
 
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandReceipt
@@ -9,6 +10,7 @@ import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
@@ -17,8 +19,10 @@ import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
+import com.opencapture.opencine.motion.MotionAxis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +37,7 @@ import java.nio.ByteOrder
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -300,6 +305,29 @@ class LunaCameraSessionTest {
         assertEquals(0.01, sent.shutterSeconds, 1e-9)
         assertEquals(CommandStage.Confirmed, session.outcome(shutter.operation)?.stage)
         assertEquals(CommandStage.Confirmed, session.outcome(iso.operation)?.stage)
+    }
+
+    /**
+     * SHELL-01 (Swift `testPublishesMotionTimecodeAndNoAudio`): Luna publishes its gimbal with
+     * camera-reported pose, host-derived timecode and no audio levels, so the projection lays out
+     * the stick, head tracking and timecode, never a meter.
+     */
+    @Test fun publishesMotionTimecodeAndNoAudio() {
+        val session = FakeLuna(scope).connectedSession()
+        val capabilities = session.snapshots.value.capabilities
+        assertEquals(SupportStatus.SUPPORTED, capabilities.timecode)
+        assertEquals(SupportStatus.UNSUPPORTED, capabilities.audioLevels)
+        assertEquals(SupportStatus.SUPPORTED, LunaCameraSession.MOTION.pose)
+        assertFalse(MotionAxis.ZOOM in LunaCameraSession.MOTION.axes, "moves keep one zoom")
+        // Audio off although the base has it (unsupported overrides); no iris (fixed aperture).
+        assertEquals(
+            MonitorLayoutCapabilities(gimbal = true, zoom = true, focus = true, headTracking = true, clipDelete = true, timecode = true),
+            session.layout(MonitorLayoutCapabilities(audio = true, clipDelete = true)),
+        )
+        assertNull(session.snapshots.value.timecode.value, "nothing derived yet: unknown")
+        session.ingest(CameraTimecode(15, 39, 50, 12))
+        assertEquals(50, session.snapshots.value.timecode.value?.seconds)
+        assertEquals(ObservationOrigin.CLOCK_DERIVED, session.snapshots.value.timecode.origin, "never a camera counter")
     }
 
     @Test fun recordingProfileIsCameraReportedOrUnknown() = runBlocking {

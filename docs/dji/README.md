@@ -41,6 +41,10 @@ link and initialization, the Wi-Fi datalink driver, DUML command and status mode
 the native program runner, connection and live-view policies (`LiveViewEnablePolicy`,
 `SessionRecovery`), Multiview `StationJoin`, `ConnectionPhase`, and `DjiCameraSessionAdapter`
 (OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core` and `media` only.
+The adapter mirrors the Swift one for SHELL-01: timecode and audio level support and values
+(`CameraStatus.audioMetersReported` keeps "not reported" apart from silence across the facade),
+`pocketGimbal` and `CameraModel.motion`, and `layout(base)` with the same body-flag rule for zoom,
+focus and aperture.
 
 Wire bytes come through `DjiNative`, a JNI facade whose class name is part of the native symbols
 (`Java_com_opencapture_opencine_dji_DjiNative_<name>`). The Swift side is the product

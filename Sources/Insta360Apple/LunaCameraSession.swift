@@ -223,6 +223,18 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         publish()
     }
 
+    /// What a monitor lays out for this camera: the Core projection of `current` plus the Luna
+    /// gimbal (`motion`). `base` carries what Core has no vocabulary for yet.
+    public func layout(base: MonitorLayoutCapabilities = .init()) -> MonitorLayoutCapabilities {
+        var layout = MonitorLayoutCapabilities(current.capabilities, motion: Self.motion, base: base)
+        // ponytail: the app drives zoom and focus mode through the backend's own requests, not this
+        // session, so they are not descriptors; every Luna body has both. Delete these two lines
+        // once the session routes them.
+        layout.zoom = true
+        layout.focus = true
+        return layout
+    }
+
     // MARK: - CameraSession
 
     public func snapshots() -> AsyncStream<CameraSnapshot> {

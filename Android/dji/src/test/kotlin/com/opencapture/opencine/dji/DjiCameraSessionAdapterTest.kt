@@ -1,14 +1,18 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.core.MonotonicInstant
+import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.PowerStatus
 import com.opencapture.opencine.core.Rational
@@ -16,7 +20,10 @@ import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.WhiteBalanceValue
+import com.opencapture.opencine.motion.MotionAxis
+import com.opencapture.opencine.motion.GimbalWaypoint as MotionWaypoint
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -24,6 +31,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -236,6 +244,72 @@ class DjiCameraSessionAdapterTest {
         )
     }
 
+    /**
+     * SHELL-01: what each body publishes and the layout it projects to over an app base that
+     * carries only clip delete, clip star and the internet hop (Swift `eachBodyPublishesItsLayout`).
+     */
+    @Test
+    fun eachBodyPublishesItsLayout() = runTest {
+        val base = MonitorLayoutCapabilities(clipDelete = true, clipStar = true, requiresInternetHop = true)
+        fun expected(gimbal: Boolean, zoom: Boolean, focus: Boolean, iris: Boolean, timecode: Boolean) = base.copy(
+            gimbal = gimbal, headTracking = gimbal, zoom = zoom, focus = focus, iris = iris, timecode = timecode, audio = true,
+        )
+        val bodies = listOf(
+            Triple(body("Osmo Pocket 4 Pro", "pocket"), expected(true, true, true, false, true), SupportStatus.SUPPORTED),
+            Triple(body("Osmo Pocket 3", "pocket"), expected(true, true, true, false, true), SupportStatus.SUPPORTED),
+            Triple(body("Osmo Action 6", "other", aperture = true), expected(false, false, false, true, true), SupportStatus.SUPPORTED),
+            Triple(body("Osmo Nano", "nano"), expected(false, false, false, false, false), SupportStatus.UNSUPPORTED),
+        )
+        for ((model, layout, timecode) in bodies) {
+            val port = FakePort()
+            port.state = port.state.copy(model = model)
+            val seam = adapter(port)
+            assertEquals(layout, seam.layout(base), model.name)
+            assertEquals(timecode, seam.current.capabilities.timecode, model.name)
+            assertEquals(SupportStatus.SUPPORTED, seam.current.capabilities.audioLevels, model.name)
+            assertEquals(layout.gimbal, model.motion != null, model.name)
+        }
+        // No camera: nothing is claimed, so the layout is the base.
+        val seam = adapter(FakePort())
+        assertEquals(base, seam.layout(base))
+        assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.timecode)
+        assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.audioLevels)
+    }
+
+    @Test
+    fun pocketGimbalReportsPoseInsideItsReach() {
+        assertEquals(SupportStatus.SUPPORTED, pocketGimbal.pose)
+        assertEquals(setOf(MotionAxis.PAN, MotionAxis.TILT, MotionAxis.ZOOM), pocketGimbal.axes)
+        assertNull(pocketGimbal.target(MotionWaypoint(226.0, 0.0, 1.0)))
+        assertNotNull(pocketGimbal.target(MotionWaypoint(225.0, 70.0, 1.0)))
+    }
+
+    @Test
+    fun timecodeAndAudioLevelsAreCameraReportedOrUnknown() = runTest {
+        val port = FakePort()
+        val seam = adapter(port)
+        assertEquals(ObservedValue.unknown, seam.current.timecode)
+        assertEquals(ObservedValue.unknown, seam.current.audioLevels, "no report is unknown, never silence")
+        val reported = CameraStatus(
+            timecode = "05:22:47:18", audioMetersLeft = -18.0, audioPeakLeft = -12.0,
+            audioMetersRight = -20.0, audioPeakRight = -14.0, audioMetersReported = true,
+        )
+        port.state = port.state.copy(timecode = reported.timecode, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
+        val snapshot = seam.current
+        assertEquals(CameraTimecode(5, 22, 47, 18), snapshot.timecode.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.timecode.origin)
+        assertEquals(AudioLevels(AudioLevels.Channel(-18.0, -12.0), AudioLevels.Channel(-20.0, -14.0)), snapshot.audioLevels.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.audioLevels.origin)
+        port.state = port.state.copy(timecode = "--:--")
+        assertEquals(ObservedValue.unknown, seam.current.timecode)
+        // The status JSON the session round-trips through the facade keeps "not reported" apart from silence.
+        assertNull(DjiCameraSessionAdapter.audioLevels(CameraStatus.fromJson(CameraStatus().toJson())))
+        assertEquals(
+            DjiCameraSessionAdapter.audioLevels(reported),
+            DjiCameraSessionAdapter.audioLevels(CameraStatus.fromJson(reported.toJson())),
+        )
+    }
+
     @Test
     fun wireTimeoutEndsADroppedRequestAsUnknown() = runTest {
         val port = FakePort()
@@ -243,6 +317,15 @@ class DjiCameraSessionAdapterTest {
         val receipt = seam.setIsoIndex(0x06)
         testScheduler.advanceTimeBy(seam.wireTimeout + 1.seconds)
         assertEquals(CommandStage.OutcomeUnknown, seam.receipt(receipt.operation)?.stage)
+    }
+
+    /** Body flags as the facade sends them (Swift `CameraModel`). */
+    private fun body(name: String, family: String, aperture: Boolean = false): CameraModel {
+        val pocket = family == "pocket"
+        return CameraModel(
+            name, family = family, hasGimbal = pocket, supportsZoom = pocket, supportsFocusMode = pocket,
+            supportsTapFocus = pocket, supportsAperture = aperture,
+        )
     }
 
     private fun TestScope.adapter(port: FakePort) =

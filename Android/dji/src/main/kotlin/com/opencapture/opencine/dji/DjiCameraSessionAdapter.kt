@@ -1,11 +1,13 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraDeviceID
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CommandFailure
@@ -19,6 +21,7 @@ import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin
@@ -32,9 +35,11 @@ import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.StorageVolume
+import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
+import com.opencapture.opencine.motion.MonitorLayoutCapabilities
 import com.opencapture.opencine.dji.ConnectionPhase as PocketPhase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -96,6 +101,12 @@ data class PocketControlState(
     val recording: Boolean? = null,
     val batteryPercent: Int? = null,
     val storageFreeMb: Int? = null,
+    /** The connected body; `null` while none is known. */
+    val model: CameraModel? = null,
+    /** `timecode_info` as decoded (`HH:MM:SS:FF`); `null` until reported. */
+    val timecode: String? = null,
+    /** `cam_audio_status_v2` in dBFS; `null` until reported ([audioLevels]). */
+    val audioLevels: AudioLevels? = null,
 )
 
 /** The Pocket session as the seam drives it. `PocketCameraSession` and the JVM tests implement it. */
@@ -199,6 +210,22 @@ class DjiCameraSessionAdapter(
     }
 
     override fun receipt(operation: OperationID): CommandReceipt? = receipts[operation]
+
+    /**
+     * What a monitor lays out for the connected body (Swift `layout(base:)`): the Core projection
+     * of [current] plus the body's motion ([CameraModel.motion]). [base] carries what Core has no
+     * vocabulary for yet. With no body known, motion stays unknown and the Core projection keeps
+     * [base].
+     */
+    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
+        val capabilities = current.capabilities
+        val model = port.controlState().model ?: return MonitorLayoutCapabilities(capabilities, base)
+        // ponytail: the app drives zoom, focus and aperture with its own DUML calls, not through
+        // this seam, so they are not descriptors and the body table lays them out. Delete this
+        // copy once the seam routes them.
+        return MonitorLayoutCapabilities(capabilities, model.motion, base)
+            .copy(zoom = model.supportsZoom, focus = model.supportsFocusMode, iris = model.supportsAperture)
+    }
 
     // ---- session hooks ----
 
@@ -416,13 +443,12 @@ class DjiCameraSessionAdapter(
         val state = port.controlState()
         val last = _snapshots.value
         val connection = connection(state, last.connection)
-        val descriptors = descriptors(state)
+        val declared = CapabilitySnapshot(
+            last.capabilities.revision, descriptors(state),
+            timecode = timecodeSupport(state.model), audioLevels = audioLevelsSupport(state.model),
+        )
         val capabilities =
-            if (CapabilitySnapshot(last.capabilities.revision, descriptors) == last.capabilities) {
-                last.capabilities
-            } else {
-                CapabilitySnapshot(last.capabilities.revision.next(), descriptors)
-            }
+            if (declared == last.capabilities) last.capabilities else declared.copy(revision = declared.revision.next())
         val next =
             last.copy(
                 epoch = epoch,
@@ -451,6 +477,10 @@ class DjiCameraSessionAdapter(
                     val free = ObservedValue(it.toLong() * 1_048_576L, ObservationOrigin.CAMERA_REPORTED, null)
                     ObservedValue(listOf(StorageVolume("active", freeBytes = free)), ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,
+                timecode = timecode(state.timecode)?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) }
+                    ?: ObservedValue.unknown,
+                audioLevels = state.audioLevels?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) }
+                    ?: ObservedValue.unknown,
             )
         if (next == last) return
         _snapshots.value = next.copy(revision = last.revision.next())
@@ -525,6 +555,39 @@ class DjiCameraSessionAdapter(
 
         fun whiteBalance(wb: ReportedWhiteBalance): WhiteBalanceValue =
             if (wb.mode == CameraCommands.WB_CUSTOM) WhiteBalanceValue.Kelvin(wb.kelvin) else WhiteBalanceValue.Auto
+
+        /**
+         * Every body reports `timecode_info` except Nano, whose live and Multi View readouts never
+         * showed one. Unknown body: unknown.
+         */
+        fun timecodeSupport(model: CameraModel?): SupportStatus = when {
+            model == null -> SupportStatus.UNKNOWN
+            model.family == "nano" -> SupportStatus.UNSUPPORTED
+            else -> SupportStatus.SUPPORTED
+        }
+
+        /** `cam_audio_status_v2` levels. Unknown body: unknown. */
+        // ponytail: every body the app connects to has always shown the meter; narrow this per
+        // body once one is captured without `cam_audio_status_v2`.
+        fun audioLevelsSupport(model: CameraModel?): SupportStatus =
+            if (model == null) SupportStatus.UNKNOWN else SupportStatus.SUPPORTED
+
+        /** `timecode_info` as decoded (`HH:MM:SS:FF`); `null` when absent or malformed. */
+        fun timecode(raw: String?): CameraTimecode? {
+            val parts = raw?.split(':')?.mapNotNull(String::toIntOrNull)?.takeIf { it.size == 4 } ?: return null
+            return CameraTimecode(parts[0], parts[1], parts[2], parts[3])
+        }
+
+        /** The camera-held meter in dBFS, `null` until `cam_audio_status_v2` arrives. */
+        fun audioLevels(status: CameraStatus): AudioLevels? =
+            if (!status.audioMetersReported) {
+                null
+            } else {
+                AudioLevels(
+                    AudioLevels.Channel(status.audioMetersLeft, status.audioPeakLeft),
+                    AudioLevels.Channel(status.audioMetersRight, status.audioPeakRight),
+                )
+            }
 
         fun iso(index: Int): ISOValue = CameraCommands.isoValue(index)?.let { ISOValue.Manual(it) } ?: ISOValue.Auto
 

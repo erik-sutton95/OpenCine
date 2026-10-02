@@ -258,6 +258,8 @@ struct DjiNativeWireTests {
         #expect(fromKotlin.timecode == nil)
         #expect(fromKotlin.docked)
         #expect(fromKotlin.audioMeters == CameraStatus().audioMeters)
+        // Meters the camera never sent stay unknown across the round trip, never silence.
+        #expect(DjiNativeWire.status(fromJSON: DjiNativeWire.statusJSON(CameraStatus())).audioMeters == nil)
     }
 
     @Test

@@ -123,6 +123,10 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertTrue(layout.timecode)
         XCTAssertFalse(layout.audio, "unsupported overrides the base")
         XCTAssertFalse(layout.iris, "fixed aperture")
+        // The session's own layout adds zoom and focus, which the app drives outside the session.
+        var expected = layout
+        (expected.zoom, expected.focus) = (true, true)
+        XCTAssertEqual(session.layout(base: base), expected)
 
         XCTAssertNil(session.current.timecode.value, "nothing derived yet: unknown")
         session.ingest(timecode: CameraTimecode(hours: 15, minutes: 39, seconds: 50, frames: 12))
