@@ -408,6 +408,8 @@ public data class CameraControlCapabilities(
      * can never name a combination this body did not offer.
      */
     val codecBitDepths: List<CodecBitDepthOption> = emptyList(),
+    /** Actual f-number descriptor choices, excluding the legacy body/lens fallback. */
+    val advertisedIrisValues: List<String> = emptyList(),
 ) {
     /** Returns the advertised labels for one descriptor-dependent control. */
     public fun options(control: CameraControl): List<String> =

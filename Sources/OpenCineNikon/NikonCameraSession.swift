@@ -25,7 +25,7 @@ public struct NikonControlFacts: Sendable {
     /// White-balance presets the body advertises for the active chrome, or the picker's list
     /// before the descriptor has been read.
     public var whiteBalancePresets: [String] = []
-    /// Active movie shutter and lens aperture options, from the same authoritative picker domains.
+    /// Actual descriptor choices for active movie shutter and aperture, excluding UI fallbacks.
     public var shutterLabels: [String] = []
     public var apertureLabels: [String] = []
 
