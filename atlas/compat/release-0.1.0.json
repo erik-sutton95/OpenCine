@@ -174,7 +174,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "b1e6984507df9bd191cf81707abeec054c7226b8",
+      "commit": "97265bf2dd903b3bda47f82e2a490c10d9f72f83",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -210,8 +210,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "b1e6984507df9bd191cf81707abeec054c7226b8",
-        "where": "progress.d/MEDIA-02.md step 4 (opencine/apple b1e6984): root swift test 729, iOS 539 (1 skip), Android assembleDebug; INTEGRATION-2.md for the Android suites"
+        "commit": "97265bf2dd903b3bda47f82e2a490c10d9f72f83",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
       }
     },
     {
