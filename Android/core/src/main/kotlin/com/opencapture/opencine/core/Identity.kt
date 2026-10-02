@@ -2,6 +2,7 @@ package com.opencapture.opencine.core
 
 import java.util.UUID
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
 
 /** A saved setup path (USB, a station network, the camera's access point, a relay). One camera can have several routes. */
 @JvmInline public value class ConnectionRouteID(public val uuid: UUID = UUID.randomUUID())
@@ -83,8 +84,10 @@ public data class CameraDeviceID private constructor(
 }
 
 /**
- * A point on the host's monotonic clock, measured from the owner's reference point.
- * Tests inject these directly. Instants from different hosts are not comparable.
+ * A point on the host's monotonic clock. Production code takes every instant from [now], the one
+ * process-wide reference, so deadlines, lease expiry and observation times from different
+ * integrations compare (MULTI-03 F1). Tests inject instants directly, or a `() -> MonotonicInstant`
+ * where a session takes one. Instants from different hosts or processes are not comparable.
  */
 @JvmInline
 public value class MonotonicInstant(public val sinceReference: Duration) : Comparable<MonotonicInstant> {
@@ -94,5 +97,13 @@ public value class MonotonicInstant(public val sinceReference: Duration) : Compa
 
     public companion object {
         public val ZERO: MonotonicInstant = MonotonicInstant(Duration.ZERO)
+
+        /**
+         * Now on the shared host reference: `System.nanoTime()` (CLOCK_MONOTONIC on Android), so
+         * code that already stamps raw `nanoTime` stays comparable. Every integration and app uses
+         * this, never its own origin (`markNow()`, `nanoTime() - start`, `elapsedRealtime`).
+         */
+        @JvmStatic
+        public fun now(): MonotonicInstant = MonotonicInstant(System.nanoTime().nanoseconds)
     }
 }

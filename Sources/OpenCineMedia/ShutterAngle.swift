@@ -58,16 +58,20 @@ public enum ShutterAngle: Sendable {
         return available.min(by: { abs($0 - ideal) < abs($1 - ideal) }) ?? ideal
     }
 
-    public static func degrees(denom: Int, fps: Int) -> Double {
-        guard denom > 0 else { return defaultDegrees }
-        return 360.0 * Double(effectiveFps(fps)) / Double(denom)
+    /// The angle a reported 1/N shows at the reported frame rate (protocol-derived), or `nil`
+    /// when either is unknown: an unknown shutter is never 180° and an unknown rate never 24
+    /// (MULTI-03 F4). Sending still uses `effectiveFps`.
+    public static func degrees(denom: Int, fps: Int) -> Double? {
+        guard denom > 0, (8...240).contains(fps) else { return nil }
+        return 360.0 * Double(fps) / Double(denom)
     }
 
     public static func nearestDegrees(_ value: Double) -> Double {
         degrees.min(by: { abs($0 - value) < abs($1 - value) }) ?? defaultDegrees
     }
 
-    public static func nearestLabel(denom: Int, fps: Int) -> String {
-        label(nearestDegrees(degrees(denom: denom, fps: fps)))
+    /// `nil` when `degrees(denom:fps:)` is unknown.
+    public static func nearestLabel(denom: Int, fps: Int) -> String? {
+        degrees(denom: denom, fps: fps).map { label(nearestDegrees($0)) }
     }
 }

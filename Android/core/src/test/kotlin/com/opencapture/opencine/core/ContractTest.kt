@@ -54,6 +54,16 @@ class ValuesTest {
         assertEquals(Freshness.UNKNOWN, undated.freshness(ZERO, 2.seconds))
     }
 
+    /** MULTI-03 F1: one process reference, and the same one raw `System.nanoTime()` stamps use. */
+    @Test
+    fun nowIsOneMonotonicReference() {
+        val first = MonotonicInstant.now()
+        val raw = System.nanoTime()
+        val second = MonotonicInstant.now()
+        assertTrue(first <= second && second - first < 1.seconds)
+        assertTrue(first.sinceReference.inWholeNanoseconds <= raw && raw <= second.sinceReference.inWholeNanoseconds)
+    }
+
     @Test
     fun rationalsAreNormalized() {
         assertEquals(Rational(1, 50), Rational(2, 100))

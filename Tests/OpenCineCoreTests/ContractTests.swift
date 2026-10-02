@@ -31,6 +31,15 @@ import Testing
         #expect(undated.freshness(at: .zero, maxAge: .seconds(2)) == .unknown)
     }
 
+    /// MULTI-03 F1: every caller reads one process reference, so instants taken by different
+    /// sessions compare.
+    @Test func nowIsOneMonotonicReference() {
+        let first = MonotonicInstant.now()
+        let second = MonotonicInstant.now()
+        #expect(first <= second)
+        #expect(second - first < .seconds(1))
+    }
+
     @Test func rationalsAreNormalized() throws {
         #expect(Rational(2, 100) == Rational(1, 50))
         #expect(Rational(1, -3) == Rational(-1, 3))

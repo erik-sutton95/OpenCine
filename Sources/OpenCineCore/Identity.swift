@@ -86,12 +86,21 @@ public struct CameraDeviceID: Hashable, Codable, Sendable {
     }
 }
 
-/// A point on the host's monotonic clock, measured from the owner's reference point.
-/// Tests inject these directly. Instants from different hosts are not comparable.
+/// A point on the host's monotonic clock. Production code takes every instant from `now()`, the
+/// one process-wide reference, so deadlines, lease expiry and observation times from different
+/// integrations compare (MULTI-03 F1). Tests inject instants directly, or a `() -> MonotonicInstant`
+/// where a session takes one. Instants from different hosts or processes are not comparable.
 public struct MonotonicInstant: Hashable, Comparable, Codable, Sendable {
     public var sinceReference: Duration
     public init(_ sinceReference: Duration) { self.sinceReference = sinceReference }
     public static let zero = Self(.zero)
+
+    /// The process reference: `ContinuousClock` (keeps counting through device sleep), captured on
+    /// first use. Never mix with `ProcessInfo.systemUptime`, which pauses in sleep.
+    private static let reference = ContinuousClock.now
+    /// Now on the shared host reference. Every integration and app uses this, never its own origin.
+    public static func now() -> Self { Self(reference.duration(to: .now)) }
+
     public static func + (lhs: Self, rhs: Duration) -> Self { Self(lhs.sinceReference + rhs) }
     public static func - (lhs: Self, rhs: Self) -> Duration {
         lhs.sinceReference - rhs.sinceReference

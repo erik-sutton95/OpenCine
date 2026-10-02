@@ -32,6 +32,16 @@ import Testing
         #expect(ShutterAngle.nearestLabel(denom: 50, fps: 25) == "180°")
     }
 
+    /// MULTI-03 F4: unknown stays unknown instead of 180° or a 24 fps guess.
+    @Test func unknownShutterOrRateHasNoAngle() {
+        #expect(ShutterAngle.degrees(denom: 0, fps: 24) == nil)
+        #expect(ShutterAngle.degrees(denom: -1, fps: 24) == nil)
+        #expect(ShutterAngle.degrees(denom: 48, fps: 0) == nil)
+        #expect(ShutterAngle.nearestLabel(denom: 0, fps: 24) == nil)
+        #expect(ShutterAngle.nearestLabel(denom: 48, fps: 0) == nil)
+        #expect(ShutterAngle.degrees(denom: 48, fps: 24) == 180)
+    }
+
     @Test func sendSnapsToTheCameraList() {
         #expect(
             ShutterAngle.denom(degrees: 180, fps: 24, available: [25, 50, 100, 200])
