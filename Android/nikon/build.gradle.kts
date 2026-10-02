@@ -32,4 +32,13 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
+    testImplementation(testFixtures(project(":core")))
+}
+
+// The saved-setup fixtures are shared with the Swift OpenCineNikonTests (Fixtures/ at the
+// repository root).
+tasks.withType<Test>().configureEach {
+    val fixtures = rootDir.resolve("../Fixtures")
+    inputs.dir(fixtures)
+    systemProperty("opencine.fixtures", fixtures.absolutePath)
 }

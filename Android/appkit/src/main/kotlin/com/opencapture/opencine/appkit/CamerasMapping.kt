@@ -68,7 +68,7 @@ public object CamerasMapping {
             CameraItem(
                 id = camera.id,
                 name = camera.displayName,
-                subtitle = camera.model + (network?.let { " · $it" } ?: ""),
+                subtitle = listOfNotNull(camera.model, network).filter { it.isNotEmpty() }.joinToString(" · "),
                 badge = when {
                     attempt != null -> "CONNECTING"
                     failure != null -> "NOT CONNECTED"
@@ -81,7 +81,9 @@ public object CamerasMapping {
                 isPrimary = camera.id == latest,
                 isBusy = attempt != null,
                 isAvailable = nearby,
-                setups = camera.routes.map { MonitorSetupChip(it.id.text, title(it), it.id == active, it.kind in addable) },
+                setups = camera.routes.map {
+                    MonitorSetupChip(it.id.text, title(it), it.id == active, it.kind in addable && camera.routes.size > 1)
+                },
                 canAddSetup = addable.isNotEmpty(),
                 steps = attempt?.let(::steps).orEmpty(),
                 failure = failure?.let { failure(it.failure, camera) },
@@ -220,7 +222,7 @@ public object CamerasMapping {
         return CameraItem(
             id = camera.id,
             name = camera.name,
-            subtitle = "${camera.model} · nearby",
+            subtitle = if (camera.model.isEmpty()) "nearby" else "${camera.model} · nearby",
             badge = if (held) "IN USE" else "NEW",
             status = if (held) "In use by another device" else "Ready to pair",
             actionTitle = "Pair",

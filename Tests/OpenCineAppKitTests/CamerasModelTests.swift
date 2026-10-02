@@ -166,6 +166,24 @@ import Testing
         model.rename("camera-1", to: " ")
         #expect(model.saved[0].name == nil)
     }
+
+    @available(macOS 14, *)
+    @Test func reloadMergesWhatTheAppSavedItself() {
+        let legacy = Defaults(["records": Data(#"[{"id":"camera-9","advertisedName":"CAM-9","modelName":"Test Body","lastConnectedAt":0}]"#.utf8)])
+        let store = SavedCamerasStore(
+            document: defaults.at("document"),
+            legacy: .init(
+                data: legacy.at("records"), codec: BodyRecordsV0(integration: IntegrationID("test.cameras"), dates: .epochMilliseconds),
+                source: "records"))
+        let model = CamerasModel(integrations: [AppIntegration(fake)], store: store)
+        #expect(model.saved.map(\.id) == ["camera-9"])
+        legacy.values["records"] = Data(#"[{"id":"camera-9","advertisedName":"CAM-9","modelName":"Test Body","lastConnectedAt":0,"customName":"Nine"}]"#.utf8)
+        model.reloadSaved()
+        #expect(model.saved.map(\.name) == ["Nine"])
+        // A save from the model keeps the app's write.
+        model.rename("camera-9", to: "Nine")
+        #expect(legacy.writes.isEmpty)
+    }
 }
 
 /// Yields until `condition` holds, so the model's main-actor tasks catch up while other suites

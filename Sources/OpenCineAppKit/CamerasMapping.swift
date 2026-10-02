@@ -30,7 +30,7 @@ public enum CamerasMapping {
             let network = camera.routes.first { $0.id == active }?.network
             return CameraListItem(
                 id: camera.id, name: camera.displayName,
-                subtitle: camera.model + (network.map { " · \($0)" } ?? ""),
+                subtitle: [camera.model, network ?? ""].filter { !$0.isEmpty }.joined(separator: " · "),
                 badge: attempt != nil
                     ? "CONNECTING"
                     : failure != nil ? "NOT CONNECTED" : camera.id == latest ? "LAST USED" : nearby ? "PAIRED" : "OFFLINE",
@@ -41,7 +41,7 @@ public enum CamerasMapping {
                 setups: camera.routes.map {
                     CameraSetupChip(
                         id: $0.id.description, title: title(of: $0), isActive: $0.id == active,
-                        canForget: addable.contains($0.kind))
+                        canForget: addable.contains($0.kind) && camera.routes.count > 1)
                 },
                 canAddSetup: !addable.isEmpty,
                 steps: attempt.map(steps) ?? [],
@@ -160,7 +160,7 @@ public enum CamerasMapping {
         let camera = sighting.camera
         let held = camera.availability != .available
         return CameraListItem(
-            id: camera.id, name: camera.name, subtitle: "\(camera.model) · nearby",
+            id: camera.id, name: camera.name, subtitle: camera.model.isEmpty ? "nearby" : "\(camera.model) · nearby",
             badge: held ? "IN USE" : "NEW",
             status: held ? "In use by another device" : "Ready to pair", actionTitle: "Pair",
             isPrimary: model.selection == camera.id,

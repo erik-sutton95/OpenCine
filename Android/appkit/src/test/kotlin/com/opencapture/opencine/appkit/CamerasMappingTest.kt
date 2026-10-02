@@ -80,6 +80,18 @@ class CamerasMappingTest {
     }
 
     @Test
+    fun aCameraWithoutModelOrSpareRoute() = runTest {
+        val fake = FakeIntegration(id = IntegrationID("test.cameras"))
+        val camera = Values.camera.copy(model = "", routes = listOf(Values.wifi), preferredRoute = Values.wifi.id)
+        val model = Values.model(listOf(fake), backgroundScope, listOf(camera))
+        val item = CamerasMapping.paired(model)[0]
+        assertTrue(item.subtitle == "studio" && item.setups.map { it.canForget } == listOf(false))
+        fake.publish(listOf(NearbyCamera("n9", name = "CAM-9", model = "", routes = setOf(RouteKind.INFRASTRUCTURE_NETWORK))))
+        runCurrent()
+        assertEquals(listOf("nearby"), CamerasMapping.nearby(model).map { it.subtitle })
+    }
+
+    @Test
     fun nearbyCamerasAreUnsavedSightings() = runTest {
         val fake = FakeIntegration(id = IntegrationID("test.cameras"))
         val model = Values.model(listOf(fake), backgroundScope)

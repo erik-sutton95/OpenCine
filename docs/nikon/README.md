@@ -94,3 +94,24 @@ supplies.
 - `PosixNikonDialer` (iOS) is the production dialer over POSIX sockets and `PTPIPTransport`; the
   app decodes its own presence line. Tests: `NikonDiscoveryTests` / `NikonDiscoveryTest`, same
   method names (zero camera-control dials and zero PTP bytes in `.passive`).
+
+## Integration and saved setups (SHELL-02)
+
+`NikonIntegration` (Swift and Kotlin) is the Nikon `CameraIntegration` over a `NikonConnectPort`
+the app implements with its own pipeline: the discovery loop (passive for the cameras list,
+active only while a pairing listener asks), the connect funnel, its phases and its forget. The app
+keeps its save rules: it writes its saved setups as before and the integration reads them back for
+the connected camera. Before connecting to a camera another device holds, the integration asks
+with a `NikonTakeOverPrompt` (the app's prompt slot renders it). Pairing and the access point's
+restart are approve-on-camera prompts; the access point join is the common network-join prompt.
+Tests: `NikonIntegrationTests` / `NikonIntegrationTest`, same method names
+(`theCamerasListNeverAsksForActiveDiscovery` pins the passive rule at the integration).
+
+`NikonSavedRecordsV0` reads and mirrors the app's saved setups for the shared saved-camera
+document: on iOS the `PTPIPSavedCameraRecord` array (grouped by serial, camera id `serial:<n>`),
+on Android the `openzcine.saved-cameras` JSON (grouped by assigned camera name, id
+`name:<name>`). One route per setup, most recently seen first; a patch only renames, retitles and
+removes, and appends a setup the document has that the records do not. Golden fixtures written by
+the app's own encoders: `Fixtures/saved-cameras/nikon-records-v0-ios.json` (regenerate with
+`OPENCINE_WRITE_FIXTURES=1 swift test --filter NikonSavedRecords`) and
+`nikon-records-v0-android.json` (OpenZCine `SavedCameraRecordsFixtureTest`).

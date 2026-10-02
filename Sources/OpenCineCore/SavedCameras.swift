@@ -176,3 +176,17 @@ extension SavedCamerasDocument {
         return result
     }
 }
+
+/// Change detection for legacy records: FNV-1a 64 of the record's sorted-key JSON.
+// ponytail: change detection only, not integrity; a collision merely skips one legacy edit.
+public enum LegacyRecordHash {
+    public static func fnv1a(_ object: [String: Any]) -> String {
+        let bytes = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in bytes {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return String(hash, radix: 16)
+    }
+}

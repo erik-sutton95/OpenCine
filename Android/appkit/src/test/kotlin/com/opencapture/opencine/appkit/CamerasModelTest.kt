@@ -220,4 +220,21 @@ class CamerasModelTest {
         model.rename("camera-1", " ")
         assertNull(model.now.saved[0].name)
     }
+
+    @Test
+    fun reloadMergesWhatTheAppSavedItself() = runTest {
+        val legacy = Defaults(mapOf("records" to """[{"id":"camera-9","advertisedName":"CAM-9","modelName":"Test Body","lastConnectedAt":0}]"""))
+        val store = SavedCamerasStore(
+            defaults.at("document"),
+            SavedCamerasStore.Legacy(legacy.at("records"), BodyRecordsV0(IntegrationID("test.cameras"), BodyRecordsV0.Dates.EPOCH_MILLISECONDS), "records"),
+        )
+        val model = CamerasModel(listOf(AppIntegration(fake)), store, backgroundScope)
+        assertEquals(listOf("camera-9"), model.now.saved.map { it.id })
+        legacy.values["records"] = """[{"id":"camera-9","advertisedName":"CAM-9","modelName":"Test Body","lastConnectedAt":0,"customName":"Nine"}]"""
+        model.reloadSaved()
+        assertEquals(listOf<String?>("Nine"), model.now.saved.map { it.name })
+        // A save from the model keeps the app's write.
+        model.rename("camera-9", "Nine")
+        assertTrue(legacy.writes.isEmpty())
+    }
 }

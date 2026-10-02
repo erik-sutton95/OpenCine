@@ -228,6 +228,14 @@ public final class CamerasModel {
 
     // MARK: Saved cameras
 
+    /// The app wrote its legacy records itself (an integration whose app still saves with its own
+    /// rules): merges them into the document now. Call it right after each such write, so a save
+    /// from here never patches over it.
+    public func reloadSaved() {
+        store.load()
+        saved = store.cameras
+    }
+
     /// `nil` or a blank name clears the rename.
     public func rename(_ cameraID: String, to name: String?) {
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)

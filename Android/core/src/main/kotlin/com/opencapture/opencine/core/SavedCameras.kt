@@ -138,3 +138,16 @@ public interface LegacySavedCameraCodec {
      */
     public fun patched(data: String?, cameras: List<SavedCamera>): String?
 }
+
+/** Change detection for legacy records (Swift `LegacyRecordHash`): FNV-1a 64 of the record's sorted-key JSON. */
+// ponytail: change detection only, not integrity; a collision merely skips one legacy edit.
+public object LegacyRecordHash {
+    public fun fnv1a(canonicalJson: String): String {
+        var hash = -0x340d631b7bdddcdbL
+        for (byte in canonicalJson.toByteArray()) {
+            hash = hash xor (byte.toLong() and 0xff)
+            hash *= 0x100000001b3L
+        }
+        return java.lang.Long.toUnsignedString(hash, 16)
+    }
+}

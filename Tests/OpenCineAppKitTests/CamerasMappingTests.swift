@@ -73,6 +73,21 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func aCameraWithoutModelOrSpareRoute() async {
+        let fake = FakeIntegration(id: IntegrationID("test.cameras"))
+        var camera = T.camera
+        camera.model = ""
+        camera.routes = [T.wifi]
+        camera.preferredRoute = T.wifi.id
+        let model = model(fake, saved: [camera])
+        let item = CamerasMapping.paired(model)[0]
+        #expect(item.subtitle == "studio" && item.setups.map(\.canForget) == [false])
+        fake.publish([NearbyCamera(id: "n9", name: "CAM-9", model: "", routes: [.infrastructureNetwork])])
+        #expect(await eventually { !model.nearby.isEmpty })
+        #expect(CamerasMapping.nearby(model).map(\.subtitle) == ["nearby"])
+    }
+
+    @available(macOS 14, *)
     @Test func nearbyCamerasAreUnsavedSightings() async {
         let fake = FakeIntegration(id: IntegrationID("test.cameras"))
         let model = model(fake, saved: [T.camera])

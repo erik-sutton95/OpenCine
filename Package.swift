@@ -133,7 +133,7 @@ let package = Package(
         // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
         .testTarget(
             name: "OpenCineNikonTests",
-            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMulticam"]),
+            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMulticam", "OpenCineCoreTestSupport"]),
         // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
         // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
         // media browse and the JNI exports of the Kotlin class

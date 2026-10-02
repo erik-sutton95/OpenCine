@@ -270,6 +270,16 @@ public class CamerasModel(
 
     // Saved cameras
 
+    /**
+     * The app wrote its legacy records itself (an integration whose app still saves with its own
+     * rules): merges them into the document now. Call it right after each such write, so a save
+     * from here never patches over it.
+     */
+    public fun reloadSaved() {
+        store.load()
+        update { it.copy(saved = store.cameras) }
+    }
+
     /** `null` or a blank name clears the rename. */
     public fun rename(cameraID: String, name: String?) {
         val trimmed = name?.trim()?.takeIf { it.isNotEmpty() }

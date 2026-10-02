@@ -3,6 +3,7 @@ package com.opencapture.opencine.appkit
 import com.opencapture.opencine.core.ConnectionRouteID
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.LegacyCamera
+import com.opencapture.opencine.core.LegacyRecordHash
 import com.opencapture.opencine.core.LegacySavedCameraCodec
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
@@ -159,15 +160,6 @@ public class BodyRecordsV0(public val integration: IntegrationID, public val dat
 
         fun string(json: JSONObject, key: String): String? = (json.opt(key) as? String)?.takeIf { it.isNotEmpty() }
 
-        /** FNV-1a 64 of the record with sorted keys. */
-        // ponytail: change detection only, not integrity; a collision merely skips one legacy edit.
-        fun hash(json: JSONObject): String {
-            var hash = -0x340d631b7bdddcdbL
-            for (byte in canonical(json).toByteArray()) {
-                hash = hash xor (byte.toLong() and 0xff)
-                hash *= 0x100000001b3L
-            }
-            return java.lang.Long.toUnsignedString(hash, 16)
-        }
+        fun hash(json: JSONObject): String = LegacyRecordHash.fnv1a(canonical(json))
     }
 }

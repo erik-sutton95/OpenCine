@@ -43,7 +43,7 @@ public struct BodyRecordsV0: LegacySavedCameraCodec {
         guard let array = (try? JSONSerialization.jsonObject(with: data)) as? [Any] else { return nil }
         return array.compactMap { element in
             guard let object = element as? [String: Any], let camera = camera(from: object) else { return nil }
-            return LegacyCamera(camera: camera, records: [camera.id: Self.hash(object)])
+            return LegacyCamera(camera: camera, records: [camera.id: LegacyRecordHash.fnv1a(object)])
         }
     }
 
@@ -155,17 +155,5 @@ public struct BodyRecordsV0: LegacySavedCameraCodec {
     private static func string(_ value: Any?) -> String? {
         guard let string = value as? String, !string.isEmpty else { return nil }
         return string
-    }
-
-    /// FNV-1a 64 of the record with sorted keys.
-    // ponytail: change detection only, not integrity; a collision merely skips one legacy edit.
-    static func hash(_ object: [String: Any]) -> String {
-        let bytes = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in bytes {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x0000_0100_0000_01b3
-        }
-        return String(hash, radix: 16)
     }
 }
