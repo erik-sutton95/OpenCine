@@ -85,6 +85,9 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
 
     /** Shows [camera] on the monitor; this shell owns and later closes its session. */
     public fun present(camera: ConnectedCamera) {
+        // A delayed callback for the already-presented session is not a replacement.
+        // Keep its picture host, ownership, cover and open editors intact.
+        if (state.value.monitor?.session?.id == camera.session.id) return
         show(Monitor(camera, Ownership.Owned))
     }
 
