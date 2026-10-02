@@ -12,8 +12,9 @@ One resolver (`tools/resolver.py`) serves every command:
 1. An explicit `repos.<id>` path in `.local/checkouts.json` wins. If that path is missing
    the repo is reported **missing**; the resolver does not silently fall back.
 2. Otherwise it looks for `<workspace>/<local_dir>` in each of: `workspace` from the
-   config, the `OPENCAPTURE_WORKSPACE` environment variable, and the folder that contains
-   this atlas checkout. More than one distinct checkout is **ambiguous**: add an explicit
+   config, the `OPENCAPTURE_WORKSPACE` environment variable, the folder that contains the
+   OpenCine checkout this atlas lives in (`<workspace>/OpenCine/atlas`), and the atlas
+   folder's own parent. More than one distinct checkout is **ambiguous**: add an explicit
    mapping.
 3. A candidate must be the top level of a Git checkout (a primary clone with a `.git`
    directory or a linked worktree with a `.git` file) and, when the registry records a
@@ -37,7 +38,10 @@ dirty state and every linked worktree with its branch. Use `--json` for scripts.
 
 ## Apple and Android local overrides
 
-During candidate validation an app may point at a sibling package checkout by relative
-path (SwiftPM `.package(path:)`, XcodeGen `path:`, Gradle `includeBuild`). Those overrides
-belong on a task branch, never in a release configuration. [PUBLISH.md](PUBLISH.md)
-describes the swap to URL plus version once remotes exist.
+During candidate validation an app points at one sibling checkout of the platform by
+relative path: SwiftPM `.package(path: "../OpenCine")`, XcodeGen `path: ../../OpenCine` (or
+the Xcode project's local package reference), and one Gradle
+`includeBuild("../../../OpenCine/Android")` named `opencine` that substitutes the
+`com.opencapture.opencine:*` coordinates the app uses. `opencine-pins.txt` holds one line,
+`OpenCine <sha>`. Those overrides belong on a task branch, never in a release configuration.
+[PUBLISH.md](PUBLISH.md) describes the swap to URL plus version once the remote exists.

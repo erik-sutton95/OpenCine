@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Publish the local OpenCine repositories in one resumable command (RELEASE-01).
+"""Publish the OpenCine platform repository and move the apps onto it (RELEASE-01, ADR 0010).
 
 Dry run by default: prints every step and every file diff it would make, and writes nothing.
 `--execute` acts. Progress is kept in .local/publish-state.json, so rerunning the same command
 resumes after the last finished step. Everything is driven by compat/release-<version>.json.
 
-  preflight  recorded decisions, clean checkouts on the recorded branch and commit, recorded
-             green evidence, publishable author emails, required tools
-  new repos  the atlas, then each package in tag order: remote, URL dependencies with a
-             compatible range (libraries), commit, clean-clone verify, annotated tag, push
-  apps       URL + exact version, resolve and commit lock files, clean-clone verify, push the
-             branch, draft pull request (--open-prs)
-  atlas      repository URLs, refs, live edges once every app PR exists, compat/VERSIONS.md,
-             `atlas check --sources`, commit, push
+  preflight  recorded decisions, clean checkouts on the recorded branch and commit (the platform
+             may differ from its recorded commit only under atlas/, where the record lives),
+             recorded green evidence, publishable author emails, required tools
+  platform   the one repository this atlas lives in: remote, clean-clone verify, one annotated
+             tag, push main and the tag
+  apps       the one package by URL + exact version, resolve and commit lock files, Android
+             sibling pin of the tag commit, clean-clone verify, push the branch, draft pull
+             request (--open-prs)
+  atlas      repository URL, refs, live edges once every app PR exists, compat/VERSIONS.md,
+             `atlas check --sources`, commit on the platform's main, push
 
 Other commands: `decide` and `record` edit the release record, `rewrite-authors` replaces
 author emails before the first push, `table` prints compat/VERSIONS.md. See docs/PUBLISH.md.
@@ -40,26 +42,25 @@ import resolver  # noqa: E402
 OK, FAIL, USAGE = 0, 1, 2
 FOOTER = "\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)"
 NOREPLY = re.compile(r"@users\.noreply\.github\.com$")
-# Libraries: a 0.x minor bump is incompatible (compat/VERSIONS.md), so the compatible range ends
-# before the next minor. Apps: exact versions plus committed Package.resolved.
-LIBRARY_REQUIREMENT = '.upToNextMinor(from: "{v}")'
+# Apps pin the one platform package by exact version and commit Package.resolved. The platform
+# itself has no package dependency, so there is no library range to declare.
 APP_REQUIREMENT = 'exact: "{v}"'
 DECISIONS = {
     "owner": "GitHub account or organization for the new repositories (recommended: erik-sutton95, where the apps live)",
     "visibility": "public or private (recommended: public, so contributors resolve packages without credentials)",
-    "android": "Android distribution for this release; only `sibling-pins` is automated (Gradle includes sibling checkouts pinned to the tag commits); a Maven namespace is a later release",
+    "android": "Android distribution for this release; only `sibling-pins` is automated (Gradle includes the OpenCine checkout pinned to the tag commit); a Maven namespace is a later release",
     "author_email": "email for commits and tags this run creates, and the target of `rewrite-authors`; `keep` publishes existing author emails as they are",
 }
 PINS_HEADER = """\
-# Shared OpenCine packages at their released tags ({v}). scripts/checkout-opencine.sh checks them
-# out next to this repository (CI fetches and verifies each commit; a developer's own checkout is
-# only reported, never moved). Android builds read them (Gradle includeBuild) until Maven
-# artifacts exist; Apple builds resolve the same versions from Package.swift and Package.resolved.
+# The OpenCine platform at its released tag ({v}). scripts/checkout-opencine.sh checks it out next
+# to this repository (CI fetches and verifies the commit; a developer's own checkout is only
+# reported, never moved). Android builds read it (Gradle includeBuild named opencine) until Maven
+# artifacts exist; Apple builds resolve the same version from Package.swift and Package.resolved.
 """
 CI_COMMENT = [
-    "Shared OpenCine packages at the released tags in opencine-pins.txt, checked out next to the",
-    "repository: the Android build includes their Gradle builds until Maven artifacts exist. Apple",
-    "builds resolve the same versions from Package.swift and Package.resolved.",
+    "The OpenCine platform at the released tag in opencine-pins.txt, checked out next to the",
+    "repository: the Android build includes its Gradle build until Maven artifacts exist. Apple",
+    "builds resolve the same version from Package.swift and Package.resolved.",
 ]
 
 
@@ -326,9 +327,11 @@ class Run:
         self.state = json.loads(self.state_path.read_text()) if self.state_path.is_file() else {
             "version": self.version, "remote_base": self.base, "steps": {}}
         self.logs = root / ".local" / "publish-logs"
-        self.atlas_id = next(rid for rid, m in self.reg.items() if m["layer"] == "atlas")
-        self.packages = [p["repo"] for p in self.release["packages"]]
+        # The platform is the repository this atlas lives in (<platform>/atlas).
+        self.platform_id = self.release["platform"]["repo"]
+        self.packages = [self.platform_id]
         self.names = {self.reg[r]["local_dir"]: r for r in self.packages}
+        self.atlas_prefix = git(root, "rev-parse", "--show-prefix")
         self._paths = {}
 
     # -- naming
@@ -349,13 +352,13 @@ class Run:
         return f"git@github.com-personal:{m.group(1)}/{m.group(2)}.git" if m else f"git@github.com-personal:{self.owner}/{name}.git"
 
     def entry(self, rid):
-        return next(e for e in self.release["packages"] + self.release["apps"] + [self.release["atlas"]] if e["repo"] == rid)
+        return next(e for e in [self.release["platform"]] + self.release["apps"] if e["repo"] == rid)
 
     def path(self, rid):
         if rid in self._paths:
             return self._paths[rid]
-        if rid == self.atlas_id:
-            p = self.root
+        if rid == self.platform_id:
+            p = Path(git(self.root, "rev-parse", "--show-toplevel"))
         else:
             res = resolver.resolve(self.reg[rid], self.root)
             if res["status"] != "ok":
@@ -404,8 +407,14 @@ class Run:
 
     # -- preflight
     def expected_head(self, rid):
-        key = ("app-convert:" if rid in [a["repo"] for a in self.release["apps"]] else "convert:") + self.name(rid)
-        return self.state["steps"].get(key) or self.entry(rid)["commit"]
+        if rid == self.platform_id:
+            return self.entry(rid)["commit"]
+        return self.state["steps"].get("app-convert:" + self.name(rid)) or self.entry(rid)["commit"]
+
+    def atlas_only(self, a, b):
+        """True when commits a and b of the platform differ only under atlas/ (registry, record)."""
+        changed = git(self.path(self.platform_id), "diff", "--name-only", a, b).splitlines()
+        return all(f.startswith(self.atlas_prefix) for f in changed)
 
     def preflight(self):
         problems, warnings = [], []
@@ -422,14 +431,14 @@ class Run:
             problems.append(f"--visibility {self.args.visibility} differs from the recorded decision {d['visibility']}")
         if d.get("android") and d["android"] != "sibling-pins":
             problems.append(f"android decision {d['android']!r}: only sibling-pins is automated; publish Maven artifacts separately (docs/PUBLISH.md)")
-        commands = [c for e in self.release["packages"] + self.release["apps"] for c in e.get("verify", []) + e.get("resolve", [])]
+        commands = [c for e in [self.release["platform"]] + self.release["apps"] for c in e.get("verify", []) + e.get("resolve", [])]
         tools = {"git"} | {c.split()[0] for c in commands} | (set() if self.base else {"gh"})
         problems += [f"tool not found: {t}" for t in sorted(tools) if not shutil.which(t)]
         if any(re.search(r"gradlew|android-check", c) for c in commands):
             problems += [f"{v} is not set (Gradle verify steps need it)" for v in ("JAVA_HOME", "ANDROID_HOME") if not os.environ.get(v)]
         if not self.base and shutil.which("gh") and not self.gh_token(check=False):
             problems.append(f"gh has no token for {self.args.gh_user}: gh auth login, then retry")
-        for rid in [self.atlas_id] + self.packages + [a["repo"] for a in self.release["apps"]]:
+        for rid in self.packages + [a["repo"] for a in self.release["apps"]]:
             try:
                 self.check_repo(rid, problems, warnings, d)
             except Stop as exc:
@@ -443,20 +452,21 @@ class Run:
 
     def check_repo(self, rid, problems, warnings, d):
         e, path, name = self.entry(rid), self.path(rid), self.name(rid)
-        head, want = git(path, "rev-parse", "HEAD"), None if rid == self.atlas_id else self.expected_head(rid)
+        head, want = git(path, "rev-parse", "HEAD"), self.expected_head(rid)
         branch = git(path, "symbolic-ref", "--quiet", "--short", "HEAD", check=False)
         if branch != e["branch"]:
             problems.append(f"{name}: on {branch or 'a detached HEAD'}, expected {e['branch']}")
-        if rid != self.atlas_id and head != want:
+        same = head == want or (rid == self.platform_id and resolver.rev(path, want) and self.atlas_only(want, head))
+        if not same:
             problems.append(f"{name}: {e['branch']} is at {head[:12]}, the release record expects {want[:12]}. "
                             f"Rerun its tests, then: python3 tools/publish.py record {rid} --evidence '<where the green run is recorded>'")
         if git(path, "status", "--porcelain", "--untracked-files=normal"):
             problems.append(f"{name}: uncommitted changes in {path}")
         ev = e.get("evidence") or {}
-        if rid != self.atlas_id and not (ev.get("status") == "passed" and ev.get("commit") == e["commit"] and ev.get("where")):
+        if not (ev.get("status") == "passed" and ev.get("commit") == e["commit"] and ev.get("where")):
             problems.append(f"{name}: no passed test evidence recorded for {e['commit'][:12]} (record it with `publish.py record`)")
         if d.get("author_email") and d["author_email"] != "keep":
-            span = [e["branch"]] if rid == self.atlas_id or rid in self.packages else [e["branch"], "--not", "--remotes"]
+            span = [e["branch"]] if rid == self.platform_id else [e["branch"], "--not", "--remotes"]
             emails = set(git(path, "log", "--format=%ae%n%ce", *span).split())
             bad = sorted(x for x in emails if x != d["author_email"] and not NOREPLY.search(x))
             if bad:
@@ -598,44 +608,28 @@ class Run:
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    # -- new repositories
-    def publish_new(self, rid):
+    # -- the platform repository
+    def publish_platform(self):
+        rid = self.platform_id
         name, e = self.name(rid), self.entry(rid)
         print(f"{name}")
         self.step(f"remote:{name}", f"create {self.url(name)} ({self.args.visibility}) unless it exists; origin {self.push_url(name)}",
                   lambda: self.create_remote(rid))
-        if rid == self.atlas_id:
-            self.step(f"push:{name}", "push main to origin", lambda: self.push(rid, ["refs/heads/main"]))
-            return
-        req = LIBRARY_REQUIREMENT.format(v=self.version)
-        head = self.step(f"convert:{name}", f"take released packages by URL with {req}, commit",
-                         lambda: self.convert_package(rid, req), preview=lambda: self.show(rid, self.rewrites(rid, req, False)))
-        self.step(f"verify:{name}", f"verify a clean clone: {'; '.join(e.get('verify', []))}",
-                  lambda: self.verify(rid, head, e.get("verify", [])))
-        self.step(f"tag:{name}", f"annotated tag {self.version} on {e['branch']}", lambda: self.tag(rid))
+        verified = self.step(f"verify:{name}", f"verify a clean clone of {e['branch']}: {'; '.join(e.get('verify', []))}",
+                             lambda: self.verify(rid, git(self.path(rid), "rev-parse", f"refs/heads/{e['branch']}"), e.get("verify", [])))
+        self.step(f"tag:{name}", f"annotated tag {self.version} on the verified {e['branch']} commit",
+                  lambda: self.tag(rid, verified["commit"]))
         self.step(f"push:{name}", f"push {e['branch']} and {self.version} to origin",
                   lambda: self.push(rid, [f"refs/heads/{e['branch']}", f"refs/tags/{self.version}"]))
 
-    def convert_package(self, rid, requirement):
-        changes = self.rewrites(rid, requirement, False)
-        self.apply(rid, changes)
-        deps = sorted({n for n in self.names if any(v and self.url(n) in v for v in changes.values())})
-        body = ("Libraries declare compatible ranges and apps pin exact versions (plan 10.1, harness finding "
-                f"F2). In 0.x a minor bump is incompatible, so the range is {requirement}. Local work on a "
-                "dependency: `swift package edit <Name> --path ../<Name>`, or add the local checkout to the "
-                "Xcode workspace. Generated by opencapture-atlas tools/publish.py.")
-        msg = f"build: depend on {', '.join(deps)} {self.version} by URL with a compatible range\n\n" + textwrap.fill(body, 72, break_long_words=False, break_on_hyphens=False)
-        return self.commit(self.path(rid), list(changes), msg)
-
-    def tag(self, rid):
-        path, e = self.path(rid), self.entry(rid)
-        head = git(path, "rev-parse", f"refs/heads/{e['branch']}")
+    def tag(self, rid, commit):
+        path = self.path(rid)
         have = git(path, "rev-parse", "-q", "--verify", f"refs/tags/{self.version}^{{commit}}", check=False)
-        if have and have != head:
-            raise Stop(f"{self.name(rid)}: tag {self.version} already exists at {have[:12]}, not at {head[:12]}")
+        if have and have != commit:
+            raise Stop(f"{self.name(rid)}: tag {self.version} already exists at {have[:12]}, not at {commit[:12]}")
         if not have:
-            git(path, *self.email_args(), "tag", "-a", self.version, "-m", f"{self.name(rid)} {self.version}", head)
-        return head
+            git(path, *self.email_args(), "tag", "-a", self.version, "-m", f"{self.name(rid)} {self.version}", commit)
+        return commit
 
     def push(self, rid, refs, url=None):
         path = self.path(rid)
@@ -647,7 +641,7 @@ class Run:
         name, e = self.name(rid), self.entry(rid)
         print(f"{name} ({e['branch']})")
         req = APP_REQUIREMENT.format(v=self.version)
-        head = self.step(f"app-convert:{name}", f"take released packages by URL, {req}; resolve ({'; '.join(e.get('resolve', []))}); commit",
+        head = self.step(f"app-convert:{name}", f"take OpenCine by URL, {req}; resolve ({'; '.join(e.get('resolve', []))}); commit",
                          lambda: self.convert_app(rid, req), preview=lambda: self.show(rid, self.rewrites(rid, req, True)))
         self.step(f"app-verify:{name}", f"verify a clean clone: {'; '.join(e.get('verify', []))}",
                   lambda: self.verify(rid, head, e.get("verify", [])))
@@ -673,10 +667,10 @@ class Run:
             logs.append(str(log))
         used = ", ".join(sorted(n for n in self.names if any(v and self.url(n) in v for v in changes.values())))
         body = (f"Apple builds resolve {used} {self.version} from {self.url_base()} and commit "
-                "Package.resolved (Xcode Cloud resolves from it). Android keeps the sibling checkouts, now "
-                f"pinned to the {self.version} tag commits in opencine-pins.txt, until Maven artifacts exist. "
-                "Generated by opencapture-atlas tools/publish.py.")
-        msg = f"build: take the OpenCine packages at {self.version} by URL and exact version\n\n" + textwrap.fill(body, 72, break_long_words=False, break_on_hyphens=False)
+                "Package.resolved (Xcode Cloud resolves from it). Android keeps the sibling checkout, now "
+                f"pinned to the {self.version} tag commit in opencine-pins.txt, until Maven artifacts exist. "
+                "Generated by OpenCine atlas/tools/publish.py.")
+        msg = f"build: take OpenCine {self.version} by URL and exact version\n\n" + textwrap.fill(body, 72, break_long_words=False, break_on_hyphens=False)
         return self.commit(path, list(changes) + e.get("lockfiles", []), msg)
 
     def pr_body(self, rid):
@@ -689,14 +683,14 @@ class Run:
         checks = "\n".join(f"  - `{c.replace('{base}', self.url_base())}`" for c in v.get("passed", []))
         notes = "\n".join(f"- [ ] `{f}` updated (the CI notes gate requires it)" for f in e.get("notes_files", []))
         ev = e.get("evidence") or {}
-        return f"""Draft. Moves {name} onto the shared OpenCine packages (work packages {', '.join(e.get('work_packages', []))}) and takes them as released versions.
+        return f"""Draft. Moves {name} onto the shared OpenCine platform (work packages {', '.join(e.get('work_packages', []))}) and takes it as a released version.
 
 | Package | Version | Tag commit |
 |---|---|---|
 {rows}
 
-- Apple: Package.swift and the Xcode project take each package by URL and exact version; Package.resolved is committed, so Xcode Cloud resolves exactly these versions.
-- Android: Gradle still includes the packages' builds from sibling checkouts pinned to the tag commits in `opencine-pins.txt` (`scripts/checkout-opencine.sh`) until Maven artifacts are published.
+- Apple: Package.swift and the Xcode project take OpenCine by URL and exact version; Package.resolved is committed, so Xcode Cloud resolves exactly this version.
+- Android: Gradle still includes the OpenCine build (named `opencine`) from a sibling checkout pinned to the tag commit in `opencine-pins.txt` (`scripts/checkout-opencine.sh`) until Maven artifacts are published.
 
 ### Evidence
 
@@ -730,44 +724,40 @@ class Run:
         if have:
             return have
         return self.gh("pr", "create", "--repo", repo, "--base", "main", "--head", e["branch"], "--draft",
-                       "--title", e.get("pr_title", f"OpenCine packages {self.version}"), "--body-file", str(out)).stdout.strip()
+                       "--title", e.get("pr_title", f"OpenCine {self.version}"), "--body-file", str(out)).stdout.strip()
 
     # -- atlas
     def update_atlas(self):
         steps, apps = self.state["steps"], [a["repo"] for a in self.release["apps"]]
         live = all(steps.get(f"pr:{self.name(a)}") for a in apps)
-        changed = []
-        for rid in [self.atlas_id] + self.packages:
-            m = self.reg[rid]
-            m["repository"]["url"] = self.url(self.name(rid))
-            if rid != self.atlas_id:
-                tag = steps[f"tag:{self.name(rid)}"]
-                m["refs"] = [{"name": self.entry(rid)["branch"], "commit": tag, "role": "baseline"}]
-                if live:
-                    m["status"] = "active"
-                for edge in m["edges"]:
-                    if edge["kind"] == "library" and edge["to"] in self.packages:
-                        edge["evidence"] = {"path": "Package.swift", "source_commit": tag}
-                        edge["note"] = f"url dependency {self.url(self.name(edge['to']))}, {LIBRARY_REQUIREMENT.format(v=self.version)}"
-                        edge["status"] = "live" if live else "candidate"
-            changed.append(rid)
-        for rid in apps:
-            m, e = self.reg[rid], self.entry(rid)
-            m["refs"] = [r for r in m["refs"] if r["name"] != e["branch"]] + [
-                {"name": e["branch"], "commit": steps[f"app-push:{self.name(rid)}"], "role": "candidate"}]
-            changed.append(rid)
-        for rid in changed:
-            (self.root / "repos" / rid / "meta.json").write_text(json.dumps(self.reg[rid], indent=2) + "\n")
+        rid, name = self.platform_id, self.name(self.platform_id)
+        m = self.reg[rid]
+        m["repository"]["url"] = self.url(name)
+        m["refs"] = [{"name": self.entry(rid)["branch"], "commit": steps[f"tag:{name}"], "role": "baseline"}]
+        if live:
+            m["status"] = "active"
+        changed = [rid]
+        for app in apps:
+            m, e = self.reg[app], self.entry(app)
+            head = steps[f"app-push:{self.name(app)}"]
+            m["refs"] = [r for r in m["refs"] if r["name"] != e["branch"]] + [{"name": e["branch"], "commit": head, "role": "candidate"}]
+            for edge in m["edges"]:
+                if edge["to"] == rid and edge.get("ref") == e["branch"]:
+                    edge["evidence"] = dict(edge.get("evidence") or {"path": "Package.swift"}, source_commit=head)
+                    edge["note"] = f"url dependency {self.url(name)}, {APP_REQUIREMENT.format(v=self.version)}; Android: sibling pin of the tag commit"
+            changed.append(app)
+        for r in changed:
+            (self.root / "repos" / r / "meta.json").write_text(json.dumps(self.reg[r], indent=2) + "\n")
         (self.root / "compat" / "VERSIONS.md").write_text(versions_table(self))
         r = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "atlas.py"), "check", "--sources"], capture_output=True,
                            text=True, env=dict(os.environ, OPENCAPTURE_ATLAS_ROOT=str(self.root)))
         print("\n".join("         " + ln for ln in (r.stdout + r.stderr).strip().splitlines()))
         if r.returncode:
             raise Stop("atlas check --sources failed; the registry edits are left uncommitted for review")
-        files = [f"repos/{rid}/meta.json" for rid in changed] + ["compat/VERSIONS.md"]
-        why = "packages active, library edges live (every app PR exists)" if live else "packages stay candidate until every app PR exists"
-        head = self.commit(self.root, files, f"Record the published repositories and {self.version} tags\n\n{why.capitalize()}. Generated by tools/publish.py.")
-        self.push(self.atlas_id, ["refs/heads/main"])
+        files = [f"{self.atlas_prefix}repos/{r}/meta.json" for r in changed] + [f"{self.atlas_prefix}compat/VERSIONS.md"]
+        why = "platform active (every app PR exists)" if live else "platform stays candidate until every app PR exists"
+        head = self.commit(self.path(rid), files, f"Record the published platform and its {self.version} tag\n\n{why.capitalize()}. Generated by atlas/tools/publish.py.")
+        self.push(rid, [f"refs/heads/{self.entry(rid)['branch']}"])
         return head
 
     def run(self):
@@ -778,15 +768,14 @@ class Run:
             return FAIL
         if not ok:
             print("(dry run continues so the whole plan can be reviewed; --execute refuses until preflight passes)")
-        for rid in [self.atlas_id] + self.packages:
-            self.publish_new(rid)
+        self.publish_platform()
         for app in self.release["apps"]:
             self.publish_app(app["repo"])
-        print(self.name(self.atlas_id))
-        # Keyed by the PR state, so a later `--open-prs` run updates the registry again (edges go live).
+        print(f"{self.name(self.platform_id)} atlas")
+        # Keyed by the PR state, so a later `--open-prs` run updates the registry again (status active).
         live = all(self.state["steps"].get(f"pr:{self.name(a['repo'])}") for a in self.release["apps"])
         self.step(f"atlas:{'live' if live else 'candidate'}",
-                  "set repository URLs and refs, edges live once every app PR exists, compat/VERSIONS.md, atlas check --sources, commit, push",
+                  "set the repository URL and refs, active once every app PR exists, compat/VERSIONS.md, atlas check --sources, commit on main, push",
                   self.update_atlas)
         print("finished" if self.execute else "dry run finished: rerun with --execute to act")
         return OK if ok else FAIL
@@ -797,22 +786,22 @@ class Run:
 POLICY = """\
 ## Version policy (0.x)
 
-- One annotated semantic-version tag per repository, without a prefix (`0.1.0`). A repository's
-  Swift products and Gradle modules share the version; the tag commit is the source SHA recorded
-  everywhere else.
-- Below 1.0, an incompatible interface change bumps the minor version (0.1.x to 0.2.0). Compatible
-  fixes and additions bump the patch version. Never ship an incompatible change as a patch.
-- Libraries declare compatible ranges on each other, `.upToNextMinor(from: "0.1.0")` (0.1.0 up to,
-  not including, 0.2.0). Exact library pins cannot resolve together in a cross-brand app (harness
-  finding F2). A library that needs an API added in 0.1.3 raises its lower bound to 0.1.3.
-- Applications pin exact versions (`exact:`, `exactVersion:`) and commit Package.resolved. A bump is
-  its own reviewed pull request per app with the update record of plan 10.2.
-- No shipping app depends on a moving branch. Android takes sibling checkouts pinned to tag commits
-  (`opencine-pins.txt`) until Maven artifacts exist (ADR 0007), then the same version as a coordinate.
+- One version for everything: one annotated semantic-version tag on the OpenCine repository,
+  without a prefix (`0.1.0`). Every Swift product and Gradle module shares it; the tag commit is the
+  source SHA recorded everywhere else.
+- Below 1.0, an incompatible interface change in any product bumps the minor version (0.1.x to
+  0.2.0). Compatible fixes and additions bump the patch version. Never ship an incompatible change
+  as a patch.
+- The platform has no package dependencies, so there are no library ranges to keep compatible.
+- Applications pin the exact version (`exact:`, `exactVersion:`) and commit Package.resolved. A bump
+  is its own reviewed pull request per app with the update record of plan 10.2.
+- No shipping app depends on a moving branch. Android takes the OpenCine checkout pinned to the tag
+  commit (`opencine-pins.txt`, one line) until Maven artifacts exist (ADR 0007), then the same version
+  as coordinates.
 - Wire and JNI schema, artifact, app and relay protocol versions are separate and recorded
   separately.
-- Rollback: pin the previous version set in the app (its lock files show it). A published tag is
-  never moved or deleted; fix forward with a new patch.
+- Rollback: pin the previous version in the app (its lock files show it). A published tag is never
+  moved or deleted; fix forward with a new patch.
 """
 
 
@@ -831,17 +820,21 @@ def versions_table(run):
     out = [f"# OpenCine versions and app pins\n\nGenerated by `python3 tools/publish.py table` from "
            f"[release-{run.version}.json](release-{run.version}.json), the registry and the app manifests at the "
            "commits below. Regenerate after a release or a pin bump.\n", POLICY,
-           "## Packages\n", "| Package | Swift products | Gradle modules | Release | Commit | Depends on |", "|---|---|---|---|---|---|"]
-    for rid in run.packages:
-        m, name = run.reg[rid], run.name(rid)
-        swift = ", ".join(p["name"] for p in m["products"] if p["kind"] == "swift-library") or "none"
-        gradle = ", ".join(f"`{p.get('coordinates') or p['name']}`" for p in m["products"] if p["kind"] == "gradle-module") or "none"
-        tag = steps.get(f"tag:{name}")
-        release = run.version if tag else f"unreleased ({run.entry(rid)['branch']})"
-        deps = ", ".join(run.name(e["to"]) for e in m["edges"] if e["kind"] == "library") or "none"
-        out.append(f"| {name} | {swift} | {gradle} | {release} | `{(tag or run.entry(rid)['commit'])[:12]}` | {deps} |")
+           "## Platform\n"]
+    rid = run.platform_id
+    m, name = run.reg[rid], run.name(rid)
+    tag = steps.get(f"tag:{name}")
+    release = run.version if tag else f"unreleased ({run.entry(rid)['branch']})"
+    out += [f"{name}: {release} at `{(tag or run.entry(rid)['commit'])[:12]}`. Products by layer (meta.json `layers`):\n",
+            "| Layer | Swift products | Gradle modules |", "|---|---|---|"]
+    swift = {p["name"] for p in m["products"] if p["kind"] == "swift-library"}
+    gradle = {p["name"]: p.get("coordinates") or p["name"] for p in m["products"] if p["kind"] == "gradle-module"}
+    for layer, names in (m.get("layers") or {}).items():
+        s_names = ", ".join(n for n in names if n in swift) or "none"
+        g_names = ", ".join(f"`{gradle[n]}`" for n in names if n in gradle) or "none"
+        out.append(f"| {layer} | {s_names} | {g_names} |")
     out += ["", "## Applications", "",
-            "Released app `main` branches take no shared package yet. Each candidate branch below takes these:", ""]
+            "Released app `main` branches take no shared package yet. Each candidate branch below takes OpenCine:", ""]
     tags = run.tag_shas(placeholder=False)
     for app in run.release["apps"]:
         rid, name = app["repo"], run.name(app["repo"])
@@ -870,12 +863,12 @@ def versions_table(run):
 
 # ---------------------------------------------------------------- record editing commands
 
-def save_release(run, message):
+def save_release(run, message, extra=()):
     run.release_path.write_text(json.dumps(run.release, indent=2) + "\n")
-    rel = str(run.release_path.relative_to(run.root))
-    git(run.root, "add", "--", rel)
-    git(run.root, "commit", "-q", "-m", message, "--", rel)
-    print(f"committed {rel} in the atlas: {message.splitlines()[0]}")
+    rels = [str(run.release_path.relative_to(run.root)), *extra]
+    git(run.root, "add", "--", *rels)
+    git(run.root, "commit", "-q", "-m", message, "--", *rels)
+    print(f"committed {', '.join(rels)} in the atlas: {message.splitlines()[0]}")
 
 
 def cmd_decide(run, args):
@@ -898,7 +891,18 @@ def cmd_record(run, args):
     head = git(path, "rev-parse", "HEAD")
     e["commit"] = head
     e["evidence"] = {"status": "passed", "commit": head, "where": args.evidence}
-    save_release(run, f"Record {run.name(args.repo)} {e['branch']} at {head[:12]} for publishing")
+    # The registry follows the record: the branch's ref (and an app's edges on that ref) point at
+    # the recorded commit, and compat/VERSIONS.md is regenerated, all in the same commit.
+    m = run.reg[args.repo]
+    role = "baseline" if args.repo == run.platform_id else "candidate"
+    m["refs"] = [r for r in m["refs"] if r["name"] != e["branch"]] + [{"name": e["branch"], "commit": head, "role": role}]
+    for edge in m["edges"]:
+        if edge.get("ref") == e["branch"] and edge.get("evidence"):
+            edge["evidence"]["source_commit"] = head
+    meta = f"repos/{args.repo}/meta.json"
+    (run.root / meta).write_text(json.dumps(m, indent=2) + "\n")
+    (run.root / "compat" / "VERSIONS.md").write_text(versions_table(run))
+    save_release(run, f"Record {run.name(args.repo)} {e['branch']} at {head[:12]} for publishing", [meta, "compat/VERSIONS.md"])
     return OK
 
 
@@ -932,11 +936,15 @@ def cmd_rewrite_authors(run, args):
         git(path, "config", "user.email", target)
         new = git(path, "rev-parse", "HEAD")
         same_tree = git(path, "rev-parse", f"{old}^{{tree}}") == git(path, "rev-parse", f"{new}^{{tree}}")
-        if e["commit"] == old and same_tree:
-            e["commit"] = new
-            if (e.get("evidence") or {}).get("commit") == old:
-                e["evidence"]["commit"] = new
-                e["evidence"]["where"] += f" (authors rewritten, tree identical to {old[:12]})"
+        # The recorded commit is usually below HEAD (the record itself is committed on top), so map
+        # it through the rewrite: an env filter keeps the topology, commit for commit.
+        olds, news = (git(path, "rev-list", "--topo-order", "--reverse", c).split() for c in (old, new))
+        rec = dict(zip(olds, news)).get(e["commit"]) if len(olds) == len(news) else None
+        if same_tree and rec and rec != e["commit"]:
+            if (e.get("evidence") or {}).get("commit") == e["commit"]:
+                e["evidence"]["commit"] = rec
+                e["evidence"]["where"] += f" (authors rewritten, tree identical to {e['commit'][:12]})"
+            e["commit"] = rec
         changed.append(f"{run.name(rid)} {old[:12]}->{new[:12]}")
         print(f"  {old[:12]} -> {new[:12]} (tree {'identical' if same_tree else 'CHANGED'}); old history kept under refs/original/")
     if changed:

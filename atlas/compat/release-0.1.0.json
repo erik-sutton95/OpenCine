@@ -1,134 +1,35 @@
 {
   "version": "0.1.0",
-  "note": "Release record for tools/publish.py (RELEASE-01, docs/PUBLISH.md). Packages are listed in tag order. `commit` is what the publish expects on `branch`; `evidence` says where the green run at that commit is recorded. `verify` runs in a clean clone after the URL switch ({base} is the remote base); app `resolve` runs in the app worktree to produce `lockfiles`. Decisions stay null until the user records them with `tools/publish.py decide`.",
+  "note": "Release record for tools/publish.py (RELEASE-01, ADR 0010, docs/PUBLISH.md). One platform repository, OpenCine, holds every shared product and this atlas; it gets one tag. `commit` is what the publish expects on `branch` (the platform may differ from it only under atlas/); `evidence` says where the green run at that commit is recorded. `verify` runs in a clean clone ({base} is the remote base); app `resolve` runs in the app worktree to produce `lockfiles`. Decisions stay null until the user records them with `tools/publish.py decide`.",
   "decisions": {
     "owner": "erik-sutton95",
     "visibility": null,
     "android": null,
     "author_email": "9084979+erik-sutton95@users.noreply.github.com"
   },
-  "atlas": {
-    "repo": "opencapture-atlas",
+  "platform": {
+    "repo": "opencine",
     "branch": "main",
-    "description": "Coordination atlas for the OpenCapture camera apps and the shared OpenCine packages: registry, routing, dependency map and compatibility records"
-  },
-  "packages": [
-    {
-      "repo": "opencinecore",
-      "branch": "main",
-      "commit": "23adfdf02366eee0b6e4cb84c2d5ac887adb157f",
-      "description": "OpenCine shared camera contracts, media math, optional Frame.io, motion and relay, and the Apple media runtime (Swift and Kotlin)",
-      "verify": [
-        "swift build --build-tests -Xswiftc -warnings-as-errors",
-        "swift test"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "23adfdf02366eee0b6e4cb84c2d5ac887adb157f",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
-      }
-    },
-    {
-      "repo": "opencineui",
-      "branch": "main",
-      "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94",
-      "description": "OpenCine UI 2.0 design system: SwiftUI and Compose monitor screens and presentation policy",
-      "verify": [
-        "swift test"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94",
-        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 119 Swift Testing + 3 XCTest (progress.d/RELEASE-01.md)"
-      }
-    },
-    {
-      "repo": "opencinemulticam",
-      "branch": "main",
-      "commit": "48b0730c050b22a0f53b912c2ca75da4bd9551c0",
-      "description": "Manufacturer-independent multicam engine for OpenCine apps (Swift and Kotlin)",
-      "verify": [
-        "swift build --build-tests -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors",
-        "swift test",
-        "sh scripts/checkout-opencine.sh {base}",
-        "cd Android && ./gradlew test"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "48b0730c050b22a0f53b912c2ca75da4bd9551c0",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
-      }
-    },
-    {
-      "repo": "opencinedji",
-      "branch": "main",
-      "commit": "15ab51fe34e823fd82e1c6bae99f827dc0e59e09",
-      "description": "DJI camera integration for OpenCine apps: DUML, datalink, camera control and the session adapter",
-      "verify": [
-        "swift build --build-tests",
-        "swift test"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "15ab51fe34e823fd82e1c6bae99f827dc0e59e09",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
-      }
-    },
-    {
-      "repo": "opencinenikon",
-      "branch": "main",
-      "commit": "ea4bbcd8a47727e7b313c626cc10bff9c0d5f31c",
-      "description": "Nikon camera integration for OpenCine apps: PTP/IP and PTP/USB wire, properties and the session",
-      "verify": [
-        "swift build --build-tests",
-        "swift test"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "ea4bbcd8a47727e7b313c626cc10bff9c0d5f31c",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
-      }
-    },
-    {
-      "repo": "opencineinsta360",
-      "branch": "main",
-      "commit": "f8f4c2721e81de2f851f997eae09f1e9da67636d",
-      "description": "Insta360 Luna integration for OpenCine apps: wire protocol, Apple I/O and the Kotlin adapter",
-      "verify": [
-        "swift build --build-tests",
-        "swift test",
-        "xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build",
-        "sh scripts/checkout-opencine.sh {base}",
-        "cd Android && ./gradlew test"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "f8f4c2721e81de2f851f997eae09f1e9da67636d",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
-      }
-    },
-    {
-      "repo": "opencineharness",
-      "branch": "main",
-      "commit": "eb14d0bf7f7cc68609aa1975a9eaed9c3d95de6b",
-      "description": "Developer-only harness proving cross-brand OpenCine composition with simulated cameras",
-      "verify": [
-        "sh scripts/check-closure.sh",
-        "swift build --build-tests",
-        "swift test > test.log 2>&1; s=$?; cat test.log; [ $s = 0 ] && ! grep -q 'implemented in both' test.log"
-      ],
-      "evidence": {
-        "status": "passed",
-        "commit": "eb14d0bf7f7cc68609aa1975a9eaed9c3d95de6b",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
-      }
+    "commit": "ee71891e5bb1aa3d4823d3f08ad1579f1cee15d9",
+    "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
+    "verify": [
+      "swift build --build-tests",
+      "swift test",
+      "cd Android && ./gradlew test",
+      "python3 -m unittest discover -s atlas/tests",
+      "python3 atlas/tools/atlas.py check"
+    ],
+    "evidence": {
+      "status": "passed",
+      "commit": "ee71891e5bb1aa3d4823d3f08ad1579f1cee15d9",
+      "where": "OpenCine-Execution-Progress.d/CONSOLIDATE.md step 2 (2026-10-02: swift build, swift test 1410 Swift Testing + 71 XCTest, Android test lint assembleRelease)"
     }
-  ],
+  },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "a6f403a224237d11a9e0c5f8e8f55c5244a7748e",
+      "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -167,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "a6f403a224237d11a9e0c5f8e8f55c5244a7748e",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
+        "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
+        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-pocket.md (2026-10-02: root swift test 362, iOS suite 627 on a private simulator, just android-check green)"
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "5b8343602da4748826c6cf8ba911b1e70e8a571c",
+      "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -210,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "5b8343602da4748826c6cf8ba911b1e70e8a571c",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
+        "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
+        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-insta.md (2026-10-02: root swift test 717, iOS suite 539 + 1 skip on a private simulator, Gradle test assembleDebug lint green)"
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "f3a144acd52d3bb5e22968884fcd98498b1fab4b",
+      "commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -249,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "f3a144acd52d3bb5e22968884fcd98498b1fab4b",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
+        "commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961",
+        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-nikon.md (2026-10-02: root swift test 781, iOS suite 219 + 2 skip on a private simulator, Android 999/12/5/3 + assembleDebug + lint)"
       }
     }
   ]

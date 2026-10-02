@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""opencapture-atlas CLI. Standard library only.
+"""OpenCine atlas CLI (formerly opencapture-atlas). Standard library only.
 
 Read-only commands: doctor, locate, deps, impact, stale, check, graph plan, compat plan.
 `compat run` writes only compat/candidates.json, compat/results/ and ignored .local/.
@@ -22,7 +22,9 @@ import manifests  # noqa: E402
 import resolver  # noqa: E402
 
 ATLAS_VERSION = resolver.ATLAS_VERSION
-LAYERS = {"app", "ui", "core", "multicam", "vendor", "harness", "atlas"}
+# `platform` is the one OpenCine repository; inside it each target and Gradle module has one of
+# the product layers below (its meta.json `layers`).
+LAYERS = {"app", "platform", "ui", "core", "multicam", "vendor", "harness", "atlas"}
 BUILD_KINDS = {"library", "contract", "generates"}
 PROPAGATING = BUILD_KINDS | {"source-copy"}
 KINDS = PROPAGATING | {"runtime", "documents", "tests"}
@@ -34,6 +36,7 @@ FORBIDDEN = {
     "multicam": {"vendor", "ui", "app"},
     "ui": {"vendor", "app"},
     "harness": {"ui", "app"},
+    "platform": {"app"},
 }
 ACTIONS = {
     "library": "rebuild and test against the changed product",
@@ -96,6 +99,13 @@ def validate_registry(reg):
         review = m.get("summary_review")
         if review is not None and not (_is_sha(review.get("source_commit")) and re.match(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$", review.get("reviewed_at", ""))):
             errors.append(f"{where}: summary_review needs a full source_commit and UTC reviewed_at")
+        layers = m.get("layers")
+        if layers is not None:
+            names = [n for v in layers.values() for n in (v if isinstance(v, list) else [None])]
+            if not isinstance(layers, dict) or set(layers) - LAYERS - {"app", "platform"} or set(layers) & {"app", "platform"} or None in names:
+                errors.append(f"{where}: layers maps a product layer ({', '.join(sorted(LAYERS - {'app', 'platform'}))}) to a list of target and module names")
+            elif len(names) != len(set(names)):
+                errors.append(f"{where}: a target or module is listed in more than one layer")
         ref_names = {r.get("name") for r in m["refs"]}
         for i, e in enumerate(m["edges"]):
             errors += [f"{where}: edges[{i}]: {msg}" for msg in _edge_errors(rid, m, e, reg, ref_names)]
@@ -133,7 +143,7 @@ def _edge_errors(rid, m, e, reg, ref_names):
 def _direction_errors(from_layer, to_layer, kind):
     if kind not in BUILD_KINDS:
         return []
-    if to_layer in ("atlas", "harness"):
+    if to_layer in ("atlas", "harness") and from_layer != to_layer:
         return [f"forbidden: nothing may build against the {to_layer}"]
     if to_layer in FORBIDDEN.get(from_layer, ()):
         return [f"forbidden: {from_layer} must not depend on {to_layer} ({kind})"]
@@ -164,6 +174,73 @@ def build_cycles(edges):
         if not state.get(node):
             visit(node, [node])
     return cycles
+
+
+# ---------------------------------------------------------------- target layers (plan 3.4)
+
+def platform_files_at(path, commit=None):
+    """{relpath: text} of the manifests the target-layer check reads, from a commit or the tree."""
+    want = re.compile(r"^(Package\.swift|Android/settings\.gradle\.kts|Android/[^/]+/build\.gradle\.kts)$")
+    if commit:
+        names = [n for n in resolver.git(path, "ls-tree", "-r", "--name-only", commit).splitlines() if want.match(n)]
+        return {n: resolver.git(path, "show", f"{commit}:{n}") for n in names}
+    files = [Path(path) / "Package.swift", Path(path) / "Android" / "settings.gradle.kts", *Path(path).glob("Android/*/build.gradle.kts")]
+    return {str(f.relative_to(path)): f.read_text() for f in files if f.is_file()}
+
+
+def target_layer_errors(m, files):
+    """Plan 3.4 direction rules between targets and Gradle modules inside one platform repo.
+
+    Every Swift target and included Gradle module must be assigned a layer in meta.json
+    `layers`; each target dependency and `project(":x")` dependency is checked like a repo edge.
+    The platform declares no package dependencies, and no target lives under atlas/.
+    """
+    layer_of = {n: layer for layer, names in m["layers"].items() for n in names}
+    errors, edges, names = [], [], set()
+    if "Package.swift" not in files or "Android/settings.gradle.kts" not in files:
+        return ["Package.swift or Android/settings.gradle.kts missing"]
+    pkg = manifests.read("Package.swift", files["Package.swift"])
+    errors += [f"Package.swift: {p}" for p in pkg["problems"] + pkg.get("target_problems", [])]
+    errors += [f"Package.swift: package dependency {d['value']}: the platform takes none, so linking one product resolves nothing else" for d in pkg["deps"]]
+    for t in pkg.get("targets", []):
+        names.add(t["name"])
+        if (t["path"] or "").startswith("atlas"):
+            errors.append(f"Package.swift: {t['name']} builds from {t['path']}: nothing may build against the atlas")
+        for d in t["deps"]:
+            if "package" in d:
+                errors.append(f"Package.swift: {t['name']} uses product {d['name']} of package {d['package']}")
+            else:
+                edges.append(("Package.swift", t["name"], d["name"]))
+    settings = manifests.read("Android/settings.gradle.kts", files["Android/settings.gradle.kts"])
+    errors += [f"Android/settings.gradle.kts: {p}" for p in settings["problems"]]
+    for mod in settings["products"]:
+        names.add(mod)
+        # ponytail: modules are one folder deep (Android/<name>), as every OpenCine module is today.
+        build = f"Android/{mod.lstrip(':')}/build.gradle.kts"
+        if build not in files:
+            errors.append(f"{build}: missing for included module {mod}")
+            continue
+        r = manifests.read(build, files[build])
+        errors += [f"{build}: {p}" for p in r["problems"]]
+        edges += [(build, mod, dep) for dep in r["projects"]]
+    errors += [f"{n}: not assigned to a layer in meta.json layers" for n in sorted(names - layer_of.keys())]
+    errors += [f"meta.json layers names {n}, which is not a target or included module" for n in sorted(layer_of.keys() - names)]
+    for where, a, b in edges:
+        if b not in names:
+            errors.append(f"{where}: {a} depends on unknown {b}")
+        elif a in layer_of and b in layer_of:
+            errors += [f"{where}: {a} ({layer_of[a]}) -> {b} ({layer_of[b]}): {msg}"
+                       for msg in _direction_errors(layer_of[a], layer_of[b], "library")]
+    return errors
+
+
+def enclosing_platform(root, reg):
+    """(id, checkout) when this atlas sits at <platform checkout>/atlas, else (None, None)."""
+    top = Path(root).resolve().parent
+    ids = [rid for rid, m in reg.items() if m.get("layers")]
+    if len(ids) == 1 and (top / "Package.swift").is_file():
+        return ids[0], top
+    return None, None
 
 
 # ---------------------------------------------------------------- sources
@@ -622,6 +699,21 @@ def cmd_check(args, reg, root, load_errors):
         edges += derived
         errors += [f"{e['frm']} -> {e['to']} ({e['evidence']['path']}): {msg}" for e in derived
                    for msg in _direction_errors(reg[e["frm"]]["layer"], reg[e["to"]]["layer"], e["kind"])]
+    pid, top = enclosing_platform(root, reg)
+    if pid:
+        layer_errs = target_layer_errors(reg[pid], platform_files_at(top))
+        errors += [f"{pid} working tree: {e}" for e in layer_errs]
+        print(f"Target layers: {pid} working tree checked ({len(reg[pid]['layers'])} layers)")
+    else:
+        print("Target layers: working tree not checked (the atlas is not inside a registered platform checkout)")
+    if args.sources:
+        resolved = resolve_all(reg, root)
+        for rid, m in sorted(reg.items()):
+            if not m.get("layers") or resolved[rid]["status"] != "ok":
+                continue
+            for ref in m["refs"]:
+                if resolver.rev(resolved[rid]["path"], ref["commit"]):
+                    errors += [f"{rid}@{ref['name']}: {e}" for e in target_layer_errors(m, platform_files_at(resolved[rid]["path"], ref["commit"]))]
     errors += [f"build cycle: {' -> '.join(c)}" for c in build_cycles(edges)]
     errors += snapshot_errors(root, reg)
     errors += candidate_errors(root, reg)

@@ -138,7 +138,7 @@ step "xcodegen generate"
 
 class Rewriters(unittest.TestCase):
     def test_package_swift_library_range_and_comments(self):
-        req = publish.LIBRARY_REQUIREMENT.format(v="0.1.0")
+        req = '.upToNextMinor(from: "0.1.0")'  # the rewriter takes any requirement
         out = publish.rewrite_package_swift(DJI_SWIFT, URLS, req)
         self.assertIn('.package(url: "https://github.com/o/OpenCineCore", .upToNextMinor(from: "0.1.0")),', out)
         self.assertIn('.package(path: "../NotReleased")', out)  # not a released package: untouched
@@ -205,7 +205,7 @@ class Rewriters(unittest.TestCase):
 
     def test_pins_and_checkout_script(self):
         out = publish.rewrite_pins("# old header\nOpenCineCore abc\nOther def\n", {"OpenCineCore": "f" * 40}, "0.1.0")
-        self.assertTrue(out.startswith("# Shared OpenCine packages at their released tags (0.1.0)."))
+        self.assertTrue(out.startswith("# The OpenCine platform at its released tag (0.1.0)."))
         self.assertTrue(out.endswith(f"OpenCineCore {'f' * 40}\nOther def\n"))
         script = "# Usage: x [base-url]   (default https://github.com/erik-sutton95)\nbase=${1:-https://github.com/erik-sutton95}\n"
         self.assertIn("base=${1:-file:///tmp/r}", publish.rewrite_checkout_script(script, "file:///tmp/r"))
@@ -217,7 +217,7 @@ class Rewriters(unittest.TestCase):
         self.assertNotIn("checkout-opencine", swift)
         self.assertNotIn("sibling checkout at", swift)
         self.assertIn("      - name: Test\n        run: swift test", swift)
-        self.assertIn("      # Shared OpenCine packages at the released tags in opencine-pins.txt", android)
+        self.assertIn("      # The OpenCine platform at the released tag in opencine-pins.txt", android)
         self.assertIn("run: scripts/checkout-opencine.sh", android)
         self.assertNotIn("Same pinned", android)
         self.assertEqual(publish.rewrite_workflow(out, keep_for_android=True), out)
@@ -242,8 +242,8 @@ def run_publish(*argv):
 
 
 class EndToEnd(AtlasCase):
-    """Atlas, a Core package, a library on Core by path and an app branch on both, published to
-    bare repositories behind a file:// base."""
+    """The platform repository (with the atlas inside it at atlas/) and an app branch that takes it
+    by path, published to bare repositories behind a file:// base."""
 
     def setUp(self):
         super().setUp()
@@ -256,53 +256,49 @@ class EndToEnd(AtlasCase):
         self.remote = Path(tempfile.mkdtemp(dir="/tmp", prefix="publish-test-"))
         self.addCleanup(shutil.rmtree, self.remote, True)
         self.base = f"file://{self.remote}"
-        for name in ("atlas", "Core", "Lib", "App"):
+        for name in ("Platform", "App"):
             subprocess.run(["git", "init", "-q", "--bare", str(self.remote / name)], check=True)
         self.marker = self.remote / "app-verify-ok"  # under /tmp: the release record must hold no private path
-        core = make_repo(self.ws / "Core", {"Package.swift": 'let package = Package(name: "Core", targets: [])\n'})
-        lib = make_repo(self.ws / "Lib", {
-            "Package.swift": ('let package = Package(name: "Lib",\n    dependencies: [\n'
-                              '        // Sibling checkout until Core is published.\n        .package(path: "../Core"),\n    ])\n'),
-            "opencine-pins.txt": f"# pins\nCore {core}\n",
-            "scripts/checkout-opencine.sh": "base=${1:-https://github.com/example}\n",
-            ".github/workflows/ci.yml": WORKFLOW.replace("OpenCineCore", "Core"),
-        })
+        self.platform = self.ws / "Platform"
+        self.root = self.platform / "atlas"
+        p = mock.patch.dict(os.environ, {"OPENCAPTURE_ATLAS_ROOT": str(self.root)})
+        p.start()
+        self.addCleanup(p.stop)
+        plat = make_repo(self.platform, {"Package.swift": 'let package = Package(name: "Platform", targets: [])\n'})
         make_repo(self.ws / "App", {"README.md": "app\n"}, url="https://github.com/example/App")
         sh(self.ws / "App", "config", "remote.origin.pushurl", "file:///nonexistent/push-disabled")
         sh(self.ws / "App", "update-ref", "refs/remotes/origin/main", "HEAD")
         sh(self.ws / "App", "checkout", "-q", "-b", "opencine/integration")
         app = commit(self.ws / "App", {
-            "Package.swift": 'let package = Package(name: "App",\n    dependencies: [.package(path: "../Core"), .package(path: "../Lib")])\n',
-            "ios/project.yml": "packages:\n  Lib:\n    path: ../../Lib\ntargets: {}\n",
-            "opencine-pins.txt": f"Core {core}\nLib {lib}\n",
+            "Package.swift": ('let package = Package(name: "App",\n    dependencies: [\n'
+                              '        // Sibling checkout until Platform is published.\n        .package(path: "../Platform"),\n    ])\n'),
+            "ios/project.yml": "packages:\n  Platform:\n    path: ../../Platform\ntargets: {}\n",
+            "opencine-pins.txt": f"# pins\nPlatform {plat}\n",
             "scripts/checkout-opencine.sh": "base=${1:-https://github.com/example}\n",
+            ".github/workflows/ci.yml": WORKFLOW.replace("OpenCineCore", "Platform"),
         }, "integration")
         evidence = lambda sha: {"status": "passed", "commit": sha, "where": "fixture"}  # noqa: E731
         self.release = {
             "version": "0.1.0",
             "decisions": {"owner": "example", "visibility": "public", "android": "sibling-pins", "author_email": "t@example.invalid"},
-            "atlas": {"repo": "atlas", "branch": "main", "description": "atlas"},
-            "packages": [
-                {"repo": "core", "branch": "main", "commit": core, "verify": ["test -f Package.swift"], "evidence": evidence(core)},
-                {"repo": "lib", "branch": "main", "commit": lib, "evidence": evidence(lib),
-                 "verify": ["grep -q 'upToNextMinor(from: \"0.1.0\")' Package.swift", "test ! -e opencine-pins.txt"]},
-            ],
+            "platform": {"repo": "platform", "branch": "main", "commit": plat, "evidence": evidence(plat),
+                         "verify": ["test -f Package.swift", "test -f atlas/compat/release-0.1.0.json"]},
             "apps": [{"repo": "app", "branch": "opencine/integration", "commit": app, "evidence": evidence(app),
                       "resolve": ["true"], "lockfiles": [], "checklist": "docs/CHECKLIST.md", "work_packages": ["UI-01"],
                       "verify": ["grep -q 'exact: \"0.1.0\"' Package.swift", f"test -e {self.marker}"]}],
         }
-        lib_edge = {"to": "core", "kind": "library", "status": "candidate", "confidence": "confirmed", "platforms": ["apple"],
-                    "evidence": {"path": "Package.swift", "source_commit": lib}}
+        app_edge = {"to": "platform", "kind": "library", "status": "candidate", "confidence": "confirmed", "ref": "opencine/integration",
+                    "platforms": ["apple"], "evidence": {"path": "Package.swift", "source_commit": app}}
         write_registry(self.root, [
-            meta("atlas", "atlas", "atlas"),
-            meta("core", "core", "Core", status="candidate", refs=[{"name": "main", "commit": core, "role": "baseline"}]),
-            meta("lib", "vendor", "Lib", status="candidate", refs=[{"name": "main", "commit": lib, "role": "baseline"}], edges=[lib_edge]),
-            meta("app", "app", "App", url="https://github.com/example/App", refs=[{"name": "main", "commit": sh(self.ws / "App", "rev-parse", "main"), "role": "baseline"}]),
+            meta("platform", "platform", "Platform", status="candidate", refs=[{"name": "main", "commit": plat, "role": "baseline"}]),
+            meta("app", "app", "App", url="https://github.com/example/App", edges=[app_edge],
+                 refs=[{"name": "main", "commit": sh(self.ws / "App", "rev-parse", "main"), "role": "baseline"},
+                       {"name": "opencine/integration", "commit": app, "role": "candidate"}]),
         ])
         (self.root / "compat").mkdir()
         (self.root / "compat" / "release-0.1.0.json").write_text(json.dumps(self.release, indent=2) + "\n")
         (self.root / ".gitignore").write_text(".local/\n")
-        make_repo(self.root, {})
+        commit(self.platform, {}, "atlas")  # the record names the commit before the atlas: only atlas/ differs
 
     def publish(self, *extra):
         return run_publish("--remote-base", self.base, "--owner", "example", *extra)
@@ -312,53 +308,52 @@ class EndToEnd(AtlasCase):
         code, out = self.publish()
         self.assertEqual(code, 0, out)
         self.assertEqual(tree_digest(self.ws, self.remote), before)
-        self.assertIn("would  take released packages by URL", out)
-        self.assertIn(f'+        .package(url: "{self.base}/Core", .upToNextMinor(from: "0.1.0")),', out)
-        self.assertIn("delete opencine-pins.txt", out)
-        self.assertIn("<Core 0.1.0 tag commit>", out)  # app pins preview before any tag exists
+        self.assertIn("would  verify a clean clone of main", out)
+        self.assertIn(f'+        .package(url: "{self.base}/Platform", exact: "0.1.0"),', out)
+        self.assertIn("<Platform 0.1.0 tag commit>", out)  # app pins preview before the tag exists
 
     def test_publish_resume_and_idempotence(self):
         code, out = self.publish("--execute", "--open-prs")
-        self.assertEqual(code, 1, out)  # the app verify marker is missing: stops after the packages
+        self.assertEqual(code, 1, out)  # the app verify marker is missing: stops after the platform
         self.assertIn("STOPPED App: `test -e", out)
         state = json.loads((self.root / ".local" / "publish-state.json").read_text())["steps"]
-        self.assertIn("push:Lib", state)
+        self.assertIn("push:Platform", state)
         self.assertNotIn("app-verify:App", state)
-        tag = sh(self.remote / "Lib", "rev-parse", "0.1.0^{commit}")
-        lib_commits = sh(self.ws / "Lib", "rev-list", "--count", "main")
+        tag = sh(self.remote / "Platform", "rev-parse", "0.1.0^{commit}")
+        self.assertEqual(tag, state["verify:Platform"]["commit"])
 
         self.marker.write_text("ok\n")
         code, out = self.publish("--execute", "--open-prs")
         self.assertEqual(code, 0, out)
-        self.assertIn("done   tag:Lib", out)
-        self.assertEqual(sh(self.remote / "Lib", "rev-parse", "0.1.0^{commit}"), tag)
-        self.assertEqual(sh(self.ws / "Lib", "rev-list", "--count", "main"), lib_commits)
-
-        lib_manifest = sh(self.remote / "Lib", "show", "0.1.0:Package.swift")
-        self.assertIn(f'.package(url: "{self.base}/Core", .upToNextMinor(from: "0.1.0"))', lib_manifest)
-        self.assertNotIn("Sibling", lib_manifest)
-        self.assertNotIn("checkout-opencine", sh(self.remote / "Lib", "show", "0.1.0:.github/workflows/ci.yml"))
-        self.assertEqual(sh(self.remote / "Core", "cat-file", "-t", "0.1.0"), "tag")  # annotated
+        self.assertIn("done   tag:Platform", out)
+        self.assertEqual(sh(self.remote / "Platform", "rev-parse", "0.1.0^{commit}"), tag)
+        self.assertEqual(sh(self.remote / "Platform", "cat-file", "-t", "0.1.0"), "tag")  # annotated
         branch = "refs/heads/opencine/integration"
-        self.assertIn(f'.package(url: "{self.base}/Lib", exact: "0.1.0")', sh(self.remote / "App", "show", f"{branch}:Package.swift"))
-        self.assertIn(f"url: {self.base}/Lib\n    exactVersion: 0.1.0", sh(self.remote / "App", "show", f"{branch}:ios/project.yml"))
-        pins = sh(self.remote / "App", "show", f"{branch}:opencine-pins.txt")
-        self.assertIn(f"Lib {tag}", pins)
+        manifest = sh(self.remote / "App", "show", f"{branch}:Package.swift")
+        self.assertIn(f'.package(url: "{self.base}/Platform", exact: "0.1.0")', manifest)
+        self.assertNotIn("Sibling", manifest)
+        self.assertIn(f"url: {self.base}/Platform\n    exactVersion: 0.1.0", sh(self.remote / "App", "show", f"{branch}:ios/project.yml"))
+        self.assertIn(f"Platform {tag}", sh(self.remote / "App", "show", f"{branch}:opencine-pins.txt"))
         self.assertIn(f"base=${{1:-{self.base}}}", sh(self.remote / "App", "show", f"{branch}:scripts/checkout-opencine.sh"))
+        self.assertIn("checkout-opencine", sh(self.remote / "App", "show", f"{branch}:.github/workflows/ci.yml"))  # Android keeps it
         msg = sh(self.remote / "App", "log", "-1", "--format=%B", branch)
-        self.assertIn(f"resolve Core, Lib 0.1.0 from {self.base}", msg.replace("\n", " "))
+        self.assertIn(f"resolve Platform 0.1.0 from {self.base}", msg.replace("\n", " "))
         body = (self.root / ".local" / "publish" / "App-pr.md").read_text()
         self.assertTrue(body.rstrip().endswith(publish.FOOTER))
-        self.assertIn(f"| Lib | 0.1.0 | `{tag[:12]}` |", body)
+        self.assertIn(f"| Platform | 0.1.0 | `{tag[:12]}` |", body)
         self.assertNotIn(chr(0x2014), body)
 
-        lib_meta = json.loads(sh(self.remote / "atlas", "show", "main:repos/lib/meta.json"))
-        self.assertEqual(lib_meta["repository"]["url"], f"{self.base}/Lib")
-        self.assertEqual(lib_meta["status"], "active")
-        self.assertEqual(lib_meta["edges"][0]["status"], "live")
+        # The registry update is a commit on the platform's own main, after the tag.
+        plat_meta = json.loads(sh(self.remote / "Platform", "show", "main:atlas/repos/platform/meta.json"))
+        self.assertEqual(plat_meta["repository"]["url"], f"{self.base}/Platform")
+        self.assertEqual(plat_meta["status"], "active")
+        self.assertEqual(plat_meta["refs"], [{"name": "main", "commit": tag, "role": "baseline"}])
         app_meta = json.loads((self.root / "repos" / "app" / "meta.json").read_text())
-        self.assertIn({"name": "opencine/integration", "commit": sh(self.remote / "App", "rev-parse", branch), "role": "candidate"}, app_meta["refs"])
-        self.assertIn("| Lib | 0.1.0 exact |", (self.root / "compat" / "VERSIONS.md").read_text())
+        head = sh(self.remote / "App", "rev-parse", branch)
+        self.assertIn({"name": "opencine/integration", "commit": head, "role": "candidate"}, app_meta["refs"])
+        self.assertEqual(app_meta["edges"][0]["evidence"]["source_commit"], head)
+        self.assertIn("| Platform | 0.1.0 exact |", (self.root / "compat" / "VERSIONS.md").read_text())
+        self.assertNotEqual(sh(self.remote / "Platform", "rev-parse", "main"), tag)
 
         before = tree_digest(self.ws, self.remote)
         code, out = self.publish("--execute", "--open-prs")
@@ -366,42 +361,62 @@ class EndToEnd(AtlasCase):
         self.assertNotIn("run    ", out)
         self.assertEqual(tree_digest(self.ws, self.remote), before)
 
-    def test_prs_later_make_edges_live(self):
+    def test_prs_later_make_the_platform_active(self):
         self.marker.write_text("ok\n")
         code, out = self.publish("--execute")
         self.assertEqual(code, 0, out)
         self.assertIn("skip   pull request", out)
-        lib = json.loads((self.root / "repos" / "lib" / "meta.json").read_text())
-        self.assertEqual((lib["status"], lib["edges"][0]["status"]), ("candidate", "candidate"))
-        self.assertEqual(lib["repository"]["url"], f"{self.base}/Lib")
+        m = json.loads((self.root / "repos" / "platform" / "meta.json").read_text())
+        self.assertEqual((m["status"], m["repository"]["url"]), ("candidate", f"{self.base}/Platform"))
         code, out = self.publish("--execute", "--open-prs")
         self.assertEqual(code, 0, out)
-        lib = json.loads((self.root / "repos" / "lib" / "meta.json").read_text())
-        self.assertEqual((lib["status"], lib["edges"][0]["status"]), ("active", "live"))
+        self.assertEqual(json.loads((self.root / "repos" / "platform" / "meta.json").read_text())["status"], "active")
 
     def test_preflight_blocks(self):
         rel = self.root / "compat" / "release-0.1.0.json"
         self.release["decisions"]["owner"] = None
         rel.write_text(json.dumps(self.release, indent=2) + "\n")
-        sh(self.root, "commit", "-q", "-am", "undecided")
-        (self.ws / "Lib" / "stray.txt").write_text("x\n")
+        sh(self.platform, "commit", "-q", "-am", "undecided")
+        (self.platform / "stray.txt").write_text("x\n")
         code, out = self.publish("--execute")
         self.assertEqual(code, 1)
         self.assertIn("decision not recorded: owner", out)
-        self.assertIn("Lib: uncommitted changes", out)
+        self.assertIn("Platform: uncommitted changes", out)
         self.assertFalse((self.root / ".local" / "publish-state.json").exists())
 
+    def test_platform_may_move_only_under_atlas(self):
+        commit(self.platform, {"atlas/notes.txt": "x\n"}, "atlas only")
+        code, out = self.publish()
+        self.assertEqual(code, 0, out)
+        commit(self.platform, {"Sources/A.swift": "// code\n"}, "code")
+        code, out = self.publish()
+        self.assertEqual(code, 1)
+        self.assertIn("Platform: main is at", out)
+        code, out = run_publish("record", "platform", "--evidence", "fixture rerun")
+        self.assertEqual(code, 0, out)
+        code, out = self.publish()
+        self.assertEqual(code, 0, out)
+
+    def test_record_moves_registry_refs_and_versions(self):
+        head = commit(self.ws / "App", {"opencine-pins.txt": "Platform bumped\n"}, "pin bump")
+        code, out = run_publish("record", "app", "--evidence", "fixture rerun")
+        self.assertEqual(code, 0, out)
+        app = json.loads((self.root / "repos" / "app" / "meta.json").read_text())
+        self.assertIn({"name": "opencine/integration", "commit": head, "role": "candidate"}, app["refs"])
+        self.assertEqual(app["edges"][0]["evidence"]["source_commit"], head)
+        self.assertIn(f"`opencine/integration` at `{head[:12]}`", (self.root / "compat" / "VERSIONS.md").read_text())
+        self.assertEqual(sh(self.platform, "status", "--porcelain"), "")  # all three files committed
+
     def test_author_emails_block_and_rewrite(self):
-        sh(self.ws / "Lib", "commit", "-q", "--allow-empty", "-m", "work email",
-           "--author", "W <w@work.example>")
-        code, out = run_publish("record", "lib", "--evidence", "fixture rerun")
+        sh(self.platform, "commit", "-q", "--allow-empty", "-m", "work email", "--author", "W <w@work.example>")
+        code, out = run_publish("record", "platform", "--evidence", "fixture rerun")
         self.assertEqual(code, 0, out)
         code, out = self.publish()
         self.assertEqual(code, 1)
         self.assertIn("w@work.example", out)
         code, out = run_publish("rewrite-authors", "--execute")
         self.assertEqual(code, 0, out)
-        self.assertNotIn("w@work.example", sh(self.ws / "Lib", "log", "--format=%ae"))
+        self.assertNotIn("w@work.example", sh(self.platform, "log", "--format=%ae"))
         code, out = self.publish()
         self.assertEqual(code, 0, out)
 

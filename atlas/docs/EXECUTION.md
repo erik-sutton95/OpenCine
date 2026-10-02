@@ -20,6 +20,9 @@ State, in the first task update:
 
 1. Confirm the owner in current source and manifests (`atlas deps <id>`), not from the
    summary alone.
+   Shared code has one owner repository, `opencine`; its `layers` say which product area a
+   target belongs to, and `atlas check` holds every target and Gradle module to the plan's
+   direction rules.
 2. For a boundary change, run `atlas impact <owner> --include-candidates`. Then refine against
    real source: repositories that need edits, generated outputs, consumers that only need
    validation, and unaffected repositories. Treat `INCOMPLETE` as unknown, never as "no
@@ -77,8 +80,8 @@ What `run` does, per consumer:
    exact recorded commits to exist there. If not: every check is `unavailable`.
 2. Creates `atlas-compat-*` in the system temp folder and clones both into it with
    `git clone --shared --no-checkout` plus `checkout --detach <commit>`, each under its
-   registry `local_dir`. The consumer's committed relative paths (`../../OpenCineUI`,
-   `../../../OpenCineUI/Android`) therefore resolve inside the workspace, never to a live
+   registry `local_dir`. The consumer's committed relative paths (`../../OpenCine`,
+   `../../../OpenCine/Android`) therefore resolve inside the workspace, never to a live
    checkout. Shared clones read objects through alternates and write nothing to the source
    checkouts: no branch switch, no worktree metadata.
 3. Runs the checks in order at the consumer root with `$ATLAS_COMPAT_WORKSPACE` and

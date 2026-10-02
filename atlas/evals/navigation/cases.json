@@ -8,7 +8,7 @@
                 "Apps/Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorDrumSelection.kt"],
       "tests": ["Tests/MonitorPresentationTests/MonitorDrumSelectionTests.swift",
                 "Apps/Android/monitor-ui/src/test/kotlin/com/opencapture/monitorui/MonitorDrumSelectionTest.kt"],
-      "must_mention": "Insta and the Nikon engine-port hold copies; the fix belongs in the donor (or opencineui once adopted)."
+      "must_mention": "Insta and the Nikon engine-port hold copies; the fix belongs in the donor (or opencine once adopted)."
     }
   },
   {
@@ -97,7 +97,7 @@
       "owner": "openpocketcine", "snapshot": "openpocketcine@main", "code_change": true,
       "paths": ["Sources/MonitorUI/Icons/MonitorIcon.swift", "Sources/MonitorUI/Icons/LucideSVG.swift"],
       "tests": [],
-      "must_mention": "Insta's MonitorUI is a synced copy; plan the fix in Pocket (or opencineui) and re-sync Insta."
+      "must_mention": "Insta's MonitorUI is a synced copy; plan the fix in Pocket (or opencine) and re-sync Insta."
     }
   },
   {

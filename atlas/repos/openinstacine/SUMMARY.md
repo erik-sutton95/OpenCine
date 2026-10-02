@@ -10,7 +10,9 @@ OpenPocketCine shell plus Luna adapters. The repo has no `AGENTS.md`; start from
   shared Swift targets, tests, the renamed iOS shell and a tools subset. The last synced
   Pocket commit is recorded in `docs/implementation/openpocketcine-sync-commit.txt`.
   The Android shell (`Apps/Android/monitor`, `monitor-ui`, `core-api`) was copied by hand.
-- Its settable-accent `MonitorTheme` is the theme donor for `opencineui` (ADR 0004).
+- Its settable-accent `MonitorTheme` is the theme donor for the shared UI in `opencine` (ADR 0004).
+- **Consumes `opencine`** on `opencine/integration` (candidate): one sibling path `../OpenCine` and
+  one Gradle included build named `opencine`, pinned by one line in `opencine-pins.txt`.
 
 ## Where to start reading
 
@@ -27,7 +29,7 @@ OpenPocketCine shell plus Luna adapters. The repo has no `AGENTS.md`; start from
 ## Cross-repo gotchas
 
 - Files under `Sources/MonitorUI`, `Sources/MonitorPresentation` and most of `ios/` are
-  Pocket-owned copies. Fix them in Pocket (or `opencineui` once adopted), not here, or the
+  Pocket-owned copies. Fix them in Pocket (or in `opencine` once adopted), not here, or the
   next sync will conflict.
 - `docs/implementation/architecture.md` names paths that do not exist at the baseline;
   trust manifests over it.

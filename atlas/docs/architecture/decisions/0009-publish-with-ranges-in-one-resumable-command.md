@@ -1,6 +1,6 @@
 # ADR 0009: Publish with library ranges, app exact pins, in one resumable command
 
-Status: **Accepted, provisional.** Made autonomously during the unattended 2026-10-02 run (RELEASE-01); revisit at the first publish.
+Status: **Accepted, provisional.** Made autonomously during the unattended 2026-10-02 run (RELEASE-01); revisit at the first publish. Partly superseded by ADR 0010 (2026-10-02): one platform repository, one tag; the library ranges no longer apply because the platform depends on no other package.
 Date: 2026-10-02
 
 ## Context
