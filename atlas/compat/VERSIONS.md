@@ -30,18 +30,18 @@ OpenCine: unreleased (main) at `628cdd631b18`. Products by layer (meta.json `lay
 | core | OpenCineCore, OpenCineCoreTestSupport, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineApple | `com.opencapture.opencine:core`, `com.opencapture.opencine:media`, `com.opencapture.opencine:decoder`, `com.opencapture.opencine:vulkan` |
 | ui | MonitorPresentation, MonitorUI | `com.opencapture.opencine:monitor-ui` |
 | multicam | OpenCineMulticam | `com.opencapture.opencine:multicam` |
-| vendor | OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport | `com.opencapture.opencine:dji`, `com.opencapture.opencine:insta360-shell`, `com.opencapture.opencine:insta360-luna` |
+| vendor | OpenCineDJI, OpenCineDJIAndroid, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport | `com.opencapture.opencine:dji`, `com.opencapture.opencine:insta360-shell`, `com.opencapture.opencine:insta360-luna` |
 | harness | none | none |
 
 ## Applications
 
 Released app `main` branches take no shared package yet. Each candidate branch below takes OpenCine:
 
-### OpenPocketCine `opencine/integration` at `c41946b1678c`
+### OpenPocketCine `opencine/integration` at `5b3f2d558e10`
 
 | Package | Apple | Android sibling pin |
 |---|---|---|
-| OpenCine | sibling path at `628cdd631b18` | `628cdd631b18` |
+| OpenCine | sibling path at `b5afe731bee9` | `b5afe731bee9` |
 
 ### OpenInstaCine `opencine/integration` at `e9d7dc84b8f6`
 
