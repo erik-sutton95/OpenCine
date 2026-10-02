@@ -1,5 +1,6 @@
 import CoreBluetooth
 import Foundation
+import OpenCineCore
 import Insta360Protocol
 
 @MainActor
@@ -47,7 +48,7 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     private func waitForPower() async throws {
         try Task.checkCancellation()
         if central.state == .poweredOn { return }
-        if let message = powerError(central.state) { throw CameraBackendError.unavailable(message) }
+        if let failure = powerFailure(central.state) { throw failure }
         let token = epoch
         let operation = UUID()
         try await withTaskCancellationHandler {
@@ -57,7 +58,10 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                 powerWaiter = continuation
                 setDeadline(
                     seconds: 15,
-                    message: "Bluetooth did not become available. Enable Bluetooth in Settings.")
+                    failure: .luna(
+                        .radioOff(.bluetooth), "bluetooth.unavailable",
+                        "Bluetooth did not become available. Enable Bluetooth in Settings.",
+                        actions: [.openSettings, .retry]))
             }
         } onCancel: {
             Task { @MainActor [weak self] in
@@ -72,8 +76,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         try await waitForPower()
         let found = peripherals[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first
         guard let found else {
-            throw CameraBackendError.unavailable(
-                "The camera is no longer nearby. Scan again with the camera powered on.")
+            throw ConnectionFailure.luna(
+                .notFound, "bluetooth.not-nearby", "The camera is no longer nearby. Scan again with the camera powered on.",
+                phase: .link)
         }
         // cancelPeripheralConnection completes asynchronously. Do not reuse this object
         // until its old didDisconnect/didFail callback has been consumed.
@@ -83,8 +88,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
             try await Task.sleep(for: .milliseconds(50))
         }
         guard !disconnecting.contains(id) else {
-            throw CameraBackendError.unavailable(
-                "The previous camera Bluetooth connection is still closing. Try connecting again.")
+            throw ConnectionFailure.luna(
+                .other, "bluetooth.closing",
+                "The previous camera Bluetooth connection is still closing. Try connecting again.", phase: .link)
         }
         try Task.checkCancellation()
         let token = epoch
@@ -98,9 +104,10 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                 readyWaiter = continuation
                 setDeadline(
                     seconds: 25,
-                    message:
-                        "The camera did not complete its Bluetooth connection. Close the camera app on other devices and try again."
-                )
+                    failure: .luna(
+                        .timedOut, "bluetooth.connect-timeout",
+                        "The camera did not complete its Bluetooth connection. Close the camera app on other devices and try again.",
+                        phase: .link))
                 central.connect(found)
             }
         } onCancel: {
@@ -117,14 +124,14 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         guard let peripheral, let characteristic = writeCharacteristic,
             peripheral.state == .connected
         else {
-            throw CameraBackendError.unavailable("The camera Bluetooth connection closed.")
+            throw ConnectionFailure.lunaBluetoothClosed
         }
         let size = min(
             LunaProtocol.bluetoothWriteChunkSize,
             peripheral.maximumWriteValueLength(for: .withResponse))
         guard size > 0 else {
-            throw CameraBackendError.unavailable(
-                "The camera did not provide a Bluetooth write size.")
+            throw ConnectionFailure.luna(
+                .other, "bluetooth.write-size", "The camera did not provide a Bluetooth write size.", phase: .link)
         }
         var offset = 0
         while offset < data.count {
@@ -139,7 +146,10 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                     writeOperation = operation
                     writeWaiter = continuation
                     setDeadline(
-                        seconds: 10, message: "The camera did not acknowledge a Bluetooth command.")
+                        seconds: 10,
+                        failure: .luna(
+                            .timedOut, "bluetooth.write-timeout", "The camera did not acknowledge a Bluetooth command.",
+                            phase: .link))
                     peripheral.writeValue(chunk, for: characteristic, type: .withResponse)
                 }
             } onCancel: {
@@ -170,13 +180,13 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         }
         failPending(CancellationError())
     }
-    private func setDeadline(seconds: Double, message: String) {
+    private func setDeadline(seconds: Double, failure: ConnectionFailure) {
         deadline?.cancel()
         let token = epoch
         deadline = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled, self?.epoch == token else { return }
-            self?.failPending(CameraBackendError.unavailable(message))
+            self?.failPending(failure)
         }
     }
     private func failPending(_ error: Error) {
@@ -195,12 +205,19 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         writeWaiter = nil
         write?.resume(throwing: error)
     }
-    private func powerError(_ state: CBManagerState) -> String? {
+    private func powerFailure(_ state: CBManagerState) -> ConnectionFailure? {
         switch state {
-        case .poweredOff: "Bluetooth is off. Turn it on in Settings to find your camera."
+        case .poweredOff:
+            .luna(
+                .radioOff(.bluetooth), "bluetooth.off", "Bluetooth is off. Turn it on in Settings to find your camera.",
+                actions: [.openSettings, .retry])
         case .unauthorized:
-            "Bluetooth access is disabled for this app. Enable it in Settings → Privacy & Security → Bluetooth."
-        case .unsupported: "Bluetooth camera discovery is unavailable on this device."
+            .luna(
+                .permission(.bluetooth), "bluetooth.denied",
+                "Bluetooth access is disabled for this app. Enable it in Settings → Privacy & Security → Bluetooth.",
+                actions: [.openSettings, .retry])
+        case .unsupported:
+            .luna(.unsupported, "bluetooth.unsupported", "Bluetooth camera discovery is unavailable on this device.")
         default: nil
         }
     }
@@ -212,9 +229,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                 powerOperation = nil
                 waiter.resume()
             }
-        } else if let message = powerError(central.state) {
-            failPending(CameraBackendError.unavailable(message))
-            if peripheral != nil { onDisconnect?(message) }
+        } else if let failure = powerFailure(central.state) {
+            failPending(failure)
+            if peripheral != nil { onDisconnect?(failure.message) }
         }
     }
     func centralManager(
@@ -240,7 +257,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         if disconnecting.remove(peripheral.identifier) != nil { return }
         guard peripheral === self.peripheral else { return }
         failPending(
-            error ?? CameraBackendError.unavailable("The camera could not connect over Bluetooth."))
+            error
+                ?? ConnectionFailure.luna(
+                    .linkLost, "bluetooth.connect-failed", "The camera could not connect over Bluetooth.", phase: .link))
     }
     func centralManager(
         _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?
@@ -249,9 +268,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         guard peripheral === self.peripheral else { return }
         self.peripheral = nil
         writeCharacteristic = nil
-        let message = "The camera Bluetooth connection closed."
-        failPending(CameraBackendError.unavailable(message))
-        onDisconnect?(message)
+        failPending(ConnectionFailure.lunaBluetoothClosed)
+        onDisconnect?(ConnectionFailure.lunaBluetoothClosed.message)
     }
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard peripheral === self.peripheral else { return }
@@ -261,8 +279,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         }
         guard let service = peripheral.services?.first(where: { $0.uuid == self.service }) else {
             failPending(
-                CameraBackendError.unavailable(
-                    "This camera did not expose the supported Insta360 Bluetooth service."))
+                ConnectionFailure.luna(
+                    .unsupported, "bluetooth.service-missing",
+                    "This camera did not expose the supported Insta360 Bluetooth service.", phase: .link))
             return
         }
         peripheral.discoverCharacteristics([writeID, notifyID], for: service)
@@ -280,8 +299,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
             let notify = service.characteristics?.first(where: { $0.uuid == notifyID })
         else {
             failPending(
-                CameraBackendError.unavailable(
-                    "The camera's Bluetooth command channels were not found."))
+                ConnectionFailure.luna(
+                    .unsupported, "bluetooth.channels-missing", "The camera's Bluetooth command channels were not found.",
+                    phase: .link))
             return
         }
         peripheral.setNotifyValue(true, for: notify)
@@ -297,8 +317,9 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         }
         guard characteristic.isNotifying else {
             failPending(
-                CameraBackendError.unavailable(
-                    "Camera Bluetooth notifications could not be enabled."))
+                ConnectionFailure.luna(
+                    .other, "bluetooth.notify-failed", "Camera Bluetooth notifications could not be enabled.",
+                    phase: .link))
             return
         }
         deadline?.cancel()

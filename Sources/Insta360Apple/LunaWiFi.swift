@@ -1,6 +1,7 @@
 import CKcp
 import Darwin
 import Foundation
+import OpenCineCore
 import NetworkExtension
 
 
@@ -60,15 +61,17 @@ enum LunaWiFi {
         try Task.checkCancellation()
         #if targetEnvironment(macCatalyst) || os(macOS)
             guard localAddress != nil else {
-                throw CameraBackendError.unavailable(
-                    "Join the camera Wi-Fi in macOS Wi-Fi settings, then reconnect. Its password has been read securely from the camera."
-                )
+                throw ConnectionFailure.luna(
+                    .joinFailed, "wifi.join-manually",
+                    "Join the camera Wi-Fi in macOS Wi-Fi settings, then reconnect. Its password has been read securely from the camera.",
+                    phase: .joiningNetwork)
             }
         #elseif targetEnvironment(simulator)
             guard localAddress != nil else {
-                throw CameraBackendError.unavailable(
-                    "Join the camera Wi-Fi on the Mac to test the live feed in Simulator. Bluetooth pairing requires a physical device."
-                )
+                throw ConnectionFailure.luna(
+                    .joinFailed, "wifi.join-on-host",
+                    "Join the camera Wi-Fi on the Mac to test the live feed in Simulator. Bluetooth pairing requires a physical device.",
+                    phase: .joiningNetwork)
             }
         #else
             let config = NEHotspotConfiguration(
@@ -83,9 +86,10 @@ enum LunaWiFi {
                     {
                         NSLog("%@ luna: hotspot apply failed %@ %d %@", logPrefix, error.domain, error.code, error.localizedDescription)
                         continuation.resume(
-                            throwing: CameraBackendError.unavailable(
-                                "The camera Wi-Fi could not be joined (\(error.code)). Keep the camera powered on and accept the iOS Wi-Fi prompt."
-                            ))
+                            throwing: ConnectionFailure.luna(
+                                .joinFailed, "wifi.join-refused",
+                                "The camera Wi-Fi could not be joined (\(error.code)). Keep the camera powered on and accept the iOS Wi-Fi prompt.",
+                                phase: .joiningNetwork))
                     } else {
                         continuation.resume()
                     }
@@ -98,9 +102,10 @@ enum LunaWiFi {
             try await Task.sleep(for: .milliseconds(200))
         }
         guard localAddress != nil else {
-            throw CameraBackendError.unavailable(
-                "The camera Wi-Fi did not assign an address. Reconnect and accept the Wi-Fi join prompt."
-            )
+            throw ConnectionFailure.luna(
+                .joinFailed, "wifi.no-address",
+                "The camera Wi-Fi did not assign an address. Reconnect and accept the Wi-Fi join prompt.",
+                phase: .joiningNetwork)
         }
         await claimScreenAddress(logPrefix: logPrefix)
     }

@@ -158,7 +158,7 @@ let package = Package(
             name: "Insta360Apple",
             dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion"]
         ),
-        .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol"]),
+        .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol", "OpenCineCore"]),
         .testTarget(
             name: "Insta360AppleTests",
             dependencies: [

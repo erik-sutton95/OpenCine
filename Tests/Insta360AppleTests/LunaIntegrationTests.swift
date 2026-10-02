@@ -1,0 +1,191 @@
+import Foundation
+import Insta360Apple
+import Insta360AppleTestSupport
+import Insta360Protocol
+import OpenCineCore
+import Testing
+
+/// The Luna `CameraIntegration` against a scripted backend (SHELL-02 step 4). Kotlin mirror:
+/// `LunaIntegrationTest`, same method names.
+@MainActor
+@Suite struct LunaIntegrationTests {
+    let port = FakeLunaPort()
+    let camera = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
+    let when = Date(timeIntervalSince1970: 1_759_307_200)
+
+    func integration() -> LunaIntegration { LunaIntegration(port: port, now: { [when] in when }) }
+
+    func sighting() -> NearbyCamera {
+        NearbyCamera(id: camera.uuidString, name: "Luna 1A2B", model: LunaProtocol.model, routes: [.cameraAccessPoint])
+    }
+
+    @Test func discoveryListensPassivelyOverBluetooth() async {
+        let luna = integration()
+        #expect(luna.discoveryModes == [.passive])
+        var active = 0
+        for await _ in luna.discover(.active) { active += 1 }
+        #expect(active == 0)
+
+        let lists = luna.discover(.passive)
+        var iterator = lists.makeAsyncIterator()
+        #expect(await iterator.next() == [])
+        port.emit(.discovered(MonitorCamera(id: camera, name: "Luna 1A2B", model: LunaProtocol.model, capabilities: [])))
+        #expect(await iterator.next() == [sighting()])
+        #expect(port.scans == 1 && port.connects.isEmpty, "listening never connects")
+
+        let consumer = Task { for await _ in lists {} }
+        consumer.cancel()
+        await consumer.value
+        #expect(await eventually { port.scanStops == 1 })
+    }
+
+    @Test func phasesMapToProgressAndPrompts() async throws {
+        let luna = integration()
+        let events = luna.connect(.nearby(sighting()))
+        port.emit(.phase(.connecting))
+        port.emit(.phase(.awaitingApproval))
+        port.joinedNetwork = "LUNA-1A2B"
+        port.emit(.phase(.readingWiFi))
+        port.emit(.note("If this takes long, open Settings › Wi-Fi and join “LUNA-1A2B”."))
+        port.emit(.phase(.openingVideo))
+        port.emit(.phase(.streaming))
+        port.connectedSerial = "SN-LUNA"
+        #expect(await eventually { port.connects.count == 1 })
+        port.finishConnect()
+
+        var seen: [String] = []
+        var connected: ConnectedCamera?
+        for await event in events {
+            switch event {
+            case .progress(let progress, let prompt):
+                #expect(progress.steps == LunaIntegration.steps)
+                seen.append("\(progress.phase) \(progress.current) \(prompt.map(describe) ?? "-")")
+            case .connected(let camera): connected = camera
+            case .failed(let failure): Issue.record("failed: \(failure.code)")
+            }
+        }
+        #expect(
+            seen == [
+                "link 0 -", "negotiating 0 -", "awaitingApproval 0 approve: Approve on the camera",
+                "joiningNetwork 1 join LUNA-1A2B: Tap Join when iOS asks to join the camera network",
+                "joiningNetwork 1 join LUNA-1A2B: If this takes long, open Settings › Wi-Fi and join “LUNA-1A2B”.",
+                "link 2 -", "link 3 -",
+            ])
+        let saved = try #require(connected?.saved)
+        #expect(saved.id == camera.uuidString && saved.integration == luna.id)
+        #expect(saved.device == .durable("SN-LUNA", integration: luna.id) && saved.lastConnected == when)
+        #expect(saved.routes.map(\.kind) == [.cameraAccessPoint] && saved.routes[0].network == "LUNA-1A2B")
+        #expect(saved.routes[0].bluetooth && saved.preferredRoute == saved.routes[0].id)
+        #expect(connected?.session is LunaCameraSession)
+    }
+
+    @Test func aSavedCameraKeepsItsRecord() async throws {
+        let luna = integration()
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-OLD", bluetooth: true)
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, name: "A cam", advertisedName: "Luna 1A2B",
+            model: LunaProtocol.model, routes: [ap], extras: ["lastSetup": "wifi"])
+        let events = luna.connect(.saved(saved, route: ap.id))
+        #expect(await eventually { port.connects.map(\.id) == [camera] })
+        port.finishConnect()
+        var record: SavedCamera?
+        for await case .connected(let camera) in events { record = camera.saved }
+        #expect(record?.name == "A cam" && record?.routes == [ap] && record?.extras == ["lastSetup": "wifi"])
+        #expect(record?.device == nil, "no serial was read")
+    }
+
+    @Test func typedFailuresKeepTheirCopy() async throws {
+        // At the backend's own throw sites.
+        do {
+            try await LunaCameraBackend(useExistingNetwork: true).startScan()
+            Issue.record("expected a failure off the camera network")
+        } catch let failure as ConnectionFailure {
+            #expect(failure.reason == .notFound && failure.actions == [.retry])
+            #expect(failure.localizedDescription == "Join the Luna camera Wi-Fi on this device before opening the feed.")
+            #expect(failure.code == "com.opencapture.insta360.luna.existing-network.absent")
+        }
+        do {
+            _ = try await LunaCameraBackend().send(LunaProtocol.wifiCredentialsRequest)
+            Issue.record("expected a closed link")
+        } catch let failure as ConnectionFailure {
+            #expect(failure.reason == .linkLost && failure.message == "The camera connection is not open.")
+        }
+
+        // Through an attempt: the phase it failed in is kept; an untyped error reads as .other.
+        let luna = integration()
+        let approval = luna.connect(.nearby(sighting()))
+        port.emit(.phase(.awaitingApproval))
+        #expect(await eventually { port.connects.count == 1 })
+        port.finishConnect(throwing: ConnectionFailure(
+            reason: .notApproved, title: "t", message: "Approval timed out.", actions: [.retry], code: "c"))
+        let first = try #require(await failure(of: approval))
+        #expect(first.reason == .notApproved && first.phase == .awaitingApproval)
+
+        let other = luna.connect(.nearby(sighting()))
+        #expect(await eventually { port.connects.count == 2 })
+        port.finishConnect(throwing: URLError(.timedOut))
+        let second = try #require(await failure(of: other))
+        #expect(second.reason == .other && second.phase == .link)
+        #expect(second.code == "com.opencapture.insta360.luna.unexpected")
+    }
+
+    @Test func aNewerAttemptEndsTheOlder() async {
+        let luna = integration()
+        let a = luna.connect(.nearby(sighting()))
+        #expect(await eventually { port.connects.count == 1 })
+        let b = luna.connect(.nearby(sighting()))
+        #expect(await eventually { port.connects.count == 2 })
+        port.emit(.phase(.awaitingApproval))
+        var eventsA = 0
+        for await _ in a { eventsA += 1 }
+        #expect(eventsA == 1, "only its own first progress")
+        port.finishConnect()
+        var phases: [ConnectionPhase] = []
+        for await case .progress(let progress, _) in b { phases.append(progress.phase) }
+        #expect(phases == [.link, .awaitingApproval])
+    }
+
+    @Test func cancellingTheConsumerDisconnects() async {
+        let luna = integration()
+        let events = luna.connect(.nearby(sighting()))
+        #expect(await eventually { port.connects.count == 1 })
+        let consumer = Task { for await _ in events {} }
+        consumer.cancel()
+        await consumer.value
+        #expect(await eventually { port.disconnects == 1 })
+    }
+
+    @Test func forgetDropsTheSavedWiFiOnly() async {
+        let luna = integration()
+        await luna.forget(SavedCamera(id: camera.uuidString, integration: luna.id, advertisedName: "", model: ""))
+        await luna.forget(SavedCamera(id: "AA:BB:CC:DD:EE:01", integration: luna.id, advertisedName: "", model: ""))
+        #expect(port.forgotten == [camera])
+    }
+
+    @Test func addingARouteIsUnsupported() async {
+        let luna = integration()
+        let saved = SavedCamera(id: camera.uuidString, integration: luna.id, advertisedName: "", model: "")
+        let failed = await failure(of: luna.connect(.addRoute(saved, RouteDraft(kind: .infrastructureNetwork))))
+        #expect(failed?.reason == .unsupported && port.connects.isEmpty)
+    }
+
+    func failure(of events: AsyncStream<ConnectionEvent>) async -> ConnectionFailure? {
+        for await case .failed(let failure) in events { return failure }
+        return nil
+    }
+
+    func describe(_ prompt: ConnectionPrompt) -> String {
+        switch prompt {
+        case .approveOnCamera(let text): "approve: \(text)"
+        case .acceptNetworkJoin(let network, let text): "join \(network): \(text)"
+        case .integration(let prompt): "integration: \(prompt.fallbackText)"
+        }
+    }
+}
+
+/// Yields until `condition` holds (other suites share the main actor). Tests never sleep.
+@MainActor
+func eventually(_ condition: () -> Bool) async -> Bool {
+    for _ in 0..<10_000 where !condition() { await Task.yield() }
+    return condition()
+}

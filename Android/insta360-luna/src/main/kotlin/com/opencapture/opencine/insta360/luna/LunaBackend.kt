@@ -13,6 +13,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.ParcelUuid
+import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.insta360.shell.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -33,7 +34,9 @@ class LunaBackend(
     private val savedWifi: (cameraId: String) -> Pair<String, String>? = { null },
     private val saveWifi: (cameraId: String, ssid: String, password: String) -> Unit = { _, _, _ -> },
     clientIdentityPreferences: String = DEFAULT_CLIENT_IDENTITY_PREFERENCES,
-) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource {
+    /** Drops the camera's saved Wi-Fi from the host's store (forget); the approval identity stays. */
+    private val forgetWifi: (cameraId: String) -> Unit = {},
+) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort {
     companion object {
         /** OpenInstaCine's persisted name. Changing it orphans every saved camera approval. */
         const val DEFAULT_CLIENT_IDENTITY_PREFERENCES = "openinstacine.client-identity"
@@ -59,6 +62,10 @@ class LunaBackend(
     override val snapshot = _snapshot.asStateFlow()
     private val _failure = MutableStateFlow<String?>(null)
     override val failure = _failure.asStateFlow()
+    /** [failure] typed: reason, phase, the same copy and the recovery actions. */
+    private val _failureDetail = MutableStateFlow<ConnectionFailure?>(null)
+    override val failureDetail = _failureDetail.asStateFlow()
+    override val attempt: Job? get() = connectJob
     private val _radioOn = MutableStateFlow(bluetooth?.adapter?.isEnabled == true)
     override val radioOn = _radioOn.asStateFlow()
     private val _joinedSSID = MutableStateFlow<String?>(null)
@@ -102,13 +109,13 @@ class LunaBackend(
             val identity = CameraIdentity(result.device.address, name, "Insta360 Luna Ultra")
             _found.update { cameras -> (cameras.filterNot { it.id == identity.id } + identity).sortedBy { it.advertisedName } }
         }
-        override fun onScanFailed(code: Int) { scanActive = false; _failure.value = "Bluetooth scanning could not start ($code). Check Nearby devices permission."; setPhase(ConnectionPhase.FAILED) }
+        override fun onScanFailed(code: Int) { scanActive = false; fail(LunaFailures.scanFailed(code)); setPhase(ConnectionPhase.FAILED) }
     }
     override fun startScan() {
         if (connectJob?.isActive == true) return
         _radioOn.value = bluetooth?.adapter?.isEnabled == true
         if (!_radioOn.value) { setPhase(ConnectionPhase.IDLE); return }
-        _failure.value = null
+        _failure.value = null; _failureDetail.value = null
         stopScan()
         // Null while the radio is turning off (SDK 37 annotates it; 36 left it a platform type).
         val leScanner = bluetooth.adapter.bluetoothLeScanner
@@ -116,9 +123,10 @@ class LunaBackend(
         try {
             leScanner.startScan(listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(LunaGatt.SERVICE)).build()), ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanner)
             scanActive = true; setPhase(ConnectionPhase.SCANNING)
-        } catch (_: SecurityException) { _failure.value = "Allow Nearby devices and location access to discover your camera."; setPhase(ConnectionPhase.FAILED) }
+        } catch (_: SecurityException) { fail(LunaFailures.discoveryDenied); setPhase(ConnectionPhase.FAILED) }
     }
-    private fun stopScan() { if (scanActive) runCatching { bluetooth?.adapter?.bluetoothLeScanner?.stopScan(scanner) }; scanActive = false }
+    private fun fail(failure: ConnectionFailure) { _failure.value = failure.message; _failureDetail.value = failure }
+    override fun stopScan() { if (scanActive) runCatching { bluetooth?.adapter?.bluetoothLeScanner?.stopScan(scanner) }; scanActive = false }
     override fun connect(id: String) {
         val previous = connectJob
         previous?.cancel()
@@ -126,19 +134,13 @@ class LunaBackend(
         stopScan()
         connectJob = scope.launch {
             previous?.join()
-            _failure.value = null
+            _failure.value = null; _failureDetail.value = null
             _connected.value = _found.value.firstOrNull { it.id == id } ?: CameraIdentity(id, "Luna Ultra", "Insta360 Luna Ultra")
             try { runCamera(id) }
             catch (error: Exception) {
                 // A withTimeout inside (GATT, greeting) is a CancellationException too; only a real cancel propagates.
                 if (error is CancellationException && !isActive) throw error
-                _failure.value = when (_phase.value) {
-                    ConnectionPhase.AWAITING_APPROVAL -> "Camera approval was not completed. Wake Luna and accept the connection on its screen."
-                    ConnectionPhase.JOINING_WIFI -> "Could not join Luna Wi-Fi. Keep the camera awake and accept Android's Wi-Fi connection request."
-                    ConnectionPhase.LIVE -> "The camera feed disconnected. Wake Luna and tap Retry."
-                    ConnectionPhase.OPENING_DATALINK -> "The camera Wi-Fi connected, but live view did not start. Close the Insta360 app and try again."
-                    else -> "Could not connect to Luna. Keep it awake, close the Insta360 app, and try again."
-                }
+                fail(LunaFailures.connect(_phase.value))
                 setPhase(ConnectionPhase.FAILED)
             } finally { cleanup() }
         }
@@ -332,7 +334,8 @@ class LunaBackend(
         releaseNetworkRequest()
         _joinedSSID.value = null
     }
-    override fun disconnect() { stopScan(); connectJob?.cancel(); runCatching { socket?.close() }; setPhase(ConnectionPhase.IDLE); _failure.value = null }
+    override fun disconnect() { stopScan(); connectJob?.cancel(); runCatching { socket?.close() }; setPhase(ConnectionPhase.IDLE); _failure.value = null; _failureDetail.value = null }
+    override fun forget(id: String) = forgetWifi(id)
     override fun close() { disconnect(); cleanup(); scope.cancel() }
     override fun sceneActive(active: Boolean) {
         if (!active) { wasInactive = true; return }

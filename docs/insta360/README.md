@@ -34,6 +34,29 @@ unqualified, `LunaScreenRecovery` (Color Recovery over KCP) has no caller yet. i
 (NEHotspotConfiguration) compile only for iOS devices; macOS and the simulator ask the operator to
 join the camera Wi-Fi.
 
+## Integration contract (SHELL-02)
+
+`LunaIntegration` (Swift `Insta360Apple`, Kotlin `insta360-luna`) is Luna's Core
+`CameraIntegration`, over a `LunaConnectPort` that `LunaCameraBackend` / `LunaBackend` implement:
+
+- Discovery is `.passive` only: Bluetooth advertisements (service BE80); listening never connects.
+- One connection at a time (one backend): a newer attempt ends the older one. Steps are the connect
+  card's ("Connecting over Bluetooth", "Joining camera Wi-Fi", "Opening the video link", "Starting
+  the picture"); phases follow `LunaCameraSession`; prompts are `approveOnCamera("Approve on the
+  camera")` and `acceptNetworkJoin(network:)` (iOS: the attempt-3 Settings note replaces its text).
+- Failures are typed `ConnectionFailure`s with unchanged copy: Swift at every connect throw site
+  (Bluetooth power and permission offer Open Settings; the failure reads as its message through
+  `LocalizedError`, so callers that show `localizedDescription` are unchanged); Kotlin where the
+  backend chooses its copy by phase (`LunaFailures`, also `LunaBackend.failureDetail` beside the
+  unchanged `failure` string).
+- A connect yields the saved record (camera access point as the preferred route with the joined
+  network; iOS also the verified serial as the durable device) and the core session.
+- `forget` drops the camera's saved Wi-Fi (Swift: the Keychain entry; Kotlin: the host's
+  `forgetWifi`), never the approval identity. Every backend event is also forwarded to
+  `LunaIntegration.onEvent` (Swift) for the app's live view.
+- Tests: `LunaIntegrationTests` / `LunaIntegrationTest` against `FakeLunaPort` (Swift test support,
+  Kotlin test source), same method names.
+
 ## Import rules
 
 - No UI: never import SwiftUI, UIKit or OpenCineUI.

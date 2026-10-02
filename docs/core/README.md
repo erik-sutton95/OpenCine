@@ -170,6 +170,7 @@ explicitly; integration copy (steps, failures, prompts) is rendered, never rewri
   not found, timed out, not approved, held elsewhere, ...), integration copy, a stable diagnostics
   `code` and `RecoveryAction`s (retry, use or edit a route, pair again, open settings, or an
   integration action).
+  Thrown (Swift), it reads as its message through `LocalizedError`.
 - **Prompts.** `approveOnCamera`, `acceptNetworkJoin`, or an integration-owned `IntegrationPrompt`
   for the app's prompt slot. `RouteDraft` never prints its secret.
 - **`ConnectedCamera`**: the saved record to upsert, the `CameraSession` and typed optional

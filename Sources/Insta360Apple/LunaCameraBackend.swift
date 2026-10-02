@@ -109,7 +109,8 @@ public final class LunaCameraBackend: CameraBackend {
         emit(.scanning)
         if existingNetwork {
             guard isOnCameraNetwork else {
-                throw CameraBackendError.unavailable(
+                throw ConnectionFailure.luna(
+                    .notFound, "existing-network.absent",
                     "Join the Luna camera Wi-Fi on this device before opening the feed.")
             }
             eventHandler?(
@@ -135,8 +136,8 @@ public final class LunaCameraBackend: CameraBackend {
         selected = camera
         identity = try store.identity()
         guard let identity else {
-            throw CameraBackendError.unavailable(
-                "A camera authorization identity could not be created.")
+            throw ConnectionFailure.luna(
+                .other, "identity.unavailable", "A camera authorization identity could not be created.")
         }
         var expectedSerial: String?
         do {
@@ -231,8 +232,10 @@ public final class LunaCameraBackend: CameraBackend {
             group.addTask { try await work() }
             group.addTask {
                 try await Task.sleep(for: .seconds(35))
-                throw CameraBackendError.unavailable(
-                    "The camera Wi-Fi did not come up. Check that the camera is on and nearby, then try again.")
+                throw ConnectionFailure.luna(
+                    .joinFailed, "wifi.join-timeout",
+                    "The camera Wi-Fi did not come up. Check that the camera is on and nearby, then try again.",
+                    phase: .joiningNetwork)
             }
             try await group.next()
             group.cancelAll()
@@ -257,12 +260,15 @@ public final class LunaCameraBackend: CameraBackend {
             response: await send(LunaProtocol.deviceInformationRequest(includeSerial: true)))
         // BE80 is shared by more Insta360 cameras. Only apply the verified Luna profile.
         guard info.model == LunaProtocol.model else {
-            throw CameraBackendError.unavailable(
-                "This camera is \(info.model). \(configuration.appName) currently supports the Insta360 Luna Ultra.")
+            throw ConnectionFailure.luna(
+                .unsupported, "model.unsupported",
+                "This camera is \(info.model). \(configuration.appName) currently supports the Insta360 Luna Ultra.",
+                phase: .negotiating)
         }
         guard let serial = info.serial, !serial.isEmpty else {
-            throw CameraBackendError.unavailable(
-                "The camera did not provide an identity to verify its Wi-Fi handoff.")
+            throw ConnectionFailure.luna(
+                .other, "serial.missing", "The camera did not provide an identity to verify its Wi-Fi handoff.",
+                phase: .negotiating)
         }
         deviceInformation = info
         onDeviceInformation?(info)
@@ -271,8 +277,9 @@ public final class LunaCameraBackend: CameraBackend {
         let schemes = try LunaProtocol.encryptionSchemes(
             response: await send(LunaProtocol.encryptionCapabilitiesRequest))
         guard schemes.contains(3) else {
-            throw CameraBackendError.unavailable(
-                "The camera does not support the verified encrypted connection handshake.")
+            throw ConnectionFailure.luna(
+                .unsupported, "encryption.unsupported",
+                "The camera does not support the verified encrypted connection handshake.", phase: .negotiating)
         }
         let privateKey = P256.KeyAgreement.PrivateKey()
         let exchange = try LunaProtocol.keyExchangeRequest(
@@ -286,8 +293,9 @@ public final class LunaCameraBackend: CameraBackend {
         let authenticated = try LunaProtocol.deviceInformation(
             response: await send(LunaProtocol.deviceInformationRequest(encrypted: true)))
         guard authenticated.model == info.model else {
-            throw CameraBackendError.unavailable(
-                "The encrypted camera identity did not match the selected device.")
+            throw ConnectionFailure.luna(
+                .wrongCamera, "identity.mismatch", "The encrypted camera identity did not match the selected device.",
+                phase: .negotiating)
         }
         emit(.awaitingApproval)
         let authorization = try LunaProtocol.authorizationStatus(
@@ -296,9 +304,7 @@ public final class LunaCameraBackend: CameraBackend {
             _ = try await send(LunaProtocol.requestAuthorization)
             try await waitForApproval(identity: identity)
         } else if authorization != .authorized {
-            throw CameraBackendError.unavailable(
-                "The camera is connected to another phone. Close the Insta360 app on the other device, then connect again."
-            )
+            throw ConnectionFailure.lunaHeldElsewhere
         }
         emit(.readingWiFi)
         let wifi = try LunaProtocol.wifiCredentials(
@@ -329,12 +335,14 @@ public final class LunaCameraBackend: CameraBackend {
         let info = try LunaProtocol.deviceInformation(
             response: await send(LunaProtocol.deviceInformationRequest(includeSerial: true)))
         guard info.model == LunaProtocol.model else {
-            throw CameraBackendError.unavailable("The Wi-Fi device is not a supported Luna camera.")
+            throw ConnectionFailure.luna(
+                .wrongCamera, "wifi.not-luna", "The Wi-Fi device is not a supported Luna camera.", phase: .negotiating)
         }
         if let expectedSerial, info.serial != expectedSerial {
-            throw CameraBackendError.unavailable(
-                "The Wi-Fi connection reached a different camera. Join the selected camera's network and retry."
-            )
+            throw ConnectionFailure.luna(
+                .wrongCamera, "wifi.serial-mismatch",
+                "The Wi-Fi connection reached a different camera. Join the selected camera's network and retry.",
+                phase: .negotiating)
         }
         deviceInformation = info
         onDeviceInformation?(info)
@@ -345,9 +353,10 @@ public final class LunaCameraBackend: CameraBackend {
             // Saved Wi-Fi reached the camera but this install is not approved (reset,
             // or another phone owns it). Forget the shortcut so the next try asks over BLE.
             if let id = selected?.id { store.forget(cameraID: id) }
-            throw CameraBackendError.unavailable(
-                "The camera has not approved this iPhone yet. Connect again and accept the request on the camera's screen."
-            )
+            throw ConnectionFailure.luna(
+                .notApproved, "approval.missing",
+                "The camera has not approved this iPhone yet. Connect again and accept the request on the camera's screen.",
+                phase: .awaitingApproval)
         }
         await refreshStatus()
     }
@@ -423,9 +432,7 @@ public final class LunaCameraBackend: CameraBackend {
         let previous = session
         let next = LunaCameraSession(
             send: { [weak self] request in
-                guard let self else {
-                    throw CameraBackendError.unavailable("The camera connection is not open.")
-                }
+                guard let self else { throw ConnectionFailure.lunaLinkClosed }
                 return try await self.send(request)
             },
             functionMode: { [weak self] in
@@ -532,7 +539,7 @@ public final class LunaCameraBackend: CameraBackend {
     @discardableResult
     public func send(_ request: LunaRequest, timeout: Duration = .seconds(8)) async throws -> Data {
         guard isTCP || !request.requiresEncryption || sessionKey != nil else {
-            throw CameraBackendError.unavailable("The camera connection is not open.")
+            throw ConnectionFailure.lunaLinkClosed
         }
         let requestGeneration = generation
         let operation = UUID()
@@ -541,8 +548,8 @@ public final class LunaCameraBackend: CameraBackend {
         let frame: UCD2Frame
         if request.requiresEncryption {
             guard let key = sessionKey else {
-                throw CameraBackendError.unavailable(
-                    "The encrypted camera session is not established.")
+                throw ConnectionFailure.luna(
+                    .linkLost, "session.not-encrypted", "The encrypted camera session is not established.")
             }
             let payload = try request.message(identifier: id).payload
             let aad = try UCD2Frame.scheme3AssociatedData(
@@ -564,8 +571,8 @@ public final class LunaCameraBackend: CameraBackend {
                             id, generation: requestGeneration, operation: operation)
                     else { return }
                     entry.continuation.resume(
-                        throwing: CameraBackendError.unavailable(
-                            "The camera did not answer command \(code)."))
+                        throwing: ConnectionFailure.luna(
+                            .timedOut, "command.timeout", "The camera did not answer command \(code)."))
                 }
                 pending[id] = Pending(
                     generation: requestGeneration, operation: operation,
@@ -671,7 +678,8 @@ public final class LunaCameraBackend: CameraBackend {
                 let message: UCD2Message
                 if frame.isScheme3Encrypted {
                     guard let sessionKey else {
-                        throw CameraBackendError.unavailable(
+                        throw ConnectionFailure.luna(
+                            .other, "session.unexpected-encrypted",
                             "An encrypted camera message arrived outside its authorized session.")
                     }
                     let envelope = try frame.scheme3Envelope()
@@ -762,8 +770,9 @@ public final class LunaCameraBackend: CameraBackend {
                     self.tcpGreetingWaiter = nil
                     self.greetingOperation = nil
                     waiter.resume(
-                        throwing: CameraBackendError.unavailable(
-                            "The camera did not complete the video connection greeting."))
+                        throwing: ConnectionFailure.luna(
+                            .timedOut, "video.greeting-timeout",
+                            "The camera did not complete the video connection greeting.", phase: .negotiating))
                 }
             }
         } onCancel: {
@@ -787,15 +796,12 @@ public final class LunaCameraBackend: CameraBackend {
             let status = try LunaProtocol.authorizationStatus(
                 response: await send(LunaProtocol.authorizationCheck(identity: identity)))
             if status == .authorized { return }
-            if status != .approvalRequired {
-                throw CameraBackendError.unavailable(
-                    "The camera is connected to another phone. Close the Insta360 app on the other device, then connect again."
-                )
-            }
+            if status != .approvalRequired { throw ConnectionFailure.lunaHeldElsewhere }
             try await Task.sleep(for: .milliseconds(400))
         }
-        throw CameraBackendError.unavailable(
-            "Approval timed out. Connect again and tap Allow on the camera's screen.")
+        throw ConnectionFailure.luna(
+            .notApproved, "approval.timeout", "Approval timed out. Connect again and tap Allow on the camera's screen.",
+            phase: .awaitingApproval)
     }
 
     private func startHeartbeat(token: Int) {
@@ -818,7 +824,7 @@ public final class LunaCameraBackend: CameraBackend {
     }
 
     private func transportDropped(_ reason: String) {
-        failPending(CameraBackendError.unavailable(reason))
+        failPending(ConnectionFailure.luna(.linkLost, "link.dropped", reason))
         guard handshakeComplete else { return }
         disconnect()
         eventHandler?(.disconnected(reason: reason))

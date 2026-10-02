@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import Network
 
 @MainActor
@@ -65,7 +66,7 @@ final class LunaTCPTransport {
     }
     func send(_ data: Data) async throws {
         guard let connection else {
-            throw CameraBackendError.unavailable("The camera video connection is closed.")
+            throw ConnectionFailure.luna(.linkLost, "video.closed", "The camera video connection is closed.")
         }
         try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<Void, Error>) in
@@ -109,7 +110,7 @@ final class LunaTCPTransport {
         let waiter = ready
         ready = nil
         disconnect()
-        waiter?.resume(throwing: CameraBackendError.unavailable(message))
+        waiter?.resume(throwing: ConnectionFailure.luna(.linkLost, "video.failed", message, phase: .negotiating))
         if wasReady { onDisconnect?(message) }
     }
     private func receive(token: Int) {

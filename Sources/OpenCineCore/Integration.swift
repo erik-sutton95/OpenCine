@@ -218,6 +218,12 @@ public struct ConnectionFailure: Error, Hashable, Sendable {
     }
 }
 
+/// Thrown, a failure reads as its message, so a caller that shows `localizedDescription` keeps
+/// the integration's copy.
+extension ConnectionFailure: LocalizedError {
+    public var errorDescription: String? { message }
+}
+
 public enum RecoveryAction: Hashable, Sendable {
     case retry
     case useRoute(ConnectionRouteID)
