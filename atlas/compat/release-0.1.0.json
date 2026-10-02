@@ -110,7 +110,7 @@
     {
       "repo": "opencineharness",
       "branch": "main",
-      "commit": "cb099b575067e1e073f06e89cf08573d186bb305",
+      "commit": "eb14d0bf7f7cc68609aa1975a9eaed9c3d95de6b",
       "description": "Developer-only harness proving cross-brand OpenCine composition with simulated cameras",
       "verify": [
         "sh scripts/check-closure.sh",
@@ -119,8 +119,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "cb099b575067e1e073f06e89cf08573d186bb305",
-        "where": "RELEASE-01 rehearsal fix: siblings at current mains and, separately, all five packages by file:// URL with upToNextMinor ranges: swift test 26/7 suites passed (2 known issues, F1), no 'implemented in both', check-closure one checkout per package (progress.d/RELEASE-01.md)"
+        "commit": "eb14d0bf7f7cc68609aa1975a9eaed9c3d95de6b",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
       }
     }
   ],
