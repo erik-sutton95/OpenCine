@@ -3,6 +3,11 @@ import Foundation
 /// Why a Nikon PTP/IP or USB camera transport or session step failed, with operator copy.
 /// Moved from OpenZCine `ios/Runner/NativeCameraSession.swift` with the iOS transports.
 public enum NativeCameraSessionError: Error, LocalizedError {
+    /// True when the body answered a command with a PTP refusal, rather than losing its reply.
+    public static func isCameraRefusal(_ error: any Error) -> Bool {
+        if case NativeCameraSessionError.operationRejected = error { return true }
+        return false
+    }
     case noHost
     case connectionFailed(String)
     case connectionClosed

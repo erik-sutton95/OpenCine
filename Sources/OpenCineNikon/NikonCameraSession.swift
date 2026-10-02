@@ -10,8 +10,10 @@ import OpenCineCore
 // presentation is not a precondition: ISO and white balance are admitted with no live picture,
 // while record keeps its existing live-view preflight as `.unavailable(.notReady)`.
 
-/// Camera facts the adapter maps, read from the app model on demand.
+/// Camera facts the adapter maps, read from its integration-owned driver on demand.
 public struct NikonControlFacts: Sendable {
+    /// Control-link state. Recovery keeps the common session and its last reported values.
+    public var connection: ConnectionState = .ready
     /// False while a relay viewer holds control of this session.
     public var holdsControl = true
     /// The body's own live view runs (picture frames or the control pump). Record needs it.
@@ -27,13 +29,14 @@ public struct NikonControlFacts: Sendable {
     public init(
         holdsControl: Bool = true, liveViewReady: Bool = false,
         reported: PTPCameraPropertySnapshot = PTPCameraPropertySnapshot(), recording: Bool? = nil,
-        whiteBalancePresets: [String] = []
+        whiteBalancePresets: [String] = [], connection: ConnectionState = .ready
     ) {
         self.holdsControl = holdsControl
         self.liveViewReady = liveViewReady
         self.reported = reported
         self.recording = recording
         self.whiteBalancePresets = whiteBalancePresets
+        self.connection = connection
     }
 }
 
@@ -64,8 +67,8 @@ public protocol NikonControlDriver: AnyObject {
     func queueRecord(start: Bool, operation: OperationID)
 }
 
-/// One owned Nikon control link as an `OpenCineCore.CameraSession`. Created with the link and
-/// closed with it, so a reconnect is a new session ID.
+/// One Nikon monitor lifetime as an `OpenCineCore.CameraSession`. A replacement link during
+/// recovery advances its control epoch while preserving this session ID and the held monitor.
 @MainActor
 public final class NikonCameraSession: CameraSession {
     public nonisolated static let integration = IntegrationID("org.opencapture.nikon-ptp")
@@ -83,17 +86,20 @@ public final class NikonCameraSession: CameraSession {
     private var recordTargets: [OperationID: Bool] = [:]
     private var subscribers: [UUID: AsyncStream<CameraSnapshot>.Continuation] = [:]
     private var waiters: [OperationID: [UUID: CheckedContinuation<CommandReceipt?, Never>]] = [:]
+    private let onClose: @MainActor (SessionCloseReason) -> Void
 
     public init(
         driver: any NikonControlDriver, serialNumber: String,
         recordObservationTimeout: Duration = .seconds(5),
-        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now,
+        onClose: @escaping @MainActor (SessionCloseReason) -> Void = { _ in }
     ) {
         let session = CameraSessionID()
         id = session
         self.driver = driver
         self.now = now
         self.recordObservationTimeout = recordObservationTimeout
+        self.onClose = onClose
         let device =
             Self.durableDevice(serialNumber: serialNumber)
             ?? .provisional(integration: Self.integration)
@@ -199,6 +205,7 @@ public final class NikonCameraSession: CameraSession {
             continuation.finish()
         }
         subscribers.removeAll()
+        onClose(reason)
     }
 
     // MARK: App entry and command-path hooks
@@ -276,7 +283,19 @@ public final class NikonCameraSession: CameraSession {
         guard !isClosed, let facts = driver?.nikonControlFacts else { return current }
         let at = now()
         var next = current
-        next.authority = facts.holdsControl ? .owner : .unavailable(.authority)
+        if current.connection != .ready, facts.connection == .ready {
+            next.epoch = current.epoch.next()
+        }
+        next.connection = facts.connection
+        next.authority =
+            facts.connection != .ready
+            ? .unavailable(.link)
+            : facts.holdsControl ? .owner : .unavailable(.authority)
+        if current.connection == .ready, facts.connection != .ready {
+            for (operation, receipt) in receipts where !receipt.isFinished {
+                operationDropped(operation)
+            }
+        }
         // Nothing is listed unsupported: every common key exists on Z bodies (lens-, mode- or
         // firmware-dependent, tint as WB fine-tune), so what this slice does not describe is
         // unknown, not unsupported (MULTI-03 F6).

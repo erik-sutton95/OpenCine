@@ -93,6 +93,32 @@ class NikonOpenCineSessionTest {
         )
 
     @Test
+    fun ownedCloseHookRunsOnceWithoutRecordCommands() = runTest {
+        val camera = FakeNikon(movie())
+        var closes = 0
+        val seam = NikonOpenCineSession(camera, backgroundScope, onClose = { closes++ })
+        seam.closeNow(SessionCloseReason.REQUESTED)
+        seam.closeNow(SessionCloseReason.REQUESTED)
+        assertEquals(1, closes)
+        assertTrue(camera.records.isEmpty())
+        assertTrue(camera.writes.isEmpty())
+    }
+
+    @Test
+    fun authorityLossRefusesControlsWithoutChangingReports() = runTest {
+        val camera = FakeNikon(movie())
+        val seam = NikonOpenCineSession(camera, backgroundScope)
+        val reported = seam.snapshots.value.value(SettingKey.ISO)
+        seam.setHoldsControl(false)
+        val command = seam.request(CameraCommandIntent.Set(SettingValue.Iso(ISOValue.Manual(6400))))
+        assertEquals(CommandStage.Rejected(CommandRejection.NoAuthority), command.stage)
+        assertEquals(reported, seam.snapshots.value.value(SettingKey.ISO))
+        assertTrue(camera.writes.isEmpty())
+        seam.setHoldsControl(true)
+        assertEquals(com.opencapture.opencine.core.ControlAuthority.Owner, seam.snapshots.value.authority)
+    }
+
+    @Test
     fun everyAdvertisedValueReachesTheNativeCore() =
         runTest {
             val photo = movie().copy(captureSelector = "photo")
