@@ -2,4 +2,4 @@
 # CI checks out these commits as siblings (scripts/checkout-opencine.sh) and verifies the SHA,
 # so a moved branch upstream cannot change what is tested.
 # Temporary: replaced by a SwiftPM url + exact version once OpenCineCore is published.
-OpenCineCore 6b0e6ea25e02038e57b9789ab34c08421df55c6f
+OpenCineCore 3e60644d7ab20e1ef64662ada06deffbf8aa8c04

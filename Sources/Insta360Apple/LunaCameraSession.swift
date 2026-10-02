@@ -20,6 +20,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     public nonisolated static let integration = IntegrationID("com.opencapture.insta360.luna")
     /// Official Video ISO wheel.
     public nonisolated static let isoValues = [100, 160, 200, 400, 800, 1600, 3200, 6400]
+    /// What every Luna body lacks: a fixed-aperture lens (MULTI-03 F6). Other undescribed keys stay
+    /// unknown.
+    public nonisolated static let unsupported: Set<SettingKey> = [.aperture]
     /// Official Video shutter wheel, slowest last. fw 1.1.15 adds 1/15 to 1/5.
     public nonisolated static let shutterDenominators = [
         8000, 6400, 5000, 4000, 3200, 2500, 2000, 1600, 1250, 1000, 800, 640, 500, 400, 320, 250,
@@ -63,6 +66,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     private let readSettings: @MainActor () async -> Void
     private let readCapture: @MainActor () async -> Void
     private let timing: Timing
+    /// The shared host clock (`MonotonicInstant.now`); tests inject their own.
+    private let now: @Sendable () -> MonotonicInstant
     private var shootingMode: LunaShootingMode?
     /// When each key last had a known camera report.
     private var reportedAt: [SettingKey: MonotonicInstant] = [:]
@@ -82,7 +87,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         functionMode: @escaping @MainActor () -> UInt32,
         readSettings: @escaping @MainActor () async -> Void,
         readCapture: @escaping @MainActor () async -> Void,
-        timing: Timing = .luna
+        timing: Timing = .luna,
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         let id = CameraSessionID()
         self.id = id
@@ -91,6 +97,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         self.readSettings = readSettings
         self.readCapture = readCapture
         self.timing = timing
+        self.now = now
         current = CameraSnapshot(session: id, connection: .connecting(ConnectionAttemptID(), .link))
         refreshCapabilities()
     }
@@ -436,10 +443,6 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         }
     }
 
-    private func now() -> MonotonicInstant {
-        MonotonicInstant(.seconds(ProcessInfo.processInfo.systemUptime))
-    }
-
     // MARK: - Capabilities and mapping
 
     private func refreshCapabilities() {
@@ -466,9 +469,13 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             SettingDescriptor(.recording, availability: recording),
         ]
         let revision = current.capabilities.revision
-        guard CapabilitySnapshot(revision: revision, descriptors: descriptors) != current.capabilities
+        guard
+            CapabilitySnapshot(
+                revision: revision, descriptors: descriptors, unsupported: Self.unsupported)
+                != current.capabilities
         else { return }
-        current.capabilities = CapabilitySnapshot(revision: revision.next(), descriptors: descriptors)
+        current.capabilities = CapabilitySnapshot(
+            revision: revision.next(), descriptors: descriptors, unsupported: Self.unsupported)
     }
 
     /// Programs 0, 2, 4, 5 choose the ISO; 1 and 3 hold the reported one.

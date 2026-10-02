@@ -94,6 +94,17 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(refusing.current.connection, .ready, "a refusal is not a lost link")
     }
 
+    /// MULTI-03 F6 and F1: the fixed lens is declared unsupported (shared UI can tell "no iris"
+    /// from "not discovered"); observations are stamped on the shared host clock.
+    func testFixedApertureIsUnsupportedAndReportsUseTheSharedClock() {
+        let session = FakeLuna().connectedSession()
+        XCTAssertEqual(session.current.capabilities.support(of: .aperture), .unsupported)
+        XCTAssertEqual(session.current.capabilities.support(of: .zoom), .unknown)
+        let stamped = session.current.value(of: .iso).observedAt
+        let now = MonotonicInstant.now()
+        XCTAssertTrue(stamped.map { $0 <= now && now - $0 < .seconds(5) } == true, "\(stamped as Any)")
+    }
+
     func testUnknownStaysUnknown() {
         let camera = FakeLuna()
         camera.captureState = nil
