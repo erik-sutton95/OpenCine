@@ -19,6 +19,57 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func canceledEditCannotWakeSuccessorEarlyOrRetireOtherSetting() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.djiLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        #expect(await eventually { model.edit(.zoom) != nil })
+        let old = try #require(model.edit(.zoom))
+        let unrelated = try #require(model.edit(.iso))
+        #expect(model.commit(.zoom(2), from: old, label: "Zoom 2"))
+        #expect(model.commit(.iso(.manual(800)), from: unrelated, label: "ISO 800"))
+        #expect(await eventually { clock.pendingSleeps == 2 })
+        clock.advance(by: .milliseconds(60))
+        model.cancelEdit(.zoom)
+        #expect(!model.isCurrent(old))
+        #expect(model.isCurrent(unrelated))
+        #expect(!model.commit(.zoom(2), from: old, label: "Retired zoom"))
+        let successor = try #require(model.edit(.zoom))
+        #expect(model.commit(.zoom(3), from: successor, label: "Zoom 3"))
+        #expect(await eventually { clock.pendingSleeps == 3 })
+        clock.advance(by: .milliseconds(60))
+        #expect(await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] })
+        #expect(model.pending[.zoom] == .zoom(3), "Old wake cannot send the younger successor")
+        clock.advance(by: .milliseconds(60))
+        #expect(await eventuallyAsync { await camera.wire == [
+            "set \(SettingValue.iso(.manual(800)))", "set \(SettingValue.zoom(3))",
+        ] })
+    }
+
+    @available(macOS 14, *)
+    @Test func canceledInFlightReceiptCannotClearSuccessorPending() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.djiLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        #expect(await eventually { model.edit(.zoom) != nil })
+        #expect(model.commit(.zoom(2), from: try #require(model.edit(.zoom)), label: "Zoom 2"))
+        await clock.tick(.milliseconds(120))
+        #expect(await eventuallyAsync { await camera.wire.count == 1 })
+        model.cancelEdit(.zoom)
+        #expect(model.commit(.zoom(3), from: try #require(model.edit(.zoom)), label: "Zoom 3"))
+        await clock.tick(.milliseconds(120))
+        #expect(await eventuallyAsync { await camera.wire.count == 2 })
+        // The fake finishes the old receipt as superseded when the successor is submitted.
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.pending[.zoom] == .zoom(3))
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { model.pending[.zoom] == nil })
+        #expect(await camera.current.value(of: .zoom).value == .zoom(3))
+    }
+
+    @available(macOS 14, *)
     @Test func retiredBindingDoesNotReadNativeSnapshots() async {
         let camera = FakeCameraSession.djiLike()
         let (model, _) = model()
@@ -182,6 +233,7 @@ final class Notes {
 final class ManualClock {
     private(set) var now = Duration.zero
     private var sleepers: [(until: Duration, continuation: CheckedContinuation<Void, Never>)] = []
+    var pendingSleeps: Int { sleepers.count }
 
     func sleep(_ duration: Duration) async {
         await withCheckedContinuation { sleepers.append((now + duration, $0)) }

@@ -66,6 +66,7 @@ public class MonitorControlModel(
         internal val epoch: ControlEpoch,
         internal val authority: ControlAuthority,
         internal val domain: SettingDomain?,
+        internal val localRevision: Long = 0,
     )
 
     /** An explicit record confirmation authorizes exactly this camera state. */
@@ -107,6 +108,7 @@ public class MonitorControlModel(
     private data class PendingEdit(val operation: OperationID, val label: String, val editor: Editor?)
     private val operations = HashMap<SettingKey, PendingEdit>()
     private val scheduled = HashSet<SettingKey>()
+    private val editRevisions = HashMap<SettingKey, Long>()
     private var recordOperation: OperationID? = null
 
     // Binding
@@ -141,6 +143,7 @@ public class MonitorControlModel(
         val changed = mutable.value.snapshot != null || mutable.value.pending.isNotEmpty()
         operations.clear()
         scheduled.clear()
+        editRevisions.clear()
         recordOperation = null
         mutable.value = State()
         if (changed) onChange()
@@ -173,13 +176,15 @@ public class MonitorControlModel(
     public fun edit(key: SettingKey): Editor? {
         val snapshot = state.value.snapshot ?: return null
         val descriptor = snapshot.capabilities[key] ?: return null
-        return Editor(key, binding, snapshot.session, snapshot.epoch, snapshot.authority, descriptor.domain)
+        return Editor(key, binding, snapshot.session, snapshot.epoch, snapshot.authority, descriptor.domain,
+            editRevisions[key] ?: 0)
     }
 
     /** Whether [editor] still describes this session, epoch, authority and domain. */
     public fun isCurrent(editor: Editor): Boolean {
         val snapshot = state.value.snapshot ?: return false
-        return editor.binding == binding && editor.session == snapshot.session && editor.epoch == snapshot.epoch &&
+        return editor.binding == binding && editor.localRevision == (editRevisions[editor.key] ?: 0) &&
+            editor.session == snapshot.session && editor.epoch == snapshot.epoch &&
             editor.authority == snapshot.authority && editor.domain == snapshot.capabilities[editor.key]?.domain
     }
 
@@ -188,6 +193,16 @@ public class MonitorControlModel(
         if (!admits(value, editor)) return false
         set(value, label, editor)
         return true
+    }
+
+    /** Retires one local setting edit and its captured editors. Sent camera work continues;
+     * its receipt cannot clear a successor. No command or owner epoch change. */
+    public fun cancelEdit(key: SettingKey) {
+        editRevisions[key] = (editRevisions[key] ?: 0) + 1
+        operations.remove(key)
+        scheduled.remove(key)
+        mutable.update { it.copy(pending = it.pending - key) }
+        onChange()
     }
 
     private fun admits(value: SettingValue, editor: Editor): Boolean {
@@ -212,9 +227,10 @@ public class MonitorControlModel(
         onChange()
         if (!scheduled.add(key)) return
         val current = binding
+        val revision = editRevisions[key] ?: 0
         scope.launch {
             sleep(coalescingMs)
-            if (binding != current) return@launch
+            if (binding != current || (editRevisions[key] ?: 0) != revision) return@launch
             scheduled.remove(key)
             submit(key)
         }
@@ -263,7 +279,7 @@ public class MonitorControlModel(
             else -> return null
         }
         return RecordEditor(recording, Editor(SettingKey.RECORDING, binding, snapshot.session,
-            snapshot.epoch, snapshot.authority, descriptor.domain), mode)
+            snapshot.epoch, snapshot.authority, descriptor.domain, editRevisions[SettingKey.RECORDING] ?: 0), mode)
     }
 
     /** Approval is retired on mode, epoch, authority, binding or recording changes. */
