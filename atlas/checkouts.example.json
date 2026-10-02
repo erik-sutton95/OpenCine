@@ -1,0 +1,7 @@
+{
+  "workspace": "<absolute path of the folder that holds your sibling checkouts>",
+  "repos": {
+    "openpocketcine": "<absolute path of an OpenPocketCine checkout>",
+    "openzcine": "<absolute path of an OpenZCine checkout>"
+  }
+}

@@ -1,0 +1,11 @@
+# Machine-local configuration: checkout paths, task notes, dirty overlays.
+.local/
+
+# Full Graphify output (graph.json, graph.html, merged graphs, caches) is rebuilt
+# locally by `tools/atlas.py graph build`. Only compact reports and snapshot
+# metadata under repos/<id>/snapshots/ are committed.
+graphify-out/
+
+__pycache__/
+*.pyc
+.DS_Store

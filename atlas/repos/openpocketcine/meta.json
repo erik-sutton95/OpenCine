@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "id": "openpocketcine",
+  "display_name": "OpenPocketCine",
+  "status": "active",
+  "layer": "app",
+  "repository": {
+    "url": "https://github.com/erik-sutton95/OpenPocketCine",
+    "default_branch": "main"
+  },
+  "local_dir": "OpenPocketCine",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
+      "role": "baseline"
+    },
+    {
+      "name": "opencine/ui-01-swift",
+      "commit": "8a5de7c83aa51c131f564014ac2114d411aeb343",
+      "role": "candidate"
+    },
+    {
+      "name": "opencine/ui-02-android",
+      "commit": "ec28f99471050dda48f3ba37e1c0c957267d298b",
+      "role": "candidate"
+    }
+  ],
+  "products": [
+    {
+      "name": "MonitorPresentation",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "MonitorUI",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenPocketViewCore",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenPocketCineAndroid",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenPocketCine",
+      "kind": "xcode-target",
+      "manifest": "ios/project.yml"
+    },
+    {
+      "name": "OpenPocketCineWatch",
+      "kind": "xcode-target",
+      "manifest": "ios/project.yml"
+    },
+    {
+      "name": ":app",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    },
+    {
+      "name": ":core-api",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    },
+    {
+      "name": ":monitor-ui",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "openzcine",
+      "kind": "source-copy",
+      "status": "live",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "scope": [
+        "Sources/OpenPocketViewCore/CubeLUT.swift"
+      ],
+      "mechanism": "one-time adaptation, recorded in THIRD-PARTY-NOTICES.md",
+      "donor_revision": null,
+      "evidence": {
+        "path": "THIRD-PARTY-NOTICES.md",
+        "source_commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7"
+      },
+      "note": "Cube parser adapted from OpenZCine; donor revision not recorded"
+    }
+  ],
+  "summary_review": {
+    "source_commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
+    "reviewed_at": "2026-10-01T17:39:17Z"
+  }
+}

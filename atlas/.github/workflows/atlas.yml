@@ -1,0 +1,43 @@
+name: Atlas
+
+# Atlas-only changes need only atlas checks (plan 11.5). Nothing here builds an app, touches
+# another repository, publishes, schedules or merges. The Graphify build test and the
+# pinned-path eval test are skipped here (no macOS sandbox, no app checkouts) and report as
+# skipped, not passed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Atlas check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Registry, direction, cycles, snapshots, candidates and private paths
+        run: python3 tools/atlas.py check
+
+  compat-plan:
+    # Informational and read-only. Consumer builds (`compat run`) need macOS, Xcode and the
+    # Android SDK, so they run manually on a Mac (docs/EXECUTION.md); here every check is
+    # reported as unavailable because no checkouts exist. Not a required check.
+    name: Compat plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Candidate consumer matrix
+        run: python3 tools/atlas.py compat plan

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "opencinemulticam",
+  "display_name": "OpenCineMulticam",
+  "status": "candidate",
+  "layer": "multicam",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCineMulticam",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "03f05fbc1cb27c5e53defa81ed326680d1cecd7e",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "OpenCineMulticam",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": ":multicam",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:multicam"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "opencinecore",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "note": "path dependency ../OpenCineCore pinned in opencine-pins.txt; Android/settings.gradle.kts includes ../../OpenCineCore/Android (named opencinecore) for com.opencapture.opencine:core",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "03f05fbc1cb27c5e53defa81ed326680d1cecd7e"
+      }
+    }
+  ],
+  "summary_review": null
+}

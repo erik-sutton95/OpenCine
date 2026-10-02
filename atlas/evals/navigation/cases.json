@@ -1,0 +1,134 @@
+[
+  {
+    "id": "N1", "topic": "UI2 shared control", "mode": "investigate",
+    "request": "Dragging the ISO drum slowly sometimes skips a value, on both iPhone and Android. Find where the drum decides which value is selected.",
+    "expected": {
+      "owner": "openpocketcine", "snapshot": "openpocketcine@main", "code_change": true,
+      "paths": ["Sources/MonitorPresentation/MonitorDrumSelection.swift", "Sources/MonitorUI/Pages/MonitorValueDrum.swift",
+                "Apps/Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorDrumSelection.kt"],
+      "tests": ["Tests/MonitorPresentationTests/MonitorDrumSelectionTests.swift",
+                "Apps/Android/monitor-ui/src/test/kotlin/com/opencapture/monitorui/MonitorDrumSelectionTest.kt"],
+      "must_mention": "Insta and the Nikon engine-port hold copies; the fix belongs in the donor (or opencineui once adopted)."
+    }
+  },
+  {
+    "id": "N2", "topic": "retained Multi View hosts", "mode": "investigate",
+    "request": "In Multi View on iPhone, rotating the phone makes every feed reconnect. Where is the tile video host kept alive across layout changes?",
+    "expected": {
+      "owner": "openpocketcine", "snapshot": "openpocketcine@main", "code_change": true,
+      "paths": ["ios/OpenPocketCine/MultiviewStageCanvas.swift", "ios/OpenPocketCine/MultiviewSession.swift"],
+      "tests": ["ios/OpenPocketCineTests/MultiviewStageTests.swift"],
+      "must_mention": "Host identity is retained by ID; reconnects point at session ownership, not layout."
+    }
+  },
+  {
+    "id": "N3", "topic": "setting capabilities", "mode": "investigate",
+    "request": "OpenInstaCine shows an iris control for the Luna, which has a fixed aperture. Where does the app decide which controls exist?",
+    "expected": {
+      "owner": "openinstacine", "snapshot": "openinstacine@main", "code_change": true,
+      "paths": ["ios/OpenInstaCine/OsmoMonitorPresentation.swift", "Sources/MonitorPresentation/MonitorCapabilities.swift"],
+      "tests": [],
+      "must_mention": "Change the Luna-owned adapter (kept the Osmo name), not the shared MonitorCapabilities copy, which the Pocket sync overwrites."
+    }
+  },
+  {
+    "id": "N4", "topic": "log-preview analysis", "mode": "investigate",
+    "request": "On OpenPocketCine, false color reads too hot when the camera records D-Log M. Find the code that decides how the log signal is measured.",
+    "expected": {
+      "owner": "openpocketcine", "snapshot": "openpocketcine@main", "code_change": true,
+      "paths": ["Sources/OpenPocketViewCore/LiveColorScience.swift", "Sources/OpenPocketViewCore/LogColorTransform.swift",
+                "Apps/Android/app/src/main/kotlin/com/opencapture/openpocketcine/feed/LiveColorScience.kt"],
+      "tests": ["Tests/OpenPocketViewCoreTests/LiveColorScienceTests.swift", "Tests/OpenPocketViewCoreTests/LogColorTransformTests.swift",
+                "Apps/Android/app/src/test/kotlin/com/opencapture/openpocketcine/feed/LiveColorScienceTest.kt"],
+      "must_mention": "The false-color reading preference is global today, not per source."
+    }
+  },
+  {
+    "id": "N5", "topic": "owner-keyed JNI", "mode": "investigate",
+    "request": "On the Nikon Android app, closing one camera's session sometimes tears down another camera. Is there an existing fix?",
+    "expected": {
+      "owner": "openzcine", "snapshot": "openzcine@feat/monitor-engine-port", "code_change": false,
+      "paths": ["Sources/OpenZCineAndroidFacade/AndroidSessionOwnerRegistry.swift"],
+      "tests": ["Tests/OpenZCineAndroidFacadeTests/AndroidSessionOwnerRegistryTests.swift"],
+      "absent_at": {"openzcine@main": ["Sources/OpenZCineAndroidFacade/AndroidSessionOwnerRegistry.swift"]},
+      "must_mention": "The fix exists only on the unmerged engine-port branch; main does not have it."
+    }
+  },
+  {
+    "id": "N6", "topic": "Nikon PTP/JPEG versus capture input", "mode": "investigate",
+    "request": "When the Nikon picture comes from an HDMI capture card instead of Wi-Fi live view, should record and ISO still work? Find the picture source and the camera command session.",
+    "expected": {
+      "owner": "openzcine", "snapshot": "openzcine@main", "code_change": false,
+      "paths": ["ios/Runner/UVCVideoSource.swift", "ios/Runner/NativeCameraSession.swift", "Sources/OpenZCineCore/LiveViewWatchdog.swift",
+                "Apps/Android/app/src/main/kotlin/com/opencapture/openzcine/UvcCaptureSource.kt"],
+      "tests": [],
+      "must_mention": "Picture source and PTP command service are separate; the record operation keeps its live-view preflight."
+    }
+  },
+  {
+    "id": "N7", "topic": "Luna control", "mode": "investigate",
+    "request": "Changing ISO on the Insta360 Luna takes a few seconds and the control snaps back to the old value meanwhile. Where are Luna settings sent and read back?",
+    "expected": {
+      "owner": "openinstacine", "snapshot": "openinstacine@main", "code_change": true,
+      "paths": ["ios/OpenInstaCine/CameraSessionControls.swift", "Adapters/Insta360Protocol/Sources/Insta360Protocol/LunaControl.swift",
+                "Adapters/Insta360Apple/Sources/Insta360Apple/LunaCameraBackend.swift",
+                "Apps/Android/luna-adapter/src/main/kotlin/com/opencapture/openinstacine/luna/LunaControl.kt"],
+      "tests": ["Adapters/Insta360Protocol/Tests/Insta360ProtocolTests/LunaControlTests.swift",
+                "Apps/Android/luna-adapter/src/test/kotlin/com/opencapture/openinstacine/luna/LunaControlTest.kt"],
+      "must_mention": "Pending state must survive the readback delay without inventing success."
+    }
+  },
+  {
+    "id": "N8", "topic": "Frame.io", "mode": "investigate",
+    "request": "Frame.io delivery from the Nikon app fails while the phone is joined to the camera's Wi-Fi. Find the request planning and the network hop handling.",
+    "expected": {
+      "owner": "openzcine", "snapshot": "openzcine@main", "code_change": true,
+      "paths": ["Sources/OpenZCineCore/Frameio/FrameioAPI.swift",
+                "Apps/Android/app/src/main/kotlin/com/opencapture/openzcine/frameio/FrameioCameraApHop.kt",
+                "ios/Runner/Frameio/FrameioAuthCoordinator.swift"],
+      "tests": ["Apps/Android/app/src/test/kotlin/com/opencapture/openzcine/frameio/FrameioCameraApHopTest.kt"],
+      "must_mention": "OAuth and secure storage stay app-owned; Pocket has a separate Frame.io implementation."
+    }
+  },
+  {
+    "id": "N9", "topic": "wrong repository", "mode": "plan",
+    "request": "The chevron icons in OpenInstaCine's settings rows render slightly off-center. Fix them.",
+    "expected": {
+      "owner": "openpocketcine", "snapshot": "openpocketcine@main", "code_change": true,
+      "paths": ["Sources/MonitorUI/Icons/MonitorIcon.swift", "Sources/MonitorUI/Icons/LucideSVG.swift"],
+      "tests": [],
+      "must_mention": "Insta's MonitorUI is a synced copy; plan the fix in Pocket (or opencineui) and re-sync Insta."
+    }
+  },
+  {
+    "id": "N10", "topic": "wrong repository", "mode": "investigate",
+    "request": "OpenPocketCine's Luna I-Log look is too contrasty. Which LUT does it use?",
+    "expected": {
+      "owner": "openinstacine", "snapshot": "openinstacine@main", "code_change": false,
+      "paths": ["Resources/CameraLUTs/README.md", "Resources/CameraLUTs/manifest.json"],
+      "tests": [],
+      "must_mention": "Pocket has no Luna look; the Luna LUT is app-scoped to OpenInstaCine and not redistributable to shared packages."
+    }
+  },
+  {
+    "id": "N11", "topic": "no code change", "mode": "investigate",
+    "request": "Is Nikon multicam in the app that ships from main today?",
+    "expected": {
+      "owner": "openzcine", "snapshot": "openzcine@feat/monitor-engine-port", "code_change": false,
+      "paths": ["ios/Runner/MulticamCoordinator.swift", "Sources/OpenZCineCore/GroupRecord.swift"],
+      "tests": ["Tests/OpenZCineCoreTests/GroupRecordTests.swift"],
+      "absent_at": {"openzcine@main": ["ios/Runner/MulticamCoordinator.swift", "Sources/OpenZCineCore/GroupRecord.swift"]},
+      "must_mention": "No. It exists only on the unmerged engine-port branch; answering needs refs, not edits."
+    }
+  },
+  {
+    "id": "N12", "topic": "no code change", "mode": "investigate",
+    "request": "Has the OpenInstaCine Android app been tested with a real Luna camera?",
+    "expected": {
+      "owner": "openinstacine", "snapshot": "openinstacine@main", "code_change": false,
+      "paths": ["docs/DEVELOPMENT.md"],
+      "tests": [],
+      "must_mention": "Not verified on a physical Luna per the repo's own docs; report as untested, do not propose code."
+    }
+  }
+]

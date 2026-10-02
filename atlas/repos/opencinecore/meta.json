@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "id": "opencinecore",
+  "display_name": "OpenCineCore",
+  "status": "candidate",
+  "layer": "core",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCineCore",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "7fe6b8c02c0aa678691fc13ffcfffaccf98fbeca",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "OpenCineCore",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineCoreTestSupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMedia",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineFrameIO",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMotion",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineRelay",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": ":core",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:core"
+    },
+    {
+      "name": ":media",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:media"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [],
+  "summary_review": null
+}
