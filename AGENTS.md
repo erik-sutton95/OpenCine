@@ -55,9 +55,10 @@ moves to OpenCine.
 
 ## Boundaries
 
-Import rules ([plan](atlas/docs/architecture/platform-plan.md) 3.4). The target edges in `Package.swift` and the `project(":x")` edges in
-`Android/` encode them; the per-area import tests and `atlas check` enforce them. Never add an
-edge that breaks them, and never add a third-party package dependency.
+Import rules ([plan](atlas/docs/architecture/platform-plan.md) 3.4). The target edges in
+`Package.swift` and the `project(":x")` edges in `Android/` encode them; the per-area import tests
+and `atlas check` enforce them. Never add an edge that breaks them, and never add a third-party
+package dependency.
 
 - Core (`OpenCineCore`) imports Foundation only and names no manufacturer; it never imports UI, an
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
