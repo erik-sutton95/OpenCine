@@ -63,6 +63,12 @@ dialogs) render the model. Each app entry is `AppIntegration(integration, slots)
 are `pairing` (pair-page content while choosing), `addRoute` (builds a `RouteDraft`) and `prompt`
 (renders an `IntegrationPrompt`). Shared code never asks which integration an entry is.
 
+Integrations with preparation wizards pass an `IntegrationPairingFlow` to `PairScreen`: the
+current step's presentation, primary/back/selection actions and pane content. The shared page
+still owns the rail, layout, diagnostics and help controls. This replaces the ordinary chooser
+and its extra content for that render; passing `nil` (Kotlin `null`) resumes the connection
+model's progress and recovery presentation. Discovery keeps the same pairing lifecycle.
+
 Review fixtures: `ReviewScreens` (iOS simulator only) renders eight states and writes PNGs when
 `OPENCINE_SCREENSHOTS` is set (`TEST_RUNNER_OPENCINE_SCREENSHOTS=<dir> xcodebuild test -scheme
 OpenCine-Package -destination <private simulator> -only-testing:OpenCineAppKitTests`).

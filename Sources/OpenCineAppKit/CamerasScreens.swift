@@ -141,6 +141,7 @@
     public struct PairScreen: View {
         @Bindable public var model: CamerasModel
         public var safeArea: EdgeInsets
+        public var pairingFlow: IntegrationPairingFlow?
         public var onDone: () -> Void
         public var onDiagnostics: () -> Void
         public var onReportProblem: () -> Void
@@ -149,7 +150,8 @@
         public init(
             model: CamerasModel, safeArea: EdgeInsets = EdgeInsets(), onDone: @escaping () -> Void,
             onDiagnostics: @escaping () -> Void, onReportProblem: @escaping () -> Void,
-            onWatchFeed: (() -> Void)? = nil
+            onWatchFeed: (() -> Void)? = nil,
+            pairingFlow: IntegrationPairingFlow? = nil
         ) {
             self.model = model
             self.safeArea = safeArea
@@ -157,12 +159,14 @@
             self.onDiagnostics = onDiagnostics
             self.onReportProblem = onReportProblem
             self.onWatchFeed = onWatchFeed
+            self.pairingFlow = pairingFlow
         }
 
         public var body: some View {
             PairCameraPage(
-                presentation: CamerasMapping.pairing(model), safeArea: safeArea,
-                onSelect: { model.selection = $0 }, onPrimary: primary, onBack: back,
+                presentation: pairingFlow?.presentation ?? CamerasMapping.pairing(model), safeArea: safeArea,
+                onSelect: pairingFlow?.onSelect ?? { model.selection = $0 },
+                onPrimary: pairingFlow?.onPrimary ?? primary, onBack: pairingFlow?.onBack ?? back,
                 onDiagnostics: onDiagnostics, onReportProblem: onReportProblem, onWatchFeed: onWatchFeed
             ) {
                 extra
@@ -175,7 +179,9 @@
         private var cameraID: String? { sighting.map { ConnectTarget.nearby($0.camera).cameraID } }
 
         @ViewBuilder private var extra: some View {
-            if let id = cameraID, let attempt = model.attempts[id] {
+            if let pairingFlow {
+                pairingFlow.content
+            } else if let id = cameraID, let attempt = model.attempts[id] {
                 if case .integration(let prompt) = attempt.prompt, let view = slots(of: attempt.integration).prompt?(prompt) {
                     view
                 }

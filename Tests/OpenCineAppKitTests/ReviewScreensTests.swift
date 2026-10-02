@@ -88,6 +88,23 @@
             #expect(await eventually { pairing.failures["n2"] != nil })
             pairing.selection = "n2"
             try write(pair(pairing), "08-pair-failure")
+
+            let preparation = IntegrationPairingFlow(
+                presentation: CameraPairingPresentation(
+                    steps: [
+                        CameraPairingStep("Prepare", "Enable the connection"),
+                        CameraPairingStep("Connect", "Choose the camera"),
+                    ],
+                    currentStep: 0, title: "Prepare your camera",
+                    body: "Choose the camera connection in its menu.", target: "Camera setup", hint: "",
+                    primaryAction: "Continue", primaryActionEnabled: true, backAction: "Back"),
+                onPrimary: {}, onBack: {},
+                content: AnyView(Text("Network setup instructions").foregroundStyle(.white)))
+            try write(
+                PairScreen(
+                    model: pairing, safeArea: safeArea, onDone: {}, onDiagnostics: {},
+                    onReportProblem: {}, pairingFlow: preparation),
+                "09-pair-integration-preparation")
         }
 
         /// Apps call the pair page without `extra`, as before the slot existed.

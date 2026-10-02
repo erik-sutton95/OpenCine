@@ -235,6 +235,7 @@ public fun PairScreen(
     onReportProblem: () -> Unit,
     modifier: Modifier = Modifier,
     onWatchFeed: (() -> Unit)? = null,
+    pairingFlow: IntegrationPairingFlow? = null,
 ) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
@@ -246,9 +247,9 @@ public fun PairScreen(
     val cameraID = sighting?.let { ConnectTarget.Nearby(it.camera).cameraID }
     val attempt = cameraID?.let { state.attempts[it] }
     MonitorPairCameraPage(
-        presentation = CamerasMapping.pairing(model),
-        onSelect = model::select,
-        onPrimary = {
+        presentation = pairingFlow?.presentation ?: CamerasMapping.pairing(model),
+        onSelect = pairingFlow?.onSelect ?: model::select,
+        onPrimary = pairingFlow?.onPrimary ?: {
             if (sighting != null && cameraID != null) {
                 val failure = state.failures[cameraID]?.failure
                 if (failure == null) {
@@ -259,13 +260,15 @@ public fun PairScreen(
                 }
             }
         },
-        onBack = { if (cameraID != null && attempt != null) model.cancel(cameraID) else onDone() },
+        onBack = pairingFlow?.onBack ?: { if (cameraID != null && attempt != null) model.cancel(cameraID) else onDone() },
         onDiagnostics = onDiagnostics,
         onReportProblem = onReportProblem,
         modifier = modifier,
         onWatchFeed = onWatchFeed,
         extra = {
-            if (attempt != null) {
+            if (pairingFlow != null) {
+                pairingFlow.content()
+            } else if (attempt != null) {
                 val prompt = attempt.prompt as? ConnectionPrompt.Integration
                 val slot = slots(model, attempt.integration).prompt
                 if (prompt != null && slot != null) slot(prompt.prompt)
