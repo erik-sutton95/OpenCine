@@ -222,6 +222,24 @@ Once published, drop `includeBuild` and use the Maven coordinate
 move to the verified Maven Central namespace at publish time. Local multi-repo work then becomes
 an opt-in `includeBuild` behind an untracked property.
 
+### App shell contracts stay out of Core (CORE-API decision, 2026-10-02)
+
+The apps' Kotlin `:core-api` modules are not Core and nothing from them was added here:
+
+- OpenInstaCine's (`CameraBackend`, `CameraControls`, `CameraMediaStore`, `CoreSessionSource` and
+  their values) is Luna-shaped: Luna shooting, gimbal and focus modes, raw exposure-program and
+  storage-location codes, DJI pipeline phase names. It moved to OpenCineInsta360 `Android/`
+  (`com.opencapture.opencine:insta360-shell`, next to the adapter `insta360-luna`), the Kotlin twin
+  of the Swift `CameraBackend` seam in Insta360Apple.
+- OpenPocketCine's is one enum, `ConnectionPhase` (DJI BLE, Wi-Fi and datalink stages); its legacy
+  `CameraSession` seam (phase, startScan, disconnect) was retired in both apps. The enum moves to
+  OpenCineDJI with the Kotlin DJI session.
+- OpenZCine's `com.opencapture.openzcine.core` is Nikon's own session model, not a copy.
+
+Commands and camera-reported state already go through this module (`CameraSession`,
+`ConnectionState`, `PowerStatus`, `StorageStatus`, `RecordingState`). A shell value joins Core only
+when it is vendor-neutral, keeps unknown distinct from false and carries no raw vendor enum.
+
 ### Kotlin mapping
 
 Same names and semantics, in Kotlin idiom. Where they differ:
