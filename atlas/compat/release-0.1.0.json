@@ -62,7 +62,7 @@
     {
       "repo": "opencinedji",
       "branch": "main",
-      "commit": "e254af11f37fdde305dd231cfbd4a61c080d3318",
+      "commit": "15ab51fe34e823fd82e1c6bae99f827dc0e59e09",
       "description": "DJI camera integration for OpenCine apps: DUML, datalink, camera control and the session adapter",
       "verify": [
         "swift build --build-tests",
@@ -70,8 +70,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "e254af11f37fdde305dd231cfbd4a61c080d3318",
-        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 377 tests / 47 suites (progress.d/RELEASE-01.md)"
+        "commit": "15ab51fe34e823fd82e1c6bae99f827dc0e59e09",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
       }
     },
     {
