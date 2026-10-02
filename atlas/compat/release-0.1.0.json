@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "62d0c1197598c7daa56f95366b226bac81803563",
+    "commit": "fe6a4c51e0bf7be2863a65a0fdc6f69e22359ef1",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "62d0c1197598c7daa56f95366b226bac81803563",
-      "where": "OpenCine main at 62d0c11 (2026-10-02, SHELL-04 stage C merged as 6e381bb + Nikon transports 8222b0a): swift build --build-tests + swift test 1604 Swift Testing + 72 XCTest at 57d4b42; Android gradlew test lint assembleRelease green at 6e381bb (Android unchanged since): core 38/3 skip, media 64, decoder 1, dji 334, nikon 92, monitor-ui 119, multicam 18, luna 51; atlas tests and check. Consumer OpenPocketCine c1908e39 green."
+      "commit": "fe6a4c51e0bf7be2863a65a0fdc6f69e22359ef1",
+      "where": "OpenCine main at fe6a4c5: code identical to 57d4b42 (recorded green with OpenPocketCine c1908e39); later commits are atlas/ only (records, duplication baseline)."
     }
   },
   "apps": [
