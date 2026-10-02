@@ -10,14 +10,17 @@ resumes after the last finished step. Everything is driven by compat/release-<ve
              recorded green evidence, publishable author emails, required tools
   platform   the one repository this atlas lives in: remote, clean-clone verify, one annotated
              tag, push main and the tag
-  apps       the one package by URL + exact version, resolve and commit lock files, Android
-             sibling pin of the tag commit, clean-clone verify, push the branch, draft pull
-             request (--open-prs)
+  apps       the one package by URL + exact version, issue templates that route shared-code
+             problems to OpenCine, resolve and commit lock files, Android sibling pin of the tag
+             commit, clean-clone verify, push the branch, draft pull request (--open-prs)
+  project    one GitHub project under the owner that links all four repositories and holds
+             their open issues (`project` re-syncs it later)
   atlas      repository URL, refs, live edges once every app PR exists, compat/VERSIONS.md,
              `atlas check --sources`, commit on the platform's main, push
 
 Other commands: `decide` and `record` edit the release record, `rewrite-authors` replaces
-author emails before the first push, `table` prints compat/VERSIONS.md. See docs/PUBLISH.md.
+author emails before the first push, `table` prints compat/VERSIONS.md, `project` adds open
+issues to the GitHub project (dry run unless --execute). See docs/PUBLISH.md.
 Standard library only.
 """
 from __future__ import annotations
@@ -57,6 +60,8 @@ PINS_HEADER = """\
 # reported, never moved). Android builds read it (Gradle includeBuild named opencine) until Maven
 # artifacts exist; Apple builds resolve the same version from Package.swift and Package.resolved.
 """
+# One GitHub project (Projects v2) under the owner shows the issues of every repository.
+PROJECT_TITLE = "OpenCapture"
 CI_COMMENT = [
     "The OpenCine platform at the released tag in opencine-pins.txt, checked out next to the",
     "repository: the Android build includes its Gradle build until Maven artifacts exist. Apple",
@@ -306,6 +311,40 @@ def drop_checkout_from_script(text):
     return "\n".join(lines)
 
 
+# Issue templates: an app issue form asks whether the problem is app-only or shared, and the
+# chooser links OpenCine's tracker. Existing app templates are edited, never replaced.
+SHARED_LINK = """\
+  - name: Shared camera, UI or multicam code (OpenCine)
+    url: {url}/issues/new/choose
+    about: For contributors. A bug in code several apps share belongs in OpenCine. Not sure? Report it here; maintainers move it.
+
+"""
+SHARED_QUESTION = """
+  - type: dropdown
+    id: shared
+    attributes:
+      label: Does this happen in another OpenCapture app too? (optional)
+      description: >
+        OpenPocketCine, OpenInstaCine and OpenZCine share code in OpenCine ({url}).
+        Maintainers move a problem that is not specific to this app there.
+      options:
+        - I am not sure
+        - Only in this app
+        - Also in another OpenCapture app
+"""
+
+
+def route_issue_templates(rel, text, opencine_url):
+    """Add the OpenCine link to an issue chooser and the app-only-or-shared question to a form."""
+    if f"{opencine_url}/issues" in text or "id: shared" in text:
+        return text
+    if rel.endswith("ISSUE_TEMPLATE/config.yml") and re.search(r"(?m)^contact_links:[ \t]*\n", text):
+        return re.sub(r"(?m)^contact_links:[ \t]*\n\n?", lambda m: "contact_links:\n" + SHARED_LINK.format(url=opencine_url), text, count=1)
+    if re.search(r"ISSUE_TEMPLATE/[^/]+\.ya?ml$", rel) and re.search(r"(?m)^body:", text):
+        return text.rstrip("\n") + "\n" + SHARED_QUESTION.format(url=opencine_url)
+    return text
+
+
 # ---------------------------------------------------------------- the run
 
 class Run:
@@ -540,6 +579,12 @@ class Run:
             old = (path / rel).read_text()
             if (new := fn(old)) != old:
                 out[rel] = new
+        if is_app:
+            for rel in tracked:
+                if re.match(r"^\.github/ISSUE_TEMPLATE/(config|bug_report)\.ya?ml$", rel):
+                    old = (path / rel).read_text()
+                    if (new := route_issue_templates(rel, old, self.url(self.name(self.platform_id)))) != old:
+                        out[rel] = new
         sibling_gradle = bool(git(path, "grep", "-l", "-E", r"includeBuild\(.(\.\./)+(" + "|".join(self.names) + ")/",
                                   "--", "*.gradle.kts", "*.gradle", check=False))
         keep = is_app or sibling_gradle
@@ -669,7 +714,9 @@ class Run:
         body = (f"Apple builds resolve {used} {self.version} from {self.url_base()} and commit "
                 "Package.resolved (Xcode Cloud resolves from it). Android keeps the sibling checkout, now "
                 f"pinned to the {self.version} tag commit in opencine-pins.txt, until Maven artifacts exist. "
-                "Generated by OpenCine atlas/tools/publish.py.")
+                + ("Issue templates ask whether a problem is app-only or shared and link OpenCine. "
+                   if any(k.startswith(".github/ISSUE_TEMPLATE/") for k in changes) else "")
+                + "Generated by OpenCine atlas/tools/publish.py.")
         msg = f"build: take OpenCine {self.version} by URL and exact version\n\n" + textwrap.fill(body, 72, break_long_words=False, break_on_hyphens=False)
         return self.commit(path, list(changes) + e.get("lockfiles", []), msg)
 
@@ -726,6 +773,35 @@ class Run:
         return self.gh("pr", "create", "--repo", repo, "--base", "main", "--head", e["branch"], "--draft",
                        "--title", e.get("pr_title", f"OpenCine {self.version}"), "--body-file", str(out)).stdout.strip()
 
+    # -- GitHub project
+    def project_repos(self):
+        apps = [re.sub(r"^https://github\.com/", "", self.reg[a["repo"]]["repository"]["url"] or "").rstrip("/") for a in self.release["apps"]]
+        return [f"{self.owner}/{self.name(self.platform_id)}"] + [a for a in apps if a]
+
+    def sync_project(self):
+        """Find or create the owner's project, link the four repositories, add open issues it lacks."""
+        title = self.release.get("project_title", PROJECT_TITLE)
+        found = json.loads(self.gh("project", "list", "--owner", self.owner, "--format", "json", "--limit", "100").stdout or "{}")
+        proj = next((p for p in found.get("projects", []) if p.get("title") == title), None)
+        if not proj:
+            proj = json.loads(self.gh("project", "create", "--owner", self.owner, "--title", title, "--format", "json").stdout)
+        num = str(proj["number"])
+        repos = self.project_repos()
+        for repo in repos:
+            r = self.gh("project", "link", num, "--owner", self.owner, "--repo", repo, check=False)
+            if r.returncode and "already" not in r.stderr.lower():
+                raise Stop(f"gh project link {repo}: {r.stderr.strip()} (the token needs the project scope: docs/PUBLISH.md)")
+        items = json.loads(self.gh("project", "item-list", num, "--owner", self.owner, "--format", "json", "--limit", "2000").stdout or "{}")
+        have = {(i.get("content") or {}).get("url") for i in items.get("items", [])}
+        added = []
+        for repo in repos:
+            for issue in json.loads(self.gh("issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "url").stdout or "[]"):
+                if issue["url"] not in have:
+                    self.gh("project", "item-add", num, "--owner", self.owner, "--url", issue["url"])
+                    added.append(issue["url"])
+        print(f"         project {proj.get('url', num)}: linked {', '.join(repos)}; added {len(added)} open issue(s)")
+        return {"number": proj["number"], "url": proj.get("url"), "added": len(added)}
+
     # -- atlas
     def update_atlas(self):
         steps, apps = self.state["steps"], [a["repo"] for a in self.release["apps"]]
@@ -771,6 +847,12 @@ class Run:
         self.publish_platform()
         for app in self.release["apps"]:
             self.publish_app(app["repo"])
+        print("GitHub project")
+        if self.base:
+            print("  skip   GitHub project (custom --remote-base)")
+        else:
+            self.step("project", f"find or create the project {self.release.get('project_title', PROJECT_TITLE)!r} under {self.owner}, "
+                      f"link {', '.join(self.project_repos())} and add their open issues", self.sync_project)
         print(f"{self.name(self.platform_id)} atlas")
         # Keyed by the PR state, so a later `--open-prs` run updates the registry again (status active).
         live = all(self.state["steps"].get(f"pr:{self.name(a['repo'])}") for a in self.release["apps"])
@@ -972,6 +1054,8 @@ def main(argv=None):
     p.add_argument("--execute", action="store_true")
     p = sub.add_parser("table", help="print compat/VERSIONS.md (--write to write it)")
     p.add_argument("--write", action="store_true")
+    p = sub.add_parser("project", help="add open issues of all four repositories to the GitHub project (dry run unless --execute)")
+    p.add_argument("--execute", action="store_true")
     args = ap.parse_args(argv)
     try:
         run = Run(args, atlas_root())
@@ -981,6 +1065,13 @@ def main(argv=None):
             return cmd_record(run, args)
         if args.cmd == "rewrite-authors":
             return cmd_rewrite_authors(run, args)
+        if args.cmd == "project":
+            if not args.execute:
+                print(f"would find or create the project {run.release.get('project_title', PROJECT_TITLE)!r} under {run.owner}, "
+                      f"link {', '.join(run.project_repos())} and add their open issues (--execute acts)")
+                return OK
+            run.sync_project()
+            return OK
         if args.cmd == "table":
             text = versions_table(run)
             if args.write:
