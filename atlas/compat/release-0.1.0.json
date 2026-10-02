@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "f88239f78c34d11eea3f4d5a2299d7da99adc792",
+    "commit": "8bce5b399f1451eb5b9c9864043546736de75c39",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "f88239f78c34d11eea3f4d5a2299d7da99adc792",
-      "where": "OpenCine f88239f (2026-10-02, SHELL-00): swift build --build-tests + swift test 1410 Swift Testing + 71 XCTest; atlas 91 tests, check and check --sources pass; atlas dupes --check passes against the new baseline. Since 491ce30 only docs, .github, .claude and atlas/ changed (no Swift or Android source), so the 491ce30 strict-concurrency, xcodebuild, Android and Vulkan results stand."
+      "commit": "8bce5b399f1451eb5b9c9864043546736de75c39",
+      "where": "OpenCine 70023e2 (2026-10-02, SHELL-04 DJI part: :decoder and :dji, merged with main da703f0): swift build --build-tests + swift test 1412 Swift Testing (1410 + 2 CamFovVectorTests moved from OpenPocketCine) + 71 XCTest; Android gradlew test lint assembleRelease green (core 34/3 skip, media 64, decoder 1, dji 286 = 285 moved + import rule, monitor-ui 117, multicam 18, luna 51); atlas 91 tests + check. Consumers: OpenPocketCine e9a44732 android-check + release + swift 360, JNI 41/41; OpenInstaCine 0f1692e Gradle + swift 717. Commits after 70023e2 are atlas/ only."
     }
   },
   "apps": [
