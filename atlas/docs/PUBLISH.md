@@ -16,7 +16,7 @@ The whole flow was rehearsed against `file://` remotes on disposable clones of e
 | `owner` | `erik-sutton95` | The three apps live there; one owner keeps package URLs short and stable. |
 | `visibility` | `public` | The apps are open source. Contributors and Xcode Cloud must resolve the packages without credentials. Private repos would also break `https://` resolution on this Mac (see section 7). |
 | `android` | `sibling-pins` | The only automated option. Gradle keeps including the packages' builds from sibling checkouts, pinned to the `0.1.0` tag commits. A Maven namespace is a later, separate release (section 8). |
-| `author_email` | `9084979+erik-sutton95@users.noreply.github.com` | OpenCineCore, Multicam, DJI, Nikon, Insta360 and Harness have commits authored as `another address` and some as `eriks.indesign@gmail.com`. Publishing them exposes both addresses, and GitHub refuses the push (GH007) if email privacy blocks one. `keep` publishes them as they are. |
+| `author_email` | `9084979+erik-sutton95@users.noreply.github.com` | Every commit in the new repositories already uses this personal noreply identity (history rewritten on 2026-10-02), and each repository has it as its local git identity. Record it so commits and tags this run creates use it too. `rewrite-authors` is now a no-op safety check. |
 
 Also before running:
 
