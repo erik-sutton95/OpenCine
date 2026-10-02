@@ -65,6 +65,10 @@ public data class SavedCamerasDocument(
         val base = legacy[source].orEmpty()
         val theirs = LinkedHashMap<String, LegacyCamera>()
         for (record in records) theirs.putIfAbsent(record.camera.id, record)
+        // A record gone since the base: with one record per setup, the camera's other records
+        // can be unchanged, so a camera whose routes legacy no longer lists changed too.
+        val current = records.flatMap { it.records.keys }.toSet()
+        val removedSome = base.keys.any { it !in current }
         val merged = mutableListOf<SavedCamera>()
         for (ours in cameras) {
             val record = theirs.remove(ours.id)
@@ -72,7 +76,8 @@ public data class SavedCamerasDocument(
                 if (base.isEmpty()) merged += ours
                 continue
             }
-            val changed = record.records.any { (key, hash) -> base[key] != hash }
+            val lostRoute = removedSome && !record.camera.routes.map { it.key }.containsAll(ours.routes.map { it.key })
+            val changed = lostRoute || record.records.any { (key, hash) -> base[key] != hash }
             merged += if (changed) overlay(record.camera, ours, heldExtras) else ours
         }
         merged += theirs.values.map { it.camera }

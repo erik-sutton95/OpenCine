@@ -241,6 +241,26 @@ final class SavedCamerasStore {
         #expect(merged.preferredRoute == merged.routes[0].id)
     }
 
+    /// One record per setup: the app (or an older build) drops one setup of a body whose other
+    /// records stay byte for byte. The setup leaves the document, and a later save does not put
+    /// it back into the records.
+    @Test func aSetupRemovedFromTheRecordsLeavesTheDocument() throws {
+        let (defaults, _) = upgraded()
+        let mirrored = try #require(defaults.values["legacy"])
+        let old = try JSONDecoder().decode([PTPIPSavedCameraRecord].self, from: mirrored)
+        defaults.values["legacy"] = try appEncoded(PTPIPSavedCameraRecords.removing("usb:0x1a2b3c", from: old))
+
+        let store = self.store(defaults)
+        store.load()
+        #expect(store.cameras[0].routes.map(\.key) == ["infrastructure|Studio", "cameraAccessPoint"])
+        var renamed = store.cameras
+        renamed[0].name = "C-cam"
+        store.save(renamed)
+        let records = try JSONDecoder().decode([PTPIPSavedCameraRecord].self, from: #require(defaults.values["legacy"]))
+        #expect(!records.contains { $0.host == "usb:0x1a2b3c" })
+        #expect(records.filter { $0.serialNumber == "3001234" }.count == 2)
+    }
+
     @Test func aBadRecordIsKeptAndSkipped() throws {
         var array = try #require(try JSONSerialization.jsonObject(with: golden) as? [Any])
         array.insert("not a record", at: 1)

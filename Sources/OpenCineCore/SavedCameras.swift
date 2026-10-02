@@ -136,13 +136,18 @@ extension SavedCamerasDocument {
             theirs[record.camera.id] = record
             order.append(record.camera.id)
         }
+        // A record gone since the base: with one record per setup, the camera's other records
+        // can be unchanged, so a camera whose routes legacy no longer lists changed too.
+        let current = Set(records.flatMap(\.records.keys))
+        let removedSome = base.keys.contains { !current.contains($0) }
         var merged: [SavedCamera] = []
         for ours in cameras {
             guard let record = theirs.removeValue(forKey: ours.id) else {
                 if base.isEmpty { merged.append(ours) }
                 continue
             }
-            let changed = record.records.contains { base[$0.key] != $0.value }
+            let lostRoute = removedSome && !Set(ours.routes.map(\.key)).isSubset(of: record.camera.routes.map(\.key))
+            let changed = lostRoute || record.records.contains { base[$0.key] != $0.value }
             merged.append(changed ? Self.overlay(record.camera, onto: ours, heldExtras: heldExtras) : ours)
         }
         merged += order.compactMap { theirs[$0]?.camera }

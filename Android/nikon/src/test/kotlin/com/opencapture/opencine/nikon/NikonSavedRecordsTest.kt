@@ -151,6 +151,25 @@ class NikonSavedRecordsTest {
         assertTrue(merged.routes[2].id == a.routes[1].id && merged.routes[3].id == a.routes[2].id)
     }
 
+    /**
+     * One record per setup: the app (or an older build) drops one setup of a body whose other
+     * records stay byte for byte. The setup leaves the document, and a later save does not put
+     * it back into the records.
+     */
+    @Test
+    fun aSetupRemovedFromTheRecordsLeavesTheDocument() {
+        val store = Store(golden)
+        store.load()
+        val old = JSONArray(store.legacy)
+        old.remove(2) // body A's USB-C setup
+        store.legacy = old.toString()
+
+        val upgraded = store.load()
+        assertEquals(listOf("192.168.50.23|infrastructure", "192.168.1.1|camera-access-point"), upgraded[0].routes.map { it.key })
+        store.save(listOf(upgraded[0].copy(name = "C-cam")) + upgraded.drop(1))
+        assertTrue("usb:3f9a2c" !in hosts(store.legacy!!))
+    }
+
     @Test
     fun aBadRecordIsKeptAndSkipped() {
         val array = JSONArray(golden)
