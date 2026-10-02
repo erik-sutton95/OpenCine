@@ -61,6 +61,13 @@ public final class LunaIntegration: CameraIntegration {
     ]
     public nonisolated let discoveryModes: Set<DiscoveryMode> = [.passive]
     public var onEvent: ((CameraBackendEvent) -> Void)?
+    /// Why passive discovery is not running (Bluetooth off or not allowed); `nil` while it runs.
+    /// Discovery stays subscribed: the app shows this in its pairing slot and calls
+    /// `retryDiscovery()` (back from Settings, for example).
+    public private(set) var discoveryFailure: ConnectionFailure? {
+        didSet { if discoveryFailure != oldValue { onDiscoveryFailure?(discoveryFailure) } }
+    }
+    public var onDiscoveryFailure: ((ConnectionFailure?) -> Void)?
 
     /// The connect card's plan, in the order the backend runs it.
     public static let steps = [
@@ -114,29 +121,32 @@ public final class LunaIntegration: CameraIntegration {
             Task { @MainActor in self?.stopListening(key) }
         }
         continuation.yield(sightings)
-        if first {
-            Task { [weak self] in
-                do {
-                    try await self?.port.startScan()
-                } catch {
-                    // ponytail: a scan that cannot start (Bluetooth off or denied) ends discovery;
-                    // the attempt reports the typed reason. Add a discovery error when a screen shows one.
-                    self?.endDiscovery()
-                }
+        if first { startScanning() }
+        return stream
+    }
+
+    /// Starts the scan again while discovery is subscribed and not running.
+    public func retryDiscovery() {
+        if !listeners.isEmpty, discoveryFailure != nil { startScanning() }
+    }
+
+    private func startScanning() {
+        Task { [weak self] in
+            do {
+                try await self?.port.startScan()
+                self?.discoveryFailure = nil
+            } catch {
+                guard let self, !self.listeners.isEmpty else { return }
+                self.discoveryFailure =
+                    error as? ConnectionFailure ?? .luna(.other, "bluetooth.scan-failed", error.localizedDescription)
             }
         }
-        return stream
     }
 
     private func stopListening(_ key: UUID) {
         guard listeners.removeValue(forKey: key) != nil, listeners.isEmpty else { return }
+        discoveryFailure = nil
         port.stopScan()
-    }
-
-    private func endDiscovery() {
-        let ended = listeners.values
-        listeners.removeAll()
-        for continuation in ended { continuation.finish() }
     }
 
     // MARK: Connecting
@@ -196,6 +206,7 @@ public final class LunaIntegration: CameraIntegration {
                 error as? ConnectionFailure
                 ?? .luna(.other, "unexpected", (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             failure.phase = failure.phase ?? attempt.phase
+            failure.message = Self.operatorMessage(failure.message)
             attempt.continuation.yield(.failed(failure))
         }
         attempt.continuation.finish()
@@ -205,7 +216,8 @@ public final class LunaIntegration: CameraIntegration {
         switch event {
         case .discovered(let camera):
             let sighting = NearbyCamera(
-                id: camera.id.uuidString, name: camera.name, model: camera.model, routes: [.cameraAccessPoint])
+                id: camera.id.uuidString, name: Self.title(advertised: camera.name), model: profiles[0].title,
+                routes: [.cameraAccessPoint])
             if let index = sightings.firstIndex(where: { $0.id == sighting.id }) {
                 guard sightings[index] != sighting else { break }
                 sightings[index] = sighting
@@ -223,6 +235,27 @@ public final class LunaIntegration: CameraIntegration {
         default: break
         }
         onEvent?(event)
+    }
+
+    /// A sighting's name: Luna advertises the last characters of its serial, shown after the model.
+    public static func title(advertised: String) -> String {
+        let trimmed = advertised.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return "Luna Ultra" }
+        if trimmed.lowercased().contains("luna") { return trimmed }
+        return "Luna Ultra \(trimmed)"
+    }
+
+    /// What the operator reads for a failed attempt: the backend's copy, except time-outs and
+    /// dropped links, which read as OpenInstaCine has always shown them (its `friendly()` rules).
+    static func operatorMessage(_ raw: String) -> String {
+        let lower = raw.lowercased()
+        if lower.contains("timed out") || lower.contains("timeout") {
+            return "The camera didn't respond in time. Check Bluetooth, force quit the Insta360 app on every phone near the camera, then try again."
+        }
+        if lower.contains("disconnected") || lower.contains("camera disappeared") {
+            return "The camera ended the connection. Force quit the Insta360 app on every phone near the camera, then try again."
+        }
+        return raw
     }
 
     private func report(_ attempt: Attempt) {

@@ -1,12 +1,13 @@
 import Foundation
-import Insta360Apple
+@testable import Insta360Apple
 import Insta360AppleTestSupport
 import Insta360Protocol
 import OpenCineCore
 import Testing
 
 /// The Luna `CameraIntegration` against a scripted backend (SHELL-02 step 4). Kotlin mirror:
-/// `LunaIntegrationTest`, same method names.
+/// `LunaIntegrationTest`, same method names; the sighting title and scan-failure tests are Swift
+/// only (Android shows the advertised name and its app gates permissions and Bluetooth).
 @MainActor
 @Suite struct LunaIntegrationTests {
     let port = FakeLunaPort()
@@ -16,7 +17,7 @@ import Testing
     func integration() -> LunaIntegration { LunaIntegration(port: port, now: { [when] in when }) }
 
     func sighting() -> NearbyCamera {
-        NearbyCamera(id: camera.uuidString, name: "Luna 1A2B", model: LunaProtocol.model, routes: [.cameraAccessPoint])
+        NearbyCamera(id: camera.uuidString, name: "Luna 1A2B", model: "Luna Ultra", routes: [.cameraAccessPoint])
     }
 
     @Test func discoveryListensPassivelyOverBluetooth() async {
@@ -37,6 +38,35 @@ import Testing
         consumer.cancel()
         await consumer.value
         #expect(await eventually { port.scanStops == 1 })
+    }
+
+    @Test func sightingsNameTheCameraAfterItsModel() async {
+        #expect(LunaIntegration.title(advertised: " 1A2B3C ") == "Luna Ultra 1A2B3C")
+        #expect(LunaIntegration.title(advertised: "Luna Ultra 1A2B") == "Luna Ultra 1A2B")
+        #expect(LunaIntegration.title(advertised: "") == "Luna Ultra")
+        let luna = integration()
+        var iterator = luna.discover(.passive).makeAsyncIterator()
+        _ = await iterator.next()
+        port.emit(.discovered(MonitorCamera(id: camera, name: "1A2B", model: LunaProtocol.model, capabilities: [])))
+        #expect(await iterator.next()?.map(\.name) == ["Luna Ultra 1A2B"])
+    }
+
+    @Test func aScanThatCannotStartIsReportedAndRetried() async {
+        let luna = integration()
+        var reported: [ConnectionFailure?] = []
+        luna.onDiscoveryFailure = { reported.append($0) }
+        let off = ConnectionFailure.luna(.radioOff(.bluetooth), "bluetooth.off", "off", actions: [.openSettings, .retry])
+        port.scanFailure = off
+        let lists = luna.discover(.passive)
+        var iterator = lists.makeAsyncIterator()
+        #expect(await iterator.next() == [])
+        #expect(await eventually { luna.discoveryFailure == off })
+        port.scanFailure = nil
+        luna.retryDiscovery()
+        #expect(await eventually { luna.discoveryFailure == nil })
+        #expect(port.scans == 2 && reported == [off, nil])
+        port.emit(.discovered(MonitorCamera(id: camera, name: "Luna 1A2B", model: LunaProtocol.model, capabilities: [])))
+        #expect(await iterator.next() == [sighting()], "discovery stayed subscribed")
     }
 
     @Test func phasesMapToProgressAndPrompts() async throws {
@@ -120,6 +150,8 @@ import Testing
             reason: .notApproved, title: "t", message: "Approval timed out.", actions: [.retry], code: "c"))
         let first = try #require(await failure(of: approval))
         #expect(first.reason == .notApproved && first.phase == .awaitingApproval)
+        // Time-outs and dropped links read as OpenInstaCine has always shown them.
+        #expect(first.message.hasPrefix("The camera didn't respond in time. Check Bluetooth, force quit the Insta360 app"))
 
         let other = luna.connect(.nearby(sighting()))
         #expect(await eventually { port.connects.count == 2 })
@@ -127,6 +159,10 @@ import Testing
         let second = try #require(await failure(of: other))
         #expect(second.reason == .other && second.phase == .link)
         #expect(second.code == "com.opencapture.insta360.luna.unexpected")
+        #expect(
+            LunaIntegration.operatorMessage("Camera Wi-Fi disconnected")
+                == "The camera ended the connection. Force quit the Insta360 app on every phone near the camera, then try again.")
+        #expect(LunaIntegration.operatorMessage("The camera is no longer nearby.") == "The camera is no longer nearby.")
     }
 
     @Test func aNewerAttemptEndsTheOlder() async {

@@ -40,6 +40,11 @@ join the camera Wi-Fi.
 `CameraIntegration`, over a `LunaConnectPort` that `LunaCameraBackend` / `LunaBackend` implement:
 
 - Discovery is `.passive` only: Bluetooth advertisements (service BE80); listening never connects.
+  iOS sightings are named like the cameras page always named them (`title(advertised:)`, "Luna
+  Ultra 1A2B" from an advertised "1A2B") with the profile title as the model. A scan that cannot
+  start (Bluetooth off or not allowed) keeps discovery subscribed and is published as
+  `discoveryFailure` / `onDiscoveryFailure` for the app's pairing slot; `retryDiscovery()` starts it
+  again.
 - One connection at a time (one backend): a newer attempt ends the older one. Steps are the connect
   card's ("Connecting over Bluetooth", "Joining camera Wi-Fi", "Opening the video link", "Starting
   the picture"); phases follow `LunaCameraSession`; prompts are `approveOnCamera("Approve on the
@@ -48,7 +53,9 @@ join the camera Wi-Fi.
   (Bluetooth power and permission offer Open Settings; the failure reads as its message through
   `LocalizedError`, so callers that show `localizedDescription` are unchanged); Kotlin where the
   backend chooses its copy by phase (`LunaFailures`, also `LunaBackend.failureDetail` beside the
-  unchanged `failure` string).
+  unchanged `failure` string). A Swift attempt failure that times out or drops reads as
+  OpenInstaCine's cards always showed it (`operatorMessage`, its former `friendly()` rules); the
+  Android rules match no Luna copy, so Kotlin keeps the backend's text.
 - A connect yields the saved record (camera access point as the preferred route with the joined
   network; iOS also the verified serial as the durable device) and the core session.
 - `forget` drops the camera's saved Wi-Fi (Swift: the Keychain entry; Kotlin: the host's
