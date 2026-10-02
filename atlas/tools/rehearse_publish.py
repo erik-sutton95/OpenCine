@@ -104,6 +104,8 @@ def main(argv=None):
         repos.append(dest)
     for rid in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]:
         subprocess.run(["git", "init", "-q", "--bare", str(remote / real.name(rid))], check=True)
+        # scripts/checkout-opencine.sh fetches <base>/<Name>.git; GitHub serves both spellings.
+        (remote / f"{real.name(rid)}.git").symlink_to(real.name(rid))
     bares = [remote / real.name(rid) for rid in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]]
     report.append(f"clones: {', '.join(p.name for p in repos)}")
 

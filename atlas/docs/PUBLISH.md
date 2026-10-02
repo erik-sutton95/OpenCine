@@ -85,7 +85,8 @@ steps print `done` and are skipped. Running the finished command again changes n
   `git -C <worktree> checkout -- .` and rerun.
 - `--remote-base` and `--version` must match the run that wrote the state. To start over from
   scratch, roll back (section 5) and delete `.local/publish-state.json`.
-- `--remote-base file:///path` rehearses against bare repositories you created: no `gh`, and
+- `--remote-base file:///path` rehearses against bare repositories you created (`<Name>`, plus a
+  `<Name>.git` link for `scripts/checkout-opencine.sh`): no `gh`, and
   the PR step writes its body to `.local/publish/<App>-pr.md` instead.
 
 ## 5. Rolling back
