@@ -1,27 +1,27 @@
 {
   "code_lines": {
-    "opencine": 125170,
-    "openinstacine": 147096,
-    "openpocketcine": 139873,
-    "openzcine": 159508
+    "opencine": 136457,
+    "openinstacine": 143932,
+    "openpocketcine": 137856,
+    "openzcine": 156644
   },
   "note": "Written by `atlas dupes --write-baseline`; see tools/dupes.py for the metric.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 9852,
-      "blocks": 597,
+      "block_lines": 9658,
+      "blocks": 592,
       "exact_files": 13,
-      "file_lines": 8869,
-      "files": 75,
-      "lines": 18721
+      "file_lines": 8752,
+      "files": 72,
+      "lines": 18410
     },
     "opencine|openpocketcine": {
-      "block_lines": 442,
-      "blocks": 44,
+      "block_lines": 405,
+      "blocks": 41,
       "exact_files": 0,
       "file_lines": 88,
       "files": 3,
-      "lines": 530
+      "lines": 493
     },
     "opencine|openzcine": {
       "block_lines": 154,
@@ -32,20 +32,20 @@
       "lines": 154
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 32485,
-      "blocks": 1659,
-      "exact_files": 234,
-      "file_lines": 56496,
-      "files": 360,
-      "lines": 88981
+      "block_lines": 30643,
+      "blocks": 1605,
+      "exact_files": 227,
+      "file_lines": 54540,
+      "files": 343,
+      "lines": 85183
     },
     "openinstacine|openzcine": {
-      "block_lines": 1598,
-      "blocks": 109,
+      "block_lines": 1575,
+      "blocks": 107,
       "exact_files": 3,
       "file_lines": 348,
       "files": 6,
-      "lines": 1946
+      "lines": 1923
     },
     "openpocketcine|openzcine": {
       "block_lines": 1519,
@@ -58,9 +58,9 @@
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at c1c5fc6f7db95ebab2337157e3dccc8afa000996",
-    "openinstacine": "opencine/integration e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
-    "openpocketcine": "opencine/integration c1908e39cece669d8e6ef15ba6475c3360314217",
-    "openzcine": "opencine/integration 9a3798dbe50a91e98a1a807140739fad7ce6a160"
+    "opencine": "working tree at 39a0acfb8e96a20448bb47200b5b53b897540c8c",
+    "openinstacine": "opencine/integration 68a381e62a0fb641bc4004714399bc37ab96ac1e",
+    "openpocketcine": "opencine/integration 8cb7c6885cea0539ca219de3fa0b1d3446348802",
+    "openzcine": "opencine/integration e303396228ad8fd10ab1ad5d8fe6d82b9e291778"
   }
 }
