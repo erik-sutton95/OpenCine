@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "9a3798dbe50a91e98a1a807140739fad7ce6a160",
+      "commit": "aaa08a92a679aec2ccddb216f3bf9551ab85843e",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "9a3798dbe50a91e98a1a807140739fad7ce6a160",
-        "where": "OpenZCine opencine/integration at 9a3798db (SHELL-04 Nikon iOS transports from OpenCineNikon, pinned OpenCine 8222b0a): iOS Runner build-for-testing and tests 227 = 225 + 2 skip on a private iOS 26.2 simulator (MediaTimecode proxy test deselected; USB detach tests drive the moved transport), root swift test 626, Android ./gradlew test lint assembleRelease green (app 920, core-api 5, wear 5, wear-relay 3), libOpenZCineAndroid.so 73 Java_ exports = Kotlin externals."
+        "commit": "aaa08a92a679aec2ccddb216f3bf9551ab85843e",
+        "where": "OpenZCine opencine/integration at aaa08a92 (SHELL-04 JPEG live view on OpenCineApple's lease-lending JPEGPixelBufferDecoder, pinned OpenCine 5f40a91): iOS Runner build-for-testing and tests 227 = 225 + 2 skip on a private iOS 26.2 simulator (MediaTimecode proxy test deselected; hardware JPEG decode tests pass or skip as before), root swift test 626, Android ./gradlew test lint assembleRelease green (app 920, core-api 5, wear 5, wear-relay 3)."
       }
     }
   ]
