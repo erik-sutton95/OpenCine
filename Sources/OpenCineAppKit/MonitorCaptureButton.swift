@@ -75,6 +75,7 @@
                 .accessibilityAction { press() }
                 .accessibilityAction(named: "Shooting mode") { if interactive { openMode?() } }
                 .accessibilityIdentifier(photo ? "monitor.system.shutter" : "monitor.system.record")
+                .disabled(!interactive)
         }
 
         private var accessibility: String {

@@ -24,10 +24,12 @@ import com.opencapture.monitorui.MonitorRect
 /** Operator presentation state, separate from camera telemetry and native picture lifetime. */
 public data class MonitorScreenPresentation(
     public val visible: Boolean = true, public val interactive: Boolean = true, public val dimmed: Boolean = false,
+    /** Hides control accessibility and blocks input; retained chrome may remain dimmed underneath a transient panel. */
     public val transientControlsHidden: Boolean = false, public val pictureWaiting: Boolean = false,
     public val statusMounted: Boolean = true, public val powerMounted: Boolean = true, public val captureMounted: Boolean = true,
     public val captureHidden: Boolean = false, public val captureInteractive: Boolean = true, public val locked: Boolean = false,
-    public val popupInteractive: Boolean = false, public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
+    public val popupInteractive: Boolean = false, public val capturePresented: Boolean = false,
+    public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
 )
 
 /** Fixed picture/assist hosts and common chrome placement survive rotation and coverage. */
@@ -40,7 +42,9 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
     capture: @Composable BoxScope.(Boolean) -> Unit = {}, system: @Composable BoxScope.(Boolean) -> Unit = {},
     tools: @Composable BoxScope.(Boolean) -> Unit = {}, panels: @Composable BoxScope.(Boolean) -> Unit = {},
     cover: @Composable BoxScope.() -> Unit = {}, recovery: @Composable BoxScope.() -> Unit = {}) {
-    val commonVisible = presentation.visible && !presentation.transientControlsHidden
+    val commonVisible = presentation.visible
+    val commonInteractive = commonVisible && presentation.interactive && !presentation.transientControlsHidden
+    val commonAccessibility = if (presentation.transientControlsHidden) Modifier.clearAndSetSemantics {} else Modifier
     val dim = if (presentation.dimmed) .16f else 1f
     fun Modifier.visible(shown: Boolean, opacity: Float = 1f): Modifier =
         alpha(if (shown) opacity else 0f).layout { measurable, constraints ->
@@ -53,14 +57,15 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         Box(Modifier.fillMaxSize(), content = assists)
         Box(Modifier.frame(layout.picture).visible(presentation.visible && presentation.pictureWaiting), content = signal)
         if (layout.portrait) Box(Modifier.frame(layout.system).background(Color.Black))
-        Box(Modifier.fillMaxSize().visible(commonVisible, dim)) { tools(commonVisible && presentation.interactive) }
-        if (presentation.statusMounted) Box(Modifier.frame(layout.status).visible(commonVisible, dim)) { status(commonVisible && presentation.interactive) }
-        if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim),
-            contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonVisible && presentation.interactive) }
+        Box(Modifier.fillMaxSize().visible(commonVisible, dim).then(commonAccessibility)) { tools(commonInteractive) }
+        if (presentation.statusMounted) Box(Modifier.frame(layout.status).visible(commonVisible, dim).then(commonAccessibility)) { status(commonInteractive) }
+        if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim).then(commonAccessibility),
+            contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonInteractive) }
         if (presentation.captureMounted) Box(Modifier.frame(layout.values)
-            .visible(commonVisible && !presentation.captureHidden, dim * if (presentation.locked) .4f else 1f),
-            contentAlignment = Alignment.BottomCenter) { capture(commonVisible && presentation.interactive && !presentation.locked && presentation.captureInteractive && !presentation.captureHidden) }
-        Box(Modifier.fillMaxSize().visible(presentation.visible, dim)) { system(presentation.visible && presentation.interactive) }
+            .visible(commonVisible && !presentation.captureHidden, dim * if (presentation.locked) .4f else 1f).then(commonAccessibility),
+            contentAlignment = Alignment.BottomCenter) { capture(commonInteractive && !presentation.locked && presentation.captureInteractive && !presentation.captureHidden) }
+        Box(Modifier.fillMaxSize().visible(commonVisible, dim).then(commonAccessibility)
+            .zIndex(if (presentation.capturePresented) 11f else 0f)) { system(commonInteractive) }
         MonitorCameraRecordingBorder(control, presentation.visible)
         Box(Modifier.fillMaxSize().visible(presentation.visible).zIndex(if (presentation.panelsRaised) 16f else 10f)) { panels(presentation.visible && presentation.popupInteractive) }
         Box(Modifier.fillMaxSize().zIndex(20f), content = cover)

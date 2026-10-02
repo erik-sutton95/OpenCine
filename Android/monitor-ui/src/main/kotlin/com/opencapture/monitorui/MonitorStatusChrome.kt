@@ -31,7 +31,7 @@ import java.util.Locale
 
 /** Reported status only. Absence remains unknown; presentation never invents a clock or timer. */
 data class MonitorStatusPresentation(val recording: Boolean?, val elapsedSeconds: Int? = null, val timecode: String? = null) {
-    val recordingLabel: String get() = when (recording) { true -> "REC"; false -> "STBY"; null -> "\u2014" }
+    val recordingLabel: String get() = when (recording) { true -> "REC"; false -> "STBY"; null -> "--" }
     val recordingAccessibilityLabel: String get() = when (recording) {
         true -> "Recording"; false -> "Standby"; null -> "Recording state unknown"
     }

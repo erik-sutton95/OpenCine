@@ -13,7 +13,7 @@ public struct MonitorStatusPresentation: Equatable, Sendable {
     }
 
     public var recordingLabel: String {
-        switch recording { case true?: "REC"; case false?: "STBY"; case nil: "\u{2014}" }
+        switch recording { case true?: "REC"; case false?: "STBY"; case nil: "--" }
     }
 
     public var recordingAccessibilityLabel: String {

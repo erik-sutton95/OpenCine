@@ -65,6 +65,9 @@
                     .opacity(presentation.dimmed ? 0.16 : 1)
                     .animation(MonitorMotion.dim(reduceMotion), value: presentation.dimmed)
                     .monitorPresentationVisibility(presentation.visible)
+                    .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
+                    .allowsHitTesting(presentation.visible && presentation.interactive && !presentation.transientControlsHidden)
+                    .zIndex(presentation.capturePresented ? 11 : 0)
                 MonitorCameraRecordingBorder(control: control)
                     .frame(width: layout.viewport.width, height: layout.viewport.height)
                     .monitorPresentationVisibility(presentation.visible)
@@ -101,11 +104,12 @@
                         .frame(width: layout.values.width, height: layout.values.height, alignment: .bottom)
                         .position(x: layout.values.midX, y: layout.values.midY)
                         .opacity(presentation.captureHidden ? 0 : (presentation.locked ? 0.4 : 1))
-                        .allowsHitTesting(!presentation.locked && presentation.captureInteractive)
+                        .allowsHitTesting(!presentation.captureHidden && !presentation.locked && presentation.captureInteractive)
                         .accessibilityHidden(presentation.captureHidden || !presentation.visible || presentation.transientControlsHidden)
                 }
             }
             .allowsHitTesting(presentation.interactive && !presentation.transientControlsHidden && presentation.visible)
+            .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
         }
     }
 

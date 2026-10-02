@@ -34,7 +34,7 @@
         }
 
         public var body: some View {
-            MonitorReadout(field.title, active: active) { Text(field.label ?? "\u{2014}") }
+            MonitorReadout(field.title, active: active) { Text(field.label ?? "--") }
                 .modifier(MonitorReadoutGesture(
                     snapshot: MonitorReadoutSnapshot(title: field.title,
                         options: field.choices.map(\.label), selection: field.label ?? ""),
@@ -53,6 +53,7 @@
                 })
                 .accessibilityLabel(field.title)
                 .accessibilityValue(field.label ?? "Not set")
+                .disabled(!enabled || !field.isEditable)
         }
     }
 
