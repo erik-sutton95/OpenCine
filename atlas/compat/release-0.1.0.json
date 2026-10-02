@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "f1d32b57c5141bd6a3e9d37fe234d55dba4cba62",
+      "commit": "07c047ddca605557f6a5dfcd663cee14e2d103b5",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "f1d32b57c5141bd6a3e9d37fe234d55dba4cba62",
-        "where": "Pin38edecfc adds shared Nikon owned runtime and common capture foundation; Insta source otherwise unchangedf1d32b57. Prior root595, Android696, full phone/iPad502(one existing skip), installed-data/native8 evidence retained. I2 monitor migration remains isolated. Physical cameras untested."
+        "commit": "07c047ddca605557f6a5dfcd663cee14e2d103b5",
+        "where": "Common Luna focus/zoom adoption07c047dd pins030fa040; legacy latest-wins cadence and ProductShowcase vendor extension preserved. Root595/justcheck, generic iOS build-for-testing, privatephone/iPad502each(1existing skip), nativeAndroid696/debug/release/lint/instrumentationcompile passed. Logs/xcresult scratchpad/luna-lens; privatephone compileda223266,padcombinedb1516f97; finalappcodeunchangedafterpinmerge. Physical cameras untested."
       }
     },
     {
