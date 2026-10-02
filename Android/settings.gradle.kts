@@ -35,4 +35,6 @@ include(
     ":nikon",
     // Insta360: app shell contract (Kotlin/JVM) and the Luna adapter.
     ":insta360-shell", ":insta360-luna",
+    // Shared app shell: saved cameras, connection model, cameras and pair screens.
+    ":appkit",
 )

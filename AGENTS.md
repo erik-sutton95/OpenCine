@@ -71,6 +71,8 @@ package dependency.
   framework or transport.
 - UI (`MonitorPresentation`, `MonitorUI`, `monitor-ui`) never imports a camera protocol core,
   an integration or an app. Views take values and actions; brand variation is a theme value.
+- The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Multicam and UI, never on an
+  integration or an app: apps list their integrations and fill its typed slots.
 - The harness targets are developer-only and SIMULATED: never make them products.
 - Nothing depends on `atlas/` at build time.
 

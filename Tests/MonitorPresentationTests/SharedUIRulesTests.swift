@@ -2,8 +2,8 @@ import Foundation
 import Testing
 
 /// Shared UI decides from capabilities, never from the brand or app it runs in (AGENTS.md,
-/// "Capability, not brand"). These rules scan the shared UI sources on both platforms; the Kotlin
-/// mirror is `SharedUIRulesTest` in `Android/monitor-ui`.
+/// "Capability, not brand"). These rules scan the shared UI and app shell sources on both
+/// platforms; the Kotlin mirror is `SharedUIRulesTest` in `Android/monitor-ui`.
 struct SharedUIRulesTests {
     static let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -20,6 +20,9 @@ struct SharedUIRulesTests {
     /// brand accent (a theme value) and display headroom (phone state, not brand). The set must
     /// match exactly, so removing a global also removes it here.
     static let allowedGlobals: Set<String> = ["MonitorTheme.accentRGB", "MonitorTheme.hdrGain"]
+
+    /// The shared UI and the app shell.
+    static let shared = ["Sources/MonitorUI", "Sources/MonitorPresentation", "Sources/OpenCineAppKit"]
 
     static func sources(_ directories: [String], extensions: Set<String>) throws -> [URL] {
         try directories.flatMap { directory -> [URL] in
@@ -72,8 +75,7 @@ struct SharedUIRulesTests {
         #expect("Built for OpenPocketCine".firstMatch(of: Self.names) == nil)
         #expect(Self.splitCamelCase("Built for OpenPocketCine").firstMatch(of: Self.names) != nil)
         #expect(Self.splitCamelCase("one instance, nanoseconds").firstMatch(of: Self.names) == nil)
-        let files = try Self.sources(
-            ["Sources/MonitorUI", "Sources/MonitorPresentation"], extensions: ["swift"])
+        let files = try Self.sources(Self.shared, extensions: ["swift"])
         #expect(files.count > 20)
         for file in files {
             let text = Self.splitCamelCase(try String(contentsOf: file, encoding: .utf8))
@@ -95,8 +97,7 @@ struct SharedUIRulesTests {
             struct Card { var title: String; static var defaultValue: CGFloat { 0 } }
             """
         #expect(Self.mutableGlobals(in: sample) == ["Theme.accent", "Theme.shown", "counter"])
-        let files = try Self.sources(
-            ["Sources/MonitorUI", "Sources/MonitorPresentation"], extensions: ["swift"])
+        let files = try Self.sources(Self.shared, extensions: ["swift"])
         var found: Set<String> = []
         for file in files {
             found.formUnion(Self.mutableGlobals(in: try String(contentsOf: file, encoding: .utf8)))

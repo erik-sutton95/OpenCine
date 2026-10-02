@@ -12,7 +12,7 @@ opencapture-atlas, merged with their history (ADR 0010). One version for everyth
 | Layer | Swift products (targets) | Gradle modules | Area docs |
 |---|---|---|---|
 | core | OpenCineCore, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineApple, OpenCineCoreTestSupport | `:core`, `:media`, `:vulkan` | `docs/core/` |
-| ui | MonitorPresentation, MonitorUI | `:monitor-ui` | `docs/ui/` |
+| ui | MonitorPresentation, MonitorUI, OpenCineAppKit (app shell) | `:monitor-ui`, `:appkit` | `docs/ui/`, `docs/appkit/` |
 | multicam | OpenCineMulticam | `:multicam` | `docs/multicam/` |
 | vendor | OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport (CKcp target) | `:insta360-shell`, `:insta360-luna` | `docs/dji/`, `docs/nikon/`, `docs/insta360/` |
 | harness | none (HarnessEngine, HarnessComposition, HarnessTests: dev-only, SIMULATED) | none | `docs/harness/` |
@@ -29,6 +29,7 @@ declares no package dependencies.
 | Common camera contracts | `Sources/OpenCineCore/`, Kotlin `Android/core/` |
 | Media math, Apple runtime, Vulkan renderer | `Sources/OpenCineMedia/`, `Sources/OpenCineApple/`, `Android/vulkan/` |
 | Shared UI 2.0 | `Sources/MonitorUI/`, `Sources/MonitorPresentation/`, `Android/monitor-ui/` |
+| Shared app shell (saved cameras, connection model, cameras and pair screens) | `Sources/OpenCineAppKit/`, `Android/appkit/` |
 | Integrations | `Sources/OpenCineDJI/`, `Sources/OpenCineNikon/`, `Sources/Insta360*/`, `Android/insta360-*/` |
 | Cross-brand harness and findings | `Sources/Harness*/`, `Tests/HarnessTests/`, `docs/harness/TOPOLOGY.md` |
 

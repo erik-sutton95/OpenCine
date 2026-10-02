@@ -177,6 +177,10 @@ explicitly; integration copy (steps, failures, prompts) is rendered, never rewri
 - **Saved cameras.** `SavedCamera` (id = the legacy record id, verbatim) with `SavedRoute`s (route
   id minted once, codec-stable `key`, kind, title, network, Bluetooth, last connected, verbatim
   `extras`). Dates are epoch milliseconds in stored JSON on both platforms.
+- **`SavedCamerasDocument`** (version 1) holds the cameras plus a merge base per legacy source.
+  `merge(_:from:heldExtras:)` is the three-way merge of a `LegacySavedCameraCodec`'s records into
+  the document; the store and the codecs live in `OpenCineAppKit` ([appkit](../appkit/README.md))
+  and in the integrations that wrote their own legacy format.
 - `FakeIntegration` (test support, Kotlin test fixtures) scripts discovery, attempts and a dial log.
 
 ## OpenCineFrameIO
@@ -315,7 +319,9 @@ Same names and semantics, in Kotlin idiom. Where they differ:
 - Integration contract: `discover` and `connect` return `Flow`; `ConnectionEvent`,
   `ConnectionPrompt`, `ConnectionFailure.Reason` and `RecoveryAction` are sealed interfaces;
   `CameraServices` is an immutable map keyed by `KClass` (`get<T>()`, `plus(type, service)`); saved
-  dates are `Long?` epoch milliseconds; `RouteKind.rawValue` is the Swift case name.
+  dates are `Long?` epoch milliseconds; `RouteKind.rawValue` is the Swift case name. The
+  document's `merge` and `recordMirror` return a copy. `CameraDeviceID.restored(...)` reads a
+  stored identity back (Swift: `Codable`).
 
 ### Test mapping
 

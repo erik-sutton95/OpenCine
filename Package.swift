@@ -12,6 +12,8 @@ import PackageDescription
 // - OpenCineMulticam imports OpenCineCore only: never an integration or UI.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app
 //   (today it depends on nothing).
+// - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
+//   app.
 //
 // Platforms: one list for the whole package. macOS is the host for `swift test` only; no macOS
 // app ships (former packages: Core/Multicam/DJI/Insta360 macOS 13, UI 12, Nikon and the harness
@@ -34,6 +36,8 @@ let package = Package(
         .library(name: "MonitorUI", targets: ["MonitorUI"]),
         // Multicam engine (docs/multicam/README.md).
         .library(name: "OpenCineMulticam", targets: ["OpenCineMulticam"]),
+        // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
+        .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
         // The Swift side of the Android `DjiNative` JNI facade: an app links it into its Swift
@@ -95,6 +99,15 @@ let package = Package(
             name: "OpenCineMulticamTests",
             dependencies: ["OpenCineMulticam", "OpenCineCore", "OpenCineCoreTestSupport"]
         ),
+
+        // MARK: App shell
+        // The shared app flow over the integration contract: the saved-camera store with its
+        // legacy mirrors, the connection model and the cameras and pair screens. Never imports an
+        // integration or an app; apps list their integrations.
+        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore"]),
+        .testTarget(
+            name: "OpenCineAppKitTests",
+            dependencies: ["OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport"]),
 
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,

@@ -80,6 +80,10 @@ public data class CameraDeviceID private constructor(
 
         public fun provisional(integration: IntegrationID): CameraDeviceID =
             CameraDeviceID(integration, UUID.randomUUID().toString(), isProvisional = true)
+
+        /** An identity read back from storage (Swift: `Codable` decoding). */
+        public fun restored(integration: IntegrationID, value: String, isProvisional: Boolean): CameraDeviceID =
+            CameraDeviceID(integration, value, isProvisional)
     }
 }
 

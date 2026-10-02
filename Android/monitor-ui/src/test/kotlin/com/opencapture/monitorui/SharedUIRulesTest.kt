@@ -25,7 +25,9 @@ class SharedUIRulesTest {
      */
     private val allowedGlobals = setOf("MonitorPalette.accent", "MonitorIosParity.enabled")
 
-    private val sources = File("src/main").walk().filter { it.extension in setOf("kt", "xml") }.toList()
+    /** The shared UI and the app shell (`Android/appkit`). */
+    private val sources = listOf(File("src/main"), File("../appkit/src/main"))
+        .flatMap { root -> root.walk().filter { it.extension in setOf("kt", "xml") }.toList() }
 
     private fun splitCamelCase(text: String) = text.replace(Regex("([a-z0-9])([A-Z])"), "$1 $2")
 

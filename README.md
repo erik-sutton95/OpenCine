@@ -13,10 +13,10 @@ qualify behavior on physical cameras). Not yet published.
 | Path | What |
 |---|---|
 | `Package.swift`, `Sources/`, `Tests/` | One Swift package, `OpenCine`: every product below plus the developer-only harness targets |
-| `Fixtures/` | Data shared by Swift and Kotlin tests (`live-video-nal-vectors.tsv`, `camfov-vectors.tsv`) |
-| `Android/` | One Gradle build: modules `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji`, `insta360-shell`, `insta360-luna` |
+| `Fixtures/` | Data shared by Swift and Kotlin tests (`live-video-nal-vectors.tsv`, `camfov-vectors.tsv`, `saved-cameras/`) |
+| `Android/` | One Gradle build: modules `core`, `media`, `decoder`, `vulkan`, `monitor-ui`, `appkit`, `multicam`, `dji`, `nikon`, `insta360-shell`, `insta360-luna` |
 | `scripts/` | `android-vulkan-sync-test.sh` (Vulkan present regression, host CPU), `vendor-lucide-icons.py` |
-| `docs/<area>/` | Per-area guides moved from the former repositories: [core](docs/core/README.md), [ui](docs/ui/README.md), [multicam](docs/multicam/README.md), [dji](docs/dji/README.md), [nikon](docs/nikon/README.md), [insta360](docs/insta360/README.md), [harness](docs/harness/README.md) |
+| `docs/<area>/` | Per-area guides moved from the former repositories: [core](docs/core/README.md), [ui](docs/ui/README.md), [appkit](docs/appkit/README.md), [multicam](docs/multicam/README.md), [dji](docs/dji/README.md), [nikon](docs/nikon/README.md), [insta360](docs/insta360/README.md), [harness](docs/harness/README.md) |
 | `atlas/` | OpenCapture atlas: repository registry, routing docs, compatibility records, publish tooling, navigation evals ([atlas/README.md](atlas/README.md)) |
 
 ## Products
@@ -36,6 +36,7 @@ coordinates `com.opencapture.opencine:<module>`.
 | Core | `OpenCineCoreTestSupport` (tests only) | `core` test fixtures | `OpenCineCore` |
 | Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |
 | UI | `MonitorPresentation`, `MonitorUI` | `monitor-ui` | nothing |
+| App shell | `OpenCineAppKit` (saved cameras, connection model, cameras and pair screens) | `appkit` | `OpenCineCore` / `core` |
 | Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
 | DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia` / `core`, `media` |
 | Nikon | `OpenCineNikon`, `OpenCineNikonAndroid` (Swift side of `NikonNative`: Android session layer and JNI exports) | `nikon` (JNI facade `NikonNative`) | `OpenCineCore`, `OpenCineJNISupport` / `core` |

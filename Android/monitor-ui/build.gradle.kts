@@ -24,3 +24,6 @@ dependencies {
     api(libs.compose.material3)
     testImplementation(libs.kotlin.test.junit)
 }
+
+// SharedUIRulesTest also scans the app shell sources.
+tasks.withType<Test>().configureEach { inputs.dir(rootDir.resolve("appkit/src/main")) }

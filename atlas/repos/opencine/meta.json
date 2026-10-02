@@ -73,6 +73,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineAppKit",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineDJI",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -166,6 +171,12 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:insta360-luna"
+    },
+    {
+      "name": ":appkit",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:appkit"
     }
   ],
   "layers": {
@@ -192,7 +203,10 @@
       "MonitorPresentation",
       "MonitorUI",
       "MonitorPresentationTests",
-      ":monitor-ui"
+      ":monitor-ui",
+      "OpenCineAppKit",
+      "OpenCineAppKitTests",
+      ":appkit"
     ],
     "multicam": [
       "OpenCineMulticam",
