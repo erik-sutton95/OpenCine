@@ -61,6 +61,19 @@ it from its integration slots, [appkit](../appkit/README.md)). Android's brand i
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
 
+## Operator settings
+
+`MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and
+content scrolling. `MonitorSettingsTab` has stable Link, Sharing, View Assist, Controls,
+Display, Storage and System identities. The host supplies brand text, connection values,
+actions and typed section composition. SwiftUI includes keyboard insets; Compose uses the
+host's window insets. Android sharing currently retains its existing placeholder.
+
+Common `MonitorSettings` controls own row, help, switch, reset and card presentation.
+`MonitorOperatorSafetySettings` and `MonitorPanelSettings` accept values/bindings and actions;
+they never locate app storage or a camera session. Common sections continue to move here as
+the actual consumers migrate. Integration panels and OS actions remain host composition.
+
 ## Import rules
 
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.

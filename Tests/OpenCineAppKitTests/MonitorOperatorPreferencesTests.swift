@@ -1,0 +1,65 @@
+import Foundation
+import Testing
+import OpenCineAppKit
+
+@Suite struct MonitorOperatorPreferencesTests {
+    private func keys(_ prefix: String = "operator") -> MonitorOperatorPreferences.Keys {
+        .init(keepScreenAwake: prefix + ".awake", hdrDisplay: prefix + ".hdr",
+            recordConfirmation: prefix + ".confirm", haptics: prefix + ".haptics",
+            cacheOriginals: prefix + ".originals", legacyKeepScreenAwake: "legacy.awake")
+    }
+
+    @Test func absentChoicesUseDefaultsWithoutWritingAndExplicitOffSurvivesReload() throws {
+        let domain = "opencine-preferences-tests." + UUID().uuidString
+        let storage = try #require(UserDefaults(suiteName: domain))
+        defer { storage.removePersistentDomain(forName: domain) }
+        let store = MonitorOperatorPreferences(storage: storage, keys: keys())
+        #expect(store.keepScreenAwake && store.recordConfirmation && store.haptics && store.cacheOriginals)
+        #expect(!store.hdrDisplay)
+        #expect(storage.persistentDomain(forName: domain)?.isEmpty != false)
+        store.keepScreenAwake = false
+        store.recordConfirmation = false
+        store.haptics = false
+        store.cacheOriginals = false
+        store.hdrDisplay = true
+        let reloaded = MonitorOperatorPreferences(storage: storage, keys: keys())
+        #expect(!reloaded.keepScreenAwake && !reloaded.recordConfirmation && !reloaded.haptics && !reloaded.cacheOriginals)
+        #expect(reloaded.hdrDisplay)
+        #expect(storage.bool(forKey: "operator.hdr"))
+    }
+
+    @Test func legacyAwakeIsReadWithoutRewriteAndCurrentKeyWins() throws {
+        let domain = "opencine-preferences-tests." + UUID().uuidString
+        let storage = try #require(UserDefaults(suiteName: domain))
+        defer { storage.removePersistentDomain(forName: domain) }
+        storage.set(false, forKey: "legacy.awake")
+        let store = MonitorOperatorPreferences(storage: storage, keys: keys())
+        #expect(!store.keepScreenAwake)
+        #expect(storage.object(forKey: "operator.awake") == nil)
+        store.keepScreenAwake = true
+        #expect(store.keepScreenAwake)
+        #expect(!storage.bool(forKey: "legacy.awake"))
+    }
+
+    @Test func appStorageAndKeyNamespacesStayIndependent() throws {
+        let firstDomain = "opencine-preferences-tests." + UUID().uuidString
+        let secondDomain = "opencine-preferences-tests." + UUID().uuidString
+        let firstStorage = try #require(UserDefaults(suiteName: firstDomain))
+        let secondStorage = try #require(UserDefaults(suiteName: secondDomain))
+        defer {
+            firstStorage.removePersistentDomain(forName: firstDomain)
+            secondStorage.removePersistentDomain(forName: secondDomain)
+        }
+        let first = MonitorOperatorPreferences(storage: firstStorage, keys: keys())
+        let second = MonitorOperatorPreferences(storage: secondStorage, keys: keys())
+        let third = MonitorOperatorPreferences(storage: firstStorage, keys: keys("other"),
+            defaults: .init(recordConfirmation: false, haptics: false))
+        first.recordConfirmation = false
+        first.haptics = false
+        #expect(second.recordConfirmation && second.haptics)
+        #expect(!third.recordConfirmation && !third.haptics)
+        third.haptics = true
+        #expect(!first.haptics)
+        #expect(third.haptics)
+    }
+}
