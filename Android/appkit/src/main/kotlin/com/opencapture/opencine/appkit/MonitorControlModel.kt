@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 
 /**
  * The common controls of the monitor's camera (Swift `MonitorControlModel`, SHELL-03): one
@@ -123,6 +124,7 @@ public class MonitorControlModel(
         val current = binding
         mutable.update { it.copy(session = session) }
         feed = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            if (!isActive || binding != current) return@launch
             session.snapshots
                 .transformWhile { emit(it); it.connection !is ConnectionState.Disconnected }
                 .collect { if (binding == current) apply(it) }

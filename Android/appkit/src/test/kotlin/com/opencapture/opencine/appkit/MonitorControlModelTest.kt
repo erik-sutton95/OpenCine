@@ -17,6 +17,10 @@ import com.opencapture.opencine.core.testing.FakeDevice
 import com.opencapture.opencine.core.testing.djiLike
 import com.opencapture.opencine.core.testing.lunaLike
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -59,6 +63,22 @@ class MonitorControlModelTest {
     private fun TestScope.tick() {
         advanceTimeBy(120)
         runCurrent()
+    }
+
+    @Test
+    fun retiredBindingDoesNotReadNativeSnapshots() = runTest {
+        val owner = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
+        val model = MonitorControlModel(owner)
+        val camera = FakeCameraSession.djiLike()
+        var reads = 0
+        val counted = object : CameraSession by camera {
+            override val snapshots get() = camera.snapshots.also { reads += 1 }
+        }
+        owner.cancel()
+        model.bind(counted)
+        runCurrent()
+        assertEquals(0, reads)
+        assertNull(model.state.value.snapshot)
     }
 
     @Test

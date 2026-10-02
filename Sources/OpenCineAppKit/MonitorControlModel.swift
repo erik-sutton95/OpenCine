@@ -97,6 +97,9 @@ public final class MonitorControlModel {
         let current = binding
         self.session = session
         feed = Task { [weak self] in
+            // A native owner may already have left before this task starts. Do not touch its
+            // session to create a subscription after the binding or its controls have retired.
+            guard !Task.isCancelled, self?.binding == current else { return }
             for await snapshot in await session.snapshots() {
                 guard let self, self.binding == current else { return }
                 self.apply(snapshot)

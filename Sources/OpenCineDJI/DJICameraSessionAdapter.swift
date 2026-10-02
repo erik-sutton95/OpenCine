@@ -93,6 +93,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     public var wireTimeout: Duration = .seconds(4)
 
     private unowned let session: any DJIControlPort
+    private let onClose: (@MainActor (SessionCloseReason) -> Void)?
     private var snapshot: CameraSnapshot
     private var epoch = ControlEpoch(1)
     private var attempt = ConnectionAttemptID()
@@ -113,14 +114,25 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     /// The shared host clock (`MonotonicInstant.now`); tests inject their own.
     private let now: @Sendable () -> MonotonicInstant
 
-    public init(
+    public convenience init(
         session: any DJIControlPort,
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
+    ) {
+        self.init(session: session, now: now, onClose: nil)
+    }
+
+    /// A connection owner may retire its native transport when this seam closes.
+    /// Borrowed presentation must release its lease without closing the seam.
+    public init(
+        session: any DJIControlPort,
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now,
+        onClose: (@MainActor (SessionCloseReason) -> Void)?
     ) {
         let id = CameraSessionID()
         self.id = id
         self.session = session
         self.now = now
+        self.onClose = onClose
         snapshot = CameraSnapshot(session: id, epoch: ControlEpoch(1))
     }
 
@@ -202,7 +214,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         }
     }
 
-    /// Ends this seam only. Never sends a camera command and never stops a recording.
+    /// Retires this seam and invokes the optional connection-owner callback once.
+    /// The adapter never sends a camera command or stops a recording.
     public func close(_ reason: SessionCloseReason) {
         guard !closed else { return }
         for operation in open.keys { abandon(operation) }
@@ -215,6 +228,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             continuation.finish()
         }
         subscribers.removeAll()
+        onClose?(reason)
     }
 
     // MARK: Commands
