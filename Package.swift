@@ -102,8 +102,9 @@ let package = Package(
 
         // MARK: App shell
         // The shared app flow over the integration contract: the saved-camera store with its
-        // legacy mirrors, the connection model and the cameras and pair screens. Never imports an
-        // integration or an app; apps list their integrations.
+        // legacy mirrors, the connection model, the cameras and pair screens, the root and monitor
+        // lifetime (ShellModel, AppShell) and the common controls (MonitorControlModel). Never
+        // imports an integration or an app; apps list their integrations.
         .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "MonitorPresentation", "MonitorUI"]),
         .testTarget(
             name: "OpenCineAppKitTests",

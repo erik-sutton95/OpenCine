@@ -107,6 +107,60 @@
                 "09-pair-integration-preparation")
         }
 
+        /// The shared root over `ShellModel`: cameras, a cover over them, pair, then the monitor slot
+        /// (a stand-in here) with and without a cover, then back to the cameras page.
+        @Test func reviewRootAndCoverFixturesRender() async throws {
+            let fake = FakeIntegration(id: IntegrationID("test.cameras"))
+            let shell = ShellModel(cameras: model(fake, saved: [T.camera]))
+            func root() -> some View {
+                AppShell(
+                    model: shell, brand: ShellBrand(name: "REVIEW"),
+                    actions: ShellActions(diagnostics: {}, reportProblem: {}),
+                    safeArea: { _ in safeArea }
+                ) { monitor in
+                    ZStack {
+                        LinearGradient(colors: [.indigo, .teal, .orange], startPoint: .leading, endPoint: .trailing)
+                        VStack(spacing: 8) {
+                            Text("MONITOR SLOT (SIMULATED)").font(.headline)
+                            Text(monitor.camera.saved.displayName)
+                            if let cover = shell.cover { Text("covered by \(String(describing: cover))") }
+                        }
+                        .foregroundStyle(.white)
+                    }
+                    .ignoresSafeArea()
+                } page: { cover in
+                    ZStack {
+                        Color(white: 0.08).ignoresSafeArea()
+                        VStack(spacing: 8) {
+                            Text(cover == .settings ? "SETTINGS PAGE" : "MEDIA PAGE").font(.headline)
+                            Text("cover page (SIMULATED)").foregroundStyle(.gray)
+                            Circle().fill(.yellow).frame(width: 24, height: 24)
+                        }
+                        .foregroundStyle(.white)
+                    }
+                }
+            }
+
+            try write(root(), "10-root-cameras")
+            shell.open(.settings)
+            try write(root(), "11-root-cameras-settings-cover")
+            shell.dismissCover()
+            shell.beginPairing()
+            try write(root(), "12-root-pair")
+            shell.cameras.connect(T.camera)
+            fake.liveAttempt(for: T.camera.id)?.connect(session: FakeCameraSession.lunaLike())
+            #expect(await eventually { shell.route == .monitor })
+            let host = shell.monitor?.id
+            try write(root(), "13-root-monitor")
+            shell.open(.media)
+            try write(root(), "14-root-monitor-media-cover")
+            shell.dismissCover()
+            #expect(shell.monitor?.id == host, "a cover never replaces the monitor")
+            try write(root(), "15-root-monitor-revealed")
+            shell.close()
+            try write(root(), "16-root-cameras-after-close")
+        }
+
         /// Apps call the pair page without `extra`, as before the slot existed.
         @Test func thePairPageStillTakesNoExtra() {
             let page = PairCameraPage(

@@ -1,8 +1,8 @@
 # OpenCineAppKit (`appkit`)
 
-The shared app shell (SHELL-02, grown by SHELL-03): the saved-camera store, the connection model
-and the cameras and pair screens, over Core's integration contract (`CameraIntegration`, see
-[core](../core/README.md#integration-contract-shell-02)). Swift product `OpenCineAppKit`, Android
+The shared app shell (SHELL-02, grown by SHELL-03): the saved-camera store, the connection model,
+the cameras and pair screens, the root and monitor lifetime and the common controls, over Core's
+integration contract (`CameraIntegration`, see [core](../core/README.md#integration-contract-shell-02)). Swift product `OpenCineAppKit`, Android
 module `com.opencapture.opencine:appkit`.
 
 ## Boundaries
@@ -73,6 +73,45 @@ Review fixtures: `ReviewScreens` (iOS simulator only) renders eight states and w
 `OPENCINE_SCREENSHOTS` is set (`TEST_RUNNER_OPENCINE_SCREENSHOTS=<dir> xcodebuild test -scheme
 OpenCine-Package -destination <private simulator> -only-testing:OpenCineAppKitTests`).
 
+## Shell: root, monitor lifetime and common controls (SHELL-03)
+
+`ShellModel` is the app's root state over `CamerasModel`: the route (`cameras`, `pair`,
+`monitor`), an optional cover (`settings`, `media`), the operator's pairing request and the camera
+on the monitor. It takes over `CamerasModel.onConnected`: each successful connect presents its
+`ConnectedCamera` and this shell owns its session.
+
+- `present(camera)` shows a session this shell owns; `borrow(camera, release:)` shows one another
+  owner lends (a multicam member). A newer camera replaces the monitor: the old owned session
+  closes as `.replaced`; a borrowed one is handed back with its `release`.
+- `close()` leaves the monitor once: presentation and editors retire, an owned session closes
+  (`.requested`, never a camera command, so a recording keeps going), a borrowed one is
+  returned (never closed). Discovery resumes through `CamerasModel.sessionEnded()`.
+- The session reporting `.disconnected` by itself leaves the monitor without a second close.
+  `.recovering` keeps it: transport recovery is the integration's, and the last reported values
+  stay shown.
+- Covers never disconnect. A connect starts uncovered.
+- `setSceneActive(_:)` takes every OS signal (scene phase, app notifications, Android lifecycle)
+  and calls `onSceneActivity` once per change.
+
+`MonitorControlModel` (`shell.control`) holds the one snapshot subscription of the monitor's
+session and the operator's common controls: `shown(key)` (a pending target over the report,
+never written into the snapshot), `set(value, label:)` (coalesced per setting for 120 ms, latest
+wins, then one `CameraCommand` against the snapshot of that moment), `record(start:)` (an
+explicit start or stop resolved from a fresh report; unknown sends nothing), `edit(key)` /
+`isCurrent` / `commit` (an editor is obsolete once the session, control epoch, authority or the
+setting's domain changes) and `isRecording` (`nil` while unknown, never idle). `unbind()` retires
+everything in flight: a late receipt, snapshot or record outcome never reaches the next camera.
+Operator copy for outcomes is `note(for:_:)`; apps route notes, the media refresh after a stop
+and, while their views still read an app status type, a projection (`onChange`).
+
+`AppShell` (SwiftUI; Compose `AppShell`) renders the root from a `ShellModel`, a `ShellBrand`
+(name, nearby note), `ShellActions` (diagnostics, problem report, watch feed, multiview,
+integration actions) and two slots: `monitor` (keyed by the monitor lifetime, so covers and
+rotations never create a second host; `hostsMounted`/`hostsUnmounted` count them) and `page`
+(cover pages over the cameras and pair pages). Until an app's monitor moves into the shell
+(SHELL-03 I-2 and later), its existing native monitor is the `monitor` slot and draws the cover
+pages over itself.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
@@ -83,9 +122,16 @@ OpenCine-Package -destination <private simulator> -only-testing:OpenCineAppKitTe
 | `CamerasModelTests` (passive on cameras, active on pair, discovery stops while attempting or live, one attempt per camera, cancel, failure actions, prompts, upsert on connect, forget calls the integration, rename and forget a route) | `CamerasModelTest`, same method names |
 | `CamerasMappingTests` (golden cards, nearby, pair page, route titles) | `CamerasMappingTest`, same values |
 | `ReviewScreens.reviewFixturesRender` (iOS only) | not ported (Compose has no host renderer here) |
+| `ShellModelTests` (routes, connect A then replace with B and deliver A late, close once, disconnect during a pending edit, close while recording sends no stop, cover and reveal keep the host and connection, link loss keeps the held picture, stale record receipt, borrow and return, scene activity once per change) | `ShellModelTest`, same method names |
+| `MonitorControlModelTests` (pending over the report, coalescing, record unknown stays unknown, record from a fresh report, domain or authority change obsoletes the editor, a retired binding drops late outcomes, notes) | `MonitorControlModelTest`, same method names |
+| `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 
 Kotlin differences: JSON is org.json from android.jar (the real artifact backs the JVM tests);
 `StoredString` (`SharedPreferences.stored(key)`) replaces `StoredData`
 (`StoredData.userDefaults(key:)`); the store and the model are confined to one thread instead of
 the main actor; the model's `State` is one `StateFlow` value and `forget` suspends; slots are
-`@Composable` lambdas (Swift: closures returning `AnyView`).
+`@Composable` lambdas (Swift: closures returning `AnyView`). The shell's Kotlin models publish
+one `StateFlow` `State` each (`ShellModel.state`, `MonitorControlModel.state`) on a caller scope;
+Compose `AppShell` takes a `pageFrame` (the app's insets and back handling around the cameras and
+pair pages) where SwiftUI takes a `safeArea` function, and the Compose cameras page has no watch
+feed entry yet (only `PairScreen` takes `ShellActions.watchFeed`).
