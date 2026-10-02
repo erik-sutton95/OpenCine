@@ -28,6 +28,8 @@ include(
     ":monitor-ui",
     // Multicam engine (Kotlin/JVM).
     ":multicam",
+    // DJI: BLE link, datalink, wire models, gimbal programs, CameraSession adapter (JNI facade DjiNative).
+    ":dji",
     // Insta360: app shell contract (Kotlin/JVM) and the Luna adapter.
     ":insta360-shell", ":insta360-luna",
 )

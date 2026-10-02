@@ -54,6 +54,9 @@ breaks them, and never add a third-party package dependency.
 - Multicam: Swift and Kotlin change together (same public types and scenario names). No automatic
   compensation: only an operator-approved plan starts or stops a camera; closing never sends a
   command. App limits are parameters, not engine constants.
+- DJI Android (`Android/dji`): keep the JNI class `com.opencapture.opencine.dji.DjiNative` and its
+  member names; the app's Swift facade exports `Java_com_opencapture_opencine_dji_DjiNative_*`, so
+  rename both sides in step and compare `llvm-nm -D` of the app's `.so` with the `external fun`s.
 - DJI, Nikon: behavior changes need the consumer checks (OpenPocketCine / OpenZCine `swift test`,
   iOS build-for-testing and Android with Swift core staging). Nikon passive discovery and the
   per-operation admission rules change only with a hardware-qualified reason.

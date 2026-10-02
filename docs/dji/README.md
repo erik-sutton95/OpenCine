@@ -27,5 +27,21 @@ body cannot do (`CameraModel` flags: aperture, focus, zoom) as unsupported, and 
 else unknown. `CameraStatus.audioMeters` is `nil` until the camera reports audio. DJI's official
 Rec.709 look curves live in `DJILook`, not on the neutral `LiveColorScience`.
 
-Not here yet: the Kotlin DJI session and its adapter (`PocketControlPort`); they stay in the
-Pocket Android app for now.
+## Android (`Android/dji`, `com.opencapture.opencine:dji`)
+
+The Kotlin DJI layer, moved from the OpenPocketCine app without behavior change (SHELL-04): BLE
+link and initialization, the Wi-Fi datalink driver, DUML command and status models
+(`CameraCommands`, `CameraStatus`, `CameraModel`, `VideoFormat`, `CamFov`), gimbal programs and
+the native program runner, connection and live-view policies (`LiveViewEnablePolicy`,
+`SessionRecovery`), Multiview `StationJoin`, `ConnectionPhase`, and `DjiCameraSessionAdapter`
+(OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core` and `media` only.
+
+Wire bytes come from the app's Swift Android library through `DjiNative`, a JNI facade whose class
+name is part of the native symbols (`Java_com_opencapture_opencine_dji_DjiNative_<name>`): the
+app's facade over this Swift package exports them, and `consumer-rules.pro` keeps the class in
+minified apps. The app calls `DjiNative.load(<its library>)` once at startup and points `DjiLog.sink`
+at its diagnostics. Swift and Kotlin `CamFov` share `Fixtures/camfov-vectors.tsv`.
+
+Still in the app: the session orchestration (`PocketCameraSession`: diagnostics and feed incidents,
+operator preferences, Wi-Fi joining and saved credentials, face detection, media resume, gamepad)
+and all UI.
