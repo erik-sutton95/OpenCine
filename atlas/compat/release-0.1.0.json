@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "613447d849717b536663275fd5191e74946d19aa",
+      "commit": "f1d32b57c5141bd6a3e9d37fe234d55dba4cba62",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "613447d849717b536663275fd5191e74946d19aa",
-        "where": "Neutral utilities reviewed locally; shared Swift1719 plus72 XCTest/strict, Android857 unique (2 existing skips), Pocket331 root/504 Android and Insta595 root/696 Android full test-lint-debug-release with native staging. Installed credential preservation passed both apps; namespaces/aliases/envelopes unchanged. Nikon pin-only. Evidence scratchpad/neutral-utilities/evidence; hardware untested."
+        "commit": "f1d32b57c5141bd6a3e9d37fe234d55dba4cba62",
+        "where": "Pin38edecfc adds shared Nikon owned runtime and common capture foundation; Insta source otherwise unchangedf1d32b57. Prior root595, Android696, full phone/iPad502(one existing skip), installed-data/native8 evidence retained. I2 monitor migration remains isolated. Physical cameras untested."
       }
     },
     {
