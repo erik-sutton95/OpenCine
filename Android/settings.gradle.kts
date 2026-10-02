@@ -21,8 +21,9 @@ dependencyResolutionManagement {
 rootProject.name = "opencine-android"
 
 include(
-    // Core: Kotlin/JVM contracts (+ test fixtures), media policy, native Vulkan renderer.
-    ":core", ":media", ":vulkan",
+    // Core: Kotlin/JVM contracts (+ test fixtures), media policy, live-view MediaCodec decoder,
+    // native Vulkan renderer.
+    ":core", ":media", ":decoder", ":vulkan",
     // UI: Compose monitor UI.
     ":monitor-ui",
     // Multicam engine (Kotlin/JVM).
