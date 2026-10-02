@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "32852d80e9d7f5a3528100dabd2a6a0430e3c731",
+      "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "32852d80e9d7f5a3528100dabd2a6a0430e3c731",
-        "where": "SHELL-02 step 9 (cameras and pairing on OpenCine's shared pages, NikonDiscovery, saved-camera document with the app records mirrored), opencine/integration 32852d80 pinned to OpenCine b8732a6: root swift test 626 pass; Runner iOS 236 (138 XCTest incl. 9 NikonCamerasMigrationTests, 2 skipped; 98 Swift Testing) on private iPhone 16 Pro and iPad Pro 13 simulators, iOS 26.2 (was 227), proxy-export test skipped as known-hanging; Android test lint assembleRelease green: app 934 JVM (was 920) incl. NikonCamerasMigrationTest and the passive cameras-page test, core-api 5, wear 5, wear-relay 3; JNI exports of libOpenZCineAndroid unchanged (128); installed-build upgrade, downgrade, old-build edit and re-upgrade on simulator and emulator keep every setup, records byte-identical on upgrade, GUID and paired-host memory untouched. Screens: shell-02-screens/nikon-*. Physical device checks open (OPENCINE-INTEGRATION.md items 21-27)."
+        "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
+        "where": "SHELL-02 follow-ups: Swift626; private iPhone/iPad140 XCTest (2 skip)+98 Swift Testing each, exact-pin migration11 iOS/9 Android; Android test lint assembleRelease936app; JNI73 matches baseline; installed rename/clear/repeated-upgrade payload cycles both platforms; 36 settled captures and legal/back actions. scratchpad/codex-pages-nikon/logs; pre-existing aggregate lint baseline documented; hardware untested."
       }
     }
   ]
