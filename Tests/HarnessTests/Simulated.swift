@@ -39,6 +39,7 @@ final class SimulatedDJIPort: DJIControlPort {
     var whiteBalanceDisplayStatus: CameraStatus { status }
     var currentShootingMode: ShootingMode? { ShootingMode.fromStatus(status.shootingMode) }
     var connectedCameraID: String?
+    var connectedModel: CameraModel? = CameraModel.resolve(modelId: 0x0020, name: "Osmo Pocket 3")
     var admitsMultiviewControl = true
     var isBusy = false
     var link = DJILinkState.ready

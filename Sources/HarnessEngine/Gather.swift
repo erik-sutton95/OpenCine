@@ -6,12 +6,11 @@ extension MulticamSnapshot {
     /// it: one current snapshot per session, the app's picture health and busy entries, and one
     /// `now` for all of them.
     ///
-    /// `now` must be on the same monotonic reference as every session's own clock. Today the
-    /// three integrations use three references (see README.md, Seam findings, F1), so a cross-brand app
-    /// cannot satisfy this yet.
+    /// `now` is on the reference every session stamps on: `MonotonicInstant.now()`, the shared
+    /// host clock (README.md, Seam findings, F1, fixed).
     public static func gather(
         _ sessions: [any CameraSession], pictures: [StreamID: PictureHealth] = [:],
-        busy: Set<MonitorEntryID> = [], now: MonotonicInstant
+        busy: Set<MonitorEntryID> = [], now: MonotonicInstant = .now()
     ) async -> MulticamSnapshot {
         var cameras: [CameraSnapshot] = []
         for session in sessions {

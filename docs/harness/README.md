@@ -36,9 +36,9 @@ Needs the five packages as siblings (`../OpenCineCore`, `../OpenCineMulticam`, `
 `../OpenCineNikon`, `../OpenCineInsta360`) at the SHAs in `opencine-pins.txt`. CI
 (`.github/workflows/ci.yml`) checks them out and verifies each SHA; it has never run (no remotes).
 
-Last local run (2026-10-02, Swift 6.2.3, Xcode 26.2, macOS 26): `swift test` 26 tests in 7
-suites passed, 2 known issues recorded (F1); 0 "implemented in both" warnings; generic iOS
-build succeeded. All five packages at the pinned SHAs.
+Last local run (2026-10-02, Swift 6.2.3, Xcode 26.2, macOS 26, after the findings fix wave):
+`swift test` 26 tests in 7 suites passed, no known issues; 0 "implemented in both" warnings;
+generic iOS build succeeded. All five packages at the pinned SHAs.
 
 ## Scenarios
 
@@ -50,7 +50,7 @@ build succeeded. All five packages at the pinned SHAs.
 | `AnalysisTests` | 6.3, 11.2 #12 | Two D-Log2 sources with LOG and 709 readings and separate live ceilings stay independent; Luna's I-Log signal is stated by the operator, never inferred from its recording profile |
 | `GroupRecordTests` | 8.2, 11.2 #8, #13 | `RecordPlan` with one camera confirming, one refusing, one timing out; no compensation; strict refuses while eligible-subset states its exclusions; a replacement session (or a new DJI link) while the confirmation is open makes the plan stale and nothing is sent; a late result never lands on a replacement; lease expiry (Core fake relay) and a Nikon relay viewer taking control block commands but keep the picture |
 | `AdmissionTests` | 8.4 | Luna's access point conflicts with a router the others use; two camera access points cannot share a phone; Nikon USB control plus HDMI capture coexist; the qualified count is a budget value |
-| `FindingsTests` | 15.6 | F1 asserted inside `withKnownIssue` |
+| `FindingsTests` | 15.6 | F1 regression: one group deadline and one freshness check mean the same instant to every session |
 
 Physical combinations: [docs/TOPOLOGY.md](docs/TOPOLOGY.md) (nothing qualified).
 
@@ -78,8 +78,10 @@ Does not prove:
 
 ## Seam findings
 
-Found by composing the sessions; no package was changed. Details and proposed fixes for each
-owner:
+Found by composing the sessions. Status 2026-10-02: F1 and F3 to F7 are fixed in the owning
+packages (OpenCineCore 3e60644, OpenCineMulticam 48b0730, OpenCineDJI 15ab51f, OpenCineNikon
+ea4bbcd, OpenCineInsta360 f8f4c27); F2 belongs to RELEASE-01 (publish tooling). The original
+findings and what changed:
 
 - **F1, three clock references (defect for any cross-brand app).** DJI stamps nothing and checks
   deadlines on a process-relative `ContinuousClock`; Nikon uses a per-session `ContinuousClock`
@@ -89,8 +91,11 @@ owner:
   on Luna's reference. Same-brand apps never see it. Fix: one shared host reference in
   OpenCineCore (for example `MonotonicInstant.now()` over one process-wide `ContinuousClock`,
   injectable per session for tests; Kotlin one `System.nanoTime()` origin), used by every adapter
-  and by the app for `MulticamSnapshot.now`; DJI should stamp observations. `FindingsTests` turns
-  red when fixed; then drop `withKnownIssue`.
+  and by the app for `MulticamSnapshot.now`; DJI should stamp observations. **Fixed:**
+  `MonotonicInstant.now()` (Swift `ContinuousClock` reference, Kotlin `System.nanoTime()`), every
+  Swift session takes an injectable `now` defaulting to it, `MulticamSnapshot.now` and `gather`
+  default to it; `FindingsTests` are plain regression tests. Not done: DJI still stamps no
+  observation time (its `CameraStatus` carries no arrival time), so DJI freshness stays unknown.
 - **F2, packages pin different Core revisions (release blocker).** OpenCineMulticam pins Core
   `ada2871`, the three integrations `6b0e6ea`, Core main is `727baa0`. Sibling paths hide it (one
   checkout, verified), but with exact remote versions a cross-brand app could not resolve. Fix
@@ -99,22 +104,29 @@ owner:
 - **F3, DJI audio meters default to silence.** `CameraStatus.audioMeters` is `.silent` before any
   audio push, indistinguishable from a silent input. Core has no audio vocabulary yet, so nothing
   shared shows it today. Fix: publish `ObservedValue<AudioMeterLevels>`, unknown until
-  `audioStatusRaw` arrives (`ProposedMappings.djiAudioMeters`).
+  `audioStatusRaw` arrives (`ProposedMappings.djiAudioMeters`). **Fixed:** `audioMeters` is
+  `nil` until the camera reports.
 - **F4, shutter unpublished and a fabricating helper.** DJI and Nikon sessions do not describe
   shutter. `ShutterAngle.degrees(denom:fps:)` (OpenCineMedia) answers 180 for a non-positive
   denominator and treats an unknown frame rate as 24. Fix: Nikon publishes `.angle`
   (camera-reported) in angle mode, DJI its native `.duration` with any angle readout marked
   `.protocolDerived`; the helper returns `Double?` or callers guard
-  (`ProposedMappings.djiShutterAngle`).
+  (`ProposedMappings.djiShutterAngle`). **Fixed (helper):** `degrees(denom:fps:)` and
+  `nearestLabel(denom:fps:)` return `nil` for an unknown 1/N or rate. Publishing shutter from the
+  DJI and Nikon sessions is still open.
 - **F5, integration IDs isolated to the main actor on DJI and Nikon** (Luna's is `nonisolated`),
   so the composition root must be `@MainActor`. Fix: `public nonisolated static let integration`.
+  **Fixed:** `Composition.factories` is nonisolated; only the session constructors are main-actor.
 - **F6, nothing is declared unsupported.** No adapter fills `CapabilitySnapshot.unsupported`
   (fixed apertures on Pocket and Luna, no tint in the Nikon slice), so shared UI cannot tell "no
-  iris" from "not discovered". Fix: each adapter lists what the body cannot do.
+  iris" from "not discovered". Fix: each adapter lists what the body cannot do. **Fixed:** DJI
+  lists aperture, focus mode, tap focus and zoom from the connected `CameraModel`'s flags (port
+  `connectedModel`; unknown body claims nothing), Luna lists aperture; Nikon knows of no absent
+  control (every common key exists on Z bodies), so nothing is listed.
 - **F7, DJI look curves on the neutral namespace.** OpenCineDJI extends OpenCineMedia's
   `LiveColorScience` with `rec709LookCurve(_:)` keyed by the shared `MonitorTransfer`, `.ilog`
   included. Fix: a DJI-named namespace; each integration supplies its look per source (as
-  `AnalysisConfiguration.lookCurve` does).
+  `AnalysisConfiguration.lookCurve` does). **Fixed:** `DJILook` in OpenCineDJI.
 
 Recorded for scope, not defects: no vendor session offers lease authority yet (lease expiry uses
 Core's fake relay plus Nikon's real "relay viewer holds control" path); OpenCineMulticam models
@@ -141,14 +153,16 @@ need:
 5. A native closure check: the DJI and Nikon JNI facades each link a Swift Android runtime and
    OpenCineCore; one APK must carry one copy of each `.so` and no colliding `JNI_OnLoad` (plan
    15.6, "native/Android packaging has a coherent dependency closure").
-6. F1 fixed in Kotlin too (one monotonic origin for every session).
+6. F1 in Kotlin: Core `MonotonicInstant.now()` is `System.nanoTime()`; the Kotlin Luna session
+   already stamps that. The app-side Kotlin DJI and Nikon adapters move to it on their app
+   `opencine/integration` branches.
 
 ## Gate (plan 13, MULTI-03)
 
 | Gate | Result |
 |---|---|
 | Shared engine/UI requires no manufacturer branch | Engine: met (scan test; Core and Multicam enforce their own rules). UI: not exercised (OpenCineUI not composed). |
-| No global runtime collision | Met in simulation for state and credentials; F1 is a cross-session clock defect, and Luna's camera access point is process-wide by design (admission rejects a second). |
+| No global runtime collision | Met in simulation for state, credentials and clocks (F1 fixed: one host clock); Luna's camera access point is process-wide by design (admission rejects a second). |
 | Unsupported physical combinations rejected or documented | Met: `AdmissionTests` plus `docs/TOPOLOGY.md`. |
 | Evidence distinguishes simulation from hardware | Met: every suite, this README and the matrix say SIMULATED or untested; no hardware run exists. |
 

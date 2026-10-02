@@ -61,10 +61,8 @@ public struct IntegrationFactory: Hashable, Sendable {
 /// registry, no plugin loading, no dependency-injection framework. This is the only module of the
 /// harness that names a manufacturer; HarnessEngine, OpenCineMulticam and OpenCineCore never do.
 ///
-/// Main-actor isolated only because `DJICameraSessionAdapter.integration` and
-/// `NikonCameraSession.integration` are (their classes are `@MainActor`; Luna's is `nonisolated`).
-/// See README.md, Seam findings, F5.
-@MainActor
+/// The factory list is nonisolated (every integration ID is `nonisolated`, F5 fixed); only the
+/// session constructors are main-actor isolated, because the sessions are.
 public enum Composition {
     public static let factories: [IntegrationFactory] = [dji, nikon, luna, hdmiCapture]
 
@@ -102,11 +100,13 @@ public enum Composition {
 
     /// The DJI common session over the app's DJI session (`DJIControlPort`). The adapter holds the
     /// port unowned, so the caller keeps the port alive, as an app's session object would.
+    @MainActor
     public static func djiSession(over port: any DJIControlPort) -> DJICameraSessionAdapter {
         DJICameraSessionAdapter(session: port)
     }
 
     /// The Nikon common session over the app's control service (`NikonControlDriver`).
+    @MainActor
     public static func nikonSession(
         over driver: any NikonControlDriver, serialNumber: String,
         recordObservationTimeout: Duration = .seconds(5)
@@ -122,6 +122,7 @@ public enum Composition {
         keychainService: "org.opencapture.harness.luna", appName: "OpenCine Harness",
         logPrefix: "harness")
 
+    @MainActor
     public static func lunaBackend() -> LunaCameraBackend {
         LunaCameraBackend(configuration: lunaConfiguration)
     }

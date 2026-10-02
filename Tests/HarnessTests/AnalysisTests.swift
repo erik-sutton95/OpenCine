@@ -13,7 +13,7 @@ import Testing
     @Test func perSourceReadingAndCeilingStayIndependent() throws {
         // Two Pocket feeds in D-Log2 and one Luna in I-Log, in one process.
         let dlog2 = ObservedValue(MonitorTransfer(ColorMode.dLog2), origin: .cameraReported, at: nil)
-        let look = LiveColorScience.rec709LookCurve(.dlog2)
+        let look = DJILook.rec709LookCurve(.dlog2)
         var analysis: [String: AnalysisConfiguration] = [
             "pocket A": AnalysisConfiguration(signal: dlog2, rec709Reading: false, lookCurve: look),
             "pocket B": AnalysisConfiguration(signal: dlog2, rec709Reading: true, lookCurve: look),
@@ -53,7 +53,7 @@ import Testing
         let log = AnalysisConfiguration(signal: stated, rec709Reading: false, lookCurve: nil)
         var asked709 = log
         asked709.rec709Reading = true
-        #expect(LiveColorScience.rec709LookCurve(.ilog) == nil)
+        #expect(DJILook.rec709LookCurve(.ilog) == nil)
         #expect(asked709.waveIRE(encoded: 0.5, clipByte: nil) == log.waveIRE(encoded: 0.5, clipByte: nil))
     }
 }

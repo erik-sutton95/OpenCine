@@ -37,13 +37,18 @@ import Testing
         #expect(lunaShutter.contains(.shutter(.duration(Rational(1, 50)))))
         #expect(!lunaShutter.contains { if case .shutter(.angle) = $0 { true } else { false } })
 
-        // What a session does not describe is unknown, never unsupported or zero (F6: no adapter
-        // lists a known-absent control such as Luna's or the Pocket's fixed aperture).
+        // A known-absent control is unsupported (F6): the Pocket's and Luna's fixed apertures.
+        // The Nikon slice knows of no absent control, so its aperture is unknown, not unsupported.
+        // Either way no iris is laid out and no value is invented.
+        #expect(dji.capabilities.support(of: .aperture) == .unsupported)
+        #expect(luna.capabilities.support(of: .aperture) == .unsupported)
+        #expect(nikon.capabilities.support(of: .aperture) == .unknown)
+        #expect(dji.capabilities.support(of: .zoom) == .unknown, "the Pocket has zoom, undescribed")
         for snapshot in [dji, nikon, luna] {
-            #expect(snapshot.capabilities.support(of: .aperture) == .unknown)
             #expect(snapshot.value(of: .aperture).isKnown == false)
             #expect(MonitorLayoutCapabilities(snapshot.capabilities).iris == false)
         }
+        #expect(rig.dji.request(.set(.aperture(2))).stage == .rejected(.unsupported))
         #expect(nikon.capabilities.support(of: .whiteBalanceTint) == .unknown)
         #expect(dji.capabilities.support(of: .shutter) == .unknown)
 
@@ -75,9 +80,10 @@ import Testing
         #expect(derived.value == .angle(180))
         #expect(derived.origin == .protocolDerived)
 
-        // Unknown stays unknown, although the shared helper answers 180 degrees for it.
+        // Unknown stays unknown, in the shared helper too (F4 fixed: no 180 degrees, no 24 fps).
         pocket.shutterDenom = -1
-        #expect(ShutterAngle.degrees(denom: -1, fps: 25) == 180)
+        #expect(ShutterAngle.degrees(denom: -1, fps: 25) == nil)
+        #expect(ShutterAngle.degrees(denom: 50, fps: 0) == nil)
         #expect(ProposedMappings.djiShutterAngle(pocket).isKnown == false)
         pocket.shutterDenom = 50
         pocket.fps = 0
@@ -111,7 +117,7 @@ import Testing
     }
 
     /// Audio: OpenCineCore has no audio vocabulary, so no shared surface can draw a meter from a
-    /// session. The DJI raw default is the trap (F3): silence before any audio report.
+    /// session. The DJI raw meters are unknown until the camera reports (F3 fixed).
     @Test func audioAbsenceNeverFabricatesMeters() async throws {
         let rig = Rig()
         let snapshot = try #require(await rig.dji.currentSnapshot())
@@ -120,10 +126,10 @@ import Testing
         #expect(MonitorLayoutCapabilities().audio == false, "only an integration's base turns it on")
 
         let pocket = CameraStatus()
-        #expect(pocket.audioMeters == .silent, "the raw default reads as measured silence")
+        #expect(pocket.audioMeters == nil, "no report is unknown, never measured silence")
         #expect(ProposedMappings.djiAudioMeters(pocket).isKnown == false)
         var reported = pocket
-        reported.audioStatusRaw = [0x00]
+        reported.audioMeters = .silent  // a reported silent input
         #expect(ProposedMappings.djiAudioMeters(reported).origin == .cameraReported)
     }
 

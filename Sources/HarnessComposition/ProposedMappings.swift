@@ -8,26 +8,24 @@ import OpenCineNikon
 /// Integration-side translations the common sessions do not publish yet: audio meters, shutter
 /// angle and camera clock. They live here so the harness can show what each should carry; each is a
 /// proposed adapter addition (README.md, Seam findings), not package behavior. Shared code never calls
-/// them by brand; it only reads the `ObservedValue` they return.
+/// them by brand; it only reads the `ObservedValue` they return. The raw unknowns they used to guard
+/// (F3 silent meters, F4 180 degrees) are fixed in the packages; these now only map.
 public enum ProposedMappings {
     // MARK: Audio (F3)
 
-    /// DJI meters as an observation. `CameraStatus.audioMeters` defaults to `.silent` before any
-    /// audio push, which is indistinguishable from measured silence; only a received audio status
-    /// (`audioStatusRaw`) makes the meters a camera report.
+    /// DJI meters as an observation: unknown until the camera reports (`audioMeters` is `nil`).
     public static func djiAudioMeters(_ status: CameraStatus) -> ObservedValue<AudioMeterLevels> {
-        guard status.audioStatusRaw != nil else { return .unknown }
-        return ObservedValue(status.audioMeters, origin: .cameraReported, at: nil)
+        guard let meters = status.audioMeters else { return .unknown }
+        return ObservedValue(meters, origin: .cameraReported, at: nil)
     }
 
     // MARK: Shutter (F4)
 
     /// DJI reports shutter as `1/denominator`; its angle is derived from that and the frame rate.
-    /// `ShutterAngle.degrees(denom:fps:)` answers 180 for an unknown denominator and treats an
-    /// unknown frame rate as 24, so both are guarded here: unknown stays unknown.
+    /// `ShutterAngle.degrees(denom:fps:)` is `nil` when either is unknown.
     public static func djiShutterAngle(_ status: CameraStatus) -> ObservedValue<ShutterValue> {
-        guard status.shutterDenom > 0, (8...240).contains(status.fps) else { return .unknown }
-        let degrees = ShutterAngle.degrees(denom: status.shutterDenom, fps: status.fps)
+        guard let degrees = ShutterAngle.degrees(denom: status.shutterDenom, fps: status.fps)
+        else { return .unknown }
         return ObservedValue(.angle(degrees), origin: .protocolDerived, at: nil)
     }
 
