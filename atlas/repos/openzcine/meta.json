@@ -114,7 +114,10 @@
         "OpenCineFrameIO",
         "OpenCineApple",
         "OpenCineNikon",
-        ":core"
+        "OpenCineNikonAndroid",
+        "OpenCineJNI",
+        ":core",
+        ":nikon"
       ],
       "evidence": {
         "path": "Package.swift",

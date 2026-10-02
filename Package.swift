@@ -37,6 +37,11 @@ let package = Package(
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
         .library(name: "OpenCineNikon", targets: ["OpenCineNikon"]),
+        // Nikon Android facade: the PTP/IP and USB session layer and the NikonNative JNI exports
+        // an app's Swift Android library links.
+        .library(name: "OpenCineNikonAndroid", targets: ["OpenCineNikonAndroid"]),
+        // JNI plumbing (NDK <jni.h> plus copy helpers) for Swift Android libraries.
+        .library(name: "OpenCineJNI", targets: ["OpenCineJNI"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -103,6 +108,20 @@ let package = Package(
         .testTarget(
             name: "OpenCineNikonTests",
             dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMulticam"]),
+        // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
+        // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
+        // media browse and the JNI exports of the Kotlin class
+        // com.opencapture.opencine.nikon.NikonNative (Android `:nikon`). Everything but the JNI
+        // exports also builds and tests on Darwin against scripted fake cameras.
+        .target(name: "OpenCineNikonAndroid", dependencies: ["OpenCineNikon", "OpenCineJNI"]),
+        .testTarget(
+            name: "OpenCineNikonAndroidTests",
+            dependencies: ["OpenCineNikonAndroid", "OpenCineNikon"]),
+
+        // MARK: JNI
+        // NDK <jni.h> for Swift (empty on Darwin) and the shared copy helpers, re-exported.
+        .target(name: "COpenCineJNI"),
+        .target(name: "OpenCineJNI", dependencies: ["COpenCineJNI"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation only) and the Apple I/O adapter with its KCP C code.

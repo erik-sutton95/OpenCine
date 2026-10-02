@@ -94,6 +94,15 @@ public struct PTPLiveViewSoundIndicator: Equatable, Sendable {
     public let currentLeft: Int
     /// Current-level segment, right channel (`0…14`).
     public let currentRight: Int
+
+    /// Maps one indicator segment onto a dBFS meter whose silence sits at `floorDB`: segment 0 at
+    /// the floor, segment 14 at 0 dBFS, spaced evenly in dB between. `[ZR · verify-on-HW]`: the
+    /// spec gives no per-segment dB values, so even spacing is an assumption to check against the
+    /// body's own meter. The camera applies its own ballistics and peak hold.
+    public static func decibels(segment: Int, floorDB: Double) -> Double {
+        let fraction = Double(min(max(segment, 0), maxSegment)) / Double(maxSegment)
+        return floorDB * (1 - fraction)
+    }
 }
 
 /// The camera's virtual-horizon reading from the LiveViewObject header — `roll` is the side tilt
