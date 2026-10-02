@@ -89,10 +89,13 @@ jobs:
       - name: Candidate consumer matrix
         run: python3 atlas/tools/atlas.py compat plan
       # SHELL-00: code copied between OpenCine and the apps may only shrink. Each app is read at
-      # the commit its registry ref pins; a commit not on GitHub yet is reported as not checked.
+      # the commit its registry ref pins. Best effort: a private app (no token here) or a commit
+      # not on GitHub yet is reported by the next step as not checked, never as zero.
       - name: App sources for the duplication check
+        continue-on-error: true
         env:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
+          GIT_TERMINAL_PROMPT: "0"
         run: mkdir -p "$OPENCAPTURE_WORKSPACE" && python3 atlas/tools/atlas.py ensure
       - name: Duplicated code (no growth against atlas/compat/dupes-baseline.json)
         env:
