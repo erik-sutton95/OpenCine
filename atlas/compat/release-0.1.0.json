@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "f0f5a52ed35b6131319678a92b1817c3e44554c8",
+    "commit": "a48990a96341384252fcadc19cc6e57d86255158",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "f0f5a52ed35b6131319678a92b1817c3e44554c8",
-      "where": "SHELL-01 step8 + SHELL-04 JNI, shared f0f5a52: Swift1719+72, strict build, Android830 JVM (2 existing skips), test lint release, MonitorUI/Apple generic iOS, atlas91/check sources and Vulkan passed. scratchpad/jni-helper-task/combined-* and evidence; device checks untested."
+      "commit": "a48990a96341384252fcadc19cc6e57d86255158",
+      "where": "DJI preferred session/host aliases a48990a: shared Swift1719+72/strict, Android830 JVM (2 existing skips), full test lint release, atlas91/check sources pass. Kotlin source aliases preserve original JVM classes and reflective fields; proof scratchpad/dji-session-names/evidence. No Swift/iOS runtime code change."
     }
   },
   "apps": [
