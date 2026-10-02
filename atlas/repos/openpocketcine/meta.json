@@ -115,6 +115,7 @@
         "MonitorUI",
         "OpenCineMulticam",
         "OpenCineDJI",
+        "OpenCineDJIAndroid",
         ":core",
         ":decoder",
         ":dji",
