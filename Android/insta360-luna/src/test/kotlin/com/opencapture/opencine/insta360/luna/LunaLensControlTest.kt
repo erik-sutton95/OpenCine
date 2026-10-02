@@ -103,11 +103,11 @@ class LunaLensControlTest {
     @Test fun lensAdmissionRejectsOutOfDomainAndStaleConfiguration() = runTest {
         val h = LensHarness(backgroundScope)
         h.session.configureLens(1.0..4.0)
-        assertEquals(CommandStage.Rejected(CommandRejection.OUT_OF_DOMAIN), h.session.submit(h.command(SettingValue.Zoom(5.0))).stage)
-        assertEquals(CommandStage.Rejected(CommandRejection.OUT_OF_DOMAIN), h.session.submit(h.command(SettingValue.FocusMode(FocusMode.MANUAL))).stage)
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain), h.session.submit(h.command(SettingValue.Zoom(5.0))).stage)
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain), h.session.submit(h.command(SettingValue.FocusMode(FocusMode.MANUAL))).stage)
         val old = h.command(SettingValue.Zoom(3.0))
         h.session.configureLens(1.0..2.0)
-        assertEquals(CommandStage.Rejected(CommandRejection.STALE_CAPABILITIES), h.session.submit(old).stage)
+        assertEquals(CommandStage.Rejected(CommandRejection.StaleCapabilities), h.session.submit(old).stage)
         h.session.configureLens(0.0..15.0)
         assertEquals(SupportStatus.UNKNOWN, h.current.capabilities.support(SettingKey.ZOOM))
         assertTrue(h.sent.isEmpty())
@@ -127,7 +127,7 @@ class LunaLensControlTest {
         h.report(types = listOf(53), zoom = 3.0)
         assertEquals(CommandStage.OutcomeUnknown, h.session.receipt(newer.operation)?.stage)
         assertEquals(SettingValue.Zoom(2.0), h.current.value(SettingKey.ZOOM).value)
-        assertEquals(CommandStage.Rejected(CommandRejection.SESSION_CLOSED), h.session.submit(h.command(SettingValue.Zoom(4.0))).stage)
+        assertEquals(CommandStage.Rejected(CommandRejection.SessionClosed), h.session.submit(h.command(SettingValue.Zoom(4.0))).stage)
         assertEquals(2, h.sent.size)
     }
 
