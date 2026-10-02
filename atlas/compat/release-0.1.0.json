@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "030fa0403f57126df21ea132212593c401fa3760",
+    "commit": "8d9d3f44d7825e3d8593c61cd0fe67ae15d38431",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "030fa0403f57126df21ea132212593c401fa3760",
-      "where": "Common Luna focus/zoom descriptors, bounded requests, camera-report observations and truthful receipts030fa040; combined shared1758SwiftTesting+78XCTest/strict, Android876unique(2 existing skips)/lint/release, genericMonitorUI/OpenCineApple passed. Logs scratchpad/luna-lens/*final.log and shared-combined-*.log; source b1516f97. Physical cameras untested."
+      "commit": "8d9d3f44d7825e3d8593c61cd0fe67ae15d38431",
+      "where": "SHELL-03 I2 product8d9d3f44: shared1758 Swift Testing +78 XCTest, strict concurrency, generic MonitorUI/OpenCineApple, Android full test/lint/release538 tasks and Vulkan sync passed; atlas91 tests/1 existing skip. Final bounded intrinsic Compose capture fix passed AppKit lint/package549 tasks and actual native rendered regression+host identity2 tests. Logs /private/tmp/claude-501/-Users-eriksutton-Work-OpenPocketCine/a08ada23-de94-4bcc-827a-c5609ae1fcb9/scratchpad/codex-shell03-i2/logs. Physical camera behavior untested."
     }
   },
   "apps": [
