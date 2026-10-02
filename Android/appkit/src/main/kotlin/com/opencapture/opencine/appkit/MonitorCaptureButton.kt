@@ -48,20 +48,27 @@ public fun MonitorCaptureButton(
     modifier: Modifier = Modifier,
     photo: Boolean = false,
     confirm: Boolean = false,
+    confirmationPolicy: MonitorControlModel.RecordConfirmationPolicy =
+        MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
     takePhoto: () -> Unit = {},
     openMode: (() -> Unit)? = null,
 ): Unit {
     val state by control.state.collectAsState()
-    val editor = control.recordEditor()
+    val editor = control.recordEditor(confirmationPolicy)
     val recording = control.isRecording == true
     val interactive = enabled && !state.recordPending && (photo || editor != null)
     var approved by remember { mutableStateOf<MonitorControlModel.RecordEditor?>(null) }
-    LaunchedEffect(editor, enabled, photo) { approved = null }
+    LaunchedEffect(editor) {
+        approved?.let { if (!control.canCommitRecord(it)) approved = null }
+    }
+    LaunchedEffect(enabled, photo, confirmationPolicy) { approved = null }
     fun press() {
         if (!interactive) return
         when {
             photo -> takePhoto()
             confirm -> approved = editor
+            confirmationPolicy == MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET && editor != null ->
+                control.commitRecord(editor)
             else -> control.record(null)
         }
     }

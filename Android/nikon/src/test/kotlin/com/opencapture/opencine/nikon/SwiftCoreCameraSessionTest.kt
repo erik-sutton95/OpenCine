@@ -1,5 +1,9 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingKey
+import com.opencapture.opencine.core.SettingValue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -29,6 +33,55 @@ import kotlinx.coroutines.test.advanceTimeBy
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SwiftCoreCameraSessionTest {
+    @Test
+    fun `common observations exclude optimistic control targets and clear on disconnect`() = runTest {
+        val bridge = FakeBridge()
+        val session = quietSession(bridge)
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+        connecting.await()
+        session.refreshProperties()
+        val common = NikonOpenCineSession(session, backgroundScope)
+        assertEquals(800L, session.reportedCameraProperties.value.iso)
+
+        val writeStarted = CountDownLatch(1)
+        val releaseWrite = CountDownLatch(1)
+        bridge.controlHandler = { _, _ ->
+            writeStarted.countDown()
+            check(releaseWrite.await(5, TimeUnit.SECONDS))
+            NikonNative.CONTROL_COMMAND_ACCEPTED
+        }
+        val writing = async(Dispatchers.Default) { session.applyControl(CameraControl.ISO, "1600") }
+        try {
+            assertTrue(writeStarted.await(5, TimeUnit.SECONDS))
+            assertEquals(1600L, session.cameraProperties.value.iso)
+            assertEquals(800L, session.reportedCameraProperties.value.iso)
+            assertEquals(
+                SettingValue.Iso(ISOValue.Manual(800)),
+                common.refresh().value(SettingKey.ISO).value,
+            )
+        } finally {
+            releaseWrite.countDown()
+        }
+        writing.await()
+        // Command acceptance is not an additional property report. A later body read is the
+        // sole source of the observation, including a body change after the write completed.
+        assertEquals(800L, session.reportedCameraProperties.value.iso)
+        bridge.propertyRefreshPayload = propertyPayload(iso = 1250)
+        session.refreshProperties()
+        assertEquals(1250L, session.cameraProperties.value.iso)
+        assertEquals(1250L, session.reportedCameraProperties.value.iso)
+        assertEquals(
+            SettingValue.Iso(ISOValue.Manual(1250)),
+            common.refresh().value(SettingKey.ISO).value,
+        )
+        session.disconnect()
+        assertEquals(CameraPropertySnapshot(), session.reportedCameraProperties.value)
+        assertNull(common.refresh().value(SettingKey.ISO).value)
+        common.closeNow(SessionCloseReason.REQUESTED)
+    }
+
     @Test
     fun `codec bit depths decode as whole triples and the current depth rides beside them`() {
         val rs = Char(0x1E)

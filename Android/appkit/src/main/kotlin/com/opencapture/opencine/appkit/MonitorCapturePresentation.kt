@@ -34,6 +34,7 @@ public object MonitorCapturePresentation {
     public fun title(key: SettingKey): String? = when (key) {
         SettingKey.ISO -> "ISO"
         SettingKey.SHUTTER -> "SHUTTER"
+        SettingKey.APERTURE -> "IRIS"
         SettingKey.WHITE_BALANCE -> "WB"
         SettingKey.EXPOSURE_COMPENSATION -> "EV"
         SettingKey.FOCUS_MODE -> "FOCUS"
@@ -52,6 +53,7 @@ public object MonitorCapturePresentation {
                 else "${number(shutter.seconds.doubleValue)}s"
             is ShutterValue.Angle -> "${number(shutter.degrees)}°"
         }
+        is SettingValue.Aperture -> "f/${number(value.fNumber)}"
         is SettingValue.WhiteBalance -> when (val wb = value.value) {
             WhiteBalanceValue.Auto -> "Auto"
             is WhiteBalanceValue.Preset -> wb.id

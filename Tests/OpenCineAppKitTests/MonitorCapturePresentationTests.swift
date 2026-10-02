@@ -2,6 +2,7 @@ import Foundation
 import OpenCineCore
 import OpenCineCoreTestSupport
 import Testing
+
 @testable import OpenCineAppKit
 
 /// SIMULATED descriptor and confirmation scenarios. Kotlin mirrors the same names.
@@ -23,9 +24,15 @@ import Testing
         #expect(MonitorCapturePresentation.title(.focusMode) == "FOCUS")
     }
 
+    @Test func apertureUsesTheCommonCapturePresentation() {
+        #expect(MonitorCapturePresentation.title(.aperture) == "IRIS")
+        #expect(MonitorCapturePresentation.label(.aperture(2.8)) == "f/2.8")
+    }
+
     @available(macOS 14, *)
     @Test func absentReportDoesNotSelectTheFirstDrumDetent() async throws {
-        let camera = FakeCameraSession(behavior: FakeCameraSession.lunaLike().behavior,
+        let camera = FakeCameraSession(
+            behavior: FakeCameraSession.lunaLike().behavior,
             device: FakeDevice(rawMode: 0x01, settings: [], recording: nil))
         await camera.cameraReportsStatus()
         let control = MonitorControlModel()
@@ -56,7 +63,9 @@ import Testing
         #expect(control.captureField(.iso)?.label == "800")
         #expect(await camera.current.value(of: .iso).value == .iso(.manual(200)))
         await clock.tick(.milliseconds(120))
-        #expect(await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] })
+        #expect(
+            await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] }
+        )
     }
 
     @available(macOS 14, *)
@@ -108,11 +117,15 @@ import Testing
 
     @available(macOS 14, *)
     @Test func kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
-        let values = MonitorCapturePresentation.choices(.whiteBalance,
+        let values = MonitorCapturePresentation.choices(
+            .whiteBalance,
             domain: SettingDomain(choices: [.whiteBalance(.auto)], range: 2000...2200, step: 50))
         #expect(values.map(\.label) == ["Auto", "2000K", "2050K", "2100K", "2150K", "2200K"])
-        #expect(MonitorCapturePresentation.choices(.whiteBalance,
-            domain: SettingDomain(range: 0...1_000_000, step: 1)).isEmpty)
+        #expect(
+            MonitorCapturePresentation.choices(
+                .whiteBalance,
+                domain: SettingDomain(range: 0...1_000_000, step: 1)
+            ).isEmpty)
     }
 
     @available(macOS 14, *)
@@ -162,6 +175,45 @@ import Testing
         #expect(await eventually { control.isRecording == true && !control.recordPending })
         #expect(!control.commitRecord(from: approval))
         #expect(await camera.wire == ["record-start"])
+    }
+
+    @available(macOS 14, *)
+    @Test func explicitTargetApprovalNeverInvertsWhenTheCameraStartsMeanwhile() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        let approval = try #require(control.recordEditor(policy: .explicitTarget))
+        control.record(start: true)
+        #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { control.isRecording == true && !control.recordPending })
+        #expect(control.canCommitRecord(from: approval))
+        #expect(control.commitRecord(from: approval))
+        #expect(await eventually { !control.recordPending })
+        #expect(await camera.wire == ["record-start"])
+        let stop = try #require(control.recordEditor(policy: .explicitTarget))
+        await camera.setAuthority(.readOnly)
+        #expect(await eventually { !control.canCommitRecord(from: stop) })
+        #expect(!control.commitRecord(from: stop))
+        #expect(await camera.wire == ["record-start"])
+    }
+
+    @available(macOS 14, *)
+    @Test func explicitApprovalRetiresWithUnknownModeAndReplacement() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.recordEditor() != nil })
+        let approval = try #require(control.recordEditor(policy: .explicitTarget))
+        await camera.cameraSwitchesMode(raw: 0xff)
+        #expect(await eventually { !control.canCommitRecord(from: approval) })
+        #expect(!control.commitRecord(from: approval))
+        control.bind(camera)
+        #expect(!control.commitRecord(from: approval))
+        #expect(await camera.wire.isEmpty)
     }
 
     @available(macOS 14, *)

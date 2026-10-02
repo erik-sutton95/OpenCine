@@ -10,10 +10,12 @@ import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SessionCloseReason
 import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import kotlin.test.Test
@@ -35,6 +37,54 @@ import kotlinx.coroutines.test.runTest
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NikonOpenCineSessionTest {
+    @Test
+    fun `movie exposure preserves native labels and only writes the active circuit`() = runTest {
+        val properties = movie().copy(
+            shutterMode = CameraShutterMode.SPEED,
+            shutterSpeed = "2/100", shutterAngle = "180°", iris = "f/2.8",
+            controlCapabilities = movie().controlCapabilities.copy(
+                shutterValues = listOf("2/100", "1/100", "180°", "1/0", "Bulb"),
+                irisValues = listOf("f/2.8", "f/4.0", "f/NaN", "unknown"),
+            ),
+        )
+        val native = FakeNikon(properties)
+        val seam = NikonOpenCineSession(native, backgroundScope)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))), seam.refresh().value(SettingKey.SHUTTER).value)
+        assertEquals(SettingValue.Aperture(2.8), seam.refresh().value(SettingKey.APERTURE).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain), seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage)
+        assertEquals(CommandStage.Rejected(CommandRejection.OutOfDomain), seam.request(CameraCommandIntent.Set(SettingValue.Aperture(5.6))).stage)
+        assertTrue(native.writes.isEmpty())
+
+        assertEquals(CommandStage.Confirmed, seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))))).stage)
+        assertEquals(CommandStage.Confirmed, seam.request(CameraCommandIntent.Set(SettingValue.Aperture(4.0))).stage)
+        assertEquals(listOf(CameraControl.SHUTTER to "2/100", CameraControl.IRIS to "f/4.0"), native.writes)
+        assertEquals(SettingValue.Aperture(2.8), seam.refresh().value(SettingKey.APERTURE).value)
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test
+    fun `mode changes retire exposure edits and locked or unknown circuits cannot write`() = runTest {
+        val properties = movie().copy(
+            shutterMode = CameraShutterMode.SPEED, shutterSpeed = "1/50", shutterAngle = "180°",
+            controlCapabilities = movie().controlCapabilities.copy(shutterValues = listOf("1/50", "1/100", "180°")),
+        )
+        val native = FakeNikon(properties)
+        val seam = NikonOpenCineSession(native, backgroundScope)
+        val stale = CameraCommand(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 100)))), CommandPreconditions(seam.refresh()))
+        native.cameraProperties.value = properties.copy(shutterMode = CameraShutterMode.ANGLE)
+        assertEquals(CommandStage.Rejected(CommandRejection.StaleCapabilities), seam.submit(stale).stage)
+        native.cameraProperties.value = native.cameraProperties.value.copy(shutterLocked = true)
+        assertEquals(CommandStage.Rejected(CommandRejection.Unavailable(UnavailableReason.Busy)), seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage)
+        native.cameraProperties.value = native.cameraProperties.value.copy(captureSelector = "photo")
+        assertNull(seam.refresh().value(SettingKey.SHUTTER).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.SupportUnknown), seam.request(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0)))).stage)
+        assertTrue(native.writes.isEmpty())
+        val unknown = properties.copy(shutterMode = null, iris = null)
+        assertNull(NikonExposureSettings.reported(unknown)[SettingKey.SHUTTER])
+        assertTrue(NikonExposureSettings.descriptors(unknown).isEmpty())
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
     private class FakeNikon(properties: CameraPropertySnapshot, reported: Boolean? = false) : CameraSession {
         override val state =
             MutableStateFlow<CameraSessionState>(
@@ -207,6 +257,21 @@ class NikonOpenCineSessionTest {
             val presetWB = wb[SettingKey.WHITE_BALANCE]!!
             assertFalse(presetWB.accepts(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(5560))))
         }
+
+    @Test
+    fun aReportedExposureWithoutWriteChoicesStaysVisibleAndUnavailable() = runTest {
+        val camera = FakeNikon(movie().copy(
+            shutterMode = CameraShutterMode.SPEED, shutterSpeed = "1/50", iris = "f/2.8",
+            controlCapabilities = CameraControlCapabilities(),
+        ))
+        val seam = NikonOpenCineSession(camera, backgroundScope)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))),
+            seam.snapshots.value.value(SettingKey.SHUTTER).value)
+        assertEquals(SettingValue.Aperture(2.8), seam.snapshots.value.value(SettingKey.APERTURE).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.Unavailable(UnavailableReason.NotReady)),
+            seam.request(CameraCommandIntent.Set(SettingValue.Aperture(2.8))).stage)
+        assertTrue(camera.writes.isEmpty())
+    }
 
     @Test
     fun confirmedTargetIsHonoredAndUnknownStaysUnknown() =

@@ -68,6 +68,7 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
     quickPreview: (@Composable (String, MonitorQuickPreview, Float) -> Unit)? = null,
     onQuickActiveChange: (Boolean) -> Unit = {},
     quickBottomClearanceDp: Float = 0f,
+    columns: Int? = null,
     onOpen: (String) -> Unit) {
     val gestureOwner = remember { MonitorQuickGestureOwner() }
     val notifyQuickActive by rememberUpdatedState(onQuickActiveChange)
@@ -90,17 +91,18 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val rowWidth = maxWidth
-        val columns = MonitorLayoutPolicy.valueColumns(maxWidth.value, portrait, values.size)
+        val columnCount = columns?.coerceIn(1, values.size.coerceAtLeast(1))
+            ?: MonitorLayoutPolicy.valueColumns(maxWidth.value, portrait, values.size)
         val grid = portrait && !tablet
         val gap = if (grid) 14f else ((maxWidth.value - intrinsic.sum()) / (values.size - 1).coerceAtLeast(1)).coerceIn(16f, 34f)
         Column(verticalArrangement = Arrangement.spacedBy(if (grid) 10.dp else 8.dp)) {
-            values.chunked(columns).forEachIndexed { rowIndex, row ->
+            values.chunked(columnCount).forEachIndexed { rowIndex, row ->
                 Row(Modifier.then(if (grid) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()).widthIn(min = rowWidth)),
                     horizontalArrangement = Arrangement.spacedBy(gap.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.Bottom) {
                     row.forEachIndexed { column, item ->
                         val renderPreview: (@Composable (MonitorQuickPreview, Float) -> Unit)? =
                             if (quickPreview == null) null else { preview, maxHeight -> quickPreview(item.id, preview, maxHeight) }
-                        Column(Modifier.then(if (grid) Modifier.weight(1f) else Modifier.width(intrinsic[rowIndex * columns + column].dp))
+                        Column(Modifier.then(if (grid) Modifier.weight(1f) else Modifier.width(intrinsic[rowIndex * columnCount + column].dp))
                             .heightIn(min = if (grid) 32.dp else 34.dp)
                             .then(itemModifier(item.id))
                             .background(if (item.selected) MonitorPalette.accent.copy(alpha = .14f) else Color.Transparent, RoundedCornerShape(8.dp))
@@ -123,7 +125,7 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                                 style = labelStyle, maxLines = 1)
                         }
                     }
-                    if (grid) repeat(columns - row.size) { Box(Modifier.weight(1f)) }
+                    if (grid) repeat(columnCount - row.size) { Box(Modifier.weight(1f)) }
                 }
             }
         }

@@ -34,9 +34,18 @@ public final class MonitorControlModel {
         let localRevision: Int
     }
 
-    /// An explicit record confirmation authorizes exactly this camera state.
+    /// Which reported state changes retire an operator's captured record target.
+    public enum RecordConfirmationPolicy: Hashable, Sendable {
+        /// A changed recording report requires a new approval.
+        case unchangedRecording
+        /// Preserve the captured Start or Stop while recording remains known and control ready.
+        case explicitTarget
+    }
+
+    /// An explicit record confirmation authorizes one target under captured control assumptions.
     public struct RecordEditor: Hashable, Sendable {
         public let recording: Bool
+        public let policy: RecordConfirmationPolicy
         let editor: Editor
         let mode: CaptureMode
     }
@@ -63,7 +72,8 @@ public final class MonitorControlModel {
     @ObservationIgnored private let sleep: @MainActor (Duration) async -> Void
     @ObservationIgnored private var binding = 0
     @ObservationIgnored private var feed: Task<Void, Never>?
-    @ObservationIgnored private var operations: [SettingKey: (operation: OperationID, label: String, editor: Editor?)] = [:]
+    @ObservationIgnored private var operations:
+        [SettingKey: (operation: OperationID, label: String, editor: Editor?)] = [:]
     @ObservationIgnored private var scheduled: Set<SettingKey> = []
     @ObservationIgnored private var editRevisions: [SettingKey: Int] = [:]
     @ObservationIgnored private var recordOperation: OperationID?
@@ -220,7 +230,9 @@ public final class MonitorControlModel {
     }
 
     private func submit(_ key: SettingKey) {
-        guard let (operation, label, editor) = operations[key], let value = pending[key] else { return }
+        guard let (operation, label, editor) = operations[key], let value = pending[key] else {
+            return
+        }
         if let editor, !admits(value, from: editor) {
             return finish(key, operation, binding, note: nil)
         }
@@ -248,12 +260,16 @@ public final class MonitorControlModel {
     // MARK: Record
 
     /// Unknown recording, mode, access or control readiness cannot be confirmed.
-    public func recordEditor() -> RecordEditor? {
+    public func recordEditor(policy: RecordConfirmationPolicy = .unchangedRecording)
+        -> RecordEditor?
+    {
         guard !recordPending, let snapshot else { return nil }
-        return recordEditor(in: snapshot)
+        return recordEditor(in: snapshot, policy: policy)
     }
 
-    private func recordEditor(in snapshot: CameraSnapshot) -> RecordEditor? {
+    private func recordEditor(in snapshot: CameraSnapshot, policy: RecordConfirmationPolicy)
+        -> RecordEditor?
+    {
         guard snapshot.connection == .ready, let mode = snapshot.mode.value, mode.role == .video,
             let descriptor = snapshot.capabilities[.recording], descriptor.access == .readWrite,
             descriptor.availability == .available
@@ -269,16 +285,29 @@ public final class MonitorControlModel {
         default: return nil
         }
         return RecordEditor(
-            recording: recording,
+            recording: recording, policy: policy,
             editor: Editor(key: .recording, binding: binding, session: snapshot.session,
                 epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain,
                 localRevision: editRevisions[.recording, default: 0]),
             mode: mode)
     }
 
-    /// Approval is retired on mode, epoch, authority, binding or recording changes.
+    /// Checks mode, epoch, authority, binding, readiness and the captured observation policy.
+    public func canCommitRecord(from editor: RecordEditor) -> Bool {
+        guard !recordPending, let snapshot else { return false }
+        return recordApprovalMatches(editor, snapshot: snapshot)
+    }
+
+    private func recordApprovalMatches(_ editor: RecordEditor, snapshot: CameraSnapshot) -> Bool {
+        guard let current = recordEditor(in: snapshot, policy: editor.policy),
+            current.editor == editor.editor, current.mode == editor.mode
+        else { return false }
+        return editor.policy == .explicitTarget || current.recording == editor.recording
+    }
+
+    /// Sends the captured target. A fresh snapshot is checked again immediately before dispatch.
     @discardableResult public func commitRecord(from editor: RecordEditor) -> Bool {
-        guard recordEditor() == editor else { return false }
+        guard canCommitRecord(from: editor) else { return false }
         record(start: !editor.recording, approved: editor)
         return true
     }
@@ -298,9 +327,14 @@ public final class MonitorControlModel {
         await beginRecord(start: start, approved: nil)?.value
     }
 
-    @discardableResult private func beginRecord(start: Bool?, approved: RecordEditor?) -> Task<CommandReceipt?, Never>? {
+    @discardableResult private func beginRecord(start: Bool?, approved: RecordEditor?) -> Task<
+        CommandReceipt?, Never
+    >? {
         guard !recordPending else { return nil }
-        guard let session else { onNote(Self.connectFirst); return nil }
+        guard let session else {
+            onNote(Self.connectFirst)
+            return nil
+        }
         let operation = OperationID()
         let current = binding
         recordOperation = operation
@@ -310,7 +344,7 @@ public final class MonitorControlModel {
             guard let self, self.binding == current else { return nil }
             if let approved {
                 guard let fresh,
-                    self.recordEditor(in: fresh) == approved
+                    self.recordApprovalMatches(approved, snapshot: fresh)
                 else {
                     self.finishRecord(operation, current, note: nil, receipt: nil)
                     return nil
@@ -328,17 +362,21 @@ public final class MonitorControlModel {
                 self.finishRecord(operation, current, note: Self.recordingUnknown, receipt: nil)
                 return nil
             }
-            let command = CameraCommand(intent, preconditions: CommandPreconditions(fresh), operation: operation)
+            let command = CameraCommand(
+                intent, preconditions: CommandPreconditions(fresh), operation: operation)
             let receipt = await Self.finished(command, on: session)
             guard self.binding == current, self.recordOperation == operation else { return nil }
             self.finishRecord(
-                operation, current, note: Self.note(for: receipt.stage, intent == .startRecording ? "Record" : "Stop"),
+                operation, current,
+                note: Self.note(for: receipt.stage, intent == .startRecording ? "Record" : "Stop"),
                 receipt: receipt)
             return receipt
         }
     }
 
-    private func finishRecord(_ operation: OperationID, _ from: Int, note: String?, receipt: CommandReceipt?) {
+    private func finishRecord(
+        _ operation: OperationID, _ from: Int, note: String?, receipt: CommandReceipt?
+    ) {
         guard from == binding, recordOperation == operation else { return }
         recordOperation = nil
         recordPending = false
@@ -348,7 +386,9 @@ public final class MonitorControlModel {
 
     // MARK: Outcomes
 
-    private static func finished(_ command: CameraCommand, on session: any CameraSession) async -> CommandReceipt {
+    private static func finished(_ command: CameraCommand, on session: any CameraSession) async
+        -> CommandReceipt
+    {
         let receipt = await session.submit(command)
         if receipt.isFinished { return receipt }
         return await session.outcome(of: command.operation) ?? receipt
@@ -367,7 +407,8 @@ public final class MonitorControlModel {
         case .rejected(.staleCapabilities), .rejected(.staleEpoch):
             "\(label) was not sent: the camera state changed. Try again."
         case .rejected(.unavailable(let reason)):
-            reason == .mode ? "\(label) is not available in this mode." : "\(label) is not available right now."
+            reason == .mode
+                ? "\(label) is not available in this mode." : "\(label) is not available right now."
         case .rejected:
             connectFirst
         case .failed(.notApplied):
