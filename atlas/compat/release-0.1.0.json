@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "49dfb4e00568b7127621e37cdb7bcfd10c4b04f8",
+      "commit": "5b8307b3410b8148252fd52e22d9a151e3dd4054",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "49dfb4e00568b7127621e37cdb7bcfd10c4b04f8",
-        "where": "Preferred DJI session/host source adoption: just check root331/handbook99, full Android test/lint/debug/release and AndroidTest build,504 app tests pass. Final pin rebuild pass; original JVM class and datalink/moveToken fields verified. Existing iOS633 per private phone/iPad qualification evidence unchanged, no iOS source/runtime changed. Source/evidence scratchpad/dji-session-names and SHELL-04-session-names.md. Physical qualification unchanged/untested."
+        "commit": "5b8307b3410b8148252fd52e22d9a151e3dd4054",
+        "where": "Neutral utilities reviewed locally; shared Swift1719 plus72 XCTest/strict, Android857 unique (2 existing skips), Pocket331 root/504 Android and Insta595 root/696 Android full test-lint-debug-release with native staging. Installed credential preservation passed both apps; namespaces/aliases/envelopes unchanged. Nikon pin-only. Evidence scratchpad/neutral-utilities/evidence; hardware untested."
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "9dd78f9a6d11772a6b8239d24ba7cbb248450eca",
+      "commit": "613447d849717b536663275fd5191e74946d19aa",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "9dd78f9a6d11772a6b8239d24ba7cbb248450eca",
-        "where": "Pin-only alias candidate; own root build --build-tests pass. No consumer behavior or build edge changed; previous full root595/iOS502 per device (1 skip)/Android696/JNI8/native probe evidence applies. Source/evidence scratchpad/dji-session-names and SHELL-04-session-names.md. Physical qualification unchanged/untested."
+        "commit": "613447d849717b536663275fd5191e74946d19aa",
+        "where": "Neutral utilities reviewed and integrated locally; shared Swift1719 plus72 XCTest and strict build, Android857 unique (2 existing skips), Pocket331 root/504 Android and Insta595 root/696 Android full test-lint-debug-release with native staging. Installed baseline-to-candidate credential preservation passed both apps; original namespace/alias/envelope retained, finite/overflow parser regressions passed. Nikon pin-only source unchanged. Logs and APK hashes in scratchpad/neutral-utilities/evidence; hardware untested."
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "a64234c24f84ecbd7af26f62f19a39c2895439d2",
+      "commit": "7621bcc4afc1913dd13a13c664019230b8bbdefe",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "a64234c24f84ecbd7af26f62f19a39c2895439d2",
-        "where": "Pin-only alias candidate; own root build --build-tests pass. No consumer behavior or build edge changed; previous root626/iOS236 passed per device (2 skips)/Android949/JNI73/native probe evidence applies. Existing broad lint111 retained. Source/evidence scratchpad/dji-session-names and SHELL-04-session-names.md. Physical qualification unchanged/untested."
+        "commit": "7621bcc4afc1913dd13a13c664019230b8bbdefe",
+        "where": "Neutral utilities reviewed and integrated locally; shared Swift1719 plus72 XCTest and strict build, Android857 unique (2 existing skips), Pocket331 root/504 Android and Insta595 root/696 Android full test-lint-debug-release with native staging. Installed baseline-to-candidate credential preservation passed both apps; original namespace/alias/envelope retained, finite/overflow parser regressions passed. Nikon pin-only source unchanged. Logs and APK hashes in scratchpad/neutral-utilities/evidence; hardware untested."
       }
     }
   ]
