@@ -200,6 +200,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         case opening
         case restart(reason: String, delay: Double)
         case reconnect(reason: String, delay: Double)
+        case reconnectReady
         case recover(reason: String)
     }
 
@@ -281,7 +282,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                     event(.reconnect(reason: reason, delay: delay))
                     try? await Task.sleep(for: .seconds(delay))
                     guard previewIsCurrent(current) else { return }
-                    event(.recover(reason: "live view first-frame failure"))
+                    event(.reconnectReady)
                     return
                 case .stalled(let reason):
                     if healthy { stallAttempt = 0 }
