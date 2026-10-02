@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "38edecfc78b5fa3c451bf5867b10849832d8ef52",
+    "commit": "030fa0403f57126df21ea132212593c401fa3760",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "38edecfc78b5fa3c451bf5867b10849832d8ef52",
-      "where": "Nikon owned session/pump/bootstrap runtime7ab8a63a integrated38edecfc; shared full Swift1753 plus72 XCTest and strict, Android gates in scratchpad/codex-shell03-nikon/logs; latest neutral combination823 selected Swift tests passed logs/review-combined-swift.log. Neutral shared gate retained. Physical cameras untested."
+      "commit": "030fa0403f57126df21ea132212593c401fa3760",
+      "where": "Common Luna focus/zoom descriptors, bounded requests, camera-report observations and truthful receipts030fa040; combined shared1758SwiftTesting+78XCTest/strict, Android876unique(2 existing skips)/lint/release, genericMonitorUI/OpenCineApple passed. Logs scratchpad/luna-lens/*final.log and shared-combined-*.log; source b1516f97. Physical cameras untested."
     }
   },
   "apps": [
