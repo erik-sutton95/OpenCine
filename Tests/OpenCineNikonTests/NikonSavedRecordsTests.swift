@@ -281,6 +281,24 @@ final class SavedCamerasStore {
         #expect(camera.id == "172.20.10.7|zr_7000001|phoneHotspot" && camera.routes.map(\.kind) == [.phoneHotspot])
         #expect(NikonSavedRecordsV0().patched(legacy, to: [camera]) == nil)
 
+        // Two router setups without a network name are told apart by subnet, as the app's
+        // chips did; a record rebuilt from such a route keeps no name.
+        let routers = [
+            PTPIPSavedCameraRecord(
+                host: "10.99.0.20", displayName: "ZR_6002199", transport: "Wi-Fi", lastSeenAt: at(20),
+                serialNumber: "6002199", path: .infrastructure(networkName: nil)),
+            PTPIPSavedCameraRecord(
+                host: "192.168.129.66", displayName: "ZR_6002199", transport: "Wi-Fi", lastSeenAt: at(10),
+                serialNumber: "6002199", path: .infrastructure(networkName: " ")),
+        ]
+        let body = try #require(NikonSavedRecordsV0().cameras(in: JSONEncoder().encode(routers))?.first?.camera)
+        #expect(body.routes.map(\.network) == ["10.99.0.x", "192.168.129.x"])
+        var forgotten = body
+        forgotten.routes = [body.routes[0]]
+        let rebuilt = try #require(NikonSavedRecordsV0().patched(nil, to: [forgotten]))
+        let record = try #require(JSONDecoder().decode([PTPIPSavedCameraRecord].self, from: rebuilt).first)
+        #expect(record.path == .infrastructure(networkName: nil))
+
         // Two records the app never canonicalized share an id: two cameras, nothing dropped.
         let twice = try JSONEncoder().encode([untyped, untyped])
         let two = try #require(NikonSavedRecordsV0().cameras(in: twice)).map(\.camera)

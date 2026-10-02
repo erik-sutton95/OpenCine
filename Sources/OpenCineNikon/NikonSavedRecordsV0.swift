@@ -231,10 +231,12 @@ public struct NikonSavedRecordsV0: LegacySavedCameraCodec {
         extras[Extra.icon] = trimmed(record.presentation?.icon)
         extras[Extra.streamPreset] = record.streamPreset?.rawValue
         extras[Extra.qualityBias] = record.qualityBias?.rawValue
+        // A Wi-Fi setup without a network name is told apart by its subnet ("192.168.1.x"), as
+        // the app's own chips told two router setups apart.
         let network: String? =
             switch record.path {
             case .cameraAccessPoint(let ssid): trimmed(ssid)
-            case .infrastructure(let name): trimmed(name)
+            case .infrastructure(let name): trimmed(name) ?? subnetLabel(record.host)
             default: nil
             }
         return SavedRoute(
@@ -248,7 +250,8 @@ public struct NikonSavedRecordsV0: LegacySavedCameraCodec {
         let path: CameraPath =
             switch route.kind {
             case .cameraAccessPoint: .cameraAccessPoint(ssid: route.network)
-            case .infrastructureNetwork: .infrastructure(networkName: route.network)
+            case .infrastructureNetwork:
+                .infrastructure(networkName: route.network == subnetLabel(host) ? nil : route.network)
             case .phoneHotspot: .phoneHotspot
             case .usb: .usbC
             case .captureDevice: .hdmiCapture
@@ -265,6 +268,11 @@ public struct NikonSavedRecordsV0: LegacySavedCameraCodec {
             streamPreset: route.extras[Extra.streamPreset].flatMap(LiveViewStreamPreset.init(rawValue:)),
             qualityBias: route.extras[Extra.qualityBias].flatMap(LiveViewQualityBias.init(rawValue:)),
             setupName: route.title)
+    }
+
+    /// The subnet label a Wi-Fi route without a network name carries (never a network name).
+    private static func subnetLabel(_ host: String) -> String? {
+        CameraDiscovery.subnetBase(for: host).map { "\($0).x" }
     }
 
     static func trimmed(_ value: String?) -> String? {

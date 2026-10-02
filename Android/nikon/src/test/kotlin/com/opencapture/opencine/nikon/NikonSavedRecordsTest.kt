@@ -179,6 +179,12 @@ class NikonSavedRecordsTest {
         assertEquals("ap:NIKON_Z8_5009999", cameras[2].camera.routes[0].extras[NikonSavedRecordsV0.Extra.HOST])
         assertEquals("NIKON_Z8_5009999", cameras[2].camera.routes[0].network)
 
+        // An unnamed router setup is told apart by its subnet; a record rebuilt from it keeps no name.
+        val unnamed = cameras.first { camera -> camera.camera.routes.any { it.extras[NikonSavedRecordsV0.Extra.HOST] == "10.0.0.5" } }.camera
+        assertEquals("10.0.0.x", unnamed.routes.single().network)
+        val rebuilt = JSONArray(codec.patched(null, listOf(unnamed))!!).getJSONObject(0)
+        assertTrue(rebuilt.isNull("network-name") || !rebuilt.has("network-name"))
+
         // Two unnamed setups sharing a profile id stay two cameras, and nothing is dropped.
         val shared = JSONArray()
             .put(JSONObject().put("host", "10.0.0.7").put("camera-name", "Camera 10.0.0.7").put("transport", "infrastructure").put("profile-id", "10.0.0.7"))

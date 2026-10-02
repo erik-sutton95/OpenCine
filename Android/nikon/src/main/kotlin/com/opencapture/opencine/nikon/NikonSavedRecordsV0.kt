@@ -56,7 +56,8 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
         val kind: RouteKind = kind(transport)
         val network: String? = when (kind) {
             RouteKind.CAMERA_ACCESS_POINT -> text(json, "wifi-ssid")
-            RouteKind.INFRASTRUCTURE_NETWORK -> text(json, "network-name")
+            // Unnamed: its subnet ("192.168.1.x"), as the app's chips told two router setups apart.
+            RouteKind.INFRASTRUCTURE_NETWORK -> text(json, "network-name") ?: subnetLabel(host)
             else -> null
         }
     }
@@ -203,7 +204,7 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
                 .putOpt("wifi-ssid", if (route.kind == RouteKind.CAMERA_ACCESS_POINT) route.network else route.extras[Extra.WIFI_SSID])
                 .putOpt("custom-name", camera.name)
                 .put("profile-id", route.extras[Extra.PROFILE_ID] ?: host)
-                .putOpt("network-name", route.network.takeIf { route.kind == RouteKind.INFRASTRUCTURE_NETWORK })
+                .putOpt("network-name", route.network.takeIf { route.kind == RouteKind.INFRASTRUCTURE_NETWORK && it != subnetLabel(host) })
                 .putOpt("setup-name", route.title)
                 .putOpt("stream-preset", route.extras[Extra.STREAM_PRESET])
                 .putOpt("quality-bias", route.extras[Extra.QUALITY_BIAS])
@@ -214,6 +215,13 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
             var suffix = 1
             while (!keys.add(candidate)) candidate = "$key#${++suffix}"
             return candidate
+        }
+
+        /** The subnet label an unnamed Wi-Fi route carries (Swift `CameraDiscovery.subnetBase` + ".x"). */
+        fun subnetLabel(host: String): String? {
+            val octets = host.split('.')
+            if (octets.size != 4 || octets.any { octet -> octet.toIntOrNull()?.takeIf { it in 0..255 } == null }) return null
+            return octets.take(3).joinToString(".") + ".x"
         }
 
         fun text(json: JSONObject, key: String): String? =
