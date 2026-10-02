@@ -50,6 +50,9 @@ An app adds the product to the target that builds its Swift Android library and 
 ship in that `.so`; `consumer-rules.pro` keeps the Kotlin class in minified apps. The app calls `DjiNative.load(<its library>)` once at startup and points `DjiLog.sink`
 at its diagnostics. Swift and Kotlin `CamFov` share `Fixtures/camfov-vectors.tsv`.
 
-Still in the app: the session orchestration (`PocketCameraSession`: diagnostics and feed incidents,
-operator preferences, Wi-Fi joining and saved credentials, face detection, media resume, gamepad)
-and all UI.
+The session itself is here too: `PocketCameraSession` (BLE to pairing to camera Wi-Fi to datalink to
+live picture, recovery, operator commands, Multiview station join), with the Wi-Fi joining and saved
+credential stores, feed incident models, capture value lists and gamepad actions it uses. What
+stays with the app comes in through `PocketSessionHost`: operator preferences, the feed incident
+recorder and reliability reporting, build identity, and the face detector (`FaceDetectorPort`; the
+app keeps ML Kit). The app keeps all UI.

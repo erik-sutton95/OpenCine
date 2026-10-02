@@ -193,5 +193,3 @@ class StationJoin(
         const val HOTSPOT_WAIT_MS = 15_000L
     }
 }
-
-private fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }

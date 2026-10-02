@@ -1,9 +1,10 @@
-// DJI Android integration (Kotlin side of OpenCineDJI), moved from the OpenPocketCine app: BLE
-// link and initialization, Wi-Fi datalink driver, DUML command and status models, gimbal
-// programs, connection and live-view policies, and the OpenCineCore CameraSession adapter.
-// Wire bytes come from the app's Swift Android library through the JNI facade DjiNative, whose
-// class name is part of the native symbol names (consumer-rules.pro keeps it). The app keeps its
-// session orchestration, diagnostics, preferences and UI.
+// DJI Android integration (Kotlin side of OpenCineDJI), moved from the OpenPocketCine app: the
+// camera session (PocketCameraSession), BLE link, Wi-Fi joining and datalink driver, DUML command
+// and status models, gimbal programs, connection and live-view policies, and the OpenCineCore
+// CameraSession adapter. Wire bytes come through the JNI facade DjiNative (Swift side:
+// OpenCineDJIAndroid), whose class name is part of the native symbols (consumer-rules.pro keeps
+// it). The app supplies preferences, diagnostics, build identity and face detection through
+// PocketSessionHost and keeps all UI.
 plugins {
     alias(libs.plugins.android.library)
 }
@@ -28,9 +29,9 @@ android {
 dependencies {
     api(project(":core"))
     api(project(":media"))
+    api(project(":decoder"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
-    testImplementation(project(":decoder"))
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
