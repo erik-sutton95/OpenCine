@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "c1908e39cece669d8e6ef15ba6475c3360314217",
+      "commit": "e76687542c919bfed61bcb41cd5d3d2b7cf3b79d",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "c1908e39cece669d8e6ef15ba6475c3360314217",
-        "where": "OpenPocketCine c1908e39 (2026-10-02, SHELL-04 stage C: PocketCameraSession runs from OpenCine :dji behind PocketSessionHost) against OpenCine 6e381bb, pinned 57d4b42 (adds only Nikon Swift sources Pocket does not link): just android-check + gradlew test lint assembleRelease green (app 508 = 556 minus 48 tests moved to :dji; monitor-ui 119), JNI 41/41, root swift test 339, iOS OpenPocketCine scheme 628/0 on a private iOS 26.2 simulator."
+        "commit": "e76687542c919bfed61bcb41cd5d3d2b7cf3b79d",
+        "where": "OpenPocketCine e7668754 (2026-10-02, SHELL-01 steps 4-5 Android: live monitor laid out from the :dji projection, preview feeds a review body) against OpenCine 340452a (pinned): just android-check + gradlew test lint assembleRelease green (app 507 = 508 minus the deleted Nano/Atto name-check test; monitor-ui 119), root swift test 339; no iOS source change (iOS 628/0 at c1908e39; the OpenCine Swift change is in targets the iOS app does not link). Android emulator screenshots identical except Nano live timecode (progress.d/shell-01-screens)."
       }
     },
     {
