@@ -108,6 +108,7 @@ def main(argv=None):
     report.append(f"clones: {', '.join(p.name for p in repos)}")
 
     env = {k: v for k, v in os.environ.items() if k not in ("OPENCAPTURE_ATLAS_ROOT", "OPENCAPTURE_WORKSPACE")}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"  # bytecode caches are not the tool writing
     tool = [sys.executable, atlas / "tools" / "publish.py"]
     pub = [*tool, "--remote-base", base]
 
