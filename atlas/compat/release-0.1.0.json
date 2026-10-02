@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "31d3a3c274c9ea998cf450fd2b7cee749c5a8d6b",
+      "commit": "0f1692e190b4235f886cedcc4220e72ef41d826c",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "31d3a3c274c9ea998cf450fd2b7cee749c5a8d6b",
-        "where": "opencine/integration 31d3a3c pins OpenCine 491ce30 (2026-10-02): root swift test 717; iOS unit suite 539 (1 skip) on a private simulator; ./gradlew test assembleDebug lint green (monitor 845); one OpenCine in SwiftPM/Xcode/Gradle, one libopc_vulkan.so. iOS/Android ran at OpenCine ee71891 (code-identical)."
+        "commit": "0f1692e190b4235f886cedcc4220e72ef41d826c",
+        "where": "OpenInstaCine 0f1692e (2026-10-02, SHELL-04 decoder) against OpenCine 70023e2: gradlew test assembleDebug lint green (monitor 844 = 845 minus the HevcDecoder test moved to OpenCine :decoder), root swift test 717. Only Android sources and docs changed since 31d3a3c, so the iOS results stand."
       }
     },
     {
