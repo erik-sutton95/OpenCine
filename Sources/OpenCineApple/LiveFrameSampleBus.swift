@@ -87,7 +87,7 @@ public final class LiveFrameSampleBus {
         }
         return true
     }
-    public var displayBundle: ScopeAssistBundle { playbackBundle ?? bundle }
+    public var displayBundle: ScopeAssistBundle { usesPlaybackSource ? (playbackBundle ?? .empty) : bundle }
     public var inspectorSource: (buffer: CVPixelBuffer, transfer: MonitorTransfer)? {
         if usesPlaybackSource { return playbackSourcePixelBuffer.map { ($0, playbackSourceTransfer) } }
         return sourcePixelBuffer.map { ($0, transfer) }

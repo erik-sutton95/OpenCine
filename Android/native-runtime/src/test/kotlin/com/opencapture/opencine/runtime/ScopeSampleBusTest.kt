@@ -34,4 +34,45 @@ class ScopeSampleBusTest {
         assertEquals(held, first.bundle)
         assertTrue(second.bundle.isEmpty)
     }
+    @Test fun playbackWithoutAFrameCannotShowHeldLiveSamples() {
+        val bus = ScopeSampleBus()
+        val live = bus.openSource()
+        val held = ScopeAssistBundle(revision = 1)
+        assertTrue(bus.publish(live, held))
+        val retired = bus.openSource(ScopeSampleBus.Role.PLAYBACK)
+        assertTrue(bus.bundle.isEmpty)
+        val successor = bus.openSource(ScopeSampleBus.Role.PLAYBACK)
+        val clip = ScopeAssistBundle(revision = 2)
+        assertTrue(bus.publish(successor, clip))
+        assertFalse(bus.publish(retired, ScopeAssistBundle(revision = 3)))
+        bus.closeSource(retired)
+        assertEquals(clip, bus.bundle)
+        bus.closeSource(successor)
+        assertEquals(held, bus.bundle)
+        assertTrue(bus.isCurrent(live))
+    }
+    @Test fun retiredRendererCannotReopenOverSuccessorOnSourceReset() {
+        val bus = ScopeSampleBus()
+        val retired = ScopeSourceLifetime(bus, ScopeSampleBus.Role.LIVE)
+        retired.invalidate(active = true)
+        retired.attach()
+        val old = retired.source
+        retired.invalidate(active = false)
+        assertEquals(null, retired.source)
+        val successor = ScopeSourceLifetime(bus, ScopeSampleBus.Role.LIVE)
+        successor.invalidate(active = true)
+        successor.attach()
+        val held = ScopeAssistBundle(revision = 2)
+        assertTrue(bus.publish(successor.source, held))
+        retired.invalidate(active = true)
+        retired.invalidate(active = false)
+        retired.invalidate(active = true)
+        assertEquals(held, bus.bundle)
+        assertTrue(bus.isCurrent(successor.source))
+        assertFalse(bus.publish(old, ScopeAssistBundle(revision = 3)))
+        assertEquals(null, bus.replaceSource(old))
+        retired.detach()
+        assertEquals(held, bus.bundle)
+    }
+
 }
