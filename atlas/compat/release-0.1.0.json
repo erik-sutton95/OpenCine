@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "68a381e62a0fb641bc4004714399bc37ab96ac1e",
+      "commit": "9dd78f9a6d11772a6b8239d24ba7cbb248450eca",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "68a381e62a0fb641bc4004714399bc37ab96ac1e",
-        "where": "Insta just check/root595 passed; private iPhone+iPad502 each (1 existing skip) and page UI evidence retained; final pin f0f5a52 Android696 app JVM/test lint debug+release passed; JNI8 parity and real emulator native probes passed. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
+        "commit": "9dd78f9a6d11772a6b8239d24ba7cbb248450eca",
+        "where": "Pin-only alias candidate; own root build --build-tests pass. No consumer behavior or build edge changed; previous full root595/iOS502 per device (1 skip)/Android696/JNI8/native probe evidence applies. Source/evidence scratchpad/dji-session-names and SHELL-04-session-names.md. Physical qualification unchanged/untested."
       }
     },
     {
