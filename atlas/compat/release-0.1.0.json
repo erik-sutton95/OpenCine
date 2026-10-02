@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "f093269e83b519eb781426bfe62fb2717355c30e",
+    "commit": "c0fd52999f6f4fd2527bb5d4f2f9376e76ab6b21",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "f093269e83b519eb781426bfe62fb2717355c30e",
-      "where": "fix/island-toggle f093269: swift build --build-tests + swift test (1688 Swift Testing + 72 XCTest passed, private scratch path); atlas check --sources passed; OpenZCine/OpenPocketCine/OpenInstaCine root swift build against it (scratch copies); iPhone 16 Pro iOS 26.2 sim both landscapes, iPhone SE 3, iPad Pro 11 screenshots before/after (progress.d/island-fix-screens)"
+      "commit": "c0fd52999f6f4fd2527bb5d4f2f9376e76ab6b21",
+      "where": "SHELL-02 step 9 c0fd529 (NikonSavedRecordsV0 subnet label for unnamed Wi-Fi routes, Swift+Kotlin) on main 0c31938: swift test 1688 Swift Testing + 72 XCTest pass; strict-concurrency build clean; xcodebuild MonitorUI, OpenCineAppKit, OpenCineApple (generic iOS Simulator) OK; atlas unittest + check pass; gradle test lint assembleRelease green (JVM 798: nikon 112, appkit 25, core 50, dji 347, monitor-ui 119, insta360-luna 61, media 64, multicam 19, decoder 1); consumers OpenPocketCine e7668754, OpenInstaCine c97e9e0, OpenZCine opencine/shell-02 064daba8 root swift build --build-tests green. Logs: /private/tmp/claude-501/-Users-eriksutton-Work-OpenPocketCine/a08ada23-de94-4bcc-827a-c5609ae1fcb9/scratchpad/s09/oc-logs/c0fd529"
     }
   },
   "apps": [
