@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "e303396228ad8fd10ab1ad5d8fe6d82b9e291778",
+      "commit": "a64234c24f84ecbd7af26f62f19a39c2895439d2",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "e303396228ad8fd10ab1ad5d8fe6d82b9e291778",
-        "where": "Nikon root626 passed; private iPhone+iPad236 unique passed each (2 skips) qualification evidence retained; optional-mode correction targeted Swift10/Kotlin2+6 and iOS compile passed; final pin f0f5a52 Android949 app JVM/test lint debug+release passed; JNI73 parity and real emulator native probes passed. Baseline broad Swift lint111 failures remains. Evidence scratchpad/jni-helper-task/evidence and qualification/evidence; physical checks untested."
+        "commit": "a64234c24f84ecbd7af26f62f19a39c2895439d2",
+        "where": "Pin-only alias candidate; own root build --build-tests pass. No consumer behavior or build edge changed; previous root626/iOS236 passed per device (2 skips)/Android949/JNI73/native probe evidence applies. Existing broad lint111 retained. Source/evidence scratchpad/dji-session-names and SHELL-04-session-names.md. Physical qualification unchanged/untested."
       }
     }
   ]
