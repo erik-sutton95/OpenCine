@@ -1,66 +1,66 @@
 {
   "code_lines": {
-    "opencine": 95899,
+    "opencine": 125170,
     "openinstacine": 147096,
-    "openpocketcine": 147536,
-    "openzcine": 180959
+    "openpocketcine": 139873,
+    "openzcine": 159508
   },
   "note": "Written by `atlas dupes --write-baseline`; see tools/dupes.py for the metric.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 9391,
-      "blocks": 565,
+      "block_lines": 9852,
+      "blocks": 597,
       "exact_files": 13,
-      "file_lines": 8537,
-      "files": 66,
-      "lines": 17928
+      "file_lines": 8869,
+      "files": 75,
+      "lines": 18721
     },
     "opencine|openpocketcine": {
-      "block_lines": 432,
-      "blocks": 43,
+      "block_lines": 442,
+      "blocks": 44,
       "exact_files": 0,
       "file_lines": 88,
       "files": 3,
-      "lines": 520
+      "lines": 530
     },
     "opencine|openzcine": {
-      "block_lines": 129,
-      "blocks": 14,
+      "block_lines": 154,
+      "blocks": 17,
       "exact_files": 0,
       "file_lines": 0,
       "files": 0,
-      "lines": 129
+      "lines": 154
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 32097,
-      "blocks": 1636,
-      "exact_files": 254,
-      "file_lines": 58442,
-      "files": 377,
-      "lines": 90539
+      "block_lines": 32485,
+      "blocks": 1659,
+      "exact_files": 234,
+      "file_lines": 56496,
+      "files": 360,
+      "lines": 88981
     },
     "openinstacine|openzcine": {
-      "block_lines": 1629,
-      "blocks": 112,
-      "exact_files": 3,
-      "file_lines": 348,
-      "files": 6,
-      "lines": 1977
-    },
-    "openpocketcine|openzcine": {
-      "block_lines": 1596,
+      "block_lines": 1598,
       "blocks": 109,
       "exact_files": 3,
       "file_lines": 348,
       "files": 6,
-      "lines": 1944
+      "lines": 1946
+    },
+    "openpocketcine|openzcine": {
+      "block_lines": 1519,
+      "blocks": 101,
+      "exact_files": 3,
+      "file_lines": 348,
+      "files": 6,
+      "lines": 1867
     }
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at a408cd1385a5894883cb239e6ad5aa4cab45ecce",
+    "opencine": "working tree at c1c5fc6f7db95ebab2337157e3dccc8afa000996",
     "openinstacine": "opencine/integration e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
-    "openpocketcine": "opencine/integration 5b3f2d558e10437856d834f638644ac2e3223040",
-    "openzcine": "opencine/integration c6d628ff6679bc756b322767bd90de3a81a991f4"
+    "openpocketcine": "opencine/integration c1908e39cece669d8e6ef15ba6475c3360314217",
+    "openzcine": "opencine/integration 9a3798dbe50a91e98a1a807140739fad7ce6a160"
   }
 }
