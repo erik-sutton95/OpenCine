@@ -632,7 +632,10 @@ class PocketCameraSession(
                         "session: connect failed at ${_phase.value.name.lowercase()} — $why",
                     )
                     _failure.value = why
-                    _failureDetail.value = DjiFailures.classify(e, _phase.value, why)
+                    _failureDetail.value = DjiFailures.classify(
+                        e, _phase.value, why,
+                        hotspotOff = connectionSetup == CameraConnectionSetup.PHONE_HOTSPOT && station.address(true) == null,
+                    )
                     _phase.value = ConnectionPhase.FAILED
                 }
             }

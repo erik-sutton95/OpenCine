@@ -52,14 +52,35 @@ interface DjiConnectPort {
 
 /** DJI connection failures with the session's own copy (Swift: the app's typed errors). */
 object DjiFailures {
+    /** Frame Tap or a running DJI Mimo holds the camera and blocks pairing and the video link. */
+    const val DJI_APPS_TIP = "Turn off DJI Frame Tap and force quit DJI Mimo on every phone near the camera."
+    const val HOTSPOT_OFF = "The camera could not find this phone’s hotspot. Turn on the Wi-Fi hotspot, then try again."
+
     private fun failure(reason: ConnectionFailure.Reason, code: String, message: String, phase: CorePhase?) =
         ConnectionFailure(
             reason, phase, "Couldn’t connect over Camera Wi-Fi", message, listOf(RecoveryAction.Retry),
             "${DjiCameraSessionAdapter.INTEGRATION.rawValue}.$code",
         )
 
-    /** A connect that threw [error] in [phase]; [message] is the copy the session shows. */
-    fun classify(error: Throwable?, phase: ConnectionPhase, message: String): ConnectionFailure {
+    /**
+     * The card copy for the session's reason [raw]: a sentence, with the DJI apps tip when the
+     * camera never answered pairing or the video link.
+     */
+    fun copy(raw: String): String {
+        val sentence = raw.trim().replaceFirstChar { it.uppercase() }.let { if (it.endsWith(".")) it else "$it." }
+        val lower = raw.lowercase()
+        val neverAnswered = "pairing timed out" in lower || "never answered the datalink handshake" in lower
+        return if (neverAnswered) "$sentence $DJI_APPS_TIP" else sentence
+    }
+
+    /**
+     * A connect that threw [error] in [phase]; [message] is the session's reason, shown as
+     * [copy]. [hotspotOff]: a hotspot setup failed while this phone's hotspot was down.
+     */
+    fun classify(error: Throwable?, phase: ConnectionPhase, message: String, hotspotOff: Boolean = false): ConnectionFailure =
+        typed(error, phase, message).copy(message = if (hotspotOff) HOTSPOT_OFF else copy(message))
+
+    private fun typed(error: Throwable?, phase: ConnectionPhase, message: String): ConnectionFailure {
         val core = corePhase(phase)
         val lower = message.lowercase()
         return when {
@@ -82,7 +103,7 @@ object DjiFailures {
         }
     }
 
-    fun linkLost(message: String) = failure(ConnectionFailure.Reason.LinkLost, "link.lost", message, CorePhase.LINK)
+    fun linkLost(message: String) = failure(ConnectionFailure.Reason.LinkLost, "link.lost", copy(message), CorePhase.LINK)
 
     /** The session's phase as the core phase (the mapping the iOS control port uses). */
     fun corePhase(phase: ConnectionPhase): CorePhase? = when (phase) {
@@ -116,6 +137,19 @@ class DjiIntegration(
     ).map { CameraProfile("${id.rawValue}.model.${it.lowercase().replace(' ', '-')}", it, ALL_ROUTES, MOVING_ROUTES) }
 
     override val discoveryModes: Set<DiscoveryMode> = setOf(DiscoveryMode.PASSIVE)
+
+    /**
+     * The app's saved cameras. A camera network another saved camera owns (its access point or
+     * advertised name), or one of another body family, is never saved with this camera.
+     */
+    var savedCameras: () -> List<SavedCamera> = { emptyList() }
+
+    /**
+     * Stores a record before an attempt starts: a setup that moves the camera is remembered (with
+     * a route being added) before it can move the camera, so a later camera Wi-Fi connect
+     * restores the access point even when this attempt fails. The app upserts it.
+     */
+    var saveRecord: (SavedCamera) -> Unit = {}
     private var listening = 0
     /** The attempt that owns the session; an older collection ends when a newer one takes it. */
     private var current: ConnectionAttemptID? = null
@@ -136,6 +170,48 @@ class DjiIntegration(
                 ConnectionStep(if (moving) "Finding the camera" else "Opening the video link"),
                 ConnectionStep("Starting the picture"),
             )
+        }
+
+        /**
+         * [camera] remembering that a setup of [kind] may move it to station role: that route
+         * becomes preferred, or without one the legacy `lastSetup` stays in `extras`. Camera
+         * Wi-Fi is stamped only once live, so a failed restore is retried on the next connect.
+         */
+        fun stamping(camera: SavedCamera, kind: RouteKind): SavedCamera {
+            if (kind !in MOVING_ROUTES) return camera
+            val route = camera.routes.firstOrNull { it.kind == kind }
+            return if (route != null) {
+                camera.copy(preferredRoute = route.id, extras = camera.extras - "lastSetup")
+            } else {
+                camera.copy(preferredRoute = null, extras = camera.extras + ("lastSetup" to if (kind == RouteKind.PHONE_HOTSPOT) "phoneHotspot" else "wifi"))
+            }
+        }
+
+        /** The iOS save rule (D9): a network another saved camera owns, or of another body family. */
+        fun ownedElsewhere(network: String, camera: SavedCamera, saved: List<SavedCamera>): Boolean {
+            val needle = network.trim().lowercase()
+            fun same(value: String?) = value?.trim()?.lowercase() == needle
+            val other = saved.any { other ->
+                other.id != camera.id &&
+                    (same(other.advertisedName) || other.routes.any { it.kind == RouteKind.CAMERA_ACCESS_POINT && same(it.network) })
+            }
+            val body = family(camera.extras["modelId"]?.toIntOrNull(), camera.advertisedName)
+            val wifi = family(null, network)
+            return other || (body != null && wifi != null && body != wifi)
+        }
+
+        /** Swift `CameraBodyFamily.resolve`: `pocket`, `nano`, or `null` for other bodies. */
+        private fun family(modelId: Int?, name: String?): String? {
+            when (modelId) {
+                0x20, 0x21, 0x22 -> return "pocket"
+                0x19 -> return "nano"
+            }
+            val n = name.orEmpty().lowercase().replace(" ", "")
+            return when {
+                "pocket" in n || "muse" in n -> "pocket"
+                "nano" in n || "atto" in n -> "nano"
+                else -> null
+            }
         }
 
         fun setup(kind: RouteKind): CameraConnectionSetup = when (kind) {
@@ -164,7 +240,9 @@ class DjiIntegration(
 
     override fun connect(target: ConnectTarget): Flow<ConnectionEvent> = channelFlow {
         val (cameraID, route, camera) = when (target) {
-            is ConnectTarget.Saved -> Triple(target.camera.id, target.camera.routes.firstOrNull { it.id == target.route }, target.camera)
+            is ConnectTarget.Saved -> Triple(target.camera.id, target.camera.routes.firstOrNull { it.id == target.route }, target.camera).also { (_, route, camera) ->
+                if (route != null && route.kind in MOVING_ROUTES) saveRecord(stamping(camera, route.kind))
+            }
             is ConnectTarget.Nearby -> Triple(target.camera.id, null, null)
             is ConnectTarget.AddRoute -> {
                 val draft = target.draft
@@ -176,6 +254,7 @@ class DjiIntegration(
                 draft.secret?.let { saveNetwork(network, it, draft.kind == RouteKind.PHONE_HOTSPOT) }
                 val added = SavedRoute(key = if (draft.kind == RouteKind.PHONE_HOTSPOT) "hotspot" else "wifi", kind = draft.kind, title = draft.title, network = network, bluetooth = true)
                 Triple(target.camera.id, added, target.camera.copy(routes = target.camera.routes.filter { it.key != added.key } + added))
+                    .also { saveRecord(stamping(it.third, added.kind)) }
             }
         }
         val setup = route?.let { setup(it.kind) } ?: CameraConnectionSetup.CAMERA_WIFI
@@ -255,12 +334,23 @@ class DjiIntegration(
         return failure.copy(title = title, actions = actions)
     }
 
-    /** The saved record after a connect: the route it used as preferred, the joined camera network. */
+    /**
+     * The saved record after a connect: the route it used as preferred, the joined camera network
+     * unless another camera owns it, the advertised name and model id (iOS save rules, D9).
+     */
     private fun record(target: ConnectTarget, camera: SavedCamera?, route: SavedRoute?): SavedCamera {
-        val base = camera ?: (target as ConnectTarget.Nearby).let {
+        val start = camera ?: (target as ConnectTarget.Nearby).let {
             SavedCamera(id = it.camera.savedID ?: it.camera.id, integration = id, advertisedName = it.camera.name, model = it.camera.model)
         }
-        val joined = port.joinedSSID
+        val sighting = port.found.value.firstOrNull { it.id == start.id }
+        // The connect leaves the camera in the role of the route it used.
+        var extras = start.extras - "lastSetup"
+        sighting?.modelId?.let { extras = extras + ("modelId" to it.toString()) }
+        val base = start.copy(
+            advertisedName = sighting?.name?.takeUnless(FoundCameraIdentity::isGenericName) ?: start.advertisedName,
+            extras = extras,
+        )
+        val joined = port.joinedSSID?.takeUnless { ownedElsewhere(it, base, savedCameras()) }
         var routes = base.routes
         if (routes.none { it.kind == RouteKind.CAMERA_ACCESS_POINT }) {
             routes = listOf(SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, bluetooth = true)) + routes
@@ -269,9 +359,6 @@ class DjiIntegration(
             routes = routes.map { if (it.kind == RouteKind.CAMERA_ACCESS_POINT && joined != null) it.copy(network = joined) else it }
         }
         val used = routes.firstOrNull { it.key == (route?.key ?: "ap") } ?: routes.first()
-        // iOS save rule (D9): the advertised model id is kept with the record.
-        val modelId = port.found.value.firstOrNull { it.id == base.id }?.modelId
-        val extras = modelId?.let { base.extras + ("modelId" to it.toString()) } ?: base.extras
-        return base.copy(routes = routes, preferredRoute = used.id, lastConnected = now(), extras = extras)
+        return base.copy(routes = routes, preferredRoute = used.id, lastConnected = now())
     }
 }

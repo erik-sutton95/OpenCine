@@ -42,10 +42,14 @@ public struct DJIConnection: Sendable {
     public var session: any CameraSession
     /// The camera network this phone joined (camera Wi-Fi), when known.
     public var joinedNetwork: String?
+    /// The camera as the pipeline connected it: its advertised name and model id, saved with the
+    /// record (a sighting's name is the list title).
+    public var camera: DJISighting?
 
-    public init(session: any CameraSession, joinedNetwork: String? = nil) {
+    public init(session: any CameraSession, joinedNetwork: String? = nil, camera: DJISighting? = nil) {
         self.session = session
         self.joinedNetwork = joinedNetwork
+        self.camera = camera
     }
 }
 
@@ -84,6 +88,14 @@ public final class DJIIntegration: CameraIntegration {
                 title: model.name, routes: moving.union([.cameraAccessPoint]), addableRoutes: moving)
         }
     public nonisolated let discoveryModes: Set<DiscoveryMode> = [.passive]
+
+    /// The app's saved cameras. A camera network another saved camera owns (its access point
+    /// or advertised name), or one of another body family, is never saved with this camera.
+    public var savedCameras: () -> [SavedCamera] = { [] }
+    /// Stores a record before an attempt starts: a setup that moves the camera is remembered
+    /// (with a route being added) before it can move the camera, so a later camera Wi-Fi connect
+    /// restores the access point even when this attempt fails. The app upserts it.
+    public var saveRecord: (SavedCamera) -> Void = { _ in }
 
     static let approve = "Approve on the camera"
     static let looking = "Looking for the camera"
@@ -174,6 +186,7 @@ public final class DJIIntegration: CameraIntegration {
             route = camera.routes.first { $0.id == routeID }
             setup = Self.setup(route, password: nil)
             restore = Self.mayBeInStationRole(camera)
+            if let route, Self.moves(route.kind) { saveRecord(Self.stamping(camera, movingTo: route.kind)) }
         case .nearby: break
         case .addRoute(let camera, let draft):
             guard draft.kind == .infrastructureNetwork || draft.kind == .phoneHotspot, let network = draft.network else {
@@ -187,6 +200,10 @@ public final class DJIIntegration: CameraIntegration {
             route = added
             setup = Self.setup(added, password: draft.secret)
             restore = Self.mayBeInStationRole(camera)
+            var adding = camera
+            adding.routes.removeAll { $0.key == added.key }
+            adding.routes.append(added)
+            saveRecord(Self.stamping(adding, movingTo: added.kind))
         }
         // One pipeline, one connection: a newer attempt ends the older one.
         current?.continuation.finish()
@@ -218,6 +235,41 @@ public final class DJIIntegration: CameraIntegration {
         case .phoneHotspot: return .phoneHotspot(network: network, password: password)
         default: return .cameraWiFi
         }
+    }
+
+    private static func moves(_ kind: RouteKind) -> Bool { kind == .infrastructureNetwork || kind == .phoneHotspot }
+
+    /// `camera` remembering that a setup of `kind` may move it to station role: that route
+    /// becomes preferred, or without one the legacy `lastSetup` stays in `extras`. Camera Wi-Fi
+    /// is stamped only once live, so a failed restore is retried on the next connect.
+    public static func stamping(_ camera: SavedCamera, movingTo kind: RouteKind) -> SavedCamera {
+        guard moves(kind) else { return camera }
+        var camera = camera
+        if let route = camera.routes.first(where: { $0.kind == kind }) {
+            camera.preferredRoute = route.id
+            camera.extras["lastSetup"] = nil
+        } else {
+            camera.preferredRoute = nil
+            camera.extras["lastSetup"] = kind == .phoneHotspot ? "phoneHotspot" : "wifi"
+        }
+        return camera
+    }
+
+    /// The iOS save rule (D9): a network another saved camera owns, or of another body family.
+    static func ownedElsewhere(_ network: String, by camera: SavedCamera, among saved: [SavedCamera]) -> Bool {
+        func same(_ value: String?) -> Bool {
+            value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                == network.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        let other = saved.contains { other in
+            other.id != camera.id
+                && (same(other.advertisedName)
+                    || other.routes.contains { $0.kind == .cameraAccessPoint && same($0.network) })
+        }
+        return other
+            || CameraBodyFamily.ssidConflictsWithBody(
+                ssid: network, modelId: camera.extras["modelId"].flatMap { Int($0) },
+                advertisedName: camera.advertisedName)
     }
 
     /// A setup that moves the camera may have left it in station role (the legacy `lastSetup`).
@@ -255,7 +307,7 @@ public final class DJIIntegration: CameraIntegration {
         guard current === attempt else { return }
         current = nil
         attempt.continuation.yield(
-            .connected(ConnectedCamera(saved: record(attempt, joined: connection.joinedNetwork), session: connection.session)))
+            .connected(ConnectedCamera(saved: record(attempt, connection), session: connection.session)))
         attempt.continuation.finish()
     }
 
@@ -295,8 +347,9 @@ public final class DJIIntegration: CameraIntegration {
     }
 
     /// The saved record after a connect: the route it used as preferred, the joined camera
-    /// network on camera Wi-Fi, the advertised model id (legacy save rule) and the time.
-    private func record(_ attempt: Attempt, joined: String?) -> SavedCamera {
+    /// network on camera Wi-Fi unless another camera owns it, the advertised name and model id
+    /// (legacy save rules) and the time.
+    private func record(_ attempt: Attempt, _ connection: DJIConnection) -> SavedCamera {
         var camera: SavedCamera
         switch attempt.target {
         case .saved(let saved, _): camera = saved
@@ -313,6 +366,14 @@ public final class DJIIntegration: CameraIntegration {
         if !camera.routes.contains(where: { $0.kind == .cameraAccessPoint }) {
             camera.routes.insert(SavedRoute(key: "ap", kind: .cameraAccessPoint, bluetooth: true), at: 0)
         }
+        let identity = connection.camera ?? sightings.first { $0.id == camera.id }
+        if let name = connection.camera?.name, !name.isEmpty { camera.advertisedName = name }
+        if let modelId = identity?.modelId { camera.extras["modelId"] = String(modelId) }
+        // The connect leaves the camera in the role of the route it used.
+        camera.extras["lastSetup"] = nil
+        let joined = connection.joinedNetwork.flatMap {
+            Self.ownedElsewhere($0, by: camera, among: savedCameras()) ? nil : $0
+        }
         if attempt.route == nil || attempt.route?.kind == .cameraAccessPoint, let joined,
             let index = camera.routes.firstIndex(where: { $0.kind == .cameraAccessPoint })
         {
@@ -320,9 +381,6 @@ public final class DJIIntegration: CameraIntegration {
         }
         let key = attempt.route?.key ?? "ap"
         camera.preferredRoute = (camera.routes.first { $0.key == key } ?? camera.routes[0]).id
-        if let modelId = sightings.first(where: { $0.id == camera.id })?.modelId {
-            camera.extras["modelId"] = String(modelId)
-        }
         camera.lastConnected = now()
         return camera
     }

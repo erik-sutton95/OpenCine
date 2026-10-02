@@ -267,7 +267,9 @@ public final class CamerasModel {
         save(cameras)
     }
 
-    private func upsert(_ camera: SavedCamera) {
+    /// Saves `camera`, replacing the record with its id or adding it first: what an integration
+    /// or its app slot remembers outside a connect (a setup about to move the camera).
+    public func upsert(_ camera: SavedCamera) {
         var cameras = saved
         if let index = cameras.firstIndex(where: { $0.id == camera.id }) {
             cameras[index] = camera

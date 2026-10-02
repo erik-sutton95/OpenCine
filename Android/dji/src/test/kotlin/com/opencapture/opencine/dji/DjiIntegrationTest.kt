@@ -169,9 +169,13 @@ class DjiIntegrationTest {
     fun typedFailuresKeepTheirCopy() = runTest {
         val silent = DjiFailures.classify(DatalinkHandshakeException("camera never answered the datalink handshake"), ConnectionPhase.OPENING_DATALINK, "camera never answered the datalink handshake")
         assertTrue(silent.reason == ConnectionFailure.Reason.TimedOut && silent.phase == CorePhase.NEGOTIATING)
-        assertEquals("camera never answered the datalink handshake", silent.message)
+        assertEquals("Camera never answered the datalink handshake. ${DjiFailures.DJI_APPS_TIP}", silent.message, "the card copy with the DJI apps tip")
         val approval = DjiFailures.classify(IllegalStateException("pairing timed out"), ConnectionPhase.AWAITING_APPROVAL, "pairing timed out")
         assertEquals(ConnectionFailure.Reason.NotApproved, approval.reason)
+        assertEquals("Turn off DJI Frame Tap and force quit DJI Mimo on every phone near the camera.", DjiFailures.DJI_APPS_TIP)
+        assertEquals("Pairing timed out. ${DjiFailures.DJI_APPS_TIP}", approval.message)
+        assertEquals("The camera ended the link.", DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "the camera ended the link").message)
+        assertEquals(DjiFailures.HOTSPOT_OFF, DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "no hotspot", hotspotOff = true).message)
         val denied = DjiFailures.classify(SecurityException("no"), ConnectionPhase.SCANNING, "no")
         assertEquals(listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry), denied.actions)
         assertEquals("org.opencapture.openpocketcine.dji.datalink.silent", silent.code)
@@ -239,6 +243,71 @@ class DjiIntegrationTest {
     fun forgetDropsTheSavedWiFiOnly() = runTest {
         integration(FakeDjiPort()).forget(saved)
         assertEquals(listOf("cam-1"), forgotten)
+    }
+
+    @Test
+    fun aMovingSetupIsRememberedBeforeItMovesTheCamera() = runTest {
+        val port = FakeDjiPort()
+        val dji = integration(port)
+        val stored = mutableListOf<SavedCamera>()
+        dji.saveRecord = { stored += it }
+        collect(dji.connect(ConnectTarget.Saved(saved, ap.id)))
+        runCurrent()
+        assertTrue(stored.isEmpty(), "camera Wi-Fi is remembered only once live")
+        val overWiFi = collect(dji.connect(ConnectTarget.Saved(saved, wifi.id)))
+        runCurrent()
+        assertEquals(listOf(wifi.id), stored.map { it.preferredRoute }, "stamped before the attempt starts")
+        port.failureDetail.value = DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "m")
+        port.phaseFlow.value = ConnectionPhase.FAILED
+        runCurrent()
+        assertIs<ConnectionEvent.Failed>(overWiFi.last())
+        assertEquals(1, stored.size, "a failed attempt leaves the stamp in place")
+
+        collect(dji.connect(ConnectTarget.AddRoute(saved, RouteDraft(RouteKind.PHONE_HOTSPOT, network = "phone", secret = "hunter22"))))
+        runCurrent()
+        assertEquals(listOf("ap", "wifi", "hotspot"), stored.last().routes.map { it.key }, "a route being added is saved first")
+        assertEquals(stored.last().routes.last().id, stored.last().preferredRoute)
+    }
+
+    @Test
+    fun stampingWithoutTheRouteKeepsTheLegacySetup() = runTest {
+        val apOnly = saved.copy(routes = listOf(ap))
+        val stamped = DjiIntegration.stamping(apOnly, RouteKind.INFRASTRUCTURE_NETWORK)
+        assertTrue(stamped.preferredRoute == null && stamped.extras["lastSetup"] == "wifi")
+        assertEquals(apOnly, DjiIntegration.stamping(apOnly, RouteKind.CAMERA_ACCESS_POINT))
+        val port = FakeDjiPort()
+        val events = collect(integration(port).connect(ConnectTarget.Saved(stamped, ap.id)))
+        runCurrent()
+        assertTrue(port.setups.single().third, "the scan may have left the camera in station role")
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val record = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertTrue(record.extras["lastSetup"] == null && record.preferredRoute == ap.id)
+    }
+
+    @Test
+    fun anotherCamerasNetworkIsNeverSaved() = runTest {
+        val port = FakeDjiPort()
+        val dji = integration(port)
+        dji.savedCameras = { listOf(saved.copy(id = "cam-2")) }
+        port.found.value = listOf(FoundCamera("cam-3", "CC", "OsmoPocket3-CCCC", CameraModel(name = "Osmo Pocket 3"), 0x20))
+        val owned = collect(dji.connect(ConnectTarget.Nearby(NearbyCamera("cam-3", name = "Osmo Pocket 3", model = "Osmo Pocket 3", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
+        runCurrent()
+        port.joinedSSID = "OsmoPocket3-AAAA"
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val first = assertIs<ConnectionEvent.Connected>(owned.last()).camera.saved
+        assertEquals(listOf<String?>(null), first.routes.map { it.network }, "the other camera's access point is not saved here")
+        assertTrue(first.advertisedName == "OsmoPocket3-CCCC" && first.extras["modelId"] == "32")
+
+        port.found.value = listOf(FoundCamera("cam-4", "DD", "OsmoNano-DDDD", CameraModel(name = "Osmo Nano", family = "nano"), 0x19))
+        val crossed = collect(dji.connect(ConnectTarget.Nearby(NearbyCamera("cam-4", name = "Osmo Nano", model = "Osmo Nano", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
+        runCurrent()
+        port.joinedSSID = "OsmoPocket3-EEEE"
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val second = assertIs<ConnectionEvent.Connected>(crossed.last()).camera.saved
+        assertEquals(listOf<String?>(null), second.routes.map { it.network }, "a Pocket network is never saved with a Nano")
     }
 
     @Test

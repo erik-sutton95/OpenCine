@@ -222,6 +222,16 @@ class CamerasModelTest {
     }
 
     @Test
+    fun upsertSavesWhatAnIntegrationRemembers() = runTest {
+        val model = model()
+        model.upsert(Values.camera.copy(preferredRoute = Values.wifi.id))
+        model.upsert(Values.camera.copy(id = "camera-2"))
+        assertEquals(listOf("camera-2", "camera-1"), model.now.saved.map { it.id })
+        assertEquals(Values.wifi.id, model.now.saved[1].preferredRoute)
+        assertEquals(listOf("camera-2", "camera-1"), SavedCamerasStore(defaults.at("document")).also { it.load() }.cameras.map { it.id })
+    }
+
+    @Test
     fun reloadMergesWhatTheAppSavedItself() = runTest {
         val legacy = Defaults(mapOf("records" to """[{"id":"camera-9","advertisedName":"CAM-9","modelName":"Test Body","lastConnectedAt":0}]"""))
         val store = SavedCamerasStore(

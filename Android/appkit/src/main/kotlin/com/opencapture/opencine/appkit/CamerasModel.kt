@@ -310,7 +310,11 @@ public class CamerasModel(
         save(saved.map { if (it.id == cameraID) change(it) else it })
     }
 
-    private fun upsert(camera: SavedCamera) {
+    /**
+     * Saves [camera], replacing the record with its id or adding it first: what an integration or
+     * its app slot remembers outside a connect (a setup about to move the camera).
+     */
+    public fun upsert(camera: SavedCamera) {
         val saved = mutable.value.saved
         save(if (saved.any { it.id == camera.id }) saved.map { if (it.id == camera.id) camera else it } else listOf(camera) + saved)
     }

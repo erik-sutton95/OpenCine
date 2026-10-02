@@ -217,6 +217,67 @@ final class FakeDJIPort: DJIConnectPort {
         #expect(port.forgotten == ["cam-1"])
     }
 
+    @Test func aMovingSetupIsRememberedBeforeItMovesTheCamera() async {
+        let dji = integration()
+        var stored: [SavedCamera] = []
+        dji.saveRecord = { stored.append($0) }
+        let overAccessPoint = dji.connect(.saved(Self.saved, route: Self.ap.id))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(stored.isEmpty, "camera Wi-Fi is remembered only once live")
+        let overWiFi = dji.connect(.saved(Self.saved, route: Self.wifi.id))
+        #expect(stored.map(\.preferredRoute) == [Self.wifi.id], "stamped before the attempt starts")
+        #expect(await eventually { port.connects.count == 2 })
+        port.finish(.failure(ConnectionFailure(reason: .timedOut, title: "t", message: "m", actions: [.retry], code: "c")))
+        _ = await outcome(overWiFi)
+        _ = await outcome(overAccessPoint)
+        #expect(stored.count == 1, "a failed attempt leaves the stamp in place")
+
+        let draft = RouteDraft(kind: .phoneHotspot, network: "phone", secret: "hunter22")
+        let adding = dji.connect(.addRoute(Self.saved, draft))
+        #expect(stored.last?.routes.map(\.key) == ["ap", "wifi", "hotspot"], "a route being added is saved first")
+        #expect(stored.last?.preferredRoute == stored.last?.routes.last?.id)
+        withExtendedLifetime(adding) {}
+    }
+
+    @Test func stampingWithoutTheRouteKeepsTheLegacySetup() async {
+        var apOnly = Self.saved
+        apOnly.routes = [Self.ap]
+        let stamped = DJIIntegration.stamping(apOnly, movingTo: .infrastructureNetwork)
+        #expect(stamped.preferredRoute == nil && stamped.extras["lastSetup"] == "wifi")
+        #expect(DJIIntegration.stamping(apOnly, movingTo: .cameraAccessPoint) == apOnly)
+        let dji = integration()
+        let events = dji.connect(.saved(stamped, route: Self.ap.id))
+        #expect(await eventually { port.connects.count == 1 })
+        #expect(port.connects[0].2, "the scan may have left the camera in station role")
+        port.finish(live())
+        let (_, _, end) = await outcome(events)
+        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        #expect(camera.saved.extras["lastSetup"] == nil && camera.saved.preferredRoute == Self.ap.id)
+    }
+
+    @Test func anotherCamerasNetworkIsNeverSaved() async {
+        let dji = integration()
+        var other = Self.saved
+        other.id = "cam-2"
+        dji.savedCameras = { [other] }
+        let nearby = NearbyCamera(id: "cam-3", name: "Osmo Pocket 3", model: "Osmo Pocket 3", routes: [.cameraAccessPoint])
+        let owned = dji.connect(.nearby(nearby))
+        #expect(await eventually { port.connects.count == 1 })
+        port.finish(.success(DJIConnection(
+            session: FakeCameraSession.djiLike(), joinedNetwork: "OsmoPocket3-AAAA",
+            camera: DJISighting(id: "cam-3", name: "OsmoPocket3-CCCC", model: pocket.model, modelId: 0x20))))
+        guard case .connected(let first) = await outcome(owned).end else { Issue.record("not connected"); return }
+        #expect(first.saved.routes.map(\.network) == [nil], "the other camera's access point is not saved here")
+        #expect(first.saved.advertisedName == "OsmoPocket3-CCCC" && first.saved.extras["modelId"] == "32")
+
+        let nano = DJISighting(id: "cam-4", name: "OsmoNano-DDDD", model: CameraModel.resolve(modelId: 0x19, name: nil), modelId: 0x19)
+        let crossed = dji.connect(.nearby(NearbyCamera(id: "cam-4", name: "Osmo Nano", model: "Osmo Nano", routes: [.cameraAccessPoint])))
+        #expect(await eventually { port.connects.count == 2 })
+        port.finish(.success(DJIConnection(session: FakeCameraSession.djiLike(), joinedNetwork: "OsmoPocket3-EEEE", camera: nano)))
+        guard case .connected(let second) = await outcome(crossed).end else { Issue.record("not connected"); return }
+        #expect(second.saved.routes.map(\.network) == [nil], "a Pocket network is never saved with a Nano")
+    }
+
     @Test func aRestoredAccessPointFollowsAMovedCamera() async {
         var moved = Self.saved
         moved.preferredRoute = Self.wifi.id

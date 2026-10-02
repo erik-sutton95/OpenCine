@@ -168,6 +168,22 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func upsertSavesWhatAnIntegrationRemembers() {
+        let model = model()
+        var stamped = Self.camera
+        stamped.preferredRoute = Self.wifi.id
+        model.upsert(stamped)
+        var added = Self.camera
+        added.id = "camera-2"
+        model.upsert(added)
+        #expect(model.saved.map(\.id) == ["camera-2", "camera-1"])
+        #expect(model.saved[1].preferredRoute == Self.wifi.id)
+        let reread = SavedCamerasStore(document: defaults.at("document"))
+        reread.load()
+        #expect(reread.cameras.map(\.id) == ["camera-2", "camera-1"])
+    }
+
+    @available(macOS 14, *)
     @Test func reloadMergesWhatTheAppSavedItself() {
         let legacy = Defaults(["records": Data(#"[{"id":"camera-9","advertisedName":"CAM-9","modelName":"Test Body","lastConnectedAt":0}]"#.utf8)])
         let store = SavedCamerasStore(
