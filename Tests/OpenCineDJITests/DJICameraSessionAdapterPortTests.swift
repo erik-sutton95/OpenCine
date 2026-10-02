@@ -104,6 +104,98 @@ import Testing
         #expect(seam.current.timecode == .unknown)
     }
 
+    @Test func captureCapabilitiesUseActualReportsAndReachThePort() {
+        let targets: [(SettingValue, String)] = [
+            (.shutter(.duration(Rational(1, 100))), "shutter 100"),
+            (.exposureCompensation(Rational(2, 3)), "ev 2"),
+            (.focusMode(.continuous), "focus 2"),
+            (.zoom(2), "zoom 2.0"),
+        ]
+        for (value, call) in targets {
+            let port = Self.capturePort()
+            let seam = DJICameraSessionAdapter(session: port)
+            let receipt = seam.request(.set(value))
+            #expect(receipt.stage == .admitted)
+            #expect(port.fired == [call])
+            port.stage(.sent)
+            port.stage(.confirmed)  // Legacy settlement cannot substitute for a camera report.
+            #expect(seam.receipt(of: receipt.operation)?.stage == .awaitingObservation)
+            #expect(seam.current.value(of: value.key).value != value)
+        }
+    }
+
+    @Test func optimisticFocusCannotConfirmOrReplaceReportedFocus() {
+        let port = Self.capturePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        let receipt = seam.request(.set(.focusMode(.continuous)))
+        port.stage(.sent)
+        port.status.focusMode = .continuous
+        seam.sessionDidChange()
+        #expect(seam.receipt(of: receipt.operation)?.stage == .sent)
+        #expect(seam.current.value(of: .focusMode).value == .focusMode(.single))
+        port.captureControlState?.reported.focusMode = .continuous
+        seam.sessionDidChange()
+        #expect(seam.receipt(of: receipt.operation)?.stage == .confirmed)
+    }
+
+    @Test func actualZoomReportCanConfirmBeforeAnAck() {
+        let port = Self.capturePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        let receipt = seam.request(.set(.zoom(2)))
+        port.stage(.sent)
+        port.captureControlState?.reported.zoomLens = CamFov.lensPosition(for: 2)
+        seam.sessionDidChange()
+        #expect(seam.receipt(of: receipt.operation)?.stage == .confirmed)
+        port.stage(.refused)
+        #expect(seam.receipt(of: receipt.operation)?.stage == .confirmed)
+    }
+
+    @Test func changedCaptureDomainRejectsQueuedEdit() {
+        let port = Self.capturePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        let command = CameraCommand(.set(.shutter(.duration(Rational(1, 100)))),
+                                    preconditions: CommandPreconditions(seam.current))
+        port.captureControlState?.reported.availableShutterDenoms = [50]
+        #expect(seam.submit(command).stage == .rejected(.staleCapabilities))
+        #expect(port.fired.isEmpty)
+    }
+
+    @Test func commonShutterNeverChangesExposureModeImplicitly() {
+        let port = Self.capturePort()
+        port.captureControlState?.reported.expoMode = .auto
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.request(.set(.shutter(.duration(Rational(1, 100))))).stage
+                == .rejected(.unavailable(.mode)))
+        #expect(port.fired.isEmpty)
+    }
+
+    @Test func captureUnknownsStayNilAndMechanicalIrisIsReadOnly() {
+        let port = Self.capturePort()
+        port.connectedModel = CameraModel.resolve(modelId: 0x0018, name: "Osmo Action 6")
+        port.captureControlState = DJICaptureControlState(reported: CameraStatus(), model: port.connectedModel)
+        let seam = DJICameraSessionAdapter(session: port)
+        for key in [SettingKey.shutter, .exposureCompensation, .focusMode, .zoom, .aperture] {
+            #expect(seam.current.value(of: key).value == nil)
+        }
+        port.captureControlState?.reported.irisHundredths = 280
+        #expect(seam.current.value(of: .aperture).value == .aperture(2.8))
+        #expect(seam.request(.set(.aperture(2))).stage == .rejected(.readOnly))
+        #expect(port.fired.isEmpty)
+    }
+
+    private static func capturePort() -> FakePort {
+        let port = FakePort()
+        var actual = CameraStatus()
+        actual.expoMode = .manual
+        actual.shutterDenom = 50
+        actual.availableShutterDenoms = [50, 100]
+        actual.evComp = .zero
+        actual.focusMode = .single
+        actual.zoomLens = CamFov.lensPosition(for: 1)
+        port.captureControlState = DJICaptureControlState(reported: actual, model: port.connectedModel)
+        return port
+    }
+
     @Test func undeclaredSettingStaysUnknown() {
         let port = FakePort()
         let receipt = DJICameraSessionAdapter(session: port)
@@ -223,6 +315,7 @@ private final class FakePort: DJIControlPort {
     }()
     var whiteBalanceDisplayStatus: CameraStatus { status }
     var currentShootingMode: ShootingMode? { ShootingMode.fromStatus(status.shootingMode) }
+    var captureControlState: DJICaptureControlState?
     var connectedCameraID: String? = "fake-pocket"
     var connectedModel: CameraModel? = CameraModel.resolve(modelId: 0x0020, name: "Osmo Pocket 3")
     var admitsMultiviewControl = true
@@ -253,6 +346,19 @@ private final class FakePort: DJIControlPort {
         kelvin: Int, tint: Int, onStage: (@MainActor (ControlWireEvent) -> Void)?
     ) {
         fire("wb \(kelvin) \(tint)", onStage)
+    }
+
+    func writeShutter(_ denominator: Int, onStage: @escaping @MainActor (ControlWireEvent) -> Void) {
+        fire("shutter \(denominator)", onStage)
+    }
+    func writeExposureCompensation(_ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void) {
+        fire("ev \(value.thirds)", onStage)
+    }
+    func writeFocusMode(_ value: OpenCineDJI.FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void) {
+        fire("focus \(value.rawValue)", onStage)
+    }
+    func writeZoom(_ ratio: Double, onStage: @escaping @MainActor (ControlWireEvent) -> Void) {
+        fire("zoom \(ratio)", onStage)
     }
 
     private func fire(_ call: String, _ onStage: (@MainActor (ControlWireEvent) -> Void)?) {

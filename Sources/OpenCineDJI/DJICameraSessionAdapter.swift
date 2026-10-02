@@ -52,6 +52,15 @@ public protocol DJIControlPort: AnyObject {
     var link: DJILinkState { get }
     /// Operator-facing note for a refused control.
     var controlNote: String? { get set }
+    var captureControlState: DJICaptureControlState? { get }
+    func writeShutter(
+        _ denominator: Int, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeExposureCompensation(
+        _ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeFocusMode(
+        _ value: FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeZoom(
+        _ ratio: Double, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func takePhoto()
     func setISO(_ index: IsoIndex, onStage: (@MainActor (ControlWireEvent) -> Void)?)
     func setRecording(_ start: Bool, onStage: (@MainActor (ControlWireEvent) -> Void)?)
@@ -109,6 +118,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         var deadline: MonotonicInstant
         /// The camera-reported status shows the request.
         let shows: (CameraStatus) -> Bool
+        var permitsReportBeforeAck = false
     }
 
     /// The shared host clock (`MonotonicInstant.now`); tests inject their own.
@@ -170,7 +180,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         guard !open.isEmpty else { return }
         let status = session.status
         for (operation, expectation) in open
-        where receipts[operation]?.stage == .awaitingObservation && expectation.shows(status) {
+        where (receipts[operation]?.stage == .awaitingObservation
+            || (expectation.permitsReportBeforeAck && receipts[operation]?.stage == .sent))
+            && expectation.shows(status) {
             finish(operation, .confirmed)
         }
     }
@@ -255,15 +267,21 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         guard let plan = wirePlan(command.intent) else {
             return advance(operation, .rejected(.unsupported))
         }
-        open[operation] = Expectation(deadline: now() + wireTimeout, shows: plan.shows)
+        open[operation] = Expectation(
+            deadline: now() + wireTimeout, shows: plan.shows,
+            permitsReportBeforeAck: plan.requiresReport)
         expire(after: wireTimeout)
-        plan.fire { [weak self] event in self?.handle(event, operation) }
+        plan.fire { [weak self] event in
+            self?.handle(
+                plan.requiresReport && event == .confirmed ? .acknowledged : event, operation)
+        }
         return receipts[operation]!
     }
 
     private struct WirePlan {
         let shows: (CameraStatus) -> Bool
         let fire: (@escaping @MainActor (ControlWireEvent) -> Void) -> Void
+        var requiresReport = false
     }
 
     /// Common intent to the DUML call that carries it, plus what the camera's own status must
@@ -274,6 +292,39 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         let session = session
         let display = session.whiteBalanceDisplayStatus
         switch intent {
+        case .set(.shutter(.duration(let duration))):
+            guard duration.numerator == 1,
+                let denominator = Int(exactly: duration.denominator), denominator > 0
+            else { return nil }
+            return WirePlan(
+                shows: { _ in session.captureControlState?.reported.shutterDenom == denominator },
+                fire: { session.writeShutter(denominator, onStage: $0) }, requiresReport: true)
+        case .set(.exposureCompensation(let stops)):
+            guard let value = EvComp.allCases.first(where: {
+                Rational($0.thirds, 3) == stops
+            }) else { return nil }
+            return WirePlan(
+                shows: { _ in session.captureControlState?.reported.evComp == value },
+                fire: { session.writeExposureCompensation(value, onStage: $0) },
+                requiresReport: true)
+        case .set(.focusMode(let mode)):
+            let value: FocusMode
+            switch mode {
+            case .single: value = .single
+            case .continuous: value = .continuous
+            case .manual: return nil
+            }
+            return WirePlan(
+                shows: { _ in session.captureControlState?.reported.focusMode == value },
+                fire: { session.writeFocusMode(value, onStage: $0) }, requiresReport: true)
+        case .set(.zoom(let ratio)):
+            return WirePlan(
+                shows: { _ in
+                    session.captureControlState?.reported.zoomFactor.map {
+                        CamFov.matches($0, ratio)
+                    } ?? false
+                },
+                fire: { session.writeZoom(ratio, onStage: $0) }, requiresReport: true)
         case .set(.iso(let value)):
             guard let index = Self.isoIndex(value) else { return nil }
             return WirePlan(
@@ -442,6 +493,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             : session.admitsMultiviewControl ? .owner : .unavailable(.authority)
         next.mode = Self.mode(status)
         next.settings = Self.settings(status)
+        if let capture = session.captureControlState {
+            next.settings.merge(capture.settings) { _, report in report }
+        }
         next.recording =
             status.recordingReported
             ? ObservedValue(status.isRecording ? .recording : .idle, origin: .cameraReported, at: nil)
@@ -456,7 +510,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         } ?? .unknown
         let model = session.connectedModel
         let declared = CapabilitySnapshot(
-            revision: snapshot.capabilities.revision, descriptors: descriptors(status),
+            revision: snapshot.capabilities.revision,
+            descriptors: descriptors(status) + (session.captureControlState?.descriptors ?? []),
             unsupported: Self.unsupported(model), timecode: Self.timecodeSupport(model),
             audioLevels: Self.audioLevelsSupport(model))
         if declared != snapshot.capabilities {
@@ -630,11 +685,12 @@ extension DJICameraSessionAdapter {
             return MonitorLayoutCapabilities(capabilities, base: base)
         }
         var layout = MonitorLayoutCapabilities(capabilities, motion: model.motion, base: base)
-        // ponytail: the app drives zoom, focus and aperture with its own DUML calls, not through
-        // this seam, so they are not descriptors and the body table lays them out. Delete these
-        // three lines once the seam routes them.
-        layout.zoom = model.supportsZoom
-        layout.focus = model.supportsFocusMode
+        if session.captureControlState == nil {
+            // Compatibility for callers that have not supplied the additive capture port.
+            layout.zoom = model.supportsZoom
+            layout.focus = model.supportsFocusMode
+        }
+        // Variable iris strategy is a typed integration panel, not an f-number edit.
         layout.iris = model.supportsAperture
         return layout
     }
