@@ -217,7 +217,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "42d3407197c49cbe8f8a5d8f68c60412ba9db72b",
+      "commit": "f3a144acd52d3bb5e22968884fcd98498b1fab4b",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -249,8 +249,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "42d3407197c49cbe8f8a5d8f68c60412ba9db72b",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
+        "commit": "f3a144acd52d3bb5e22968884fcd98498b1fab4b",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
       }
     }
   ]
