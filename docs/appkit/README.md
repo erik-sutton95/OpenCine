@@ -168,6 +168,15 @@ recording change retires that approval. Existing explicit `record(start:)` prese
 targets; `recordAndWait(start:)` shares its admission/pending gate and returns the actual terminal
 receipt only while the binding remains current.
 
+## Operator preferences
+
+`MonitorOperatorPreferences` stores common awake, HDR display, record confirmation, haptic
+and original-cache choices. The app supplies its existing UserDefaults domain or Android
+SharedPreferences file and keys. Reads do not write missing defaults or rewrite the optional
+legacy awake key; explicit false survives reload, and a current awake value wins over legacy.
+Apps with an existing structured preferences document can bind its values directly to the
+shared settings views instead of changing that document's storage format.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
