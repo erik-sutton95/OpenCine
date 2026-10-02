@@ -11,11 +11,12 @@ public struct MulticamSnapshot: Sendable {
     /// Entries with an app-side step still running (a connection step, an earlier record
     /// operation). Group commands exclude them.
     public var busy: Set<MonitorEntryID>
+    /// The shared host clock (`MonotonicInstant.now()`), the reference every session stamps on.
     public var now: MonotonicInstant
 
     public init(
         cameras: [CameraSnapshot] = [], pictures: [StreamID: PictureHealth] = [:],
-        busy: Set<MonitorEntryID> = [], now: MonotonicInstant
+        busy: Set<MonitorEntryID> = [], now: MonotonicInstant = .now()
     ) {
         self.cameras = Dictionary(cameras.map { ($0.session, $0) }) { _, last in last }
         self.pictures = pictures

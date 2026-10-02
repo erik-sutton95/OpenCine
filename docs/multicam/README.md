@@ -19,7 +19,7 @@ hardware-qualified.
   the single package dependency and the absence of vendor and UI names.
 - No behavior is chosen from an `IntegrationID` or a manufacturer name.
 - The engine holds no runtime objects and runs no timers. Apps pass a `MulticamSnapshot` (latest
-  `CameraSnapshot` per session, picture health per stream, busy entries, the clock) and, for
+  `CameraSnapshot` per session, picture health per stream, busy entries, the clock: `MonotonicInstant.now()` by default, the host reference every session stamps on) and, for
   submission, their `[CameraSessionID: any CameraSession]`.
 
 ## Public types

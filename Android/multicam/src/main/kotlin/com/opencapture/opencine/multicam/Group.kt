@@ -27,7 +27,8 @@ public class MulticamSnapshot(
      * operation). Group commands exclude them.
      */
     public val busy: Set<MonitorEntryID> = emptySet(),
-    public val now: MonotonicInstant,
+    /** The shared host clock ([MonotonicInstant.now]), the reference every session stamps on. */
+    public val now: MonotonicInstant = MonotonicInstant.now(),
 ) {
     /** Latest snapshot of each live camera session (the last one wins for a repeated session). */
     public val cameras: Map<CameraSessionID, CameraSnapshot> = cameras.associateBy { it.session }
