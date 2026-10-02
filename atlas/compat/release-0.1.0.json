@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "297e6fc1ce5923a5b7eb6c891c077243db8e8b9c",
+      "commit": "04846b905e6fa01b835894c0f558eb6935a36605",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "297e6fc1ce5923a5b7eb6c891c077243db8e8b9c",
-        "where": "Pin8d9d3f44 shared I2 composition; unchanged app root331 tests passed. Log local scratchpad/i2-integration-checks/pocket.log. Last native platform gates retained from prior pin030fa040; app has not adopted new MonitorScreen yet. Physical cameras untested."
+        "commit": "04846b905e6fa01b835894c0f558eb6935a36605",
+        "where": "P1 source4f5e8a76: phone642/pad643, targeted native15, UIReview7phone/3pad, Android506/install8/JNI41; local scratchpad/pocket-p1-foundation/P1-EVIDENCE.md. Exact combined SDK0549153 root331/generic iOS build-for-testing/Android main+unit compile106tasks passed, local scratchpad/dji-common-controls/capture-union-pocket-*.log. Physical cameras untested."
       }
     },
     {
