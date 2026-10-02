@@ -135,8 +135,16 @@ interface PocketControlPort {
 class DjiCameraSessionAdapter(
     private val port: PocketControlPort,
     private val scope: CoroutineScope,
+    private val onClose: ((SessionCloseReason) -> Unit)?,
     private val clock: () -> MonotonicInstant = { MonotonicInstant.now() },
 ) : OpenCineCameraSession {
+    /** Retain the original constructor and its trailing clock lambda. */
+    constructor(
+        port: PocketControlPort,
+        scope: CoroutineScope,
+        clock: () -> MonotonicInstant = { MonotonicInstant.now() },
+    ) : this(port, scope, null, clock)
+
     override val id: CameraSessionID = CameraSessionID()
 
     /** ACK to camera-reported value. Record telemetry trails its ACK by about 1 s. */
@@ -262,7 +270,7 @@ class DjiCameraSessionAdapter(
 
     override suspend fun close(reason: SessionCloseReason): Unit = closeNow(reason)
 
-    /** Ends this seam only. Never sends a camera command and never stops a recording. */
+    /** Retires this seam, then calls its optional connection owner once; never sends a command. */
     override fun closeNow(reason: SessionCloseReason) {
         if (closed) return
         for (operation in open.keys.toList()) abandon(operation)
@@ -274,6 +282,7 @@ class DjiCameraSessionAdapter(
                 authority = ControlAuthority.Unavailable(UnavailableReason.Link),
                 revision = last.revision.next(),
             )
+        onClose?.invoke(reason)
     }
 
     // ---- commands ----
