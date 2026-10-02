@@ -77,13 +77,22 @@ def tweak_record(atlas, rel, version, report):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", default="/tmp/opencine-publish-rehearsal", help="disposable folder (recreated)")
-    ap.add_argument("--remote", help="bare repositories for the file:// base (default <dir>/fake-github)")
+    ap.add_argument("--remote", help="folder for the bare repositories; each run uses a fresh run-<time> folder inside (default <dir>/fake-github)")
     ap.add_argument("--version", default="0.1.0")
     ap.add_argument("--resume", action="store_true",
                     help="keep the clones and remotes of an interrupted rehearsal and rerun the publish on them")
     args = ap.parse_args(argv)
     top, started = Path(args.dir), time.time()
-    remote = Path(args.remote or top / "fake-github")
+    remotes = Path(args.remote or top / "fake-github")
+    # A fresh folder per run: SwiftPM and Xcode cache repositories by URL, and a 0.1.0 tag that
+    # moved between rehearsals would resolve to a commit the new remote does not have.
+    if args.resume:
+        runs = sorted(remotes.glob("run-*"))
+        if not runs:
+            sys.exit(f"nothing to resume in {remotes}")
+        remote = runs[-1]
+    else:
+        remote = remotes / time.strftime("run-%Y%m%d-%H%M%S")
     base = f"file://{remote}"
     real = publish.Run(argparse.Namespace(version=args.version, remote_base=None, owner=None, execute=False), publish.atlas_root())
     rel = real.release
@@ -97,7 +106,7 @@ def main(argv=None):
             sys.exit(f"nothing to resume in {ws}")
         return publish_and_check(args, real, rel, top, remote, base, atlas, repos, bares, report, started, resume=True)
 
-    for d in (top, remote):
+    for d in (top, remotes):
         if d.exists():
             if not (d / ".rehearsal").exists():
                 sys.exit(f"{d} exists and was not made by this script; choose another --dir/--remote")
@@ -105,6 +114,7 @@ def main(argv=None):
         d.mkdir(parents=True)
         (d / ".rehearsal").write_text("disposable\n")
     ws.mkdir()
+    remote.mkdir()
     # 1. clones
     git(ws, "clone", "-q", str(real.root), str(atlas))
     git(atlas, "remote", "remove", "origin")

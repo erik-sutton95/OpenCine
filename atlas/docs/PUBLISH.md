@@ -105,8 +105,10 @@ After `rewrite-authors`, the old history stays under `refs/original/refs/heads/m
 rewritten package: `git -C ~/Work/<Package> reset --hard refs/original/refs/heads/main`, then
 `publish.py record` the old commit again.
 
-After pushing (a published `0.1.0` tag is permanent once anyone resolved it; prefer fixing
-forward with `0.1.1`). If nothing depends on it yet:
+After pushing, a published `0.1.0` tag is permanent once anyone resolved it: SwiftPM and Xcode
+cache repositories by URL, and a tag that later points at another commit fails to check out on
+those machines (the rehearsal hit exactly this when it reused a remote). Fix forward with `0.1.1`.
+If nothing depends on it yet:
 
 ```sh
 export GH_TOKEN=$(gh auth token --user erik-sutton95)
