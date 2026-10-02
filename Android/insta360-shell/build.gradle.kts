@@ -22,5 +22,5 @@ kotlin {
 dependencies {
     api(libs.kotlinx.coroutines.core)
     // CoreSessionSource hands out an OpenCineCore CameraSession.
-    api(libs.opencine.core)
+    api(project(":core"))
 }

@@ -275,12 +275,11 @@ class ImportRuleTests {
             }
             assertNull(forbidden.find(text), "${file.name} names a vendor, UI framework or transport")
         }
-        // OpenCineCore is the only dependency besides coroutines, and the only included build.
+        // OpenCineCore (:core) is the only dependency besides coroutines; the build includes no other build.
         val dependencies = Regex("""^\s*(api|implementation|compileOnly|runtimeOnly)\((.+)\)\s*$""", RegexOption.MULTILINE)
             .findAll(File("build.gradle.kts").readText()).map { it.groupValues[2] }.toList()
-        assertEquals(listOf("libs.opencine.core", "libs.kotlinx.coroutines.core"), dependencies)
+        assertEquals(listOf("project(\":core\")", "libs.kotlinx.coroutines.core"), dependencies)
         val settings = File("../settings.gradle.kts").readText()
-        assertEquals(1, Regex("""includeBuild\(""").findAll(settings).count())
-        assertTrue(settings.contains("""includeBuild("../../OpenCineCore/Android")"""))
+        assertEquals(0, Regex("""includeBuild\(""").findAll(settings).count())
     }
 }

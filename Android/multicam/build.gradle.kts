@@ -21,8 +21,8 @@ kotlin {
 }
 
 dependencies {
-    api(libs.opencine.core)
+    api(project(":core"))
     implementation(libs.kotlinx.coroutines.core)
-    testImplementation(testFixtures(libs.opencine.core))
+    testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlin.test.junit)
 }

@@ -1,7 +1,0 @@
-.build/
-.swiftpm/
-# Android (Gradle)
-.gradle/
-build/
-local.properties
-.kotlin/

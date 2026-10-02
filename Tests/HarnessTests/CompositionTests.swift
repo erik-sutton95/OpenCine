@@ -80,10 +80,9 @@ import Testing
     @Test func neutralCodeNamesNoManufacturer() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("../..").standardized
-        // OpenCineMulticam is a resolved package (.build/checkouts) or, while developing, a sibling
-        // checkout. Under Xcode neither path exists; its own ImportRuleTests hold it to the same rule.
-        let multicam = [".build/checkouts/OpenCineMulticam", "../OpenCineMulticam"]
-            .map { root.appendingPathComponent("\($0)/Sources/OpenCineMulticam").standardized }
+        // OpenCineMulticam lives in the same package. Under Xcode the path may not exist; its own
+        // ImportRuleTests hold it to the same rule.
+        let multicam = [root.appendingPathComponent("Sources/OpenCineMulticam")]
             .first { FileManager.default.fileExists(atPath: $0.path) }
         let neutral = [root.appendingPathComponent("Sources/HarnessEngine")] + (multicam.map { [$0] } ?? [])
         let forbidden = [

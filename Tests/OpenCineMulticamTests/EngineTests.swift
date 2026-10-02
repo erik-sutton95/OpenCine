@@ -237,9 +237,8 @@ import Testing
             }
             #expect(text.firstMatch(of: forbidden) == nil, "\(file.lastPathComponent)")
         }
+        // One dependency, OpenCineCore: the target's edge in the platform manifest.
         let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
-        let packages = manifest.matches(of: try Regex(#"\.package\("#)).count
-        // One dependency, OpenCineCore: the sibling path while unpublished, its URL once published.
-        #expect(packages == 1 && manifest.contains(#"OpenCineCore""#))
+        #expect(manifest.contains(#".target(name: "OpenCineMulticam", dependencies: ["OpenCineCore"])"#))
     }
 }

@@ -1,18 +1,21 @@
-# Versions match the OpenInstaCine catalog this build was extracted from (and OpenCineCore /
-# OpenCineUI), so a consumer's included build resolves one AGP, Kotlin and coroutines closure.
+# One catalog for every module. Versions match the app catalogs (OpenPocketCine 27b15028,
+# OpenInstaCine, OpenZCine engine-port candidate) so a consumer's composite build resolves one
+# AGP, Kotlin, coroutines and Compose closure.
 [versions]
 androidCompileSdk = "37"
 agp = "9.4.1"
 kotlin = "2.4.20"
 coroutines = "1.11.0"
-opencine-core = "0.1.0-SNAPSHOT"
+composeBom = "2026.09.00"
 
 [libraries]
-opencine-core = { module = "com.opencapture.opencine:core", version.ref = "opencine-core" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
 
 [plugins]
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
