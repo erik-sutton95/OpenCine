@@ -109,6 +109,10 @@ interface changes driven by the first real adapter slices (CORE-02).
   unknown, never `false`, `0` or `""`. Observations carry origin (camera-reported,
   protocol-derived, image-estimated, clock-derived, operator-provided, unknown), timestamp,
   validity and optional precision. Freshness is computed against a caller-supplied `now`.
+- **One host clock.** Production `now` and every timestamp come from `MonotonicInstant.now()`, one
+  process-wide reference (Swift `ContinuousClock`, Kotlin `System.nanoTime()`). Integrations never
+  keep their own origin, so a cross-brand deadline or freshness check compares like with like;
+  sessions take an injectable `() -> MonotonicInstant` for tests.
 - **Capabilities have four layers:** support (in `CapabilitySnapshot`), value domain and access,
   current availability with a typed reason, and semantics (native or emulated, readback or
   acknowledgement only, qualification). Any change advances `CapabilityRevision`.
