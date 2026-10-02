@@ -1,0 +1,34 @@
+import OpenCineCore
+import SwiftUI
+
+/// One integration as the app lists it, with the typed slots for what only it shows. Shared code
+/// never asks which integration an entry is; it renders the slots attached to the entry.
+public struct AppIntegration {
+    public var integration: any CameraIntegration
+    public var slots: IntegrationSlots
+
+    public init(_ integration: any CameraIntegration, slots: IntegrationSlots = IntegrationSlots()) {
+        self.integration = integration
+        self.slots = slots
+    }
+}
+
+/// Integration-only views the app composes into the shared screens (extension level 3).
+public struct IntegrationSlots {
+    /// Pair-page content for steps only this integration has, shown while choosing a camera.
+    public var pairing: (() -> AnyView)?
+    /// Builds a route to add to a saved camera; `nil` cancels.
+    public var addRoute: ((SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AnyView)?
+    /// Renders an integration prompt; `nil` falls back to its text.
+    public var prompt: ((any IntegrationPrompt) -> AnyView?)?
+
+    public init(
+        pairing: (() -> AnyView)? = nil,
+        addRoute: ((SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AnyView)? = nil,
+        prompt: ((any IntegrationPrompt) -> AnyView?)? = nil
+    ) {
+        self.pairing = pairing
+        self.addRoute = addRoute
+        self.prompt = prompt
+    }
+}

@@ -52,7 +52,9 @@ MonitorTheme.prepareResources()    // optional: register fonts early
 ```
 
 `CamerasPage(nearbyNote:)` sets the caption beside NEARBY (default `announcing over
-Bluetooth`; OpenZCine passes `on this network`). Android's brand inputs are
+Bluetooth`; OpenZCine passes `on this network`). `PairCameraPage { extra }` places app content in
+the pane under the error and above the devices, like Compose's `extra` (the shared app shell fills
+it from its integration slots, [appkit](../appkit/README.md)). Android's brand inputs are
 `MonitorPalette.accent` and the transitional `MonitorIosParity.enabled`
 (see [Android/monitor-ui/README.md](../../Android/monitor-ui/README.md)).
 

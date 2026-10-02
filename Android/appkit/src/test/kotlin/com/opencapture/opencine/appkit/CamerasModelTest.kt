@@ -1,0 +1,223 @@
+package com.opencapture.opencine.appkit
+
+import com.opencapture.monitorui.MonitorPairingInstruction
+import com.opencapture.monitorui.MonitorPairingInstructionIcon
+import com.opencapture.opencine.core.ConnectTarget
+import com.opencapture.opencine.core.ConnectionFailure
+import com.opencapture.opencine.core.ConnectionPhase
+import com.opencapture.opencine.core.ConnectionPrompt
+import com.opencapture.opencine.core.DiscoveryMode
+import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.NearbyCamera
+import com.opencapture.opencine.core.RecoveryAction
+import com.opencapture.opencine.core.RouteKind
+import com.opencapture.opencine.core.SavedCamera
+import com.opencapture.opencine.core.SavedRoute
+import com.opencapture.opencine.core.testing.FakeAttempt
+import com.opencapture.opencine.core.testing.FakeCameraSession
+import com.opencapture.opencine.core.testing.FakeIntegration
+import com.opencapture.opencine.core.testing.lunaLike
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+internal object Values {
+    val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "CAM-1", bluetooth = true)
+    val wifi = SavedRoute(key = "wifi", kind = RouteKind.INFRASTRUCTURE_NETWORK, network = "studio", bluetooth = true)
+    val camera = SavedCamera(
+        id = "camera-1", integration = IntegrationID("test.cameras"), advertisedName = "CAM-1", model = "Test Body",
+        routes = listOf(ap, wifi), preferredRoute = ap.id, lastConnected = 1_000_000,
+    )
+    val sighting = NearbyCamera("n2", name = "CAM-2", model = "Test Body", routes = setOf(RouteKind.CAMERA_ACCESS_POINT))
+    val failure = ConnectionFailure(
+        ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.BLUETOOTH), ConnectionPhase.LINK,
+        "Bluetooth is off", "Turn on Bluetooth for this app.",
+        listOf(RecoveryAction.OpenSettings, RecoveryAction.EditRoute(wifi.id), RecoveryAction.Retry), "test.bluetooth.denied",
+    )
+
+    fun model(
+        integrations: List<FakeIntegration>,
+        scope: CoroutineScope,
+        saved: List<SavedCamera> = listOf(camera),
+        defaults: Defaults = Defaults(emptyMap()),
+    ): CamerasModel {
+        val store = SavedCamerasStore(defaults.at("document"))
+        store.save(saved)
+        return CamerasModel(integrations.map { AppIntegration(it) }, store, scope)
+    }
+}
+
+/** Swift suite `CamerasModelTests`, same method names, against scripted integrations. */
+@OptIn(ExperimentalCoroutinesApi::class)
+class CamerasModelTest {
+    private val fake = FakeIntegration(id = IntegrationID("test.cameras"))
+    private val listening = FakeIntegration(id = IntegrationID("test.listening"), discoveryModes = setOf(DiscoveryMode.PASSIVE))
+    private val defaults = Defaults(emptyMap())
+
+    private fun TestScope.model(saved: List<SavedCamera> = listOf(Values.camera)) =
+        Values.model(listOf(fake, listening), backgroundScope, saved, defaults).also { runCurrent() }
+
+    private val CamerasModel.now get() = state.value
+
+    @Test
+    fun camerasDiscoverPassively() = runTest {
+        val model = model()
+        assertTrue(fake.liveDiscoveries == listOf(DiscoveryMode.PASSIVE) && listening.liveDiscoveries == listOf(DiscoveryMode.PASSIVE))
+        assertTrue(model.now.scanning)
+        fake.publish(listOf(Values.sighting))
+        runCurrent()
+        assertEquals(listOf("n2"), model.now.nearby.map { it.id })
+        assertEquals(fake.id, model.now.nearby[0].integration)
+    }
+
+    @Test
+    fun thePairPageDiscoversActively() = runTest {
+        val model = model()
+        model.beginPairing()
+        runCurrent()
+        assertEquals(listOf(DiscoveryMode.ACTIVE), fake.liveDiscoveries)
+        assertEquals(listOf(DiscoveryMode.PASSIVE, DiscoveryMode.ACTIVE), fake.discoveries)
+        assertTrue(listening.liveDiscoveries == listOf(DiscoveryMode.PASSIVE) && listening.discoveries == listOf(DiscoveryMode.PASSIVE))
+        model.endPairing()
+        runCurrent()
+        assertEquals(listOf(DiscoveryMode.PASSIVE), fake.liveDiscoveries)
+        assertEquals(listOf(DiscoveryMode.PASSIVE, DiscoveryMode.ACTIVE, DiscoveryMode.PASSIVE), fake.discoveries)
+    }
+
+    @Test
+    fun discoveryStopsWhileAttemptingOrLive() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        runCurrent()
+        assertTrue(fake.liveDiscoveries.isEmpty() && listening.liveDiscoveries.isEmpty())
+        assertFalse(model.now.scanning)
+        fake.attempts[0].connect(FakeCameraSession.lunaLike())
+        runCurrent()
+        assertNotNull(model.now.connected)
+        assertTrue(model.now.attempts.isEmpty() && fake.liveDiscoveries.isEmpty())
+        model.sessionEnded()
+        runCurrent()
+        assertEquals(listOf(DiscoveryMode.PASSIVE), fake.liveDiscoveries)
+        assertTrue(model.now.scanning)
+    }
+
+    @Test
+    fun oneAttemptPerCamera() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        val a = fake.attempts[0]
+        a.progress(ConnectionPhase.AWAITING_APPROVAL, 1)
+        model.connect(Values.camera, Values.wifi.id)
+        val b = fake.attempts[1]
+        b.progress(ConnectionPhase.LINK, 0)
+        runCurrent()
+        assertEquals(b.id, model.now.attempts["camera-1"]?.progress?.attempt)
+        assertTrue(a.end != null && b.end == null && model.now.attempts.size == 1)
+        assertEquals(ConnectionPhase.LINK, model.now.attempts["camera-1"]?.progress?.phase)
+        assertEquals(Values.wifi.id, model.now.attempts["camera-1"]?.route)
+        a.progress(ConnectionPhase.NEGOTIATING, 3)
+        b.progress(ConnectionPhase.JOINING_NETWORK, 2)
+        runCurrent()
+        assertEquals(ConnectionPhase.JOINING_NETWORK, model.now.attempts["camera-1"]?.progress?.phase)
+        assertEquals(b.id, model.now.attempts["camera-1"]?.progress?.attempt)
+    }
+
+    @Test
+    fun cancelEndsTheAttempt() = runTest {
+        val model = model()
+        model.connect(Values.camera)
+        model.cancel("camera-1")
+        assertTrue(model.now.attempts.isEmpty())
+        runCurrent()
+        assertEquals(FakeAttempt.End.CANCELLED, fake.attempts[0].end)
+        assertEquals(listOf(DiscoveryMode.PASSIVE), fake.liveDiscoveries)
+    }
+
+    @Test
+    fun failuresOfferTheirActions() = runTest {
+        val model = model()
+        model.connect(Values.camera, Values.wifi.id)
+        fake.attempts[0].fail(Values.failure)
+        runCurrent()
+        assertEquals(Values.failure, model.now.failures["camera-1"]?.failure)
+        assertTrue(model.now.attempts.isEmpty())
+        assertEquals(CamerasModel.Request.OpenSettings, model.perform(RecoveryAction.OpenSettings, "camera-1"))
+        assertEquals(
+            CamerasModel.Request.EditRoute(Values.camera, Values.wifi.id),
+            model.perform(RecoveryAction.EditRoute(Values.wifi.id), "camera-1"),
+        )
+        assertNull(model.perform(RecoveryAction.Retry, "camera-1"))
+        assertTrue(fake.attempts.size == 2 && fake.attempts[1].target == ConnectTarget.Saved(Values.camera, Values.wifi.id))
+        assertTrue(model.now.failures.isEmpty() && model.now.attempts["camera-1"] != null)
+    }
+
+    @Test
+    fun promptsReachTheCardAndThePairPage() = runTest {
+        val model = model(saved = emptyList())
+        fake.publish(listOf(Values.sighting))
+        model.beginPairing()
+        runCurrent()
+        model.select("n2")
+        model.connect(model.now.nearby.first())
+        fake.attempts[0].progress(ConnectionPhase.AWAITING_APPROVAL, 1, ConnectionPrompt.ApproveOnCamera("Tap Allow on the camera"))
+        runCurrent()
+        assertEquals("Tap Allow on the camera", model.now.attempts["n2"]?.prompt?.text)
+        val pairing = CamerasMapping.pairing(model)
+        assertTrue(pairing.currentStep == 2 && pairing.title == "Approve")
+        assertEquals(
+            listOf(MonitorPairingInstruction("On the camera", MonitorPairingInstructionIcon.CAMERA, listOf("Tap Allow on the camera"))),
+            pairing.instructions,
+        )
+        assertTrue(pairing.progress == "Approve" && pairing.backAction == "Cancel")
+    }
+
+    @Test
+    fun connectingUpsertsTheSavedRecord() = runTest {
+        val model = model()
+        val connected = mutableListOf<String>()
+        model.onConnected = { connected += it.saved.id }
+        fake.publish(listOf(Values.sighting))
+        runCurrent()
+        model.connect(model.now.nearby.first())
+        fake.attempts[0].connect(FakeCameraSession.lunaLike())
+        runCurrent()
+        assertEquals(listOf("n2", "camera-1"), model.now.saved.map { it.id })
+        assertEquals(listOf("n2"), connected)
+        model.sessionEnded()
+
+        val again = Values.camera.copy(lastConnected = 2_000_000)
+        model.connect(Values.camera)
+        fake.attempts[1].connect(FakeCameraSession.lunaLike(), again)
+        runCurrent()
+        assertEquals(listOf("n2", "camera-1"), model.now.saved.map { it.id })
+        assertEquals(again, model.now.saved[1])
+        val stored = SavedCamerasStore(defaults.at("document")).apply { load() }
+        assertEquals(model.now.saved, stored.cameras)
+    }
+
+    @Test
+    fun forgetCallsTheIntegration() = runTest {
+        val model = model()
+        model.forget("camera-1")
+        assertTrue(fake.forgotten == listOf(Values.camera) && model.now.saved.isEmpty())
+    }
+
+    @Test
+    fun renameAndForgetARoute() = runTest {
+        val model = model()
+        model.rename("camera-1", "  A cam ")
+        model.forgetRoute(Values.ap.id, "camera-1")
+        assertTrue(model.now.saved[0].name == "A cam" && model.now.saved[0].routes == listOf(Values.wifi))
+        assertNull(model.now.saved[0].preferredRoute)
+        model.rename("camera-1", " ")
+        assertNull(model.now.saved[0].name)
+    }
+}

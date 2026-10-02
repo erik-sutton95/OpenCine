@@ -13,12 +13,13 @@ struct AppKitRules {
             .filter { $0.pathExtension == "swift" }
         #expect(!files.isEmpty)
         let allowed: Set<String> = [
-            "Foundation", "Observation", "SwiftUI", "OpenCineCore", "OpenCineMulticam", "MonitorPresentation",
-            "MonitorUI",
+            "Foundation", "Observation", "SwiftUI", "UIKit", "OpenCineCore", "OpenCineMulticam",
+            "MonitorPresentation", "MonitorUI",
         ]
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
-            for line in text.split(separator: "\n") where line.hasPrefix("import ") {
+            for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+            where line.hasPrefix("import ") {
                 #expect(allowed.contains(String(line.dropFirst("import ".count))), "\(file.lastPathComponent): \(line)")
             }
         }

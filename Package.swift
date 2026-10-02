@@ -104,10 +104,12 @@ let package = Package(
         // The shared app flow over the integration contract: the saved-camera store with its
         // legacy mirrors, the connection model and the cameras and pair screens. Never imports an
         // integration or an app; apps list their integrations.
-        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore"]),
+        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "MonitorPresentation", "MonitorUI"]),
         .testTarget(
             name: "OpenCineAppKitTests",
-            dependencies: ["OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport"]),
+            dependencies: [
+                "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "MonitorPresentation", "MonitorUI",
+            ]),
 
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,

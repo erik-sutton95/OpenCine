@@ -4,6 +4,7 @@
 // android.jar (the real artifact backs the JVM tests).
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.compose)
 }
 
 group = "com.opencapture.opencine"
@@ -13,6 +14,7 @@ android {
     namespace = "com.opencapture.opencine.appkit"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
     defaultConfig { minSdk = 29 }
+    buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -25,8 +27,11 @@ android {
 
 dependencies {
     api(project(":core"))
+    api(project(":monitor-ui"))
+    implementation(libs.kotlinx.coroutines.android)
     testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
 }
 

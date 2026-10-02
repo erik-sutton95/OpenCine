@@ -4,7 +4,8 @@
 
     /// Native rail-and-pane pairing presentation. The adapter reports each completed
     /// stage; only its actions can connect, retry, or cancel the real camera session.
-    public struct PairCameraPage: View {
+    /// `extra` sits in the pane under the error, above the devices (Compose `extra`).
+    public struct PairCameraPage<Extra: View>: View {
         public var presentation: CameraPairingPresentation
         public var safeArea: EdgeInsets
         public var onSelect: (String) -> Void
@@ -13,13 +14,15 @@
         public var onDiagnostics: () -> Void
         public var onReportProblem: () -> Void
         public var onWatchFeed: (() -> Void)?
+        public var extra: Extra
 
         public init(
             presentation: CameraPairingPresentation, safeArea: EdgeInsets = EdgeInsets(),
             onSelect: @escaping (String) -> Void, onPrimary: @escaping () -> Void,
             onBack: @escaping () -> Void, onDiagnostics: @escaping () -> Void,
             onReportProblem: @escaping () -> Void,
-            onWatchFeed: (() -> Void)? = nil
+            onWatchFeed: (() -> Void)? = nil,
+            @ViewBuilder extra: () -> Extra
         ) {
             self.presentation = presentation
             self.safeArea = safeArea
@@ -29,6 +32,7 @@
             self.onDiagnostics = onDiagnostics
             self.onReportProblem = onReportProblem
             self.onWatchFeed = onWatchFeed
+            self.extra = extra()
         }
 
         @Environment(\.monitorWindowGeometry) private var windowGeometry
@@ -210,6 +214,7 @@
                                 MonitorTheme.recording.opacity(0.12),
                                 in: RoundedRectangle(cornerRadius: 11))
                         }
+                        extra
                         CameraPairingDeviceRows.make(presentation.devices, select: { onSelect($0) })
                         if let emptyTitle = presentation.emptyTitle {
                             Text(emptyTitle).font(MonitorTheme.font(13, weight: .semibold))
@@ -351,6 +356,21 @@
             }.frame(maxWidth: .infinity)
         }
     }
+    extension PairCameraPage where Extra == EmptyView {
+        public init(
+            presentation: CameraPairingPresentation, safeArea: EdgeInsets = EdgeInsets(),
+            onSelect: @escaping (String) -> Void, onPrimary: @escaping () -> Void,
+            onBack: @escaping () -> Void, onDiagnostics: @escaping () -> Void,
+            onReportProblem: @escaping () -> Void,
+            onWatchFeed: (() -> Void)? = nil
+        ) {
+            self.init(
+                presentation: presentation, safeArea: safeArea, onSelect: onSelect,
+                onPrimary: onPrimary, onBack: onBack, onDiagnostics: onDiagnostics,
+                onReportProblem: onReportProblem, onWatchFeed: onWatchFeed, extra: { EmptyView() })
+        }
+    }
+
     enum CameraPairingDeviceRows {
         nonisolated static func make(
             _ devices: [CameraListItem], select: @escaping @MainActor @Sendable (String) -> Void
