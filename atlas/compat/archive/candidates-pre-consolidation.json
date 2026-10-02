@@ -1,0 +1,602 @@
+{
+  "schema_version": 1,
+  "note": "Package candidates and the consumer revisions they are validated against (plan 11.5, OPS-01). Status is per check: passed, failed, not-run, not-applicable, unavailable. Only passed counts as passed. `atlas compat run <id>` updates the statuses; details of the last run are in compat/results/<id>.json. Recipes run at the consumer root inside a disposable workspace ($ATLAS_COMPAT_WORKSPACE).",
+  "candidates": [
+    {
+      "id": "opencineui-ui01-ui02",
+      "package": {
+        "repo": "opencineui",
+        "ref": "main",
+        "commit": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f",
+        "products": [
+          "MonitorPresentation",
+          "MonitorUI",
+          "monitor-ui (com.opencapture.opencine:monitor-ui)"
+        ],
+        "platforms": [
+          "apple",
+          "android"
+        ]
+      },
+      "consumers": [
+        {
+          "repo": "openpocketcine",
+          "ref": "opencine/ui",
+          "commit": "79e4648101d073650d818c47bb76ecec7e4882a5",
+          "dependency": "ios/project.yml path ../../OpenCineUI; Apps/Android/settings.gradle.kts includeBuild ../../../OpenCineUI/Android (ADR 0002)",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "checks": [
+            {
+              "name": "pinned-revision",
+              "platform": "apple+android",
+              "recipe": "grep -Fqx \"OpenCineUI $ATLAS_COMPAT_PACKAGE_COMMIT\" opencine-pins.txt",
+              "note": "The consumer's committed pin (used by its CI and Xcode Cloud) names the exact candidate commit under test.",
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "swift-test",
+              "platform": "apple",
+              "recipe": "just swift-test",
+              "tools": [
+                "just",
+                "swift"
+              ],
+              "note": "Root SwiftPM package (OpenPocketViewCore); it does not depend on OpenCineUI, so this only proves the consumer commit is healthy in the workspace.",
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "ios-resolution",
+              "platform": "apple",
+              "recipe": "just ios-generate && xcodebuild -resolvePackageDependencies -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution",
+              "tools": [
+                "just",
+                "xcodegen",
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "status": "passed",
+              "expect": [
+                "^\\s*OpenCineUI: /\\S+/OpenCineUI( @ local)?$"
+              ],
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "ios-build",
+              "platform": "apple",
+              "recipe": "just ios-generate && xcodebuild -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build",
+              "tools": [
+                "just",
+                "xcodegen",
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "note": "`just ios-build` plus a workspace DerivedData and the committed lockfile only (ios/Package.resolved is complete; Xcode Cloud disables automatic resolution).",
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "ios-build-identity",
+              "platform": "apple",
+              "fingerprint": {
+                "command": "python3 tools/build-identity.py --platform ios --configuration Debug",
+                "touch": "Sources/MonitorUI/MonitorTheme.swift"
+              },
+              "tools": [
+                "python3",
+                "git"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z",
+              "note": "Without --root the tool resolves the repository from its own path; a relative --root . would make root.parent '.' and skip the sibling package."
+            },
+            {
+              "name": "android-resolution",
+              "platform": "android",
+              "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "expect": [
+                "com\\.opencapture\\.opencine:monitor-ui:\\S+ -> project ':Android:monitor-ui'",
+                "^projectDir: \\S+/OpenCineUI/Android/monitor-ui$"
+              ],
+              "resolves_package": true,
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "android-check",
+              "platform": "android",
+              "recipe": "just android-check",
+              "tools": [
+                "just"
+              ],
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "fresh-native-binaries",
+              "platform": "android",
+              "native_outputs": [
+                "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+              ],
+              "note": "The workspace starts with no native binaries; every staged Swift core library must be built by this run.",
+              "status": "passed",
+              "checked_at": "2026-10-01T18:49:03Z"
+            },
+            {
+              "name": "android-build-identity",
+              "platform": "android",
+              "fingerprint": {
+                "command": "python3 tools/build-identity.py --platform android --configuration debug",
+                "touch": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt"
+              },
+              "tools": [
+                "python3",
+                "git"
+              ],
+              "status": "failed",
+              "checked_at": "2026-10-01T18:49:03Z",
+              "note": "Without --root the tool resolves the repository from its own path; a relative --root . would make root.parent '.' and skip the sibling package.",
+              "reason": "fingerprint unchanged by a one-byte edit to the candidate package"
+            },
+            {
+              "name": "android-native-staging",
+              "platform": "android",
+              "status": "not-applicable",
+              "reason": "stageSwiftCore inputs are Package.swift, Package.resolved and Sources/** of the consumer; its Package.swift has no OpenCineUI dependency, so the JNI core cannot contain package code. Recheck when OpenCineCore/OpenCineMedia become dependencies (MEDIA-01)."
+            }
+          ],
+          "pin_file": "opencine-pins.txt",
+          "pinned_package_commit": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f"
+        },
+        {
+          "repo": "openinstacine",
+          "ref": "opencine/ui-03-shared-ui",
+          "commit": "2cbca12d983dd134f10151a68dc51a4a4779f6ea",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "pin_file": "opencine-pins.txt",
+          "checks": [
+            {
+              "name": "adoption",
+              "status": "not-run",
+              "reason": "validated against the newer OpenCineUI main instead (candidate opencineui-ui03-reconcile, coordinator priority)"
+            }
+          ]
+        },
+        {
+          "repo": "openzcine",
+          "ref": "opencine/ui-03-engine-port-candidate",
+          "commit": "a9d615556885c0581af69a46535e99efabebf170",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "pin_file": "opencine-pins.txt",
+          "checks": [
+            {
+              "name": "adoption",
+              "status": "not-applicable",
+              "reason": "this consumer pins OpenCineUI 597ac2f (nikon-reconcile), not this candidate; see opencineui-ui03-reconcile"
+            }
+          ]
+        }
+      ],
+      "recorded_at": "2026-10-01T19:05:00Z",
+      "recorded_by": "ATLAS-07 (schema seed); consumers and recipes updated by OPS-01",
+      "validated_at": "2026-10-01T18:49:03Z",
+      "validated_by": "atlas compat run"
+    },
+    {
+      "id": "opencineui-ui03-reconcile",
+      "package": {
+        "repo": "opencineui",
+        "ref": "main",
+        "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94",
+        "products": [
+          "MonitorPresentation",
+          "MonitorUI",
+          "monitor-ui (com.opencapture.opencine:monitor-ui)"
+        ],
+        "platforms": [
+          "apple",
+          "android"
+        ],
+        "change": "UI-03 Nikon reconciliation merged (NEARBY caption, Compose MonitorCardColumns, Android iOS-parity fixes behind MonitorIosParity.enabled, default off)"
+      },
+      "consumers": [
+        {
+          "repo": "openpocketcine",
+          "ref": "opencine/ui",
+          "commit": "79e4648101d073650d818c47bb76ecec7e4882a5",
+          "dependency": "ios/project.yml path ../../OpenCineUI; Apps/Android/settings.gradle.kts includeBuild ../../../OpenCineUI/Android (ADR 0002)",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "checks": [
+            {
+              "name": "swift-test",
+              "platform": "apple",
+              "recipe": "just swift-test",
+              "tools": [
+                "just",
+                "swift"
+              ],
+              "note": "Root SwiftPM package (OpenPocketViewCore); it does not depend on OpenCineUI, so this only proves the consumer commit is healthy in the workspace.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "ios-resolution",
+              "platform": "apple",
+              "recipe": "just ios-generate && xcodebuild -resolvePackageDependencies -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution",
+              "tools": [
+                "just",
+                "xcodegen",
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "status": "passed",
+              "expect": [
+                "^\\s*OpenCineUI: /\\S+/OpenCineUI( @ local)?$"
+              ],
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "ios-build",
+              "platform": "apple",
+              "recipe": "just ios-generate && xcodebuild -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build",
+              "tools": [
+                "just",
+                "xcodegen",
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "note": "`just ios-build` plus a workspace DerivedData and the committed lockfile only (ios/Package.resolved is complete; Xcode Cloud disables automatic resolution).",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "ios-build-identity",
+              "platform": "apple",
+              "fingerprint": {
+                "command": "python3 tools/build-identity.py --platform ios --configuration Debug",
+                "touch": "Sources/MonitorUI/MonitorTheme.swift"
+              },
+              "tools": [
+                "python3",
+                "git"
+              ],
+              "status": "passed",
+              "note": "Without --root the tool resolves the repository from its own path; a relative --root . would make root.parent '.' and skip the sibling package.",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-resolution",
+              "platform": "android",
+              "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "expect": [
+                "com\\.opencapture\\.opencine:monitor-ui:\\S+ -> project ':Android:monitor-ui'",
+                "^projectDir: \\S+/OpenCineUI/Android/monitor-ui$"
+              ],
+              "resolves_package": true,
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-check",
+              "platform": "android",
+              "recipe": "just android-check",
+              "tools": [
+                "just"
+              ],
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "fresh-native-binaries",
+              "platform": "android",
+              "native_outputs": [
+                "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+              ],
+              "note": "The workspace starts with no native binaries; every staged Swift core library must be built by this run.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-build-identity",
+              "platform": "android",
+              "fingerprint": {
+                "command": "python3 tools/build-identity.py --platform android --configuration debug",
+                "touch": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt"
+              },
+              "tools": [
+                "python3",
+                "git"
+              ],
+              "status": "failed",
+              "note": "Without --root the tool resolves the repository from its own path; a relative --root . would make root.parent '.' and skip the sibling package.",
+              "reason": "fingerprint unchanged by a one-byte edit to the candidate package",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-native-staging",
+              "platform": "android",
+              "status": "not-applicable",
+              "reason": "stageSwiftCore inputs are Package.swift, Package.resolved and Sources/** of the consumer; its Package.swift has no OpenCineUI dependency, so the JNI core cannot contain package code. Recheck when OpenCineCore/OpenCineMedia become dependencies (MEDIA-01)."
+            }
+          ],
+          "pin_file": "opencine-pins.txt",
+          "pinned_package_commit": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f"
+        },
+        {
+          "repo": "openinstacine",
+          "ref": "opencine/ui-03-shared-ui",
+          "commit": "2cbca12d983dd134f10151a68dc51a4a4779f6ea",
+          "dependency": "ios/project.yml path ../../OpenCineUI; Apps/Android/settings.gradle.kts includeBuild ../../../OpenCineUI/Android (ADR 0002)",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "pin_file": "opencine-pins.txt",
+          "checks": [
+            {
+              "name": "core-test",
+              "platform": "apple",
+              "recipe": "just core-test",
+              "tools": [
+                "just",
+                "swift"
+              ],
+              "note": "Root and Insta360Protocol SwiftPM packages; neither depends on OpenCineUI.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "ios-resolution",
+              "platform": "apple",
+              "recipe": "just ios-generate && xcodebuild -resolvePackageDependencies -project ios/OpenInstaCine.xcodeproj -scheme OpenInstaCine -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution",
+              "tools": [
+                "just",
+                "xcodegen",
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "expect": [
+                "^\\s*OpenCineUI: /\\S+/OpenCineUI( @ local)?$"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "ios-build",
+              "platform": "apple",
+              "recipe": "just ios-generate && xcodebuild -project ios/OpenInstaCine.xcodeproj -scheme OpenInstaCine -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO build",
+              "tools": [
+                "just",
+                "xcodegen",
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "note": "`just ios-build` with the workspace DerivedData and the committed lockfile only (postGenCommand syncs ios/Package.resolved).",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "ios-build-identity",
+              "platform": "apple",
+              "fingerprint": {
+                "command": "python3 tools/build-identity.py --platform ios --configuration Debug",
+                "touch": "Sources/MonitorUI/MonitorTheme.swift"
+              },
+              "tools": [
+                "python3",
+                "git"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-resolution",
+              "platform": "android",
+              "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "expect": [
+                "com\\.opencapture\\.opencine:monitor-ui:\\S+ -> project ':Android:monitor-ui'",
+                "^projectDir: \\S+/OpenCineUI/Android/monitor-ui$"
+              ],
+              "resolves_package": true,
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-check",
+              "platform": "android",
+              "recipe": "just android-check",
+              "tools": [
+                "just"
+              ],
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "fresh-native-binaries",
+              "platform": "android",
+              "native_outputs": [
+                "Apps/Android/monitor/build/generated/swiftCore/jniLibs/**/*.so"
+              ],
+              "note": "Insta stages the Swift core in :monitor.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-build-identity",
+              "platform": "android",
+              "fingerprint": {
+                "command": "python3 tools/build-identity.py --platform android --configuration debug",
+                "touch": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt"
+              },
+              "tools": [
+                "python3",
+                "git"
+              ],
+              "status": "failed",
+              "reason": "fingerprint unchanged by a one-byte edit to the candidate package",
+              "checked_at": "2026-10-01T19:18:36Z"
+            },
+            {
+              "name": "android-native-staging",
+              "platform": "android",
+              "status": "not-applicable",
+              "reason": "stageSwiftCore inputs are Package.swift, Package.resolved, Sources/** and Adapters/OsmoCompatibility/Sources/** of the consumer; its Package.swift has no OpenCineUI dependency."
+            }
+          ],
+          "pinned_package_commit": "1b22c57d25dca811fa514abee7cc64f52f3dbc4f"
+        },
+        {
+          "repo": "openzcine",
+          "ref": "opencine/ui-03-engine-port-candidate",
+          "commit": "a9d615556885c0581af69a46535e99efabebf170",
+          "dependency": "ios/Runner.xcodeproj XCLocalSwiftPackageReference ../../OpenCineUI; Apps/Android/settings.gradle.kts includeBuild ../../../OpenCineUI/Android (ADR 0002)",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "pin_file": "opencine-pins.txt",
+          "checks": [
+            {
+              "name": "swift-test",
+              "platform": "apple",
+              "recipe": "just swift-test",
+              "tools": [
+                "just",
+                "swift"
+              ],
+              "note": "Root SwiftPM package; it does not depend on OpenCineUI.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:25:20Z"
+            },
+            {
+              "name": "ios-resolution",
+              "platform": "apple",
+              "recipe": "xcodebuild -resolvePackageDependencies -project ios/Runner.xcodeproj -scheme Runner -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\"",
+              "tools": [
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "expect": [
+                "^\\s*OpenCineUI: /\\S+/OpenCineUI( @ local)?$"
+              ],
+              "note": "Committed project (no XcodeGen). Automatic resolution stays on: nothing in this repo marks the lockfile as complete.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:25:20Z"
+            },
+            {
+              "name": "ios-build",
+              "platform": "apple",
+              "recipe": "xcodebuild -project ios/Runner.xcodeproj -scheme Runner -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" CODE_SIGNING_ALLOWED=NO build",
+              "tools": [
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "note": "`just ios-build` plus the workspace DerivedData.",
+              "status": "passed",
+              "checked_at": "2026-10-01T19:25:20Z"
+            },
+            {
+              "name": "ios-build-identity",
+              "platform": "apple",
+              "status": "not-applicable",
+              "reason": "this branch has no build identity tool (tools/build-identity.py is Pocket/Insta only)"
+            },
+            {
+              "name": "android-resolution",
+              "platform": "android",
+              "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:monitor-ui --configuration debugRuntimeClasspath :Android:monitor-ui:properties | grep -E \"^projectDir: |-> project ':Android:monitor-ui'\"",
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "expect": [
+                "com\\.opencapture\\.opencine:monitor-ui:\\S+ -> project ':Android:monitor-ui'",
+                "^projectDir: \\S+/OpenCineUI/Android/monitor-ui$"
+              ],
+              "resolves_package": true,
+              "status": "passed",
+              "checked_at": "2026-10-01T19:25:20Z"
+            },
+            {
+              "name": "android-check",
+              "platform": "android",
+              "recipe": "just android-check",
+              "tools": [
+                "just"
+              ],
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T19:25:20Z"
+            },
+            {
+              "name": "fresh-native-binaries",
+              "platform": "android",
+              "native_outputs": [
+                "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+              ],
+              "status": "passed",
+              "checked_at": "2026-10-01T19:25:20Z"
+            },
+            {
+              "name": "android-build-identity",
+              "platform": "android",
+              "status": "not-applicable",
+              "reason": "this branch has no build identity tool"
+            },
+            {
+              "name": "android-native-staging",
+              "platform": "android",
+              "status": "not-applicable",
+              "reason": "stageSwiftCore inputs are Package.swift, Package.resolved and Sources/** of the consumer; its Package.swift depends only on swift-crypto, not OpenCineUI."
+            }
+          ],
+          "pinned_package_commit": "597ac2fa3d81d4322e771425bd133a1733d4a644"
+        }
+      ],
+      "recorded_at": "2026-10-01T19:05:00Z",
+      "recorded_by": "OPS-01 (producer change validated against all three consumers; the workspace replaces each consumer's pin with the candidate)",
+      "validated_at": "2026-10-01T19:25:20Z",
+      "validated_by": "atlas compat run"
+    }
+  ]
+}

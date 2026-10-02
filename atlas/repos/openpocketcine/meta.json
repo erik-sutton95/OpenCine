@@ -16,13 +16,8 @@
       "role": "baseline"
     },
     {
-      "name": "opencine/ui-01-swift",
-      "commit": "8a5de7c83aa51c131f564014ac2114d411aeb343",
-      "role": "candidate"
-    },
-    {
-      "name": "opencine/ui-02-android",
-      "commit": "ec28f99471050dda48f3ba37e1c0c957267d298b",
+      "name": "opencine/integration",
+      "commit": "7838fb29b8619fbcd34def4f39035a9f5767ddb2",
       "role": "candidate"
     }
   ],
@@ -98,6 +93,39 @@
         "source_commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7"
       },
       "note": "Cube parser adapted from OpenZCine; donor revision not recorded"
+    },
+    {
+      "to": "opencine",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "ref": "opencine/integration",
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "products": [
+        "OpenCineCore",
+        "OpenCineMedia",
+        "OpenCineFrameIO",
+        "OpenCineMotion",
+        "OpenCineRelay",
+        "OpenCineApple",
+        "MonitorPresentation",
+        "MonitorUI",
+        "OpenCineMulticam",
+        "OpenCineDJI",
+        ":core",
+        ":media",
+        ":monitor-ui",
+        ":multicam",
+        ":vulkan"
+      ],
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "7838fb29b8619fbcd34def4f39035a9f5767ddb2"
+      },
+      "note": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt"
     }
   ],
   "summary_review": {

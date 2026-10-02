@@ -4,23 +4,70 @@
   "display_name": "OpenZCine",
   "status": "active",
   "layer": "app",
-  "repository": {"url": "https://github.com/erik-sutton95/OpenZCine", "default_branch": "main"},
+  "repository": {
+    "url": "https://github.com/erik-sutton95/OpenZCine",
+    "default_branch": "main"
+  },
   "local_dir": "OpenZCine",
   "refs": [
-    {"name": "main", "commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3", "role": "baseline"},
-    {"name": "feat/monitor-engine-port", "commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62", "role": "candidate"}
+    {
+      "name": "main",
+      "commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3",
+      "role": "baseline"
+    },
+    {
+      "name": "feat/monitor-engine-port",
+      "commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62",
+      "role": "candidate"
+    }
   ],
   "products": [
-    {"name": "OpenZCineCore", "kind": "swift-library", "manifest": "Package.swift"},
-    {"name": "OpenZCineAndroid", "kind": "swift-library", "manifest": "Package.swift"},
-    {"name": "Runner", "kind": "xcode-target", "manifest": "ios/Runner.xcodeproj/project.pbxproj"},
-    {"name": "OpenZCineWatch", "kind": "xcode-target", "manifest": "ios/Runner.xcodeproj/project.pbxproj"},
-    {"name": ":app", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
-    {"name": ":core-api", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
-    {"name": ":wear-relay", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"},
-    {"name": ":wear", "kind": "gradle-module", "manifest": "Apps/Android/settings.gradle.kts"}
+    {
+      "name": "OpenZCineCore",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenZCineAndroid",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "Runner",
+      "kind": "xcode-target",
+      "manifest": "ios/Runner.xcodeproj/project.pbxproj"
+    },
+    {
+      "name": "OpenZCineWatch",
+      "kind": "xcode-target",
+      "manifest": "ios/Runner.xcodeproj/project.pbxproj"
+    },
+    {
+      "name": ":app",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    },
+    {
+      "name": ":core-api",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    },
+    {
+      "name": ":wear-relay",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    },
+    {
+      "name": ":wear",
+      "kind": "gradle-module",
+      "manifest": "Apps/Android/settings.gradle.kts"
+    }
   ],
-  "instructions": ["AGENTS.md", "CLAUDE.md", "README.md"],
+  "instructions": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md"
+  ],
   "edges": [
     {
       "to": "openpocketcine",
@@ -28,13 +75,27 @@
       "status": "candidate",
       "ref": "feat/monitor-engine-port",
       "confidence": "confirmed",
-      "platforms": ["apple", "android"],
-      "scope": ["Sources/MonitorPresentation", "Sources/MonitorUI", "Tests/MonitorPresentationTests", "Apps/Android/monitor-ui"],
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "scope": [
+        "Sources/MonitorPresentation",
+        "Sources/MonitorUI",
+        "Tests/MonitorPresentationTests",
+        "Apps/Android/monitor-ui"
+      ],
       "mechanism": "vendored verbatim by hand; README says keep the two copies in sync",
       "donor_revision": null,
-      "evidence": {"path": "Apps/Android/monitor-ui/README.md", "source_commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62"},
+      "evidence": {
+        "path": "Apps/Android/monitor-ui/README.md",
+        "source_commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62"
+      },
       "note": "Exists only on the unmerged engine-port branch; donor revision not recorded"
     }
   ],
-  "summary_review": {"source_commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3", "reviewed_at": "2026-10-01T17:39:17Z"}
+  "summary_review": {
+    "source_commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3",
+    "reviewed_at": "2026-10-01T17:39:17Z"
+  }
 }

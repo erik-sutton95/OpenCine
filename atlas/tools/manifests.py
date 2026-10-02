@@ -95,6 +95,74 @@ def _result(path, kind):
     return {"path": path, "kind": kind, "status": "parsed", "deps": [], "products": [], "problems": []}
 
 
+def _split_top(s):
+    """Top-level comma-separated items of `s` (brackets and string literals respected)."""
+    items, depth, quote, start, i = [], 0, False, 0, 0
+    while i < len(s):
+        c = s[i]
+        if quote:
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                quote = False
+        elif c == '"':
+            quote = True
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        elif c == "," and depth == 0:
+            items.append(s[start:i].strip())
+            start = i + 1
+        i += 1
+    items.append(s[start:].strip())
+    return [x for x in items if x]
+
+
+def _argument(args, key):
+    """Value text of the top-level `key:` argument in a call's argument text, or None."""
+    return next((a.split(":", 1)[1].strip() for a in _split_top(args) if re.match(rf"{key}\s*:", a)), None)
+
+
+_TARGET_KINDS = "target|testTarget|executableTarget|binaryTarget|systemLibrary|macro|plugin"
+
+
+def _package_targets(t):
+    """([{name, kind, path, deps: [{name, package?}]}], problems) from a literal `targets:` array.
+
+    A dependency is a string literal, `.target(name:)`, `.byName(name:)` or `.product(name:,
+    package:)`; anything else is a problem (never silently dropped)."""
+    m = re.search(r"\bPackage\s*\(", t)
+    arr = _argument(_call_args(t, m.end() - 1) or "", "targets") if m else None
+    if arr is None:
+        return [], []
+    if not (arr.startswith("[") and arr.endswith("]")):
+        return [], ["targets: is not a literal array"]
+    out, problems = [], []
+    for item in _split_top(arr[1:-1]):
+        km = re.match(rf"\.({_TARGET_KINDS})\s*\(", item)
+        args = item[km.end():item.rfind(")")] if km else ""
+        name = re.match(r'"([^"]+)"$', _argument(args, "name") or "")
+        if not km or not name:
+            problems.append(f"target entry not understood: {item[:60]}")
+            continue
+        target = {"name": name.group(1), "kind": km.group(1), "path": (re.match(r'"([^"]+)"$', _argument(args, "path") or "") or [None, None])[1], "deps": []}
+        deps = _argument(args, "dependencies") or "[]"
+        for dep in _split_top(deps[1:-1]) if deps.startswith("[") else [deps]:
+            lit = re.match(r'"([^"]+)"$', dep)
+            call = re.match(r'\.(target|byName|product)\s*\(', dep)
+            dname = re.search(r'\bname\s*:\s*"([^"]+)"', dep)
+            if lit:
+                target["deps"].append({"name": lit.group(1)})
+            elif call and dname:
+                pkg = re.search(r'\bpackage\s*:\s*"([^"]+)"', dep)
+                target["deps"].append({"name": dname.group(1), **({"package": pkg.group(1)} if call.group(1) == "product" and pkg else {})})
+            else:
+                problems.append(f"{name.group(1)}: dependency not understood: {dep[:60]}")
+        out.append(target)
+    return out, problems
+
+
 def read_package_swift(path, text):
     r = _result(path, "swiftpm")
     t = strip_comments(text)
@@ -103,6 +171,8 @@ def read_package_swift(path, text):
         r["problems"].append("no Package( declaration")
         return r
     r["products"] = re.findall(r"\.(?:library|executable|plugin)\(\s*name:\s*\"([^\"]+)\"", t)
+    # Only the target-direction check reads these; a target problem never hides a package edge.
+    r["targets"], r["target_problems"] = _package_targets(t)
     for m in re.finditer(r"\.package\s*\(", t):
         args = _call_args(t, m.end() - 1)
         url = re.search(r"\burl:\s*\"([^\"]+)\"", args or "")
@@ -225,7 +295,10 @@ def read_gradle(path, text):
         else:
             r["status"] = "unknown"
             r["problems"].append(f"line {_line(t, m.start())}: includeBuild without a literal path")
-    for m in re.finditer(rf"(?<![\w.]){_GRADLE_CONFIGS}\s*\(\s*", _dependency_blocks(t)):
+    blocks = _dependency_blocks(t)
+    # Same-build module dependencies (`project(":x")`, also inside testFixtures/platform).
+    r["projects"] = re.findall(r"\bproject\(\s*[\"'](:[^\"']+)[\"']\s*\)", blocks)
+    for m in re.finditer(rf"(?<![\w.]){_GRADLE_CONFIGS}\s*\(\s*", blocks):
         arg = t[m.end():m.end() + 200]
         lit = re.match(r"[\"']([\w.-]+:[\w.-]+)(?::[^\"']*)?[\"']", arg)
         if lit:

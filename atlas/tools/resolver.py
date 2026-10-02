@@ -59,7 +59,10 @@ def load_local_config(atlas_root):
 
 def _workspaces(atlas_root, config, env):
     seen = []
-    for w in (config.get("workspace"), env.get("OPENCAPTURE_WORKSPACE"), str(Path(atlas_root).resolve().parent)):
+    # The atlas lives at <OpenCine checkout>/atlas, so the folder holding the sibling checkouts is
+    # two levels up; one level up is kept for a standalone atlas root (the tests use one).
+    here = Path(atlas_root).resolve()
+    for w in (config.get("workspace"), env.get("OPENCAPTURE_WORKSPACE"), str(here.parent), str(here.parent.parent)):
         if w and not w.startswith("<") and w not in seen:
             seen.append(w)
     return seen

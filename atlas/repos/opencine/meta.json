@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "id": "opencine",
+  "display_name": "OpenCine",
+  "status": "candidate",
+  "layer": "platform",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCine",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "ee71891e5bb1aa3d4823d3f08ad1579f1cee15d9",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "OpenCineCore",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMedia",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineFrameIO",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMotion",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineRelay",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineCoreTestSupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "MonitorPresentation",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "MonitorUI",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMulticam",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineDJI",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineNikon",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "Insta360Protocol",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "Insta360Apple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "Insta360AppleTestSupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": ":core",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:core"
+    },
+    {
+      "name": ":media",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:media"
+    },
+    {
+      "name": ":vulkan",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:vulkan"
+    },
+    {
+      "name": ":monitor-ui",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:monitor-ui"
+    },
+    {
+      "name": ":multicam",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:multicam"
+    },
+    {
+      "name": ":insta360-shell",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:insta360-shell"
+    },
+    {
+      "name": ":insta360-luna",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:insta360-luna"
+    }
+  ],
+  "layers": {
+    "core": [
+      "OpenCineCore",
+      "OpenCineCoreTestSupport",
+      "OpenCineCoreTests",
+      "OpenCineMedia",
+      "OpenCineMediaTests",
+      "OpenCineFrameIO",
+      "OpenCineFrameIOTests",
+      "OpenCineMotion",
+      "OpenCineMotionTests",
+      "OpenCineRelay",
+      "OpenCineRelayTests",
+      "OpenCineApple",
+      "OpenCineAppleTests",
+      ":core",
+      ":media",
+      ":vulkan"
+    ],
+    "ui": [
+      "MonitorPresentation",
+      "MonitorUI",
+      "MonitorPresentationTests",
+      ":monitor-ui"
+    ],
+    "multicam": [
+      "OpenCineMulticam",
+      "OpenCineMulticamTests",
+      ":multicam"
+    ],
+    "vendor": [
+      "OpenCineDJI",
+      "OpenCineDJITests",
+      "OpenCineNikon",
+      "OpenCineNikonTests",
+      "Insta360Protocol",
+      "Insta360ProtocolTests",
+      "CKcp",
+      "Insta360Apple",
+      "Insta360AppleTestSupport",
+      "Insta360AppleTests",
+      ":insta360-shell",
+      ":insta360-luna"
+    ],
+    "harness": [
+      "HarnessEngine",
+      "HarnessComposition",
+      "HarnessTests"
+    ]
+  },
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "openpocketcine",
+      "kind": "source-copy",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "scope": [
+        "Sources/MonitorPresentation",
+        "Sources/MonitorUI",
+        "Tests/MonitorPresentationTests",
+        "Apps/Android/monitor-ui"
+      ],
+      "mechanism": "UI-01/UI-02 extraction from the frozen BASE-01 donor",
+      "donor_revision": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
+      "note": "Former OpenCineUI NOTICE (docs/ui/ in OpenCine history) records the donor commit",
+      "evidence": {
+        "path": "docs/ui/NOTICE",
+        "source_commit": "011b2e8616fcf61294ddd1cfe514ab1f095b9139"
+      }
+    },
+    {
+      "to": "openinstacine",
+      "kind": "source-copy",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "scope": [
+        "Sources/MonitorUI/MonitorTheme.swift (API; default accent restored to Pocket iOS 0x00A3E6)",
+        "Android/monitor-ui MonitorTheme.kt (byte-identical to Insta)"
+      ],
+      "mechanism": "theme reconciliation (ADR 0004)",
+      "donor_revision": "35b6f33b20cbd791a4c24b6380046f180f1ee454",
+      "note": "Settable accent theme from Insta (ADR 0004)",
+      "evidence": {
+        "path": "Android/monitor-ui/src/main/kotlin/com/opencapture/monitorui/MonitorTheme.kt",
+        "source_commit": "011b2e8616fcf61294ddd1cfe514ab1f095b9139"
+      }
+    }
+  ],
+  "summary_review": null
+}
