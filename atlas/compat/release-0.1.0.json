@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "494a059149fbacd206b82a25d645e69997beafa1",
+    "commit": "f093269e83b519eb781426bfe62fb2717355c30e",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "494a059149fbacd206b82a25d645e69997beafa1",
-      "where": "swift test 1687 + 72 XCTest, strict-concurrency build, gradle test lint assembleRelease (798 JVM), atlas 91 + check --sources, consumer roots Pocket/Insta/Z swift build green; Kotlin DJI: a replaced attempt never connects or disconnects the newer one"
+      "commit": "f093269e83b519eb781426bfe62fb2717355c30e",
+      "where": "fix/island-toggle f093269: swift build --build-tests + swift test (1688 Swift Testing + 72 XCTest passed, private scratch path); atlas check --sources passed; OpenZCine/OpenPocketCine/OpenInstaCine root swift build against it (scratch copies); iPhone 16 Pro iOS 26.2 sim both landscapes, iPhone SE 3, iPad Pro 11 screenshots before/after (progress.d/island-fix-screens)"
     }
   },
   "apps": [
