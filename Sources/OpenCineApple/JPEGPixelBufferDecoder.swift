@@ -97,16 +97,23 @@
         {
             guard prepare(for: dimensions), let session, let format else { return nil }
 
+            // The block buffer owns a copy: a pointer from `withUnsafeBytes` is only valid inside the
+            // closure, and the decode below runs after it.
             var blockBuffer: CMBlockBuffer?
-            var payload = jpeg
-            let created = payload.withUnsafeMutableBytes { raw -> OSStatus in
-                guard let base = raw.baseAddress else { return -1 }
-                return CMBlockBufferCreateWithMemoryBlock(
-                    allocator: kCFAllocatorDefault, memoryBlock: base, blockLength: raw.count,
-                    blockAllocator: kCFAllocatorNull, customBlockSource: nil, offsetToData: 0,
-                    dataLength: raw.count, flags: 0, blockBufferOut: &blockBuffer)
-            }
-            guard created == noErr, let blockBuffer else { return nil }
+            guard
+                CMBlockBufferCreateWithMemoryBlock(
+                    allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: jpeg.count,
+                    blockAllocator: kCFAllocatorDefault, customBlockSource: nil, offsetToData: 0,
+                    dataLength: jpeg.count, flags: kCMBlockBufferAssureMemoryNowFlag,
+                    blockBufferOut: &blockBuffer) == noErr,
+                let blockBuffer,
+                jpeg.withUnsafeBytes({ raw in
+                    guard let base = raw.baseAddress else { return -1 }
+                    return CMBlockBufferReplaceDataBytes(
+                        with: base, blockBuffer: blockBuffer, offsetIntoDestination: 0,
+                        dataLength: raw.count)
+                }) == noErr
+            else { return nil }
 
             var sampleBuffer: CMSampleBuffer?
             var sampleSize = jpeg.count
