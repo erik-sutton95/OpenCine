@@ -3,8 +3,8 @@
   "note": "Release record for tools/publish.py (RELEASE-01, ADR 0010, docs/PUBLISH.md). One platform repository, OpenCine, holds every shared product and this atlas; it gets one tag. `commit` is what the publish expects on `branch` (the platform may differ from it only under atlas/); `evidence` says where the green run at that commit is recorded. `verify` runs in a clean clone ({base} is the remote base); app `resolve` runs in the app worktree to produce `lockfiles`. Decisions stay null until the user records them with `tools/publish.py decide`.",
   "decisions": {
     "owner": "erik-sutton95",
-    "visibility": null,
-    "android": null,
+    "visibility": "public",
+    "android": "sibling-pins",
     "author_email": "9084979+erik-sutton95@users.noreply.github.com"
   },
   "platform": {
