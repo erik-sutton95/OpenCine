@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +91,8 @@ public fun MonitorCaptureButton(
     }
     Box(modifier.size(diameter.dp)
         .alpha(if (!enabled) .4f else if (recording && state.recordPending) .72f else 1f)
-        .combinedClickable(enabled = interactive, onClick = ::press, onLongClick = openMode)
+        .then(if (interactive) Modifier.combinedClickable(onClick = ::press, onLongClick = openMode)
+            else Modifier.semantics { disabled() })
         .semantics {
             contentDescription = when {
                 photo -> "Take photo"
