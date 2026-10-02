@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "5b8307b3410b8148252fd52e22d9a151e3dd4054",
+      "commit": "950ad6b73644b00860a4b79105dbf104fb490031",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "5b8307b3410b8148252fd52e22d9a151e3dd4054",
-        "where": "Neutral utilities reviewed locally; shared Swift1719 plus72 XCTest/strict, Android857 unique (2 existing skips), Pocket331 root/504 Android and Insta595 root/696 Android full test-lint-debug-release with native staging. Installed credential preservation passed both apps; namespaces/aliases/envelopes unchanged. Nikon pin-only. Evidence scratchpad/neutral-utilities/evidence; hardware untested."
+        "commit": "950ad6b73644b00860a4b79105dbf104fb490031",
+        "where": "Pin38edecfc adds shared Nikon owned runtime and already reviewed common capture foundation; Pocket source otherwise unchanged950ad6b7. Prior consumer root331, Android504, full phone/iPad633 and installed-data/native41 evidence retained. Physical cameras untested."
       }
     },
     {
@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "7621bcc4afc1913dd13a13c664019230b8bbdefe",
+      "commit": "c29b5891e170cdb319afc510ea7a23741ea4519a",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "7621bcc4afc1913dd13a13c664019230b8bbdefe",
-        "where": "Neutral utilities reviewed locally; shared Swift1719 plus72 XCTest/strict, Android857 unique (2 existing skips), Pocket331 root/504 Android and Insta595 root/696 Android full test-lint-debug-release with native staging. Installed credential preservation passed both apps; namespaces/aliases/envelopes unchanged. Nikon pin-only. Evidence scratchpad/neutral-utilities/evidence; hardware untested."
+        "commit": "c29b5891e170cdb319afc510ea7a23741ea4519a",
+        "where": "Nikon shared runtime adoption and one-session owner registry integrated c29b5891 pins38edecfc; root626; private phone/iPad140 XCTest plus90 Swift Testing each(two existing skips,known-hanging timecode test excluded); full native Android/lint/release and JNI73 parity plus native smoke logged scratchpad/codex-shell03-nikon/logs. Final Kotlin explicit-target relay correction6d62f154 narrow actual loopback+owner unit/compile gate passed review-relay-correction.log. Physical cameras untested."
       }
     }
   ]
