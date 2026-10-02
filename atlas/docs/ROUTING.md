@@ -11,7 +11,7 @@ registered app baselines (`main`). "Shared home" is the target in the one platfo
 | Menu gesture, drum/dial, HUD spacing, theme, scroll fade, page chrome | `openpocketcine` (`Sources/MonitorUI`, `Apps/Android/monitor-ui`); copies in Insta and Nikon engine-port | `Sources/MonitorUI`, `Android/monitor-ui` (layer ui) | Presentation tests, both platform implementations, each app's composition |
 | Layout policy, capability projection for layout | `openpocketcine` `Sources/MonitorPresentation` | `Sources/MonitorPresentation` | `MonitorPresentationTests`, `MonitorCapabilities.swift` |
 | Multi View tiles, retained hosts, per-camera settings, record-all | `openpocketcine` `ios/OpenPocketCine/Multiview*`; Nikon multicam only on engine-port | Engine: `Sources/OpenCineMulticam`, `Android/multicam`; UI stays in `Sources/MonitorUI` | Host identity, lease lifetime, record-plan invalidation |
-| Scope math, LUT parsing, false color, log/709 analysis | `openpocketcine` `Sources/OpenPocketViewCore`; Nikon `Sources/OpenZCineCore` | `Sources/OpenCineMedia`, `Android/media` | Signal metadata, analysis configuration, golden fixtures (`Fixtures/`) |
+| Scope math, LUT parsing, false color, log/709 analysis | `openpocketcine` `Sources/OpenPocketViewCore` and Android `feed/LiveColorScience.kt`; Insta keeps copies of both (Swift `Sources/OpenPocketViewCore/LiveColorScience.swift` with I-Log); Nikon `Sources/OpenZCineCore` (own `ScopeDisplayScale.swift`) | Swift only: `Sources/OpenCineMedia`. Android scope math is still app-owned (`Android/media` holds decode and feed timing, not scopes) | Signal metadata, analysis configuration, golden fixtures (`Fixtures/`); `atlas impact <symbol>` lists app copies as "declares its own" |
 | DJI pairing, DUML command, DJI log profile, station join | `openpocketcine` | `Sources/OpenCineDJI` (the Kotlin DJI session stays in the app) | Protocol mapping, replay fixtures, hardware evidence |
 | Nikon PTP operation, Wi-Fi vs USB control, HDMI/UVC capture input | `openzcine` | `Sources/OpenCineNikon` (protocol); UVC capture in `Sources/OpenCineApple` | Transport ownership, picture/control independence |
 | Owner-keyed JNI sessions | `openzcine` engine-port only | stays in each app's JNI facade | `AndroidSessionOwnerRegistry` and its tests on the candidate ref |
@@ -30,6 +30,13 @@ registered app baselines (`main`). "Shared home" is the target in the one platfo
 - Inherited Multi View code in Insta does not mean Luna Multi View is supported.
 - An `Osmo*` file name in Insta (`OsmoMonitorPresentation.swift`) is Luna-owned code that
   kept the upstream name.
+
+## Shipped versus next release
+
+`atlas impact` and `atlas task start` read each app at the branch it builds OpenCine on (today
+`opencine/integration`, the next release). Users run `main`. For a bug in a shipped build, check
+`atlas impact <symbol> --app-ref main` too: the shipped code may be an app copy that the next
+release already replaced, and the fix may belong on `main` (`task start ... --base main`).
 
 ## Not every request needs a code change
 

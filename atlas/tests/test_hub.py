@@ -105,6 +105,11 @@ class Hub(AtlasCase):
         self.assertEqual(code, 0, out)
         self.assertIn("declaration: none found in OpenCine", out)
         self.assertIn("other @ main", out)
+        self.assertIn("declares its own (a copy, or an app-owned type with this name): Sources/O.swift:1:struct Mine {}", out)
+
+    def test_impact_app_ref_reads_the_shipped_branch(self):
+        r = json.loads(self.run_atlas("impact", "Thing", "--json", "--app-ref", "main")[1])
+        self.assertEqual((r["apps"]["app"]["ref"], r["apps"]["app"]["commit"], r["apps"]["app"]["uses"]), ("main", self.app_main, 0))
 
     def test_impact_repo_ids_keep_consumer_waves(self):
         code, out = self.run_atlas("impact", "opencine", "--registry-only", "--include-candidates")
@@ -212,6 +217,23 @@ class Hub(AtlasCase):
         task = self.ws / "OpenCine-tasks" / "app-12"
         self.assertEqual(sh(task / "OpenCine", "branch", "--show-current"), "issue/app-12")
         self.assertIn("this task branch of OpenCine", (task / "TASK.md").read_text())
+
+    def test_task_start_not_found_is_not_offline_and_pasted_text_fills_the_brief(self):
+        missing = subprocess.CompletedProcess([], 1, "", "GraphQL: Could not resolve to an issue or pull request with the number of 77.")
+        pasted = self.ws / "issue.txt"
+        pasted.write_text("Waveform offset in I-Log\nGray card sits 10 IRE low.\n")
+        with mock.patch.object(hub, "gh_run", return_value=missing), mock.patch.object(hub.shutil, "which", return_value="/usr/bin/gh"):
+            code, out = self.run_atlas("task", "start", "app#77")
+            self.assertEqual(code, 0, out)
+            self.assertIn("Could not resolve to an issue", out)
+            self.assertNotIn("offline", out)
+            code, out = self.run_atlas("task", "start", "app#77", "--from-file", str(pasted))
+        self.assertEqual(code, 0, out)
+        brief = (self.ws / "OpenCine-tasks" / "app-77" / "TASK.md").read_text()
+        self.assertIn("# app#77: Waveform offset in I-Log", brief)
+        self.assertIn("Gray card sits 10 IRE low.", brief)
+        self.assertIn("## Routing decision (fill in before editing)", brief)
+        self.assertIn(f"app pins OpenCine {self.plat[:12]}.", brief)
 
     def test_task_start_offline_and_base_override(self):
         offline = subprocess.CompletedProcess([], 1, "", "dial tcp: lookup api.github.com: no such host")

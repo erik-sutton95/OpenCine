@@ -28,7 +28,7 @@ Python; nothing to install. Graphify (`graphifyy` 0.9.11, macOS) is optional.
 |---|---|
 | Sibling app checkouts present? Clone the missing ones | `atlas ensure --check`, then `atlas ensure` |
 | Open issues of every repository | `atlas issues [repo]` (gh; offline it says so) |
-| Who uses a symbol or file, and where | `atlas impact <symbol or path>` |
+| Who uses a symbol or file, and where (apps' copies too) | `atlas impact <symbol or path> [--app-ref main]` |
 | Which repositories a change reaches, in order | `atlas impact <repo> --include-candidates` |
 | Start work on an issue | `atlas task start <repo>#<n> [--with opencine] [--with <app>]` |
 | Navigation graph of all repositories (optional) | `atlas graph build --all --local-only` |
@@ -55,7 +55,7 @@ moves to OpenCine.
 
 ## Boundaries
 
-Import rules (plan 3.4). The target edges in `Package.swift` and the `project(":x")` edges in
+Import rules ([plan](atlas/docs/architecture/platform-plan.md) 3.4). The target edges in `Package.swift` and the `project(":x")` edges in
 `Android/` encode them; the per-area import tests and `atlas check` enforce them. Never add an
 edge that breaks them, and never add a third-party package dependency.
 
@@ -77,7 +77,7 @@ capabilities, setting descriptors, observations and services, never from which m
 it runs in. A manufacturer name may appear as content, never as a branch condition. Unknown is
 `nil`, never `false`, `0` or `""`.
 
-**Three extension levels** (plan 9.5), in this order:
+**Three extension levels** ([plan](atlas/docs/architecture/platform-plan.md) 9.5), in this order:
 
 1. A common setting or service, when the meaning is shared and exercised by more than one brand.
 2. A typed optional service for a coherent domain (motion is the example: axes, limits,

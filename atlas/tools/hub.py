@@ -30,7 +30,7 @@ DECL_KEYWORDS = r"class|struct|enum|protocol|actor|extension|typealias|func|var|
 # Top-level types a file exports (column 0, not private, fileprivate or internal): the names an app can use.
 TYPE_DECL = re.compile(r"^(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|open|final|data|sealed|abstract|enum|annotation|inline|value|"
                        r"indirect|nonisolated)\s+)*(?:class|struct|enum|protocol|actor|interface|object|typealias)\s+([A-Z]\w*)", re.M)
-OFFLINE = re.compile(r"error connecting|dial tcp|no such host|could not resolve|network is unreachable|timed? ?out|connection refused", re.I)
+OFFLINE = re.compile(r"error connecting|dial tcp|no such host|could not resolve host|network is unreachable|timed? ?out|connection refused", re.I)
 GITHUB = re.compile(r"^https://github\.com/([^/]+/[^/]+?)(?:\.git)?/?$")
 
 
@@ -67,9 +67,9 @@ def primary_ref(m, pid):
 
 
 def ref_tip(path, ref):
-    """Current commit of a registered ref: local branch, else origin's, else the registered commit."""
-    for cand in (f"refs/heads/{ref['name']}", f"refs/remotes/origin/{ref['name']}", ref["commit"]):
-        sha = resolver.rev(path, cand)
+    """Current commit of a ref: local branch, else origin's, else the registered commit."""
+    for cand in (f"refs/heads/{ref['name']}", f"refs/remotes/origin/{ref['name']}", ref.get("commit")):
+        sha = cand and resolver.rev(path, cand)
         if sha:
             return sha
     return None
@@ -286,7 +286,7 @@ def cmd_impact_symbol(args, reg, root):
     for rid, m in sorted(reg.items()):
         if rid == pid or m["layer"] != "app":
             continue
-        ref = primary_ref(m, pid)
+        ref = {"name": args.app_ref, "commit": None} if args.app_ref else primary_ref(m, pid)
         res = resolver.resolve(m, root)
         tip = ref_tip(res["path"], ref) if ref and res["status"] == "ok" else None
         if not tip:
@@ -297,10 +297,12 @@ def cmd_impact_symbol(args, reg, root):
             continue
         via = sorted(linked_products(res["path"], tip, plat_meta) & carriers)
         lines, n = grep(res["path"], symbols, commit=tip, limit=limit)
+        own, _ = grep(res["path"], symbols, commit=tip, limit=limit, decl=True)
         found = found or n > 0
-        out["apps"][rid] = {"ref": ref["name"], "commit": tip, "links": via, "uses": n, "sample": lines}
+        out["apps"][rid] = {"ref": ref["name"], "commit": tip, "links": via, "uses": n, "sample": lines, "declares": own}
         verdict = f"links {', '.join(via)}" if via else ("does not link the owner" if owners else "no OpenCine owner")
         say(f"{m['display_name']} @ {ref['name']} {tip[:12]}: {verdict}; {n} use(s)")
+        say(*[f"    declares its own (a copy, or an app-owned type with this name): {ln[:140]}" for ln in own])
         say(*[f"    {ln[:160]}" for ln in lines])
         if n > len(lines):
             say(f"    ... {n - len(lines)} more (--limit)")
@@ -419,6 +421,9 @@ def cmd_task_start(args, reg, root):
     branch = f"issue/{task}"
     folder = workspace(root, reg) / "OpenCine-tasks" / task
     issue, why = fetch_issue(reg[rid], number)
+    if args.from_file:
+        title, _, body = Path(args.from_file).read_text().strip().partition("\n")
+        issue, why = dict(issue or {}, title=title.strip().lstrip("# "), body=body.strip()), None
     rows, pins = [], {}
     for r in repos:
         m = reg[r]
@@ -486,6 +491,13 @@ def task_brief(rid, number, issue, why, rows, reg, pid):
         for r in rows)
     shared = pid in [r["repo"] for r in rows if r["branch"]]
     cleanup = "\n".join(f"git -C {r['checkout']} worktree remove {r['path']}" for r in rows)
+    pins = sorted({(r["repo"], ln.split()[1]) for r in rows if r["repo"] != pid
+                   for ln in resolver.git(r["path"], "show", "HEAD:opencine-pins.txt", check=False).splitlines()
+                   if len(ln.split()) == 2 and not ln.startswith("#")})
+    plat_row = next((r for r in rows if r["repo"] == pid and r["branch"]), None)
+    pin_note = "".join(f"\n- {app} pins OpenCine {sha[:12]}" + (f"; this task's OpenCine starts at {plat_row['base']}, so the app"
+                                                                   " builds against newer OpenCine than it ships until its pin moves." if plat_row else ".")
+                       for app, sha in pins)
     return f"""# {m['display_name']}#{number}: {title}
 
 Status: in progress
@@ -505,6 +517,13 @@ Issue: {url} (state {(issue or {}).get('state', 'unknown')}, labels {labels})
 
 Each app's `../OpenCine` resolves to the OpenCine folder in this task folder, so app builds use
 {'this task branch of OpenCine' if shared else 'the OpenCine commit the app pins'}. Check the commit identity column before the first commit.
+Bases are local refs, read without fetching; fetch in the checkout and start again if they are stale.{pin_note}
+
+## Routing decision (fill in before editing)
+
+- Platforms affected (iOS, Android, both): Swift and Kotlin owners can differ.
+- App-only or shared, and the owning target or module:
+- Evidence (`atlas impact` lines, files read):
 
 ## Route before editing
 

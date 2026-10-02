@@ -769,6 +769,7 @@ def main(argv=None):
         if name == "impact":
             p.add_argument("--include-candidates", action="store_true", help="include candidate branches and repos")
             p.add_argument("--limit", type=int, default=10, help="call sites shown per repository (symbol or path)")
+            p.add_argument("--app-ref", help="read every app at this branch instead of the one it builds OpenCine on (main: what ships)")
     p = sub.add_parser("ensure", help="resolve or clone every registered checkout next to OpenCine")
     p.add_argument("--check", action="store_true", help="report only; write nothing")
     p = sub.add_parser("issues", help="open issues across the registered GitHub repositories (gh, offline-safe)")
@@ -781,6 +782,7 @@ def main(argv=None):
     p.add_argument("--with", dest="with_repos", action="append", default=[], metavar="REPO",
                    help="also give this repository a worktree on the task branch (opencine for a shared fix); repeatable")
     p.add_argument("--base", help="base ref for the issue's repository (default: the ref it consumes OpenCine on)")
+    p.add_argument("--from-file", metavar="FILE", help="issue text the user gave you (first line: title) when GitHub has none")
     p = sub.add_parser("stale", help="pinned refs and snapshots versus current sources")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("check", help="registry, direction, cycles, snapshots, private paths")
