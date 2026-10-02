@@ -2,10 +2,10 @@
   "version": "0.1.0",
   "note": "Release record for tools/publish.py (RELEASE-01, docs/PUBLISH.md). Packages are listed in tag order. `commit` is what the publish expects on `branch`; `evidence` says where the green run at that commit is recorded. `verify` runs in a clean clone after the URL switch ({base} is the remote base); app `resolve` runs in the app worktree to produce `lockfiles`. Decisions stay null until the user records them with `tools/publish.py decide`.",
   "decisions": {
-    "owner": null,
+    "owner": "erik-sutton95",
     "visibility": null,
     "android": null,
-    "author_email": null
+    "author_email": "9084979+erik-sutton95@users.noreply.github.com"
   },
   "atlas": {
     "repo": "opencapture-atlas",
