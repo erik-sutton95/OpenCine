@@ -17,8 +17,11 @@
         }
 
         public func presence(_ host: String) async -> NikonPresence? {
-            await Self.onProbeQueue { Self.rawProbe(host: host, port: presencePort, timeoutMilliseconds: 500) }
-                .line.flatMap(decodePresence)
+            let line = await Self.onProbeQueue { Self.rawProbe(host: host, port: presencePort, timeoutMilliseconds: 500) }
+                .line
+            guard let line, var presence = decodePresence(line) else { return nil }
+            presence.line = line
+            return presence
         }
 
         /// HW-measured: an idle body answers a dial in about 1.0-1.2 s (Wi-Fi power save), hence

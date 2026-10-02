@@ -7,8 +7,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 
-/** A device's answer on the presence port (Swift `NikonPresence`); the app decodes its own line. */
-data class NikonPresence(val deviceName: String, val servedCamera: String? = null)
+/**
+ * A device's answer on the presence port (Swift `NikonPresence`); the app decodes its own line and
+ * keeps it in [line] for the fields only it reads (its relay protocol).
+ */
+data class NikonPresence(val deviceName: String, val servedCamera: String? = null, val line: String? = null)
 
 /** Why discovery dials a host (Swift `NikonDialPurpose`). */
 enum class NikonDialPurpose {

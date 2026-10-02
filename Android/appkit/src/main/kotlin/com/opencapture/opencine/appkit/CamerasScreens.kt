@@ -66,6 +66,9 @@ public fun CamerasScreen(
     onMultiview: (() -> Unit)? = null,
     /** Camera id, integration action id ([RecoveryAction.Integration]). */
     onIntegrationAction: ((String, String) -> Unit)? = null,
+    /** The app's own NEARBY rows after the sightings (a notice, a feed to watch); a tap calls [onExtraNearby]. */
+    extraNearby: List<CameraItem> = emptyList(),
+    onExtraNearby: (String) -> Unit = {},
 ) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
@@ -94,7 +97,7 @@ public fun CamerasScreen(
         brand = brandName,
         sections = listOf(
             MonitorCameraSection("PAIRED", paired, "tap to reconnect"),
-            MonitorCameraSection("NEARBY", CamerasMapping.nearby(model), nearbyNote),
+            MonitorCameraSection("NEARBY", CamerasMapping.nearby(model) + extraNearby, nearbyNote),
         ),
         key = { it.id },
         emptyMessage = "Pair a new camera to start monitoring.",
@@ -116,6 +119,8 @@ public fun CamerasScreen(
                 onOpen = {
                     if (camera != null) {
                         model.connect(camera)
+                    } else if (extraNearby.any { it.id == item.id }) {
+                        onExtraNearby(item.id)
                     } else {
                         model.select(item.id)
                         onPair()

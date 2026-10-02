@@ -20,6 +20,10 @@
         public var onWatchFeed: (() -> Void)?
         /// Camera id, integration action id (`RecoveryAction.integration`).
         public var onIntegrationAction: ((String, String) -> Void)?
+        /// The app's own NEARBY rows after the sightings (a notice, a feed to watch); a tap
+        /// calls `onExtraNearby` with the row id.
+        public var extraNearby: [CameraListItem]
+        public var onExtraNearby: (String) -> Void
 
         @State private var adding: SavedCamera?
 
@@ -28,7 +32,8 @@
             safeArea: EdgeInsets = EdgeInsets(), onPair: @escaping () -> Void,
             onMedia: @escaping () -> Void, onSettings: @escaping () -> Void,
             onMultiview: (() -> Void)? = nil, onWatchFeed: (() -> Void)? = nil,
-            onIntegrationAction: ((String, String) -> Void)? = nil
+            onIntegrationAction: ((String, String) -> Void)? = nil,
+            extraNearby: [CameraListItem] = [], onExtraNearby: @escaping (String) -> Void = { _ in }
         ) {
             self.model = model
             self.brandName = brandName
@@ -40,17 +45,20 @@
             self.onMultiview = onMultiview
             self.onWatchFeed = onWatchFeed
             self.onIntegrationAction = onIntegrationAction
+            self.extraNearby = extraNearby
+            self.onExtraNearby = onExtraNearby
         }
 
         public var body: some View {
             CamerasPage(
-                brandName: brandName, paired: paired, nearby: CamerasMapping.nearby(model),
+                brandName: brandName, paired: paired, nearby: CamerasMapping.nearby(model) + extraNearby,
                 nearbyNote: nearbyNote, scanning: model.scanning, busy: !model.attempts.isEmpty,
                 safeArea: safeArea,
                 onConnect: { id in
                     if let camera = camera(id) { model.connect(camera) }
                 },
                 onPair: { id in
+                    if let id, extraNearby.contains(where: { $0.id == id }) { return onExtraNearby(id) }
                     model.selection = id
                     onPair()
                 },

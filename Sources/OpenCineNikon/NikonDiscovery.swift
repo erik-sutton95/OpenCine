@@ -7,10 +7,13 @@ public struct NikonPresence: Hashable, Sendable {
     public var deviceName: String
     /// The camera host this device serves (holds a session with), when it says.
     public var servedCamera: String?
+    /// The answer as received, for the fields only the app reads (its relay protocol).
+    public var line: Data?
 
-    public init(deviceName: String, servedCamera: String? = nil) {
+    public init(deviceName: String, servedCamera: String? = nil, line: Data? = nil) {
         self.deviceName = deviceName
         self.servedCamera = servedCamera
+        self.line = line
     }
 }
 
