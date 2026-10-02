@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "0d88fc0ab8f70f01bd7c92e450427c196b827c4e",
+      "commit": "c97e9e0e7eb9eee9d936a0d58f3af24f5e7254e4",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "0d88fc0ab8f70f01bd7c92e450427c196b827c4e",
-        "where": "OpenInstaCine 0d88fc0 (2026-10-02, SHELL-01 step 6: iOS and Android lay out the Luna integration's projection; lunaUltra and constant audio/timecode flags gone; no multicam budget) against OpenCine 340452a (pinned): gradlew test lint assembleRelease green (monitor 700), root swift test 611, iOS OpenInstaCine scheme on a private iOS 26.2 simulator 501 XCTest (1 skip; +1 projection test) + 11 Swift Testing. Simulator and emulator screenshots identical before and after (progress.d/shell-01-screens)."
+        "commit": "c97e9e0e7eb9eee9d936a0d58f3af24f5e7254e4",
+        "where": "2026-10-02 SHELL-02 step 5 at c97e9e0 against OpenCine 399c3c7: just check, root swift 595 + Insta360 filter 69 XCTest + 10 Swift Testing, just android-check (695 monitor unit tests, debug APK, lint), iOS 500 per device (499 + 1 skip) on private iPhone 16 Pro and iPad Pro 13, migration suites 6 cases per platform, installed-build upgrade/downgrade on simulator and emulator; logs /tmp/opencine-insta-shell02-*.log; physical checks pending"
       }
     },
     {
