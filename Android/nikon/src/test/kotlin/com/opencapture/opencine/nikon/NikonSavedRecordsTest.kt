@@ -29,7 +29,7 @@ class NikonSavedRecordsTest {
         private val codec = NikonSavedRecordsV0()
 
         fun load(): List<SavedCamera> {
-            legacy?.let(codec::cameras)?.let { document = document.merge(it, "records", codec.heldExtras) }
+            legacy?.let(codec::cameras)?.let { document = document.merge(it, "records", codec.heldExtras, codec.holdsRouteTitles) }
             return document.cameras
         }
 
@@ -119,6 +119,42 @@ class NikonSavedRecordsTest {
 
         val again = store.load()
         assertEquals(cameras, again)
+    }
+
+    @Test
+    fun downgradeCanClearASetupName() {
+        clearSetupName(oldStoreLoads = false)
+    }
+
+    @Test
+    fun legacyFingerprintDoesNotHideClearedSetupName() {
+        clearSetupName(oldStoreLoads = true)
+    }
+
+    private fun clearSetupName(oldStoreLoads: Boolean) {
+        val store = Store(golden)
+        val cameras = store.load().toMutableList()
+        val index = cameras[0].routes.indexOfFirst { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        cameras[0] = cameras[0].copy(routes = cameras[0].routes.mapIndexed { i, route -> if (i == index) route.copy(title = "Stage right") else route })
+        store.save(cameras)
+        val old = objects(store.legacy!!)
+        val renamed = old.first { it.optString("host") == "192.168.50.23" }
+        assertEquals("Stage right", renamed.optString("setup-name"))
+        renamed.remove("setup-name")
+        store.legacy = JSONArray(old).toString()
+        if (oldStoreLoads) {
+            // The prior store records the new fingerprint but retains the cleared document title.
+            store.document = store.document.merge(codec.cameras(store.legacy!!)!!, "records", codec.heldExtras)
+            assertEquals("Stage right", store.document.cameras[0].routes[index].title)
+            // With unchanged fingerprints, repairing the title must leave all other fields alone.
+            store.document = store.document.copy(cameras = store.document.cameras.mapIndexed { i, camera ->
+                if (i == 0) camera.copy(name = "Document camera") else camera
+            })
+            cameras[0] = cameras[0].copy(name = "Document camera")
+        }
+        cameras[0] = cameras[0].copy(routes = cameras[0].routes.mapIndexed { i, route -> if (i == index) route.copy(title = null) else route })
+        assertEquals(cameras, store.load())
+        assertEquals(cameras, store.load())
     }
 
     @Test

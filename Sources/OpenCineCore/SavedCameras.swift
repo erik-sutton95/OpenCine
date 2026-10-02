@@ -110,6 +110,8 @@ public struct LegacyCamera: Hashable, Sendable {
 public protocol LegacySavedCameraCodec: Sendable {
     /// Integration extras the legacy records hold. They come from legacy only, absence included.
     var heldExtras: Set<String> { get }
+    /// Whether legacy records own setup titles, including an explicitly cleared title.
+    var holdsRouteTitles: Bool { get }
     /// Every decodable camera in stored order; undecodable records are skipped. `nil` when the
     /// data is not readable at all.
     func cameras(in data: Data) -> [LegacyCamera]?
@@ -119,15 +121,22 @@ public protocol LegacySavedCameraCodec: Sendable {
     func patched(_ data: Data?, to cameras: [SavedCamera]) -> Data?
 }
 
+extension LegacySavedCameraCodec {
+    /// Per-body formats without setup names leave document titles unchanged.
+    public var holdsRouteTitles: Bool { false }
+}
+
 extension SavedCamerasDocument {
     /// Three-way merge of one legacy source. Base: `legacy[source]`; theirs: `records`; ours: this
     /// document. A camera whose records changed since the base takes the fields legacy holds and
-    /// keeps the document's own (route ids, a learned device, route titles and extras). An
-    /// unchanged camera keeps the document version. A camera legacy no longer lists is removed,
+    /// keeps the document's own (route ids, a learned device, titles the codec does not hold, and
+    /// extras). An unchanged camera keeps the document version except legacy-owned titles, which
+    /// also repair fingerprints recorded by older stores. A camera legacy no longer lists is removed,
     /// unless nothing was ever mirrored from this source. New legacy cameras are added. The base
     /// becomes `records`.
     public mutating func merge(
-        _ records: [LegacyCamera], from source: String, heldExtras: Set<String>
+        _ records: [LegacyCamera], from source: String, heldExtras: Set<String>,
+        holdsRouteTitles: Bool = false
     ) {
         let base = legacy[source] ?? [:]
         var theirs: [String: LegacyCamera] = [:]
@@ -148,7 +157,17 @@ extension SavedCamerasDocument {
             }
             let lostRoute = removedSome && !Set(ours.routes.map(\.key)).isSubset(of: record.camera.routes.map(\.key))
             let changed = lostRoute || record.records.contains { base[$0.key] != $0.value }
-            merged.append(changed ? Self.overlay(record.camera, onto: ours, heldExtras: heldExtras) : ours)
+            var camera = changed
+                ? Self.overlay(record.camera, onto: ours, heldExtras: heldExtras, holdsRouteTitles: holdsRouteTitles)
+                : ours
+            if !changed && holdsRouteTitles {
+                for index in camera.routes.indices {
+                    if let route = record.camera.routes.first(where: { $0.key == camera.routes[index].key }) {
+                        camera.routes[index].title = route.title
+                    }
+                }
+            }
+            merged.append(camera)
         }
         merged += order.compactMap { theirs[$0]?.camera }
         cameras = merged
@@ -162,14 +181,17 @@ extension SavedCamerasDocument {
         }
     }
 
-    static func overlay(_ theirs: SavedCamera, onto ours: SavedCamera, heldExtras: Set<String>) -> SavedCamera {
+    static func overlay(
+        _ theirs: SavedCamera, onto ours: SavedCamera, heldExtras: Set<String>,
+        holdsRouteTitles: Bool = false
+    ) -> SavedCamera {
         var result = theirs
         result.device = theirs.device ?? ours.device
         result.routes = theirs.routes.map { route in
             guard let mine = ours.routes.first(where: { $0.key == route.key }) else { return route }
             var merged = route
             merged.id = mine.id
-            merged.title = route.title ?? mine.title
+            merged.title = holdsRouteTitles ? route.title : route.title ?? mine.title
             merged.lastConnected = route.lastConnected ?? mine.lastConnected
             merged.extras = mine.extras.merging(route.extras) { _, legacy in legacy }
             return merged

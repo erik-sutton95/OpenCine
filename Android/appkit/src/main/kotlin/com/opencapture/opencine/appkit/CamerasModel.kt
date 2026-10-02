@@ -286,6 +286,14 @@ public class CamerasModel(
         edit(cameraID) { it.copy(name = trimmed) }
     }
 
+    /** Renames only this setup. `null` or a blank name restores its default title. */
+    public fun renameRoute(route: ConnectionRouteID, cameraID: String, name: String?) {
+        if (mutable.value.attempts.isNotEmpty()) return
+        if (mutable.value.saved.none { it.id == cameraID && it.routes.any { saved -> saved.id == route } }) return
+        val trimmed = name?.trim()?.takeIf { it.isNotEmpty() }
+        edit(cameraID) { camera -> camera.copy(routes = camera.routes.map { if (it.id == route) it.copy(title = trimmed) else it }) }
+    }
+
     /** Asks the integration to drop what it stores for the camera, then removes it. */
     public suspend fun forget(cameraID: String) {
         val camera = mutable.value.saved.firstOrNull { it.id == cameraID } ?: return

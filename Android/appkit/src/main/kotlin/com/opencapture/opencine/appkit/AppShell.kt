@@ -24,6 +24,8 @@ public class ShellActions(
     public val multiview: (() -> Unit)? = null,
     /** Camera id, integration action id ([com.opencapture.opencine.core.RecoveryAction.Integration]). */
     public val integrationAction: ((String, String) -> Unit)? = null,
+    public val privacy: (() -> Unit)? = null,
+    public val terms: (() -> Unit)? = null,
 )
 
 /**
@@ -64,6 +66,7 @@ public fun AppShell(
                     PairScreen(
                         model.cameras, onDone = model::endPairing, onDiagnostics = actions.diagnostics,
                         onReportProblem = actions.reportProblem, onWatchFeed = actions.watchFeed,
+                        onPrivacy = actions.privacy, onTerms = actions.terms,
                     )
                 } else {
                     CamerasScreen(
@@ -71,6 +74,7 @@ public fun AppShell(
                         onMedia = { model.open(ShellModel.Cover.MEDIA) }, onSettings = { model.open(ShellModel.Cover.SETTINGS) },
                         nearbyNote = brand.nearbyNote, onMultiview = actions.multiview,
                         onIntegrationAction = actions.integrationAction,
+                        onPrivacy = actions.privacy, onTerms = actions.terms,
                     )
                 }
             }

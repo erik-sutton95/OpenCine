@@ -157,6 +157,48 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func renameRouteKeepsItsIdentityAndOtherSetups() {
+        let model = model()
+        model.renameRoute(Self.wifi.id, of: Self.camera.id, to: "  Stage right ")
+        var expected = Self.camera
+        expected.routes[1].title = "Stage right"
+        #expect(model.saved == [expected])
+        #expect(CamerasMapping.paired(model)[0].setups[1].title == "Stage right")
+        model.reloadSaved()
+        #expect(model.saved == [expected])
+        model.renameRoute(ConnectionRouteID(), of: Self.camera.id, to: "Unknown route")
+        model.renameRoute(Self.wifi.id, of: "missing", to: "Unknown camera")
+        #expect(model.saved == [expected])
+        model.renameRoute(Self.wifi.id, of: Self.camera.id, to: " \n ")
+        #expect(model.saved == [Self.camera])
+        #expect(CamerasMapping.paired(model)[0].setups[1].title == "Wi-Fi · studio")
+    }
+
+    @available(macOS 14, *)
+    @Test func singleRouteCanBeRenamedAndReset() {
+        var camera = Self.camera
+        camera.routes = [Self.ap]
+        let model = model(saved: [camera])
+        model.renameRoute(Self.ap.id, of: camera.id, to: "Rig")
+        #expect(model.saved[0].routes[0].title == "Rig")
+        #expect(!CamerasMapping.paired(model)[0].setups[0].canForget)
+        model.renameRoute(Self.ap.id, of: camera.id, to: nil)
+        model.reloadSaved()
+        #expect(model.saved == [camera])
+    }
+
+    @available(macOS 14, *)
+    @Test func setupRenameWaitsUntilConnectionAttemptEnds() {
+        let model = model()
+        model.connect(Self.camera)
+        model.renameRoute(Self.ap.id, of: Self.camera.id, to: "Rig")
+        #expect(model.saved == [Self.camera])
+        model.cancel(Self.camera.id)
+        model.renameRoute(Self.ap.id, of: Self.camera.id, to: "Rig")
+        #expect(model.saved[0].routes[0].title == "Rig")
+    }
+
+    @available(macOS 14, *)
     @Test func renameAndForgetARoute() {
         let model = model()
         model.rename("camera-1", to: "  A cam ")

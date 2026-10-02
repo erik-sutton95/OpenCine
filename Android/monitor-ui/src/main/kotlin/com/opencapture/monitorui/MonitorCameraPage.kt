@@ -191,6 +191,7 @@ fun MonitorCameraCard(
     steps: List<MonitorConnectStep> = emptyList(),
     failure: MonitorConnectFailure? = null,
     onFailureAction: ((String) -> Unit)? = null,
+    onRenameSetup: ((MonitorSetupChip) -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(MonitorLayoutPolicy.CAMERA_CARD_CORNER.dp)
     val fill = if (primary) CameraCardPrimaryFill else CameraCardFill
@@ -255,7 +256,7 @@ fun MonitorCameraCard(
             }
         }
         if (setups.isNotEmpty() && onSetup != null) {
-            MonitorSetupChips(title, setups, canAddSetup, setupsEnabled, onSetup, onAddSetup, onForgetSetup)
+            MonitorSetupChips(title, setups, canAddSetup, setupsEnabled, onSetup, onAddSetup, onForgetSetup, onRenameSetup)
         }
         if (busy && steps.isNotEmpty()) MonitorConnectProgressBar(steps)
         if (failure != null && !busy) MonitorConnectFailureBanner(failure, enabled, onFailureAction)
