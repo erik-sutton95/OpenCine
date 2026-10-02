@@ -3,7 +3,7 @@
 The one platform repository: every shared Swift product and Android module of the three apps,
 plus this atlas (`atlas/`). Formerly seven repositories (OpenCineCore, OpenCineUI,
 OpenCineMulticam, OpenCineDJI, OpenCineNikon, OpenCineInsta360, OpenCineHarness) and
-opencapture-atlas, merged with their history (ADR 0009). One version for everything. Status
+opencapture-atlas, merged with their history (ADR 0010). One version for everything. Status
 `candidate`: local only, consumed by the apps' candidate branches through one sibling path
 (`../OpenCine`) and one Gradle included build named `opencine`.
 

@@ -10,8 +10,10 @@ design system and for Multi View. Build and test instructions live in the repo's
   targets, tests, iOS shell and Android shell. A Pocket change in those paths is not in
   Insta until someone runs Insta's sync and reviews it.
 - **Donor to `openzcine` engine-port** (source-copy, candidate branch only).
-- **Donor to `opencineui`** (candidate): UI-01/UI-02 extract `MonitorPresentation`,
+- **Donor to `opencine`** (candidate): UI-01/UI-02 extracted `MonitorPresentation`,
   `MonitorUI` and Android `monitor-ui` from the frozen BASE-01 revision.
+- **Consumes `opencine`** on `opencine/integration` (candidate): one sibling path `../OpenCine`
+  and one Gradle included build named `opencine`, pinned by one line in `opencine-pins.txt`.
 - Took its cube parser from `openzcine` once (see `THIRD-PARTY-NOTICES.md`).
 
 ## Where to start reading

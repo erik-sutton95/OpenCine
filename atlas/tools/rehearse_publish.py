@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rehearse tools/publish.py end to end without GitHub (RELEASE-01, ADR 0009, docs/PUBLISH.md).
+"""Rehearse tools/publish.py end to end without GitHub (RELEASE-01, ADR 0010, docs/PUBLISH.md).
 
 Copies the platform repository (the committed HEAD of the checkout this atlas runs from, as
 `main`) and every app branch from compat/release-<v>.json into disposable clones next to empty

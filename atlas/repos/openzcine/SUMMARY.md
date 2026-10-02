@@ -1,14 +1,18 @@
 # openzcine
 
-Nikon Z monitor app (iOS, watchOS, Wear OS, Android). Two registered refs: `main` (the
-baseline) and the unmerged `feat/monitor-engine-port` candidate, which adds the shared UI
-targets, multicam and owner-keyed JNI. Never describe one as the other.
+Nikon Z monitor app (iOS, watchOS, Wear OS, Android). Registered refs: `main` (the baseline),
+the unmerged `feat/monitor-engine-port` candidate (shared UI targets, multicam, owner-keyed JNI),
+and, once rewired, the `opencine/integration` and `opencine/ui-03-engine-port-candidate`
+candidates that consume `opencine`. Never describe one as another.
 
 ## Connections
 
 - **Source-copy of `openpocketcine`** (candidate branch only): engine-port vendors
   `MonitorPresentation`, `MonitorUI` and Android `monitor-ui` by hand.
 - Donor of the cube parser that `openpocketcine` adapted.
+- **Consumes `opencine`** on its candidate branches: one local package reference `../../OpenCine`
+  in `ios/Runner.xcodeproj`, `../OpenCine` in `Package.swift`, and one Gradle included build
+  named `opencine`, pinned by one line in `opencine-pins.txt`.
 - On `main`, the iOS app compiles `OpenZCineCore` sources directly; it does not consume the
   root Swift package. The engine-port Xcode project adds a local package reference.
 

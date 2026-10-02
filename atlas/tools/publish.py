@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish the OpenCine platform repository and move the apps onto it (RELEASE-01, ADR 0009).
+"""Publish the OpenCine platform repository and move the apps onto it (RELEASE-01, ADR 0010).
 
 Dry run by default: prints every step and every file diff it would make, and writes nothing.
 `--execute` acts. Progress is kept in .local/publish-state.json, so rerunning the same command

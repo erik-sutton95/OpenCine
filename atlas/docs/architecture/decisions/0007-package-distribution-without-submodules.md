@@ -1,6 +1,6 @@
 # ADR 0007: Shared packages are versioned repositories, never submodules
 
-Status: **Accepted, provisional.** Decided by the run coordinator in answer to the user's question about
+Status: **Accepted, provisional.** Decided by the run coordinator in answer to the user's question about Amended by ADR 0010 (2026-10-02): the shared packages are one versioned repository, OpenCine; still no submodules.
 sharing packages in an open-source multi-repo project; revisit when hosting is decided.
 Date: 2026-10-01
 
