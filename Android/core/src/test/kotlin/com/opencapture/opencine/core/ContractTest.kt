@@ -285,12 +285,16 @@ class PortabilityTest {
         )
         assertNotNull(brands.find("A Nikon body"))
         assertNull(brands.find("one instance"))
-        // No android.*, java.nio buffers or platform media types in portable state.
-        val allowed = listOf("import kotlin.", "import kotlinx.coroutines.flow.", "import java.util.UUID")
+        // No android.*, java.nio buffers or platform media types in portable state. Motion is
+        // optional, as in Swift: the core package never imports it.
+        val allowed = listOf(
+            "import kotlin.", "import kotlinx.coroutines.flow.", "import java.util.UUID", "import com.opencapture.opencine.",
+        )
         for (file in files) {
             val text = file.readText()
             for (line in text.lines().filter { it.startsWith("import ") }) {
                 assertTrue(allowed.any { line.startsWith(it) }, "${file.name}: $line")
+                assertTrue("/motion/" in file.path || ".motion." !in line, "${file.name}: $line")
             }
             assertNull(brands.find(text), "${file.name} names a brand")
         }

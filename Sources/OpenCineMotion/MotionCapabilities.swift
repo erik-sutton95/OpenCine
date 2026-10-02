@@ -73,10 +73,14 @@ public struct MotionCapabilities: Equatable, Sendable {
     public var feedbackMaxAge: Duration
     /// A target is reached once the angular distance to it is at most this many degrees.
     public var arrivalToleranceDeg: Double
+    /// Whether the camera reports its own pose (`MotionService.poses()`), which head tracking
+    /// needs to center on.
+    public var pose: SupportStatus
 
     public init(
         axes: Set<MotionAxis>, frame: MotionReferenceFrame, bounds: MotionBounds,
-        maxRateDegPerSec: Double?, feedbackMaxAge: Duration, arrivalToleranceDeg: Double
+        maxRateDegPerSec: Double?, feedbackMaxAge: Duration, arrivalToleranceDeg: Double,
+        pose: SupportStatus = .unknown
     ) {
         self.axes = axes
         self.frame = frame
@@ -84,6 +88,7 @@ public struct MotionCapabilities: Equatable, Sendable {
         self.maxRateDegPerSec = maxRateDegPerSec
         self.feedbackMaxAge = feedbackMaxAge
         self.arrivalToleranceDeg = arrivalToleranceDeg
+        self.pose = pose
     }
 
     /// The only way to make a `MotionTarget`: `nil` outside the declared bounds.
@@ -134,4 +139,46 @@ public struct MotionTarget: Equatable, Sendable {
     public let pose: GimbalWaypoint
 
     fileprivate init(pose: GimbalWaypoint) { self.pose = pose }
+}
+
+/// A camera's motion service: what today's gimbal monitors command and read. The integration
+/// implements it only for a camera that moves, keeps wire units, pacing and coordinate transforms,
+/// and answers each command with whether the camera accepted it.
+///
+/// A programmed move (`GimbalProgram`) has no command of its own: once `capabilities.admits(_:)`
+/// passes, the caller runs it as timed `move(to:over:)` targets.
+public protocol MotionService: Sendable {
+    var capabilities: MotionCapabilities { get }
+    /// Rate stick, each axis -1...1 of the camera's full stick speed. Zero on both axes releases.
+    func stick(pan: Double, tilt: Double) async -> Bool
+    /// The camera's own recenter.
+    func recenter() async -> Bool
+    /// Aims at a reachable pose, arriving after `duration` (`nil`: as fast as the camera moves).
+    /// A newer request replaces an unfinished one.
+    func move(to target: MotionTarget, over duration: Duration?) async -> Bool
+    /// Ends a stick or timed move where the head is.
+    func stop() async -> Bool
+    /// Pose readings. Each call returns a new stream that first yields the latest reading
+    /// (`.unknown` until the camera reports); `capabilities.feedback(_:at:)` says which may steer.
+    func poses() async -> AsyncStream<ObservedValue<GimbalWaypoint>>
+}
+
+extension MonitorLayoutCapabilities {
+    /// The Core projection plus the motion sections: `gimbal` when the service drives pan and
+    /// tilt, `headTracking` when it also reports the camera's pose (unknown pose support keeps
+    /// `base`). `motion == nil` means the camera has no motion service; while that is not known
+    /// yet, use the Core initializer, which keeps both from `base`.
+    public init(
+        _ capabilities: CapabilitySnapshot, motion: MotionCapabilities?,
+        base: MonitorLayoutCapabilities = .init()
+    ) {
+        self.init(capabilities, base: base)
+        gimbal = motion?.axes.isSuperset(of: [.pan, .tilt]) ?? false
+        headTracking =
+            switch motion?.pose {
+            case .supported?: gimbal
+            case .unknown?: gimbal && base.headTracking
+            case .unsupported?, nil: false
+            }
+    }
 }

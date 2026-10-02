@@ -100,6 +100,34 @@ import Testing
         #expect(!service.hasArrived(pose(10.4, 0.4), at: target))
     }
 
+    /// gimbal = the service drives pan and tilt; head tracking also needs a camera-reported pose.
+    /// No service is no gimbal; unknown pose support keeps the base.
+    @Test func layoutProjectionDerivesGimbalAndHeadTracking() {
+        let none = CapabilitySnapshot()
+        var base = MonitorLayoutCapabilities()
+        base.gimbal = true
+        base.headTracking = true
+        base.timecode = true
+        #expect(MonitorLayoutCapabilities(none, base: base) == base, "motion not known yet")
+        let absent = MonitorLayoutCapabilities(none, motion: nil, base: base)
+        #expect(!absent.gimbal && !absent.headTracking && absent.timecode)
+
+        var motion = service
+        motion.pose = .supported
+        let tracked = MonitorLayoutCapabilities(none, motion: motion)
+        #expect(tracked.gimbal && tracked.headTracking)
+        motion.pose = .unknown
+        #expect(!MonitorLayoutCapabilities(none, motion: motion).headTracking)
+        #expect(MonitorLayoutCapabilities(none, motion: motion, base: base).headTracking)
+        motion.pose = .unsupported
+        let stickOnly = MonitorLayoutCapabilities(none, motion: motion, base: base)
+        #expect(stickOnly.gimbal && !stickOnly.headTracking)
+        motion.pose = .supported
+        motion.axes = [.pan, .zoom]
+        let panOnly = MonitorLayoutCapabilities(none, motion: motion, base: base)
+        #expect(!panOnly.gimbal && !panOnly.headTracking)
+    }
+
     @Test func boundsContainment() {
         #expect(MotionBounds(pan: -58.5...235, tilt: -57...90).contains(reach))
         #expect(!reach.contains(MotionBounds(pan: -58.5...235, tilt: -57...90)))
