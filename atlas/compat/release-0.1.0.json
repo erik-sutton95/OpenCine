@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "8e0bed163af5ec0b183cc22c2d4c8c21ff1644b4",
+      "commit": "8a44fdb03cb9c5396c3bb0c67f0919c8dcab201a",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "8e0bed163af5ec0b183cc22c2d4c8c21ff1644b4",
-        "where": "SHELL-03 I2 integrated8e0bed163: root595 +just check, private phone and pad502 each/1 existing skip/0 failures; selected UI and actual Android native input/AX/host10 scenarios pass, final2 rendered scenarios pass. Full Android native staging/test/lint/release659 tasks, final bounded packaging549 tasks. Screens/APKs/logs local scratchpad/codex-shell03-i2. Same shared pin8d9d3f44. Physical cameras untested."
+        "commit": "8a44fdb03cb9c5396c3bb0c67f0919c8dcab201a",
+        "where": "App sources unchanged from I2 except combined SDK0549153 pin. Prior I2 phone/pad502 each (1 existing skip)/native Android10 plus intrinsic-height2/JNI8 retained. Exact current root595/generic iOS build-for-testing/Android main+unit compile67tasks passed, local scratchpad/dji-common-controls/capture-union-insta-*.log. Physical cameras untested."
       }
     },
     {
