@@ -4,7 +4,7 @@ import Foundation
 // and the false-colour scales live in OpenCineMedia (re-exported by this module). This file
 // keeps what only the DJI integration knows: raw `ColorMode` → curve, the live-tap
 // fingerprint, the measured live-tap ceilings (one ``ScopeExposureCeiling`` per picture
-// source), the D-Gamut matrices and the official Rec.709 look curves.
+// source), the D-Gamut matrices and the official Rec.709 look curves (`DJILook`).
 
 /// Transfer the Pocket live HEVC *picture* is carrying.
 ///
@@ -286,7 +286,11 @@ enum DGamut {
 
 // MARK: - Official Rec.709 looks (DJI cubes) for the 709 false-colour reading
 
-extension LiveColorScience {
+/// DJI's official Rec.709 looks and the 709 readings through them. A DJI namespace, not an
+/// extension of OpenCineMedia's neutral `LiveColorScience`: the curves are DJI's even though they
+/// are keyed by the shared `MonitorTransfer`, so another integration never reads them by accident
+/// (MULTI-03 F7). Each integration hands its own look to the `lookCurve:` overloads.
+public enum DJILook {
     /// Luma of the grey axis (33 points) of DJI's official Rec.709 cubes: Pocket 4P D-Log2
     /// and D-Log, Nano D-Log M. Regenerate from the cubes if DJI updates them. Curves
     /// without an official look (Rec.709, HLG) return `nil` and stay on the signal.
@@ -320,31 +324,32 @@ extension LiveColorScience {
 
     /// Video level (0…100 IRE) of an encoded neutral code through the official look.
     public static func rec709LookIRE(encoded: Double, transfer: MonitorTransfer) -> Double? {
-        rec709LookIRE(encoded: encoded, lookCurve: rec709LookCurve(transfer))
+        LiveColorScience.rec709LookIRE(encoded: encoded, lookCurve: rec709LookCurve(transfer))
     }
 
     /// True when the 709 reading applies: the operator picked 709 and this curve has an
     /// official Rec.709 look.
     public static func readsThroughLook(transfer: MonitorTransfer, rec709: Bool) -> Bool {
-        readsThroughLook(lookCurve: rec709LookCurve(transfer), rec709: rec709)
+        LiveColorScience.readsThroughLook(lookCurve: rec709LookCurve(transfer), rec709: rec709)
     }
 
-    /// ``falseColorReading(encoded:transfer:rec709:lookCurve:scale:)`` through the official look.
+    /// `LiveColorScience.falseColorReading(encoded:transfer:rec709:lookCurve:scale:)` through the
+    /// official look.
     public static func falseColorReading(
         encoded: Double, transfer: MonitorTransfer, rec709: Bool,
         scale: LiveFalseColorScale = .ire
     ) -> (encoded: Double, transfer: MonitorTransfer) {
-        falseColorReading(
+        LiveColorScience.falseColorReading(
             encoded: encoded, transfer: transfer, rec709: rec709,
             lookCurve: rec709LookCurve(transfer), scale: scale)
     }
 
-    /// ``falseColorClip(scale:transfer:rec709:lookCurve:clipEncoded:)`` for a source whose
+    /// `LiveColorScience.falseColorClip(scale:transfer:rec709:lookCurve:clipEncoded:)` for a source whose
     /// live ceiling for `transfer` is `clipByte` (see ``ScopeExposureCeiling``).
     public static func falseColorClip(
         scale: LiveFalseColorScale, transfer: MonitorTransfer, rec709: Bool, clipByte: Int
     ) -> (transfer: MonitorTransfer, ceiling: Double) {
-        falseColorClip(
+        LiveColorScience.falseColorClip(
             scale: scale, transfer: transfer, rec709: rec709,
             lookCurve: rec709LookCurve(transfer), clipEncoded: Double(clipByte) / 255)
     }

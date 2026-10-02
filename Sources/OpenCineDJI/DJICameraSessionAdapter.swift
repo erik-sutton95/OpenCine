@@ -41,6 +41,9 @@ public protocol DJIControlPort: AnyObject {
     var currentShootingMode: ShootingMode? { get }
     /// Durable identity of the connected camera, if any.
     var connectedCameraID: String? { get }
+    /// The connected body, if known. Its capability flags decide what the adapter lists as
+    /// unsupported (plan 5.6); `nil` leaves those keys unknown.
+    var connectedModel: CameraModel? { get }
     /// This app instance may control the camera (Multi View lease).
     var admitsMultiviewControl: Bool { get }
     /// A control write or a media browse holds the camera.
@@ -78,7 +81,7 @@ extension CameraStatus {
 /// `.outcomeUnknown` or `.failed(.notSent)`.
 @MainActor
 public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
-    public static let integration = IntegrationID("org.opencapture.openpocketcine.dji")
+    public nonisolated static let integration = IntegrationID("org.opencapture.openpocketcine.dji")
 
     public nonisolated let id: CameraSessionID
     /// ACK to camera-reported value. Record telemetry trails its ACK by about 1 s.
@@ -106,13 +109,17 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         let shows: (CameraStatus) -> Bool
     }
 
-    private static let clockReference = ContinuousClock.now
-    static func now() -> MonotonicInstant { MonotonicInstant(ContinuousClock.now - clockReference) }
+    /// The shared host clock (`MonotonicInstant.now`); tests inject their own.
+    private let now: @Sendable () -> MonotonicInstant
 
-    public init(session: any DJIControlPort) {
+    public init(
+        session: any DJIControlPort,
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
+    ) {
         let id = CameraSessionID()
         self.id = id
         self.session = session
+        self.now = now
         snapshot = CameraSnapshot(session: id, epoch: ControlEpoch(1))
     }
 
@@ -220,7 +227,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             operation: operation, session: id, intent: command.intent,
             confirmation: snapshot.capabilities[command.intent.key]?.semantics.confirmation
                 ?? .readback)
-        if let rejection = snapshot.rejection(of: command, at: Self.now())
+        if let rejection = snapshot.rejection(of: command, at: now())
             ?? Self.integrationRejection(command.intent, snapshot)
         {
             noteRejection(rejection)
@@ -233,7 +240,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         guard let plan = wirePlan(command.intent) else {
             return advance(operation, .rejected(.unsupported))
         }
-        open[operation] = Expectation(deadline: Self.now() + wireTimeout, shows: plan.shows)
+        open[operation] = Expectation(deadline: now() + wireTimeout, shows: plan.shows)
         expire(after: wireTimeout)
         plan.fire { [weak self] event in self?.handle(event, operation) }
         return receipts[operation]!
@@ -306,7 +313,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                 finish(operation, .confirmed)
             } else {
                 advance(operation, .awaitingObservation)
-                open[operation]?.deadline = Self.now() + readbackTimeout
+                open[operation]?.deadline = now() + readbackTimeout
                 expire(after: readbackTimeout)
             }
         case .confirmed:
@@ -365,8 +372,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     }
 
     private func expireOverdue() {
-        let now = Self.now()
-        for (operation, expectation) in open where expectation.deadline <= now {
+        let instant = now()
+        for (operation, expectation) in open where expectation.deadline <= instant {
             if receipts[operation]?.stage == .awaitingObservation {
                 finish(operation, .timedOut)
             } else {
@@ -427,11 +434,14 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         next.power = Self.power(status)
         next.storage = Self.storage(status)
         let descriptors = descriptors(status)
+        let unsupported = Self.unsupported(session.connectedModel)
         let revision = snapshot.capabilities.revision
-        if CapabilitySnapshot(revision: revision, descriptors: descriptors) != snapshot.capabilities
+        if CapabilitySnapshot(
+            revision: revision, descriptors: descriptors, unsupported: unsupported)
+            != snapshot.capabilities
         {
             next.capabilities = CapabilitySnapshot(
-                revision: revision.next(), descriptors: descriptors)
+                revision: revision.next(), descriptors: descriptors, unsupported: unsupported)
         }
         guard next != snapshot else { return }
         next.revision = snapshot.revision.next()
@@ -486,6 +496,19 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                     ? .unavailable(.otherSetting(.whiteBalance)) : .available),
             SettingDescriptor(.recording, availability: recording),
         ]
+    }
+
+    /// What the connected body cannot do, from the same flags the app uses to hide the control
+    /// (fixed aperture on Pocket and Nano, no AF or zoom outside the Pocket family). Unknown body:
+    /// nothing is claimed.
+    static func unsupported(_ model: CameraModel?) -> Set<SettingKey> {
+        guard let model else { return [] }
+        var keys: Set<SettingKey> = []
+        if !model.supportsAperture { keys.insert(.aperture) }
+        if !model.supportsFocusMode { keys.insert(.focusMode) }
+        if !model.supportsTapFocus { keys.insert(.focusPoint) }
+        if !model.supportsZoom { keys.insert(.zoom) }
+        return keys
     }
 
     static func iso(_ index: IsoIndex) -> ISOValue {

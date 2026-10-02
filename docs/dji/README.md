@@ -22,7 +22,11 @@ swift build && swift test
 
 `DJICameraSessionAdapter` is OpenCineCore's `CameraSession` for ISO, white balance and record
 over a `DJIControlPort` the app's DJI session implements (Pocket: `CameraSession+DJIControlPort`).
-`DJICameraSessionAdapterPortTests` drive it with a fake port, without any app.
+`DJICameraSessionAdapterPortTests` drive it with a fake port, without any app. The adapter reads
+time from OpenCineCore's shared `MonotonicInstant.now()` (injectable), lists what the connected
+body cannot do (`CameraModel` flags: aperture, focus, zoom) as unsupported, and leaves everything
+else unknown. `CameraStatus.audioMeters` is `nil` until the camera reports audio. DJI's official
+Rec.709 look curves live in `DJILook`, not on the neutral `LiveColorScience`.
 
 Not here yet: the Kotlin DJI session and its adapter (`PocketControlPort`); they stay in the
 Pocket Android app for now.

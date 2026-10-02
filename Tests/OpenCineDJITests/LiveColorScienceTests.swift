@@ -204,7 +204,7 @@ import Testing
 
     @Test func videoAndIreReadLogAsTheOperatorChooses() {
         func ire(_ linear: Double, _ transfer: MonitorTransfer, rec709: Bool) -> Double {
-            let read = LiveColorScience.falseColorReading(
+            let read = DJILook.falseColorReading(
                 encoded: LiveColorScience.encode(linear, transfer: transfer), transfer: transfer,
                 rec709: rec709)
             return percent(read.encoded, read.transfer)
@@ -220,23 +220,23 @@ import Testing
         // LOG: the signal, like WAVE, so D-Log2 grey (~30) is a gap.
         #expect(label(ire(0.18, .dlog2, rec709: false)) == nil)
         // Curves without an official look always read the signal.
-        #expect(LiveColorScience.rec709LookIRE(encoded: 0.5, transfer: .rec709) == nil)
-        #expect(!LiveColorScience.readsThroughLook(transfer: .rec709, rec709: true))
-        #expect(LiveColorScience.readsThroughLook(transfer: .dlog2, rec709: true))
+        #expect(DJILook.rec709LookIRE(encoded: 0.5, transfer: .rec709) == nil)
+        #expect(!DJILook.readsThroughLook(transfer: .rec709, rec709: true))
+        #expect(DJILook.readsThroughLook(transfer: .dlog2, rec709: true))
     }
 
     @Test func cineStopAt709KeepsSceneStopsAndClipsWhereTheLookClips() {
         let clip = ceiling.clipByte(transfer: .dlog2)
-        let log = LiveColorScience.falseColorClip(
+        let log = DJILook.falseColorClip(
             scale: .sceneStops, transfer: .dlog2, rec709: false, clipByte: clip)
-        let look = LiveColorScience.falseColorClip(
+        let look = DJILook.falseColorClip(
             scale: .sceneStops, transfer: .dlog2, rec709: true, clipByte: clip)
         #expect(look.transfer == .dlog2, "CineStop stays on scene stops at 709")
         #expect(look.ceiling < log.ceiling, "the Rec.709 look saturates before the sensor")
         let bands = LiveColorScience.falseColorBands(
             .sceneStops, transfer: look.transfer, clipEncoded: look.ceiling)
         #expect(bands.contains { $0.label == "highlights" }, "light gray still sits above +2")
-        let read = LiveColorScience.falseColorReading(
+        let read = DJILook.falseColorReading(
             encoded: 0.5, transfer: .dlog2, rec709: true, scale: .sceneStops)
         #expect(read.encoded == 0.5 && read.transfer == .dlog2)
     }
@@ -245,13 +245,13 @@ import Testing
     @Test func cineStopAt709ClipMatchesTheAndroidMirror() {
         let android: [MonitorTransfer: Double] = [.dlog2: 30.0 / 32, .dlog: 1, .dlogm: 1]
         for (transfer, expected) in android {
-            let clip = LiveColorScience.falseColorClip(
+            let clip = DJILook.falseColorClip(
                 scale: .sceneStops, transfer: transfer, rec709: true,
                 clipByte: ceiling.clipByte(transfer: transfer))
             #expect(clip.ceiling == expected, "\(transfer)")
         }
         for transfer in [MonitorTransfer.rec709, .hdr] {
-            #expect(!LiveColorScience.readsThroughLook(transfer: transfer, rec709: true))
+            #expect(!DJILook.readsThroughLook(transfer: transfer, rec709: true))
         }
     }
 

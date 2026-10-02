@@ -106,22 +106,29 @@ struct CamAudioStatusTests {
         #expect(abs(levels.left.peakDB - AudioMeterBallistics.floorDB * (1 - 11.0 / 14.0)) < 1e-9)
     }
 
-    @Test func subscribePushLandsOnCameraStatus() {
+    /// MULTI-03 F3: no report yet is unknown, not a silent input.
+    @Test func metersAreUnknownUntilTheCameraReports() {
+        #expect(CameraStatus().audioMeters == nil)
+    }
+
+    @Test func subscribePushLandsOnCameraStatus() throws {
         var status = CameraStatus()
         let payload = SubscribePush.pack(name: CamAudioStatus.subscribeKey, value: Self.live1Louder)
         #expect(CameraStatusDecoder.applySubscribePush(payload, to: &status))
         #expect(status.audioStatusRaw == Self.live1Louder)
-        #expect(status.audioMeters.left.levelDB > AudioMeterBallistics.floorDB + 1)
-        #expect(status.audioMeters != AudioMeterLevels.silent)
+        let meters = try #require(status.audioMeters)
+        #expect(meters.left.levelDB > AudioMeterBallistics.floorDB + 1)
+        #expect(meters != AudioMeterLevels.silent)
     }
 
-    @Test func dumlSubscribeFrameLandsOnStatus() {
+    @Test func dumlSubscribeFrameLandsOnStatus() throws {
         var status = CameraStatus()
         let payload = SubscribePush.pack(name: CamAudioStatus.subscribeKey, value: Self.live1Louder)
         let frame = Duml.Frame(
             sender: 0, receiver: 0, seq: 0, flags: 0xC0, cmdSet: 0x00, cmdId: 0x99,
             payload: payload)
         #expect(CameraStatusDecoder.apply(frame, to: &status))
-        #expect(status.audioMeters.right.levelDB > status.audioMeters.left.levelDB)
+        let meters = try #require(status.audioMeters)
+        #expect(meters.right.levelDB > meters.left.levelDB)
     }
 }

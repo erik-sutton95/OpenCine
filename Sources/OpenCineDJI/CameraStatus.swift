@@ -107,7 +107,8 @@ public struct CameraStatus: Equatable, Sendable {
     /// Directional audio from DSP `@2`. Kept when `@2` is a wind-only byte.
     public var directionalAudio: DirectionalAudio?
     /// Live VU / peak from subscribe `cam_audio_status_v2`. Camera-held; no local decay.
-    public var audioMeters: AudioMeterLevels = .silent
+    /// `nil` until the camera reports: unknown, never measured silence (MULTI-03 F3).
+    public var audioMeters: AudioMeterLevels?
     /// Last raw `cam_audio_status_v2` value (diagnostics / verify-on-HW).
     public var audioStatusRaw: [UInt8]?
     /// Gimbal 180 wire: `0x04/0x27` `@2` bit `0x40`. Stick triple-tap `FE 09`

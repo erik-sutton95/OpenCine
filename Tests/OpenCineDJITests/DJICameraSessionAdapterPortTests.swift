@@ -24,6 +24,17 @@ import Testing
         }
     }
 
+    /// MULTI-03 F6: the body's own flags say what it cannot do; an unknown body claims nothing.
+    @Test func fixedApertureBodyListsApertureUnsupported() {
+        let port = FakePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.capabilities.support(of: .aperture) == .unsupported)
+        #expect(seam.current.capabilities.support(of: .shutter) == .unknown)
+        #expect(seam.request(.set(.aperture(2))).stage == .rejected(.unsupported))
+        port.connectedModel = nil
+        #expect(seam.current.capabilities.support(of: .aperture) == .unknown)
+    }
+
     @Test func undeclaredSettingStaysUnknown() {
         let port = FakePort()
         let receipt = DJICameraSessionAdapter(session: port)
@@ -144,6 +155,7 @@ private final class FakePort: DJIControlPort {
     var whiteBalanceDisplayStatus: CameraStatus { status }
     var currentShootingMode: ShootingMode? { ShootingMode.fromStatus(status.shootingMode) }
     var connectedCameraID: String? = "fake-pocket"
+    var connectedModel: CameraModel? = CameraModel.resolve(modelId: 0x0020, name: "Osmo Pocket 3")
     var admitsMultiviewControl = true
     var isBusy = false
     var link = DJILinkState.ready
