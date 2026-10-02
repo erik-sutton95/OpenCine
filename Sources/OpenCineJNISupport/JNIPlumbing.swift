@@ -3,7 +3,7 @@
 // values. Coarse boundary rules apply: strings, byte arrays and primitive arrays only.
 //
 // Moved from OpenZCine's Android facade (SwiftCoreJNI.swift). Compiles empty on Darwin.
-@_exported import COpenCineJNI
+@_exported import OpenCineJNI
 
 #if os(Android)
 

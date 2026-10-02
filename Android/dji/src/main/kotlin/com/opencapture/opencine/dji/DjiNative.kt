@@ -5,9 +5,10 @@ import android.util.Log
 /**
  * JNI facade for the DJI wire: DUML framing and command encoding, datalink headers, status
  * decode, the HEVC depacketizer, the feed watchdog and the CameraSoftAP, multicam, exposure-lock
- * and Multiview recovery decisions. The app's Swift Android library (a facade over OpenCineDJI)
- * implements the natives and exports them as `Java_com_opencapture_opencine_dji_DjiNative_<name>`,
- * so this class name and package are part of the native contract: never rename or move them
+ * and Multiview recovery decisions. OpenCine's Swift target OpenCineDJIAndroid implements the
+ * natives as `Java_com_opencapture_opencine_dji_DjiNative_<name>`; an app links that product into
+ * its Swift Android library, so the exports ship in the app's `.so` with no app Swift code. This
+ * class name and package are part of the native contract: never rename or move them
  * (consumer-rules.pro keeps them in minified apps). Coarse boundary: strings, byte arrays and
  * primitives only.
  *

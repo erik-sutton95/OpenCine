@@ -1,6 +1,6 @@
 #if os(Android)
 
-    import OpenCineJNI
+    import OpenCineJNISupport
     import Foundation
 
     /// Swift-side owner for the Kotlin `UsbPtpTransport` global reference.

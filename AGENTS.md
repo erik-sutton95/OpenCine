@@ -108,13 +108,13 @@ Never grow the common command interface into an enum of vendor features.
   compensation: only an operator-approved plan starts or stops a camera; closing never sends a
   command. App limits are parameters, not engine constants.
 - DJI Android (`Android/dji`): keep the JNI class `com.opencapture.opencine.dji.DjiNative` and its
-  member names; the app's Swift facade exports `Java_com_opencapture_opencine_dji_DjiNative_*`, so
-  rename both sides in step and compare `llvm-nm -D` of the app's `.so` with the `external fun`s.
+  member names; `Sources/OpenCineDJIAndroid` exports `Java_com_opencapture_opencine_dji_DjiNative_*`,
+  so change both sides in step and compare `llvm-nm -D` of an app's `.so` with the `external fun`s.
 - Nikon Android (`Android/nikon`, Swift `OpenCineNikonAndroid`): keep the JNI class
-  `com.opencapture.opencine.nikon.NikonNative` and its member names; `OpenCineNikonAndroid`
-  exports `Java_com_opencapture_opencine_nikon_NikonNative_*` into the app's Swift library, so
-  rename both sides in step and compare `llvm-nm -D` of the app's `.so` with the `external fun`s.
-  Every session call names its connection owner (owner-keyed registry); never add an unowned one.
+  `com.opencapture.opencine.nikon.NikonNative` and its member names; `Sources/OpenCineNikonAndroid`
+  exports `Java_com_opencapture_opencine_nikon_NikonNative_*`, so change both sides in step and
+  compare `llvm-nm -D` of an app's `.so` with the `external fun`s. Every session call names its
+  connection owner (owner-keyed registry); never add an unowned one.
 - DJI, Nikon: behavior changes need the consumer checks (the app's `swift test`, iOS
   build-for-testing and Android with Swift core staging). Nikon passive discovery and the
   per-operation admission rules change only with a hardware-qualified reason.

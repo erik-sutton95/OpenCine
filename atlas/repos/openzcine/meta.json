@@ -115,7 +115,7 @@
         "OpenCineApple",
         "OpenCineNikon",
         "OpenCineNikonAndroid",
-        "OpenCineJNI",
+        "OpenCineJNISupport",
         ":core",
         ":nikon"
       ],

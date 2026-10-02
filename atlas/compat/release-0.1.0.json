@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "628cdd631b18e2a7f81620bb4983b6eec44d62d8",
+    "commit": "aa7c8f9912920b20b5a22d8dcec390d9454b3dba",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "628cdd631b18e2a7f81620bb4983b6eec44d62d8",
-      "where": "SHELL-01 steps 4-5 Swift 2026-10-02: swift test 1427 swift-testing / 152 suites + 72 XCTest; xcodebuild Insta360Apple, OpenCineDJI (iOS Simulator); atlas check --sources; Pocket 360 + iOS 628, Insta 611, Nikon 782 root builds against 628cdd6"
+      "commit": "aa7c8f9912920b20b5a22d8dcec390d9454b3dba",
+      "where": "OpenCine b5afe73 (2026-10-02, SHELL-04 stage B: OpenCineDJIAndroid + OpenCineJNI, merged with main 4520d3a): swift build --build-tests + swift test 1448 Swift Testing + 72 XCTest; Android gradlew test lint assembleRelease green (core 38/3 skip, media 64, decoder 1, dji 286, monitor-ui 119, multicam 18, luna 51); atlas 91+ tests and check. Consumer OpenPocketCine 5b3f2d55 green (Android, JNI 41/41, swift 339, iOS 628). Commits after b5afe73 are atlas/ only."
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "c41946b1678cde5673856d8d1cafa79c1ee48219",
+      "commit": "5b3f2d558e10437856d834f638644ac2e3223040",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "c41946b1678cde5673856d8d1cafa79c1ee48219",
-        "where": "SHELL-01 steps 4-5 iOS 2026-10-02: root swift test 360; iOS 628/0 on a private iPhone 16 Pro simulator (iOS 26.2); Swift Android library builds; simulator screenshots identical except Nano live timecode and review FOCUS (capability)"
+        "commit": "5b3f2d558e10437856d834f638644ac2e3223040",
+        "where": "OpenPocketCine 5b3f2d55 (2026-10-02, SHELL-04 stage B: DjiNative exports from OpenCine's OpenCineDJIAndroid) against OpenCine b5afe73: just android-check + gradlew test lint assembleRelease green (app 556, monitor-ui 119), libOpenPocketCineAndroid.so 41 Java_ exports = 41 Kotlin externals (30 DjiNative from OpenCineDJIAndroid + 11 SwiftCore), root swift test 339 (= 360 minus the 21 DJI wire tests moved to OpenCine), iOS OpenPocketCine scheme on a private iOS 26.2 simulator 628/0."
       }
     },
     {

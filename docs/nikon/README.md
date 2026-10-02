@@ -36,7 +36,7 @@ swift build && swift test --filter OpenCineNikonTests   # from the repository ro
 
 Moved from OpenZCine's Android facade and Kotlin bridge without behavior change (SHELL-04):
 
-- Swift `OpenCineNikonAndroid` (over `OpenCineNikon` and `OpenCineJNI`): `PTPIPClientSession`
+- Swift `OpenCineNikonAndroid` (over `OpenCineNikon` and `OpenCineJNISupport`): `PTPIPClientSession`
   (PTP-IP and USB PTP session layer, live-view pump, property readback, media browse and
   transfer), the USB transaction transport, the owner-keyed `AndroidSessionOwnerRegistry`, link
   health, session recovery, camera Wi-Fi parsing wires, and `NikonNativeJNI.swift`, the JNI exports

@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "628cdd631b18e2a7f81620bb4983b6eec44d62d8",
+      "commit": "aa7c8f9912920b20b5a22d8dcec390d9454b3dba",
       "role": "baseline"
     }
   ],
@@ -48,7 +48,7 @@
       "manifest": "Package.swift"
     },
     {
-      "name": "OpenCineJNI",
+      "name": "OpenCineJNISupport",
       "kind": "swift-library",
       "manifest": "Package.swift"
     },
@@ -74,6 +74,11 @@
     },
     {
       "name": "OpenCineDJI",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineDJIAndroid",
       "kind": "swift-library",
       "manifest": "Package.swift"
     },
@@ -178,8 +183,6 @@
       "OpenCineRelayTests",
       "OpenCineApple",
       "OpenCineAppleTests",
-      "OpenCineJNI",
-      "COpenCineJNI",
       ":core",
       ":media",
       ":decoder",
@@ -199,6 +202,10 @@
     "vendor": [
       "OpenCineDJI",
       "OpenCineDJITests",
+      "OpenCineJNI",
+      "OpenCineJNISupport",
+      "OpenCineDJIAndroid",
+      "OpenCineDJIAndroidTests",
       "OpenCineNikon",
       "OpenCineNikonTests",
       "OpenCineNikonAndroid",
