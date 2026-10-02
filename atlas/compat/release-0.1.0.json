@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
+      "commit": "31d3a3c274c9ea998cf450fd2b7cee749c5a8d6b",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
-        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-insta.md (2026-10-02: root swift test 717, iOS suite 539 + 1 skip on a private simulator, Gradle test assembleDebug lint green)"
+        "commit": "31d3a3c274c9ea998cf450fd2b7cee749c5a8d6b",
+        "where": "opencine/integration 31d3a3c pins OpenCine 491ce30 (2026-10-02): root swift test 717; iOS unit suite 539 (1 skip) on a private simulator; ./gradlew test assembleDebug lint green (monitor 845); one OpenCine in SwiftPM/Xcode/Gradle, one libopc_vulkan.so. iOS/Android ran at OpenCine ee71891 (code-identical)."
       }
     },
     {
