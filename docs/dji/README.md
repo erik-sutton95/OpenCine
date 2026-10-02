@@ -40,7 +40,7 @@ link and initialization, the Wi-Fi datalink driver, DUML command and status mode
 (`CameraCommands`, `CameraStatus`, `CameraModel`, `VideoFormat`, `CamFov`), gimbal programs and
 the native program runner, connection and live-view policies (`LiveViewEnablePolicy`,
 `SessionRecovery`), Multiview `StationJoin`, `ConnectionPhase`, and `DjiCameraSessionAdapter`
-(OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core` and `media` only.
+(OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core`, `media`, `decoder` and `platform`; Android framework adapters stay outside portable policy.
 The adapter mirrors the Swift one for SHELL-01: timecode and audio level support and values
 (`CameraStatus.audioMetersReported` keeps "not reported" apart from silence across the facade),
 `pocketGimbal` and `CameraModel.motion`, and `layout(base)` with the same body-flag rule for zoom,
@@ -84,3 +84,24 @@ implements) are DJI's Core `CameraIntegration`:
 - The record after a connect: the used route preferred, the joined camera network, the advertised
   model id (`extras["modelId"]`), the time. `forget` drops the camera's saved Wi-Fi only.
 - Tests: `DJIIntegrationTests` / `DjiIntegrationTest` against fake ports, same method names.
+
+## Neutral Android utility ownership (SHELL-04)
+
+`:media` owns incident classification, recovery-effect values/logging, diagnostic redaction,
+shutter-angle math and EV display/parse math. DJI retains its existing incident DTO JVM paths
+and methods as compatibility adapters through private Media value projections; they keep the
+same schema, enum wire strings and export shape. New consumers use the neutral Media values.
+The DJI EV `0x10` wire offset and supported +/-3 EV range remain integration-owned.
+
+`:platform` owns Android Keystore sealing and configured Wi-Fi credential storage. It imports
+no integration, UI or app and adds no third-party packages. Existing DJI and app wrapper classes
+supply the unchanged `openpocketcine.camera-wifi` preferences namespace and key alias, camera
+`.ssid`/`.password` keys and trimmed `ssid:` index. The envelope remains Base64 IV, colon,
+Base64 AES/GCM payload, 128-bit tag and no AAD; unreadable ciphertext stays unknown and legacy
+plaintext migrates idempotently. Multiview network storage keeps its existing separate alias.
+
+Media's redactor defaults to redacting all SSIDs. The compatibility wrappers supply the
+existing safe-network policy so neither app's exported diagnostic behavior changes. Neutral
+shutter observations return `null` for unknown shutter/rate, matching Swift Media; legacy
+Android capture wrappers keep their existing 180-degree/24-fps display fallback until their
+callers migrate explicitly.

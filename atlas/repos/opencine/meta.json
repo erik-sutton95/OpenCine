@@ -125,6 +125,12 @@
       "coordinates": "com.opencapture.opencine:media"
     },
     {
+      "name": ":platform",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:platform"
+    },
+    {
       "name": ":decoder",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -196,6 +202,7 @@
       "OpenCineAppleTests",
       ":core",
       ":media",
+      ":platform",
       ":decoder",
       ":vulkan"
     ],

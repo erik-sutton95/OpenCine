@@ -260,46 +260,26 @@ data class FeedIncidentBreadcrumb(
 
 object FeedIncidentNativeBreadcrumb {
     val allowedValues: Map<String, Set<String>> =
-        mapOf(
-            "sceneState" to setOf("active", "inactive"),
-            "assistState" to setOf("off", "identity", "replacement"),
-            "path" to setOf("unexpectedDisconnect"),
-            "repairPhase" to
-                setOf("requested", "blocked", "locallySent", "peerResponse", "pictureRestored"),
-            "repairAction" to setOf("decoder", "enable", "session", "endpoint", "rejoin"),
-        )
+        com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb.allowedValues
 
     fun isAllowedMessage(message: String): Boolean =
-        FeedIncidentBreadcrumbKind.entries.any { it.wire == message } || message == "repair"
+        com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb.isAllowedMessage(message)
 
     fun details(kind: FeedIncidentBreadcrumbKind, detail: String): Map<String, String> =
-        when (kind) {
-            FeedIncidentBreadcrumbKind.SCENE_ACTIVITY -> sanitized(mapOf("sceneState" to detail))
-            FeedIncidentBreadcrumbKind.ASSIST_CHANGE -> sanitized(mapOf("assistState" to detail))
-            FeedIncidentBreadcrumbKind.PATH_CHANGE -> sanitized(mapOf("path" to detail))
-            FeedIncidentBreadcrumbKind.SETTINGS_ENTER,
-            FeedIncidentBreadcrumbKind.SETTINGS_EXIT,
-            FeedIncidentBreadcrumbKind.SURFACE_ATTACH,
-            FeedIncidentBreadcrumbKind.SURFACE_DETACH,
-            FeedIncidentBreadcrumbKind.DECODER_CREATE,
-            FeedIncidentBreadcrumbKind.DECODER_INVALIDATE,
-            FeedIncidentBreadcrumbKind.CAMERA_COMMAND,
-            -> emptyMap()
-        }
+        com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb.details(
+            com.opencapture.opencine.media.FeedIncidentBreadcrumbKind.valueOf(kind.name), detail,
+        )
 
     fun details(repair: FeedRepairRecord): Map<String, String> =
-        sanitized(mapOf("repairPhase" to repair.phase.wire, "repairAction" to repair.action))
+        com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb.details(
+            com.opencapture.opencine.media.FeedRepairRecord(
+                repair.monotonicAt, repair.action,
+                com.opencapture.opencine.media.FeedRepairPhase.valueOf(repair.phase.name), repair.reason,
+            ),
+        )
 
-    fun sanitized(raw: Map<String, String>): Map<String, String> {
-        val out = mutableMapOf<String, String>()
-        for ((key, value) in raw) {
-            val token = FeedIncidentPrivacy.token(value, 32)
-            val allowed = allowedValues[key] ?: continue
-            if (token !in allowed) continue
-            out[key] = token
-        }
-        return out
-    }
+    fun sanitized(raw: Map<String, String>): Map<String, String> =
+        com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb.sanitized(raw)
 }
 
 data class FeedRepairRecord(
@@ -373,170 +353,41 @@ data class FeedIncidentPersistenceJob(
 }
 
 object FeedIncidentPrivacy {
-    fun token(raw: String, max: Int = FeedIncidentBounds.STRING_LENGTH): String {
-        val clipped = raw.trim().take(max)
-        return PrivacyRedactor.redact(clipped)
-    }
-
-    fun rate(value: Double): Double = if (value.isFinite() && value >= 0.0) value else 0.0
-
-    fun stamp(value: Double): Double = if (value.isFinite() && value >= 0.0) value else 0.0
-
-    fun age(value: Double?): Double? {
-        if (value == null || !value.isFinite() || value < 0.0) return null
-        return value
-    }
-
-    fun isFresh(age: Double?, threshold: Double): Boolean {
-        if (age == null) return false
-        return age < threshold
-    }
-
-    fun isStale(age: Double?, hertz: Double, flowingAlternative: Boolean, threshold: Double): Boolean {
-        if (age != null) return age >= threshold
-        return hertz == 0.0 && flowingAlternative
-    }
-
-    fun gapSeconds(snapshot: FeedIncidentSnapshot, stage: FeedIncidentFailingStage): Double {
-        val ages = snapshot.ages
-        val chosen =
-            when (stage) {
-                FeedIncidentFailingStage.PACKET -> ages.packetAge
-                FeedIncidentFailingStage.ACCESS_UNIT -> ages.accessUnitAge
-                FeedIncidentFailingStage.DECODE_ACCEPT -> ages.decodeAcceptAge
-                FeedIncidentFailingStage.DECODED_OUTPUT -> ages.decodedOutputAge
-                FeedIncidentFailingStage.ASSIST_OUTPUT -> ages.assistOutputAge
-                FeedIncidentFailingStage.PRESENTATION -> ages.presentAge
-            }
-        return age(chosen) ?: 0.0
-    }
+    fun token(raw: String, max: Int = FeedIncidentBounds.STRING_LENGTH): String =
+        com.opencapture.opencine.media.FeedIncidentPrivacy.token(raw, max, PrivacyRedactor::redact)
+    fun rate(value: Double): Double = com.opencapture.opencine.media.FeedIncidentPrivacy.rate(value)
+    fun stamp(value: Double): Double = com.opencapture.opencine.media.FeedIncidentPrivacy.stamp(value)
+    fun age(value: Double?): Double? = com.opencapture.opencine.media.FeedIncidentPrivacy.age(value)
+    fun isFresh(age: Double?, threshold: Double): Boolean =
+        com.opencapture.opencine.media.FeedIncidentPrivacy.isFresh(age, threshold)
+    fun isStale(age: Double?, hertz: Double, flowingAlternative: Boolean, threshold: Double): Boolean =
+        com.opencapture.opencine.media.FeedIncidentPrivacy.isStale(age, hertz, flowingAlternative, threshold)
+    fun gapSeconds(snapshot: FeedIncidentSnapshot, stage: FeedIncidentFailingStage): Double =
+        com.opencapture.opencine.media.FeedIncidentPrivacy.gapSeconds(
+            snapshot.toMedia(), com.opencapture.opencine.media.FeedIncidentFailingStage.valueOf(stage.name),
+        )
 }
 
 object FeedIncidentClassifier {
-    fun suppression(snapshot: FeedIncidentSnapshot): FeedIncidentSuppression? {
-        val life = snapshot.lifecycle
-        if (life.playbackActive) return FeedIncidentSuppression.PLAYBACK
-        if (!life.connected) return FeedIncidentSuppression.DISCONNECTED
-        if (!life.foreground || !life.sceneActive) return FeedIncidentSuppression.BACKGROUND
-        if (!life.liveEstablished) return FeedIncidentSuppression.NEVER_ESTABLISHED
-        return null
-    }
+    fun suppression(snapshot: FeedIncidentSnapshot): FeedIncidentSuppression? =
+        com.opencapture.opencine.media.FeedIncidentClassifier.suppression(snapshot.toMedia())?.let {
+            FeedIncidentSuppression.valueOf(it.name)
+        }
 
     fun classify(snapshot: FeedIncidentSnapshot): FeedIncidentVerdict {
-        suppression(snapshot)?.let {
-            return FeedIncidentVerdict(it)
-        }
-        val life = snapshot.lifecycle
-        val threshold = FeedIncidentBounds.STALL_SECONDS
-        val packetFresh =
-            FeedIncidentPrivacy.isFresh(snapshot.ages.packetAge, threshold) ||
-                snapshot.rates.packetHz >= 1.0
-        val auFresh =
-            FeedIncidentPrivacy.isFresh(snapshot.ages.accessUnitAge, threshold) ||
-                snapshot.rates.accessUnitHz >= 1.0
-        val inputFresh = packetFresh || auFresh
-        val outputStale =
-            life.outputObservable &&
-                FeedIncidentPrivacy.isStale(
-                    snapshot.ages.decodedOutputAge,
-                    snapshot.rates.decodedOutputHz,
-                    snapshot.rates.decodeSubmitHz >= 1.0 || inputFresh,
-                    threshold,
-                )
-        val outputFresh =
-            life.outputObservable &&
-                FeedIncidentPrivacy.isFresh(snapshot.ages.decodedOutputAge, threshold)
-        val presentStale =
-            life.presentationExpected &&
-                FeedIncidentPrivacy.isStale(
-                    snapshot.ages.presentAge,
-                    snapshot.rates.presentHz,
-                    true,
-                    threshold,
-                )
-        val assistStale =
-            FeedIncidentPrivacy.isStale(
-                snapshot.ages.assistOutputAge,
-                snapshot.rates.assistOutputHz,
-                outputFresh,
-                threshold,
-            )
-        if (life.outputObservable && outputStale) {
-            val currentError = isCurrentDecoderFailure(snapshot.decoder)
-            val acceptStale =
-                FeedIncidentPrivacy.isStale(
-                    snapshot.ages.decodeAcceptAge,
-                    snapshot.rates.decodeAcceptHz,
-                    snapshot.rates.decodeSubmitHz >= 1.0,
-                    threshold,
-                )
-            val stage =
-                if (acceptStale && snapshot.rates.decodeSubmitHz >= 1.0) {
-                    FeedIncidentFailingStage.DECODE_ACCEPT
-                } else {
-                    FeedIncidentFailingStage.DECODED_OUTPUT
-                }
-            val kind =
-                when {
-                    currentError -> FeedIncidentKind.DECODER_ERROR
-                    inputFresh -> FeedIncidentKind.FRESH_INPUT_STALE_OUTPUT
-                    else -> FeedIncidentKind.TRANSPORT_STALL
-                }
-            return FeedIncidentVerdict(FeedIncidentSuppression.NONE, kind, stage)
-        }
-        if ((outputFresh || !life.outputObservable) && assistStale && snapshot.ages.assistOutputAge != null) {
-            return FeedIncidentVerdict(
-                FeedIncidentSuppression.NONE,
-                FeedIncidentKind.ASSIST_STALLED,
-                FeedIncidentFailingStage.ASSIST_OUTPUT,
-            )
-        }
-        if ((outputFresh || !life.outputObservable) && presentStale) {
-            return FeedIncidentVerdict(
-                FeedIncidentSuppression.NONE,
-                FeedIncidentKind.PRESENT_STALLED,
-                FeedIncidentFailingStage.PRESENTATION,
-            )
-        }
-        if (!inputFresh) {
-            if (life.outputObservable && outputFresh) {
-                return FeedIncidentVerdict(FeedIncidentSuppression.NONE)
-            }
-            if (!life.outputObservable &&
-                life.presentationExpected &&
-                FeedIncidentPrivacy.isFresh(snapshot.ages.presentAge, threshold)
-            ) {
-                return FeedIncidentVerdict(FeedIncidentSuppression.NONE)
-            }
-            return FeedIncidentVerdict(
-                FeedIncidentSuppression.NONE,
-                FeedIncidentKind.TRANSPORT_STALL,
-                if (packetFresh) FeedIncidentFailingStage.ACCESS_UNIT else FeedIncidentFailingStage.PACKET,
-            )
-        }
-        return FeedIncidentVerdict(FeedIncidentSuppression.NONE)
+        val verdict = com.opencapture.opencine.media.FeedIncidentClassifier.classify(snapshot.toMedia())
+        return FeedIncidentVerdict(
+            FeedIncidentSuppression.valueOf(verdict.suppression.name),
+            verdict.kind?.let { FeedIncidentKind.valueOf(it.name) },
+            verdict.failingStage?.let { FeedIncidentFailingStage.valueOf(it.name) },
+        )
     }
 
-    fun isRecovered(snapshot: FeedIncidentSnapshot): Boolean {
-        if (suppression(snapshot) != null) return false
-        val life = snapshot.lifecycle
-        val threshold = FeedIncidentBounds.STALL_SECONDS
-        if (!life.outputObservable && !life.presentationExpected) return false
-        if (life.outputObservable) {
-            if (!FeedIncidentPrivacy.isFresh(snapshot.ages.decodedOutputAge, threshold)) return false
-        }
-        if (life.presentationExpected) {
-            if (!FeedIncidentPrivacy.isFresh(snapshot.ages.presentAge, threshold)) return false
-        }
-        return true
-    }
+    fun isRecovered(snapshot: FeedIncidentSnapshot): Boolean =
+        com.opencapture.opencine.media.FeedIncidentClassifier.isRecovered(snapshot.toMedia())
 
-    fun isCurrentDecoderFailure(decoder: FeedIncidentDecoder): Boolean {
-        if (decoder.decoderFailed) return true
-        val errorAge = decoder.errorAge ?: return false
-        val success = decoder.lastSuccessfulOutputAge
-        return if (success != null) errorAge < success else true
-    }
+    fun isCurrentDecoderFailure(decoder: FeedIncidentDecoder): Boolean =
+        com.opencapture.opencine.media.FeedIncidentClassifier.isCurrentDecoderFailure(decoder.toMedia())
 }
 
 data class FeedIncidentGrouping(
@@ -586,55 +437,161 @@ data class FeedIncidentSessionSummary(
 
 object FeedIncidentExport {
     fun envelope(from: FeedIncidentBundle): FeedIncidentVendorEnvelope {
-        val header = from.header
-        val grouping =
-            FeedIncidentGrouping(
-                schemaVersion = header.schemaVersion,
-                failingStage = header.failingStage.wire,
-                errorClass = header.errorClass ?: "none",
-                outcome = header.outcome.wire,
-                release = "${header.appVersion}(${header.appBuild})",
-                os = "${header.osName} ${header.osVersion}",
-                hardwareClass = header.hardwareClass,
-                cameraFirmware = header.cameraFirmware ?: "none",
-                assistState = header.assistState,
-            )
+        val envelope = com.opencapture.opencine.media.FeedIncidentExport.envelope(
+            com.opencapture.opencine.media.FeedIncidentBundle(from.header.toMedia(), emptyList()),
+        )
         return FeedIncidentVendorEnvelope(
-            schemaVersion = header.schemaVersion,
-            eventName = "feed.incident",
-            grouping = grouping,
-            incidentID = header.incidentId,
-            sessionID = header.sessionId,
-            kind = header.kind.wire,
-            worstGapSeconds = header.worstGapSeconds,
-            healthyExposureSeconds = header.healthyExposureSeconds,
-            decoderGeneration = header.decoderGeneration,
-            socketGeneration = header.socketGeneration,
-            startedAtWallClockMs = header.startedAtWallClockMs,
-            sourceRevision = header.sourceRevision,
-            appVersion = header.appVersion,
-            appBuild = header.appBuild,
-            cameraFamily = header.cameraFamily,
-            testSource = header.testSource.wire,
-            buildIdentity = header.buildIdentity,
+            schemaVersion = envelope.schemaVersion,
+            eventName = envelope.eventName,
+            grouping = FeedIncidentGrouping(
+                schemaVersion = envelope.grouping.schemaVersion,
+                failingStage = envelope.grouping.failingStage,
+                errorClass = envelope.grouping.errorClass,
+                outcome = envelope.grouping.outcome,
+                release = envelope.grouping.release,
+                os = envelope.grouping.os,
+                hardwareClass = envelope.grouping.hardwareClass,
+                cameraFirmware = envelope.grouping.cameraFirmware,
+                assistState = envelope.grouping.assistState,
+            ),
+            incidentID = envelope.incidentID,
+            sessionID = envelope.sessionID,
+            kind = envelope.kind,
+            worstGapSeconds = envelope.worstGapSeconds,
+            healthyExposureSeconds = envelope.healthyExposureSeconds,
+            decoderGeneration = envelope.decoderGeneration,
+            socketGeneration = envelope.socketGeneration,
+            startedAtWallClockMs = envelope.startedAtWallClockMs,
+            sourceRevision = envelope.sourceRevision,
+            appVersion = envelope.appVersion,
+            appBuild = envelope.appBuild,
+            cameraFamily = envelope.cameraFamily,
+            testSource = envelope.testSource,
+            buildIdentity = envelope.buildIdentity,
         )
     }
 }
 
 object FeedIncidentFileNaming {
-    fun incident(id: String): String {
-        val safe = id.filter { it.isLetterOrDigit() || it == '-' }
-        return "incident-${safe.ifEmpty { "unknown" }}.json"
-    }
+    fun incident(id: String): String = com.opencapture.opencine.media.FeedIncidentFileNaming.incident(id)
 }
 
 object FeedIncidentSampling {
-    fun <T> downsample(items: List<T>, keep: Int): List<T> {
-        if (keep <= 0 || items.isEmpty()) return emptyList()
-        if (items.size <= keep) return items
-        if (keep == 1) return listOf(items.last())
-        return (0 until keep).map { i ->
-            items[i * (items.size - 1) / (keep - 1)]
-        }
-    }
+    fun <T> downsample(items: List<T>, keep: Int): List<T> =
+        com.opencapture.opencine.media.FeedIncidentSampling.downsample(items, keep)
 }
+
+// Keep the old DJI DTO JVM paths during add/migrate/remove. Policy runs on Media values.
+private fun FeedIncidentRates.toMedia(): com.opencapture.opencine.media.FeedIncidentRates =
+    com.opencapture.opencine.media.FeedIncidentRates(
+        packetHz = packetHz,
+        accessUnitHz = accessUnitHz,
+        decodeSubmitHz = decodeSubmitHz,
+        decodeAcceptHz = decodeAcceptHz,
+        decodedOutputHz = decodedOutputHz,
+        assistOutputHz = assistOutputHz,
+        presentHz = presentHz,
+        ackHz = ackHz,
+    )
+
+private fun FeedIncidentAges.toMedia(): com.opencapture.opencine.media.FeedIncidentAges =
+    com.opencapture.opencine.media.FeedIncidentAges(
+        packetAge = packetAge,
+        accessUnitAge = accessUnitAge,
+        decodeAcceptAge = decodeAcceptAge,
+        decodedOutputAge = decodedOutputAge,
+        assistOutputAge = assistOutputAge,
+        presentAge = presentAge,
+    )
+
+private fun FeedIncidentQueue.toMedia(): com.opencapture.opencine.media.FeedIncidentQueue =
+    com.opencapture.opencine.media.FeedIncidentQueue(
+        bytes = bytes,
+        count = count,
+        ageMilliseconds = ageMilliseconds,
+        incompleteAccessUnits = incompleteAccessUnits,
+        drops = drops,
+    )
+
+private fun FeedIncidentDecoder.toMedia(): com.opencapture.opencine.media.FeedIncidentDecoder =
+    com.opencapture.opencine.media.FeedIncidentDecoder(
+        generation = generation,
+        formatGeneration = formatGeneration,
+        codec = codec,
+        width = width,
+        height = height,
+        lastStatus = lastStatus,
+        lastFlags = lastFlags,
+        origin = com.opencapture.opencine.media.FeedDecoderErrorOrigin.valueOf(origin.name),
+        errorClass = errorClass,
+        errorCount = errorCount,
+        decoderFailed = decoderFailed,
+        errorAge = errorAge,
+        receivedIrap = receivedIrap,
+        awaitingIrap = awaitingIrap,
+        hasDecodableReferences = hasDecodableReferences,
+        lastIrapAge = lastIrapAge,
+        lastSuccessfulOutputAge = lastSuccessfulOutputAge,
+        rebuildReason = rebuildReason,
+    )
+
+private fun FeedIncidentLifecycle.toMedia(): com.opencapture.opencine.media.FeedIncidentLifecycle =
+    com.opencapture.opencine.media.FeedIncidentLifecycle(
+        foreground = foreground,
+        settingsCovered = settingsCovered,
+        playbackActive = playbackActive,
+        connected = connected,
+        liveEstablished = liveEstablished,
+        thermalState = thermalState,
+        memoryWarning = memoryWarning,
+        lowPower = lowPower,
+        sceneActive = sceneActive,
+        assistState = assistState,
+        outputObservable = outputObservable,
+        presentationExpected = presentationExpected,
+    )
+
+private fun FeedIncidentSnapshot.toMedia(): com.opencapture.opencine.media.FeedIncidentSnapshot =
+    com.opencapture.opencine.media.FeedIncidentSnapshot(
+        monotonicNow = monotonicNow,
+        wallClockMs = wallClockMs,
+        rates = rates.toMedia(),
+        ages = ages.toMedia(),
+        queue = queue.toMedia(),
+        decoder = decoder.toMedia(),
+        lifecycle = lifecycle.toMedia(),
+        watchdogAction = watchdogAction,
+        diagnoserFailure = diagnoserFailure,
+        diagnoserRepair = diagnoserRepair,
+    )
+
+private fun FeedIncidentHeader.toMedia(): com.opencapture.opencine.media.FeedIncidentHeader =
+    com.opencapture.opencine.media.FeedIncidentHeader(
+        schemaVersion = schemaVersion,
+        incidentId = incidentId,
+        sessionId = sessionId,
+        kind = com.opencapture.opencine.media.FeedIncidentKind.valueOf(kind.name),
+        failingStage = com.opencapture.opencine.media.FeedIncidentFailingStage.valueOf(failingStage.name),
+        errorClass = errorClass,
+        outcome = com.opencapture.opencine.media.FeedIncidentOutcome.valueOf(outcome.name),
+        startedAtWallClockMs = startedAtWallClockMs,
+        startedAtMonotonic = startedAtMonotonic,
+        endedAtMonotonic = endedAtMonotonic,
+        firstFailureAt = firstFailureAt,
+        worstGapSeconds = worstGapSeconds,
+        appVersion = appVersion,
+        appBuild = appBuild,
+        sourceRevision = sourceRevision,
+        osName = osName,
+        osVersion = osVersion,
+        hardwareClass = hardwareClass,
+        cameraFamily = cameraFamily,
+        cameraFirmware = cameraFirmware,
+        decoderGeneration = decoderGeneration,
+        socketGeneration = socketGeneration,
+        evictions = evictions,
+        assistState = assistState,
+        healthyExposureSeconds = healthyExposureSeconds,
+        testSource = com.opencapture.opencine.media.FeedIncidentTestSource.valueOf(testSource.name),
+        buildIdentity = buildIdentity,
+    )
