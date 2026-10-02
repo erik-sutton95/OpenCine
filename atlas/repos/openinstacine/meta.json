@@ -167,6 +167,7 @@
         "Insta360Apple",
         "Insta360AppleTestSupport",
         ":core",
+        ":decoder",
         ":insta360-luna",
         ":insta360-shell",
         ":media",
