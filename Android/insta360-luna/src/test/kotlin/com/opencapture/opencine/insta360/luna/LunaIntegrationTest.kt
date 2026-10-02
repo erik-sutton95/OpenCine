@@ -201,6 +201,22 @@ class LunaIntegrationTest {
         assertEquals(2, port.connects.size)
     }
 
+    /** An attempt starts when collected: the consumer replaces one that has not started by cancelling it. */
+    @Test
+    fun replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() = runTest {
+        val (port, luna) = setup()
+        val previous = mutableListOf<ConnectionEvent>()
+        backgroundScope.launch { luna.connect(ConnectTarget.Nearby(sighting)).collect { previous += it } }.cancel()
+        val replacement = sighting.copy(id = "AA:BB:CC:DD:EE:02")
+        val events = collect(luna.connect(ConnectTarget.Nearby(replacement)))
+        runCurrent()
+        assertEquals(listOf(replacement.id), port.connects)
+        port.goLive()
+        runCurrent()
+        assertEquals(replacement.id, assertIs<ConnectionEvent.Connected>(events.last()).camera.saved.id)
+        assertTrue(previous.isEmpty(), "the replaced attempt never ran")
+    }
+
     @Test
     fun cancellingTheConsumerDisconnects() = runTest {
         val (port, luna) = setup()

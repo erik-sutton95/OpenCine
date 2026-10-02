@@ -207,6 +207,24 @@ class NikonIntegrationTest {
         assertEquals(1, port.cancels)
     }
 
+    /** An attempt starts when collected: the consumer replaces one that has not started by cancelling it. */
+    @Test
+    fun replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() = runTest {
+        val old = cameras().first()
+        val replacement = cameras().last()
+        val previous = mutableListOf<ConnectionEvent>()
+        backgroundScope.launch { nikon.connect(ConnectTarget.Saved(old, old.routes[0].id)).collect { previous += it } }.cancel()
+        val events = mutableListOf<ConnectionEvent>()
+        val job = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(replacement, replacement.routes[0].id)).toList(events) }
+        runCurrent()
+        val expected = NikonConnectRequest.Saved("192.168.43.20", RouteKind.PHONE_HOTSPOT)
+        assertEquals(listOf<NikonConnectRequest>(expected), port.connects)
+        port.pending.complete(NikonConnection(FakeCameraSession.nikonLike(), "192.168.43.20", RouteKind.PHONE_HOTSPOT))
+        job.join()
+        assertEquals(replacement.id, assertIs<ConnectionEvent.Connected>(events.last()).camera.saved.id)
+        assertTrue(previous.isEmpty(), "the replaced attempt never ran")
+    }
+
     @Test
     fun forgetHandsTheAppEverySetupHost() = runTest {
         nikon.forget(cameras().first())

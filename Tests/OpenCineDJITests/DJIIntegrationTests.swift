@@ -178,6 +178,22 @@ final class FakeDJIPort: DJIConnectPort {
         #expect(await eventually { port.disconnects == 1 })
     }
 
+    @Test func replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() async {
+        let dji = integration()
+        let previous = dji.connect(.saved(Self.saved, route: Self.ap.id))
+        var replacement = Self.saved
+        replacement.id = "cam-2"
+        let current = dji.connect(.saved(replacement, route: Self.ap.id))
+        #expect(await eventually { port.connects.last?.0 == replacement.id })
+        #expect(port.connects.map(\.0) == [replacement.id])
+        port.finish(live())
+        let (_, _, end) = await outcome(current)
+        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        #expect(camera.saved.id == replacement.id)
+        let (_, _, oldEnd) = await outcome(previous)
+        #expect(oldEnd == nil)
+    }
+
     @Test func forgetDropsTheSavedWiFiOnly() async {
         await integration().forget(Self.saved)
         #expect(port.forgotten == ["cam-1"])

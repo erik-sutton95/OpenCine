@@ -196,6 +196,23 @@ class DjiIntegrationTest {
         assertEquals(1, port.disconnects)
     }
 
+    /** An attempt starts when collected: the consumer replaces one that has not started by cancelling it. */
+    @Test
+    fun replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() = runTest {
+        val port = FakeDjiPort()
+        val dji = integration(port)
+        val previous = mutableListOf<ConnectionEvent>()
+        backgroundScope.launch { dji.connect(ConnectTarget.Saved(saved, ap.id)).collect { previous += it } }.cancel()
+        val replacement = saved.copy(id = "cam-2")
+        val events = collect(dji.connect(ConnectTarget.Saved(replacement, ap.id)))
+        runCurrent()
+        assertEquals(listOf("cam-2"), port.reconnects)
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        assertEquals("cam-2", assertIs<ConnectionEvent.Connected>(events.last()).camera.saved.id)
+        assertTrue(previous.isEmpty(), "the replaced attempt never ran")
+    }
+
     @Test
     fun forgetDropsTheSavedWiFiOnly() = runTest {
         integration(FakeDjiPort()).forget(saved)

@@ -181,6 +181,23 @@ import Testing
         #expect(phases == [.link, .awaitingApproval])
     }
 
+    @Test func replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() async {
+        let luna = integration()
+        let previous = luna.connect(.nearby(sighting()))
+        var replacement = sighting()
+        replacement.id = UUID().uuidString
+        let current = luna.connect(.nearby(replacement))
+        #expect(await eventually { port.connects.last?.id.uuidString == replacement.id })
+        #expect(port.connects.map(\.id.uuidString) == [replacement.id])
+        port.finishConnect()
+        var connectedIDs: [String] = []
+        for await case .connected(let camera) in current { connectedIDs.append(camera.saved.id) }
+        #expect(connectedIDs == [replacement.id])
+        for await event in previous {
+            if case .connected = event { Issue.record("The replaced attempt connected") }
+        }
+    }
+
     @Test func cancellingTheConsumerDisconnects() async {
         let luna = integration()
         let events = luna.connect(.nearby(sighting()))

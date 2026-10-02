@@ -197,6 +197,24 @@ final class FakeNikonPort: NikonConnectPort {
         #expect(await eventually { port.cancels == 1 })
     }
 
+    @Test func replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() async throws {
+        let nikon = integration()
+        let cameras = NikonSavedRecordsV0.cameras(from: Self.records)
+        let old = try #require(cameras.first)
+        let replacement = try #require(cameras.last)
+        let previous = nikon.connect(.saved(old, route: old.routes[0].id))
+        let current = nikon.connect(.saved(replacement, route: replacement.routes[0].id))
+        let expected = NikonConnectRequest.saved(host: "172.20.10.3", path: .phoneHotspot)
+        #expect(await eventually { port.connects.last == expected })
+        #expect(port.connects == [expected])
+        port.finish(.success(NikonConnection(session: FakeCameraSession.nikonLike(), host: "172.20.10.3", path: .phoneHotspot)))
+        let (_, _, end) = await outcome(current)
+        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        #expect(camera.saved.id == replacement.id)
+        let (_, _, oldEnd) = await outcome(previous)
+        #expect(oldEnd == nil)
+    }
+
     @Test func forgetHandsTheAppEverySetupHost() async throws {
         let nikon = integration()
         let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)

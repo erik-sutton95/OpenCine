@@ -197,6 +197,8 @@ public final class DJIIntegration: CameraIntegration {
             Task { @MainActor in self?.cancel(attempt) }
         }
         attempt.task = Task { [weak self, port] in
+            // Replaced before it started: never dial the older camera.
+            if let self, self.current !== attempt { return }
             do {
                 let connection = try await port.connect(cameraID: cameraID, setup: setup, restoreAccessPoint: restore)
                 self?.connected(attempt, connection)

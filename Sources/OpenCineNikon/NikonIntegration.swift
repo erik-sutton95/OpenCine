@@ -252,6 +252,8 @@ public final class NikonIntegration: CameraIntegration {
 
     private func run(_ attempt: Attempt, _ request: NikonConnectRequest) {
         attempt.task = Task { [weak self, port] in
+            // Replaced before it started: never dial the older camera.
+            if let self, self.current !== attempt { return }
             do {
                 let connection = try await port.connect(request)
                 self?.connected(attempt, connection)

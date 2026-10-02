@@ -170,6 +170,8 @@ public final class LunaIntegration: CameraIntegration {
         let session = port.openSession()
         report(attempt)
         attempt.task = Task { [weak self] in
+            // Replaced before it started: never dial the older camera.
+            if let self, self.current !== attempt { return }
             do {
                 try await self?.port.connect(to: camera)
                 self?.connected(attempt, session: session)
