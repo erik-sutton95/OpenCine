@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "8563c79604083d40b92cadec68b26914475dce70",
+    "commit": "9ae27021dc34bceca2ae8e8e9fa2bcdfe9d2541d",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "8563c79604083d40b92cadec68b26914475dce70",
-      "where": "SHELL-03 I-1 8563c79: swift test 1710 + 72 XCTest, strict-concurrency clean in AppKit, OpenCineAppKitTests 46 on private iOS sim, gradle test lint assembleRelease (820 JVM, appkit 43), atlas 91 + check --sources, Pocket e7668754 and Nikon 32852d80 root builds; notes progress.d/SHELL-03.md"
+      "commit": "9ae27021dc34bceca2ae8e8e9fa2bcdfe9d2541d",
+      "where": "Shared SHELL-02 follow-ups f58035e: Swift1715+72; strict concurrency; Android test lint assembleRelease471tasks; private iPhone/iPad AppKit tests; MonitorUI/Apple builds, atlas91+check and Vulkan sync. All consumers built at this exact candidate, migration/visual evidence in scratchpad/s02-followups and codex-pages-{pocket,insta,nikon}/logs. Hardware untested."
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "f488e5f7179138838764118f7df1d431d9eacb4c",
+      "commit": "23e89d02973d532320c53a14a4712507d84db82d",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "f488e5f7179138838764118f7df1d431d9eacb4c",
-        "where": "SHELL-02 step7 f488e5f: just check331 Swift+99handbook pages; iPhone633/iPad633 zero failures; Android504 JVM plus check/release; installed5-stage loops iOS+Android with Keychain/Keystore readback, favorites and stable route IDs; JNI41/41;70 reviewed screenshots. Logs scratchpad/s02p/resume-check-final.log, resume-ios-phone-final.log, resume-ios-ipad-final.log, resume-android-check.log, resume-android-release.log, resume-android-upgrade2.log, resume-android-verify.log, resume-ios-upgrade-final2.log, resume-keychain-final.log, jni/parity.txt. Physical checks untested."
+        "commit": "23e89d02973d532320c53a14a4712507d84db82d",
+        "where": "SHELL-02 followups exactf58035e: just check331Swift/99handbook; private phone+iPad633 each0fail; actual UI2/device legal44pt and rename-clear,52attachments; Android check+test lint release434tasks; JNI41 equalbaseline; installed six-stage name/old-edit/reupgrade loops bothplatforms exactlegacy/stablerouteIDs, iOSfavorites; phone/tablet legal44dp/close matrix and actualAndroid rename/relaunch/clear. scratchpad/codex-pages-pocket/logs. Credential namespaces unchanged; priorstep7secure readbacks retained. Hardware untested."
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "d290569508f58b40f9dc9fb45e014f4149d68e55",
+      "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "d290569508f58b40f9dc9fb45e014f4149d68e55",
-        "where": "SHELL-03 I-1 d290569 (pin OpenCine 8563c79): just check, core-test 595 + Insta360 69 XCTest + 11, android-check (monitor 695), iOS 501 on private iPhone 16 Pro and iPad Pro 13 (1 existing skip), SIMULATED screens shell-03-screens/insta-i1-*; notes progress.d/SHELL-03.md"
+        "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
+        "where": "SHELL-02 follow-ups: Swift595, just check/handbook27; helper-free private iPhone/iPad502 each (one existing skip); Android test lint assembleRelease555tasks monitor696; installed five-stage exact legacy and credential readbacks both platforms; legal/rename/clear UI both platforms and orientations, 60 iOS attachments. scratchpad/codex-pages-insta/logs; hardware untested."
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "32852d80e9d7f5a3528100dabd2a6a0430e3c731",
+      "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "32852d80e9d7f5a3528100dabd2a6a0430e3c731",
-        "where": "SHELL-02 step 9 (cameras and pairing on OpenCine's shared pages, NikonDiscovery, saved-camera document with the app records mirrored), opencine/integration 32852d80 pinned to OpenCine b8732a6: root swift test 626 pass; Runner iOS 236 (138 XCTest incl. 9 NikonCamerasMigrationTests, 2 skipped; 98 Swift Testing) on private iPhone 16 Pro and iPad Pro 13 simulators, iOS 26.2 (was 227), proxy-export test skipped as known-hanging; Android test lint assembleRelease green: app 934 JVM (was 920) incl. NikonCamerasMigrationTest and the passive cameras-page test, core-api 5, wear 5, wear-relay 3; JNI exports of libOpenZCineAndroid unchanged (128); installed-build upgrade, downgrade, old-build edit and re-upgrade on simulator and emulator keep every setup, records byte-identical on upgrade, GUID and paired-host memory untouched. Screens: shell-02-screens/nikon-*. Physical device checks open (OPENCINE-INTEGRATION.md items 21-27)."
+        "commit": "06d44e92bbed71ffd6f5897af53a0021f1b6aa1b",
+        "where": "SHELL-02 follow-ups: Swift626; private iPhone/iPad140 XCTest (2 skip)+98 Swift Testing each, exact-pin migration11 iOS/9 Android; Android test lint assembleRelease936app; JNI73 matches baseline; installed rename/clear/repeated-upgrade payload cycles both platforms; 36 settled captures and legal/back actions. scratchpad/codex-pages-nikon/logs; pre-existing aggregate lint baseline documented; hardware untested."
       }
     }
   ]
