@@ -684,7 +684,8 @@ class Run:
         app_url = (self.reg[rid]["repository"].get("url") or self.url(name)).rstrip("/")
         steps = self.state["steps"]
         v = steps.get(f"app-verify:{name}") or {}
-        rows = "\n".join(f"| {n} | {self.version} | `{sha[:12]}` |" for n, sha in self.tag_shas(placeholder=False).items())
+        pins = git(self.path(rid), "show", "HEAD:opencine-pins.txt", check=False).split()
+        rows = "\n".join(f"| {n} | {self.version} | `{sha[:12]}` |" for n, sha in self.tag_shas(placeholder=False).items() if n in pins)
         checks = "\n".join(f"  - `{c.replace('{base}', self.url_base())}`" for c in v.get("passed", []))
         notes = "\n".join(f"- [ ] `{f}` updated (the CI notes gate requires it)" for f in e.get("notes_files", []))
         ev = e.get("evidence") or {}
@@ -694,7 +695,7 @@ class Run:
 |---|---|---|
 {rows}
 
-- Apple: Package.swift and the Xcode project take each package by URL and exact version; Package.resolved is committed, so Xcode Cloud resolves without network guessing.
+- Apple: Package.swift and the Xcode project take each package by URL and exact version; Package.resolved is committed, so Xcode Cloud resolves exactly these versions.
 - Android: Gradle still includes the packages' builds from sibling checkouts pinned to the tag commits in `opencine-pins.txt` (`scripts/checkout-opencine.sh`) until Maven artifacts are published.
 
 ### Evidence

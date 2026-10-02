@@ -349,6 +349,7 @@ class EndToEnd(AtlasCase):
         self.assertIn(f"resolve Core, Lib 0.1.0 from {self.base}", msg.replace("\n", " "))
         body = (self.root / ".local" / "publish" / "App-pr.md").read_text()
         self.assertTrue(body.rstrip().endswith(publish.FOOTER))
+        self.assertIn(f"| Lib | 0.1.0 | `{tag[:12]}` |", body)
         self.assertNotIn(chr(0x2014), body)
 
         lib_meta = json.loads(sh(self.remote / "atlas", "show", "main:repos/lib/meta.json"))
