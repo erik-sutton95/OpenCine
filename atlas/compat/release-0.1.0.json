@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "67f97fa9c183c05247259f2937a6756d36e48b5c",
+    "commit": "0d8391741d996ee905726f1328c9c5d6740f1f9b",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "67f97fa9c183c05247259f2937a6756d36e48b5c",
-      "where": "SHELL-01 Kotlin + Luna layout (340452a): swift test 1620 + 72 XCTest, gradle test lint assembleRelease green (dji 337 = 334 + 3, insta360-luna 52 = 51 + 1, core 50, monitor-ui 119, multicam 19, nikon 92, media 64, decoder 1); consumers: Pocket android-check + release, root 339; Insta gradle green, root 611, iOS 501 + 11."
+      "commit": "0d8391741d996ee905726f1328c9c5d6740f1f9b",
+      "where": "SHELL-02 step 2: swift test 1629 tests + 72 XCTest (step 1: 1620), strict-concurrency build clean, gradle test lint assembleRelease green (739 JVM tests incl. appkit 9: migration 7, document format 1, import rule 1), atlas unittest + check passed, 3 app consumers (Pocket e7668754, Insta 0d88fc0, Z aaa08a92) swift build --build-tests and Android assembleDebug green"
     }
   },
   "apps": [
