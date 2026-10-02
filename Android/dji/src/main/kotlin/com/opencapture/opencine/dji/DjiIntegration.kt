@@ -117,6 +117,8 @@ class DjiIntegration(
 
     override val discoveryModes: Set<DiscoveryMode> = setOf(DiscoveryMode.PASSIVE)
     private var listening = 0
+    /** The attempt that owns the session; an older collection ends when a newer one takes it. */
+    private var current: ConnectionAttemptID? = null
 
     companion object {
         val ALL_ROUTES = setOf(RouteKind.CAMERA_ACCESS_POINT, RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)
@@ -180,6 +182,7 @@ class DjiIntegration(
         val network = route?.network?.takeIf { setup.movesCamera }?.let { loadNetwork(it, setup == CameraConnectionSetup.PHONE_HOTSPOT) }
         val attempt = ConnectionAttemptID()
         val steps = steps(route)
+        current = attempt
         // One session, one connection: end whatever runs, then connect with this setup.
         if (port.phaseFlow.value !in setOf(ConnectionPhase.IDLE, ConnectionPhase.SCANNING, ConnectionPhase.FAILED)) port.disconnect()
         port.useSetup(setup, network, restoreAccessPoint = camera?.let(::mayBeInStationRole) == true)
@@ -188,6 +191,9 @@ class DjiIntegration(
         var outcome: ConnectionEvent? = null
         try {
             port.phaseFlow.first { phase ->
+                // ponytail: a replaced attempt ends at the session's next phase, not at once; a
+                // shared StateFlow of the owner would end it at once if a card ever lingers.
+                if (current != attempt) return@first true
                 when (phase) {
                     ConnectionPhase.LIVE -> outcome = ConnectionEvent.Connected(ConnectedCamera(record(target, camera, route), port.control))
                     ConnectionPhase.FAILED -> port.failureDetail.value?.let { outcome = ConnectionEvent.Failed(withRouteActions(it, camera, route)) }
@@ -205,7 +211,7 @@ class DjiIntegration(
             outcome?.let { send(it) }
         } finally {
             // The consumer stopped listening before an outcome: cancel the attempt.
-            if (outcome == null && port.phaseFlow.value != ConnectionPhase.IDLE) port.disconnect()
+            if (outcome == null && current == attempt && port.phaseFlow.value != ConnectionPhase.IDLE) port.disconnect()
         }
     }
 

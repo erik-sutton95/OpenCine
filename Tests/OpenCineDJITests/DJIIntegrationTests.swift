@@ -178,6 +178,24 @@ final class FakeDJIPort: DJIConnectPort {
         #expect(await eventually { port.disconnects == 1 })
     }
 
+    @Test func aNewerAttemptEndsTheOlder() async {
+        let dji = integration()
+        let older = dji.connect(.saved(Self.saved, route: Self.ap.id))
+        #expect(await eventually { port.connects.count == 1 })
+        var replacement = Self.saved
+        replacement.id = "cam-2"
+        let newer = dji.connect(.saved(replacement, route: Self.ap.id))
+        #expect(await eventually { port.connects.count == 2 })
+        port.onStage?(.awaitingApproval, nil)
+        port.finish(live())
+        let (olderProgress, _, olderEnd) = await outcome(older)
+        #expect(olderEnd == nil, "the older attempt ends without an outcome")
+        #expect(olderProgress.isEmpty)
+        let (_, _, end) = await outcome(newer)
+        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        #expect(camera.saved.id == replacement.id)
+    }
+
     @Test func replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() async {
         let dji = integration()
         let previous = dji.connect(.saved(Self.saved, route: Self.ap.id))

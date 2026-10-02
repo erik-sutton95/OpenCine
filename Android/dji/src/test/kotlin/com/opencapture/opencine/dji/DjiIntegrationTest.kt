@@ -196,6 +196,28 @@ class DjiIntegrationTest {
         assertEquals(1, port.disconnects)
     }
 
+    @Test
+    fun aNewerAttemptEndsTheOlder() = runTest {
+        val port = FakeDjiPort()
+        val dji = integration(port)
+        val older = mutableListOf<ConnectionEvent>()
+        val olderJob = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            dji.connect(ConnectTarget.Saved(saved, ap.id)).collect { older += it }
+        }
+        runCurrent()
+        val newer = collect(dji.connect(ConnectTarget.Saved(saved.copy(id = "cam-2"), ap.id)))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.AWAITING_APPROVAL
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        assertTrue(olderJob.isCompleted && older.none { it is ConnectionEvent.Connected || it is ConnectionEvent.Failed }, "the older attempt ends without an outcome")
+        assertTrue(older.none { (it as? ConnectionEvent.Progress)?.progress?.phase == CorePhase.AWAITING_APPROVAL })
+        assertEquals("cam-2", assertIs<ConnectionEvent.Connected>(newer.last()).camera.saved.id)
+        assertEquals(listOf("cam-1", "cam-2"), port.reconnects)
+        assertEquals(1, port.disconnects, "the older attempt never disconnects the newer one")
+    }
+
     /** An attempt starts when collected: the consumer replaces one that has not started by cancelling it. */
     @Test
     fun replacingBeforeTheTaskStartsDoesNotConnectTheOldCamera() = runTest {
