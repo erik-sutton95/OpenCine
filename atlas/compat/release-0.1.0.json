@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "030fa0403f57126df21ea132212593c401fa3760",
+    "commit": "8d9d3f44d7825e3d8593c61cd0fe67ae15d38431",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "030fa0403f57126df21ea132212593c401fa3760",
-      "where": "Common Luna focus/zoom descriptors, bounded requests, camera-report observations and truthful receipts030fa040; combined shared1758SwiftTesting+78XCTest/strict, Android876unique(2 existing skips)/lint/release, genericMonitorUI/OpenCineApple passed. Logs scratchpad/luna-lens/*final.log and shared-combined-*.log; source b1516f97. Physical cameras untested."
+      "commit": "8d9d3f44d7825e3d8593c61cd0fe67ae15d38431",
+      "where": "SHELL-03 I2 product8d9d3f44: shared1758 Swift Testing +78 XCTest, strict concurrency, generic MonitorUI/OpenCineApple, Android full test/lint/release538 tasks and Vulkan sync passed; atlas91 tests/1 existing skip. Final bounded intrinsic Compose capture fix passed AppKit lint/package549 tasks and actual native rendered regression+host identity2 tests. Logs local scratchpad/codex-shell03-i2/logs. Physical camera behavior untested."
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "fa34f83c867424bb4b9a5a3d2c53a052bc1c313b",
+      "commit": "297e6fc1ce5923a5b7eb6c891c077243db8e8b9c",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "fa34f83c867424bb4b9a5a3d2c53a052bc1c313b",
-        "where": "Lens platform consumerfa34f83c pins030fa040; source otherwise unchanged. Combined root331 pass scratchpad/luna-lens/pocket-swift-final.log; prior full consumer Android504/iOS633/installed credential/native41 evidence retained. Shared full combined gates passed. Physical cameras untested."
+        "commit": "297e6fc1ce5923a5b7eb6c891c077243db8e8b9c",
+        "where": "Pin8d9d3f44 shared I2 composition; unchanged app root331 tests passed. Log local scratchpad/i2-integration-checks/pocket.log. Last native platform gates retained from prior pin030fa040; app has not adopted new MonitorScreen yet. Physical cameras untested."
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "07c047ddca605557f6a5dfcd663cee14e2d103b5",
+      "commit": "8e0bed163af5ec0b183cc22c2d4c8c21ff1644b4",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "07c047ddca605557f6a5dfcd663cee14e2d103b5",
-        "where": "Common Luna focus/zoom adoption07c047dd pins030fa040; legacy latest-wins cadence and ProductShowcase vendor extension preserved. Root595/justcheck, generic iOS build-for-testing, privatephone/iPad502each(1existing skip), nativeAndroid696/debug/release/lint/instrumentationcompile passed. Logs/xcresult scratchpad/luna-lens; privatephone compileda223266,padcombinedb1516f97; finalappcodeunchangedafterpinmerge. Physical cameras untested."
+        "commit": "8e0bed163af5ec0b183cc22c2d4c8c21ff1644b4",
+        "where": "SHELL-03 I2 integrated8e0bed163: root595 +just check, private phone and pad502 each/1 existing skip/0 failures; selected UI and actual Android native input/AX/host10 scenarios pass, final2 rendered scenarios pass. Full Android native staging/test/lint/release659 tasks, final bounded packaging549 tasks. Screens/APKs/logs local scratchpad/codex-shell03-i2. Same shared pin8d9d3f44. Physical cameras untested."
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "dc7778957d810785f3f51795906b7ca3c53e97a3",
+      "commit": "90a801f3a68ed00810774980c4d61d1e43e95dd8",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "dc7778957d810785f3f51795906b7ca3c53e97a3",
-        "where": "Lens platform consumerdc777895 pins030fa040; source otherwise unchangedafter reviewedNikonruntime adoption. Combined root626 pass scratchpad/luna-lens/nikon-swift-final.log; prior full nativeAndroid949/JNI73/privatephone+iPad230 each/owner-relay correction evidence retained. Shared full combined gates passed. Physical cameras untested."
+        "commit": "90a801f3a68ed00810774980c4d61d1e43e95dd8",
+        "where": "Pin8d9d3f44 shared I2 composition; unchanged app root626 tests passed. Log local scratchpad/i2-integration-checks/nikon.log. Last native platform gates retained from prior pin030fa040; Z1 MonitorScreen adoption is separate WIP. Physical cameras untested."
       }
     }
   ]
