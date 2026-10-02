@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "e4ae1e9d406f7efd76facf279d7d387fed73cf24",
+      "commit": "9a3798dbe50a91e98a1a807140739fad7ce6a160",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "e4ae1e9d406f7efd76facf279d7d387fed73cf24",
-        "where": "OpenZCine opencine/integration at e4ae1e9d (SHELL-04 Nikon Android, pinned OpenCine 33e75a7): root swift test 626 (156 facade tests moved to OpenCine), iOS Runner build + tests 227 = 225 + 2 skip on a private iOS 26.2 simulator (MediaTimecode proxy test deselected), Android ./gradlew test lint assembleRelease assembleDebug :app:assembleDebugAndroidTest green (app 920, core-api 5, wear 5, wear-relay 3), release APK libOpenZCineAndroid.so exports 73 Java_ symbols = 44 NikonNative + 29 SwiftCore externals, R8 keeps NikonNative and the USB transport."
+        "commit": "9a3798dbe50a91e98a1a807140739fad7ce6a160",
+        "where": "OpenZCine opencine/integration at 9a3798db (SHELL-04 Nikon iOS transports from OpenCineNikon, pinned OpenCine 8222b0a): iOS Runner build-for-testing and tests 227 = 225 + 2 skip on a private iOS 26.2 simulator (MediaTimecode proxy test deselected; USB detach tests drive the moved transport), root swift test 626, Android ./gradlew test lint assembleRelease green (app 920, core-api 5, wear 5, wear-relay 3), libOpenZCineAndroid.so 73 Java_ exports = Kotlin externals."
       }
     }
   ]
