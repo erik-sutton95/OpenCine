@@ -80,6 +80,7 @@
                 }
                 .onChange(of: enabled) { _, _ in retireApproval() }
                 .onChange(of: photo) { _, _ in retireApproval() }
+                .onChange(of: confirmationPolicy) { _, _ in retireApproval() }
                 .accessibilityHidden(false)
                 .accessibilityLabel(accessibility)
                 .accessibilityAddTraits(.isButton)

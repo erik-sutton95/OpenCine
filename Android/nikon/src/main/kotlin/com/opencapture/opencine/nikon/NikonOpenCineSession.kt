@@ -360,16 +360,18 @@ class NikonOpenCineSession(
     companion object {
         val INTEGRATION: IntegrationID = IntegrationID("org.opencapture.nikon-ptp")
 
-        /** The controls this slice owns; the monitor routes exactly these through the seam. */
-        val CONTROLS: Set<CameraControl> = setOf(CameraControl.ISO, CameraControl.WHITE_BALANCE)
+        /** Movie controls offered through the common seam; stills retain their typed adapter. */
+        val CONTROLS: Set<CameraControl> =
+            setOf(CameraControl.ISO, CameraControl.WHITE_BALANCE, CameraControl.SHUTTER, CameraControl.IRIS)
 
         /**
-         * Movie ISO, white balance and record, admitting exactly what the Swift core's
+         * Movie exposure, white balance and record, admitting exactly what the Swift core's
          * `androidControlWrites` encodes and the monitor offers:
          * - ISO: the Swift-authorized ladder, the picker ladder (offered before descriptors land),
          *   and the camera's current value (Auto can park off the ladder, e.g. 51200).
          * - White balance: advertised presets (the picker's list while none are advertised) and
          *   the documented Kelvin range in 10 K steps whenever the body offers Kelvin.
+         * - Shutter/aperture: actual advertised values only, with known movie-mode admission.
          */
         fun descriptors(properties: CameraPropertySnapshot, reportedRecording: Boolean?): List<SettingDescriptor> {
             val codec = codec(properties)
