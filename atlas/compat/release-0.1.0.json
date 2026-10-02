@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "07c047ddca605557f6a5dfcd663cee14e2d103b5",
+      "commit": "8e0bed163af5ec0b183cc22c2d4c8c21ff1644b4",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "07c047ddca605557f6a5dfcd663cee14e2d103b5",
-        "where": "Common Luna focus/zoom adoption07c047dd pins030fa040; legacy latest-wins cadence and ProductShowcase vendor extension preserved. Root595/justcheck, generic iOS build-for-testing, privatephone/iPad502each(1existing skip), nativeAndroid696/debug/release/lint/instrumentationcompile passed. Logs/xcresult scratchpad/luna-lens; privatephone compileda223266,padcombinedb1516f97; finalappcodeunchangedafterpinmerge. Physical cameras untested."
+        "commit": "8e0bed163af5ec0b183cc22c2d4c8c21ff1644b4",
+        "where": "SHELL-03 I2 integrated8e0bed163: root595 +just check, private phone and pad502 each/1 existing skip/0 failures; selected UI and actual Android native input/AX/host10 scenarios pass, final2 rendered scenarios pass. Full Android native staging/test/lint/release659 tasks, final bounded packaging549 tasks. Screens/APKs/logs /private/tmp/claude-501/-Users-eriksutton-Work-OpenPocketCine/a08ada23-de94-4bcc-827a-c5609ae1fcb9/scratchpad/codex-shell03-i2. Same shared pin8d9d3f44. Physical cameras untested."
       }
     },
     {

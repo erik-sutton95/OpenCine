@@ -43,11 +43,11 @@ Released app `main` branches take no shared package yet. Each candidate branch b
 |---|---|---|
 | OpenCine | sibling path at `030fa0403f57` | `030fa0403f57` |
 
-### OpenInstaCine `opencine/integration` at `07c047ddca60`
+### OpenInstaCine `opencine/integration` at `8e0bed163af5`
 
 | Package | Apple | Android sibling pin |
 |---|---|---|
-| OpenCine | sibling path at `030fa0403f57` | `030fa0403f57` |
+| OpenCine | sibling path at `8d9d3f44d782` | `8d9d3f44d782` |
 
 ### OpenZCine `opencine/integration` at `dc7778957d81`
 
