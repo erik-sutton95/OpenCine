@@ -123,7 +123,7 @@ let package = Package(
             exclude: ["Fixtures"]),
         // Header-only shim for the NDK's <jni.h>; empty on Darwin.
         .target(name: "OpenCineJNI"),
-        .target(name: "OpenCineDJIAndroid", dependencies: ["OpenCineDJI", "OpenCineJNI"]),
+        .target(name: "OpenCineDJIAndroid", dependencies: ["OpenCineDJI", "OpenCineJNISupport"]),
         .testTarget(name: "OpenCineDJIAndroidTests", dependencies: ["OpenCineDJIAndroid", "OpenCineDJI"]),
 
         // MARK: Nikon
