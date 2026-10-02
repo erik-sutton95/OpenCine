@@ -863,12 +863,12 @@ def versions_table(run):
 
 # ---------------------------------------------------------------- record editing commands
 
-def save_release(run, message):
+def save_release(run, message, extra=()):
     run.release_path.write_text(json.dumps(run.release, indent=2) + "\n")
-    rel = str(run.release_path.relative_to(run.root))
-    git(run.root, "add", "--", rel)
-    git(run.root, "commit", "-q", "-m", message, "--", rel)
-    print(f"committed {rel} in the atlas: {message.splitlines()[0]}")
+    rels = [str(run.release_path.relative_to(run.root)), *extra]
+    git(run.root, "add", "--", *rels)
+    git(run.root, "commit", "-q", "-m", message, "--", *rels)
+    print(f"committed {', '.join(rels)} in the atlas: {message.splitlines()[0]}")
 
 
 def cmd_decide(run, args):
@@ -891,7 +891,18 @@ def cmd_record(run, args):
     head = git(path, "rev-parse", "HEAD")
     e["commit"] = head
     e["evidence"] = {"status": "passed", "commit": head, "where": args.evidence}
-    save_release(run, f"Record {run.name(args.repo)} {e['branch']} at {head[:12]} for publishing")
+    # The registry follows the record: the branch's ref (and an app's edges on that ref) point at
+    # the recorded commit, and compat/VERSIONS.md is regenerated, all in the same commit.
+    m = run.reg[args.repo]
+    role = "baseline" if args.repo == run.platform_id else "candidate"
+    m["refs"] = [r for r in m["refs"] if r["name"] != e["branch"]] + [{"name": e["branch"], "commit": head, "role": role}]
+    for edge in m["edges"]:
+        if edge.get("ref") == e["branch"] and edge.get("evidence"):
+            edge["evidence"]["source_commit"] = head
+    meta = f"repos/{args.repo}/meta.json"
+    (run.root / meta).write_text(json.dumps(m, indent=2) + "\n")
+    (run.root / "compat" / "VERSIONS.md").write_text(versions_table(run))
+    save_release(run, f"Record {run.name(args.repo)} {e['branch']} at {head[:12]} for publishing", [meta, "compat/VERSIONS.md"])
     return OK
 
 

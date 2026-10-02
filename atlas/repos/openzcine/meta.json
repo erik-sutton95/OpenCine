@@ -19,6 +19,11 @@
       "name": "feat/monitor-engine-port",
       "commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62",
       "role": "candidate"
+    },
+    {
+      "name": "opencine/integration",
+      "commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961",
+      "role": "candidate"
     }
   ],
   "products": [
@@ -92,6 +97,30 @@
         "source_commit": "ef38a2646e49c248c089d6bf5d7bfca1c836dd62"
       },
       "note": "Exists only on the unmerged engine-port branch; donor revision not recorded"
+    },
+    {
+      "to": "opencine",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "ref": "opencine/integration",
+      "platforms": [
+        "apple",
+        "android"
+      ],
+      "products": [
+        "OpenCineCore",
+        "OpenCineMedia",
+        "OpenCineFrameIO",
+        "OpenCineApple",
+        "OpenCineNikon",
+        ":core"
+      ],
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961"
+      },
+      "note": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt"
     }
   ],
   "summary_review": {

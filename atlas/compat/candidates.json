@@ -42,7 +42,7 @@
         {
           "repo": "openpocketcine",
           "ref": "opencine/integration",
-          "commit": "7838fb29b8619fbcd34def4f39035a9f5767ddb2",
+          "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
           "dependency": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt",
           "platforms": [
             "apple",
@@ -160,7 +160,7 @@
         {
           "repo": "openinstacine",
           "ref": "opencine/integration",
-          "commit": "64f05896fb82d6600806242bb012cb1322960ed6",
+          "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
           "dependency": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt",
           "platforms": [
             "apple",
@@ -266,6 +266,106 @@
                 "git"
               ],
               "status": "not-run"
+            },
+            {
+              "name": "android-native-staging",
+              "platform": "android",
+              "status": "not-run",
+              "reason": "stageSwiftCore now hashes ../OpenCine/Package.swift and the Sources it links; a fingerprint check is still to be written"
+            }
+          ]
+        },
+        {
+          "repo": "openzcine",
+          "ref": "opencine/integration",
+          "commit": "b3eddb36aa2d3da1677ca2bdd9f7d85994893961",
+          "dependency": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt",
+          "platforms": [
+            "apple",
+            "android"
+          ],
+          "pin_file": "opencine-pins.txt",
+          "checks": [
+            {
+              "name": "swift-test",
+              "platform": "apple",
+              "recipe": "just swift-test",
+              "tools": [
+                "just",
+                "swift"
+              ],
+              "status": "not-run"
+            },
+            {
+              "name": "ios-resolution",
+              "platform": "apple",
+              "recipe": "xcodebuild -resolvePackageDependencies -project ios/Runner.xcodeproj -scheme Runner -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\"",
+              "tools": [
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "expect": [
+                "^\\s*OpenCine: /\\S+/OpenCine( @ local)?$"
+              ],
+              "status": "not-run"
+            },
+            {
+              "name": "ios-build",
+              "platform": "apple",
+              "recipe": "xcodebuild -project ios/Runner.xcodeproj -scheme Runner -destination 'generic/platform=iOS Simulator' -derivedDataPath \"$ATLAS_COMPAT_WORKSPACE/DerivedData\" CODE_SIGNING_ALLOWED=NO build",
+              "tools": [
+                "xcodebuild"
+              ],
+              "resolves_package": true,
+              "status": "not-run"
+            },
+            {
+              "name": "ios-build-identity",
+              "platform": "apple",
+              "status": "not-run",
+              "reason": "no recipe on this branch"
+            },
+            {
+              "name": "android-resolution",
+              "platform": "android",
+              "recipe": "set -o pipefail; cd Apps/Android && ./gradlew -q --no-configuration-cache :app:dependencyInsight --dependency com.opencapture.opencine:core --configuration debugRuntimeClasspath :opencine:core:properties | grep -E \"^projectDir: |-> project ':opencine:core'\"",
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "expect": [
+                "com\\.opencapture\\.opencine:core:\\S+ -> project ':opencine:core'",
+                "^projectDir: \\S+/OpenCine/Android/core$"
+              ],
+              "resolves_package": true,
+              "status": "not-run"
+            },
+            {
+              "name": "android-check",
+              "platform": "android",
+              "recipe": "just android-check",
+              "tools": [
+                "just"
+              ],
+              "env": [
+                "JAVA_HOME",
+                "ANDROID_HOME"
+              ],
+              "status": "not-run"
+            },
+            {
+              "name": "fresh-native-binaries",
+              "platform": "android",
+              "native_outputs": [
+                "Apps/Android/app/build/generated/swiftCore/jniLibs/**/*.so"
+              ],
+              "status": "not-run"
+            },
+            {
+              "name": "android-build-identity",
+              "platform": "android",
+              "status": "not-run",
+              "reason": "no recipe on this branch"
             },
             {
               "name": "android-native-staging",

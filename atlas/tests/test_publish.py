@@ -397,6 +397,16 @@ class EndToEnd(AtlasCase):
         code, out = self.publish()
         self.assertEqual(code, 0, out)
 
+    def test_record_moves_registry_refs_and_versions(self):
+        head = commit(self.ws / "App", {"opencine-pins.txt": "Platform bumped\n"}, "pin bump")
+        code, out = run_publish("record", "app", "--evidence", "fixture rerun")
+        self.assertEqual(code, 0, out)
+        app = json.loads((self.root / "repos" / "app" / "meta.json").read_text())
+        self.assertIn({"name": "opencine/integration", "commit": head, "role": "candidate"}, app["refs"])
+        self.assertEqual(app["edges"][0]["evidence"]["source_commit"], head)
+        self.assertIn(f"`opencine/integration` at `{head[:12]}`", (self.root / "compat" / "VERSIONS.md").read_text())
+        self.assertEqual(sh(self.platform, "status", "--porcelain"), "")  # all three files committed
+
     def test_author_emails_block_and_rewrite(self):
         sh(self.platform, "commit", "-q", "--allow-empty", "-m", "work email", "--author", "W <w@work.example>")
         code, out = run_publish("record", "platform", "--evidence", "fixture rerun")
