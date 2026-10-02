@@ -74,9 +74,9 @@ way. The app sets two hooks at launch: `PTPIPTransport.connectionLog` and
 `USBCameraDeviceBrowser.shared.onEvent` (authorization, attach, detach). Logs use subsystem
 `OpenCineNikon`.
 
-Not here (yet): the generic monitor/assist/preferences stack, the contributed LUT table and
-Frame.io (plan OPTIONAL-01) stay in OpenZCine; the iOS session orchestration
-(`NativeCameraSession`, with its saved-camera store) stays in the app for now.
+Not here (yet): the generic monitor/assist/preferences stack, the contributed
+LUT table and Frame.io composition stay in OpenZCine. The native session and
+wire runtime moved below; its saved-camera store remains app-owned.
 
 ## Discovery behind a dialer (SHELL-02)
 
@@ -118,32 +118,38 @@ the app's own encoders: `Fixtures/saved-cameras/nikon-records-v0-ios.json` (rege
 `OPENCINE_WRITE_FIXTURES=1 swift test --filter NikonSavedRecords`) and
 `nikon-records-v0-android.json` (OpenZCine `SavedCameraRecordsFixtureTest`).
 
-
 ## Monitor lifetime and wire runtime (SHELL-03 Z-1a)
 
-On iOS, `NativeCameraSession` is the integration's real PTP session, including establishment,
-transport ownership, property/descriptor/storage operations and live-view parsing. The app keeps
-its GUID and paired-host store, saved setups, credentials, OS joining and permissions. An optional
-per-session live-view-object callback supplies debug capture without a process-wide app hook.
+On iOS, `NativeCameraSession` is the integration's real PTP session, including
+establishment, transport ownership, property/descriptor/storage operations and
+live-view parsing. The app keeps its GUID and paired-host store, saved setups,
+credentials, OS joining and permissions. An optional per-session live-view-
+object callback supplies debug capture without a process-wide app hook.
 
-`NikonMonitorRuntime` owns common ISO/WB/record queues, selector-first `NikonPropertyBootstrap`,
-the sole `NikonLiveViewPump`, bounded restart escalation, idle keepalive and pushed events. The
-app supplies preview demand and consumes frame/header and bootstrap values; its decoder, effects,
-scopes, UVC picture, relay/watch projection and typed Nikon focus/still actions stay outside this
-wire runtime. Interactive work still precedes maintenance at the existing safe point. A clock
-correction waits for an authoritative idle frame header, never an optimistic app record target.
+`NikonMonitorRuntime` owns common ISO/WB/record queues, selector-first
+`NikonPropertyBootstrap`, the sole `NikonLiveViewPump`, bounded restart
+escalation, idle keepalive and pushed events. The app supplies preview demand
+and consumes frame/header and bootstrap values; its decoder, effects, scopes,
+UVC picture, relay/watch projection and typed Nikon focus/still actions stay
+outside this wire runtime. Interactive work still precedes maintenance at the
+existing safe point. A clock correction waits for an authoritative idle frame
+header, never an optimistic app record target.
 
-The common session keeps its ID during replacement, holds reports while recovering and advances
-its control epoch on readiness. A retired reader drains before a multicam member gets its kept
-link back, without CloseSession or stop-record. Routine covers and display changes drain their
-pending fetch rather than cancelling a kept transaction socket. Short covers keep live view warm;
-a cover lasting 30 seconds stops live view, and resume uses the first-frame deadline. HDMI retains
-its independently owned picture while Nikon's header/control carrier recovers.
+The common session keeps its ID during replacement, holds reports while
+recovering and advances its control epoch on readiness. A retired reader drains
+before a multicam member gets its kept link back, without CloseSession or stop-
+record. Routine covers and display changes drain their pending fetch rather than
+cancelling a kept transaction socket. Short covers keep live view warm; a cover
+lasting 30 seconds stops live view, and resume uses the first-frame deadline.
+HDMI retains its independently owned picture while Nikon's header/control
+carrier recovers.
 
-Both app shells own the common monitor lifetime and `MonitorControlModel` owns pending edits,
-obsolete editors and command receipts. Kotlin reuses the root's `NikonOpenCineSession` instead of
-creating a second screen-owned adapter; `setHoldsControl` supplies relay control surrender without
-changing camera reports. Optional close hooks remain additive for existing consumers. The native
-single-camera monitor, settings and media composition are later shell slices. Scripted tests cover
-queues, bootstrap order, held recovery, cover/header transitions and late-reader retirement;
-physical Nikon behavior remains untested.
+Both app shells own the common monitor lifetime and `MonitorControlModel` owns
+pending edits, obsolete editors and command receipts. Kotlin reuses the root's
+`NikonOpenCineSession` instead of creating a second screen-owned adapter;
+`setHoldsControl` supplies relay control surrender without changing camera
+reports. Optional close hooks remain additive for existing consumers. The native
+single-camera monitor, settings and media composition are later shell slices.
+Scripted tests cover queues, bootstrap order, held recovery, cover/header
+transitions and late-reader retirement; physical Nikon behavior remains
+untested.
