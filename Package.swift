@@ -90,9 +90,12 @@ let package = Package(
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,
         // media endpoints and DJICameraSessionAdapter (OpenCineCore.CameraSession over a
-        // DJIControlPort the app implements). Builds with the Swift Android SDK.
-        .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia"]),
-        .testTarget(name: "OpenCineDJITests", dependencies: ["OpenCineDJI"], exclude: ["Fixtures"]),
+        // DJIControlPort the app implements), plus what each body declares to OpenCineMotion.
+        // Builds with the Swift Android SDK.
+        .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
+        .testTarget(
+            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion"],
+            exclude: ["Fixtures"]),
 
         // MARK: Nikon
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and
@@ -110,12 +113,16 @@ let package = Package(
         .testTarget(name: "Insta360ProtocolTests", dependencies: ["Insta360Protocol"]),
         // ikcp (MIT, LICENSE) plus two thin C shims. Public API: include/.
         .target(name: "CKcp", exclude: ["LICENSE"]),
-        .target(name: "Insta360Apple", dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore"]),
+        .target(
+            name: "Insta360Apple",
+            dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion"]
+        ),
         .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol"]),
         .testTarget(
             name: "Insta360AppleTests",
             dependencies: [
                 "Insta360Apple", "Insta360AppleTestSupport", "Insta360Protocol", "OpenCineCore",
+                "OpenCineMotion",
             ]
         ),
 

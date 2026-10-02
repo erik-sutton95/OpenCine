@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMotion
 
 /// DJI Pocket gimbal reach. Operator-confirmed tilt bounds in display `0x04/0x05` degrees.
 /// That push *is* gimbal space — do not sweep the stick to build a map.
@@ -36,4 +37,26 @@ public enum GimbalReach {
             min(max(pitch0 + lookUp, tiltLo), tiltHi)
         )
     }
+}
+
+extension GimbalReach {
+    /// The reach as declared motion bounds (pan unwrapped about the gap middle).
+    public static let bounds = MotionBounds(
+        pan: panMinDeg...panMaxDeg, tilt: tiltMinDeg...tiltMaxDeg)
+}
+
+extension MotionCapabilities {
+    /// What the Pocket gimbal declares to shared motion: handle-frame pan and tilt inside
+    /// `GimbalReach`, zoom through native program zoom, firmware-paced timed targets (no client
+    /// rate cap), the `0x04/0x05` attitude it reports is the pose (older than 0.3 s is not
+    /// feedback), arrival within 0.15 degrees.
+    public static let pocketGimbal = MotionCapabilities(
+        axes: [.pan, .tilt, .zoom], frame: .handle, bounds: GimbalReach.bounds,
+        maxRateDegPerSec: nil, feedbackMaxAge: .milliseconds(300), arrivalToleranceDeg: 0.15,
+        pose: .supported)
+}
+
+extension CameraModel {
+    /// The body's motion service: the Pocket gimbal, or `nil` for a body without one.
+    public var motion: MotionCapabilities? { hasGimbal ? .pocketGimbal : nil }
 }

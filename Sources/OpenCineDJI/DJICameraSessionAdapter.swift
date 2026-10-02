@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCore
+import OpenCineMotion
 
 /// Wire progress of one camera SET, reported by the app session's `fireCamera` so the
 /// OpenCineCore seam can tell an ACK from a camera-reported value (CORE-02).
@@ -433,15 +434,20 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             : .unknown
         next.power = Self.power(status)
         next.storage = Self.storage(status)
-        let descriptors = descriptors(status)
-        let unsupported = Self.unsupported(session.connectedModel)
-        let revision = snapshot.capabilities.revision
-        if CapabilitySnapshot(
-            revision: revision, descriptors: descriptors, unsupported: unsupported)
-            != snapshot.capabilities
-        {
-            next.capabilities = CapabilitySnapshot(
-                revision: revision.next(), descriptors: descriptors, unsupported: unsupported)
+        next.timecode = Self.timecode(status.timecode).map {
+            ObservedValue($0, origin: .cameraReported, at: nil)
+        } ?? .unknown
+        next.audioLevels = status.audioMeters.map {
+            ObservedValue(Self.audioLevels($0), origin: .cameraReported, at: nil)
+        } ?? .unknown
+        let model = session.connectedModel
+        let declared = CapabilitySnapshot(
+            revision: snapshot.capabilities.revision, descriptors: descriptors(status),
+            unsupported: Self.unsupported(model), timecode: Self.timecodeSupport(model),
+            audioLevels: Self.audioLevelsSupport(model))
+        if declared != snapshot.capabilities {
+            next.capabilities = declared
+            next.capabilities.revision = declared.revision.next()
         }
         guard next != snapshot else { return }
         next.revision = snapshot.revision.next()
@@ -511,6 +517,35 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         return keys
     }
 
+    /// Every body reports `timecode_info` except Nano, whose live and Multi View readouts never
+    /// showed one. Unknown body: unknown.
+    static func timecodeSupport(_ model: CameraModel?) -> SupportStatus {
+        guard let model else { return .unknown }
+        return model.family == .nano ? .unsupported : .supported
+    }
+
+    /// `cam_audio_status_v2` levels. Unknown body: unknown.
+    // ponytail: every body the app connects to has always shown the meter; narrow this per
+    // body once one is captured without `cam_audio_status_v2`.
+    static func audioLevelsSupport(_ model: CameraModel?) -> SupportStatus {
+        model == nil ? .unknown : .supported
+    }
+
+    /// `timecode_info` as decoded (`HH:MM:SS:FF`); `nil` when absent or malformed.
+    static func timecode(_ raw: String?) -> CameraTimecode? {
+        guard let parts = raw?.split(separator: ":").compactMap({ Int($0) }), parts.count == 4
+        else { return nil }
+        return CameraTimecode(hours: parts[0], minutes: parts[1], seconds: parts[2], frames: parts[3])
+    }
+
+    /// The camera-held meter in dBFS. `AudioMeterChannel.peakAge` is display ballistics, not a
+    /// camera report, so it does not cross.
+    static func audioLevels(_ meters: AudioMeterLevels) -> AudioLevels {
+        AudioLevels(
+            left: .init(level: meters.left.levelDB, peak: meters.left.peakDB),
+            right: .init(level: meters.right.levelDB, peak: meters.right.peakDB))
+    }
+
     static func iso(_ index: IsoIndex) -> ISOValue {
         index.isoValue.map(ISOValue.manual) ?? .auto
     }
@@ -568,6 +603,26 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             UInt64(status.storageFreeMb) * 1_048_576, origin: .cameraReported, at: nil)
         return ObservedValue(
             [StorageVolume(id: "active", freeBytes: free)], origin: .cameraReported, at: nil)
+    }
+}
+
+extension DJICameraSessionAdapter {
+    /// What a monitor lays out for the connected body: the Core projection of `current` plus the
+    /// body's motion (`CameraModel.motion`). `base` carries what Core has no vocabulary for yet.
+    /// With no body known, motion stays unknown and the Core projection keeps `base`.
+    public func layout(base: MonitorLayoutCapabilities = .init()) -> MonitorLayoutCapabilities {
+        let capabilities = current.capabilities
+        guard let model = session.connectedModel else {
+            return MonitorLayoutCapabilities(capabilities, base: base)
+        }
+        var layout = MonitorLayoutCapabilities(capabilities, motion: model.motion, base: base)
+        // ponytail: the app drives zoom, focus and aperture with its own DUML calls, not through
+        // this seam, so they are not descriptors and the body table lays them out. Delete these
+        // three lines once the seam routes them.
+        layout.zoom = model.supportsZoom
+        layout.focus = model.supportsFocusMode
+        layout.iris = model.supportsAperture
+        return layout
     }
 }
 

@@ -5,20 +5,13 @@ import OpenCineDJI
 import OpenCineMedia
 import OpenCineNikon
 
-/// Integration-side translations the common sessions do not publish yet: audio meters, shutter
-/// angle and camera clock. They live here so the harness can show what each should carry; each is a
+/// Integration-side translations the common sessions do not publish yet: shutter angle and camera
+/// clock. They live here so the harness can show what each should carry; each is a
 /// proposed adapter addition (README.md, Seam findings), not package behavior. Shared code never calls
-/// them by brand; it only reads the `ObservedValue` they return. The raw unknowns they used to guard
-/// (F3 silent meters, F4 180 degrees) are fixed in the packages; these now only map.
+/// them by brand; it only reads the `ObservedValue` they return. The raw unknown they used to guard
+/// (F4 180 degrees) is fixed in the package; these now only map. DJI audio levels (F3) moved into
+/// the DJI session (SHELL-01).
 public enum ProposedMappings {
-    // MARK: Audio (F3)
-
-    /// DJI meters as an observation: unknown until the camera reports (`audioMeters` is `nil`).
-    public static func djiAudioMeters(_ status: CameraStatus) -> ObservedValue<AudioMeterLevels> {
-        guard let meters = status.audioMeters else { return .unknown }
-        return ObservedValue(meters, origin: .cameraReported, at: nil)
-    }
-
     // MARK: Shutter (F4)
 
     /// DJI reports shutter as `1/denominator`; its angle is derived from that and the frame rate.

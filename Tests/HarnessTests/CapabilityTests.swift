@@ -116,24 +116,15 @@ import Testing
         #expect(plan.exclusions.map(\.reason) == Array(repeating: .rejected(.recordingStateUnknown), count: 3))
     }
 
-    /// Audio: OpenCineCore has live level vocabulary (`CameraSnapshot.audioLevels`), but the DJI
-    /// session does not publish it yet, so its support stays unknown and no shared surface draws a
-    /// meter from the session. The DJI raw meters are unknown until the camera reports (F3 fixed).
+    /// Audio: the DJI session publishes level support for the body (SHELL-01), but before the
+    /// camera reports, the levels are unknown, never measured silence (F3).
     @Test func audioAbsenceNeverFabricatesMeters() async throws {
         let rig = Rig()
         let snapshot = try #require(await rig.dji.currentSnapshot())
-        #expect(snapshot.audioLevels == .unknown)
-        #expect(snapshot.capabilities.audioLevels == .unknown)
-        #expect(
-            MonitorLayoutCapabilities(snapshot.capabilities).audio == false,
-            "unknown support keeps the base, which an integration or app supplies")
-
-        let pocket = CameraStatus()
-        #expect(pocket.audioMeters == nil, "no report is unknown, never measured silence")
-        #expect(ProposedMappings.djiAudioMeters(pocket).isKnown == false)
-        var reported = pocket
-        reported.audioMeters = .silent  // a reported silent input
-        #expect(ProposedMappings.djiAudioMeters(reported).origin == .cameraReported)
+        #expect(snapshot.capabilities.audioLevels == .supported)
+        #expect(snapshot.audioLevels == .unknown, "no report is unknown, never measured silence")
+        #expect(CameraStatus().audioMeters == nil)
+        #expect(MonitorLayoutCapabilities(snapshot.capabilities).audio, "a meter section, empty until reported")
     }
 
     /// Plan 8.3: the Luna time is the phone's own clock carried forward, so it can never establish

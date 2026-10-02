@@ -1,11 +1,11 @@
 import Foundation
 import Testing
 
-/// The package stays UI-free and app-free: sources import Foundation and OpenCineCore products
+/// The package stays UI-free and app-free: sources import Foundation and OpenCine Core-area products
 /// only (plan VENDOR-01 gate "no UI dependency").
 @Suite struct ImportRuleTests {
     @Test func sourcesImportOnlyFoundationAndOpenCineCore() throws {
-        let allowed: Set = ["Foundation", "OpenCineCore", "OpenCineMedia"]
+        let allowed: Set = ["Foundation", "OpenCineCore", "OpenCineMedia", "OpenCineMotion"]
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/OpenCineDJI")

@@ -1,4 +1,5 @@
 import OpenCineCore
+import OpenCineMotion
 import Testing
 
 @testable import OpenCineDJI
@@ -33,6 +34,74 @@ import Testing
         #expect(seam.request(.set(.aperture(2))).stage == .rejected(.unsupported))
         port.connectedModel = nil
         #expect(seam.current.capabilities.support(of: .aperture) == .unknown)
+    }
+
+    /// SHELL-01: what each body publishes and the layout it projects to over an app base that
+    /// carries only clip delete, clip star and the internet hop.
+    @Test func eachBodyPublishesItsLayout() {
+        var base = MonitorLayoutCapabilities()
+        base.clipDelete = true
+        base.clipStar = true
+        base.requiresInternetHop = true
+        func expected(
+            gimbal: Bool, zoom: Bool, focus: Bool, iris: Bool, timecode: Bool, audio: Bool
+        ) -> MonitorLayoutCapabilities {
+            var layout = base
+            (layout.gimbal, layout.headTracking) = (gimbal, gimbal)
+            (layout.zoom, layout.focus, layout.iris) = (zoom, focus, iris)
+            (layout.timecode, layout.audio) = (timecode, audio)
+            return layout
+        }
+        let bodies: [(Int, String, MonitorLayoutCapabilities, SupportStatus)] = [
+            (0x0022, "Osmo Pocket 4 Pro", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported),
+            (0x0020, "Osmo Pocket 3", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported),
+            (0x0018, "Osmo Action 6", expected(gimbal: false, zoom: false, focus: false, iris: true, timecode: true, audio: true), .supported),
+            (0x0019, "Osmo Nano", expected(gimbal: false, zoom: false, focus: false, iris: false, timecode: false, audio: true), .unsupported),
+        ]
+        for (id, name, layout, timecode) in bodies {
+            let port = FakePort()
+            port.connectedModel = CameraModel.resolve(modelId: id, name: name)
+            let seam = DJICameraSessionAdapter(session: port)
+            #expect(seam.layout(base: base) == layout, "\(name)")
+            #expect(seam.current.capabilities.timecode == timecode, "\(name)")
+            #expect(seam.current.capabilities.audioLevels == .supported, "\(name)")
+            #expect((port.connectedModel?.motion != nil) == layout.gimbal, "\(name)")
+        }
+        // No camera: nothing is claimed, so the layout is the base.
+        let port = FakePort()
+        port.connectedModel = nil
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.layout(base: base) == base)
+        #expect(seam.current.capabilities.timecode == .unknown)
+        #expect(seam.current.capabilities.audioLevels == .unknown)
+    }
+
+    @Test func pocketGimbalReportsPoseInsideItsReach() {
+        let gimbal = MotionCapabilities.pocketGimbal
+        #expect(gimbal.pose == .supported)
+        #expect(gimbal.bounds == GimbalReach.bounds)
+        #expect(gimbal.axes == [.pan, .tilt, .zoom])
+        #expect(gimbal.target(GimbalWaypoint(yawDeg: 226, pitchDeg: 0, zoom: 1)) == nil)
+    }
+
+    @Test func timecodeAndAudioLevelsAreCameraReportedOrUnknown() {
+        let port = FakePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.timecode == .unknown)
+        #expect(seam.current.audioLevels == .unknown, "no report is unknown, never silence")
+        port.status.timecode = "05:22:47:18"
+        port.status.audioMeters = AudioMeterLevels(
+            left: AudioMeterChannel(levelDB: -18, peakDB: -12, peakAge: 0.4),
+            right: AudioMeterChannel(levelDB: -20, peakDB: -14))
+        let snapshot = seam.current
+        #expect(snapshot.timecode.value == CameraTimecode(hours: 5, minutes: 22, seconds: 47, frames: 18))
+        #expect(snapshot.timecode.origin == .cameraReported)
+        #expect(
+            snapshot.audioLevels.value
+                == AudioLevels(left: .init(level: -18, peak: -12), right: .init(level: -20, peak: -14)))
+        #expect(snapshot.audioLevels.origin == .cameraReported)
+        port.status.timecode = "--:--"
+        #expect(seam.current.timecode == .unknown)
     }
 
     @Test func undeclaredSettingStaysUnknown() {
