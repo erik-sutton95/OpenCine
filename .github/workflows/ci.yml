@@ -71,9 +71,9 @@ jobs:
         run: scripts/android-vulkan-sync-test.sh
 
   atlas:
-    # Nothing here builds an app, touches another repository, publishes, schedules or merges.
-    # The Graphify build test and the pinned-path eval test skip without app checkouts and report
-    # as skipped, not passed.
+    # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
+    # It reads the public app repositories for the duplication check. The Graphify build test
+    # and the pinned-path eval test skip without app checkouts and report as skipped, not passed.
     name: Atlas check
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -88,3 +88,13 @@ jobs:
       # Informational: consumer builds (`compat run`) need macOS, Xcode and the Android SDK.
       - name: Candidate consumer matrix
         run: python3 atlas/tools/atlas.py compat plan
+      # SHELL-00: code copied between OpenCine and the apps may only shrink. Each app is read at
+      # the commit its registry ref pins; a commit not on GitHub yet is reported as not checked.
+      - name: App sources for the duplication check
+        env:
+          OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
+        run: mkdir -p "$OPENCAPTURE_WORKSPACE" && python3 atlas/tools/atlas.py ensure
+      - name: Duplicated code (no growth against atlas/compat/dupes-baseline.json)
+        env:
+          OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
+        run: python3 atlas/tools/atlas.py dupes --check --top 3

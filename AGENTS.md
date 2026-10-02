@@ -32,6 +32,7 @@ Python; nothing to install. Graphify (`graphifyy` 0.9.11, macOS) is optional.
 | Which repositories a change reaches, in order | `atlas impact <repo> --include-candidates` |
 | Start work on an issue | `atlas task start <repo>#<n> [--with opencine] [--with <app>]` |
 | Navigation graph of all repositories (optional) | `atlas graph build --all --local-only` |
+| How much code is still copied between repositories | `atlas dupes [--top N]` (CI: `--check` against `atlas/compat/dupes-baseline.json`) |
 | Where a checkout is, its branch and worktrees | `atlas locate <repo>` |
 
 Workflows, as skills in `.claude/skills/` (Claude Code loads them; other agents read the files):

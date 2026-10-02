@@ -43,8 +43,8 @@ map). Candidate entries and edges are never live dependencies.
 ## Tool
 
 `tools/atlas.py` is a Python 3 standard-library CLI. Every command except `ensure` (clones
-missing checkouts), `task start` (task worktrees and a brief), `graph build`/`graph merge` and
-`compat run` is read-only. Run it from this folder as below, or
+missing checkouts), `task start` (task worktrees and a brief), `dupes --write-baseline`,
+`graph build`/`graph merge` and `compat run` is read-only. Run it from this folder as below, or
 from the repository root with an `atlas/` prefix (`python3 atlas/tools/atlas.py check`, as CI does).
 
 ```sh
@@ -53,6 +53,7 @@ python3 tools/atlas.py issues              # open issues of every registered Git
 python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call sites (also a path)
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
 python3 tools/atlas.py graph build --all --local-only                   # every repo, merged view
+python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json
 python3 tools/atlas.py doctor              # registry, local paths, tooling, snapshots
 python3 tools/atlas.py locate openzcine    # verified path, branch, commit, dirty, worktrees
 python3 tools/atlas.py deps openinstacine  # typed edges with evidence
