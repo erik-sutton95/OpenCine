@@ -1,0 +1,77 @@
+package com.opencapture.opencine.appkit
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import com.opencapture.monitorui.MonitorFieldLayout
+import com.opencapture.monitorui.MonitorRecordingBorder
+import com.opencapture.monitorui.MonitorRect
+
+/** Operator presentation state, separate from camera telemetry and native picture lifetime. */
+public data class MonitorScreenPresentation(
+    public val visible: Boolean = true, public val interactive: Boolean = true, public val dimmed: Boolean = false,
+    public val transientControlsHidden: Boolean = false, public val pictureWaiting: Boolean = false,
+    public val statusMounted: Boolean = true, public val powerMounted: Boolean = true, public val captureMounted: Boolean = true,
+    public val captureHidden: Boolean = false, public val captureInteractive: Boolean = true, public val locked: Boolean = false,
+    public val popupInteractive: Boolean = false, public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
+)
+
+/** Fixed picture/assist hosts and common chrome placement survive rotation and coverage. */
+@Composable
+public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayout, presentation: MonitorScreenPresentation,
+    modifier: Modifier = Modifier,
+    picture: @Composable BoxScope.() -> Unit,
+    assists: @Composable BoxScope.() -> Unit = {}, signal: @Composable BoxScope.() -> Unit = {},
+    status: @Composable BoxScope.(Boolean) -> Unit = {}, power: @Composable BoxScope.(Boolean) -> Unit = {},
+    capture: @Composable BoxScope.(Boolean) -> Unit = {}, system: @Composable BoxScope.(Boolean) -> Unit = {},
+    tools: @Composable BoxScope.(Boolean) -> Unit = {}, panels: @Composable BoxScope.(Boolean) -> Unit = {},
+    cover: @Composable BoxScope.() -> Unit = {}, recovery: @Composable BoxScope.() -> Unit = {}) {
+    val commonVisible = presentation.visible && !presentation.transientControlsHidden
+    val dim = if (presentation.dimmed) .16f else 1f
+    fun Modifier.visible(shown: Boolean, opacity: Float = 1f): Modifier =
+        alpha(if (shown) opacity else 0f).layout { measurable, constraints ->
+            val child = measurable.measure(constraints)
+            layout(child.width, child.height) { if (shown) child.place(0, 0) }
+        }.then(if (!shown) Modifier.clearAndSetSemantics { } else Modifier)
+    fun Modifier.frame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
+    Box(modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize(), content = picture)
+        Box(Modifier.fillMaxSize(), content = assists)
+        Box(Modifier.frame(layout.picture).visible(presentation.visible && presentation.pictureWaiting), content = signal)
+        if (layout.portrait) Box(Modifier.frame(layout.system).background(Color.Black))
+        Box(Modifier.fillMaxSize().visible(commonVisible, dim)) { tools(commonVisible && presentation.interactive) }
+        if (presentation.statusMounted) Box(Modifier.frame(layout.status).visible(commonVisible, dim)) { status(commonVisible && presentation.interactive) }
+        if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim),
+            contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonVisible && presentation.interactive) }
+        if (presentation.captureMounted) Box(Modifier.frame(layout.values)
+            .visible(commonVisible && !presentation.captureHidden, dim * if (presentation.locked) .4f else 1f),
+            contentAlignment = Alignment.BottomCenter) { capture(commonVisible && presentation.interactive && !presentation.locked && presentation.captureInteractive && !presentation.captureHidden) }
+        Box(Modifier.fillMaxSize().visible(presentation.visible, dim)) { system(presentation.visible && presentation.interactive) }
+        MonitorCameraRecordingBorder(control, presentation.visible)
+        Box(Modifier.fillMaxSize().visible(presentation.visible).zIndex(if (presentation.panelsRaised) 16f else 10f)) { panels(presentation.visible && presentation.popupInteractive) }
+        Box(Modifier.fillMaxSize().zIndex(20f), content = cover)
+        Box(Modifier.fillMaxSize().zIndex(30f), content = recovery)
+    }
+}
+
+/** Record telemetry is observed outside native picture geometry and host ownership. */
+@Composable
+private fun MonitorCameraRecordingBorder(control: MonitorControlModel, visible: Boolean) {
+    val state by control.state.collectAsState()
+    val recording = state.snapshot?.recording?.value == com.opencapture.opencine.core.RecordingState.RECORDING
+    if (visible) MonitorRecordingBorder(recording)
+}
