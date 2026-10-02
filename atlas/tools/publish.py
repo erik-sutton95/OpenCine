@@ -782,7 +782,10 @@ class Run:
         for app in self.release["apps"]:
             self.publish_app(app["repo"])
         print(self.name(self.atlas_id))
-        self.step("atlas", "set repository URLs and refs, edges live once every app PR exists, compat/VERSIONS.md, atlas check --sources, commit, push",
+        # Keyed by the PR state, so a later `--open-prs` run updates the registry again (edges go live).
+        live = all(self.state["steps"].get(f"pr:{self.name(a['repo'])}") for a in self.release["apps"])
+        self.step(f"atlas:{'live' if live else 'candidate'}",
+                  "set repository URLs and refs, edges live once every app PR exists, compat/VERSIONS.md, atlas check --sources, commit, push",
                   self.update_atlas)
         print("finished" if self.execute else "dry run finished: rerun with --execute to act")
         return OK if ok else FAIL

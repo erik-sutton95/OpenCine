@@ -363,6 +363,19 @@ class EndToEnd(AtlasCase):
         self.assertNotIn("run    ", out)
         self.assertEqual(tree_digest(self.ws, self.remote), before)
 
+    def test_prs_later_make_edges_live(self):
+        self.marker.write_text("ok\n")
+        code, out = self.publish("--execute")
+        self.assertEqual(code, 0, out)
+        self.assertIn("skip   pull request", out)
+        lib = json.loads((self.root / "repos" / "lib" / "meta.json").read_text())
+        self.assertEqual((lib["status"], lib["edges"][0]["status"]), ("candidate", "candidate"))
+        self.assertEqual(lib["repository"]["url"], f"{self.base}/Lib")
+        code, out = self.publish("--execute", "--open-prs")
+        self.assertEqual(code, 0, out)
+        lib = json.loads((self.root / "repos" / "lib" / "meta.json").read_text())
+        self.assertEqual((lib["status"], lib["edges"][0]["status"]), ("active", "live"))
+
     def test_preflight_blocks(self):
         rel = self.root / "compat" / "release-0.1.0.json"
         self.release["decisions"]["owner"] = None
