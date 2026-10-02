@@ -19,6 +19,29 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func retiredBindingDoesNotReadNativeSnapshots() async {
+        let camera = FakeCameraSession.djiLike()
+        let (model, _) = model()
+        model.bind(camera)
+        model.unbind()
+        for _ in 0..<20 { await Task.yield() }
+        #expect(await camera.subscriberCount == 0)
+        #expect(model.snapshot == nil)
+    }
+
+    @available(macOS 14, *)
+    @Test func releasedControlsDoNotReadNativeSnapshots() async {
+        let camera = FakeCameraSession.djiLike()
+        var control: MonitorControlModel? = MonitorControlModel()
+        weak var released = control
+        control?.bind(camera)
+        control = nil
+        #expect(released == nil)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(await camera.subscriberCount == 0)
+    }
+
+    @available(macOS 14, *)
     @Test func shownIsThePendingTargetOverTheReport() async {
         let (model, _) = model()
         let camera = FakeCameraSession.lunaLike()
