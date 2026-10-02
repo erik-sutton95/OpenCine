@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "0da23d2c8cd72ea788c3fa265ed34257880a0a70",
+      "commit": "03f05fbc1cb27c5e53defa81ed326680d1cecd7e",
       "role": "baseline"
     }
   ],
@@ -46,7 +46,7 @@
       "note": "path dependency ../OpenCineCore pinned in opencine-pins.txt; Android/settings.gradle.kts includes ../../OpenCineCore/Android (named opencinecore) for com.opencapture.opencine:core",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "0da23d2c8cd72ea788c3fa265ed34257880a0a70"
+        "source_commit": "03f05fbc1cb27c5e53defa81ed326680d1cecd7e"
       }
     }
   ],

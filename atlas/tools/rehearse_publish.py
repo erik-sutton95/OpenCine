@@ -112,6 +112,18 @@ def main(argv=None):
     tool = [sys.executable, atlas / "tools" / "publish.py"]
     pub = [*tool, "--remote-base", base]
 
+    # With a file:// base SwiftPM and Xcode record a lock location without the scheme, which the apps'
+    # own lockfile check (written for https URLs) cannot match. Only in the clones, normalize the
+    # copy the check reads; on GitHub the location is the URL as written and the check runs as is.
+    record = atlas / "compat" / f"release-{args.version}.json"
+    data = json.loads(record.read_text())
+    fix = "sed -i '' 's#\"location\" : \"/#\"location\" : \"file:///#' ios/Package.resolved && "
+    for a in data["apps"]:
+        a["verify"] = [fix + c if "ios-package-resolved-check" in c else c for c in a["verify"]]
+    record.write_text(json.dumps(data, indent=2) + "\n")
+    git(atlas, "commit", "-q", "-am", "rehearsal: lockfile check reads file:// locations")
+    report.append("rehearsal-only change: apps' Package.resolved check runs on a copy with file:// locations restored")
+
     # 2. dry run writes nothing (decisions are still empty in the cloned record: preflight reports them)
     before = fingerprint(repos, bares)
     code, out = run(pub, log=top / "1-dry-run.log", env=env)
