@@ -1,0 +1,257 @@
+{
+  "version": "0.1.0",
+  "note": "Release record for tools/publish.py (RELEASE-01, docs/PUBLISH.md). Packages are listed in tag order. `commit` is what the publish expects on `branch`; `evidence` says where the green run at that commit is recorded. `verify` runs in a clean clone after the URL switch ({base} is the remote base); app `resolve` runs in the app worktree to produce `lockfiles`. Decisions stay null until the user records them with `tools/publish.py decide`.",
+  "decisions": {
+    "owner": null,
+    "visibility": null,
+    "android": null,
+    "author_email": null
+  },
+  "atlas": {
+    "repo": "opencapture-atlas",
+    "branch": "main",
+    "description": "Coordination atlas for the OpenCapture camera apps and the shared OpenCine packages: registry, routing, dependency map and compatibility records"
+  },
+  "packages": [
+    {
+      "repo": "opencinecore",
+      "branch": "main",
+      "commit": "7fe6b8c02c0aa678691fc13ffcfffaccf98fbeca",
+      "description": "OpenCine shared camera contracts, media math, optional Frame.io, motion and relay, and the Apple media runtime (Swift and Kotlin)",
+      "verify": [
+        "swift build --build-tests -Xswiftc -warnings-as-errors",
+        "swift test"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "7fe6b8c02c0aa678691fc13ffcfffaccf98fbeca",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 283 tests / 39 suites (progress.d/RELEASE-01.md)"
+      }
+    },
+    {
+      "repo": "opencineui",
+      "branch": "main",
+      "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94",
+      "description": "OpenCine UI 2.0 design system: SwiftUI and Compose monitor screens and presentation policy",
+      "verify": [
+        "swift test"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "54bcbb31283f6cf028268b382cb82eb6c156ac94",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 119 Swift Testing + 3 XCTest (progress.d/RELEASE-01.md)"
+      }
+    },
+    {
+      "repo": "opencinemulticam",
+      "branch": "main",
+      "commit": "0da23d2c8cd72ea788c3fa265ed34257880a0a70",
+      "description": "Manufacturer-independent multicam engine for OpenCine apps (Swift and Kotlin)",
+      "verify": [
+        "swift build --build-tests -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors",
+        "swift test",
+        "sh scripts/checkout-opencine.sh {base}",
+        "cd Android && ./gradlew test"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "0da23d2c8cd72ea788c3fa265ed34257880a0a70",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 18 tests / 6 suites (progress.d/RELEASE-01.md)"
+      }
+    },
+    {
+      "repo": "opencinedji",
+      "branch": "main",
+      "commit": "e254af11f37fdde305dd231cfbd4a61c080d3318",
+      "description": "DJI camera integration for OpenCine apps: DUML, datalink, camera control and the session adapter",
+      "verify": [
+        "swift build --build-tests",
+        "swift test"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "e254af11f37fdde305dd231cfbd4a61c080d3318",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 377 tests / 47 suites (progress.d/RELEASE-01.md)"
+      }
+    },
+    {
+      "repo": "opencinenikon",
+      "branch": "main",
+      "commit": "85804db5ecd938c3034343987407e15c0582749a",
+      "description": "Nikon camera integration for OpenCine apps: PTP/IP and PTP/USB wire, properties and the session",
+      "verify": [
+        "swift build --build-tests",
+        "swift test"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "85804db5ecd938c3034343987407e15c0582749a",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 582 tests / 26 suites (progress.d/RELEASE-01.md)"
+      }
+    },
+    {
+      "repo": "opencineinsta360",
+      "branch": "main",
+      "commit": "f9159e95ac03f13b89abda50fd46047523d792c4",
+      "description": "Insta360 Luna integration for OpenCine apps: wire protocol, Apple I/O and the Kotlin adapter",
+      "verify": [
+        "swift build --build-tests",
+        "swift test",
+        "xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build",
+        "sh scripts/checkout-opencine.sh {base}",
+        "cd Android && ./gradlew test"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "f9159e95ac03f13b89abda50fd46047523d792c4",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 67 XCTest (progress.d/RELEASE-01.md)"
+      }
+    },
+    {
+      "repo": "opencineharness",
+      "branch": "main",
+      "commit": "d181084224b4d383d191168ae663e770e0943fe9",
+      "description": "Developer-only harness proving cross-brand OpenCine composition with simulated cameras",
+      "verify": [
+        "sh scripts/check-closure.sh",
+        "swift build --build-tests",
+        "swift test > test.log 2>&1; s=$?; cat test.log; [ $s = 0 ] && ! grep -q 'implemented in both' test.log"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "d181084224b4d383d191168ae663e770e0943fe9",
+        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 26 tests / 7 suites, 2 known issues (finding F1) (progress.d/RELEASE-01.md)"
+      }
+    }
+  ],
+  "apps": [
+    {
+      "repo": "openpocketcine",
+      "branch": "opencine/integration",
+      "commit": "377205f42d956b200552764d1a400f5c3b74cc9a",
+      "pr_title": "Adopt the shared OpenCine packages 0.1.0",
+      "work_packages": [
+        "UI-01",
+        "UI-02",
+        "CORE-02",
+        "STATE-01",
+        "MEDIA-01",
+        "MEDIA-02",
+        "VENDOR-01",
+        "MULTI-02",
+        "OPTIONAL-01",
+        "OPTIONAL-02"
+      ],
+      "checklist": "docs/OPENCINE-INTEGRATION.md",
+      "notes_files": [
+        "ios/TestFlight/WhatToTest.en-US.txt",
+        "Apps/Android/Play/WhatToTest.en-US.txt",
+        "Apps/Android/Play/whatsnew/whatsnew-en-US"
+      ],
+      "resolve": [
+        "just ios-resolve",
+        "swift package resolve"
+      ],
+      "lockfiles": [
+        "ios/Package.resolved",
+        "Package.resolved"
+      ],
+      "verify": [
+        "swift test",
+        "bash scripts/ios-package-resolved-check.sh",
+        "cd ios && xcodegen generate",
+        "xcodebuild -resolvePackageDependencies -disableAutomaticPackageResolution -project ios/OpenPocketCine.xcodeproj -scheme OpenPocketCine",
+        "just ios-build",
+        "sh scripts/checkout-opencine.sh {base}",
+        "just android-check"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "377205f42d956b200552764d1a400f5c3b74cc9a",
+        "where": "progress.d/MEDIA-02.md step 4 (opencine/apple 377205f4, fast-forwarded into opencine/integration): root swift test, iOS decoder and display tests, Android assembleDebug; INTEGRATION-2.md for the full suites at c7be029a"
+      }
+    },
+    {
+      "repo": "openinstacine",
+      "branch": "opencine/integration",
+      "commit": "b1e6984507df9bd191cf81707abeec054c7226b8",
+      "pr_title": "Adopt the shared OpenCine packages 0.1.0",
+      "work_packages": [
+        "UI-03",
+        "CORE-02",
+        "STATE-01",
+        "MEDIA-01",
+        "MEDIA-02",
+        "VENDOR-03",
+        "OPTIONAL-02"
+      ],
+      "checklist": "docs/implementation/opencine-integration.md",
+      "notes_files": [
+        "ios/TestFlight/WhatToTest.en-US.txt",
+        "Apps/Android/Play/WhatToTest.en-US.txt",
+        "Apps/Android/Play/whatsnew/whatsnew-en-US"
+      ],
+      "resolve": [
+        "just ios-resolve",
+        "swift package resolve"
+      ],
+      "lockfiles": [
+        "ios/Package.resolved",
+        "Package.resolved"
+      ],
+      "verify": [
+        "swift test",
+        "bash scripts/ios-package-resolved-check.sh",
+        "cd ios && xcodegen generate",
+        "xcodebuild -resolvePackageDependencies -disableAutomaticPackageResolution -project ios/OpenInstaCine.xcodeproj -scheme OpenInstaCine",
+        "just ios-build",
+        "sh scripts/checkout-opencine.sh {base}",
+        "just android-check"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "b1e6984507df9bd191cf81707abeec054c7226b8",
+        "where": "progress.d/MEDIA-02.md step 4 (opencine/apple b1e6984): root swift test 729, iOS 539 (1 skip), Android assembleDebug; INTEGRATION-2.md for the Android suites"
+      }
+    },
+    {
+      "repo": "openzcine",
+      "branch": "opencine/integration",
+      "commit": "5b0ed62e607c6bc0e93df60be131640c2b50e818",
+      "pr_title": "Adopt the shared OpenCine packages 0.1.0",
+      "work_packages": [
+        "CORE-02",
+        "STATE-01",
+        "MEDIA-01",
+        "MEDIA-02",
+        "VENDOR-02",
+        "OPTIONAL-01"
+      ],
+      "checklist": "docs/OPENCINE-INTEGRATION.md",
+      "notes_files": [
+        "ios/TestFlight/WhatToTest.en-US.txt",
+        "Apps/Android/distribution/whatsnew/whatsnew-en-US"
+      ],
+      "resolve": [
+        "xcodebuild -resolvePackageDependencies -project ios/Runner.xcodeproj -scheme Runner",
+        "swift package resolve"
+      ],
+      "lockfiles": [
+        "Package.resolved",
+        "ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+      ],
+      "verify": [
+        "swift test",
+        "xcodebuild -resolvePackageDependencies -disableAutomaticPackageResolution -project ios/Runner.xcodeproj -scheme Runner",
+        "just ios-build",
+        "sh scripts/checkout-opencine.sh {base}",
+        "just android-check"
+      ],
+      "evidence": {
+        "status": "passed",
+        "commit": "5b0ed62e607c6bc0e93df60be131640c2b50e818",
+        "where": "progress.d/MEDIA-02.md step 4 (opencine/apple 5b0ed62e): root swift test 781, RunnerTests 121 XCTest (2 skipped) + 98 Swift Testing, Android assembleDebug"
+      }
+    }
+  ]
+}

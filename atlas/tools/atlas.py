@@ -22,7 +22,7 @@ import manifests  # noqa: E402
 import resolver  # noqa: E402
 
 ATLAS_VERSION = resolver.ATLAS_VERSION
-LAYERS = {"app", "ui", "core", "multicam", "vendor", "atlas"}
+LAYERS = {"app", "ui", "core", "multicam", "vendor", "harness", "atlas"}
 BUILD_KINDS = {"library", "contract", "generates"}
 PROPAGATING = BUILD_KINDS | {"source-copy"}
 KINDS = PROPAGATING | {"runtime", "documents", "tests"}
@@ -33,6 +33,7 @@ FORBIDDEN = {
     "vendor": {"ui", "app"},
     "multicam": {"vendor", "ui", "app"},
     "ui": {"vendor", "app"},
+    "harness": {"ui", "app"},
 }
 ACTIONS = {
     "library": "rebuild and test against the changed product",
@@ -132,8 +133,8 @@ def _edge_errors(rid, m, e, reg, ref_names):
 def _direction_errors(from_layer, to_layer, kind):
     if kind not in BUILD_KINDS:
         return []
-    if to_layer == "atlas":
-        return ["forbidden: nothing may build against the atlas"]
+    if to_layer in ("atlas", "harness"):
+        return [f"forbidden: nothing may build against the {to_layer}"]
     if to_layer in FORBIDDEN.get(from_layer, ()):
         return [f"forbidden: {from_layer} must not depend on {to_layer} ({kind})"]
     return []

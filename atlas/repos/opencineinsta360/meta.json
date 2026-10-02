@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "57a354f263e379e478c5fe8a91ba886e8b010674",
+      "commit": "f9159e95ac03f13b89abda50fd46047523d792c4",
       "role": "baseline"
     }
   ],
@@ -26,6 +26,23 @@
       "name": "Insta360Apple",
       "kind": "swift-library",
       "manifest": "Package.swift"
+    },
+    {
+      "name": "Insta360AppleTestSupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": ":insta360-shell",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:insta360-shell"
+    },
+    {
+      "name": ":insta360-luna",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:insta360-luna"
     }
   ],
   "instructions": [
@@ -44,7 +61,7 @@
       "note": "path dependency ../OpenCineCore pinned in opencine-pins.txt",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "57a354f263e379e478c5fe8a91ba886e8b010674"
+        "source_commit": "f9159e95ac03f13b89abda50fd46047523d792c4"
       }
     }
   ],

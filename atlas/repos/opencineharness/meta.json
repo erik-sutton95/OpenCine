@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "id": "opencineharness",
+  "display_name": "OpenCineHarness",
+  "status": "candidate",
+  "layer": "harness",
+  "repository": {
+    "url": null,
+    "default_branch": "main"
+  },
+  "local_dir": "OpenCineHarness",
+  "refs": [
+    {
+      "name": "main",
+      "commit": "d181084224b4d383d191168ae663e770e0943fe9",
+      "role": "baseline"
+    }
+  ],
+  "products": [
+    {
+      "name": "HarnessEngine",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "HarnessComposition",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    }
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "edges": [
+    {
+      "to": "opencinecore",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+      }
+    },
+    {
+      "to": "opencinemulticam",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+      }
+    },
+    {
+      "to": "opencinedji",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+      }
+    },
+    {
+      "to": "opencinenikon",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+      }
+    },
+    {
+      "to": "opencineinsta360",
+      "kind": "library",
+      "status": "candidate",
+      "confidence": "confirmed",
+      "platforms": [
+        "apple"
+      ],
+      "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
+      "evidence": {
+        "path": "Package.swift",
+        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+      }
+    }
+  ],
+  "summary_review": null
+}

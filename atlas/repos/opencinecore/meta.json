@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "ada28713082bb9a0d371671c89ce2272c852a9b3",
+      "commit": "7fe6b8c02c0aa678691fc13ffcfffaccf98fbeca",
       "role": "baseline"
     }
   ],
@@ -33,10 +33,36 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineFrameIO",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineMotion",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineRelay",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
+      "name": "OpenCineApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": ":core",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:core"
+    },
+    {
+      "name": ":media",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:media"
     }
   ],
   "instructions": [
