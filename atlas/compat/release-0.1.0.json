@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "d290569508f58b40f9dc9fb45e014f4149d68e55",
+      "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "d290569508f58b40f9dc9fb45e014f4149d68e55",
-        "where": "SHELL-03 I-1 d290569 (pin OpenCine 8563c79): just check, core-test 595 + Insta360 69 XCTest + 11, android-check (monitor 695), iOS 501 on private iPhone 16 Pro and iPad Pro 13 (1 existing skip), SIMULATED screens shell-03-screens/insta-i1-*; notes progress.d/SHELL-03.md"
+        "commit": "689523aa1994dc770caf29b6ae2ebdaee10199a6",
+        "where": "SHELL-02 follow-ups: Swift595, just check/handbook27; helper-free private iPhone/iPad502 each (one existing skip); Android test lint assembleRelease555tasks monitor696; installed five-stage exact legacy and credential readbacks both platforms; legal/rename/clear UI both platforms and orientations, 60 iOS attachments. scratchpad/codex-pages-insta/logs; hardware untested."
       }
     },
     {
