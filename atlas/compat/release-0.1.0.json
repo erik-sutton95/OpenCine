@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "5b8343602da4748826c6cf8ba911b1e70e8a571c",
+      "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "5b8343602da4748826c6cf8ba911b1e70e8a571c",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
+        "commit": "6c8807c6e1cb61daf95c9e9128ef99c484f66085",
+        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-insta.md (2026-10-02: root swift test 717, iOS suite 539 + 1 skip on a private simulator, Gradle test assembleDebug lint green)"
       }
     },
     {

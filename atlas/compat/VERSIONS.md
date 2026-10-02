@@ -43,13 +43,11 @@ Released app `main` branches take no shared package yet. Each candidate branch b
 |---|---|---|
 | OpenCine | sibling path at `e29bbcf333f8` | `e29bbcf333f8` |
 
-### OpenInstaCine `opencine/integration` at `5b8343602da4`
+### OpenInstaCine `opencine/integration` at `6c8807c6e1cb`
 
 | Package | Apple | Android sibling pin |
 |---|---|---|
-| OpenCineCore | sibling path at `23adfdf02366` | `23adfdf02366` |
-| OpenCineInsta360 | sibling path at `f8f4c2721e81` | `f8f4c2721e81` |
-| OpenCineUI | sibling path at `54bcbb31283f` | `54bcbb31283f` |
+| OpenCine | sibling path at `ee71891e5bb1` | `ee71891e5bb1` |
 
 ### OpenZCine `opencine/integration` at `f3a144acd52d`
 
