@@ -142,6 +142,9 @@ before the run>`.
 - **Atlas**: the run already passed `atlas check --sources`. Review `compat/VERSIONS.md` and the
   atlas CI run on GitHub.
 - **Device checklists**: linked from each PR body; nothing here is hardware-qualified.
+- **OpenInstaCine sync overlay**: `scripts/apply-openpocketcine-overlays.py` still injects
+  `OpenCineInsta360: path: ../../OpenCineInsta360` into `ios/project.yml` after a Pocket sync.
+  Change it to the URL + `exactVersion` form before the next sync (RELEASE-01 sync audit).
 
 After an app PR merges: move that app's atlas `refs` to the merged commit, record its `library`
 edges as `live` with manifest evidence, remove `source-copy` edges only for paths the app no

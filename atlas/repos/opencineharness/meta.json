@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "d181084224b4d383d191168ae663e770e0943fe9",
+      "commit": "cb099b575067e1e073f06e89cf08573d186bb305",
       "role": "baseline"
     }
   ],
@@ -44,7 +44,7 @@
       "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+        "source_commit": "cb099b575067e1e073f06e89cf08573d186bb305"
       }
     },
     {
@@ -58,7 +58,7 @@
       "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+        "source_commit": "cb099b575067e1e073f06e89cf08573d186bb305"
       }
     },
     {
@@ -72,7 +72,7 @@
       "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+        "source_commit": "cb099b575067e1e073f06e89cf08573d186bb305"
       }
     },
     {
@@ -86,7 +86,7 @@
       "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+        "source_commit": "cb099b575067e1e073f06e89cf08573d186bb305"
       }
     },
     {
@@ -100,7 +100,7 @@
       "note": "path dependency pinned in opencine-pins.txt (one dependency closure, scripts/check-closure.sh)",
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "d181084224b4d383d191168ae663e770e0943fe9"
+        "source_commit": "cb099b575067e1e073f06e89cf08573d186bb305"
       }
     }
   ],
