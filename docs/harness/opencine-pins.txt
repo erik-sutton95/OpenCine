@@ -1,0 +1,9 @@
+# Exact revisions of the OpenCine packages this harness composes. CI checks out these commits as
+# siblings (scripts/checkout-opencine.sh) and verifies each SHA, so a moved branch upstream cannot
+# change what is tested. Locally the script only reports drift; it never moves your checkouts.
+# Bump a pin when you rerun the harness against a newer package revision.
+OpenCineCore 3e60644d7ab20e1ef64662ada06deffbf8aa8c04
+OpenCineMulticam 48b0730c050b22a0f53b912c2ca75da4bd9551c0
+OpenCineDJI 15ab51fe34e823fd82e1c6bae99f827dc0e59e09
+OpenCineNikon ea4bbcd8a47727e7b313c626cc10bff9c0d5f31c
+OpenCineInsta360 f8f4c2721e81de2f851f997eae09f1e9da67636d
