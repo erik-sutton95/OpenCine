@@ -33,6 +33,8 @@ public enum MonitorCapturePresentation {
         case .iso: "ISO"
         case .shutter: "SHUTTER"
         case .whiteBalance: "WB"
+        case .exposureCompensation: "EV"
+        case .focusMode: "FOCUS"
         default: nil
         }
     }
@@ -49,6 +51,12 @@ public enum MonitorCapturePresentation {
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"
+        case .exposureCompensation(let stops):
+            stops.numerator == 0 ? "0.0" : (stops.numerator < 0 ? "−" : "+")
+                + String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), abs(stops.doubleValue))
+        case .focusMode(.manual): "MF"
+        case .focusMode(.single): "AF-S"
+        case .focusMode(.continuous): "AF-C"
         default: ""
         }
     }

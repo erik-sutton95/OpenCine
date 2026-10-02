@@ -7,6 +7,22 @@ import Testing
 /// SIMULATED descriptor and confirmation scenarios. Kotlin mirrors the same names.
 @MainActor
 @Suite struct MonitorCapturePresentationTests {
+    @Test func commonExposureAndFocusLabelsPreserveTypedDomainValues() {
+        let values: [SettingValue] = [
+            .exposureCompensation(Rational(-1, 3)), .exposureCompensation(Rational(0, 1)),
+            .exposureCompensation(Rational(2, 3)), .focusMode(.single), .focusMode(.continuous),
+        ]
+        let domain = SettingDomain(choices: values)
+        let exposure = MonitorCapturePresentation.choices(.exposureCompensation, domain: domain)
+        #expect(exposure.map(\.value) == Array(values.prefix(3)))
+        #expect(exposure.map(\.label) == ["−0.3", "0.0", "+0.7"])
+        let focus = MonitorCapturePresentation.choices(.focusMode, domain: domain)
+        #expect(focus.map(\.value) == Array(values.suffix(2)))
+        #expect(focus.map(\.label) == ["AF-S", "AF-C"])
+        #expect(MonitorCapturePresentation.title(.exposureCompensation) == "EV")
+        #expect(MonitorCapturePresentation.title(.focusMode) == "FOCUS")
+    }
+
     @available(macOS 14, *)
     @Test func absentReportDoesNotSelectTheFirstDrumDetent() async throws {
         let camera = FakeCameraSession(behavior: FakeCameraSession.lunaLike().behavior,
