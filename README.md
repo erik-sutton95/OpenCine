@@ -54,6 +54,15 @@ The package has no third-party dependencies, so linking one product resolves not
 Each app pins one commit of this repository in its `opencine-pins.txt` (`OpenCine <sha>`);
 `scripts/checkout-opencine.sh` in the app checks it out next to the app in CI.
 
+## Work on every app from here
+
+Open this repository in your editor or agent and work on all three apps from it: the atlas
+clones missing app checkouts next to it (`python3 atlas/tools/atlas.py ensure`), lists the open
+issues of every repository (`issues`), shows which apps use a symbol or file and where
+(`impact <symbol or path>`) and turns an issue into a task folder with one worktree per repository
+(`task start <repo>#<n>`). The workflow and rules are in [AGENTS.md](AGENTS.md); agent skills for
+issues, triage and propagating a shared change are in `.claude/skills/`.
+
 ## Develop locally with an app
 
 Check this repository out next to the app (`~/Work/OpenCine` beside `~/Work/OpenPocketCine`).

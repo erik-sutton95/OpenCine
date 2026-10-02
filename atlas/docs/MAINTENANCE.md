@@ -68,6 +68,7 @@ Run these when the trigger happens; there is no scheduler.
 | Ownership or dependency changed after an authorized merge | Update edges and refs; remove a `source-copy` edge only once the consumer really uses the package; re-read the summary and bump `summary_review`. |
 | A package candidate is validated against consumers | Record the package SHA, consumer SHAs and check recipes in `compat/candidates.json`, run `atlas compat run <id>` and commit both files ([EXECUTION.md](EXECUTION.md#candidate-consumer-validation-ops-01)). |
 | Navigation graph needed for a repo | `atlas graph plan <repo>@<ref>`, then `atlas graph build <repo>@<ref> --local-only`, one repo at a time. Commit the snapshot folder only. |
+| Cross-repo navigation view needed | `atlas graph build --all --local-only`: each repository at the ref it builds OpenCine on (else its baseline), then a merged view of only those in `graphify-out/` that `atlas impact <symbol>` reads for call-site hints. About two minutes. Without Graphify it exits 3 and `impact` uses source search. |
 | Community labels need better names | Edit `repos/<id>/snapshots/<sha>/graphify_labels.json`; rebuilds start from that file and keep existing names. No model labeling exists. |
 
 ## Graph provenance

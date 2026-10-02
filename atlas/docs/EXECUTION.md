@@ -23,14 +23,18 @@ State, in the first task update:
    Shared code has one owner repository, `opencine`; its `layers` say which product area a
    target belongs to, and `atlas check` holds every target and Gradle module to the plan's
    direction rules.
-2. For a boundary change, run `atlas impact <owner> --include-candidates`. Then refine against
-   real source: repositories that need edits, generated outputs, consumers that only need
+2. For a boundary change, run `atlas impact <owner> --include-candidates` for the repository
+   order and `atlas impact <symbol or path>` for the owning target, the apps whose manifests link
+   it and their call sites. Then refine against real source: repositories that need edits, generated outputs, consumers that only need
    validation, and unaffected repositories. Treat `INCOMPLETE` as unknown, never as "no
    consumers".
 
 ## 3. Prepare isolated worktrees (implement mode only)
 
-- One task-owned worktree per edited repository, from an explicit base:
+- From an issue: `python3 tools/atlas.py task start <repo>#<n> [--with opencine] [--with <app>]`
+  creates one worktree per repository in one task folder and writes `TASK.md` there (issue text,
+  bases, instructions, identity, gate, cleanup). See [LOCAL_CHECKOUTS.md](LOCAL_CHECKOUTS.md).
+- Otherwise one task-owned worktree per edited repository, from an explicit base:
   `git -C <checkout> worktree add -b <task-branch> <workspace>/<Repo>-worktrees/<task> <base>`.
 - Never switch, reset, clean, pull or stash a primary checkout or another agent's worktree.
 - Load the target repository's own instructions (`AGENTS.md`, `CLAUDE.md`, `README.md`) inside
