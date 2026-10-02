@@ -39,7 +39,7 @@ object MonitorPalette {
     val tile = Color(0xFF222425)
     val zoomGlass = MonitorMaterial.Zoom.tint
     val recHousing = MonitorMaterial.Record.tint
-    /** Brand launchers assign this once, before any view is built (OpenInstaCine: Luna yellow). */
+    /** Brand launchers assign this once, before any view is built (a yellow brand sets yellow here). */
     var accent = Color(0xFF00A3E0)
     val text = Color.White
     val secondary = Color(0xFFCFD4D4)
@@ -52,11 +52,11 @@ object MonitorPalette {
 }
 
 /**
- * Android fixes that already match the shared iOS MonitorUI but change current Pocket and Insta
- * Android rendering: compositor-tone unsampled glass, iOS media tags, uppercased page kickers, and
+ * Android fixes that already match the shared iOS MonitorUI but change the Android rendering of
+ * two shipping apps: compositor-tone unsampled glass, iOS media tags, uppercased page kickers, and
  * the pairing rail back button with a centred portrait footer. Off by default so those apps render
- * exactly as before. OpenZCine turns it on at its root, like [MonitorPalette.accent]. Flip the
- * default and delete this switch once Pocket and Insta accept the iOS look.
+ * exactly as before. An app turns it on at its root, like [MonitorPalette.accent]. Flip the
+ * default and delete this switch once both apps accept the iOS look.
  */
 object MonitorIosParity {
     var enabled = false

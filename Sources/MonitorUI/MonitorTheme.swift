@@ -16,7 +16,7 @@
         nonisolated(unsafe) public static var hdrGain: CGFloat = 1
 
         /// Brand storefronts assign this once at launch, before any view is built.
-        /// The default is the shipped OpenPocketCine iOS accent (0, 163, 230), so an app
+        /// The default is the original donor app's iOS accent (0, 163, 230), so an app
         /// that never assigns it renders exactly as the donor did.
         nonisolated(unsafe) public static var accentRGB: UInt32 = 0x00A3E6
         public static var accent: Color { edrAccent(gain: hdrGain) }

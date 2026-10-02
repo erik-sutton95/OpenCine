@@ -65,6 +65,9 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.
 - Brand differences come in as theme values, never as brand conditionals in shared code.
+- Enforced by `SharedUIRulesTests` (Swift) and `SharedUIRulesTest` (Kotlin): shared UI sources
+  name no brand, product or app, and hold no mutable global outside a short allowlist (accent,
+  HDR headroom, `MonitorIosParity` until it is removed).
 
 ## Checks
 

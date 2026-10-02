@@ -478,7 +478,7 @@
                     lineWidth: 1))
         }
 
-        /// OpenZCine-style setup tabs: one per way in, plus Add setup. Scrolls sideways
+        /// Setup tabs: one per way in, plus Add setup. Scrolls sideways
         /// rather than truncating on a portrait phone.
         private func setupChips(
             connect: @escaping @MainActor @Sendable (CameraListItem, CameraSetupChip) -> Void

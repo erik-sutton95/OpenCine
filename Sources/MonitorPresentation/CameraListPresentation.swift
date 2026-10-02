@@ -14,7 +14,7 @@ public struct CameraListItem: Equatable, Identifiable, Sendable {
     public var isAvailable: Bool
     public var signalBars: Int?
     public var details: [CameraPresentationDetail]
-    /// OpenZCine-style ways to reach this saved body; empty hides the chip row.
+    /// Ways to reach this saved body; empty hides the chip row.
     public var setups: [CameraSetupChip]
     public var canAddSetup: Bool
     /// Connection progress while `isBusy`; empty keeps the one-line status.

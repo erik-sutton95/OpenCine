@@ -1,7 +1,7 @@
 #if os(iOS)
     import SwiftUI
 
-    /// LEVEL laid out like a Nikon Z virtual horizon: a slim opaque dark band with
+    /// LEVEL laid out like an in-camera virtual horizon: a slim opaque dark band with
     /// a white centreline, a cross-bar marker, zero notches and the number at the
     /// start. No glow on the band; the number keeps a faint shadow. Line, marker
     /// and number turn green when level.

@@ -91,7 +91,7 @@ object MonitorConnectProgress {
     }
 }
 
-/** OpenZCine-style setup tabs: one per way in, plus Add setup. Scrolls sideways on a portrait phone. */
+/** Setup tabs: one per way in, plus Add setup. Scrolls sideways on a portrait phone. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MonitorSetupChips(
