@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "5b3f2d558e10437856d834f638644ac2e3223040",
+      "commit": "c1908e39cece669d8e6ef15ba6475c3360314217",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "5b3f2d558e10437856d834f638644ac2e3223040",
-        "where": "OpenPocketCine 5b3f2d55 (2026-10-02, SHELL-04 stage B: DjiNative exports from OpenCine's OpenCineDJIAndroid) against OpenCine b5afe73: just android-check + gradlew test lint assembleRelease green (app 556, monitor-ui 119), libOpenPocketCineAndroid.so 41 Java_ exports = 41 Kotlin externals (30 DjiNative from OpenCineDJIAndroid + 11 SwiftCore), root swift test 339 (= 360 minus the 21 DJI wire tests moved to OpenCine), iOS OpenPocketCine scheme on a private iOS 26.2 simulator 628/0."
+        "commit": "c1908e39cece669d8e6ef15ba6475c3360314217",
+        "where": "OpenPocketCine c1908e39 (2026-10-02, SHELL-04 stage C: PocketCameraSession runs from OpenCine :dji behind PocketSessionHost) against OpenCine 6e381bb, pinned 57d4b42 (adds only Nikon Swift sources Pocket does not link): just android-check + gradlew test lint assembleRelease green (app 508 = 556 minus 48 tests moved to :dji; monitor-ui 119), JNI 41/41, root swift test 339, iOS OpenPocketCine scheme 628/0 on a private iOS 26.2 simulator."
       }
     },
     {
