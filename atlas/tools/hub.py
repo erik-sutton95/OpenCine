@@ -423,7 +423,9 @@ def cmd_task_start(args, reg, root):
     issue, why = fetch_issue(reg[rid], number)
     if args.from_file:
         title, _, body = Path(args.from_file).read_text().strip().partition("\n")
-        issue, why = dict(issue or {}, title=title.strip().lstrip("# "), body=body.strip()), None
+        given = {"title": title.strip().lstrip("# "), "body": body.strip()}
+        issue = dict(issue or {"url": f"text given by the user, not on GitHub ({why})"}, **given)
+        why = None
     rows, pins = [], {}
     for r in repos:
         m = reg[r]
@@ -462,7 +464,14 @@ def cmd_task_start(args, reg, root):
         else:
             print(f"warning: {pid} pin {sha[:12]} not available locally; {by} has no sibling OpenCine in the task folder")
     brief = folder / "TASK.md"
-    brief.write_text(task_brief(rid, number, issue, why, rows, reg, pid))
+    text = task_brief(rid, number, issue, why, rows, reg, pid)
+    if brief.exists():
+        # A rerun (for example --with opencine) keeps what was written into the brief.
+        table = text[text.index("## Worktrees"):text.index("## Routing decision")]
+        with brief.open("a") as fh:
+            fh.write("\n" + table.replace("## Worktrees", "## Worktrees after a rerun of task start", 1))
+    else:
+        brief.write_text(text)
     want = ((resolver.load_local_config(root).get("identity") or {}).get("email") or "")
     want = None if want.startswith("<") else want
     for row in rows:
@@ -490,7 +499,12 @@ def task_brief(rid, number, issue, why, rows, reg, pid):
         f"{', '.join(r['instructions']) or 'README.md'} | `{resolver.git(r['path'], 'config', 'user.email', check=False) or 'unset'}` |"
         for r in rows)
     shared = pid in [r["repo"] for r in rows if r["branch"]]
-    cleanup = "\n".join(f"git -C {r['checkout']} worktree remove {r['path']}" for r in rows)
+    cleanup = "\n".join(f"git -C {r['checkout']} worktree remove {r['path']}" for r in rows) + "".join(
+        f"\ngit -C {r['checkout']} branch -d {r['branch']}   # after it is merged" for r in rows if r["branch"])
+    has_plat = any(r["repo"] == pid for r in rows)
+    sibling = (f"Each app's `../OpenCine` resolves to the OpenCine folder in this task folder, so app builds use\n"
+               f"{'this task branch of OpenCine' if shared else 'the OpenCine commit the app pins'}." if has_plat else
+               "No repository here uses OpenCine at its base (no `opencine-pins.txt`), so there is no OpenCine folder.")
     pins = sorted({(r["repo"], ln.split()[1]) for r in rows if r["repo"] != pid
                    for ln in resolver.git(r["path"], "show", "HEAD:opencine-pins.txt", check=False).splitlines()
                    if len(ln.split()) == 2 and not ln.startswith("#")})
@@ -515,8 +529,7 @@ Issue: {url} (state {(issue or {}).get('state', 'unknown')}, labels {labels})
 |---|---|---|---|---|---|
 {table}
 
-Each app's `../OpenCine` resolves to the OpenCine folder in this task folder, so app builds use
-{'this task branch of OpenCine' if shared else 'the OpenCine commit the app pins'}. Check the commit identity column before the first commit.
+{sibling} Check the commit identity column (the worktree's git config) before the first commit.
 Bases are local refs, read without fetching; fetch in the checkout and start again if they are stale.{pin_note}
 
 ## Routing decision (fill in before editing)
@@ -530,7 +543,8 @@ Bases are local refs, read without fetching; fetch in the checkout and start aga
 1. Decide app-only or shared, from the OpenCine checkout:
    `python3 atlas/tools/atlas.py impact <symbol or path>` (declaration owner, apps that link it, call sites).
 2. Shared code is fixed in OpenCine, never in an app copy.{'' if shared else f''' Add the OpenCine worktree on this
-   task branch with `python3 atlas/tools/atlas.py task start {rid}#{number} --with {pid}`.'''}
+   task branch by rerunning `task start` with the same flags plus `--with {pid}`; existing worktrees
+   and this file are kept.'''}
 3. Follow the capability-not-brand and import rules in OpenCine `AGENTS.md`.
 
 ## Completion gate

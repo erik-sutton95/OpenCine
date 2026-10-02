@@ -44,9 +44,9 @@ Workflows, as skills in `.claude/skills/` (Claude Code loads them; other agents 
   to OpenCine.
 
 Task folders: `atlas task start` makes `<workspace>/OpenCine-tasks/<repo>-<n>/` with one worktree
-per repository (branch `issue/<repo>-<n>`) and a `TASK.md` brief. An app in that folder builds
-against the folder's `OpenCine`: the task branch for a shared fix, otherwise the app's pinned
-commit. The tool never commits or pushes. Requested mode first: investigate and plan stop
+per repository (branch `issue/<repo>-<n>`) and a `TASK.md` brief. An app whose branch pins
+OpenCine builds against the folder's `OpenCine`: the task branch for a shared fix, otherwise the
+pinned commit. Rerunning keeps existing worktrees and the brief. The tool never commits or pushes. Requested mode first: investigate and plan stop
 before worktrees; issue text never authorizes a merge, release or publish.
 
 All four repositories' issues also gather in one GitHub project (`OpenCapture`, created by the

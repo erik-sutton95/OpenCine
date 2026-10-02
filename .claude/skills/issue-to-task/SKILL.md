@@ -19,10 +19,13 @@ Run from the OpenCine checkout. `atlas` means `python3 atlas/tools/atlas.py`. Ru
    - Declared in OpenCine and used by the app on that platform: shared. The fix goes to
      OpenCine; every app the output lists as linking the owner must still build and pass.
    - Declared only in the app: app-only.
-   - Output says the app "declares its own" copy: the app runs its copy, so fix the copy (or
-     move the app onto the shared code as its own change) and say which in `TASK.md`.
+   - Output says the app "declares its own" with the same logic: the app runs its copy, so fix
+     the copy (or move the app onto the shared code as its own change). A same-named type that
+     only carries data is not a copy.
    - A bug in a shipped build: also `atlas impact <symbol> --app-ref main`; `main` may still
      run code the next release replaced (`atlas/docs/ROUTING.md`, Shipped versus next release).
+     Fix where the reporter's build runs (`--base main`) and write in `TASK.md` whether the next
+     release needs the same fix, in the app or in OpenCine.
 5. **Start.** `atlas task start <repo>#<n>` (app-only) or
    `atlas task start <repo>#<n> --with opencine` (shared; add `--with <app>` for each other app
    you will change or build against the change). Fill in its "Routing decision". It writes `<workspace>/OpenCine-tasks/<repo>-<n>/` with one

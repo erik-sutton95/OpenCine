@@ -212,11 +212,16 @@ class Hub(AtlasCase):
 
     def test_task_start_shared_fix_puts_opencine_on_the_task_branch(self):
         self.assertEqual(self.start("app#12")[0], 0)
+        task = self.ws / "OpenCine-tasks" / "app-12"
+        with (task / "TASK.md").open("a") as fh:
+            fh.write("\nDecision: shared, OpenCineMedia.\n")
         code, out = self.start("app#12", "--with", "opencine")
         self.assertEqual(code, 0, out)
-        task = self.ws / "OpenCine-tasks" / "app-12"
         self.assertEqual(sh(task / "OpenCine", "branch", "--show-current"), "issue/app-12")
-        self.assertIn("this task branch of OpenCine", (task / "TASK.md").read_text())
+        brief = (task / "TASK.md").read_text()
+        self.assertIn("Decision: shared, OpenCineMedia.", brief, "a rerun keeps what was written")
+        self.assertIn("## Worktrees after a rerun of task start", brief)
+        self.assertIn("| opencine |", brief.split("after a rerun")[1])
 
     def test_task_start_not_found_is_not_offline_and_pasted_text_fills_the_brief(self):
         missing = subprocess.CompletedProcess([], 1, "", "GraphQL: Could not resolve to an issue or pull request with the number of 77.")
@@ -227,13 +232,15 @@ class Hub(AtlasCase):
             self.assertEqual(code, 0, out)
             self.assertIn("Could not resolve to an issue", out)
             self.assertNotIn("offline", out)
-            code, out = self.run_atlas("task", "start", "app#77", "--from-file", str(pasted))
+            code, out = self.run_atlas("task", "start", "app#78", "--from-file", str(pasted))
         self.assertEqual(code, 0, out)
-        brief = (self.ws / "OpenCine-tasks" / "app-77" / "TASK.md").read_text()
-        self.assertIn("# app#77: Waveform offset in I-Log", brief)
+        brief = (self.ws / "OpenCine-tasks" / "app-78" / "TASK.md").read_text()
+        self.assertIn("# app#78: Waveform offset in I-Log", brief)
         self.assertIn("Gray card sits 10 IRE low.", brief)
         self.assertIn("## Routing decision (fill in before editing)", brief)
         self.assertIn(f"app pins OpenCine {self.plat[:12]}.", brief)
+        self.assertIn("Issue: text given by the user, not on GitHub", brief)
+        self.assertNotIn("issues/78", brief)
 
     def test_task_start_offline_and_base_override(self):
         offline = subprocess.CompletedProcess([], 1, "", "dial tcp: lookup api.github.com: no such host")
@@ -243,7 +250,10 @@ class Hub(AtlasCase):
         task = self.ws / "OpenCine-tasks" / "app-3"
         self.assertEqual(sh(task / "App", "rev-parse", "HEAD"), self.app_main)
         self.assertFalse((task / "OpenCine").exists(), "main has no OpenCine pin")
-        self.assertIn("Not fetched (offline)", (task / "TASK.md").read_text())
+        brief = (task / "TASK.md").read_text()
+        self.assertIn("Not fetched (offline)", brief)
+        self.assertIn("so there is no OpenCine folder", brief)
+        self.assertIn("branch -d issue/app-3", brief)
         self.assertEqual(self.run_atlas("task", "start", "nope#1")[0], 2)
 
     # -- graph build --all
