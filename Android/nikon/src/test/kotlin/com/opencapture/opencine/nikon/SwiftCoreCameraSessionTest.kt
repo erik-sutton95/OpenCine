@@ -35,13 +35,13 @@ import kotlinx.coroutines.test.advanceTimeBy
 class SwiftCoreCameraSessionTest {
     @Test
     fun `wire separates legacy aperture ladder from actual descriptor choices`() {
-        val base = "result=accepted\n" + "captureSelector=video\n" + "iris=f/2.8\n" +
-            "options.iris=f/2.8\u001Ff/4.0\n"
+        val base = "result\taccepted\n" + "captureSelector\tvideo\n" + "iris\tf/2.8\n" +
+            "options.iris\tf/2.8\u001Ff/4.0\n"
         val legacy = CameraPropertySnapshotWire.decode(base).snapshot
         assertEquals(listOf("f/2.8", "f/4.0"), legacy.controlCapabilities.irisValues)
         assertTrue(legacy.controlCapabilities.advertisedIrisValues.isEmpty())
         assertTrue(NikonExposureSettings.descriptors(legacy).single().domain!!.choices.isEmpty())
-        val actual = CameraPropertySnapshotWire.decode(base + "options.advertisedIris=f/4.0\n").snapshot
+        val actual = CameraPropertySnapshotWire.decode(base + "options.advertisedIris\tf/4.0\n").snapshot
         assertEquals(listOf("f/4.0"), actual.controlCapabilities.advertisedIrisValues)
         assertEquals(listOf(SettingValue.Aperture(4.0)), NikonExposureSettings.descriptors(actual).single().domain!!.choices)
     }
