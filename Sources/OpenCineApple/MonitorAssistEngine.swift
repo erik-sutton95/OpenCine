@@ -22,8 +22,8 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         public var transfer: MonitorTransfer
         /// False when this result is a late scope bundle. Present already happened.
         public var shouldPresent: Bool
-        /// Presentation time for skip-duplicate. `0` means unknown  -  never skip.
-        public var timeNs: Int64
+        /// Presentation time for duplicate rejection. `nil` means unknown and is never skipped.
+        public var timeNs: Int64?
     }
 
     private struct Frame: @unchecked Sendable { let buffer: CVPixelBuffer }
@@ -35,7 +35,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     private var pendingBuffer: CVPixelBuffer?
     private var pendingEffects = MonitorAssistPolicy()
     private var pendingTransfer = MonitorTransfer.rec709
-    private var pendingTimeNs: Int64 = 0
+    private var pendingTimeNs: Int64?
     private var pendingCompletion: (@Sendable (Result) -> Void)?
     private var busy = false
     private var nextScopeAt: CFAbsoluteTime = 0
@@ -82,7 +82,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         _ buffer: CVPixelBuffer,
         effects: MonitorAssistPolicy? = nil,
         transfer: MonitorTransfer? = nil,
-        timeNs: Int64 = 0,
+        timeNs: Int64? = nil,
         completion: @escaping @Sendable (Result) -> Void
     ) {
         let frame = Frame(buffer: buffer)
@@ -99,7 +99,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     public func reset() {
         queue.async { [self] in
             pendingBuffer = nil
-            pendingTimeNs = 0
+            pendingTimeNs = nil
             pendingCompletion = nil
             busy = false
             nextScopeAt = 0
