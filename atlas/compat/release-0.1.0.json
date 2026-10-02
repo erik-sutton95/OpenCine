@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "a6f403a224237d11a9e0c5f8e8f55c5244a7748e",
+      "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "a6f403a224237d11a9e0c5f8e8f55c5244a7748e",
-        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (full sweep 07:32-07:43) plus a pins/docs-only re-pin commit after the identity rewrite; root swift test re-run green on the new head"
+        "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
+        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-pocket.md (2026-10-02: root swift test 362, iOS suite 627 on a private simulator, just android-check green)"
       }
     },
     {
