@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
+      "commit": "b7164c9e96ef236b5abdb1a8c93bc840275726ea",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "c53d78ed914545ec5c6bc9b4d2cf251827d45c01",
-        "where": "OpenCine-Execution-Progress.d/CONSOLIDATE-pocket.md (2026-10-02: root swift test 362, iOS suite 627 on a private simulator, just android-check green)"
+        "commit": "b7164c9e96ef236b5abdb1a8c93bc840275726ea",
+        "where": "opencine/integration b7164c9e pins OpenCine 491ce30 (2026-10-02): root swift test 362; iOS unit suite 627/0 on a private simulator (626 baseline + 1 test added in MEDIA-02 step 4); just android-check green (app 842, monitor-ui 117, Vulkan sync test); one OpenCine in SwiftPM/Xcode/Gradle, one libopc_vulkan.so. iOS/Android ran at OpenCine ee71891 (code-identical)."
       }
     },
     {
