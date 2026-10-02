@@ -241,9 +241,11 @@ public object CamerasMapping {
 
     private fun sighting(camera: SavedCamera, state: CamerasModel.State) = state.nearby.firstOrNull { matches(it, camera) }
 
-    private fun addableRoutes(camera: SavedCamera, model: CamerasModel): Set<RouteKind> =
-        model.entries.firstOrNull { it.integration.id == camera.integration }?.integration?.profiles
-            ?.flatMapTo(mutableSetOf()) { it.addableRoutes }.orEmpty()
+    /** The routes the camera's profile (matched by model title) can add; without one, any the integration can add. */
+    private fun addableRoutes(camera: SavedCamera, model: CamerasModel): Set<RouteKind> {
+        val profiles = model.entries.firstOrNull { it.integration.id == camera.integration }?.integration?.profiles ?: return emptySet()
+        return profiles.firstOrNull { it.title == camera.model }?.addableRoutes ?: profiles.flatMapTo(mutableSetOf()) { it.addableRoutes }
+    }
 
     private fun route(target: ConnectTarget): ConnectionRouteID? = (target as? ConnectTarget.Saved)?.route
 }

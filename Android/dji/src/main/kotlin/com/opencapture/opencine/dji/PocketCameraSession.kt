@@ -122,7 +122,7 @@ class PocketCameraSession(
     private val appHost: PocketSessionHost,
     borrowing: HevcDecoder? = null,
     private val controlLease: MultiviewControlLease? = null,
-) : PocketControlPort {
+) : PocketControlPort, DjiConnectPort {
     init { require(controlLease == null || borrowing != null) }
     val isMultiviewControlOnly: Boolean get() = controlLease != null
     private fun controlLeaseAllows(): Boolean = controlLease?.allows() != false
@@ -184,12 +184,15 @@ class PocketCameraSession(
 
     private val _phase = MutableStateFlow(ConnectionPhase.IDLE)
     val phase: ConnectionPhase get() = _phase.value
-    val phaseFlow: StateFlow<ConnectionPhase> = _phase.asStateFlow()
+    override val phaseFlow: StateFlow<ConnectionPhase> = _phase.asStateFlow()
 
     private val _failure = MutableStateFlow<String?>(null)
     val failure: StateFlow<String?> = _failure.asStateFlow()
+    /** [failure] typed: reason, phase, the same copy (SHELL-02). */
+    private val _failureDetail = MutableStateFlow<com.opencapture.opencine.core.ConnectionFailure?>(null)
+    override val failureDetail: StateFlow<com.opencapture.opencine.core.ConnectionFailure?> = _failureDetail.asStateFlow()
 
-    val found: StateFlow<List<FoundCamera>> = ble.found
+    override val found: StateFlow<List<FoundCamera>> = ble.found
     val radioOn: StateFlow<Boolean> get() = ble.radioOn
     private val _status = MutableStateFlow(CameraStatus())
 
@@ -306,7 +309,7 @@ class PocketCameraSession(
 
     var connectedCamera: FoundCamera? = null
         private set
-    var joinedSSID: String? = null
+    override var joinedSSID: String? = null
         private set
 
     /** Setup for the next connect (#406); session recovery reuses it. Disconnect resets it. */
@@ -322,7 +325,7 @@ class PocketCameraSession(
     private var stationSeq = 1200
     /** Station provisioning step; the camera card shows it over the phase label. */
     private val _setupProgress = MutableStateFlow<String?>(null)
-    val setupProgress: StateFlow<String?> = _setupProgress.asStateFlow()
+    override val setupProgress: StateFlow<String?> = _setupProgress.asStateFlow()
     private val cameraPath: CameraNetworkPath
         get() = if (connectionSetup.movesCamera) station else joiner
 
@@ -386,7 +389,7 @@ class PocketCameraSession(
         }
 
     /** OpenCineCore seam for ISO, white balance and record (CORE-02). UI controls submit here. */
-    val control: DjiCameraSessionAdapter
+    override val control: DjiCameraSessionAdapter
         get() = controlSeam ?: DjiCameraSessionAdapter(this, scope).also { controlSeam = it }
     private var controlSeam: DjiCameraSessionAdapter? = null
 
@@ -546,9 +549,11 @@ class PocketCameraSession(
         }
     }
 
-    fun startScan() {
+    override fun startScan() {
         startScan(reconnect = null)
     }
+
+    override fun stopScan() = ble.stopScan()
 
     fun startScan(reconnect: String?) {
         reconnectTarget = reconnect
@@ -556,6 +561,7 @@ class PocketCameraSession(
         _isReconnecting.value = reconnect != null
         _phase.value = ConnectionPhase.SCANNING
         _failure.value = null
+        _failureDetail.value = null
         ble.startScan()
         if (reconnectJob == null) {
             reconnectJob =
@@ -570,7 +576,7 @@ class PocketCameraSession(
         }
     }
 
-    fun reconnect(id: String) {
+    override fun reconnect(id: String) {
         if (_phase.value == ConnectionPhase.LIVE && connectedCamera?.id == id &&
             !_recoveryState.value.isRecovering && !holdsMonitor
         ) {
@@ -626,6 +632,7 @@ class PocketCameraSession(
                         "session: connect failed at ${_phase.value.name.lowercase()} — $why",
                     )
                     _failure.value = why
+                    _failureDetail.value = DjiFailures.classify(e, _phase.value, why)
                     _phase.value = ConnectionPhase.FAILED
                 }
             }
@@ -688,7 +695,7 @@ class PocketCameraSession(
         }
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         if (isMultiviewBorrowed) {
             releaseMultiview()
             return
@@ -740,6 +747,7 @@ class PocketCameraSession(
         reportedWhiteBalance = null
         reportedRecording = null
         _failure.value = null
+        _failureDetail.value = null
         _controlNote.value = null
         _controlBusy.value = false
         formatPin = null
@@ -1039,7 +1047,7 @@ class PocketCameraSession(
      * point of a camera a setup left in station role. A live session on another setup must
      * be disconnected first.
      */
-    fun useSetup(
+    override fun useSetup(
         setup: CameraConnectionSetup,
         network: MultiviewNetworkStore.Network?,
         restoreAccessPoint: Boolean,
@@ -2499,6 +2507,7 @@ class PocketCameraSession(
         }
         Log.i(TAG, "link lost: $reason")
         _failure.value = reason
+        _failureDetail.value = DjiFailures.linkLost(reason)
         _phase.value = ConnectionPhase.FAILED
         connectJob?.cancel()
         stopLivePipeline(preserveDecoder = false)
@@ -2509,6 +2518,7 @@ class PocketCameraSession(
         stopLivePipeline(preserveDecoder = false)
         ble.disconnect()
         _failure.value = null
+        _failureDetail.value = null
         _phase.value = ConnectionPhase.FAILED
     }
 

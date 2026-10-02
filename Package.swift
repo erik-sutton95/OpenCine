@@ -118,7 +118,7 @@ let package = Package(
         // Builds with the Swift Android SDK.
         .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
         .testTarget(
-            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion"],
+            name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport"],
             exclude: ["Fixtures"]),
         // Header-only shim for the NDK's <jni.h>; empty on Darwin.
         .target(name: "OpenCineJNI"),

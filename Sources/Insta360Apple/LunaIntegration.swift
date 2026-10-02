@@ -194,7 +194,7 @@ public final class LunaIntegration: CameraIntegration {
         if !(error is CancellationError) {
             var failure =
                 error as? ConnectionFailure
-                ?? .luna(.other, "unexpected", (error as? LocalizedError)?.errorDescription ?? "\(error)")
+                ?? .luna(.other, "unexpected", (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             failure.phase = failure.phase ?? attempt.phase
             attempt.continuation.yield(.failed(failure))
         }

@@ -35,6 +35,7 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
+    testImplementation(testFixtures(project(":core")))
 }
 
 // camfov-vectors.tsv is shared with the Swift CamFovVectorTests (Fixtures/ at the repository root).

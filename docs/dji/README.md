@@ -60,3 +60,25 @@ credential stores, feed incident models, capture value lists and gamepad actions
 stays with the app comes in through `PocketSessionHost`: operator preferences, the feed incident
 recorder and reliability reporting, build identity, and the face detector (`FaceDetectorPort`; the
 app keeps ML Kit). The app keeps all UI.
+
+## Integration contract (SHELL-02)
+
+`DJIIntegration` (Swift, over a `DJIConnectPort` the app's DJI connect pipeline implements in
+step 7) and `DjiIntegration` (Kotlin `:dji`, over a `DjiConnectPort` that `PocketCameraSession`
+implements) are DJI's Core `CameraIntegration`:
+
+- Discovery is `.passive` only (Bluetooth adverts). Profiles: the verified bodies; those that list
+  in Multiview add Wi-Fi and hotspot setups (`MulticamSupport.appears`).
+- One connection at a time over camera Wi-Fi or a Wi-Fi or hotspot setup that moves the camera.
+  Steps are the connect card's ("Connecting over Bluetooth", "Joining camera Wi-Fi" or "Moving the
+  camera to <network>", "Opening the video link" or "Finding the camera", "Starting the
+  picture"); the approval prompt is `approveOnCamera("Approve on the camera")`. A camera whose
+  preferred or last setup moved it connects with `restoreAccessPoint`.
+- Adding a setup (`ConnectTarget.addRoute`) hands the network and password to the pipeline
+  (Kotlin: saved to the shared network store first).
+- Failures keep the session's copy, typed (Kotlin `DjiFailures.classify` where the session catches
+  a connect error, published as `PocketCameraSession.failureDetail` beside the unchanged
+  `failure`); a failed moving setup offers Edit setup, Try again and the camera's own Wi-Fi.
+- The record after a connect: the used route preferred, the joined camera network, the advertised
+  model id (`extras["modelId"]`), the time. `forget` drops the camera's saved Wi-Fi only.
+- Tests: `DJIIntegrationTests` / `DjiIntegrationTest` against fake ports, same method names.

@@ -183,9 +183,13 @@ public enum CamerasMapping {
         model.nearby.first { matches($0, camera) }
     }
 
+    /// The routes the camera's profile (matched by model title) can add; without a matching
+    /// profile, any the integration can add.
     static func addableRoutes(of camera: SavedCamera, in model: CamerasModel) -> Set<RouteKind> {
-        model.entries.first { $0.integration.id == camera.integration }?.integration.profiles
-            .reduce(into: Set<RouteKind>()) { $0.formUnion($1.addableRoutes) } ?? []
+        guard let profiles = model.entries.first(where: { $0.integration.id == camera.integration })?.integration.profiles
+        else { return [] }
+        if let profile = profiles.first(where: { $0.title == camera.model }) { return profile.addableRoutes }
+        return profiles.reduce(into: Set<RouteKind>()) { $0.formUnion($1.addableRoutes) }
     }
 
     static func route(of target: ConnectTarget) -> ConnectionRouteID? {
