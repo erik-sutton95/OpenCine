@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "9ae27021dc34bceca2ae8e8e9fa2bcdfe9d2541d",
+    "commit": "f0f5a52ed35b6131319678a92b1817c3e44554c8",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "9ae27021dc34bceca2ae8e8e9fa2bcdfe9d2541d",
-      "where": "Shared SHELL-02 follow-ups f58035e: Swift1715+72; strict concurrency; Android test lint assembleRelease471tasks; private iPhone/iPad AppKit tests; MonitorUI/Apple builds, atlas91+check and Vulkan sync. All consumers built at this exact candidate, migration/visual evidence in scratchpad/s02-followups and codex-pages-{pocket,insta,nikon}/logs. Hardware untested."
+      "commit": "f0f5a52ed35b6131319678a92b1817c3e44554c8",
+      "where": "SHELL-01 step8 + SHELL-04 JNI, shared f0f5a52: Swift1719+72, strict build, Android830 JVM (2 existing skips), test lint release, MonitorUI/Apple generic iOS, atlas91/check sources and Vulkan passed. scratchpad/jni-helper-task/combined-* and evidence; device checks untested."
     }
   },
   "apps": [
