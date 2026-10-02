@@ -31,7 +31,7 @@ object ShutterAngle {
     fun parse(label: String): Double? {
         val trimmed = label.replace("°", "").trim()
         val value = trimmed.toDoubleOrNull() ?: return null
-        if (value <= 0.0 || value > 360.0) return null
+        if (!value.isFinite() || value <= 0.0 || value > 360.0) return null
         return value
     }
 

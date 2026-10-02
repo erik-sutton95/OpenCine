@@ -28,7 +28,7 @@ coordinates `com.opencapture.opencine:<module>`.
 |---|---|---|---|
 | Core | `OpenCineCore` | `core` | nothing (Foundation; Kotlin stdlib, coroutines) |
 | Core | `OpenCineMedia` | `media` | `OpenCineCore` / `core` |
-| Core | | `platform` (Android Keystore and configured credential storage) | Android framework only |
+| Core | | [`platform`](docs/platform/README.md) (Android Keystore and configured credential storage) | Android framework only |
 | Core | | `decoder` (MediaCodec live-view decoder) | `media` |
 | Core | `OpenCineFrameIO` (optional) | | nothing |
 | Core | `OpenCineMotion` (optional) | | `OpenCineCore` |

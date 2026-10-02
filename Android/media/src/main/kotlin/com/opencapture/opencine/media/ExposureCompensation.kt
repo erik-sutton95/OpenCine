@@ -9,8 +9,8 @@ object ExposureCompensation {
     fun label(thirds: Int): String {
         if (thirds == 0) return "0.0"
         val sign = if (thirds > 0) "+" else MINUS
-        val absolute = abs(thirds)
-        val fraction = listOf(".0", ".3", ".7")[absolute % 3]
+        val absolute = abs(thirds.toLong())
+        val fraction = listOf(".0", ".3", ".7")[(absolute % 3).toInt()]
         return "$sign${absolute / 3}$fraction"
     }
 
@@ -21,16 +21,17 @@ object ExposureCompensation {
         if (!negative && !positive) return null
         val parts = label.drop(1).split('.', limit = 2)
         if (parts.size != 2) return null
-        val whole = parts[0].toIntOrNull() ?: return null
+        val whole = parts[0].toLongOrNull() ?: return null
         val fraction = when (parts[1].toIntOrNull()) {
             0 -> 0
             3 -> 1
             7 -> 2
             else -> return null
         }
+        if (whole < 0 || whole > (Long.MAX_VALUE - fraction) / 3) return null
         val magnitude = whole * 3 + fraction
-        if (magnitude < 0) return null
         val thirds = if (negative) -magnitude else magnitude
-        return thirds.takeIf { it in supportedThirds }
+        if (thirds !in supportedThirds.first.toLong()..supportedThirds.last.toLong()) return null
+        return thirds.toInt()
     }
 }

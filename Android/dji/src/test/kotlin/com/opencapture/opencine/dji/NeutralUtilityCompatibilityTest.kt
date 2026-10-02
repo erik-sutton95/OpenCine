@@ -18,6 +18,12 @@ class NeutralUtilityCompatibilityTest {
         }
     }
 
+    @Test fun malformedCaptureLabelsStayUnknownAtCompatibilityPaths() {
+        assertNull(ShutterAngle.parse("NaN°"))
+        assertNull(EvComp.fromLabel("+1431655766.0"))
+        assertNull(EvComp.fromLabel("-9223372036854775807.0"))
+    }
+
     @Test fun oldIncidentClassifierProjectsAllFailureAndLifecycleInputs() {
         val snapshot = FeedIncidentSnapshot(
             monotonicNow = 20.0,

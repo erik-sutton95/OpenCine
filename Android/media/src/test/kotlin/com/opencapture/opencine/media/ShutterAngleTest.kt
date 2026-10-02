@@ -17,6 +17,10 @@ class ShutterAngleTest {
         assertNull(ShutterAngle.parse("0°"))
     }
 
+    @Test fun nonFiniteAngleLabelsStayUnknown() {
+        for (label in listOf("NaN", "NaN°", "Infinity", "-Infinity", "1e999")) assertNull(ShutterAngle.parse(label))
+    }
+
     @Test fun oneEightyIsAHalfTurnAtAnyFps() {
         for (fps in listOf(24, 25, 30, 50, 60, 120)) {
             assertEquals(fps * 2, ShutterAngle.denom(180.0, fps))
