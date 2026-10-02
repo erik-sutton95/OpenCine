@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "950ad6b73644b00860a4b79105dbf104fb490031",
+      "commit": "fa34f83c867424bb4b9a5a3d2c53a052bc1c313b",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "950ad6b73644b00860a4b79105dbf104fb490031",
-        "where": "Pin38edecfc adds shared Nikon owned runtime and already reviewed common capture foundation; Pocket source otherwise unchanged950ad6b7. Prior consumer root331, Android504, full phone/iPad633 and installed-data/native41 evidence retained. Physical cameras untested."
+        "commit": "fa34f83c867424bb4b9a5a3d2c53a052bc1c313b",
+        "where": "Lens platform consumerfa34f83c pins030fa040; source otherwise unchanged. Combined root331 pass scratchpad/luna-lens/pocket-swift-final.log; prior full consumer Android504/iOS633/installed credential/native41 evidence retained. Shared full combined gates passed. Physical cameras untested."
       }
     },
     {
