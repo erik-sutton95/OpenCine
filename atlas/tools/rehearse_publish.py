@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Rehearse tools/publish.py end to end without GitHub (RELEASE-01, docs/PUBLISH.md).
+"""Rehearse tools/publish.py end to end without GitHub (RELEASE-01, ADR 0009, docs/PUBLISH.md).
 
-Copies the committed atlas, every package and every app branch from compat/release-<v>.json into
-disposable clones next to empty bare repositories behind a file:// base. The real checkouts are
-only read (app clones borrow their objects through alternates and never write to them). Then:
+Copies the platform repository (the committed HEAD of the checkout this atlas runs from, as
+`main`) and every app branch from compat/release-<v>.json into disposable clones next to empty
+bare repositories behind a file:// base. The real checkouts are only read (app clones borrow
+their objects through alternates and never write to them). Then:
 
   1. dry run: must succeed past the decisions it reports and write nothing
   2. decide + rewrite-authors in the clones (the real record keeps its decisions empty)
   3. --execute --open-prs with the file:// base: every step, including clean-clone verification
   4. the same command again: must report every step done and change nothing
-  5. an independent consumer resolving every package tag from the file remotes with exact pins,
-     the way a cross-brand app would (one dependency closure)
+  5. an independent consumer that takes OpenCine 0.1.0 from the file remote by exact version and
+     builds against OpenCineCore, the way a new app would
 
 Usage: python3 tools/rehearse_publish.py [--dir DIR] [--remote DIR] [--version 0.1.0]
 Gradle verify steps need JAVA_HOME and ANDROID_HOME. Standard library only.
@@ -98,8 +99,9 @@ def main(argv=None):
     rel = real.release
     report = [f"publish rehearsal {time.strftime('%Y-%m-%d %H:%M:%S %Z')}, remote base {base}"
               + (" (resumed on the existing clones)" if args.resume else "")]
-    ws, atlas = top / "ws", top / "ws" / real.name(real.atlas_id)
-    names = [real.name(r) for r in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]]
+    ws = top / "ws"
+    atlas = ws / real.name(real.platform_id) / real.atlas_prefix
+    names = [real.name(r) for r in real.packages + [a["repo"] for a in rel["apps"]]]
     repos, bares = [ws / n for n in names], [remote / n for n in names]
     if args.resume:
         if not (atlas / ".local" / "publish-state.json").is_file():
@@ -115,16 +117,16 @@ def main(argv=None):
         (d / ".rehearsal").write_text("disposable\n")
     ws.mkdir()
     remote.mkdir()
-    # 1. clones
-    git(ws, "clone", "-q", str(real.root), str(atlas))
-    git(atlas, "remote", "remove", "origin")
-    email = subprocess.run(["git", "-C", str(real.root), "config", "--local", "user.email"], capture_output=True, text=True).stdout.strip()
-    if email:  # the real atlas commits with its repo-local address; so does its clone
-        git(atlas, "config", "user.email", email)
-    for p in rel["packages"]:
-        dest = ws / real.name(p["repo"])
-        git(ws, "clone", "-q", "--branch", p["branch"], str(real.path(p["repo"])), str(dest))
-        git(dest, "remote", "remove", "origin")
+    # 1. clones. The platform clone is the committed HEAD of the checkout this atlas runs from,
+    # named after the record's branch, so a task branch can be rehearsed before it merges.
+    src, plat = real.path(real.platform_id), ws / real.name(real.platform_id)
+    branch = rel["platform"]["branch"]
+    git(ws, "clone", "-q", "--no-checkout", str(src), str(plat))
+    git(plat, "-c", "advice.detachedHead=false", "checkout", "-q", "-B", branch, git(src, "rev-parse", "HEAD"))
+    git(plat, "remote", "remove", "origin")
+    email = subprocess.run(["git", "-C", str(src), "config", "--local", "user.email"], capture_output=True, text=True).stdout.strip()
+    if email:  # the real repository commits with its repo-local address; so does its clone
+        git(plat, "config", "user.email", email)
     for a in rel["apps"]:
         src = git(real.path(a["repo"]), "rev-parse", "--path-format=absolute", "--git-common-dir")
         dest = ws / real.name(a["repo"])
@@ -134,7 +136,7 @@ def main(argv=None):
         git(dest, "-c", "advice.detachedHead=false", "checkout", "-q", "-B", a["branch"], git(real.path(a["repo"]), "rev-parse", "HEAD"))
         git(dest, "remote", "add", "origin", real.reg[a["repo"]]["repository"]["url"])
         git(dest, "config", "remote.origin.pushurl", "file:///nonexistent/rehearsal-push-disabled")
-    for rid in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]:
+    for rid in real.packages + [a["repo"] for a in rel["apps"]]:
         subprocess.run(["git", "init", "-q", "--bare", str(remote / real.name(rid))], check=True)
         # scripts/checkout-opencine.sh fetches <base>/<Name>.git; GitHub serves both spellings.
         (remote / f"{real.name(rid)}.git").symlink_to(real.name(rid))
@@ -187,34 +189,31 @@ def publish_and_check(args, real, rel, top, remote, base, atlas, repos, bares, r
     report.append(f"4 rerun: exit {code}, steps run again: {len(reran)}, changed nothing: {fingerprint(repos, bares) == before}")
 
     # 5. what landed in the file remotes
-    for rid in real.packages:
-        bare = remote / real.name(rid)
-        tag = git(bare, "rev-parse", f"{args.version}^{{commit}}")
-        kind = git(bare, "cat-file", "-t", args.version)
-        manifest = git(bare, "show", f"{args.version}:Package.swift")
-        ranges = manifest.count(".upToNextMinor(from:")
-        paths = manifest.count(".package(path:")
-        report.append(f"  {real.name(rid)}: {kind} {args.version} -> {tag[:12]}, Package.swift url ranges {ranges}, path deps {paths}")
+    name = real.name(real.platform_id)
+    bare = remote / name
+    tag = git(bare, "rev-parse", f"{args.version}^{{commit}}")
+    kind = git(bare, "cat-file", "-t", args.version)
+    deps = git(bare, "show", f"{args.version}:Package.swift").count(".package(")
+    report.append(f"  {name}: {kind} {args.version} -> {tag[:12]}, Package.swift package dependencies {deps}")
     for a in rel["apps"]:
         bare = remote / real.name(a["repo"])
         head = git(bare, "rev-parse", f"refs/heads/{a['branch']}")
         files = git(bare, "ls-tree", "-r", "--name-only", head).splitlines()
         lock = [f for f in a.get("lockfiles", []) if f in files]
         report.append(f"  {real.name(a['repo'])}: {a['branch']} -> {head[:12]}, lockfiles committed {lock}")
-    report.append(f"  atlas main -> {git(remote / real.name(real.atlas_id), 'rev-parse', 'main')[:12]}")
+    report.append(f"  {name} main (atlas registry update after the tag) -> {git(bare, 'rev-parse', 'main')[:12]}")
 
-    # 6. a cross-brand consumer: every package at exactly the tag, resolved from the file remotes
+    # 6. a new consumer: OpenCine at exactly the tag from the file remote, building one product
     consumer = top / "consumer"
     (consumer / "Sources" / "Consumer").mkdir(parents=True)
-    (consumer / "Sources" / "Consumer" / "Consumer.swift").write_text("// resolution only\n")
-    deps = ",\n".join(f'        .package(url: "{base}/{real.name(r)}", exact: "{args.version}")' for r in real.packages)
+    (consumer / "Sources" / "Consumer" / "Consumer.swift").write_text("import OpenCineCore\n")
     (consumer / "Package.swift").write_text(
         f'// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: "Consumer",\n'
-        f'    platforms: [.iOS(.v17), .macOS(.v14)],\n    dependencies: [\n{deps}\n    ],\n'
-        '    targets: [.target(name: "Consumer")]\n)\n')
-    code, out = run(["swift", "package", "resolve"], cwd=consumer, log=top / "5-consumer-resolve.log")
-    pins = json.loads((consumer / "Package.resolved").read_text())["pins"] if not code else []
-    report.append(f"5 cross-brand consumer resolve: exit {code}, pins " + ", ".join(f"{p['identity']} {p['state'].get('version')}" for p in pins))
+        f'    platforms: [.iOS(.v17), .macOS(.v13)],\n    dependencies: [.package(url: "{base}/{name}", exact: "{args.version}")],\n'
+        f'    targets: [.target(name: "Consumer", dependencies: [.product(name: "OpenCineCore", package: "{name}")])]\n)\n')
+    code, out = run(["swift", "build"], cwd=consumer, log=top / "5-consumer-build.log")
+    pins = json.loads((consumer / "Package.resolved").read_text())["pins"] if (consumer / "Package.resolved").is_file() else []
+    report.append(f"5 consumer resolve + build of OpenCineCore: exit {code}, pins " + ", ".join(f"{p['identity']} {p['state'].get('version')}" for p in pins))
     report.append(f"total {int(time.time() - started)} s")
     (top / "REHEARSAL.txt").write_text("\n".join(report) + "\n")
     print("\n".join(report))
