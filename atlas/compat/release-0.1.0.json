@@ -77,7 +77,7 @@
     {
       "repo": "opencinenikon",
       "branch": "main",
-      "commit": "85804db5ecd938c3034343987407e15c0582749a",
+      "commit": "ea4bbcd8a47727e7b313c626cc10bff9c0d5f31c",
       "description": "Nikon camera integration for OpenCine apps: PTP/IP and PTP/USB wire, properties and the session",
       "verify": [
         "swift build --build-tests",
@@ -85,8 +85,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "85804db5ecd938c3034343987407e15c0582749a",
-        "where": "RELEASE-01 evidence pass 2026-10-02: clean clone, siblings at each package's current main, swift build --build-tests + swift test passed: 582 tests / 26 suites (progress.d/RELEASE-01.md)"
+        "commit": "ea4bbcd8a47727e7b313c626cc10bff9c0d5f31c",
+        "where": "OpenCine-Execution-Progress.d/FINAL-VERIFY.md (2026-10-02 07:32-07:43: package swift test + gradle test; apps root swift test, full iOS suite on a private simulator, Android test/assemble/lint)"
       }
     },
     {
