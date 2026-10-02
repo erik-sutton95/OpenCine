@@ -51,6 +51,18 @@ struct NikonCameraSessionTests {
             whiteBalancePresets: ["Auto", "Natural auto", "Sunny", "Cloudy", "0x8099"])
     }
 
+    /// MULTI-03 F1: observations are stamped on the injected (by default the shared) host clock,
+    /// not on a reference private to this session.
+    @Test func observationsUseTheSharedClock() {
+        let driver = Driver(Self.movieFacts())
+        let at = MonotonicInstant(.seconds(42))
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123", now: { at })
+        #expect(session.refresh().recording.observedAt == at)
+        let shared = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let stamped = shared.refresh().recording.observedAt
+        #expect(stamped.map { MonotonicInstant.now() - $0 < .seconds(1) } == true)
+    }
+
     @Test("Every advertised writable value reaches the write queue; none is silently unsupported")
     func advertisedValuesAreImplemented() {
         var photo = Self.movieFacts()

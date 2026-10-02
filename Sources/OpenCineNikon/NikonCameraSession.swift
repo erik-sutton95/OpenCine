@@ -68,11 +68,12 @@ public protocol NikonControlDriver: AnyObject {
 /// closed with it, so a reconnect is a new session ID.
 @MainActor
 public final class NikonCameraSession: CameraSession {
-    public static let integration = IntegrationID("org.opencapture.nikon-ptp")
+    public nonisolated static let integration = IntegrationID("org.opencapture.nikon-ptp")
 
     public nonisolated let id: CameraSessionID
     private weak var driver: (any NikonControlDriver)?
-    private let started = ContinuousClock.now
+    /// The shared host clock (`MonotonicInstant.now`); tests inject their own.
+    private let now: @Sendable () -> MonotonicInstant
     private let recordObservationTimeout: Duration
     private var current: CameraSnapshot
     private var receipts: [OperationID: CommandReceipt] = [:]
@@ -85,11 +86,13 @@ public final class NikonCameraSession: CameraSession {
 
     public init(
         driver: any NikonControlDriver, serialNumber: String,
-        recordObservationTimeout: Duration = .seconds(5)
+        recordObservationTimeout: Duration = .seconds(5),
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         let session = CameraSessionID()
         id = session
         self.driver = driver
+        self.now = now
         self.recordObservationTimeout = recordObservationTimeout
         let device: CameraDeviceID =
             serialNumber.isEmpty
@@ -105,8 +108,6 @@ public final class NikonCameraSession: CameraSession {
         if case .disconnected = current.connection { return true }
         return false
     }
-
-    private var now: MonotonicInstant { MonotonicInstant(started.duration(to: .now)) }
 
     // MARK: CameraSession
 
@@ -130,7 +131,7 @@ public final class NikonCameraSession: CameraSession {
             operation: operation, session: id, intent: command.intent,
             confirmation: snapshot.capabilities[command.intent.key]?.semantics.confirmation
                 ?? .readback)
-        if let rejection = snapshot.rejection(of: command, at: now) {
+        if let rejection = snapshot.rejection(of: command, at: now()) {
             return transition(operation, .rejected(rejection))
         }
         transition(operation, .admitted)
@@ -267,9 +268,12 @@ public final class NikonCameraSession: CameraSession {
     @discardableResult
     public func refresh() -> CameraSnapshot {
         guard !isClosed, let facts = driver?.nikonControlFacts else { return current }
-        let at = now
+        let at = now()
         var next = current
         next.authority = facts.holdsControl ? .owner : .unavailable(.authority)
+        // Nothing is listed unsupported: every common key exists on Z bodies (lens-, mode- or
+        // firmware-dependent, tint as WB fine-tune), so what this slice does not describe is
+        // unknown, not unsupported (MULTI-03 F6).
         let descriptors = Self.descriptors(facts)
         let revision = next.capabilities.revision
         if CapabilitySnapshot(revision: revision, descriptors: descriptors) != next.capabilities {
