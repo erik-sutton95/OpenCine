@@ -178,20 +178,21 @@
     }
 
     public struct MonitorClock: View {
-        private let clock: String
+        private let clock: String?
         private let fontSize: CGFloat
-        public init(_ clock: String, fontSize: CGFloat = 23) {
+        public init(_ clock: String?, fontSize: CGFloat = 23) {
             self.clock = clock
             self.fontSize = fontSize
         }
         public var body: some View {
-            let split = clock.lastIndex(of: ":")
-            let head = split.map { String(clock[...$0]) } ?? clock
-            let tail = split.map { String(clock[clock.index(after: $0)...]) } ?? ""
+            let displayed = clock ?? "--:--:--"
+            let split = displayed.lastIndex(of: ":")
+            let head = split.map { String(displayed[...$0]) } ?? displayed
+            let tail = split.map { String(displayed[displayed.index(after: $0)...]) } ?? ""
             (Text(head).foregroundColor(.white) + Text(tail).foregroundColor(MonitorTheme.accent))
                 .font(MonitorTheme.font(fontSize, weight: .medium)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.65)
-                .accessibilityLabel("Timecode \(clock)")
+                .accessibilityLabel(clock.map { "Timecode \($0)" } ?? "Timecode not available")
         }
     }
 #endif

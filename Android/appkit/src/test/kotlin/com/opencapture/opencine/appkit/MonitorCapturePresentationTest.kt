@@ -37,6 +37,11 @@ class MonitorCapturePresentationTest {
         assertNull(field.label)
         assertTrue(field.choices.isNotEmpty())
         assertNull(control.recordEditor())
+        val hud = control.statusPresentation(0)
+        assertNull(hud.recording)
+        assertNull(hud.elapsedSeconds)
+        assertNull(hud.timecode)
+        assertEquals("Recording state unknown", hud.recordingAccessibilityLabel)
     }
 
     @Test fun typedDetentsCoalesceWithoutChangingTheReportedValue() = runTest {
