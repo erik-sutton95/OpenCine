@@ -47,9 +47,11 @@ struct NikonPropertyBootstrapTests {
         var current = true
         link.afterRead = { current = false }
         var observations = 0
-        await NikonPropertyBootstrap(link: link).run(isCurrent: { current }) { _ in
-            observations += 1
-        }
+        await NikonPropertyBootstrap(link: link).run(
+            isCurrent: { current },
+            receive: { _ in
+                observations += 1
+            })
         #expect(observations == 0)
         #expect(link.calls == ["read liveViewSelector"])
         #expect(link.clockWrites == 0)
