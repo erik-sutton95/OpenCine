@@ -75,3 +75,22 @@ way. The app sets two hooks at launch: `PTPIPTransport.connectionLog` and
 Not here (yet): the generic monitor/assist/preferences stack, the contributed LUT table and
 Frame.io (plan OPTIONAL-01) stay in OpenZCine; the iOS session orchestration
 (`NativeCameraSession`, with its saved-camera store) stays in the app for now.
+
+## Discovery behind a dialer (SHELL-02)
+
+`NikonDiscovery` (Swift, moved from OpenZCine's `NativeCameraDiscoveryService`; Kotlin `:nikon`,
+from `RelayPresenceScanner` and `InfrastructureCameraFinder`) runs every network dial through a
+`NikonDialer` (presence port: presence reads and liveness; PTP/IP control port: mute port scan and,
+on iOS, the PTP Init that names a camera). Bonjour/NSD and USB are listening sources the app
+supplies.
+
+- `.passive` (the cameras list): Bonjour, USB, the presence sweep (at most every 30 s) and
+  liveness dials of saved hosts. Never a control-port dial, never a PTP byte: the pass has no probe
+  step and its dialer (`PassiveDialer`) refuses camera-control dials.
+- `.active` (pairing or a setup watch): also Init of trusted hosts Bonjour did not report, then a
+  two-pass sweep (mute scan, Init only the hosts that answered; Android stops at the first open
+  host and names it at connect). Hosts another device serves (the presence shield) and excluded
+  hosts are never dialled.
+- `PosixNikonDialer` (iOS) is the production dialer over POSIX sockets and `PTPIPTransport`; the
+  app decodes its own presence line. Tests: `NikonDiscoveryTests` / `NikonDiscoveryTest`, same
+  method names (zero camera-control dials and zero PTP bytes in `.passive`).

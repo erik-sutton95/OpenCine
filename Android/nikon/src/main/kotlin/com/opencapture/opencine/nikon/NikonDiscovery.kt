@@ -1,0 +1,183 @@
+package com.opencapture.opencine.nikon
+
+import com.opencapture.opencine.core.DiscoveryMode
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+
+/** A device's answer on the presence port (Swift `NikonPresence`); the app decodes its own line. */
+data class NikonPresence(val deviceName: String, val servedCamera: String? = null)
+
+/** Why discovery dials a host (Swift `NikonDialPurpose`). */
+enum class NikonDialPurpose {
+    /** The presence port: reaches no camera service. Presence reads and liveness. */
+    PRESENCE,
+
+    /** The camera's PTP/IP control port. */
+    CAMERA_CONTROL,
+}
+
+/** One dial's result on the PTP/IP port (Swift `HostProbeVerdict`). */
+enum class HostProbeVerdict { OPEN, REFUSED, TIMEOUT, NO_ROUTE, NO_NETWORK, DENIED, UNREACHABLE_OTHER }
+
+/**
+ * Every network dial discovery makes (Swift `NikonDialer`). Presence dials can never reach a
+ * camera's control service. Android names no camera with an Init (the handshake lives in the
+ * Swift session), so the only camera-control dial here is a mute connect-and-hang-up.
+ */
+interface NikonDialer {
+    suspend fun presence(host: String): NikonPresence?
+    suspend fun isAlive(host: String): Boolean
+    suspend fun scanControlPort(host: String, timeoutMillis: Int): HostProbeVerdict
+}
+
+/** The passive pass's dialer: presence dials go through; a camera-control dial is refused. */
+internal class PassiveDialer(private val base: NikonDialer) : NikonDialer {
+    override suspend fun presence(host: String) = base.presence(host)
+    override suspend fun isAlive(host: String) = base.isAlive(host)
+    override suspend fun scanControlPort(host: String, timeoutMillis: Int) = HostProbeVerdict.DENIED
+}
+
+data class NikonLocalInterface(val name: String, val address: String)
+
+/** What an active search found: the hosts that accept the PTP/IP port, and what it reached. */
+data class NikonSearchResult(val openHosts: List<String>, val occupiedHosts: List<String>)
+
+/**
+ * Nikon camera discovery for the cameras list and the pairing surface (Swift `NikonDiscovery`;
+ * moved from OpenZCine's `RelayPresenceScanner` and `InfrastructureCameraFinder`), over a
+ * [NikonDialer]. mDNS browsing stays the app's (it only listens).
+ *
+ * [DiscoveryMode.PASSIVE] (the list): presence sweep and liveness dials only, never the control
+ * port. [DiscoveryMode.ACTIVE] (pairing): also directed probes of saved hosts, then an occupancy
+ * sweep of this phone's subnets, never dialling a host another device serves.
+ */
+class NikonDiscovery(
+    private val dialer: NikonDialer,
+    private val interfaces: () -> List<NikonLocalInterface>,
+    private val log: (String) -> Unit = {},
+    private val nowNanos: () -> Long = System::nanoTime,
+) {
+    companion object {
+        const val PRESENCE_SWEEP_INTERVAL_MILLIS: Long = 30_000
+        const val DIRECTED_ATTEMPT_COUNT: Int = 3
+        const val DIRECTED_TIMEOUT_MILLIS: Int = 2_000
+        const val BLIND_SWEEP_TIMEOUT_MILLIS: Int = 1_500
+        const val SWEEP_CONCURRENCY: Int = 48
+        const val LOCAL_SWEEP_PASSES: Int = 2
+    }
+
+    private var lastSweepNanos: Long? = null
+    private var shield: Set<String> = emptySet()
+
+    /** Hosts the last presence sweep found serving or answering (never dialled on the control port). */
+    val shieldedHosts: Set<String> get() = synchronized(this) { shield }
+
+    /**
+     * One full presence sweep of this phone's /24s, or `null` inside the rate window or with no
+     * interface (no verdict, never an authoritative empty).
+     */
+    suspend fun presenceSweep(): Map<String, NikonPresence>? {
+        val now = nowNanos()
+        synchronized(this) {
+            val last = lastSweepNanos
+            if (last != null && now - last < PRESENCE_SWEEP_INTERVAL_MILLIS * 1_000_000) return null
+            lastSweepNanos = now
+        }
+        val hosts = neighbours()
+        if (hosts.isEmpty()) return null
+        val found = LinkedHashMap<String, NikonPresence>()
+        for (chunk in hosts.chunked(64)) {
+            coroutineScope { chunk.map { host -> async { host to dialer.presence(host) } }.awaitAll() }
+                .forEach { (host, presence) -> if (presence != null) found[host] = presence }
+        }
+        synchronized(this) {
+            shield = found.keys + found.values.mapNotNull { it.servedCamera?.takeIf(String::isNotBlank) }
+        }
+        log("presence sweep hits=${found.size}")
+        return found
+    }
+
+    /** Saved hosts that something occupies (a presence-port dial answered or refused). */
+    suspend fun liveness(hosts: Collection<String>): Set<String> = coroutineScope {
+        hosts.distinct().map { host -> async { host to dialer.isAlive(host) } }.awaitAll()
+            .filter { it.second }.mapTo(linkedSetOf()) { it.first }
+    }
+
+    /**
+     * The control-port search. [DiscoveryMode.PASSIVE] finds nothing and dials nothing.
+     * [DiscoveryMode.ACTIVE]: directed patient probes of [directedCandidates] on this phone's
+     * subnets, then an occupancy sweep stopping at the first open host. [excludedHosts] and the
+     * presence shield are never dialled.
+     */
+    suspend fun search(
+        mode: DiscoveryMode,
+        directedCandidates: List<String> = emptyList(),
+        excludedHosts: Set<String> = emptySet(),
+    ): NikonSearchResult {
+        if (mode == DiscoveryMode.PASSIVE) return NikonSearchResult(emptyList(), emptyList())
+        val local = interfaces()
+        val subnets = local.mapNotNull { subnetBase(it.address) }.distinct().sorted()
+        if (subnets.isEmpty()) return NikonSearchResult(emptyList(), emptyList())
+        val locals = local.map { it.address }.toSet()
+        val excluded = excludedHosts + shieldedHosts
+        val directed = directedCandidates.map { it.trim() }.distinct()
+            .filter { it !in excluded && it !in locals && subnetBase(it) in subnets }
+        log("infra-search subnets=[${subnets.joinToString(" ")}] directed=[${directed.joinToString(" ")}]")
+
+        // Directed first: the reconnect case answers in one round.
+        val hits = coroutineScope { directed.map { host -> async { host.takeIf { patientProbe(it) } } }.awaitAll() }.filterNotNull()
+        if (hits.isNotEmpty()) return NikonSearchResult(hits, hits)
+
+        val occupied = sortedSetOf<String>()
+        repeat(LOCAL_SWEEP_PASSES) { pass ->
+            for (subnet in subnets) {
+                if (!currentCoroutineContext().isActive) break
+                val hosts = (1..254).map { "$subnet.$it" }.filterNot { it in excluded || it in locals }
+                val verdicts = muteScan(hosts)
+                val open = verdicts.filterValues { it == HostProbeVerdict.OPEN }.keys.sorted()
+                occupied += verdicts.filterValues { it == HostProbeVerdict.OPEN || it == HostProbeVerdict.REFUSED }.keys
+                log("infra-search sweep pass=${pass + 1} subnet=$subnet open=[${open.joinToString(" ")}]")
+                if (open.isNotEmpty()) return NikonSearchResult(open, occupied.toList())
+            }
+        }
+        return NikonSearchResult(emptyList(), occupied.toList())
+    }
+
+    /** Attempts, not one long wait: a radio asleep for the first dial is awake for the second. */
+    private suspend fun patientProbe(host: String): Boolean {
+        repeat(DIRECTED_ATTEMPT_COUNT) {
+            if (!currentCoroutineContext().isActive) return false
+            if (dialer.scanControlPort(host, DIRECTED_TIMEOUT_MILLIS) == HostProbeVerdict.OPEN) return true
+        }
+        return false
+    }
+
+    /** Mute dials of [hosts] on the PTP/IP port, a bounded window at a time. */
+    private suspend fun muteScan(hosts: List<String>): Map<String, HostProbeVerdict> {
+        val verdicts = LinkedHashMap<String, HostProbeVerdict>()
+        for (window in hosts.chunked(SWEEP_CONCURRENCY)) {
+            if (!currentCoroutineContext().isActive) break
+            coroutineScope { window.map { host -> async { host to dialer.scanControlPort(host, BLIND_SWEEP_TIMEOUT_MILLIS) } }.awaitAll() }
+                .forEach { (host, verdict) -> verdicts[host] = verdict }
+        }
+        return verdicts
+    }
+
+    private fun neighbours(): List<String> {
+        val locals = interfaces().map { it.address }
+        val self = locals.toSet()
+        return locals.mapNotNull(::subnetBase).distinct().flatMap { base -> (1..254).map { "$base.$it" } }.filterNot(self::contains)
+    }
+
+    /** The `a.b.c` of a private (RFC 1918) IPv4 address, else `null`. */
+    private fun subnetBase(host: String): String? {
+        val octets = host.trim().split('.')
+        if (octets.size != 4) return null
+        val values = octets.map { octet -> octet.toIntOrNull()?.takeIf { it in 0..255 && octet.all(Char::isDigit) } ?: return null }
+        val private = values[0] == 10 || (values[0] == 172 && values[1] in 16..31) || (values[0] == 192 && values[1] == 168)
+        return if (private) values.take(3).joinToString(".") else null
+    }
+}
