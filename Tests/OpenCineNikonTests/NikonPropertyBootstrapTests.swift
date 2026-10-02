@@ -11,9 +11,11 @@ struct NikonPropertyBootstrapTests {
         let link = BootstrapLink()
         let bootstrap = NikonPropertyBootstrap(link: link)
         var observations: [PTPPropertyCode] = []
-        await bootstrap.run(isCurrent: { true }) { observation in
-            if case .property(let property, _) = observation { observations.append(property) }
-        }
+        await bootstrap.run(
+            isCurrent: { true },
+            receive: { observation in
+                if case .property(let property, _) = observation { observations.append(property) }
+            })
         #expect(observations.first == .liveViewSelector)
         let expected = PTPPropertyCode.monitorPollOrder(isRecording: false, captureSelector: .video)
             .filter { $0 != .liveViewSelector }

@@ -4,9 +4,9 @@ import OpenCineCore
 // CORE-02 (OpenCine platform plan, section 13): the Nikon PTP control slice behind the common
 // camera-session seam. Connect/status, movie ISO, white balance and explicit record start/stop.
 //
-// The adapter owns admission, operation receipts and the PTP-to-common mapping. The app model
-// keeps the one command path it always had (coalescing write queue, live-view safe point or
-// control pump, readback) and reports each step back through the hooks below. Picture
+// The adapter owns admission, operation receipts and the PTP-to-common mapping. Its
+// integration-owned NikonMonitorRuntime keeps the command queue and wire safe point; a legacy
+// driver remains supported during app migration. Picture
 // presentation is not a precondition: ISO and white balance are admitted with no live picture,
 // while record keeps its existing live-view preflight as `.unavailable(.notReady)`.
 
@@ -54,7 +54,7 @@ public enum NikonControlSetting: Sendable, Equatable {
     }
 }
 
-/// The app's Nikon control service as the adapter drives it (OpenZCine: `NativeAppModel`).
+/// The Nikon wire service the common adapter drives. Production uses `NikonMonitorRuntime`.
 @MainActor
 public protocol NikonControlDriver: AnyObject {
     var nikonControlFacts: NikonControlFacts { get }

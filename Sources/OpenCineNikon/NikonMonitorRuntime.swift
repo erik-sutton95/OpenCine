@@ -56,6 +56,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     private var eventTask: Task<Void, Never>?
     private var startFailures = 0
     private var propertyBootstrap: NikonPropertyBootstrap?
+    private var backgroundRetirement: Task<Void, Never>?
 
     private let serialNumber: String
     private let ownsLink: Bool
@@ -222,7 +223,10 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         previewTask = Task { [weak self] in
             await retirement?.value
             guard let self, previewIsCurrent(current) else { return }
-            await bootstrap()
+            // Kept-link wire operations live in an unstructured child: retiring the scheduler
+            // may cancel a delay, but must never interrupt the native transaction socket.
+            let initialReads = Task { await bootstrap() }
+            await initialReads.value
             guard previewIsCurrent(current) else { return }
             event(.opening)
             let backoff = ReconnectBackoff(
@@ -231,20 +235,33 @@ public final class NikonMonitorRuntime: NikonControlDriver {
             var lastGood: Date?
             while previewIsCurrent(current) {
                 let began = Date()
-                let outcome = await pump.run(
-                    demand: demand, isCurrent: { self.previewIsCurrent(current) },
-                    consume: { frame, delivery in
-                        let accepted = await consume(frame, delivery)
-                        if accepted, delivery.first {
-                            self.startFailures = 0
-                            lastGood = Date()
-                        }
-                        return accepted
-                    }, safePoint: safePoint, applied: applied, resetCadence: resetCadence,
-                    health: { value in
-                        lastGood = value.lastGoodFrameAt
-                        health(value)
-                    })
+                let attempt = Task {
+                    await pump.run(
+                        demand: demand, isCurrent: { self.previewIsCurrent(current) },
+                        consume: { frame, delivery in
+                            let accepted = await consume(frame, delivery)
+                            if accepted, delivery.first {
+                                self.startFailures = 0
+                                lastGood = Date()
+                            }
+                            return accepted
+                        },
+                        safePoint: { count, poll in
+                            guard self.previewIsCurrent(current) else { return }
+                            await safePoint(count, poll)
+                        },
+                        applied: { value in
+                            if self.previewIsCurrent(current) { applied(value) }
+                        },
+                        resetCadence: {
+                            if self.previewIsCurrent(current) { resetCadence() }
+                        },
+                        health: { value in
+                            lastGood = value.lastGoodFrameAt
+                            if self.previewIsCurrent(current) { health(value) }
+                        })
+                }
+                let outcome = await attempt.value
                 await pump.drain()
                 guard previewIsCurrent(current) else { return }
                 let healthy = (lastGood ?? .distantPast).timeIntervalSince(began) > 30
@@ -252,7 +269,8 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 case .cancelled: return
                 case .neverStarted(let reason):
                     startFailures += 1
-                    await link.stopLiveView()
+                    let end = Task { await link.stopLiveView() }
+                    await end.value
                     if startFailures >= 3 {
                         startFailures = 0
                         event(.recover(reason: "live view never started"))
@@ -314,11 +332,12 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 guard let self, !Task.isCancelled, !closed, generation == current else { return }
                 if isBusy() { continue }
                 do {
-                    try await link.sendKeepAlive()
-                    guard !closed, generation == current else { return }
+                    let ping = Task { try await link.sendKeepAlive() }
+                    try await ping.value
+                    guard !Task.isCancelled, !closed, generation == current else { return }
                     count = max(0, count - 1)
                 } catch {
-                    guard !closed, generation == current else { return }
+                    guard !Task.isCancelled, !closed, generation == current else { return }
                     count = min(3, count + 1)
                 }
                 failures(count)
@@ -342,7 +361,8 @@ public final class NikonMonitorRuntime: NikonControlDriver {
             while !Task.isCancelled {
                 guard let self, !closed, generation == current else { return }
                 do {
-                    let event = try await link.nextEvent()
+                    let read = Task { try await link.nextEvent() }
+                    let event = try await read.value
                     guard !Task.isCancelled, !closed, generation == current else { return }
                     await receive(event)
                 } catch let error as NativeCameraSessionError {
@@ -359,13 +379,29 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         }
     }
 
+    /// Drains every kept-link reader before returning a borrowed session to its member.
+    @discardableResult
+    public func retirePumps() -> Task<Void, Never>? { stopBackgroundTasks() }
+
     @discardableResult
     private func stopBackgroundTasks() -> Task<Void, Never>? {
-        keepAliveTask?.cancel()
+        let keepAlive = keepAliveTask
+        let events = eventTask
         keepAliveTask = nil
-        eventTask?.cancel()
         eventTask = nil
-        return stopPreview()
+        keepAlive?.cancel()
+        events?.cancel()
+        let preview = stopPreview()
+        let earlier = backgroundRetirement
+        guard keepAlive != nil || events != nil || preview != nil else { return earlier }
+        let retirement = Task {
+            await keepAlive?.value
+            await events?.value
+            await preview?.value
+            await earlier?.value
+        }
+        backgroundRetirement = retirement
+        return retirement
     }
 
     private func previewIsCurrent(_ current: Int) -> Bool {

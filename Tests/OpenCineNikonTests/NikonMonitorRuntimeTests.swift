@@ -102,6 +102,49 @@ struct NikonMonitorRuntimeTests {
         #expect(link.closes == 0)
     }
 
+    @Test("Retiring during bootstrap drains its native write without cancelling a kept socket")
+    func retirementDrainsBootstrap() async {
+        let link = Link()
+        link.holdWrite = true
+        let runtime = NikonMonitorRuntime(link: link, ownsLink: false)
+        var delivered = 0
+        runtime.startPreview(
+            bootstrap: {
+                try? await link.writeCameraProperty(.init(property: .dateTime, data: Data()))
+            },
+            demand: { .init(mode: .picture, size: 2, compression: 1) },
+            consume: { _, _ in
+                delivered += 1
+                return true
+            }, safePoint: { _, _ in },
+            applied: { _ in }, resetCadence: {}, health: { _ in }, event: { _ in })
+        await link.waitUntilHeld()
+        let retirement = runtime.retirePumps()
+        link.releaseWrite()
+        await retirement?.value
+        #expect(!link.wireWasCancelled)
+        #expect(delivered == 0)
+        #expect(link.closes == 0)
+        #expect(!link.commands.contains("live-stop"))
+    }
+
+    @Test("A borrowed pushed-event read drains without cancelling or publishing into retirement")
+    func retirementDrainsEventReader() async {
+        let link = Link()
+        link.holdEvent = true
+        let runtime = NikonMonitorRuntime(link: link, ownsLink: false)
+        var ended = 0
+        runtime.startEventDrain(
+            receive: { _ in Issue.record("late event") }, unexpectedEnd: { ended += 1 })
+        await link.waitUntilHeld()
+        let retirement = runtime.retirePumps()
+        link.releaseWrite()
+        await retirement?.value
+        #expect(!link.wireWasCancelled)
+        #expect(ended == 0)
+        #expect(link.closes == 0)
+    }
+
     @Test("Owned close releases the native session once without stopping recording")
     func ownedCloseIsOnce() async {
         let link = Link()
@@ -120,6 +163,8 @@ private final class Link: NikonMonitorLink {
     private(set) var commands: [String] = []
     private(set) var closes = 0
     var holdWrite = false
+    var holdEvent = false
+    var wireWasCancelled = false
     private var properties: [PTPPropertyCode: Data] = [:]
     private var held: CheckedContinuation<Void, Never>?
     private var heldWaiter: CheckedContinuation<Void, Never>?
@@ -133,18 +178,17 @@ private final class Link: NikonMonitorLink {
     }
     func readLastCommandRoundTripMilliseconds() -> Double? { nil }
     func sendKeepAlive() async throws {}
-    func nextEvent() async throws -> PTPEvent { throw NativeCameraSessionError.connectionClosed }
+    func nextEvent() async throws -> PTPEvent {
+        if holdEvent { await hold() }
+        wireWasCancelled = wireWasCancelled || Task.isCancelled
+        throw NativeCameraSessionError.connectionClosed
+    }
     func pollStillReleaseReadiness() async throws -> StillReleaseReadiness { .complete }
     func shutdown() async { closes += 1 }
     func writeCameraProperty(_ write: PTPCameraPropertyWrite) async throws {
         commands.append("write \(write.property)")
-        if holdWrite {
-            await withCheckedContinuation { continuation in
-                held = continuation
-                heldWaiter?.resume()
-                heldWaiter = nil
-            }
-        }
+        if holdWrite { await hold() }
+        wireWasCancelled = wireWasCancelled || Task.isCancelled
         properties[write.property] = write.data
     }
     func readCameraProperty(_ property: PTPPropertyCode) async throws -> Data {
@@ -155,6 +199,13 @@ private final class Link: NikonMonitorLink {
     }
     func startRecording() async throws { commands.append("record-start") }
     func stopRecording() async throws { commands.append("record-stop") }
+    private func hold() async {
+        await withCheckedContinuation { continuation in
+            held = continuation
+            heldWaiter?.resume()
+            heldWaiter = nil
+        }
+    }
     func waitUntilHeld() async {
         if held != nil { return }
         await withCheckedContinuation { heldWaiter = $0 }
