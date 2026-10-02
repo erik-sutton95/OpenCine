@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "c29b5891e170cdb319afc510ea7a23741ea4519a",
+      "commit": "dc7778957d810785f3f51795906b7ca3c53e97a3",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "c29b5891e170cdb319afc510ea7a23741ea4519a",
-        "where": "Nikon shared runtime adoption and one-session owner registry integrated c29b5891 pins38edecfc; root626; private phone/iPad140 XCTest plus90 Swift Testing each(two existing skips,known-hanging timecode test excluded); full native Android/lint/release and JNI73 parity plus native smoke logged scratchpad/codex-shell03-nikon/logs. Final Kotlin explicit-target relay correction6d62f154 narrow actual loopback+owner unit/compile gate passed review-relay-correction.log. Physical cameras untested."
+        "commit": "dc7778957d810785f3f51795906b7ca3c53e97a3",
+        "where": "Lens platform consumerdc777895 pins030fa040; source otherwise unchangedafter reviewedNikonruntime adoption. Combined root626 pass scratchpad/luna-lens/nikon-swift-final.log; prior full nativeAndroid949/JNI73/privatephone+iPad230 each/owner-relay correction evidence retained. Shared full combined gates passed. Physical cameras untested."
       }
     }
   ]
