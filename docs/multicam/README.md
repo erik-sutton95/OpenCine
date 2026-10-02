@@ -132,8 +132,8 @@ state)`, `summary(state, telemetryMaxAge)`). Where they differ:
 ### Test mapping
 
 Suites and test names are the same (`Android/multicam/src/test`): `GroupTests` (2),
-`EditorLeaseTests` (2), `ResourceAdmissionTests` (3), `RecoveryTests` (2), `GroupRecordTests` (9),
-`ImportRuleTests` (1), 19 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
+`EditorLeaseTests` (2), `ResourceAdmissionTests` (4), `RecoveryTests` (2), `GroupRecordTests` (9),
+`ImportRuleTests` (1), 20 in all. Differences: `slotsSurviveReorderStagingAndSessionReplacement`
 checks the layout value instead of a JSON round trip, and the import rule is
 `engineImportsOnlyStdlibCoroutinesAndCoreAndNamesNoVendorOrUI` (imports `kotlin.*`,
 `kotlinx.coroutines.*`, `com.opencapture.opencine.core.*` and `java.util.UUID` only; the module's
