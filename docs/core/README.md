@@ -22,6 +22,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineApple` | The Apple runtime (plan 3.2, MEDIA-02). `DecodedFrameLease` (stream, generation, format, timestamp and an explicitly released `CVPixelBuffer`) and `DecodedFrameFence` (the stream's current generation; publication refuses and releases a stale lease). `VideoToolboxDecoder`: the retained `AVSampleBufferDisplayLayer`, H.26x format descriptions from parameter sets, the `VTDecompressionSession` creation ladder, live sample buffers (`LiveViewPresentTiming`), generation-fenced decode into leases and the decode-error ledger, with integration hooks (rebuild-class statuses, journal, log subsystem). `UVCVideoSource`: an iPadOS HDMI/UVC capture source that lends each frame as a lease. Depends on OpenCineCore and OpenCineMedia; every file is gated with `#if canImport`/`#if os`. | iOS apps and Apple integrations |
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
+| Android `com.opencapture.opencine:vulkan` | The native Vulkan live-feed renderer `libopc_vulkan.so` (moved unchanged from Pocket, MEDIA-02): imports the decoder's `AHardwareBuffer`, grades with 3D cubes, draws scopes and grab-pass glass, presents to the `SurfaceView` swapchain; upright-raster (Pocket #482) and present-batch lifetime included. Android library (NDK 28.2, CMake, shaders compiled by the NDK `glslc` and embedded), arm64-v8a only. The JNI facade keeps its original name `com.opencapture.openpocketcine.feed.OpcVulkan` because the 21 exported symbols derive from it. The session that drives it stays in the app. | Android apps |
 
 ## OpenCineMedia rules
 
@@ -177,7 +178,10 @@ composes them.
 
 ## Android
 
-`Android/` is a standalone Gradle build with two plain Kotlin/JVM modules, `core`
+`Android/` is a standalone Gradle build with an Android library, `vulkan` (the native renderer;
+building the project therefore needs an Android SDK through `ANDROID_HOME` or
+`Android/local.properties`, also when a JVM-only build such as OpenCineMulticam includes it), and two
+plain Kotlin/JVM modules, `core`
 (`com.opencapture.opencine:core`, `0.1.0-SNAPSHOT`) and `media` (`com.opencapture.opencine:media`,
 moved from the Pocket/Insta apps; it depends on `core` and keeps the moved code's shape, so explicit
 API mode is off there). It has no Android framework dependency, so
@@ -202,6 +206,7 @@ includeBuild("../../../OpenCineCore/Android") {
     dependencySubstitution {
         substitute(module("com.opencapture.opencine:core")).using(project(":core"))
         substitute(module("com.opencapture.opencine:media")).using(project(":media"))
+        substitute(module("com.opencapture.opencine:vulkan")).using(project(":vulkan"))
     }
 }
 
@@ -276,6 +281,7 @@ Swift `LiveVideoNalVectorTests` (which also checks it is current) and replayed b
 swift build
 swift test
 cd Android && ./gradlew build
+scripts/android-vulkan-sync-test.sh   # renderer present/acquire lifetime, host CPU, NDK headers
 ```
 
 The package uses Swift 6 language mode (complete concurrency checking). Platforms: iOS 17,

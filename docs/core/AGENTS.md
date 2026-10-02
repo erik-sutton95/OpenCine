@@ -8,6 +8,10 @@
   uses. No `android.*` there. `Fixtures/live-video-nal-vectors.tsv` pins Swift and Kotlin `LiveVideo`
   to the same answers; regenerate with `OPENCINE_WRITE_FIXTURES=1 swift test --filter
   LiveVideoNalVectorTests`, never by hand.
+- Android `vulkan` is the native renderer (`opc_vulkan.cpp`, `VulkanPresentBatch.h`, shaders).
+  Keep the JNI class `com.opencapture.openpocketcine.feed.OpcVulkan` and its exported symbol set
+  unchanged unless every consuming app changes in step. Run `scripts/android-vulkan-sync-test.sh`
+  after touching `VulkanPresentBatch.h` or the submit/present path.
 - `Sources/OpenCineCore` imports Foundation only and names no camera manufacturer; a test
   enforces both. Never import UI, an integration, Multicam or an app.
 - `Sources/OpenCineMedia` imports Foundation only, holds no mutable global state and takes no
