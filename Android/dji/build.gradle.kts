@@ -29,6 +29,7 @@ android {
 dependencies {
     api(project(":core"))
     api(project(":media"))
+    api(project(":platform"))
     api(project(":decoder"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
