@@ -99,6 +99,8 @@ on the monitor. It takes over `CamerasModel.onConnected`: each successful connec
   `.recovering` keeps it: transport recovery is the integration's, and the last reported values
   stay shown.
 - Covers never disconnect. A connect starts uncovered.
+- Presenting the monitor's current session again is idempotent: it preserves the host, cover,
+  editors and ownership, including a borrowed session. A delayed connect callback cannot close it.
 - `setSceneActive(_:)` takes every OS signal (scene phase, app notifications, Android lifecycle)
   and calls `onSceneActivity` once per change.
 
@@ -120,6 +122,45 @@ rotations never create a second host; `hostsMounted`/`hostsUnmounted` count them
 (cover pages over the cameras and pair pages). Until an app's monitor moves into the shell
 (SHELL-03 I-2 and later), its existing native monitor is the `monitor` slot and draws the cover
 pages over itself.
+
+## Monitor composition and capture
+
+`MonitorScreen` owns the stable picture/assist host positions and the common status, power,
+capture and system regions from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its
+`MonitorScreenPresentation` carries operator visibility, lock, coverage and popup state rather
+than camera telemetry. Native tools, detail panels, cover pages and recovery content have fixed
+slots; they cannot replace the picture host. Covers sit above panels and controls. A capture
+panel raises the system layer so Record and DISP keep receiving their actual gestures.
+Transient panels may retain dimmed chrome underneath while blocking its input and accessibility.
+
+Swift uses `MonitorCanvas` to frame the picture and assists in the source picture well. Compose
+keeps the native picture slot at the full viewport because the Vulkan renderer owns a full-screen
+surface; a GLES adapter can frame its own picture well. Both retain the same native hosts through
+rotation and coverage. `MonitorCanvas` remains available to consumers that have not migrated.
+
+`MonitorStatusChrome` composes the portrait and landscape recording/timecode readouts and narrow
+storage, format, color, mode and link slots. `control.statusPresentation(elapsedSeconds:)` projects
+optional Core recording/timecode and optionally supplied camera elapsed telemetry; unknown
+recording suppresses a compatibility timer's default zero. Presentation creates no timer.
+`MonitorSystemControls` owns bounded lock, settings, media, capture and display positions. Its
+visibility policy keeps Lock when locked, capture/settings while recording, and hides media for
+a borrowed session. Native return and operator edit decorations stay in the control builders.
+
+`control.captureField(key)` projects ISO, shutter and white-balance descriptors into typed
+`MonitorCaptureChoice` detents and an immutable editor. Missing reports have no selection, even
+when the drum visually centers a legal option. `MonitorCaptureReadout` (Compose
+`field.quickControl()`) and `MonitorCaptureDrum` preserve that editor through hold/drag/release and
+persistent panels. `commit` checks readiness, writable access, availability, authority, domain,
+epoch and binding again after the coalescing window. No queued stale editor writes to a replacement
+camera. White-balance Kelvin ranges use the declared step, or 100 K for a continuous domain,
+with bounded allocation; other setting ranges are not guessed.
+
+`MonitorCaptureButton` owns common video confirmation and recording actions; only photo capture
+and the integration's shooting-mode editor are slots. Optional `recordEditor`/`commitRecord`
+authorize the state actually shown by a confirmation. An epoch, authority, mode, binding or
+recording change retires that approval. Existing explicit `record(start:)` preserves idempotent
+targets; `recordAndWait(start:)` shares its admission/pending gate and returns the actual terminal
+receipt only while the binding remains current.
 
 ## Tests
 

@@ -19,6 +19,9 @@ import Testing
         #expect(field.selection == nil && field.label == nil)
         #expect(!field.choices.isEmpty)
         #expect(control.recordEditor() == nil)
+        let hud = control.statusPresentation(elapsedSeconds: 0)
+        #expect(hud.recording == nil && hud.elapsedSeconds == nil && hud.timecode == nil)
+        #expect(hud.recordingAccessibilityLabel == "Recording state unknown")
     }
 
     @available(macOS 14, *)
