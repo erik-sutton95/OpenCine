@@ -65,6 +65,49 @@ class MonitorControlModelTest {
         runCurrent()
     }
 
+    @Test fun canceledEditCannotWakeSuccessorEarlyOrRetireOtherSetting() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.djiLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val old = assertNotNull(model.edit(SettingKey.ZOOM))
+        val unrelated = assertNotNull(model.edit(SettingKey.ISO))
+        assertTrue(model.commit(SettingValue.Zoom(2.0), old, "Zoom 2"))
+        assertTrue(model.commit(iso(800), unrelated, "ISO 800"))
+        runCurrent()
+        advanceTimeBy(60); runCurrent()
+        model.cancelEdit(SettingKey.ZOOM)
+        assertFalse(model.isCurrent(old))
+        assertTrue(model.isCurrent(unrelated))
+        assertFalse(model.commit(SettingValue.Zoom(2.0), old, "Retired zoom"))
+        val successor = assertNotNull(model.edit(SettingKey.ZOOM))
+        assertTrue(model.commit(SettingValue.Zoom(3.0), successor, "Zoom 3"))
+        runCurrent()
+        advanceTimeBy(60); runCurrent()
+        assertEquals(listOf("set ${iso(800)}"), camera.wire)
+        assertEquals(SettingValue.Zoom(3.0), model.state.value.pending[SettingKey.ZOOM])
+        advanceTimeBy(60); runCurrent()
+        assertEquals(listOf("set ${iso(800)}", "set ${SettingValue.Zoom(3.0)}"), camera.wire)
+    }
+
+    @Test fun canceledInFlightReceiptCannotClearSuccessorPending() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.djiLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        assertTrue(model.commit(SettingValue.Zoom(2.0), assertNotNull(model.edit(SettingKey.ZOOM)), "Zoom 2"))
+        tick()
+        assertEquals(1, camera.wire.size)
+        model.cancelEdit(SettingKey.ZOOM)
+        assertTrue(model.commit(SettingValue.Zoom(3.0), assertNotNull(model.edit(SettingKey.ZOOM)), "Zoom 3"))
+        tick()
+        assertEquals(2, camera.wire.size)
+        assertEquals(SettingValue.Zoom(3.0), model.state.value.pending[SettingKey.ZOOM])
+        camera.advance(3.seconds); runCurrent()
+        assertNull(model.state.value.pending[SettingKey.ZOOM])
+        assertEquals(SettingValue.Zoom(3.0), camera.current.value(SettingKey.ZOOM).value)
+    }
+
     @Test
     fun retiredBindingDoesNotReadNativeSnapshots() = runTest {
         val owner = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))

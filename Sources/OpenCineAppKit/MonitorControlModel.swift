@@ -31,6 +31,7 @@ public final class MonitorControlModel {
         let epoch: ControlEpoch
         let authority: ControlAuthority
         let domain: SettingDomain?
+        let localRevision: Int
     }
 
     /// An explicit record confirmation authorizes exactly this camera state.
@@ -64,6 +65,7 @@ public final class MonitorControlModel {
     @ObservationIgnored private var feed: Task<Void, Never>?
     @ObservationIgnored private var operations: [SettingKey: (operation: OperationID, label: String, editor: Editor?)] = [:]
     @ObservationIgnored private var scheduled: Set<SettingKey> = []
+    @ObservationIgnored private var editRevisions: [SettingKey: Int] = [:]
     @ObservationIgnored private var recordOperation: OperationID?
 
     public static let connectFirst = "Connect the camera to use its controls."
@@ -113,6 +115,7 @@ public final class MonitorControlModel {
         pending = [:]
         operations = [:]
         scheduled = []
+        editRevisions = [:]
         recordOperation = nil
         recordPending = false
         if changed { onChange() }
@@ -149,12 +152,14 @@ public final class MonitorControlModel {
         guard let snapshot, let descriptor = snapshot.capabilities[key] else { return nil }
         return Editor(
             key: key, binding: binding, session: snapshot.session, epoch: snapshot.epoch,
-            authority: snapshot.authority, domain: descriptor.domain)
+            authority: snapshot.authority, domain: descriptor.domain,
+            localRevision: editRevisions[key, default: 0])
     }
 
     /// Whether `editor` still describes this session, epoch, authority and domain.
     public func isCurrent(_ editor: Editor) -> Bool {
-        guard editor.binding == binding, let snapshot else { return false }
+        guard editor.binding == binding,
+            editor.localRevision == editRevisions[editor.key, default: 0], let snapshot else { return false }
         return editor.session == snapshot.session && editor.epoch == snapshot.epoch
             && editor.authority == snapshot.authority
             && editor.domain == snapshot.capabilities[editor.key]?.domain
@@ -166,6 +171,16 @@ public final class MonitorControlModel {
         guard admits(value, from: editor) else { return false }
         set(value, label: label, editor: editor)
         return true
+    }
+
+    /// Retires one local setting edit and its captured editors. Already-sent camera work
+    /// continues; its receipt cannot clear a successor. No command or owner epoch change.
+    public func cancelEdit(_ key: SettingKey) {
+        editRevisions[key, default: 0] += 1
+        operations[key] = nil
+        scheduled.remove(key)
+        pending[key] = nil
+        onChange()
     }
 
     private func admits(_ value: SettingValue, from editor: Editor) -> Bool {
@@ -194,10 +209,11 @@ public final class MonitorControlModel {
         onChange()
         guard scheduled.insert(key).inserted else { return }
         let current = binding
+        let revision = editRevisions[key, default: 0]
         Task { [weak self] in
             guard let self else { return }
             await self.sleep(self.coalescing)
-            guard self.binding == current else { return }
+            guard self.binding == current, self.editRevisions[key, default: 0] == revision else { return }
             self.scheduled.remove(key)
             self.submit(key)
         }
@@ -255,7 +271,8 @@ public final class MonitorControlModel {
         return RecordEditor(
             recording: recording,
             editor: Editor(key: .recording, binding: binding, session: snapshot.session,
-                epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain),
+                epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain,
+                localRevision: editRevisions[.recording, default: 0]),
             mode: mode)
     }
 
