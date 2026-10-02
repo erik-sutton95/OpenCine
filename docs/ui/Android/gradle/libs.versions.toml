@@ -1,0 +1,17 @@
+# Versions match the OpenPocketCine catalog this module was extracted from
+# (Pocket 27b15028). Keep consumers and this build on the same AGP, Kotlin and
+# Compose BOM so the included build resolves to one Compose closure.
+[versions]
+androidCompileSdk = "37"
+agp = "9.4.1"
+kotlin = "2.4.20"
+composeBom = "2026.09.00"
+
+[libraries]
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
