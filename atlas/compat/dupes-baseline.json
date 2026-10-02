@@ -1,19 +1,19 @@
 {
   "code_lines": {
-    "opencine": 92652,
-    "openinstacine": 170329,
+    "opencine": 93643,
+    "openinstacine": 147096,
     "openpocketcine": 149508,
-    "openzcine": 178627
+    "openzcine": 180959
   },
   "note": "Written by `atlas dupes --write-baseline`; see tools/dupes.py for the metric.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 8245,
-      "blocks": 551,
-      "exact_files": 25,
-      "file_lines": 14727,
-      "files": 117,
-      "lines": 22972
+      "block_lines": 9114,
+      "blocks": 558,
+      "exact_files": 13,
+      "file_lines": 8537,
+      "files": 66,
+      "lines": 17651
     },
     "opencine|openpocketcine": {
       "block_lines": 361,
@@ -32,20 +32,20 @@
       "lines": 108
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 36475,
-      "blocks": 1840,
-      "exact_files": 279,
-      "file_lines": 67925,
-      "files": 421,
-      "lines": 104400
+      "block_lines": 32437,
+      "blocks": 1641,
+      "exact_files": 254,
+      "file_lines": 58442,
+      "files": 377,
+      "lines": 90879
     },
     "openinstacine|openzcine": {
-      "block_lines": 1652,
-      "blocks": 115,
+      "block_lines": 1629,
+      "blocks": 112,
       "exact_files": 3,
       "file_lines": 348,
       "files": 6,
-      "lines": 2000
+      "lines": 1977
     },
     "openpocketcine|openzcine": {
       "block_lines": 1596,
@@ -58,9 +58,9 @@
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at d514873aa3d0ed8d7082c1f5df4e4714286d6c6d",
-    "openinstacine": "opencine/integration 0f1692e190b4235f886cedcc4220e72ef41d826c",
+    "opencine": "working tree at fa2637f23e1cc46b52513acce260b086e3c045ba",
+    "openinstacine": "opencine/integration e9d7dc84b8f69b61c7cded350fc1697d8c64f2a8",
     "openpocketcine": "opencine/integration e9a4473295ca102fba3e7a70b7d0944b93f8a734",
-    "openzcine": "opencine/integration 1b5d2cc1750a69cb11719d0d1ca80ac7b3350cd1"
+    "openzcine": "opencine/integration c6d628ff6679bc756b322767bd90de3a81a991f4"
   }
 }

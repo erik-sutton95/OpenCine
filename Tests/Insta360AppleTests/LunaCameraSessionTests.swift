@@ -2,6 +2,7 @@ import Insta360Apple
 import Insta360AppleTestSupport
 import Insta360Protocol
 import OpenCineCore
+import OpenCineMotion
 import XCTest
 
 @MainActor
@@ -103,6 +104,30 @@ final class LunaCameraSessionTests: XCTestCase {
         let stamped = session.current.value(of: .iso).observedAt
         let now = MonotonicInstant.now()
         XCTAssertTrue(stamped.map { $0 <= now && now - $0 < .seconds(5) } == true, "\(stamped as Any)")
+    }
+
+    /// SHELL-01: Luna publishes its gimbal with camera-reported pose, host-derived timecode and no
+    /// audio levels, so the projection lays out the stick, head tracking and timecode, never a meter.
+    func testPublishesMotionTimecodeAndNoAudio() {
+        let session = FakeLuna().connectedSession()
+        let capabilities = session.current.capabilities
+        XCTAssertEqual(capabilities.timecode, .supported)
+        XCTAssertEqual(capabilities.audioLevels, .unsupported)
+        XCTAssertEqual(LunaCameraSession.motion.pose, .supported)
+        XCTAssertFalse(LunaCameraSession.motion.axes.contains(.zoom), "moves keep one zoom")
+        var base = MonitorLayoutCapabilities()
+        base.audio = true
+        let layout = MonitorLayoutCapabilities(capabilities, motion: LunaCameraSession.motion, base: base)
+        XCTAssertTrue(layout.gimbal)
+        XCTAssertTrue(layout.headTracking)
+        XCTAssertTrue(layout.timecode)
+        XCTAssertFalse(layout.audio, "unsupported overrides the base")
+        XCTAssertFalse(layout.iris, "fixed aperture")
+
+        XCTAssertNil(session.current.timecode.value, "nothing derived yet: unknown")
+        session.ingest(timecode: CameraTimecode(hours: 15, minutes: 39, seconds: 50, frames: 12))
+        XCTAssertEqual(session.current.timecode.value?.seconds, 50)
+        XCTAssertEqual(session.current.timecode.origin, .clockDerived, "never a camera counter")
     }
 
     func testUnknownStaysUnknown() {
