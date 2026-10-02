@@ -57,14 +57,46 @@ def fingerprint(repos, bares):
     return "\n".join(out)
 
 
+def tweak_record(atlas, rel, version, report):
+    """With a file:// base SwiftPM and Xcode record a lock location without the scheme, which the
+    apps' own lockfile check (written for https URLs) cannot match. Only in the cloned record, run
+    that check on a copy with the scheme restored; on GitHub the location is the URL as written."""
+    record = atlas / "compat" / f"release-{version}.json"
+    data = json.loads(record.read_text())
+    fix = ("cp ios/Package.resolved ios/Package.resolved.orig && "
+           "sed -i '' 's#\"location\" : \"/#\"location\" : \"file:///#' ios/Package.resolved && {}; "
+           "s=$?; mv ios/Package.resolved.orig ios/Package.resolved; [ $s = 0 ]")
+    for clone, original in zip(data["apps"], rel["apps"]):
+        clone["verify"] = [fix.format(c) if "ios-package-resolved-check" in c else c for c in original["verify"]]
+    record.write_text(json.dumps(data, indent=2) + "\n")
+    if git(atlas, "status", "--porcelain"):
+        git(atlas, "commit", "-q", "-am", "rehearsal: lockfile check reads file:// locations")
+    report.append("rehearsal-only change: apps' Package.resolved check runs on a copy with the file:// scheme restored")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", default="/tmp/opencine-publish-rehearsal", help="disposable folder (recreated)")
     ap.add_argument("--remote", help="bare repositories for the file:// base (default <dir>/fake-github)")
     ap.add_argument("--version", default="0.1.0")
+    ap.add_argument("--resume", action="store_true",
+                    help="keep the clones and remotes of an interrupted rehearsal and rerun the publish on them")
     args = ap.parse_args(argv)
     top, started = Path(args.dir), time.time()
     remote = Path(args.remote or top / "fake-github")
+    base = f"file://{remote}"
+    real = publish.Run(argparse.Namespace(version=args.version, remote_base=None, owner=None, execute=False), publish.atlas_root())
+    rel = real.release
+    report = [f"publish rehearsal {time.strftime('%Y-%m-%d %H:%M:%S %Z')}, remote base {base}"
+              + (" (resumed on the existing clones)" if args.resume else "")]
+    ws, atlas = top / "ws", top / "ws" / real.name(real.atlas_id)
+    names = [real.name(r) for r in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]]
+    repos, bares = [ws / n for n in names], [remote / n for n in names]
+    if args.resume:
+        if not (atlas / ".local" / "publish-state.json").is_file():
+            sys.exit(f"nothing to resume in {ws}")
+        return publish_and_check(args, real, rel, top, remote, base, atlas, repos, bares, report, started, resume=True)
+
     for d in (top, remote):
         if d.exists():
             if not (d / ".rehearsal").exists():
@@ -72,26 +104,17 @@ def main(argv=None):
             shutil.rmtree(d)
         d.mkdir(parents=True)
         (d / ".rehearsal").write_text("disposable\n")
-    ws = top / "ws"
     ws.mkdir()
-    base = f"file://{remote}"
-    real = publish.Run(argparse.Namespace(version=args.version, remote_base=None, owner=None, execute=False), publish.atlas_root())
-    rel = real.release
-    report = [f"publish rehearsal {time.strftime('%Y-%m-%d %H:%M:%S %Z')}, remote base {base}"]
-
     # 1. clones
-    atlas = ws / real.name(real.atlas_id)
     git(ws, "clone", "-q", str(real.root), str(atlas))
     git(atlas, "remote", "remove", "origin")
     email = subprocess.run(["git", "-C", str(real.root), "config", "--local", "user.email"], capture_output=True, text=True).stdout.strip()
     if email:  # the real atlas commits with its repo-local address; so does its clone
         git(atlas, "config", "user.email", email)
-    repos = [atlas]
     for p in rel["packages"]:
         dest = ws / real.name(p["repo"])
         git(ws, "clone", "-q", "--branch", p["branch"], str(real.path(p["repo"])), str(dest))
         git(dest, "remote", "remove", "origin")
-        repos.append(dest)
     for a in rel["apps"]:
         src = git(real.path(a["repo"]), "rev-parse", "--path-format=absolute", "--git-common-dir")
         dest = ws / real.name(a["repo"])
@@ -101,30 +124,18 @@ def main(argv=None):
         git(dest, "-c", "advice.detachedHead=false", "checkout", "-q", "-B", a["branch"], git(real.path(a["repo"]), "rev-parse", "HEAD"))
         git(dest, "remote", "add", "origin", real.reg[a["repo"]]["repository"]["url"])
         git(dest, "config", "remote.origin.pushurl", "file:///nonexistent/rehearsal-push-disabled")
-        repos.append(dest)
     for rid in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]:
         subprocess.run(["git", "init", "-q", "--bare", str(remote / real.name(rid))], check=True)
         # scripts/checkout-opencine.sh fetches <base>/<Name>.git; GitHub serves both spellings.
         (remote / f"{real.name(rid)}.git").symlink_to(real.name(rid))
-    bares = [remote / real.name(rid) for rid in [real.atlas_id] + real.packages + [a["repo"] for a in rel["apps"]]]
-    report.append(f"clones: {', '.join(p.name for p in repos)}")
+    report.append(f"clones: {', '.join(names)}")
 
     env = {k: v for k, v in os.environ.items() if k not in ("OPENCAPTURE_ATLAS_ROOT", "OPENCAPTURE_WORKSPACE")}
     env["PYTHONDONTWRITEBYTECODE"] = "1"  # bytecode caches are not the tool writing
     tool = [sys.executable, atlas / "tools" / "publish.py"]
     pub = [*tool, "--remote-base", base]
 
-    # With a file:// base SwiftPM and Xcode record a lock location without the scheme, which the apps'
-    # own lockfile check (written for https URLs) cannot match. Only in the clones, normalize the
-    # copy the check reads; on GitHub the location is the URL as written and the check runs as is.
-    record = atlas / "compat" / f"release-{args.version}.json"
-    data = json.loads(record.read_text())
-    fix = "sed -i '' 's#\"location\" : \"/#\"location\" : \"file:///#' ios/Package.resolved && "
-    for a in data["apps"]:
-        a["verify"] = [fix + c if "ios-package-resolved-check" in c else c for c in a["verify"]]
-    record.write_text(json.dumps(data, indent=2) + "\n")
-    git(atlas, "commit", "-q", "-am", "rehearsal: lockfile check reads file:// locations")
-    report.append("rehearsal-only change: apps' Package.resolved check runs on a copy with file:// locations restored")
+    tweak_record(atlas, rel, args.version, report)
 
     # 2. dry run writes nothing (decisions are still empty in the cloned record: preflight reports them)
     before = fingerprint(repos, bares)
@@ -143,6 +154,15 @@ def main(argv=None):
     if code:
         sys.exit("\n".join(report + [out]))
 
+    return publish_and_check(args, real, rel, top, remote, base, atlas, repos, bares, report, started)
+
+
+def publish_and_check(args, real, rel, top, remote, base, atlas, repos, bares, report, started, resume=False):
+    env = {k: v for k, v in os.environ.items() if k not in ("OPENCAPTURE_ATLAS_ROOT", "OPENCAPTURE_WORKSPACE")}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    pub = [sys.executable, atlas / "tools" / "publish.py", "--remote-base", base]
+    if resume:
+        tweak_record(atlas, rel, args.version, report)
     # 4. execute, then again
     t0 = time.time()
     code, out = run([*pub, "--execute", "--open-prs"], log=top / "3-execute.log", env=env)
