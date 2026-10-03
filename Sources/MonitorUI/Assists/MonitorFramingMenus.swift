@@ -194,7 +194,7 @@ public struct MonitorDesqueezeMenu: View {
         }.onDisappear(perform: persist)
     }
     private func choices(_ options: [MonitorDesqueezePreset?]) -> some View {
-        MonitorSegmentedControl(options: options, selection: Binding(get: { selected }, set: select),
+        MonitorSegmentedControl(options: options, selection: Binding(get: { selected }, set: { select($0) }),
             stacked: true, title: { $0?.rawValue ?? "Custom" }, onSelectionFeedback: feedback)
             .buttonStyle(MonitorSettingsButtonStyle())
     }

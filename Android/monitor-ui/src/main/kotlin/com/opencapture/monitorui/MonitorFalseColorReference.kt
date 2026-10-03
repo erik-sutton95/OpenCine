@@ -21,24 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-data class MonitorFalseColorReferenceSegment(
-    val id: Int, val lowerFraction: Double, val upperFraction: Double,
-    val red: Double, val green: Double, val blue: Double,
-)
-data class MonitorFalseColorReferenceMarker(val id: Int, val label: String, val fraction: Double)
-
-/** A resolved key for one sampled source/profile. UI never selects a camera curve. */
-class MonitorFalseColorReferenceValues(
-    val subtitle: String,
-    segments: List<MonitorFalseColorReferenceSegment>,
-    markers: List<MonitorFalseColorReferenceMarker> = emptyList(),
-    axisLabels: List<String> = emptyList(),
-) {
-    val segments: List<MonitorFalseColorReferenceSegment> = segments.toList()
-    val markers: List<MonitorFalseColorReferenceMarker> = markers.toList()
-    val axisLabels: List<String> = axisLabels.toList()
-}
-
 @Composable
 fun MonitorFalseColorReference(values: MonitorFalseColorReferenceValues, modifier: Modifier = Modifier) {
     Box(

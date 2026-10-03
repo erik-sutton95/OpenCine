@@ -321,6 +321,17 @@ open class MonitorLiveVideoRuntime {
         return current && publication?.isActive != false
     }
 
+    /// Applies a known camera report to this live source, even when playback owns the display.
+    /// Capture the token before queuing a report. Unknown or retired reports preserve calibration.
+    @discardableResult public func updateSourceCalibration(
+        iso: Int?, source: MonitorVideoSourceToken?
+    ) -> Bool {
+        guard accepts(source), let sampleSource, sampleBus?.isCurrent(sampleSource) == true,
+            let iso, (50...102_400).contains(iso) else { return false }
+        sampleSource.exposureCeiling.syncISO(iso)
+        return true
+    }
+
     /// Terminal retirement. Fences queued frames before releasing native and publication owners.
     open func close() {
         sourceLifetime.withLock { $0.close() }

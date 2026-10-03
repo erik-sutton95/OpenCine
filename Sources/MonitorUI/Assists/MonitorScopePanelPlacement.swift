@@ -1,5 +1,9 @@
 #if os(iOS)
+import MonitorPresentation
 import SwiftUI
+
+public typealias MonitorScopeStoredCenter = MonitorPresentation.MonitorScopeStoredCenter
+public typealias MonitorScopeCanvasSlot = MonitorPresentation.MonitorScopeCanvasSlot
 
 /// Scope bodies have equal horizontal margins in the space reserved for overlays.
 /// The corner stays visible; its expanded touch area may extend past a side boundary.
@@ -47,12 +51,10 @@ public enum MonitorScopePanelPlacement {
 }
 
 /// Coordinates are normalized against the full canvas; fitting never rewrites storage.
-public struct MonitorScopeStoredCenter: Codable, Equatable, Sendable {
-    public var xFraction: Double
-    public var yFraction: Double
+extension MonitorScopeStoredCenter {
     public init(center: CGPoint, in bounds: CGRect) {
-        xFraction = Double((center.x - bounds.minX) / max(bounds.width, 1))
-        yFraction = Double((center.y - bounds.minY) / max(bounds.height, 1))
+        self.init(xFraction: Double((center.x - bounds.minX) / max(bounds.width, 1)),
+            yFraction: Double((center.y - bounds.minY) / max(bounds.height, 1)))
     }
     public func center(in bounds: CGRect) -> CGPoint {
         CGPoint(x: bounds.minX + CGFloat(xFraction) * bounds.width,
@@ -60,10 +62,9 @@ public struct MonitorScopeStoredCenter: Codable, Equatable, Sendable {
     }
 }
 
-public enum MonitorScopeCanvasSlot: String, Sendable {
-    case landscape, portrait
+extension MonitorScopeCanvasSlot {
     public static func forBounds(_ bounds: CGRect) -> Self {
-        bounds.height > bounds.width ? .portrait : .landscape
+        forSize(width: Double(bounds.width), height: Double(bounds.height))
     }
     public static func pick<T>(_ landscape: T?, _ portrait: T?, in bounds: CGRect) -> T? {
         forBounds(bounds) == .portrait ? portrait : landscape

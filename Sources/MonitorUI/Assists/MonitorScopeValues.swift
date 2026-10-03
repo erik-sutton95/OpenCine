@@ -1,28 +1,11 @@
 #if os(iOS)
+import MonitorPresentation
 import SwiftUI
 
-public enum MonitorWaveformMode: String, CaseIterable, Codable, Equatable, Sendable, Identifiable {
-    case luma = "Luma"
-    case rgb = "RGB"
-    public var id: String { rawValue }
-}
-
-public enum MonitorParadeMode: String, CaseIterable, Codable, Equatable, Sendable, Identifiable {
-    case rgb = "RGB"
-    case yrgb = "YRGB"
-    public var id: String { rawValue }
-    public var laneCount: Int { self == .yrgb ? 4 : 3 }
-}
-
-public enum MonitorVectorscopeZoom: String, CaseIterable, Codable, Equatable, Sendable, Identifiable {
-    case x1 = "1x"
-    case x2 = "2x"
-    case x4 = "4x"
-    public var id: String { rawValue }
-    public var gain: Double {
-        switch self { case .x1: 1; case .x2: 2; case .x4: 4 }
-    }
-}
+public typealias MonitorWaveformMode = MonitorPresentation.MonitorWaveformMode
+public typealias MonitorParadeMode = MonitorPresentation.MonitorParadeMode
+public typealias MonitorVectorscopeZoom = MonitorPresentation.MonitorVectorscopeZoom
+public typealias MonitorScopeGuides = MonitorPresentation.MonitorScopeGuides
 
 public enum MonitorScopeGeometry {
     public static func laneX(xRatio: Double, lane: Int, mode: MonitorParadeMode, plot: CGRect) -> CGFloat {
@@ -40,14 +23,5 @@ public enum MonitorScopeGeometry {
     public static func traceClipRect(_ plot: CGRect) -> CGRect { plot.insetBy(dx: 0, dy: -2) }
     public static func waveformIntensity(_ brightness: Int) -> Double { Double(min(max(brightness, 0), 200)) / 400 }
     public static func vectorscopeIntensity(_ brightness: Int) -> Double { Double(min(max(brightness, 0), 200)) / 100 }
-}
-public struct MonitorScopeGuides: Codable, Equatable, Sendable {
-    public var clip: Bool
-    public var crush: Bool
-    public var middle: Bool
-    public static let `default` = Self()
-    public init(clip: Bool = true, crush: Bool = true, middle: Bool = true) {
-        self.clip = clip; self.crush = crush; self.middle = middle
-    }
 }
 #endif
