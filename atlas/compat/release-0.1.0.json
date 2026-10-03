@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
+      "commit": "d5b07c78b10776fa305ef403681ec8c1ae90eeb1",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
-        "where": "2026-10-03 local integration4a83/source130 differs only pin1afdda: Swift591/just, generic BFT both arches and canonical Android697/lint/debug/release/staging/JNI8 exact passed on integration. Native integration163b64e9; APK/XML/log packet integration-1afdda-consumer-evidence. Actual iOS settings/cache/sharing3 passed67.539s at ab91/130 and installed Android JNI/Display/assist3 passed19.394s with earlier92ba6ec9, all134 iOS/4 Android preferences restored. Exact source/artifact attribution retained; no final integration runtime hash claim. Physical cameras untested."
+        "commit": "d5b07c78b10776fa305ef403681ec8c1ae90eeb1",
+        "where": "2026-10-03 integrationd5b07/source2957 differs only pin5d7: Swift591, generic BFT both arches, canonical Android680/0fail/skips/lint/debug/release/staging/JNI8 exact passed. Immutable integration-5d7-consumer-evidence APK/XML/log manifest, native163b64e9. Display Live/Clean iOS1 and actual gallery iOS1/Android1 plus regular iOS546/1 existing skip passed at separately recorded candidate artifacts; original preferences/apps/cache restored. Unknown saved-color filtering red1/1 fixed c30, full680 unit/lint passed. No final integrated installed-runtime claim. Full I5/playback ongoing, physical cameras untested."
       }
     },
     {
