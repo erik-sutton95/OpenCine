@@ -158,7 +158,11 @@ private fun FilterChoices(title: String, choices: List<MonitorMediaFilterChoice>
     Column(Modifier.padding(bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         FilterHeading(title)
         if (layout == MonitorMediaFilterChipLayout.HORIZONTAL_SCROLL) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 choices.forEach { choice -> FilterChoice(title, choice, choice.id in active, true, onToggle) }
             }
         } else {
@@ -173,10 +177,10 @@ private fun FilterChoice(group: String, choice: MonitorMediaFilterChoice, active
         choice.label,
         color = if (active) MonitorPalette.accent else MonitorPalette.muted,
         style = MonitorTypography.text(10f, FontWeight.SemiBold),
-        modifier = (if (horizontal) Modifier else Modifier.fillMaxWidth())
+        modifier = (if (horizontal) Modifier.filterChoiceClickable { onToggle(choice.id) } else Modifier.fillMaxWidth())
             .clip(RoundedCornerShape(999.dp))
             .background(if (active) MonitorPalette.accent.copy(alpha = .14f) else Color.White.copy(alpha = .04f))
-            .then(if (horizontal) Modifier.filterChoiceClickable { onToggle(choice.id) } else Modifier.clickable { onToggle(choice.id) })
+            .then(if (horizontal) Modifier else Modifier.clickable { onToggle(choice.id) })
             .semantics {
                 selected = active
                 if (horizontal) {
@@ -205,16 +209,15 @@ private fun FilterDateChip(title: String, label: String?, modifier: Modifier, on
     )
 }
 
-/** Preserve the compact drawn chip and the donor's 44dp native touch floor. */
+/** Keep the drawn capsule compact while reporting its full 44dp native target to the scroll viewport. */
 @Composable
 private fun Modifier.filterChoiceClickable(onClick: () -> Unit): Modifier {
     val minimum = with(LocalDensity.current) { 44.dp.roundToPx() }
     var drawn by remember { mutableStateOf(IntSize.Zero) }
-    val x = if (drawn.width <= 0) 0 else ((minimum - drawn.width) / 2).coerceAtLeast(0)
-    val y = if (drawn.height <= 0) 0 else ((minimum - drawn.height) / 2).coerceAtLeast(0)
+    val x = if (drawn.width <= 0) 0 else ((minimum - drawn.width + 1) / 2).coerceAtLeast(0)
+    val y = if (drawn.height <= 0) 0 else ((minimum - drawn.height + 1) / 2).coerceAtLeast(0)
     val expands = x > 0 || y > 0
     return this
-        .then(if (expands) Modifier.filterChoiceInset(x, y) else Modifier)
         .monitorChromeClickable(onClick = onClick)
         .then(if (expands) Modifier.filterChoiceExpand(x, y) else Modifier)
         .onSizeChanged { size ->
@@ -226,11 +229,4 @@ private fun Modifier.filterChoiceClickable(onClick: () -> Unit): Modifier {
 private fun Modifier.filterChoiceExpand(x: Int, y: Int): Modifier = layout { measurable, constraints ->
     val child = measurable.measure(constraints.offset(-2 * x, -2 * y))
     layout(child.width + 2 * x, child.height + 2 * y) { child.place(x, y) }
-}
-
-private fun Modifier.filterChoiceInset(x: Int, y: Int): Modifier = layout { measurable, constraints ->
-    val child = measurable.measure(constraints.offset(2 * x, 2 * y))
-    layout((child.width - 2 * x).coerceAtLeast(0), (child.height - 2 * y).coerceAtLeast(0)) {
-        child.place(-x, -y)
-    }
 }
