@@ -39,3 +39,22 @@ delivery, GPU/window threads, presentation synchronization and source sampling. 
 crash-guard, diagnostic and display-policy callbacks. The renderer's legacy `OpcVulkan` JNI class
 and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axis values and
 imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.
+
+Apple `MonitorLiveVideoRuntime` owns Annex-B format admission, the retained display layer,
+one sticky VideoToolbox decoder, assist/decoded-source/preview demand and layer/Metal handoff.
+Source configuration supplies calibration, transfer interpretation and diagnostics. The runtime
+signals a random-access need; the integration's connection owner decides whether and how to
+request it. `health` captures one source's format, reference, output and display facts, while
+cached image repaint leaves its source freshness unchanged.
+
+Capture `sourceToken` before queuing encoded or decoded input. `reset()` advances that source
+identity without replacing the picture host; VT rebuilds also fence queued decoder output.
+`close()` is terminal and cannot reopen or erase a successor publication lease. A pixel-buffer
+source calls `preparePixelBufferSource` and submits through the same owner, preserving its token
+through asynchronous delivery. Apps keep simulator footage selection and raw wire color mapping.
+
+Android already owns its encoded admission and MediaCodec/reference state in `:decoder`.
+`MonitorSurfacePictureHost` and `MonitorTexturePictureHost` own the corresponding native View
+attachment/listener lifetimes in `:native-runtime`, without a Compose dependency. The texture
+program is either the existing GLES owner or a direct decoder surface. Old-window destroy and
+update callbacks cannot release a replacement surface or refresh its presentation clock.

@@ -35,6 +35,25 @@ public struct MonitorPresentOperations: @unchecked Sendable {
 
 /// Metal-backed presenter. Baking, scaling and model preparation run off-main.
 open class MonitorPictureHost: UIView {
+    /// A native runtime may adopt the same retained host before its predecessor retires.
+    public final class Ownership { fileprivate init() {} }
+    private var currentOwner: Ownership?
+    public func claimOwnership() -> Ownership {
+        invalidatePendingPresents()
+        resetPresentDedup()
+        let owner = Ownership()
+        currentOwner = owner
+        return owner
+    }
+    public func owns(_ owner: Ownership?) -> Bool {
+        owner != nil && currentOwner === owner
+    }
+    public func releaseOwnership(_ owner: Ownership?) {
+        guard owns(owner) else { return }
+        currentOwner = nil
+        onPresented = nil
+    }
+
     public override class var layerClass: AnyClass { CAMetalLayer.self }
     private var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
     private let device: MTLDevice?

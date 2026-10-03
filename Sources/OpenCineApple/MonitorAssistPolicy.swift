@@ -40,6 +40,9 @@ public struct MonitorAssistPolicy: Equatable, Sendable {
         image.peaking || image.zebra || image.falseColor
             || image.lutDimension >= 2 || image.desqueezeFactor > 1.001
     }
+    public var replacesIdentityFeed: Bool {
+        image.lutDimension >= 2 || image.desqueezeFactor > 1.001
+    }
     public var needsOverlayFeed: Bool {
         needsGPUFeed && image.lutDimension < 2 && image.desqueezeFactor <= 1.001
     }
