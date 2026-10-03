@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "8a44fdb03cb9c5396c3bb0c67f0919c8dcab201a",
+      "commit": "9128ff066d0399792fe55cf9887d00459fc98200",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "8a44fdb03cb9c5396c3bb0c67f0919c8dcab201a",
-        "where": "App sources unchanged from I2 except combined SDK0549153 pin. Prior I2 phone/pad502 each (1 existing skip)/native Android10 plus intrinsic-height2/JNI8 retained. Exact current root595/generic iOS build-for-testing/Android main+unit compile67tasks passed, local scratchpad/dji-common-controls/capture-union-insta-*.log. Physical cameras untested."
+        "commit": "9128ff066d0399792fe55cf9887d00459fc98200",
+        "where": "Source807630c with pin-only successor9128ff0 on product400962e: root591/just check, generic iOS BFT, full phone530 and coherent iPad530 (1 existing skip each), phone settings UI2, Android697/main/native staging/lint/debug/package and exact JNI8 pass. local scratchpad/i4-operator-settings/combined-*.log/.xcresult and combined-consumer-evidence/manifest.json; prior I3 native/installed evidence retained. UIReview/native schemes require coherent build action when switched. Physical cameras untested."
       }
     },
     {
