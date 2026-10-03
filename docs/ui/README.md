@@ -82,6 +82,12 @@ the host retains consent storage, reporting availability, queue operations and d
 `MonitorSettingsNumberField` shares bounded native numeric input with a Done action; action
 pills and compact display switches use the same shared settings presentation.
 
+`MonitorGimbalSettings`, `MonitorJoystickSettings` and `MonitorControllerSettings` own the
+actual motion-control cards, native stepped sliders, choices and switches. Apps supply
+bindings or current values/actions, supported ranges, optional head-tracking controls,
+status text and feedback policy. Storage keys, stick command cancellation and integration
+curve/size mapping remain in the app. No motion setting starts a camera command by itself.
+
 ## Import rules
 
 - Native scope plots consume portable Media values for histogram/traffic readings, transfer
