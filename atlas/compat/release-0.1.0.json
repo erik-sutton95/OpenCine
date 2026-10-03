@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "1afdda9c53393713c7fd87df3bac6a08c00b6df5",
+    "commit": "5d7c9ecdd3f555e11b068a3a47d2f434c24f86bb",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "1afdda9c53393713c7fd87df3bac6a08c00b6df5",
-      "where": "2026-10-03 fixed local1afdda union: full Swift1934 Testing+86 XCTest/build/strict, DJIApple generic both arches; unchanged Android inputs reuse ab91 full961 unique/2 existing skips/lint/release/Vulkan and MonitorUI generic. Atlas91/check passed. Exact settings/media packet with source-attributed Android/iOS native inputs plus Pocket894 recovery packet; SHELL-03-I4. Local integration only; thin apps unfinished, physical cameras untested."
+      "commit": "5d7c9ecdd3f555e11b068a3a47d2f434c24f86bb",
+      "where": "2026-10-03 product5d7: shared2011 Testing+86 XCTest/build/strict, MonitorUI/OpenCineApple generic both arches, Android1009 unique/2 existing skips/test/lint/release/Vulkan and Atlas91/check passed. Actual display preferences, media library/cache/native HTTP, Nikon selection, Pocket connection owner locally integrated. Immutable integration-5d7-consumer-evidence manifest; SHELL-03-I4. Earlier native inputs retain exact source/artifact attribution. Local integration only, thin apps unfinished, physical cameras untested."
     }
   },
   "apps": [
