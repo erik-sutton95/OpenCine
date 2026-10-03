@@ -83,6 +83,13 @@ identity without replacing the picture host; VT rebuilds also fence queued decod
 source calls `preparePixelBufferSource` and submits through the same owner, preserving its token
 through asynchronous delivery. Apps keep simulator footage selection and raw wire color mapping.
 
+Known live ISO reports use `updateSourceCalibration(iso:source:)` with a token captured before
+queuing the report. Attach the sample bus before seeding a known ISO. This operation targets the
+runtime's current live publication lease; the bus's display ceiling may belong to playback.
+Unknown, invalid or retired reports preserve calibration and are refused. Android's existing
+render policy already applies ISO to its current producer lease, so this Apple input adds no
+second calibration owner or display-projection write.
+
 Android already owns its encoded admission and MediaCodec/reference state in `:decoder`.
 `MonitorSurfacePictureHost` and `MonitorTexturePictureHost` own the corresponding native View
 attachment/listener lifetimes in `:native-runtime`, without a Compose dependency. The texture
