@@ -89,6 +89,13 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorAudioMeter` is the actual stereo level/held-peak drawing on both native
+  platforms. Source adapters supply dBFS readings; the view does not advance a
+  decay clock or read telemetry. Orientation identities retain their stored labels.
+  Swift preserves its graduated zones, fixed 10 point tracks, 10 point label reserve
+  and Foundation readout rounding; Compose preserves its whole-bar zone color,
+  fitted tracks, 12 dp label reserve and Kotlin rounding. These inherited drawing
+  differences remain explicit pending physical qualification.
 - `MonitorFalseColorReference` renders a resolved source key: typed RGB/fraction
   segments, labeled axis markers and a subtitle. Source adapters select the look,
   ceiling and scale before constructing `MonitorFalseColorReferenceValues`; the
