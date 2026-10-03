@@ -100,6 +100,20 @@ tools are omitted and unavailable sections expose no editor or reset. Apps resol
 calibration and supply their existing saved bindings and feedback. Optional input/orientation
 controls likewise receive real supported values and actions rather than creating app preferences.
 
+`MonitorLinkHealthScale` renders a supplied known score using the existing common link
+bands. The source still interprets delivery observations; the view never reads a transport.
+
+`MonitorAccountSettings` renders known local configuration, connection and sign-in state
+on both platforms, with optional sign-in/sign-out actions. Apps keep credentials, OAuth,
+requests and service-specific copy. Missing actions stay absent.
+
+`MonitorFeedSharingSettings` owns the actual Apple relay-host settings rows: share switch,
+Wi-Fi-code action, passcode field, control requests and supplied priority choices. The app
+keeps relay admission/lifetime, borrowed-camera policy, keychain writes and Wi-Fi-sheet
+presentation. This is an explicit platform exception: Android currently has no implemented
+feed-sharing settings and retains its existing Coming soon content. No Android relay or
+account functionality is implied by the shared presentation.
+
 ## Import rules
 
 - Native scope plots consume portable Media values for histogram/traffic readings, transfer
