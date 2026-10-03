@@ -1,6 +1,9 @@
 package com.opencapture.opencine.insta360.luna
 
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.CameraMediaBrowse
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectionEvent
 import com.opencapture.opencine.core.ConnectionFailure
@@ -47,6 +50,7 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     var scanStops = 0
     val connects = mutableListOf<String>()
     var disconnects = 0
+    var makeMediaService: ((CameraSessionID) -> CameraMediaService?)? = null
     val forgotten = mutableListOf<String>()
     private var outcome: CompletableDeferred<ConnectionFailure?>? = null
 
@@ -76,6 +80,7 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
         phase.value = ConnectionPhase.IDLE
     }
     override fun openSession(): CameraSession = FakeCameraSession.lunaLike()
+    override fun mediaService(session: CameraSessionID): CameraMediaService? = makeMediaService?.invoke(session)
     override fun forget(id: String) { forgotten += id }
 }
 
@@ -94,6 +99,21 @@ class LunaIntegrationTest {
         val seen = mutableListOf<ConnectionEvent>()
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { events.collect { seen += it } }
         return seen
+    }
+
+    @Test fun actualConnectionRegistersMediaByProtocolTypeAndRejectsWrongSession() = runTest {
+        for (matching in listOf(true, false)) {
+            val (port, luna) = setup()
+            port.makeMediaService = { session -> object : CameraMediaService {
+                override val sessionID = if (matching) session else CameraSessionID()
+                override suspend fun openBrowse(): CameraMediaBrowse = error("No browse requested")
+            } }
+            val events = collect(luna.connect(ConnectTarget.Nearby(sighting)))
+            runCurrent(); port.goLive(); runCurrent()
+            val camera = assertIs<ConnectionEvent.Connected>(events.last()).camera
+            assertEquals(matching, camera.services.get<CameraMediaService>() != null)
+            port.disconnect()
+        }
     }
 
     @Test

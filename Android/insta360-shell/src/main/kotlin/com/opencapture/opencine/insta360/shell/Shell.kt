@@ -8,6 +8,10 @@ package com.opencapture.opencine.insta360.shell
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.MediaByteSink
+import com.opencapture.opencine.media.MediaTransferReceipt
 
 /** Operator-visible connection stage the shell renders. Same constants as OpenPocketCine's so the shared shell code reads both. */
 public enum class ConnectionPhase { IDLE, SCANNING, CONNECTING_GATT, PAIRING, AWAITING_APPROVAL, READING_WIFI_CREDS, JOINING_WIFI, OPENING_DATALINK, LIVE, FAILED }
@@ -42,6 +46,16 @@ public interface CameraBackend {
 public interface CoreSessionSource {
  /** A new session for the next connection; the previous one closes as replaced. */
  public fun openSession(): com.opencapture.opencine.core.CameraSession
+}
+
+/** Optional producer bound to the exact session in ConnectedCamera.services. */
+public interface CameraMediaServiceSource {
+ public fun mediaService(session: CameraSessionID): CameraMediaService? = null
+}
+
+/** Existing app HTTP driver; the source supplies addressing, the driver streams to owned staging. */
+public interface LunaMediaTransferPort {
+ public suspend fun transfer(url: String, sink: MediaByteSink): MediaTransferReceipt
 }
 
 /**
@@ -166,4 +180,3 @@ public interface CameraMediaStore {
  public suspend fun pauseLive()
  public suspend fun resumeLive()
 }
-

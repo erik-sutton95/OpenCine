@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCore
+import OpenCineMedia
 
 extension ConnectionFailure {
     /// A Luna connection failure. The message is the copy the backend has always shown; the code
@@ -39,8 +40,14 @@ public protocol LunaConnectPort: AnyObject {
     func disconnect()
     /// A new core session for the next connection; the previous one closes as replaced.
     func openSession() -> LunaCameraSession
+    /// Optional source service for this exact session, registered by the connected camera.
+    func mediaService(for session: CameraSessionID) -> (any CameraMediaService)?
     /// Drops the camera's saved Wi-Fi. The approval identity stays.
     func forget(cameraID: UUID)
+}
+
+extension LunaConnectPort {
+    public func mediaService(for session: CameraSessionID) -> (any CameraMediaService)? { nil }
 }
 
 extension LunaCameraBackend: LunaConnectPort {
@@ -196,7 +203,12 @@ public final class LunaIntegration: CameraIntegration {
     private func connected(_ attempt: Attempt, session: LunaCameraSession) {
         guard current === attempt else { return }
         current = nil
-        attempt.continuation.yield(.connected(ConnectedCamera(saved: record(attempt), session: session)))
+        var services = CameraServices()
+        if let media = port.mediaService(for: session.id), media.sessionID == session.id {
+            services.register(media, as: (any CameraMediaService).self)
+        }
+        attempt.continuation.yield(
+            .connected(ConnectedCamera(saved: record(attempt), session: session, services: services)))
         attempt.continuation.finish()
     }
 

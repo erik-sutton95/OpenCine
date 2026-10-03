@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import Insta360Protocol
 import OpenCineCore
+import OpenCineMedia
 
 /// Insta360 Luna adapter: BLE consent + encrypted Wi-Fi credential bootstrap, then
 /// plaintext UCD2 on TCP 6666 for control, status and HEVC preview.
@@ -56,6 +57,10 @@ public final class LunaCameraBackend: CameraBackend {
     private var heartbeat: Task<Void, Never>?
     private var statusPoll: Task<Void, Never>?
     private var generation = 0
+    private var connectedMedia: LunaMediaService?
+    let mediaIO: (any LunaMediaIO)?
+    /// App-owned native preparation, fenced by the captured session/epoch at composition.
+    public var prepareMediaLiveReturn: (@MainActor (MediaBrowseBinding) async -> Void)?
     private var isTCP = false
     private var liveStartAttempted = false
     private var handshakeComplete = false
@@ -80,10 +85,12 @@ public final class LunaCameraBackend: CameraBackend {
 
     /// Existing-network mode serves a Mac/Simulator already on the camera AP.
     public init(
-        useExistingNetwork: Bool = false, configuration: LunaIntegrationConfiguration = .init()
+        useExistingNetwork: Bool = false, configuration: LunaIntegrationConfiguration = .init(),
+        mediaIO: (any LunaMediaIO)? = nil
     ) {
         existingNetwork = useExistingNetwork
         self.configuration = configuration
+        self.mediaIO = mediaIO
         store = LunaSecureStore(service: configuration.keychainService)
         bluetooth.onCamera = { [weak self] camera in
             guard let self else { return }
@@ -362,6 +369,7 @@ public final class LunaCameraBackend: CameraBackend {
     }
 
     public func disconnect() {
+        connectedMedia?.retire()
         generation += 1
         handshakeComplete = false
         heartbeat?.cancel()
@@ -429,6 +437,7 @@ public final class LunaCameraBackend: CameraBackend {
 
     /// A new OpenCineCore session for the next connection. The previous one closes as replaced.
     public func openSession() -> LunaCameraSession {
+        connectedMedia?.retire(); connectedMedia = nil
         let previous = session
         let next = LunaCameraSession(
             send: { [weak self] request in
@@ -874,5 +883,32 @@ public final class LunaCameraBackend: CameraBackend {
 
     public func deleteFile(uri: String) async throws {
         _ = try await send(LunaProtocol.deleteFiles(uri))
+    }
+}
+
+extension LunaCameraBackend: LunaMediaSourcePort {
+    var mediaSourceState: LunaMediaSourceState? {
+        guard isControlReady, let session, session.current.connection == .ready,
+            session.current.authority == .owner else { return nil }
+        return .init(session: session.id, epoch: session.current.epoch, connection: generation)
+    }
+
+    public func mediaService(for id: CameraSessionID) -> (any CameraMediaService)? {
+        guard session?.id == id else { return nil }
+        if let connectedMedia, connectedMedia.sessionID == id { return connectedMedia }
+        let media = LunaMediaService(session: id, port: self)
+        connectedMedia = media
+        return media
+    }
+
+    func mediaRequest(_ request: LunaRequest, source: LunaMediaSourceState) async throws -> Data {
+        guard mediaSourceState == source, let session else { throw MediaServiceError.retired }
+        let reply = try await session.mediaRequest(request, epoch: source.epoch)
+        guard mediaSourceState == source else { throw MediaServiceError.retired }
+        return reply
+    }
+
+    func prepareMediaReturn(_ binding: MediaBrowseBinding) async {
+        await prepareMediaLiveReturn?(binding)
     }
 }

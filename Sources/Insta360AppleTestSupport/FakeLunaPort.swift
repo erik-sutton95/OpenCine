@@ -1,6 +1,7 @@
 import Foundation
 import Insta360Apple
 import OpenCineCore
+import OpenCineMedia
 
 /// A scripted Luna backend behind `LunaIntegration`, for tests: it records scans, connects and
 /// forgets, emits the backend's events on demand, and holds each connect until the test finishes
@@ -10,6 +11,7 @@ public final class FakeLunaPort: LunaConnectPort {
     public var eventHandler: ((CameraBackendEvent) -> Void)?
     public var connectedSerial: String?
     public var joinedNetwork: String?
+    public var makeMediaService: ((CameraSessionID) -> (any CameraMediaService)?)?
     /// Thrown by `startScan()` when set (Bluetooth off, for example).
     public var scanFailure: Error?
     public private(set) var scans = 0
@@ -55,6 +57,9 @@ public final class FakeLunaPort: LunaConnectPort {
     }
 
     public func openSession() -> LunaCameraSession { camera.makeSession() }
+    public func mediaService(for session: CameraSessionID) -> (any CameraMediaService)? {
+        makeMediaService?(session)
+    }
 
     public func forget(cameraID: UUID) { forgotten.append(cameraID) }
 

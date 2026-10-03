@@ -5,6 +5,9 @@ import com.opencapture.opencine.core.CameraProfile
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectedCamera
+import com.opencapture.opencine.core.CameraServices
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.insta360.shell.CameraMediaServiceSource
 import com.opencapture.opencine.core.ConnectionAttemptID
 import com.opencapture.opencine.core.ConnectionEvent
 import com.opencapture.opencine.core.ConnectionFailure
@@ -37,7 +40,7 @@ import kotlinx.coroutines.launch
  * connection, its session, and forgetting a camera's saved Wi-Fi. [LunaBackend] is the one
  * implementation; tests script a fake.
  */
-interface LunaConnectPort {
+interface LunaConnectPort : CameraMediaServiceSource {
     val phase: StateFlow<ConnectionPhase>
     val found: StateFlow<List<CameraIdentity>>
     val joinedSSID: StateFlow<String?>
@@ -169,7 +172,10 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
         val watcher = launch {
             port.phase.collect { phase ->
                 if (phase == ConnectionPhase.LIVE && job?.isActive == true) {
-                    outcome.complete(ConnectionEvent.Connected(ConnectedCamera(record(target), session)))
+                    val media = port.mediaService(session.id)?.takeIf { it.sessionID == session.id }
+                    val services = media?.let { CameraServices().plus(CameraMediaService::class, it) }
+                        ?: CameraServices()
+                    outcome.complete(ConnectionEvent.Connected(ConnectedCamera(record(target), session, services)))
                     return@collect
                 }
                 val progress = progress(attempt, phase) ?: return@collect
