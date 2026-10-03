@@ -61,6 +61,20 @@ adopts these owners with configured aliases and host callbacks; its remaining ca
 orchestration is a separate migration. Import-rule and callback/assembly tests live in
 `Tests/OpenCineDJIAppleTests`. This is a local candidate: camera behavior is untested on hardware.
 
+`DjiAppleControlExchange` owns the single Bluetooth frame drain, grouped reply requests,
+held pairing replies and actual SET mailbox execution. The native endpoint distinguishes
+queued sequence zero from a skipped write. SET sequence routing precedes same-opcode GET;
+unsolicited Selfie Flip cannot consume either. Request cancellation and scheduled work carry
+operation identity as well as the endpoint generation. Retirement completes only local work;
+the app still owns transport close, native motion cleanup and session recovery.
+
+Its host supplies one control context, typed effects and journal delivery. Actual camera
+reports confirm common command receipts. The explicitly named `legacySettlement` projection
+retains existing busy-state, mailbox and recovery behavior; presentation pins cannot confirm
+a common receipt, and unobserved recording is not reported idle. Retry remains 300ms, settle
+remains 2s, and coalescing retains 100ms ordinary/50ms pipelined-zoom cadence. Apple tests cross
+the same interface using manual timing and a SIMULATED peer on the actual UDP queue.
+
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
 
 The Kotlin DJI layer, moved from the OpenPocketCine app without behavior change (SHELL-04): BLE

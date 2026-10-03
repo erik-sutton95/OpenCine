@@ -24,6 +24,34 @@ struct DJIAppleDatalinkLifetimeTests {
         catch { #expect(error is CancellationError) }
     }
 
+    @Test func simulatedControlExchangeUsesActualQueueAndCameraReply() async throws {
+        let peer = try SimulatedDjiApplePeer(echoControls: true)
+        let driver = DjiAppleDatalink.loopbackForTesting(port: try await peer.start())
+        let exchange = DjiAppleControlExchange(endpoint: .init(datalink: driver),
+            context: { .init(canTransmit: !driver.isClosed) })
+        defer { exchange.retire(CancellationError()); driver.close(); peer.close() }
+        driver.onStatusFrame = { exchange.receive($0) }
+        try await driver.open()
+        let acknowledged = DjiAppleCallbackWaiter<Void>()
+        var stages: [ControlWireEvent] = []
+        exchange.submit(.init(Commands.recordStart(), name: "Record", retransmits: false)) {
+            if case .stage(let stage) = $0 {
+                stages.append(stage)
+                if stage == .acknowledged { acknowledged.resolve(.success(())) }
+            }
+        }
+        try await withCheckedThrowingContinuation { acknowledged.install($0) }
+        #expect(stages == [.sent, .acknowledged])
+        let commands = peer.snapshot.commandFrames.filter { $0.cmdSet == 2 && $0.cmdId == 2 }
+        #expect(commands.count == 1)
+        #expect(commands.first?.payload == Commands.recordStart().payload)
+        exchange.retire(CancellationError())
+        #expect(!driver.isClosed, "Local control retirement cannot close an owned or borrowed wire")
+        driver.close()
+        #expect(exchange.endpoint.writeDatalink(Commands.recordStop()) == .skipped)
+        #expect(!peer.snapshot.commandFrames.contains { $0.cmdSet == 2 && $0.cmdId == 2 && $0.payload == [0] })
+    }
+
     @Test func simulatedAcknowledgementPumpExecutesOnItsOwnedQueue() async throws {
         let peer = try SimulatedDjiApplePeer()
         let driver = DjiAppleDatalink.loopbackForTesting(port: try await peer.start())
@@ -131,6 +159,7 @@ private final class SimulatedDjiApplePeer: Sendable {
         var connections: [NWConnection] = []
         var peer: NWConnection?
         var holdInitialWindow: Bool
+        var echoControls: Bool
         var handshakeWaiters: [CheckedContinuation<Void, Never>] = []
         var registrationWaiters: [CheckedContinuation<Void, Never>] = []
         var ackWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
@@ -139,9 +168,9 @@ private final class SimulatedDjiApplePeer: Sendable {
     private let queue = DispatchQueue(label: "test.simulated-dji-apple-peer")
     private let state: OSAllocatedUnfairLock<State>
 
-    init(holdInitialWindow: Bool = false) throws {
+    init(holdInitialWindow: Bool = false, echoControls: Bool = false) throws {
         listener = try NWListener(using: .udp)
-        state = OSAllocatedUnfairLock(initialState: State(holdInitialWindow: holdInitialWindow))
+        state = OSAllocatedUnfairLock(initialState: State(holdInitialWindow: holdInitialWindow, echoControls: echoControls))
     }
     var snapshot: Snapshot { state.withLock { $0.snapshot } }
 
@@ -275,6 +304,18 @@ private final class SimulatedDjiApplePeer: Sendable {
             let waiters = state.registrationWaiters; state.registrationWaiters = []
             return waiters
         }
+        if state.withLock({ $0.echoControls }) {
+            for command in DumlTransport.scanFrames(bytes)
+                where Duml.isLiveCameraControl(set: command.cmdSet, cmd: command.cmdId) {
+                let frame = Duml.encode(.init(sender: command.receiver, receiver: command.sender,
+                    seq: command.seq, flags: Duml.flagResponse,
+                    cmdSet: command.cmdSet, cmdId: command.cmdId, payload: [0]))
+                let packet = DumlTransport.transportHeader(pktType: 3, payloadLen: frame.count,
+                    sessionId: 1, seq: 9) + frame
+                connection.send(content: Data(packet), completion: .idempotent)
+            }
+        }
+
         waiters.forEach { $0.resume() }
     }
 }

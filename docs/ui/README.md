@@ -82,6 +82,12 @@ the host retains consent storage, reporting availability, queue operations and d
 `MonitorSettingsNumberField` shares bounded native numeric input with a Done action; action
 pills and compact display switches use the same shared settings presentation.
 
+`MonitorGimbalSettings`, `MonitorJoystickSettings` and `MonitorControllerSettings` own the
+actual motion-control cards, native stepped sliders, choices and switches. Apps supply
+bindings or current values/actions, supported ranges, optional head-tracking controls,
+status text and feedback policy. Storage keys, stick command cancellation and integration
+curve/size mapping remain in the app. No motion setting starts a camera command by itself.
+
 ## Import rules
 
 - Native scope plots consume portable Media values for histogram/traffic readings, transfer
@@ -194,6 +200,11 @@ pills and compact display switches use the same shared settings presentation.
 - Enforced by `SharedUIRulesTests` (Swift) and `SharedUIRulesTest` (Kotlin): shared UI sources
   name no brand, product or app, and hold no mutable global outside a short allowlist (accent,
   HDR headroom, `MonitorIosParity` until it is removed).
+
+Connection settings own the native transport/phase/network rows and read-only saved-camera
+summaries. Apps provide interpreted values and explanatory content; missing networks stay
+optional, and stable saved-camera identifiers retain each row's help state. Pairing, credentials,
+transport health scoring and device-specific processing choices remain with their owners.
 
 ## Checks
 

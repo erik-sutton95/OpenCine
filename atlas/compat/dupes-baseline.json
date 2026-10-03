@@ -1,66 +1,66 @@
 {
   "code_lines": {
-    "opencine": 143809,
-    "openinstacine": 142827,
-    "openpocketcine": 138220,
-    "openzcine": 153360
+    "opencine": 166473,
+    "openinstacine": 129745,
+    "openpocketcine": 133241,
+    "openzcine": 152234
   },
   "note": "Written by `atlas dupes --write-baseline`; see tools/dupes.py for the metric.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 9358,
-      "blocks": 574,
+      "block_lines": 10231,
+      "blocks": 619,
       "exact_files": 13,
-      "file_lines": 8726,
-      "files": 73,
-      "lines": 18084
+      "file_lines": 9104,
+      "files": 77,
+      "lines": 19335
     },
     "opencine|openpocketcine": {
-      "block_lines": 405,
-      "blocks": 41,
-      "exact_files": 0,
-      "file_lines": 88,
-      "files": 3,
-      "lines": 493
+      "block_lines": 2589,
+      "blocks": 197,
+      "exact_files": 2,
+      "file_lines": 509,
+      "files": 9,
+      "lines": 3098
     },
     "opencine|openzcine": {
-      "block_lines": 154,
-      "blocks": 17,
-      "exact_files": 0,
-      "file_lines": 0,
-      "files": 0,
-      "lines": 154
+      "block_lines": 487,
+      "blocks": 42,
+      "exact_files": 1,
+      "file_lines": 149,
+      "files": 3,
+      "lines": 636
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 30462,
-      "blocks": 1600,
-      "exact_files": 225,
-      "file_lines": 53324,
-      "files": 338,
-      "lines": 83786
+      "block_lines": 29660,
+      "blocks": 1636,
+      "exact_files": 163,
+      "file_lines": 32717,
+      "files": 247,
+      "lines": 62377
     },
     "openinstacine|openzcine": {
-      "block_lines": 1575,
-      "blocks": 107,
-      "exact_files": 3,
-      "file_lines": 348,
-      "files": 6,
-      "lines": 1923
+      "block_lines": 646,
+      "blocks": 60,
+      "exact_files": 0,
+      "file_lines": 199,
+      "files": 3,
+      "lines": 845
     },
     "openpocketcine|openzcine": {
-      "block_lines": 1519,
-      "blocks": 101,
+      "block_lines": 1493,
+      "blocks": 100,
       "exact_files": 3,
       "file_lines": 348,
       "files": 6,
-      "lines": 1867
+      "lines": 1841
     }
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at b6c869fdee264c32cf3245f0145fc0d781e61e9c",
-    "openinstacine": "opencine/integration 8a44fdb03cb9c5396c3bb0c67f0919c8dcab201a",
-    "openpocketcine": "opencine/integration 04846b905e6fa01b835894c0f558eb6935a36605",
-    "openzcine": "opencine/integration 627d602d6b5c4f13039316bafade910158d5f064"
+    "opencine": "working tree at 8a40ecafb659f35fc4146b2dab23cd15d4648829",
+    "openinstacine": "opencine/integration 9128ff066d0399792fe55cf9887d00459fc98200",
+    "openpocketcine": "opencine/integration 23e817f1a06cbf0869d88199997c7f019d1833b8",
+    "openzcine": "opencine/integration c4c7939ec2953a57a5625d45d8f2057670c7a840"
   }
 }
