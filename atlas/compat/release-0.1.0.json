@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "61917eba46382b556b7e495783c90649c406d5cd",
+      "commit": "4aaf9f8ed5c4aa00552c8af434168073a588b591",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "61917eba46382b556b7e495783c90649c406d5cd",
-        "where": "2026-10-03 frozen b786/4c55affe control exchange source; integration diff only pin: root279/just check, handbook99, BFT, Android506/lint/debug/release/JNI41 with DJI368 passed. Earlier same control source native639 plus semantic20, shared native31 plus8 and unchanged JNI library retained; unionb786 proof retained. Physical cameras untested."
+        "commit": "4aaf9f8ed5c4aa00552c8af434168073a588b591",
+        "where": "2026-10-03 fixed 5b80/0128 source; integration differs only pin: Swift279/just/handbook99/BFT, native57 pass8.501s on a527; canonical Android506+DJI368/lint/debug/release/native staging/JNI41 green. Changed native core1cebc151 recorded. Actual existing empty-catalog UI1 passed30.045s at5b80 with portrait/landscape inputs;43 Pocket plists restored and89 Insta preserved. Original9d native649 pass retained; pre-existing optical automation failure donor-reproduced and unresolved. heartbeat-final-union/catalog-ui proof; physical cameras untested."
       }
     },
     {
