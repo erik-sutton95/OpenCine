@@ -7,7 +7,7 @@ screens used by the OpenCapture camera apps (OpenPocketCine, OpenInstaCine, Open
 
 | Product | What | Platforms |
 | --- | --- | --- |
-| `MonitorPresentation` | Foundation-only layout, capability gates, selection and display values. No camera I/O. | iOS, macOS, watchOS |
+| `MonitorPresentation` | Foundation layout, capability gates and display values over portable Media types. No camera I/O. | iOS, macOS, watchOS |
 | `MonitorUI` | SwiftUI pages, controls, inspectors, canvas, media catalog; bundled Sora fonts and Lucide/assist icons. Values and actions are injected. | iOS (compiles empty elsewhere) |
 
 The Compose implementation of the same design lives under `Android/` (`monitor-ui`).
@@ -93,6 +93,12 @@ clean-view pins, including hosts without a separate capture-layout picker. `Moni
 composes it with a supplied capture choice and ordering. Editor sections retain compact grids;
 control sections retain native help rows and pins while offline. Apps supply saved values,
 eligibility and reset actions. Neither component creates a capture-mode preference or a namespace.
+
+`MonitorViewAssistSettings` owns the ordered common assist cards, reset headers and measured
+column admission. Sections accept finite typed common menus or their facts/actions; unsupported
+tools are omitted and unavailable sections expose no editor or reset. Apps resolve source
+calibration and supply their existing saved bindings and feedback. Optional input/orientation
+controls likewise receive real supported values and actions rather than creating app preferences.
 
 ## Import rules
 

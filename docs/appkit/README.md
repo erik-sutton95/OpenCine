@@ -7,7 +7,7 @@ module `com.opencapture.opencine:appkit`.
 
 ## Boundaries
 
-- Builds on `OpenCineCore`, `OpenCineMulticam` and the shared UI only; never an integration or an
+- Builds on `OpenCineCore`, `OpenCineMedia`, `OpenCineMulticam` and the shared UI; never an integration or an
   app. Apps list their integrations and fill the typed slots (`AppKitRules`, Kotlin
   `AppKitRulesTest`).
 - Names no brand, product or app, and keeps no unlisted mutable global (the shared UI rules scan
@@ -200,3 +200,15 @@ one `StateFlow` `State` each (`ShellModel.state`, `MonitorControlModel.state`) o
 Compose `AppShell` takes a `pageFrame` (the app's insets and back handling around the cameras and
 pair pages) where SwiftUI takes a `safeArea` function, and the Compose cameras page has no watch
 feed entry yet (only `PairScreen` takes `ShellActions.watchFeed`).
+
+## Assist preferences
+
+`MonitorScopePanelStore`, audio and meter stores own persisted options and normalized panel
+placement. Apps supply existing storage and keys; no store chooses a bundle or namespace.
+Portable option/guide/readout values live in MonitorPresentation and Media. Native binding
+helpers connect those values to SwiftUI without copying each store into an app.
+
+Android `MonitorAssistState` owns the actual assist codec, mutations, clean pins and playback
+choices. Its factory accepts encoded state, saved selections and explicit persistence callbacks.
+An app's store adapters retain legacy key spellings and defaults; moving an owner does not
+rename data. The app still interprets its camera's source profile and resolves catalog looks.
