@@ -185,6 +185,14 @@ curve/size mapping remain in the app. No motion setting starts a camera command 
   calculation and Canvas tag layout. These inherited native differences remain
   explicit pending physical qualification. Compose `monitorChromeClickable`
   owns press/tap/hold input and animation, with feedback supplied by the host.
+- Assist menus now own the actual audio, ND notation, peaking, false-color, zebra,
+  desqueeze, guide, grid, mirror and help assemblies. They reuse the shared settings
+  controls and receive current values/bindings, action closures and host feedback.
+  Source adapters resolve false-color keys and zebra readouts before constructing
+  the menu; views choose no look, source calibration or command. Swift preserves
+  native audio toggles, adaptive guide chips and its monitoring-axis zebra slider;
+  Compose preserves row switches, wrapping guide chips and its converted editor
+  axis. These existing native differences remain explicit pending physical checks.
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.
