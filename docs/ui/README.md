@@ -193,6 +193,11 @@ curve/size mapping remain in the app. No motion setting starts a camera command 
   name no brand, product or app, and hold no mutable global outside a short allowlist (accent,
   HDR headroom, `MonitorIosParity` until it is removed).
 
+Connection settings own the native transport/phase/network rows and read-only saved-camera
+summaries. Apps provide interpreted values and explanatory content; missing networks stay
+optional, and stable saved-camera identifiers retain each row's help state. Pairing, credentials,
+transport health scoring and device-specific processing choices remain with their owners.
+
 ## Checks
 
 ```sh
