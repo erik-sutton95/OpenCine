@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "5b80bb8e4a267307d5529c1ca155c885fa311933",
+    "commit": "1afdda9c53393713c7fd87df3bac6a08c00b6df5",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "5b80bb8e4a267307d5529c1ca155c885fa311933",
-      "where": "2026-10-03 fixed 5b80 union: full Swift1908 Testing/86 XCTest, build/strict, shared Android951 unique/2 existing skips plus lint/release/Vulkan; generic MonitorUI/Apple/DJIApple passed at a527, one Swift-only assist column followup proven native. atlas91/basic check passed. Root union2 logs and I3 reviewed-union; SHELL-03-I4. Local integration only; physical cameras untested."
+      "commit": "1afdda9c53393713c7fd87df3bac6a08c00b6df5",
+      "where": "2026-10-03 fixed local1afdda union: full Swift1934 Testing+86 XCTest/build/strict, DJIApple generic both arches; unchanged Android inputs reuse ab91 full961 unique/2 existing skips/lint/release/Vulkan and MonitorUI generic. Atlas91/check passed. Exact settings/media packet with source-attributed Android/iOS native inputs plus Pocket894 recovery packet; SHELL-03-I4. Local integration only; thin apps unfinished, physical cameras untested."
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "4aaf9f8ed5c4aa00552c8af434168073a588b591",
+      "commit": "8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "4aaf9f8ed5c4aa00552c8af434168073a588b591",
-        "where": "2026-10-03 fixed 5b80/0128 source; integration differs only pin: Swift279/just/handbook99/BFT, native57 pass8.501s on a527; canonical Android506+DJI368/lint/debug/release/native staging/JNI41 green. Changed native core1cebc151 recorded. Actual existing empty-catalog UI1 passed30.045s at5b80 with portrait/landscape inputs;43 Pocket plists restored and89 Insta preserved. Original9d native649 pass retained; pre-existing optical automation failure donor-reproduced and unresolved. heartbeat-final-union/catalog-ui proof; physical cameras untested."
+        "commit": "8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
+        "where": "2026-10-03 local integration8973/sourceaa845 differs only pin1afdda: Swift279/generic BFT and canonical Android506/lint/debug/release/sharedUI127/staging/JNI41 exact passed on integration. Nativefcf2b15e and APK/XML/log packet integration-1afdda-consumer-evidence. Exact recovery source894/aa845 shared native69/affected14/full647 all0fail/skips, just/handbook99 passed;337 preferences restored and original Pocket absence preserved. Real authority reds/fixes retained in picture-recovery proof. Apple-only recovery execution; ongoing full P2 and existing optical automation limitation not claimed complete. Physical cameras untested."
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
+      "commit": "4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
-        "where": "2026-10-03 fixed 5b80/6460 source, integration differs only pin: Swift591/just/BFT green; full native538 with1 existing skip at a2b4/683, a527 strict/BFT; final actual settings/Display UI3 pass at 5b80/6460. Canonical Android697/lint/debug/release/native staging, JNI8 exact; final installed Display/8assist/native bridge3 pass19.337s. Changed native core b3868ffe explicitly exercised; 89 saved simulator preferences restored byte-identically with private cache retirement. union2-insta consumer evidence; physical cameras untested."
+        "commit": "4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
+        "where": "2026-10-03 local integration4a83/source130 differs only pin1afdda: Swift591/just, generic BFT both arches and canonical Android697/lint/debug/release/staging/JNI8 exact passed on integration. Native integration163b64e9; APK/XML/log packet integration-1afdda-consumer-evidence. Actual iOS settings/cache/sharing3 passed67.539s at ab91/130 and installed Android JNI/Display/assist3 passed19.394s with earlier92ba6ec9, all134 iOS/4 Android preferences restored. Exact source/artifact attribution retained; no final integration runtime hash claim. Physical cameras untested."
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c",
+      "commit": "a3b11f98cc28e7014a500ae199f6199b7f3ea8ee",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c",
-        "where": "2026-10-03 fixed a527/6bc source; 5b80 differs only Swift assist column floor unrelated to Nikon media. Integration differs only pin: Swift626/BFT, canonical Android936 plus wear5/lint/debug/release/native staging/JNI73 green. Actual native media picture lifetime1 and installed media/settings6 pass38.699s at original11058/6bc; iOS category/grid/list/density/filter/rotation inspected and saved values restored. media-union-a527-consumer evidence; new filter candidate not integrated. Physical cameras untested."
+        "commit": "a3b11f98cc28e7014a500ae199f6199b7f3ea8ee",
+        "where": "2026-10-03 local integrationa3b11/source9e930 differs only pin1afdda: Swift626/generic BFT and canonical Android936+wear5/lint/debug/release/testAPK/staging/JNI73 exact passed on integration. Native9685cae1 and APK/XML/log packet integration-1afdda-consumer-evidence. Exact filter source9e930/shared58c909 has actual native iOS4, true Android portrait5 and landscape1 passing with original policy/viewport and44dp floor; source/artifacts separately retained. Selection increment in progress and synthesized iOS selection input limitation documented; no integrated selection claim. Physical cameras untested."
       }
     }
   ]
