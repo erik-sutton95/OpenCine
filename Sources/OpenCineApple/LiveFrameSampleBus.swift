@@ -19,6 +19,28 @@ public final class LiveFrameSampleBus {
             self.role = role; exposureCeiling = ScopeExposureCeiling(profile: profile)
         }
     }
+    /// One retained picture and its actual publication lease, captured by a native consumer.
+    public struct InspectorFrame: @unchecked Sendable {
+        public let buffer: CVPixelBuffer
+        public let transfer: MonitorTransfer
+        public let lease: Source
+        private weak var owner: LiveFrameSampleBus?
+        private let epoch: UInt64
+        @MainActor fileprivate init(buffer: CVPixelBuffer, transfer: MonitorTransfer,
+            lease: Source, owner: LiveFrameSampleBus) {
+            self.buffer = buffer; self.transfer = transfer; self.lease = lease
+            self.owner = owner; epoch = owner.inspectorSourceEpoch
+        }
+        @MainActor public var isCurrent: Bool {
+            guard lease.isActive, let owner else { return false }
+            return owner.inspectorSourceEpoch == epoch && owner.inspectorLease === lease
+        }
+    }
+    private var inspectorLease: Source? { playbackSource ?? liveSource }
+    public var inspectorFrame: InspectorFrame? {
+        guard let lease = inspectorLease, let source = inspectorSource else { return nil }
+        return InspectorFrame(buffer: source.buffer, transfer: source.transfer, lease: lease, owner: self)
+    }
     @ObservationIgnored private var liveSource: Source?
     @ObservationIgnored private var playbackSource: Source?
     public private(set) var bundle = ScopeAssistBundle.empty
