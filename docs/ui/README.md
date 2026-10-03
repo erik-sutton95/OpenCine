@@ -89,6 +89,15 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorFeedGrid`, `MonitorFeedCrosshair` and `MonitorAspectGuideFrames` own native
+  picture framing. Guide labels and enum identities retain the persisted app values;
+  apps keep selection, storage and source geometry. The guide mask dims only the
+  picture area outside the union of selected frames, including crossing wide and
+  tall guides. Native rendered tests cover their independent arms and the exterior.
+- Swift also owns the donor's `MonitorFeedComparisonMarks`, with injected original
+  and processed labels. Compose had no corresponding comparison-label overlay;
+  this inherited platform difference remains explicit rather than adding an
+  unexercised view. Existing platform caption placement and font choices are retained.
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.
