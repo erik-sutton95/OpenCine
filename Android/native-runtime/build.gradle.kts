@@ -20,6 +20,7 @@ android {
 
 dependencies {
     api(project(":media"))
+    implementation(project(":vulkan"))
     implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)

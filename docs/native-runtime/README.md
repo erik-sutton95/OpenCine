@@ -33,3 +33,9 @@ Tickets also carry the current live/playback producer lease, so a retired source
 or invalidate a successor preview. Native backdrop workers deliver bounded immutable bitmap
 publications; their private working raster is reused without changing retained UI pixels.
 Consumer close retires admission and releases native workers; rotation only detaches the window.
+
+The Android Vulkan owner builds on the existing `:vulkan` module. It owns ImageReader/AHB
+delivery, GPU/window threads, presentation synchronization and source sampling. The app supplies
+crash-guard, diagnostic and display-policy callbacks. The renderer's legacy `OpcVulkan` JNI class
+and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axis values and
+imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.

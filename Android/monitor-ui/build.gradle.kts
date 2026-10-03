@@ -20,6 +20,7 @@ android {
 }
 
 dependencies {
+    api(project(":media"))
     api(platform(libs.compose.bom))
     api(libs.compose.material3)
     testImplementation(libs.kotlin.test.junit)

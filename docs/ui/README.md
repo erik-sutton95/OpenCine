@@ -63,6 +63,8 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
 
 ## Import rules
 
+- Native scope plots consume portable Media values for histogram/traffic readings, transfer
+  and axis anchors. They do not subscribe to a native bus, own a decoder or locate an app model.
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.

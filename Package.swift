@@ -10,8 +10,8 @@ import PackageDescription
 // - OpenCineCore imports Foundation only: never UI, an integration, Multicam or an app.
 // - Integrations (OpenCineDJI, OpenCineNikon, Insta360*) never import UI or an app.
 // - OpenCineMulticam imports OpenCineCore only: never an integration or UI.
-// - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app
-//   (today it depends on nothing).
+// - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
+//   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
 //   app.
 //
@@ -87,7 +87,7 @@ let package = Package(
         // (`#if os(iOS)`); on macOS it compiles empty so `swift test` runs the presentation tests.
         .target(name: "MonitorPresentation"),
         .target(
-            name: "MonitorUI", dependencies: ["MonitorPresentation"],
+            name: "MonitorUI", dependencies: ["MonitorPresentation", "OpenCineMedia"],
             resources: [.process("Resources/Fonts"), .copy("Resources/Icons")]
         ),
         .testTarget(name: "MonitorPresentationTests", dependencies: ["MonitorPresentation"]),

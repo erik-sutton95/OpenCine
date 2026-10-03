@@ -66,14 +66,17 @@ package dependency.
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
   `OpenCineApple`.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
-  composition. Before changing effects, sampling or native frame ownership, read
+  composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
+  JNI class is the sole allowed renderer import under the old app package name.
+  Before changing effects, sampling or native frame ownership, read
   [the runtime guide](docs/native-runtime/README.md).
 - Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app (today they
   depend on Core and Media only).
 - `OpenCineMulticam` imports Foundation and `OpenCineCore` only and names no manufacturer, UI
   framework or transport.
 - UI (`MonitorPresentation`, `MonitorUI`, `monitor-ui`) never imports a camera protocol core,
-  an integration or an app. Views take values and actions; brand variation is a theme value.
+  an integration or an app. Native views may import portable Media scope/effects values, never
+  a native sample bus or runtime owner. Views take values and actions; brand variation is a theme value.
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
 - The harness targets are developer-only and SIMULATED: never make them products.
