@@ -170,6 +170,15 @@ pills and compact display switches use the same shared settings presentation.
   and processed labels. Compose had no corresponding comparison-label overlay;
   this inherited platform difference remains explicit rather than adding an
   unexercised view. Existing platform caption placement and font choices are retained.
+- `MonitorTrackingLayer` draws resolved tracking brackets, focus marks and lock
+  tags. Apps retain report selection, source-axis projection and command policy;
+  the view receives only immutable picture coordinates, colors and line widths.
+  Empty successors clear the previous marks. `MonitorTrackingCancelButton` keeps
+  the native 28 point/dp disc inside its 44 point/dp input target. Swift retains
+  capped corner radii and shadows; Compose retains its existing pixel-radius
+  calculation and Canvas tag layout. These inherited native differences remain
+  explicit pending physical qualification. Compose `monitorChromeClickable`
+  owns press/tap/hold input and animation, with feedback supplied by the host.
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.
