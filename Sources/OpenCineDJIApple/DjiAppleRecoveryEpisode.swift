@@ -85,12 +85,16 @@ public final class DjiAppleRecoveryEpisode {
     }
     @MainActor public final class Attempt {
         public let id = UUID()
+        public let trigger: SessionRecoveryTrigger
+        public let reason: String
         fileprivate weak var owner: DjiAppleRecoveryEpisode?
         fileprivate var runID: UUID?
         fileprivate var task: Task<Void, Never>?
         fileprivate var graceTask: Task<Void, Never>?
-        fileprivate init(owner: DjiAppleRecoveryEpisode, runID: UUID?) {
+        fileprivate init(owner: DjiAppleRecoveryEpisode, runID: UUID?,
+            trigger: SessionRecoveryTrigger, reason: String) {
             self.owner = owner; self.runID = runID
+            self.trigger = trigger; self.reason = reason
         }
         public var isCurrent: Bool {
             owner?.current === self && owner?.connectionRun.currentRunID == runID
@@ -132,7 +136,7 @@ public final class DjiAppleRecoveryEpisode {
         let context = native.observe()
         guard generation == observedGeneration, connectionRun.currentRunID == observedRun,
             context.ownsConnection == true else { return false }
-        let attempt = Attempt(owner: self, runID: observedRun)
+        let attempt = Attempt(owner: self, runID: observedRun, trigger: trigger, reason: reason)
         generation &+= 1
         current = attempt
         snapshot = .init(targetID: targetID, holdsPicture: true)
@@ -299,9 +303,12 @@ public final class DjiAppleRecoveryEpisode {
         try checkContinuation(attempt)
         let started = try wall(attempt)
         let deadline = try now(attempt).advanced(by: .seconds(180))
-        guard let route = native.prepare(sighting, attempt) else { try check(attempt); return false }
+        // The donor samples saved identity again at connect admission. Use that exact
+        // target/model, and fence a synchronous replacement before native preparation.
+        let admitted = discovery.enrich(sighting); try check(attempt)
+        guard let route = native.prepare(admitted, attempt) else { try check(attempt); return false }
         try check(attempt)
-        let runID = connectionRun.replace(target: sighting, route: route, preservingSource: true)
+        let runID = connectionRun.replace(target: admitted, route: route, preservingSource: true)
         guard current === attempt else { throw CancellationError() }
         attempt.runID = runID; try check(attempt)
         var previous = try observe(attempt).stage

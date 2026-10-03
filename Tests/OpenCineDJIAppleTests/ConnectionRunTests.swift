@@ -469,6 +469,7 @@ struct DJIAppleConnectionRunTests {
         var ownsConnection: Bool? = true
         var onObserve: (() -> Void)?
         var onPrepare: ((DjiAppleConnectionRun.Attempt) -> Void)?
+        var preparedTargets: [DJISighting] = []
         var onAttach: (((any DjiAppleConnectionEndpoint)?, DjiAppleConnectionRun.Attempt) -> Void)?
         var onRegistered: ((DjiAppleConnectionRun.Attempt) -> Void)?
         var onStage: ((DJIConnectionStage) -> Void)?
@@ -524,7 +525,9 @@ struct DJIAppleConnectionRunTests {
                 let snapshot = DjiAppleConnectionRun.NativeContext(ownsConnection: ownsConnection,
                     endpoint: currentEndpoint, path: currentPath)
                 onObserve?(); return snapshot
-            }, prepare: { [unowned self] _, _, attempt in trace.append("prepare"); onPrepare?(attempt) },
+            }, prepare: { [unowned self] target, _, attempt in
+                preparedTargets.append(target); trace.append("prepare"); onPrepare?(attempt)
+            },
                 attach: { [unowned self] endpoint, path, attempt in
                     trace.append(endpoint == nil ? "dispose" : "attach")
                     if endpoint == nil { currentEndpoint?.close() }

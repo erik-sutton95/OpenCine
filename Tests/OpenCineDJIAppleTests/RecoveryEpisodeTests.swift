@@ -5,6 +5,53 @@ import Testing
 
 @Suite @MainActor
 struct DJIAppleRecoveryEpisodeTests {
+    /// SIMULATED saved identity is sampled once while matching discovery and again at
+    /// connect admission. The second exact target must reach the actual native owner.
+    @Test func secondSavedIdentitySampleReachesActualConnectionOwner() async {
+        let spine = Spine(); defer { spine.finish() }
+        var samples = 0
+        let second = DJISighting(id: spine.peer.camera.id, name: "SIMULATED updated saved Nano",
+            model: CameraModel.resolve(modelId: 0x0019, name: "OsmoNano", brand: .dji), modelId: 0x0019)
+        spine.enrichTarget = { value in samples += 1; return samples == 1 ? value : second }
+        #expect(spine.episode.begin(targetID: second.id, trigger: .bleDropped, reason: "SIMULATED samples"))
+        #expect(await spine.clock.drive { !spine.peer.preparedTargets.isEmpty })
+        #expect(samples == 2)
+        #expect(spine.peer.preparedTargets.first?.name == second.name)
+        #expect(spine.peer.preparedTargets.first?.modelId == 0x0019)
+        #expect(spine.peer.preparedTargets.first?.model == second.model)
+    }
+
+    /// SIMULATED second enrichment replaces A with B on A's canceled task. No A
+    /// preparation/native connect or presentation may follow that callback.
+    @Test func replacementDuringSecondSampleCannotPrepareOrPublishOldAttempt() async {
+        let spine = Spine(); defer { spine.finish() }
+        var samples = 0
+        var successor: UUID?
+        var prepared: [UUID] = []
+        spine.onPrepare = { prepared.append($0.id) }
+        spine.enrichTarget = { value in
+            samples += 1
+            if samples == 2 {
+                spine.episode.cancel(clearHold: false)
+                spine.advertises = false
+                #expect(spine.episode.begin(targetID: value.id, trigger: .operatorRetry,
+                    reason: "SIMULATED B"))
+                successor = spine.episode.currentEpisodeID
+            }
+            return value
+        }
+        #expect(spine.episode.begin(targetID: spine.peer.camera.id,
+            trigger: .bleDropped, reason: "SIMULATED A"))
+        #expect(await spine.clock.drive { successor != nil || !spine.peer.preparedTargets.isEmpty })
+        await spine.clock.settle()
+        #expect(successor != nil)
+        #expect(spine.episode.currentEpisodeID == successor)
+        #expect(spine.episode.snapshot.state == .retrying(attempt: 1, maxAttempts: 8))
+        #expect(spine.episode.snapshot.holdsPicture)
+        #expect(prepared.isEmpty)
+        #expect(spine.peer.preparedTargets.isEmpty)
+        #expect(!spine.peer.trace.contains("GATT"))
+    }
     /// SIMULATED native peers cross the public episode and actual ConnectionRun/Exchange.
     /// Six original native handshake misses exhaust one attempt; cleanup precedes scan2,
     /// and only a later actual source/presentation report releases the held picture.
@@ -396,6 +443,7 @@ struct DJIAppleRecoveryEpisodeTests {
         var onCleanup: ((DjiAppleRecoveryEpisode.Cleanup, DjiAppleRecoveryEpisode.Attempt) -> Void)?
         var onPrepare: ((DjiAppleRecoveryEpisode.Attempt) -> Void)?
         var onEnrich: (() -> Void)?
+        var enrichTarget: ((DJISighting) -> DJISighting)?
         private var advertisements: AsyncStream<DJISighting>.Continuation?
         lazy var episode = DjiAppleRecoveryEpisode(connectionRun: peer.owner,
             discovery: .init(waitUntilPoweredOn: { @MainActor [unowned self] in
@@ -409,7 +457,7 @@ struct DJIAppleRecoveryEpisodeTests {
                     return stream.stream
                 }, stopScan: { [unowned self] in
                     trace.append("stop scan"); advertisements?.finish()
-                }, enrich: { [unowned self] value in onEnrich?(); return value }),
+                }, enrich: { [unowned self] value in onEnrich?(); return enrichTarget?(value) ?? value }),
             native: .init(observe: { [unowned self] in
                 .init(ownsConnection: peer.ownsConnection, stage: stage,
                     sourceAt: picture.source, presentedAt: picture.presented)
