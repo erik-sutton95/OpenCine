@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "9128ff066d0399792fe55cf9887d00459fc98200",
+      "commit": "df56eee2f04dca160204f19efcbb6803e0abfece",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "9128ff066d0399792fe55cf9887d00459fc98200",
-        "where": "Source807630c with pin-only successor9128ff0 on product400962e: root591/just check, generic iOS BFT, full phone530 and coherent iPad530 (1 existing skip each), phone settings UI2, Android697/main/native staging/lint/debug/package and exact JNI8 pass. local scratchpad/i4-operator-settings/combined-*.log/.xcresult and combined-consumer-evidence/manifest.json; prior I3 native/installed evidence retained. UIReview/native schemes require coherent build action when switched. Physical cameras untested."
+        "commit": "df56eee2f04dca160204f19efcbb6803e0abfece",
+        "where": "2026-10-03 frozen b786/365508c source union; integration diff only pin: root591/just check, BFT, native phone and iPad531 each with1 existing skip, native settings rotation and persisted joystick UI2 each, Android697/lint/packaging/JNI8, installed Android9 input cases passed. Exact APK/native/JUnit and xcresults retained union-b786-*; physical cameras untested."
       }
     },
     {
