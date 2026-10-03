@@ -15,9 +15,24 @@ common algorithms do not infer those facts from a manufacturer.
 Media also owns the portable stereo meter values and `MonitorAudioMeterBallistics`.
 The source passes linear peaks and elapsed seconds; the pure step returns a new
 value with the existing instant attack, 26 dB/s level decay, 1.8 second peak hold
-and 12 dB/s peak release. Camera wire indicators and native audio taps remain in
-their source adapters. Known silence is a meter value; absent telemetry stays an
+and 12 dB/s peak release. Camera wire indicators remain in their source adapters.
+Known silence is a meter value; absent telemetry stays an
 absent source observation rather than invoking a fabricated sample.
+
+`MonitorPlaybackAudioMeterRuntime` owns the actual Apple audio tap, cancellable
+track query and meter polling. Android `MonitorPcmAudioInput` owns prepared PCM
+sampling; the app maps its player SDK encodings into `MonitorPcmFormat` and keeps
+the SDK player/factory. Audio-session and conform-preview mute policies remain
+application actions. Neither owner introduces a player SDK dependency.
+
+Each audio producer captures a source lease, and each format preparation captures
+a sampling writer. Replacement and reprepare clear measured peaks and reject late
+writes; a retired source cannot prepare or close its successor. The immutable peak
+sample carries both generations so `MonitorAudioMeterSampler` resets held peaks
+even if a new measurement arrives before polling sees the source transition.
+Unmeasured source data stays absent, measured zero is silence, and owner close is
+terminal. Android input close is tied to actual player disposal. Media playback
+navigation and per-clip player selection remain application composition.
 
 Each native owner has its own frame/sample publication lifetime. Replacing or retiring a source
 must reject its late frames and clear only its own publications. Covers and rotation preserve
