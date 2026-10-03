@@ -89,6 +89,15 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorFalseColorReference` renders a resolved source key: typed RGB/fraction
+  segments, labeled axis markers and a subtitle. Source adapters select the look,
+  ceiling and scale before constructing `MonitorFalseColorReferenceValues`; the
+  view never selects a protocol mode or calibration. Kotlin copies caller lists
+  at construction so reusing them for a successor cannot rewrite a retained key.
+  Gaps keep the donor neutral background and empty successors remove old bands.
+  Swift retains its existing inspector variant and gradient gap fill; Compose
+  retains its existing full key and flat gap fill. No new inspector variant is
+  introduced where there was no actual donor consumer.
 - `MonitorTrafficLightsMeter` consumes an immutable Media RGB reading and owns the
   goal-post columns, upper clip/lower crush lamps and center-anchored single-sided
   fill. Its display geometry and accessibility descriptions share one owner;
