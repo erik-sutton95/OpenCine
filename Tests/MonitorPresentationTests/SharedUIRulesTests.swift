@@ -107,7 +107,8 @@ struct SharedUIRulesTests {
 
     @Test func nativeViewsImportOnlyPresentationMediaAndSystemFrameworks() throws {
         let allowed: Set = ["Foundation", "SwiftUI", "UIKit", "CoreGraphics", "CoreImage",
-            "CoreText", "Metal", "MetalPerformanceShaders", "MonitorPresentation", "OpenCineMedia"]
+            "CoreText", "Metal", "MetalKit", "MetalPerformanceShaders", "os",
+            "MonitorPresentation", "OpenCineMedia"]
         for file in try Self.sources(["Sources/MonitorUI"], extensions: ["swift"]) {
             let source = try String(contentsOf: file, encoding: .utf8)
             for line in source.split(separator: "\n") {

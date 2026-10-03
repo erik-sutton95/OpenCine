@@ -65,6 +65,18 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
 
 - Native scope plots consume portable Media values for histogram/traffic readings, transfer
   and axis anchors. They do not subscribe to a native bus, own a decoder or locate an app model.
+- `MonitorWaveformScopePlot`, the parade mode and `MonitorVectorscopeScopePlot` own trace,
+  guide and graticule composition. Swift uses retained Metal vertex/texture rings with a
+  Canvas fallback; Compose uses retained raster layers and HWUI image drawing. Apps bind
+  source bundles and operator settings. The source provides its measured clip/table values.
+- Metal scopes apply an injected display action to their actual native view and retain the
+  returned `MonitorScopeDisplayOptions`. Drawing reads that per-view snapshot; it never
+  reaches a native runtime or an app's mutable display switch. MetalKit and `os` are system
+  frameworks used by this implementation, with no new package dependency.
+- Existing trace baselines stay explicit inputs: at 100% operator brightness the Swift
+  waveform/parade multiplier is 0.25; Compose waveform is 0.25 and parade is 1.0. This
+  inherited platform difference is preserved until physical qualification. Both vectorscopes
+  use 1.0. New empty trace products and zero intensity clear displayed scope output.
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.
