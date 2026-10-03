@@ -108,6 +108,7 @@ public fun MonitorSettingsNumberField(
     onChange: (Int) -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
+    var editorHadFocus by remember { mutableStateOf(false) }
     var draft by remember(value) { mutableStateOf(value.toString()) }
     val focusRequester = remember { FocusRequester() }
     val bringIntoView = remember { BringIntoViewRequester() }
@@ -115,6 +116,7 @@ public fun MonitorSettingsNumberField(
     fun commit() {
         draft.toIntOrNull()?.let { onChange(it.coerceIn(0, maximum)) }
         editing = false
+        editorHadFocus = false
         keyboard?.hide()
     }
     Box(
@@ -128,7 +130,10 @@ public fun MonitorSettingsNumberField(
                 if (editing) {
                     Modifier
                 } else {
-                    Modifier.settingsClickable(role = Role.Button) { editing = true }
+                    Modifier.settingsClickable(role = Role.Button) {
+                        editorHadFocus = false
+                        editing = true
+                    }
                 },
             ),
         contentAlignment = Alignment.Center,
@@ -156,7 +161,12 @@ public fun MonitorSettingsNumberField(
                     Modifier
                         .widthIn(min = 28.dp, max = 40.dp)
                         .focusRequester(focusRequester)
-                        .onFocusChanged { if (!it.isFocused && editing) commit() },
+                        .onFocusChanged {
+                            // A new editor starts unfocused before requestFocus runs.
+                            // Commit only after an acquired focus is actually lost.
+                            if (it.isFocused) editorHadFocus = true
+                            else if (editing && editorHadFocus) commit()
+                        },
             )
         } else {
             Text(
