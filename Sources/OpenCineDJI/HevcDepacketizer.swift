@@ -5,7 +5,7 @@ import Foundation
 /// groups (byte 16 changes after 63 fragments); only the declared size ends it.
 /// Sized frames validate the video transport sequence and emit on their final
 /// packet. Older/unsized input retains the group-boundary fallback below.
-public struct HevcDepacketizer {
+public struct HevcDepacketizer: Sendable {
     private static let maxEncodedBytes = 4 * 1024 * 1024
     private var sizedMode = false
     private var expectedSize: Int?
