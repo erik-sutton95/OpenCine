@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "4aaf9f8ed5c4aa00552c8af434168073a588b591",
+      "commit": "8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "4aaf9f8ed5c4aa00552c8af434168073a588b591",
-        "where": "2026-10-03 fixed 5b80/0128 source; integration differs only pin: Swift279/just/handbook99/BFT, native57 pass8.501s on a527; canonical Android506+DJI368/lint/debug/release/native staging/JNI41 green. Changed native core1cebc151 recorded. Actual existing empty-catalog UI1 passed30.045s at5b80 with portrait/landscape inputs;43 Pocket plists restored and89 Insta preserved. Original9d native649 pass retained; pre-existing optical automation failure donor-reproduced and unresolved. heartbeat-final-union/catalog-ui proof; physical cameras untested."
+        "commit": "8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
+        "where": "2026-10-03 local integration8973/sourceaa845 differs only pin1afdda: Swift279/generic BFT and canonical Android506/lint/debug/release/sharedUI127/staging/JNI41 exact passed on integration. Nativefcf2b15e and APK/XML/log packet integration-1afdda-consumer-evidence. Exact recovery source894/aa845 shared native69/affected14/full647 all0fail/skips, just/handbook99 passed;337 preferences restored and original Pocket absence preserved. Real authority reds/fixes retained in picture-recovery proof. Apple-only recovery execution; ongoing full P2 and existing optical automation limitation not claimed complete. Physical cameras untested."
       }
     },
     {
