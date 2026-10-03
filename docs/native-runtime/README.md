@@ -12,6 +12,14 @@ target lifetime belong in the shared runtime. The platform adds no graphics libr
 Applications supply raw color interpretation and source calibration as values or callbacks;
 common algorithms do not infer those facts from a manufacturer.
 
+Media owns portable assist options: detector RGB/sensitivity, zebra paint,
+histogram/traffic-light compensation and anamorphic presets/correction. App
+aliases retain their existing stored scalar values and labels; display swatches
+remain theme bindings. Unknown source aspect stays absent in the common helper.
+The Android source adapter retains its previous fallback geometry and Float
+aspect arithmetic, while Apple uses Double geometry. Sampling is unchanged by
+desqueeze, which corrects presentation only.
+
 Media also owns the portable stereo meter values and `MonitorAudioMeterBallistics`.
 The source passes linear peaks and elapsed seconds; the pure step returns a new
 value with the existing instant attack, 26 dB/s level decay, 1.8 second peak hold
