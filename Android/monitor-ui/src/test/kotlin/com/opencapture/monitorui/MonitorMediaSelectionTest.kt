@@ -199,4 +199,156 @@ class MonitorMediaSelectionTest {
         registry.remove("left")
         assertEquals("right", registry.resolve(20f, 10f, 200f, 200f, nearest = true))
     }
+
+    @Test fun fixedLinearEdgePolicyRetainsNativeBandAndBoundedSpeed() {
+        val policy = MonitorMediaSelectionConfiguration(
+            holdMilliseconds = 180L, movementTolerance = 40f, allowsSelectionEntry = false,
+            sweepsSideways = false, edgeBand = 90f, maximumEdgeSpeed = 620f,
+            edgeCurve = MonitorMediaSelectionConfiguration.EdgeCurve.LINEAR,
+            viewportEdgeLimitRatio = null,
+        )
+        assertEquals(180L, policy.holdMilliseconds)
+        assertFalse(policy.allowsSelectionEntry || policy.sweepsSideways)
+        assertEquals(-310f, MonitorMediaSelectionPolicy.edgeVelocity(45f, 400f, policy))
+        assertEquals(310f, MonitorMediaSelectionPolicy.edgeVelocity(355f, 400f, policy))
+        assertEquals(-620f, MonitorMediaSelectionPolicy.edgeVelocity(-1f, 400f, policy))
+        assertEquals(620f, MonitorMediaSelectionPolicy.edgeVelocity(401f, 400f, policy))
+        assertEquals(-310f, MonitorMediaSelectionPolicy.edgeVelocity(45f, 200f, policy))
+        assertEquals(0f, MonitorMediaSelectionPolicy.edgeVelocity(100f, 200f, policy))
+    }
+
+    @Test fun configuredVelocityKeepsUnknownGeometryQuietAndStandardDefaultsExact() {
+        val standard = MonitorMediaSelectionConfiguration.Standard
+        assertEquals(280L, standard.holdMilliseconds)
+        assertEquals(5f, standard.movementTolerance)
+        assertTrue(standard.allowsSelectionEntry && standard.sweepsSideways)
+        for (y in listOf(-100f, 0f, 28f, 200f, 372f, 500f)) {
+            assertEquals(MonitorMediaSelectionPolicy.edgeVelocity(y, 400f),
+                MonitorMediaSelectionPolicy.edgeVelocity(y, 400f, standard))
+        }
+        assertEquals(0f, MonitorMediaSelectionPolicy.edgeVelocity(Float.POSITIVE_INFINITY, 400f, standard))
+        assertEquals(0f, MonitorMediaSelectionPolicy.edgeVelocity(0f, Float.NaN, standard))
+    }
+
+    @Test fun childOwnedBrowseHoldNeverClaimsTheSameTouchAfterSelectionEntry() {
+        val policy = MonitorMediaSelectionConfiguration(allowsSelectionEntry = false)
+        val controller = MonitorMediaSelectionController(configuration = policy)
+        controller.bind(letters, false, emptySet())
+        controller.down("a", 0f, 0f, 0L)
+        controller.bind(letters, true, setOf("a"))
+        assertNull(controller.holdDue(280L))
+        assertNull(controller.move("d", 40f, 0f))
+        assertNull(controller.up(false))
+        assertEquals(setOf("a"), controller.selected)
+        assertFalse(controller.consuming)
+        controller.down("b", 0f, 0f, 300L)
+        val next = controller.holdDue(580L) as MonitorMediaSelectionController.News.Selection
+        assertEquals(setOf("a", "b"), next.selected)
+    }
+
+    @Test fun nativeRoundedClockStepsKeepRateIndependentBoundAndIgnoreInvalidTime() {
+        val policy = MonitorMediaSelectionConfiguration(
+            edgeBand = 90f, maximumEdgeSpeed = 620f,
+            edgeCurve = MonitorMediaSelectionConfiguration.EdgeCurve.LINEAR,
+            viewportEdgeLimitRatio = null, roundsScrollSteps = true,
+        )
+        assertEquals(5f, MonitorMediaSelectionPolicy.edgeStep(400f, 400f, 1f / 120f, configuration = policy))
+        assertEquals(-1f, MonitorMediaSelectionPolicy.edgeStep(-1f, 400f, 0.5f / 620f, configuration = policy))
+        assertEquals(31f, MonitorMediaSelectionPolicy.edgeStep(400f, 400f, 0.2f, configuration = policy))
+        assertEquals(0f, MonitorMediaSelectionPolicy.edgeStep(400f, 400f, Float.NaN, configuration = policy))
+    }
+
+    @Test fun deliberateHoldPolicyYieldsEveryPreHoldDragAndFramesStationaryEdges() {
+        val policy = MonitorMediaSelectionConfiguration(
+            allowsSelectionEntry = false, sweepsSideways = false, edgeBand = 72f,
+            maximumEdgeSpeed = 620f, edgeCurve = MonitorMediaSelectionConfiguration.EdgeCurve.LINEAR,
+            viewportEdgeLimitRatio = null,
+        )
+        val controller = MonitorMediaSelectionController(configuration = policy)
+        controller.bind(letters, true, setOf("a"))
+        controller.down("b", 0f, 0f, 0L)
+        assertNull(controller.move("d", 40f, 0f))
+        assertTrue(controller.shouldYieldToScroll())
+        assertNull(controller.holdDue(280L))
+        assertNull(controller.up(false))
+        assertEquals(setOf("a"), controller.selected)
+
+        controller.down("b", 10f, 800f, 1_000L)
+        controller.holdDue(1_280L)
+        assertEquals(31f, controller.edgeScroll(0.2f, 800f), 0.001f)
+        assertEquals(31f, controller.edgeScroll(0.2f, 800f), 0.001f)
+        val rehit = controller.afterScroll("e") as MonitorMediaSelectionController.News.Selection
+        assertEquals(setOf("a", "b", "c", "d", "e"), rehit.selected)
+        assertNull(controller.afterScroll("e"))
+        controller.cancel()
+        assertEquals(0f, controller.edgeScroll(0.2f, 800f))
+        assertNull(controller.up(false))
+    }
+
+    @Test fun retiringLayoutCannotRemoveItsMountedReplacementWithTheSameId() {
+        val registry = MonitorMediaHitRegistry()
+        val old = Any()
+        val replacement = Any()
+        registry.put("volume-a/same.MOV", 0f, 0f, 80f, 80f, old)
+        registry.put("volume-a/same.MOV", 90f, 0f, 170f, 80f, replacement)
+        registry.put("volume-b/same.MOV", 0f, 90f, 80f, 170f, Any())
+        registry.remove("volume-a/same.MOV", old)
+        assertEquals("volume-a/same.MOV", registry.resolve(100f, 10f, 200f, 200f, false))
+        assertEquals("volume-b/same.MOV", registry.resolve(10f, 100f, 200f, 200f, false))
+        registry.remove("volume-a/same.MOV", replacement)
+        assertNull(registry.resolve(100f, 10f, 200f, 200f, false))
+    }
+
+    @Test fun changedPolicyOrExternalSelectionExitRetiresAnActiveClock() {
+        val controller = MonitorMediaSelectionController()
+        controller.bind(letters, true, emptySet())
+        controller.down("a", 10f, 800f, 0L)
+        controller.holdDue(280L)
+        assertTrue(controller.consuming)
+        controller.configuration = MonitorMediaSelectionConfiguration(sweepsSideways = false)
+        assertFalse(controller.consuming)
+        assertEquals(0f, controller.edgeScroll(0.2f, 800f))
+        assertNull(controller.up(false))
+        controller.down("b", 10f, 800f, 1_000L)
+        controller.holdDue(1_280L)
+        assertTrue(controller.consuming)
+        controller.bind(letters, false, controller.selected)
+        assertFalse(controller.consuming)
+        assertFalse(controller.selecting)
+        assertEquals(0f, controller.edgeScroll(0.2f, 800f))
+    }
+
+    @Test fun replacedContextAndReorderedCatalogRejectLateHitsAndTerminalUpdates() {
+        val controller = MonitorMediaSelectionController()
+        controller.bind(ids, true, setOf("hidden"), context = "owner-a")
+        controller.down("0", 10f, 800f, 0L)
+        controller.holdDue(280L)
+        controller.bind(ids, true, controller.selected, context = "owner-b")
+        assertFalse(controller.consuming)
+        assertNull(controller.afterScroll("4"))
+        assertNull(controller.holdDue(5_000L))
+        assertNull(controller.up(false))
+        assertEquals(setOf("0", "hidden"), controller.selected)
+        controller.down("1", 10f, 800f, 6_000L)
+        controller.holdDue(6_280L)
+        controller.bind(ids.reversed(), true, controller.selected, context = "owner-b")
+        assertFalse(controller.consuming)
+        assertNull(controller.move("5", 40f, 810f))
+        assertNull(controller.afterScroll("5"))
+    }
+
+    @Test fun childConsumedTapAndMissingHitCannotOpenOrChangeAnotherSourceIdentity() {
+        val distinct = listOf("volume-a/same.MOV", "volume-b/same.MOV")
+        val controller = MonitorMediaSelectionController()
+        controller.bind(distinct, false, emptySet())
+        controller.down(distinct[0], 0f, 0f, 0L)
+        assertNull(controller.up(true))
+        controller.down("retired/same.MOV", 0f, 0f, 1_000L)
+        assertNull(controller.holdDue(1_280L))
+        assertNull(controller.up(false))
+        controller.cancel()
+        controller.down(distinct[1], 0f, 0f, 2_000L)
+        val next = controller.holdDue(2_280L) as MonitorMediaSelectionController.News.Selection
+        assertEquals(setOf(distinct[1]), next.selected)
+    }
 }

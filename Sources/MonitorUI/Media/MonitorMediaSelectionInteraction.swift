@@ -14,21 +14,19 @@
         // Old and new lazy layouts can coexist during a grid/list transition.
         // Retiring one view must not remove its successor with the same clip ID.
         private var anchors: [ObjectIdentifier: Anchor] = [:]
-        private var ids: [String] = []
-        private var indices: [String: Int] = [:]
-        private var selected: Set<String> = []
-        private var selecting = false
+        private var controller = MonitorMediaSelectionController()
         private var publish: (Set<String>) -> Void = { _ in }
+        private var feedback: (MonitorMediaSelectionFeedback) -> Void = { _ in }
+        private var configuration = MonitorMediaSelectionConfiguration.standard
         private weak var scrollView: UIScrollView?
-        private var sweep: MonitorMediaDragSelection?
         private weak var activeRecognizer: UIGestureRecognizer?
-        private var touchOrigin: String?
         private var touchStart: CGPoint = .zero
         private var windowPoint: CGPoint = .zero
         private var displayLink: CADisplayLink?
         private var lastTimestamp: CFTimeInterval = 0
         private var viewportWidth: CGFloat = 0
         private var context = ""
+        private weak var mountedProbe: UIView?
 
         private lazy var hold: UILongPressGestureRecognizer = {
             let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handle))
@@ -46,26 +44,31 @@
 
         func configure(
             ids: [String], selected: Set<String>, selecting: Bool, context: String,
+            configuration: MonitorMediaSelectionConfiguration = .standard,
+            feedback: @escaping (MonitorMediaSelectionFeedback) -> Void = { _ in },
             publish: @escaping (Set<String>) -> Void
         ) {
-            if self.ids != ids || self.context != context || (self.selecting && !selecting) {
+            if controller.ids != ids || self.context != context
+                || self.configuration != configuration
+                || (controller.selecting && !selecting)
+            {
                 cancel()
             }
-            if let scroll = scrollView, sweep != nil,
+            if let scroll = scrollView, controller.consuming,
                 abs(scroll.bounds.width - viewportWidth) >= 1
             {
                 cancel()
             }
-            if self.ids != ids {
-                self.ids = ids
-                indices = Dictionary(
-                    ids.enumerated().map { ($0.element, $0.offset) },
-                    uniquingKeysWith: { a, _ in a })
-            }
-            self.selected = selected
-            self.selecting = selecting
+            controller.configuration = configuration
+            controller.movementTolerance = configuration.movementTolerance
+            controller.holdMilliseconds = configuration.holdMilliseconds
+            controller.bind(ids: ids, selecting: selecting, selected: selected, context: context)
             self.context = context
+            self.configuration = configuration
+            self.feedback = feedback
             self.publish = publish
+            hold.minimumPressDuration = Double(configuration.holdMilliseconds) / 1_000
+            hold.allowableMovement = configuration.movementTolerance
         }
 
         func register(id: String, view: UIView) {
@@ -80,9 +83,13 @@
             var ancestor = view.superview
             while let candidate = ancestor {
                 if let scroll = candidate as? UIScrollView {
-                    guard scrollView !== scroll else { return }
+                    if scrollView === scroll {
+                        mountedProbe = view
+                        return
+                    }
                     detach()
                     scrollView = scroll
+                    mountedProbe = view
                     viewportWidth = scroll.bounds.width
                     scroll.addGestureRecognizer(hold)
                     scroll.addGestureRecognizer(pan)
@@ -100,6 +107,12 @@
             scrollView?.removeGestureRecognizer(hold)
             scrollView?.removeGestureRecognizer(pan)
             scrollView = nil
+            mountedProbe = nil
+        }
+
+        func detach(from probe: UIView) {
+            guard mountedProbe === probe else { return }
+            detach()
         }
 
         func cancel() {
@@ -114,18 +127,19 @@
             _ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch
         ) -> Bool {
             guard let scroll = scrollView, scroll.window != nil,
-                gestureRecognizer !== pan || selecting,
+                controller.selecting || configuration.allowsSelectionEntry,
+                gestureRecognizer !== pan || (controller.selecting && configuration.sweepsSideways),
                 let id = item(at: touch.location(in: scroll), nearest: false)
             else { return false }
-            touchOrigin = id
             touchStart = touch.location(in: scroll)
+            controller.down(id: id, x: touchStart.x, y: touchStart.y, timeMilliseconds: 0)
             return true
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard sweep == nil, touchOrigin != nil else { return false }
+            guard controller.canBegin else { return false }
             if gestureRecognizer === pan {
-                guard selecting else { return false }
+                guard controller.selecting && configuration.sweepsSideways else { return false }
                 let location = gestureRecognizer.location(in: scrollView)
                 // Vertical swipes remain native scrolling, even in selection
                 // mode. A sideways start claims a sweep; hold permits any axis.
@@ -139,14 +153,15 @@
             windowPoint = recognizer.location(in: scroll.window)
             switch recognizer.state {
             case .began:
-                guard let origin = touchOrigin,
-                    let initial = MonitorMediaDragSelection(
-                        orderedIDs: ids, originID: origin, selectedIDs: selected)
-                else { return }
+                let point = recognizer.location(in: scroll)
+                let event =
+                    recognizer === hold
+                    ? controller.holdDue(timeMilliseconds: controller.holdMilliseconds)
+                    : controller.move(id: item(at: point, nearest: true), x: point.x, y: point.y)
+                guard controller.consuming else { return }
                 activeRecognizer = recognizer
-                sweep = initial
                 viewportWidth = scroll.bounds.width
-                publishSelection(initial.selectedIDs)
+                publishSelection(event)
                 updateSelection()
                 updateClock()
             case .changed:
@@ -164,19 +179,17 @@
             }
         }
 
-        private func publishSelection(_ value: Set<String>) {
-            selected = value
+        private func publishSelection(_ event: MonitorMediaSelectionController.News?) {
+            guard case .selection(_, let value, let result) = event else { return }
             publish(value)
+            if let result { feedback(result) }
         }
 
         private func updateSelection() {
-            guard let scroll = scrollView, sweep != nil else { return }
+            guard let scroll = scrollView, controller.consuming else { return }
             let point = scroll.convert(windowPoint, from: scroll.window)
-            if let id = item(at: point, nearest: true), let index = indices[id],
-                sweep?.move(to: index) == true, let value = sweep?.selectedIDs
-            {
-                publishSelection(value)
-            }
+            publishSelection(
+                controller.move(id: item(at: point, nearest: true), x: point.x, y: point.y))
         }
 
         private func item(at point: CGPoint, nearest: Bool) -> String? {
@@ -189,7 +202,7 @@
             var closest: (String, CGFloat)?
             for anchor in anchors.values {
                 let id = anchor.id
-                guard indices[id] != nil, let view = anchor.view, view.window != nil else {
+                guard controller.contains(id), let view = anchor.view, view.window != nil else {
                     continue
                 }
                 let frame = view.convert(view.bounds, to: scroll)
@@ -206,13 +219,14 @@
         }
 
         private var scrollVelocity: Double {
-            guard sweep != nil, let scroll = scrollView else { return 0 }
+            guard controller.consuming, let scroll = scrollView else { return 0 }
             let point = scroll.convert(windowPoint, from: scroll.window)
             guard point.x >= scroll.bounds.minX - 32, point.x <= scroll.bounds.maxX + 32 else {
                 return 0
             }
             return MonitorMediaSelectionScroll.velocity(
-                pointerY: point.y - scroll.bounds.minY, viewportHeight: scroll.bounds.height)
+                pointerY: point.y - scroll.bounds.minY, viewportHeight: scroll.bounds.height,
+                configuration: configuration)
         }
 
         private func updateClock() {
@@ -231,7 +245,7 @@
         }
 
         fileprivate func tick(_ link: CADisplayLink) {
-            guard sweep != nil, let scroll = scrollView, scroll.window != nil,
+            guard controller.consuming, let scroll = scrollView, scroll.window != nil,
                 abs(scroll.bounds.width - viewportWidth) < 1,
                 UIApplication.shared.applicationState == .active
             else {
@@ -254,7 +268,14 @@
                     + scroll.adjustedContentInset.bottom)
             let offset = min(
                 maximum,
-                max(minimum, scroll.contentOffset.y + velocity * min(0.05, max(0, elapsed))))
+                max(
+                    minimum,
+                    scroll.contentOffset.y
+                        + MonitorMediaSelectionScroll.step(
+                            pointerY: scroll.convert(windowPoint, from: scroll.window).y
+                                - scroll.bounds.minY,
+                            viewportHeight: scroll.bounds.height, elapsed: elapsed,
+                            configuration: configuration)))
             if abs(offset - scroll.contentOffset.y) > 0.01 {
                 scroll.setContentOffset(
                     CGPoint(x: scroll.contentOffset.x, y: offset), animated: false)
@@ -266,9 +287,8 @@
 
         private func finish() {
             stopClock()
-            sweep = nil
+            controller.cancel()
             activeRecognizer = nil
-            touchOrigin = nil
             touchStart = .zero
         }
 
@@ -291,20 +311,25 @@
         let selected: Set<String>
         let selecting: Bool
         let context: String
+        var configuration: MonitorMediaSelectionConfiguration = .standard
+        var feedback: (MonitorMediaSelectionFeedback) -> Void = { _ in }
         let publish: (Set<String>) -> Void
 
         func makeUIView(context: Context) -> Probe { Probe(interaction: interaction) }
         func updateUIView(_ view: Probe, context: Context) {
             if view.interaction !== interaction {
-                view.interaction.detach()
+                view.interaction.detach(from: view)
                 view.interaction = interaction
             }
             interaction.configure(
                 ids: ids, selected: selected, selecting: selecting, context: self.context,
+                configuration: configuration, feedback: feedback,
                 publish: publish)
             interaction.attach(from: view)
         }
-        static func dismantleUIView(_ view: Probe, coordinator: ()) { view.interaction.detach() }
+        static func dismantleUIView(_ view: Probe, coordinator: ()) {
+            view.interaction.detach(from: view)
+        }
 
         final class Probe: UIView {
             var interaction: MonitorMediaSelectionInteraction
@@ -316,12 +341,86 @@
             required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
             override func didMoveToWindow() {
                 super.didMoveToWindow()
-                if window == nil { interaction.detach() } else { interaction.attach(from: self) }
+                if window == nil {
+                    interaction.detach(from: self)
+                } else {
+                    interaction.attach(from: self)
+                }
             }
         }
     }
 
-    struct MonitorMediaSelectionAnchor: UIViewRepresentable {
+    /// Retained native owner for a catalog's selection host and mounted anchors.
+    @MainActor public final class MonitorMediaSelectionState {
+        fileprivate let interaction = MonitorMediaSelectionInteraction()
+        public init() {}
+    }
+
+    /// Native selection input placed inside the actual scrolling catalog. The
+    /// app supplies stable displayed IDs and retains its own cells and actions.
+    public struct MonitorMediaSelectionHost: View {
+        private let state: MonitorMediaSelectionState
+        private let ids: [String]
+        private let selected: Set<String>
+        private let selecting: Bool
+        private let context: String
+        private let configuration: MonitorMediaSelectionConfiguration
+        private let feedback: (MonitorMediaSelectionFeedback) -> Void
+        private let publish: (Set<String>) -> Void
+        @Environment(\.scenePhase) private var scenePhase
+
+        public init(
+            state: MonitorMediaSelectionState, ids: [String], selected: Set<String>,
+            selecting: Bool, context: String,
+            configuration: MonitorMediaSelectionConfiguration = .standard,
+            feedback: @escaping (MonitorMediaSelectionFeedback) -> Void = { _ in },
+            publish: @escaping (Set<String>) -> Void
+        ) {
+            self.state = state
+            self.ids = ids
+            self.selected = selected
+            self.selecting = selecting
+            self.context = context
+            self.configuration = configuration
+            self.feedback = feedback
+            self.publish = publish
+        }
+
+        public var body: some View {
+            MonitorMediaSelectionBridge(
+                interaction: state.interaction, ids: ids, selected: selected,
+                selecting: selecting, context: context, configuration: configuration,
+                feedback: feedback, publish: publish
+            )
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { state.interaction.cancel() }
+            }
+            .onDisappear { state.interaction.cancel() }
+        }
+    }
+
+    /// A mounted cell's native bounds. Lazy retirement removes only that view's
+    /// anchor, so an older layout cannot evict its replacement with the same ID.
+    public struct MonitorMediaSelectionAnchor: View {
+        private let id: String
+        private let interaction: MonitorMediaSelectionInteraction
+
+        public init(id: String, state: MonitorMediaSelectionState) {
+            self.id = id
+            interaction = state.interaction
+        }
+
+        init(id: String, interaction: MonitorMediaSelectionInteraction) {
+            self.id = id
+            self.interaction = interaction
+        }
+
+        public var body: some View {
+            MonitorMediaSelectionAnchorView(id: id, interaction: interaction)
+        }
+    }
+
+    private struct MonitorMediaSelectionAnchorView: UIViewRepresentable {
         let id: String
         let interaction: MonitorMediaSelectionInteraction
         func makeUIView(context: Context) -> UIView {
