@@ -886,7 +886,7 @@ public final class LunaCameraBackend: CameraBackend {
     }
 }
 
-extension LunaCameraBackend: LunaMediaSourcePort {
+extension LunaCameraBackend: LunaMediaSourcePort, LunaMediaCatalogRecordSource {
     var mediaSourceState: LunaMediaSourceState? {
         guard isControlReady, let session, session.current.connection == .ready,
             session.current.authority == .owner else { return nil }
@@ -899,6 +899,10 @@ extension LunaCameraBackend: LunaMediaSourcePort {
         let media = LunaMediaService(session: id, port: self)
         connectedMedia = media
         return media
+    }
+
+    public func mediaCatalogRecord(_ asset: MediaAssetID, binding: MediaBrowseBinding) -> LunaMediaCatalogRecord? {
+        connectedMedia?.catalogRecord(asset, binding: binding)
     }
 
     func mediaRequest(_ request: LunaRequest, source: LunaMediaSourceState) async throws -> Data {

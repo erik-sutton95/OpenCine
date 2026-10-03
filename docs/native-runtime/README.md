@@ -95,3 +95,21 @@ Android already owns its encoded admission and MediaCodec/reference state in `:d
 attachment/listener lifetimes in `:native-runtime`, without a Compose dependency. The texture
 program is either the existing GLES owner or a direct decoder surface. Old-window destroy and
 update callbacks cannot release a replacement surface or refresh its presentation clock.
+
+## Native media streaming
+
+Apple `MonitorMediaHTTPStream` owns one bounded URLSession request and cancellation lifetime.
+The app supplies its existing immutable configuration and source URL; the worker suspends while
+its owned sink consumes chunks and refuses queued bytes above the supplied bound. Android
+`MonitorMediaStreamPump` owns bounded reads, sink writes and cancellation of an app-supplied
+`MonitorMediaReadSource`; the app keeps its existing HTTP client and socket policies. Neither
+worker interprets asset identities or catalog records.
+
+A positive HTTP Content-Length takes precedence over a known representation-size hint. Reaching
+that length completes without another EOF read; absent lengths remain absent. Positive partial
+EOF returns a receipt and the cache applies the explicitly supplied eligibility rule. Caller
+cancellation retires a pending open/read and cannot become a successful receipt. Apple preserves
+its donor whole-chunk completion; Android bounds reads to the remaining known bytes. Controlled
+HTTP/native read fixtures exercise no-EOF completion, header precedence, cancellation and partial
+receipts. `MonitorMediaThumbnailEncoder` owns packed NV12 video-range conversion to the existing
+sRGB JPEG output with explicit stride and plane guards.

@@ -140,15 +140,16 @@ struct Rig {
     let hdmi = FakePictureSource(label: "HDMI").descriptor
 
     /// Short timeouts so failure scenarios finish quickly; success never waits for them.
-    init(timeout: Duration = .milliseconds(300)) {
+    init(timeout: Duration = .milliseconds(300),
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) {
         dji = Composition.djiSession(over: djiPort)
         dji.wireTimeout = timeout
         dji.readbackTimeout = timeout
         djiPort.adapter = dji
         nikon = Composition.nikonSession(
-            over: nikonDriver, serialNumber: "SIM-Z-1", recordObservationTimeout: timeout)
+            over: nikonDriver, serialNumber: "SIM-Z-1", recordObservationTimeout: timeout, now: now)
         nikonDriver.session = nikon
-        luna = lunaCamera.connectedSession(settle: timeout)
+        luna = lunaCamera.connectedSession(settle: timeout, now: now)
     }
 
     var sessions: [any CameraSession] { [dji, nikon, luna] }

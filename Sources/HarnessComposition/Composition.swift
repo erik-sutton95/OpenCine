@@ -93,11 +93,12 @@ public enum Composition {
     @MainActor
     public static func nikonSession(
         over driver: any NikonControlDriver, serialNumber: String,
-        recordObservationTimeout: Duration = .seconds(5)
+        recordObservationTimeout: Duration = .seconds(5),
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) -> NikonCameraSession {
         NikonCameraSession(
             driver: driver, serialNumber: serialNumber,
-            recordObservationTimeout: recordObservationTimeout)
+            recordObservationTimeout: recordObservationTimeout, now: now)
     }
 
     /// The Luna backend with the harness's own names, so it never reads OpenInstaCine's saved

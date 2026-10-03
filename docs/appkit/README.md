@@ -226,3 +226,47 @@ Android `MonitorAssistState` owns the actual assist codec, mutations, clean pins
 choices. Its factory accepts encoded state, saved selections and explicit persistence callbacks.
 An app's store adapters retain legacy key spellings and defaults; moving an owner does not
 rename data. The app still interprets its camera's source profile and resolves catalog looks.
+
+## Media library and cache (SHELL-03 I5a)
+
+`MonitorMediaLibraryModel` owns one browse lifetime from the optional `CameraMediaService`,
+refresh/cursor replacement, incremental catalog, offline records, filters/sort/layout, selection,
+favorite overlays and thumbnail/representation operations. Nested covers and rotation retain the
+model; only the outer gallery exit calls `close`. A source replacement retires callbacks before
+cleanup awaits. Every page, operation and delayed completion checks its captured lifetime, so an
+old result cannot publish or clear successor state. Kotlin publishes one immutable `StateFlow`
+value on the supplied owner dispatcher, with a child supervisor for handled optional refusals.
+
+`MediaCatalog` applies content-qualified opaque identities from the source. A proxy can remove a
+master in a later delta, two volumes can carry the same filename, and an old removal at a recycled
+location cannot erase new content. Unknown volume updates preserve the previous fact; a known
+empty list remains distinct. The source owns routing and raw catalog interpretation.
+
+`MonitorMediaCache` performs catalog IO, cache eligibility and root retirement. The app supplies
+its exact root, codec, favorite storage/keys and size policy. The codec captures immutable typed
+preservation records under the producing browse binding before encoding/IO can suspend; the
+shared owner never parses an opaque ID or reads the source's unrestricted latest catalog. Loading
+performs no save or migration. Favorite overlays stay in the supplied preference domain.
+
+Keep one `MonitorMediaCacheStorage` across session/model replacements. Canonical filesystem roots
+share a writer-generation registry even if URL directory hints differ. Each transfer has its own
+staging path and destination lease. Clear invalidates writers and retires the directory before
+yielding, preserves the supplied metadata files and deletes only captured retired trees. An old
+writer/finally cannot recreate the live root, commit over B or erase B's progress. Filesystem IO
+uses Foundation on Swift and JVM `java.io` on Kotlin, with no native-runtime dependency.
+
+`MonitorMediaOriginalEligibility` keeps the platform's explicit existing policy (minimum fraction
+or exact size) separate from native stream completion. Thumbnail/original/proxy paths come from
+the codec, never from the opaque source identity. Source-only look resolution and OS player and
+delivery presentation remain typed app consumers until their later adoption slices.
+
+Mirrored tests: `MonitorMediaLibraryModelTests`/`MonitorMediaLibraryModelTest`,
+`MonitorMediaCacheTests`/`MonitorMediaCacheTest` and
+`MonitorMediaPreferencesTests`/`MonitorMediaPreferencesTest`; portable delta fixtures are
+`MediaCatalogTests`/`MediaCatalogTest`. Actual app gallery adoption is a separate consumer gate. The exercised Luna adopter supplies its
+legacy codec and preference namespace to this owner, then consumes its state directly on both
+platforms. Native thumbnail/transfer services are optional: absent operations stay unavailable.
+Favorites save through the exact catalog codec as well as their supplied preference overlay so
+an unfavorited stored row cannot reappear as starred after reload. Catalog removals retire only
+operations for those removed identities; late writes and receipts cannot complete a recycled
+asset or clear a successor's progress.

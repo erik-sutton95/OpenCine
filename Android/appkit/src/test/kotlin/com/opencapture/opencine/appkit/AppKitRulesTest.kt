@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Swift suite `AppKitRules`. The app shell builds on Core, Multicam and the shared UI only: never
- * an integration or an app. Brand names and mutable globals are checked with the shared UI rules
+ * Swift suite `AppKitRules`. The app shell builds on Core, Media, Multicam and shared UI: never
+ * an integration or an app. JVM filesystem IO is the actual media cache owner. Brand names and mutable globals are checked with the shared UI rules
  * (`SharedUIRulesTest` in `monitor-ui`).
  */
 class AppKitRulesTest {
@@ -16,7 +16,7 @@ class AppKitRulesTest {
         val files = File("src/main").walk().filter { it.extension == "kt" }.toList()
         assertTrue(files.isNotEmpty())
         val allowed = listOf(
-            "import kotlin.", "import kotlinx.", "import java.util.", "import org.json.", "import android.",
+            "import kotlin.", "import kotlinx.", "import java.util.", "import java.io.", "import org.json.", "import android.",
             "import androidx.", "import com.opencapture.opencine.core.", "import com.opencapture.opencine.multicam.",
             "import com.opencapture.opencine.appkit.", "import com.opencapture.opencine.media.", "import com.opencapture.monitorui.",
         )
