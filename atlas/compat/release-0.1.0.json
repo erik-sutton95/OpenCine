@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "627d602d6b5c4f13039316bafade910158d5f064",
+      "commit": "c4c7939ec2953a57a5625d45d8f2057670c7a840",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "627d602d6b5c4f13039316bafade910158d5f064",
-        "where": "Z1 source8a3fbca: phone/pad140 XCTest+92 SwiftTesting each (2 existing skips), canonical Android952/install9/JNI73. local scratchpad/codex-shell03-z1-nikon/logs. Exact combined SDK0549153 root626/generic iOS build-for-testing/Android main+unit compile80tasks passed, local scratchpad/dji-common-controls/capture-union-nikon-*.log. Physical cameras untested."
+        "commit": "c4c7939ec2953a57a5625d45d8f2057670c7a840",
+        "where": "Source129f6748 with pin-only successorc4c7939 on product400962e: root626, generic iOS BFT, Android939/main/native staging and JNI73 pass. Actual prior Z2 phone4/pad7 and exact installed Android8 retained in SHELL-03-Z2-nikon.md. Canonical just/native-check retain pre-existing swift-format baseline failures, no full-check green claim. Physical cameras untested."
       }
     }
   ]
