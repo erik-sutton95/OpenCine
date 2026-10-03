@@ -89,6 +89,12 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorTrafficLightsMeter` consumes an immutable Media RGB reading and owns the
+  goal-post columns, upper clip/lower crush lamps and center-anchored single-sided
+  fill. Its display geometry and accessibility descriptions share one owner;
+  sampling, compensation and source calibration stay outside the UI. Existing
+  Swift width spreading and Compose native Canvas typography remain explicit
+  platform behavior. Empty/neutral successors remove the previous colored bars.
 - `MonitorFeedGrid`, `MonitorFeedCrosshair` and `MonitorAspectGuideFrames` own native
   picture framing. Guide labels and enum identities retain the persisted app values;
   apps keep selection, storage and source geometry. The guide mask dims only the
