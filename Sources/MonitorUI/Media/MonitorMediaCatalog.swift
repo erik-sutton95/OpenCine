@@ -81,18 +81,11 @@
         private func navigation(portrait: Bool) -> some View {
             VStack(alignment: .leading, spacing: 9) {
                 ScrollView(portrait ? .horizontal : .vertical, showsIndicators: false) {
-                    MonitorTabStrip(vertical: !portrait) {
-                        ForEach(categories) { item in
-                            MonitorNavigationItem(
-                                item.title, count: String(item.count),
-                                selected: item.id == category,
-                                separator: item.id != categories.first?.id
-                            ) {
-                                action(.category(item.id))
-                            }
-                            .fixedSize(horizontal: portrait, vertical: false)
-                        }
-                    }
+                    MonitorMediaNavigation(
+                        categories: categories.map {
+                            MonitorMediaNavigationCategory(id: $0.id, title: $0.title, count: $0.count)
+                        }, selectedID: category, vertical: !portrait
+                    ) { action(.category($0)) }
                 }
                 .monitorScrollFade(portrait ? .horizontal : .vertical)
                 .frame(height: portrait ? 44 : nil)
@@ -112,63 +105,10 @@
         }
 
         private var displayControls: some View {
-            HStack(spacing: 6) {
-                HStack(spacing: 2) {
-                    layoutButton(.grid, icon: .layoutGrid, label: "Grid view")
-                    layoutButton(.list, icon: .menu, label: "List view")
-                }
-                .padding(3)
-                .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 9))
-                HStack(spacing: 2) {
-                    ForEach(MonitorThumbnailSize.allCases, id: \.self) { size in
-                        sizeButton(size)
-                    }
-                }
-                .padding(3)
-                .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 9))
-            }
-            .fixedSize()
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("monitor.media.displayControls")
-        }
-
-        private func layoutButton(
-            _ mode: MonitorMediaLayout, icon: MonitorIcon, label: String
-        ) -> some View {
-            let on = layout == mode
-            return Button {
-                action(.layout(mode))
-            } label: {
-                icon.view().frame(width: 13, height: 13)
-                    .foregroundStyle(on ? Color.white : MonitorTheme.muted)
-                    .frame(width: 32, height: 28)
-                    .background(
-                        on ? Color.white.opacity(0.14) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 7))
-            }
-            .buttonStyle(MonitorButtonStyle())
-            .accessibilityLabel(label)
-            .accessibilityAddTraits(on ? .isSelected : [])
-            .accessibilityIdentifier("monitor.media.layout.\(mode.rawValue)")
-        }
-
-        private func sizeButton(_ size: MonitorThumbnailSize) -> some View {
-            let on = size == thumbnailSize
-            let dot: CGFloat = size == .small ? 7 : size == .medium ? 10 : 13
-            return Button {
-                action(.thumbnailSize(size))
-            } label: {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(on ? Color.white : MonitorTheme.faint)
-                    .frame(width: dot, height: dot)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        on ? Color.white.opacity(0.14) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 7))
-            }
-            .buttonStyle(MonitorButtonStyle())
-            .accessibilityLabel("\(size.rawValue.capitalized) thumbnails")
-            .accessibilityAddTraits(on ? .isSelected : [])
+            MonitorCatalogDisplayControls(
+                layout: layout, thumbnailSize: thumbnailSize,
+                onLayout: { action(.layout($0)) },
+                onThumbnailSize: { action(.thumbnailSize($0)) })
         }
 
         @ViewBuilder private func header(portrait: Bool) -> some View {
