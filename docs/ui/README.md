@@ -74,6 +74,14 @@ Common `MonitorSettings` controls own row, help, switch, reset and card presenta
 they never locate app storage or a camera session. Common sections continue to move here as
 the actual consumers migrate. Integration panels and OS actions remain host composition.
 
+`MonitorCacheSettings` takes the host's cache scope/help, current size, clearing state and
+actions. It owns no files or transfers. `MonitorAppInformationSettings` takes app identity as
+content; `MonitorProjectLegalSettings` takes document/navigation callbacks. Support/report
+status and diagnostic rows use `MonitorSupportSettings` and `MonitorDiagnosticSettings`;
+the host retains consent storage, reporting availability, queue operations and diagnostic IO.
+`MonitorSettingsNumberField` shares bounded native numeric input with a Done action; action
+pills and compact display switches use the same shared settings presentation.
+
 ## Import rules
 
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
