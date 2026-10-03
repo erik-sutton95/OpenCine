@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "5d7c9ecdd3f555e11b068a3a47d2f434c24f86bb",
+    "commit": "85239fd23b23d0023bc1e6eaa1570a41c2a69e67",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,15 +21,15 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "5d7c9ecdd3f555e11b068a3a47d2f434c24f86bb",
-      "where": "2026-10-03 product5d7: shared2011 Testing+86 XCTest/build/strict, MonitorUI/OpenCineApple generic both arches, Android1009 unique/2 existing skips/test/lint/release/Vulkan and Atlas91/check passed. Actual display preferences, media library/cache/native HTTP, Nikon selection, Pocket connection owner locally integrated. Immutable integration-5d7-consumer-evidence manifest; SHELL-03-I4. Earlier native inputs retain exact source/artifact attribution. Local integration only, thin apps unfinished, physical cameras untested."
+      "commit": "85239fd23b23d0023bc1e6eaa1570a41c2a69e67",
+      "where": "2026-10-03 product852: shared2067 Testing+86 XCTest/build/strict, MonitorUI/OpenCineApple generic both arches, Android1051 unique/2 existing Core skips/test/lint/release/Vulkan and Atlas91/check passed. Reviewed usage preferences, exposure/look cards, playback/native item ownership and DJI recovery episodes locally integrated. All three functional consumer sweeps passed against exact852 sibling source; union-852-combined-evidence manifest and SHELL-03-I4 retain exact artifacts/source guards. Thin-app migration unfinished; physical cameras untested. New installed playback fixture reds remain separate."
     }
   },
   "apps": [
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "ac43610b7203eb1500c3a034328ed3abb32f41df",
+      "commit": "de40e9291fe433012f8f535cb3e91d0217822256",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,14 +68,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "ac43610b7203eb1500c3a034328ed3abb32f41df",
-        "where": "2026-10-03 integrationac436/source8c4c differs only pin5d7: Swift279, generic BFT both arches, canonical Android506/0fail/skips/lint/debug/release/sharedUI/staging/JNI41 exact passed. Immutable integration-5d7-consumer-evidence APK/XML/log manifest, native77237a17. Exact connection owner734/8c native659, affected97, package88 Testing+8 actualUDP and handbook99 passed; connection-run-final-proof retains194 artifact hashes/22 references. Native observable replacement reds fixed with attempt guards. Fresh339 original prefs/two IDs/Pocket absence/Documents restored. Apple-only connection execution; recovery episode and full P2 ongoing. Physical cameras untested."
+        "commit": "de40e9291fe433012f8f535cb3e91d0217822256",
+        "where": "2026-10-03 integrationde40e929/source901344bf differs only pin852: Swift280/justcheck/handbook99 pages, actual generic BFT both arches, Android506 unique/0fail/errors/skips/lint/debug/release/staging/JNI41 exact and legacy javap parity passed. Prior actual native672/112 on exact0f recovery owner remains separate; final852 consumer artifacts retain source attribution. Full P2/media unfinished; physical cameras untested. Immutable union-852-combined-evidence references exact logs/APKs/JUnit/native/source guards; no new integrated installed-runtime claim."
       }
     },
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "d5b07c78b10776fa305ef403681ec8c1ae90eeb1",
+      "commit": "51086b73a7d88dcf506298b15c8b76edfa1d6798",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,14 +111,14 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "d5b07c78b10776fa305ef403681ec8c1ae90eeb1",
-        "where": "2026-10-03 integrationd5b07/source2957 differs only pin5d7: Swift591, generic BFT both arches, canonical Android680/0fail/skips/lint/debug/release/staging/JNI8 exact passed. Immutable integration-5d7-consumer-evidence APK/XML/log manifest, native163b64e9. Display Live/Clean iOS1 and actual gallery iOS1/Android1 plus regular iOS546/1 existing skip passed at separately recorded candidate artifacts; original preferences/apps/cache restored. Unknown saved-color filtering red1/1 fixed c30, full680 unit/lint passed. No final integrated installed-runtime claim. Full I5/playback ongoing, physical cameras untested."
+        "commit": "51086b73a7d88dcf506298b15c8b76edfa1d6798",
+        "where": "2026-10-03 integration51086b73/source479276c0 differs only pin852: Swift591/justcheck, actual generic BFT both arches, Android684 unique/0fail/errors/skips/lint/debug/release/staging/JNI8 exact passed. Native playback40 at exact198/d4d remains separate with owner source-byte equality to852; new installed fixture is unfinished. Restored originals retained; full I4/I5/I6 and hardware unfinished. Immutable union-852-combined-evidence references exact logs/APKs/JUnit/native/source guards; no new integrated installed-runtime claim."
       }
     },
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "cddc1d98f14f3744d31b72cc5037b68a6f7dfab6",
+      "commit": "b7a25cca0867b17bfa20330bf059f5a04165e48c",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "cddc1d98f14f3744d31b72cc5037b68a6f7dfab6",
-        "where": "2026-10-03 integrationcddc/source77d07 differs only pin5d7: Swift626, generic BFT both arches, canonical Android949 across phone/wear/wear-relay/core-api/0fail/skips/lint/debug/release/testAPK/staging/JNI73 exact passed. Immutable integration-5d7-consumer-evidence APK/XML/log manifest, native1299215b. Actual bounded native List selection2 at exact77d and UIKit ownership1 passed; original prefs/APKs/cache/rotation restored. Timed iOS gestures remain untested and original filter AX red reproduces in archived donor. Additional matrix fixture proof queued. Full Z2 unfinished, physical cameras untested."
+        "commit": "b7a25cca0867b17bfa20330bf059f5a04165e48c",
+        "where": "2026-10-03 integrationb7a25cca/sourcebb35edb4 differs only pin852: Swift626, actual generic BFT both arches, Android949 across phone/wear/wear-relay/core-api/0fail/errors/skips/lint/debug/release/staging/JNI73 exact passed. Justcheck retains swift-lint failure in35 files byte-equal77d/cdd; original donor filter AX red remains unwaived. Finite simulated selection4 keeps actual26e/77d product artifacts and committed8584 fixture attribution. Full Z2/Z3, timed iOS input and physical cameras unfinished. Immutable union-852-combined-evidence references exact logs/APKs/JUnit/native/source guards; no new integrated installed-runtime claim."
       }
     }
   ]
