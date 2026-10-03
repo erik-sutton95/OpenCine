@@ -36,6 +36,7 @@ public data class MonitorMediaLibraryState<P>(
     public val formats: Set<String> = emptySet(), public val resolutions: Set<String> = emptySet(),
     public val colors: Set<String> = emptySet(), public val dateStart: String? = null, public val dateEnd: String? = null,
     public val selecting: Boolean = false, public val selectedIDs: Set<MediaAssetID> = emptySet(),
+    public val lifetimeToken: UUID = UUID.randomUUID(),
 ) {
     public val activeFilterCount: Int get() = formats.size + resolutions.size + colors.size +
         if (dateStart == null && dateEnd == null) 0 else 1
@@ -57,7 +58,7 @@ public class MonitorMediaLibraryModel<P>(
     public val state: StateFlow<MonitorMediaLibraryState<P>> = mutable.asStateFlow()
     private var browse: CameraMediaBrowse? = null
     private var cursor: MediaCatalogCursor? = null
-    private var lifetime = UUID.randomUUID()
+    private val lifetime: UUID get() = state.value.lifetimeToken
     private var listing = UUID.randomUUID()
     private var openTask: Job? = null
     private var listTask: Job? = null
@@ -132,7 +133,7 @@ public class MonitorMediaLibraryModel<P>(
     }
     public fun begin() {
         if (state.value.browsing) return
-        mutate { it.copy(browsing = true, note = null) }
+        mutate { it.copy(lifetimeToken = UUID.randomUUID(), browsing = true, note = null) }
         open()
     }
     private fun open() {
@@ -151,8 +152,8 @@ public class MonitorMediaLibraryModel<P>(
         openTask = task; task.start()
     }
     private fun retire(): CameraMediaBrowse? {
-        lifetime = UUID.randomUUID(); listing = UUID.randomUUID()
-        mutate { it.copy(browsing = false, fetching = false) }
+        listing = UUID.randomUUID()
+        mutate { it.copy(lifetimeToken = UUID.randomUUID(), browsing = false, fetching = false) }
         openTask?.cancel(); openTask = null; listTask?.cancel(); listTask = null; cursor?.close(); cursor = null
         retireOperations()
         val closed = browse; browse = null

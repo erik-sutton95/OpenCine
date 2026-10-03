@@ -191,6 +191,14 @@ writing replacements. The five mirrored `MonitorDisplayPreferencesTests` /
 `MonitorDisplayPreferencesTest` scenarios verify legacy keys/order/defaults, explicit false,
 independent layouts, read-only fallback and storage/key isolation.
 
+`MonitorToolUsagePreferences` owns the existing assist-usage persistence schema. An app
+supplies its domain and key; the palette keeps its existing usage lifetime and ranking.
+Apple retains Codable Data and its whole-value fallback for a partial document. Android
+retains JSONObject strings and defaults individual missing fields. Reads never rewrite
+missing or malformed data, unknown tool IDs survive, and a failed nonfinite write leaves
+the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
+ranking inputs, empty values, separate app/key namespaces and these codec differences.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
@@ -270,3 +278,50 @@ Favorites save through the exact catalog codec as well as their supplied prefere
 an unfavorited stored row cannot reappear as starred after reload. Catalog removals retire only
 operations for those removed identities; late writes and receipts cannot complete a recycled
 asset or clear a successor's progress.
+
+
+## Borrowed video playback (SHELL-03 I5b-1)
+
+`MonitorMediaPlaybackModel<Payload, Look>` owns the actual candidate/load/cache workflow,
+playlist and item revision, readiness/error/time/end state, transport intent, optional native
+playing observation, mute/loop/conform and scrub transactions. It calls the existing library's
+representation operation or owns a root-leased fallback byte sink itself. The app supplies
+immutable cached/source candidate facts and a typed look resolver, not the mutable workflow.
+Known source choices, metadata-before-native versus metadata-after-readiness timing, and
+native-failure retry policy remain explicit platform inputs. Media's
+`MonitorConformPreview` contains the exercised pure preview math; native track probing stays
+in the player port. Export is separate.
+
+Playback borrows an already-open library and captures its read-only `lifetimeToken`. This is
+the library's existing lifetime, including offline bind/close/reopen. Covers, rotation and
+rehost do not change it. Before native actions/events and after every suspension or observable
+state publication, the playback owner checks both library and item authority. Swift commits its
+private snapshot before notifying per-field Observation readers; Kotlin publishes its full
+StateFlow value before callbacks. A synchronous active, ready or transport observer can replace
+the item without an outgoing write or task handle erasing the successor. Item replacement
+retires load/look/seek work before new source preparation. Look resolution has a separate
+request revision, so a second probe for the same item also rejects the earlier result. Only
+accepted immutable look facts may be projected back into app source/rendering adapters.
+
+`MonitorPlaybackPort` is a Media native boundary: Apple implements its real AVPlayer graph;
+the Android app wraps its existing Media3 dependency. Revision zero claims a composed native
+owner, later revisions retire only its own item, and close is owner-qualified. An outgoing
+player can neither clear a successor's graph/callbacks nor close gallery browse. Native
+playing observations remain distinct from operator intent; unknown remains nil.
+
+Scrub captures source authority, a unique pointer-edit identity and its prior transport state.
+A canceled edit cannot update, finish or cancel a newer edit on the same item. The actual
+native rail and frame gesture callers hold that item-and-edit token through completion.
+Intermediate seek pacing uses
+an injected monotonic clock (75 ms), with native tolerance supplied separately from the exact
+final seek. A refused final native seek cannot resume transport. Replacement, scene loss and
+covers refuse obsolete completion/resume work. Scene
+and cover transitions preserve the player/native host instead of constructing a second graph.
+Relative skip-button seeks preserve native transport without inventing a resume from intent.
+If a native pause callback replaces the item while scrub begins, that edit cannot adopt the
+successor's token or scrub state.
+The Swift/Kotlin `MonitorMediaPlaybackModelTests`/`MonitorMediaPlaybackModelTest` scenarios
+exercise late native readiness/events/seeks, same-item and replacement look races, offline
+library retirement, synchronous observer/native replacement and manual-clock pointer pacing.
+Native and
+actual consumer adoption gates remain separate from portable fake-port evidence.
