@@ -95,7 +95,7 @@
     private struct AssistSettingsColumns: Layout {
         private let gap: CGFloat = 8
         // Five 46-point fraction targets, their gaps and the card inset need 280 points.
-        private let minimumColumnWidth: CGFloat = 288
+        private let minimumColumnWidth: CGFloat = 280
 
         private func columnCount(width: CGFloat) -> Int {
             width >= minimumColumnWidth * 2 + gap ? 2 : 1
