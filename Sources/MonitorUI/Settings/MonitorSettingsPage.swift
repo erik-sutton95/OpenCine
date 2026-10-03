@@ -13,6 +13,8 @@ public struct MonitorSettingsPage<Rows: View>: View {
     private let isLive: Bool
     private let phaseLabel: String
     private let sharingSubtitle: String?
+    private let sharingRail: String?
+    private let scrollOffsets: Binding<[String: CGFloat]>?
     private let feedback: () -> Void
     private let onClose: () -> Void
     private let disconnect: () -> Void
@@ -23,13 +25,15 @@ public struct MonitorSettingsPage<Rows: View>: View {
         safeArea: EdgeInsets, brand: String, selection: Binding<MonitorSettingsTab>,
         tabs: [MonitorSettingsTab] = MonitorSettingsTab.allCases,
         isLive: Bool, phaseLabel: String, sharingSubtitle: String? = nil,
+        sharingRail: String? = nil, scrollOffsets: Binding<[String: CGFloat]>? = nil,
         feedback: @escaping () -> Void = {}, onClose: @escaping () -> Void,
         disconnect: @escaping () -> Void,
         @ViewBuilder rows: @escaping (MonitorSettingsTab) -> Rows
     ) {
         self.safeArea = safeArea; self.brand = brand; self._selection = selection
         self.tabs = tabs; self.isLive = isLive; self.phaseLabel = phaseLabel
-        self.sharingSubtitle = sharingSubtitle; self.feedback = feedback
+        self.sharingSubtitle = sharingSubtitle; self.sharingRail = sharingRail
+        self.scrollOffsets = scrollOffsets; self.feedback = feedback
         self.onClose = onClose; self.disconnect = disconnect; self.rows = rows
     }
 
@@ -53,7 +57,8 @@ public struct MonitorSettingsPage<Rows: View>: View {
                 MonitorTabStrip(vertical: !portrait, spacing: 6) {
                     ForEach(tabs) { tab in
                         MonitorNavigationItem(
-                            tab.rawValue, subtitle: tab.rail, selected: selection == tab,
+                            tab.rawValue, subtitle: tab == .sharing ? (sharingRail ?? tab.rail) : tab.rail,
+                            selected: selection == tab,
                             separator: tab != tabs.first
                         ) {
                             if tab != selection { feedback() }
@@ -103,6 +108,15 @@ public struct MonitorSettingsPage<Rows: View>: View {
         }
     }
 
+    private var savedOffset: Binding<CGFloat>? {
+        guard let scrollOffsets else { return nil }
+        let tabID = selection.id
+        return Binding(
+            get: { scrollOffsets.wrappedValue[tabID, default: 0] },
+            set: { scrollOffsets.wrappedValue[tabID] = $0 }
+        )
+    }
+
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
@@ -120,7 +134,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .overlay(Capsule().stroke(MonitorTheme.accent.opacity(0.16), lineWidth: 1))
             }
-            MonitorSettingsTabScrollArea(tabID: selection.id) {
+            MonitorSettingsTabScrollArea(tabID: selection.id, savedOffset: savedOffset) {
                 MonitorCardColumns { rows(selection) }
                     .padding(.bottom, keyboardInset)
             }
