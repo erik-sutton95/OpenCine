@@ -89,6 +89,12 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorLevelOverlay` owns actual strip/bubble/caption composition and visible-feed
+  placement. Apps resolve attitude freshness and picture-axis flips into an immutable
+  `MonitorLevelDisplay`; the shared view owns no sampling clock. Geometry is in
+  points on Swift and dp on Compose. Unavailable readings draw bare bands and an
+  explicit caption, never a green zero. Existing typography/accessibility casing
+  and native bubble/gauge drawing remain platform-specific donor behavior.
 - `MonitorAudioMeter` is the actual stereo level/held-peak drawing on both native
   platforms. Source adapters supply dBFS readings; the view does not advance a
   decay clock or read telemetry. Orientation identities retain their stored labels.
