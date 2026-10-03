@@ -52,6 +52,39 @@ struct DJIAppleDatalinkLifetimeTests {
         #expect(!peer.snapshot.commandFrames.contains { $0.cmdSet == 2 && $0.cmdId == 2 && $0.payload == [0] })
     }
 
+    @Test func simulatedHeartbeatRegistersThroughActualNativeQueueAndStopsOnlyItsLocalRun() async throws {
+        let peer = try SimulatedDjiApplePeer()
+        let driver = DjiAppleDatalink.loopbackForTesting(port: try await peer.start())
+        defer { driver.close(); peer.close() }
+        try await driver.open()
+        await peer.waitForPresence(count: 1)
+        let baseline = peer.snapshot.presences
+        let actual = DjiAppleHeartbeatEndpoint(datalink: driver)
+        var wakes: [@MainActor @Sendable () -> Void] = []
+        var time: TimeInterval = 0
+        var bleFrames: [Duml.Frame] = []
+        let heartbeat = DjiAppleSessionHeartbeat(endpoint: .init(
+            writeBLE: { bleFrames.append($0) },
+            registerDatalink: actual.registerDatalink, transport: actual.transport),
+            timing: .init(wallNow: { time }, uptime: { time }, schedule: { _, wake in wakes.append(wake) }),
+            context: { .init() }, event: { _ in Issue.record("No monitor maintenance in native registration peer") })
+        heartbeat.start(monitorMaintenanceEnabled: false)
+        #expect(bleFrames.isEmpty)
+        wakes.removeFirst()()
+        await peer.waitForPresence(count: baseline + 1)
+        #expect(bleFrames.count == 1)
+        #expect(bleFrames.first?.cmdSet == 0 && bleFrames.first?.cmdId == 0x2b)
+        #expect(bleFrames.first?.payload == [1, 1])
+        let staleWake = wakes.removeFirst()
+        heartbeat.stop()
+        time = 1
+        staleWake()
+        #expect(bleFrames.count == 1)
+        #expect(!driver.isClosed, "Local heartbeat retirement cannot close its actual datalink")
+        #expect(!peer.snapshot.commandFrames.contains { $0.cmdSet == 2 && $0.cmdId == 2 })
+        #expect(!peer.snapshot.commandFrames.contains { $0.cmdSet == 9 && $0.cmdId == 0xa8 })
+    }
+
     @Test func simulatedAcknowledgementPumpExecutesOnItsOwnedQueue() async throws {
         let peer = try SimulatedDjiApplePeer()
         let driver = DjiAppleDatalink.loopbackForTesting(port: try await peer.start())
@@ -150,6 +183,7 @@ private final class Journal: Sendable {
 private final class SimulatedDjiApplePeer: Sendable {
     struct Snapshot: Sendable {
         var acknowledgements = 0
+        var presences = 0
         var handshakes = 0
         var registrationSequences: [UInt16] = []
         var commandFrames: [Duml.Frame] = []
@@ -162,6 +196,7 @@ private final class SimulatedDjiApplePeer: Sendable {
         var echoControls: Bool
         var handshakeWaiters: [CheckedContinuation<Void, Never>] = []
         var registrationWaiters: [CheckedContinuation<Void, Never>] = []
+        var presenceWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
         var ackWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     }
     private let listener: NWListener
@@ -202,8 +237,8 @@ private final class SimulatedDjiApplePeer: Sendable {
         listener.newConnectionHandler = nil
         listener.cancel()
         let retired = state.withLock { state in
-            let old = (state.connections, state.handshakeWaiters, state.registrationWaiters, state.ackWaiters.map { $0.continuation })
-            state.connections = []; state.handshakeWaiters = []; state.registrationWaiters = []; state.ackWaiters = []
+            let old = (state.connections, state.handshakeWaiters, state.registrationWaiters, state.ackWaiters.map { $0.continuation } + state.presenceWaiters.map { $0.continuation })
+            state.connections = []; state.handshakeWaiters = []; state.registrationWaiters = []; state.ackWaiters = []; state.presenceWaiters = []
             return old
         }
         retired.0.forEach { $0.cancel() }
@@ -224,6 +259,16 @@ private final class SimulatedDjiApplePeer: Sendable {
             let already = state.withLock { state in
                 if !state.snapshot.registrationSequences.isEmpty { return true }
                 state.registrationWaiters.append(continuation); return false
+            }
+            if already { continuation.resume() }
+        }
+    }
+
+    func waitForPresence(count: Int) async {
+        await withCheckedContinuation { continuation in
+            let already = state.withLock { state in
+                if state.snapshot.presences >= count { return true }
+                state.presenceWaiters.append((count, continuation)); return false
             }
             if already { continuation.resume() }
         }
@@ -295,13 +340,19 @@ private final class SimulatedDjiApplePeer: Sendable {
             var registered = false
             for frame in DumlTransport.scanFrames(bytes) {
                 state.snapshot.commandFrames.append(frame)
+                if frame.cmdSet == 0, frame.cmdId == 0x88 { state.snapshot.presences += 1 }
                 if frame.cmdSet == 0, frame.cmdId == 0x81,
                     let seq = DumlTransport.transportSeq(bytes) {
                     state.snapshot.registrationSequences.append(seq); registered = true
                 }
             }
-            if !registered { return [] }
-            let waiters = state.registrationWaiters; state.registrationWaiters = []
+            let presence = state.presenceWaiters.filter { $0.count <= state.snapshot.presences }
+            state.presenceWaiters.removeAll { $0.count <= state.snapshot.presences }
+            var waiters = presence.map { $0.continuation }
+            if registered {
+                waiters += state.registrationWaiters
+                state.registrationWaiters = []
+            }
             return waiters
         }
         if state.withLock({ $0.echoControls }) {

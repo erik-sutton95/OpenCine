@@ -75,6 +75,23 @@ a common receipt, and unobserved recording is not reported idle. Retry remains 3
 remains 2s, and coalescing retains 100ms ordinary/50ms pipelined-zoom cadence. Apple tests cross
 the same interface using manual timing and a SIMULATED peer on the actual UDP queue.
 
+`DjiAppleSessionHeartbeat` owns one connection's asynchronous first registration and
+one-second wait after each tick. It sends BLE keepalive before the actual datalink's
+registration/ACK, including during inactive scenes, covers and held picture. Existing
+`CameraPathRecovery` checks actual packet freshness and eight-second reassociation grace
+before any write. The host retains native picture/watchdog, gallery, incident journal
+and motion policy through bounded synchronous maintenance effects; the owner resamples
+host and transport facts before the unchanged two-second Selfie Flip fallback.
+
+Each run, scheduled wake and endpoint replacement has an identity. Old or duplicate wakes
+cannot write into a successor or cancel its deadline. Retirement stops only local work;
+explicit transport disconnect remains with its actual owner and never sends stop-record.
+Date-based transport observations and monotonic path grace retain their original clocks.
+The real native endpoint and SIMULATED manual-clock peer use the same interface. This
+Apple-specific ownership move changes no portable/Kotlin protocol or hardware admission.
+Larger connection, foreground, negotiated picture repair and watchdog execution remain
+separate increments; full Pocket session migration and physical qualification are unfinished.
+
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
 
 The Kotlin DJI layer, moved from the OpenPocketCine app without behavior change (SHELL-04): BLE
