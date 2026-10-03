@@ -177,6 +177,20 @@ legacy awake key; explicit false survives reload, and a current awake value wins
 Apps with an existing structured preferences document can bind its values directly to the
 shared settings views instead of changing that document's storage format.
 
+`MonitorDisplayPreferences` owns saved Live/Clean visibility maps from app-supplied keys and
+storage. `MonitorDisplayMode`, `MonitorDisplayChrome` and its ordered sections keep the existing
+17 JSON fields, display labels and defaults: Live shows everything; Clean initially hides the
+status bar, tool bar, camera values and lock button. Reads do not rewrite data, and updating one
+layout leaves the other intact. Camera capabilities and the app's typed slots still decide
+whether a configured element is available.
+
+The existing codec exception is preserved: Apple stores Codable `Data` and falls back to the
+whole layout when a field is missing or malformed; Android stores a JSON string and uses the
+chosen layout's fallback for each missing field. Both reject malformed documents without
+writing replacements. The five mirrored `MonitorDisplayPreferencesTests` /
+`MonitorDisplayPreferencesTest` scenarios verify legacy keys/order/defaults, explicit false,
+independent layouts, read-only fallback and storage/key isolation.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
