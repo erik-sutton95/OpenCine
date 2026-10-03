@@ -141,6 +141,17 @@ public enum MonitorConformPreview {
         return sourceSeconds / speed
     }
 
+    /// Maps a conformed playhead to a source frame for finite, representable inputs.
+    /// The preview changes the clock; seeking remains anchored to source frames.
+    public static func sourceFrameIndex(
+        conformedSeconds: Double, captureRate: Double, speed: Double
+    ) -> Int {
+        guard conformedSeconds.isFinite, conformedSeconds >= 0, captureRate > 0, speed > 0 else {
+            return 0
+        }
+        return Int((conformedSeconds * speed * captureRate).rounded(.down))
+    }
+
     public static func rateLabel(_ rate: Double) -> String {
         guard rate.isFinite, rate > 0 else { return "\u{2014}" }
         let whole = rate.rounded()

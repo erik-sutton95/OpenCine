@@ -2,6 +2,7 @@ package com.opencapture.opencine.media
 
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.round
@@ -112,6 +113,14 @@ public object MonitorConformPreview {
             return 0.0
         }
         return sourceSeconds / speed
+    }
+
+    /** Maps a conformed playhead to a source frame for finite, representable inputs. */
+    fun sourceFrameIndex(conformedSeconds: Double, captureRate: Double, speed: Double): Int {
+        if (!conformedSeconds.isFinite() || conformedSeconds < 0 || !(captureRate > 0) || !(speed > 0)) {
+            return 0
+        }
+        return floor(conformedSeconds * speed * captureRate).toInt()
     }
 
     fun rateLabel(rate: Double): String {
