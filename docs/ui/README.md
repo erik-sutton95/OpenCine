@@ -89,6 +89,13 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorNDFilterChip` displays a portable Media suggestion and operator notation,
+  never a camera command. The actual histogram calculation lives in Media and
+  returns absent for an empty/nonfinite measurement, separately from known zero.
+  Apps inject their existing no-filter and missing-picture label content. Swift
+  retains its rounded system-font capsule and accessibility detail; Compose
+  retains the fitted plain panel text and existing typography. This inherited
+  native drawing difference remains explicit pending physical qualification.
 - `MonitorLevelOverlay` owns actual strip/bubble/caption composition and visible-feed
   placement. Apps resolve attitude freshness and picture-axis flips into an immutable
   `MonitorLevelDisplay`; the shared view owns no sampling clock. Geometry is in
