@@ -135,3 +135,22 @@ picture lease, so an old feed shutdown cannot clear another feed's host or sampl
 Native 420 video-range output, first-picture pulling, paused parking and identity/overlay/LUT
 handoff remain the exercised donor policies. Android still uses the actual shared effects and
 surface runtime through its small app Media3 adapter; shared modules add no Media3 dependency.
+
+### Native media export on Apple
+
+`MonitorMediaExporter` owns native copy/transcode, compatible-preset selection and fallback,
+full-raster Core Image look baking, export-session progress and output readability. The caller
+supplies the source and prepared destination URLs. `Look` takes a sampled Media cube, encoded
+value preservation and an optional QuickTime metadata key/value replacement. Source-specific
+curve selection and metadata keys stay in the app or integration adapter.
+
+Same-format originals, and an ungraded M4V original exported as MP4, retain the byte-copy path.
+Grading retains the source display raster and the existing compatible quality preference.
+Optional Sendable/Encodable metadata writes a sibling `meta.json` only after the video becomes
+readable, using sorted, pretty-printed JSON and ISO8601 dates. Applications keep their existing
+storage namespace, filename policy and preparation progress before calling the native owner.
+
+The first consuming app's unchanged native fixtures pass before and after adoption: encoded
+sample preservation, both curve directions and embedded metadata, raster fitting, preset and
+progress mapping. Shared filesystem fixtures cover original-byte preservation and optional
+sidecar shape/absence. Physical-device export remains untested.
