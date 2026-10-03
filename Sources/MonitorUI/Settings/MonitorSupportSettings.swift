@@ -11,8 +11,24 @@ public struct MonitorReportStatus: Equatable, Sendable {
     }
 }
 
+/// A focused support action supplied by the host's real reporting or help workflow.
+public struct MonitorSupportAction: Identifiable {
+    public let id: String
+    public let title: String
+    public let help: String?
+    public let actionTitle: String
+    public let accessibilityLabel: String
+    public let enabled: Bool
+    public let action: () -> Void
+    public init(id: String, title: String, help: String? = nil, actionTitle: String,
+        accessibilityLabel: String, enabled: Bool = true, action: @escaping () -> Void) {
+        self.id = id; self.title = title; self.help = help; self.actionTitle = actionTitle
+        self.accessibilityLabel = accessibilityLabel; self.enabled = enabled; self.action = action
+    }
+}
+
 public struct MonitorSupportSettings: View {
-    @Binding private var automaticReports: Bool
+    private let automaticReports: Binding<Bool>?
     private let available: Bool
     private let automaticHelp: String
     private let unavailableHelp: String
@@ -20,23 +36,40 @@ public struct MonitorSupportSettings: View {
     private let discard: (() -> Void)?
     private let feedback: () -> Void
     private let report: () -> Void
-    private let privacy: () -> Void
-    public init(automaticReports: Binding<Bool>, available: Bool,
-        automaticHelp: String, unavailableHelp: String, status: MonitorReportStatus? = nil,
+    private let privacy: (() -> Void)?
+    private let reportTitle: String
+    private let reportHelp: String
+    private let reportActionTitle: String
+    private let actions: [MonitorSupportAction]
+    public init(automaticReports: Binding<Bool>? = nil, available: Bool = false,
+        automaticHelp: String = "", unavailableHelp: String = "", status: MonitorReportStatus? = nil,
         discard: (() -> Void)? = nil, feedback: @escaping () -> Void = {},
-        report: @escaping () -> Void, privacy: @escaping () -> Void) {
-        self._automaticReports = automaticReports; self.available = available
+        reportTitle: String = "Report a problem",
+        reportHelp: String = "Tell us what happened in the app. Choose whether to include technical details and an email for a reply.",
+        reportActionTitle: String = "Open", actions: [MonitorSupportAction] = [],
+        report: @escaping () -> Void, privacy: (() -> Void)? = nil) {
+        self.automaticReports = automaticReports; self.available = available
         self.automaticHelp = automaticHelp; self.unavailableHelp = unavailableHelp
         self.status = status; self.discard = discard; self.feedback = feedback
         self.report = report; self.privacy = privacy
+        self.reportTitle = reportTitle; self.reportHelp = reportHelp
+        self.reportActionTitle = reportActionTitle; self.actions = actions
     }
     public var body: some View {
         MonitorSettingsRowCard(title: "Help & Feedback") {
-            MonitorSettingsInlineRow(title: "Report a problem",
-                help: "Tell us what happened in the app. Choose whether to include technical details and an email for a reply.",
+            MonitorSettingsInlineRow(title: reportTitle, help: reportHelp,
                 showTopDivider: false) {
-                MonitorSettingsActionPill(title: "Open", action: report)
+                MonitorSettingsActionPill(title: reportActionTitle, action: report)
                     .accessibilityIdentifier("support.report.open")
+                    .accessibilityLabel(reportTitle)
+            }
+            ForEach(actions) { action in
+                MonitorSettingsInlineRow(title: action.title, help: action.help) {
+                    MonitorSettingsActionPill(title: action.actionTitle, action: action.action)
+                        .accessibilityIdentifier(action.id)
+                        .accessibilityLabel(action.accessibilityLabel)
+                        .disabled(!action.enabled)
+                }
             }
             if let status {
                 MonitorSettingsInlineRow(title: "Report status", help: status.detail) {
@@ -53,17 +86,23 @@ public struct MonitorSupportSettings: View {
                     }
                 }
             }
-            if available {
-                MonitorSettingsSwitchInlineRow(title: "Automatic error reports", help: automaticHelp,
-                    isOn: automaticReports, feedback: feedback) { automaticReports.toggle() }
-            } else {
-                MonitorSettingsInlineRow(title: "Automatic error reports", help: unavailableHelp) {
-                    MonitorSettingsValueText(value: "Off")
+            if let automaticReports {
+                if available {
+                    MonitorSettingsSwitchInlineRow(title: "Automatic error reports", help: automaticHelp,
+                        isOn: automaticReports.wrappedValue, feedback: feedback) {
+                            automaticReports.wrappedValue.toggle()
+                        }
+                } else {
+                    MonitorSettingsInlineRow(title: "Automatic error reports", help: unavailableHelp) {
+                        MonitorSettingsValueText(value: "Off")
+                    }
                 }
             }
-            MonitorSettingsInlineRow(title: "Reporting Privacy",
-                help: "What reports contain, retention, and how to request deletion.") {
-                MonitorSettingsActionPill(title: "Read", action: privacy)
+            if let privacy {
+                MonitorSettingsInlineRow(title: "Reporting Privacy",
+                    help: "What reports contain, retention, and how to request deletion.") {
+                    MonitorSettingsActionPill(title: "Read", action: privacy)
+                }
             }
         }
     }

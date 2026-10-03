@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Cache scope and IO stay with the host; this section owns common cache presentation.
 public struct MonitorCacheSettings: View {
-    @Binding private var cacheOriginals: Bool
+    private let cacheOriginals: Binding<Bool>?
     private let sizeLabel: String
     private let clearing: Bool
     private let cacheHelp: String
@@ -12,18 +12,23 @@ public struct MonitorCacheSettings: View {
     private let feedback: () -> Void
     private let clear: () -> Void
 
-    public init(cacheOriginals: Binding<Bool>, sizeLabel: String, clearing: Bool = false,
-        cacheHelp: String, scopeHelp: String, clearHelp: String,
+    public init(cacheOriginals: Binding<Bool>? = nil, sizeLabel: String, clearing: Bool = false,
+        cacheHelp: String = "", scopeHelp: String, clearHelp: String,
         feedback: @escaping () -> Void = {}, clear: @escaping () -> Void) {
-        self._cacheOriginals = cacheOriginals; self.sizeLabel = sizeLabel; self.clearing = clearing
+        self.cacheOriginals = cacheOriginals; self.sizeLabel = sizeLabel; self.clearing = clearing
         self.cacheHelp = cacheHelp; self.scopeHelp = scopeHelp; self.clearHelp = clearHelp
         self.feedback = feedback; self.clear = clear
     }
     public var body: some View {
         MonitorSettingsRowCard {
-            MonitorSettingsSwitchInlineRow(title: "Full Resolution Caching", help: cacheHelp,
-                showTopDivider: false, isOn: cacheOriginals, feedback: feedback) { cacheOriginals.toggle() }
-            MonitorSettingsInlineRow(title: "Local Media Cache", help: scopeHelp) {
+            if let cacheOriginals {
+                MonitorSettingsSwitchInlineRow(title: "Full Resolution Caching", help: cacheHelp,
+                    showTopDivider: false, isOn: cacheOriginals.wrappedValue, feedback: feedback) {
+                        cacheOriginals.wrappedValue.toggle()
+                    }
+            }
+            MonitorSettingsInlineRow(title: "Local Media Cache", help: scopeHelp,
+                showTopDivider: cacheOriginals != nil) {
                 MonitorSettingsValueText(value: sizeLabel)
             }
             MonitorSettingsInlineRow(title: "Clear Cache", help: clearHelp) {
@@ -32,6 +37,7 @@ public struct MonitorCacheSettings: View {
                         .foregroundStyle(MonitorTheme.recording)
                 }
                 .buttonStyle(MonitorSettingsButtonStyle())
+                .disabled(clearing)
             }
         }
     }
@@ -72,11 +78,11 @@ public struct MonitorProjectLegalSettings: View {
     private let source: () -> Void
     private let privacy: () -> Void
     private let terms: () -> Void
-    private let licenses: () -> Void
-    private let notice: () -> Void
+    private let licenses: (() -> Void)?
+    private let notice: (() -> Void)?
     public init(sourceHelp: String, termsHelp: String,
         source: @escaping () -> Void, privacy: @escaping () -> Void, terms: @escaping () -> Void,
-        licenses: @escaping () -> Void, notice: @escaping () -> Void) {
+        licenses: (() -> Void)? = nil, notice: (() -> Void)? = nil) {
         self.sourceHelp = sourceHelp; self.termsHelp = termsHelp; self.source = source
         self.privacy = privacy; self.terms = terms; self.licenses = licenses; self.notice = notice
     }
@@ -85,13 +91,15 @@ public struct MonitorProjectLegalSettings: View {
             row("Source Code", help: sourceHelp, divider: false, action: source)
             row("Privacy", help: "What this app stores on this phone.", action: privacy)
             row("Terms", help: termsHelp, action: terms)
-            row("Licenses", help: "Apache 2.0 and third-party notices.", action: licenses)
-            row("NOTICE", help: "Attribution shipped with the app.", action: notice)
+            if let licenses { row("Licenses", help: "Apache 2.0 and third-party notices.", action: licenses) }
+            if let notice { row("NOTICE", help: "Attribution shipped with the app.", action: notice) }
         }
     }
     private func row(_ title: String, help: String, divider: Bool = true, action: @escaping () -> Void) -> some View {
         MonitorSettingsInlineRow(title: title, help: help, showTopDivider: divider) {
             MonitorSettingsActionPill(title: "Open", action: action)
+                .accessibilityLabel(title == "Privacy" ? "Open Privacy Policy"
+                    : title == "Terms" ? "Open Terms of Use" : "Open \(title)")
         }
     }
 }
