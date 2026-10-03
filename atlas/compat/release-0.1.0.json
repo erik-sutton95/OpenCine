@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "8be585a43a057adbc2b9c6edc812ddfac3153745",
+      "commit": "ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "8be585a43a057adbc2b9c6edc812ddfac3153745",
-        "where": "2026-10-03 frozen b786/c989e775 Display source; integration diff only pin: root626/BFT, canonical Android949 with native staging/lint/debug/test packaging/JNI73 passed; Display native9 and installed Android11 plus portrait/landscape independent Photo/Video/reorder proofs retained. Canonical just/native format baseline remains failed, not reported green. Physical cameras untested."
+        "commit": "ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c",
+        "where": "2026-10-03 fixed a527/6bc source; 5b80 differs only Swift assist column floor unrelated to Nikon media. Integration differs only pin: Swift626/BFT, canonical Android936 plus wear5/lint/debug/release/native staging/JNI73 green. Actual native media picture lifetime1 and installed media/settings6 pass38.699s at original11058/6bc; iOS category/grid/list/density/filter/rotation inspected and saved values restored. media-union-a527-consumer evidence; new filter candidate not integrated. Physical cameras untested."
       }
     }
   ]
