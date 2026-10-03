@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c",
+      "commit": "a3b11f98cc28e7014a500ae199f6199b7f3ea8ee",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c",
-        "where": "2026-10-03 fixed a527/6bc source; 5b80 differs only Swift assist column floor unrelated to Nikon media. Integration differs only pin: Swift626/BFT, canonical Android936 plus wear5/lint/debug/release/native staging/JNI73 green. Actual native media picture lifetime1 and installed media/settings6 pass38.699s at original11058/6bc; iOS category/grid/list/density/filter/rotation inspected and saved values restored. media-union-a527-consumer evidence; new filter candidate not integrated. Physical cameras untested."
+        "commit": "a3b11f98cc28e7014a500ae199f6199b7f3ea8ee",
+        "where": "2026-10-03 local integrationa3b11/source9e930 differs only pin1afdda: Swift626/generic BFT and canonical Android936+wear5/lint/debug/release/testAPK/staging/JNI73 exact passed on integration. Native9685cae1 and APK/XML/log packet integration-1afdda-consumer-evidence. Exact filter source9e930/shared58c909 has actual native iOS4, true Android portrait5 and landscape1 passing with original policy/viewport and44dp floor; source/artifacts separately retained. Selection increment in progress and synthesized iOS selection input limitation documented; no integrated selection claim. Physical cameras untested."
       }
     }
   ]
