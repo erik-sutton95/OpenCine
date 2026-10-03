@@ -23,12 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,10 +72,12 @@ public fun MonitorSettingsPage(
     onSelect: (MonitorSettingsTab) -> Unit,
     isLive: Boolean,
     phaseLabel: String,
-    disconnect: () -> Unit,
+    disconnect: (() -> Unit)?,
     feedback: () -> Unit = {},
     tabs: List<MonitorSettingsTab> = MonitorSettingsTab.entries,
     modifier: Modifier = Modifier,
+    sharingSubtitle: String? = null,
+    sharingRail: String? = null,
     rows: @Composable ColumnScope.(MonitorSettingsTab) -> Unit,
 ) {
     MonitorPageScaffold(
@@ -91,13 +100,13 @@ public fun MonitorSettingsPage(
                     ) {
                         tabs.forEach { tab ->
                             SettingsTab(tab, selection, onSelect, feedback, tab != tabs.first(),
-                                Modifier.wrapContentWidth())
+                                Modifier.wrapContentWidth(), subtitle = if (tab == MonitorSettingsTab.SHARING) sharingRail else null)
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         SettingsSessionStatus(isLive, phaseLabel, Modifier.weight(1f))
-                        if (isLive) SettingsDisconnect(disconnect)
+                        if (isLive && disconnect != null) SettingsDisconnect(disconnect)
                     }
                 } else {
                     val scroll = rememberScrollState()
@@ -105,12 +114,13 @@ public fun MonitorSettingsPage(
                         Column(Modifier.fillMaxWidth().monitorTabStrip(vertical = true)) {
                             tabs.forEach { tab ->
                                 SettingsTab(tab, selection, onSelect, feedback, tab != tabs.first(),
-                                    Modifier.fillMaxWidth(), vertical = true)
+                                    Modifier.fillMaxWidth(), vertical = true,
+                                    subtitle = if (tab == MonitorSettingsTab.SHARING) sharingRail else null)
                             }
                         }
                     }
                     SettingsSessionStatus(isLive, phaseLabel, Modifier.fillMaxWidth())
-                    if (isLive) SettingsDisconnect(disconnect, Modifier.fillMaxWidth())
+                    if (isLive && disconnect != null) SettingsDisconnect(disconnect, Modifier.fillMaxWidth())
                 }
             }
         },
@@ -119,7 +129,7 @@ public fun MonitorSettingsPage(
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(selection.title, style = MonitorTypography.text(17f, FontWeight.SemiBold), color = MonitorPalette.text)
-                    Text(selection.subtitle, style = MonitorTypography.text(10.5f), color = MonitorPalette.muted, maxLines = 2)
+                    Text(if (selection == MonitorSettingsTab.SHARING) sharingSubtitle ?: selection.subtitle else selection.subtitle, style = MonitorTypography.text(10.5f), color = MonitorPalette.muted, maxLines = 2)
                 }
                 Text(selection.pill.uppercase(),
                     style = MonitorTypography.readout(10f, FontWeight.Bold).copy(letterSpacing = 0.6.sp, color = MonitorPalette.accent),
@@ -129,10 +139,15 @@ public fun MonitorSettingsPage(
             Spacer(Modifier.height(10.dp))
             key(selection) {
                 val scroll = rememberScrollState()
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+                var viewportBounds by remember { mutableStateOf<Rect?>(null) }
+                val context = MonitorSettingsScrollContext(scroll, viewportBounds)
+                Box(Modifier.weight(1f).fillMaxWidth()
+                    .onGloballyPositioned { viewportBounds = it.boundsInRoot() }) {
                     Column(Modifier.fillMaxSize().monitorScrollFade(scroll).verticalScroll(scroll)
                         .padding(bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        rows(selection)
+                        CompositionLocalProvider(LocalMonitorSettingsScrollContext provides context) {
+                            rows(selection)
+                        }
                     }
                 }
             }
@@ -144,6 +159,7 @@ public fun MonitorSettingsPage(
 private fun SettingsTab(
     tab: MonitorSettingsTab, selection: MonitorSettingsTab, onSelect: (MonitorSettingsTab) -> Unit,
     feedback: () -> Unit, separator: Boolean, modifier: Modifier, vertical: Boolean = false,
+    subtitle: String? = null,
 ) {
     val selected = selection == tab
     val bringIntoView = remember { BringIntoViewRequester() }
@@ -158,7 +174,7 @@ private fun SettingsTab(
             verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(tab.title, style = MonitorTypography.text(12.5f, FontWeight.SemiBold),
                 color = if (selected) MonitorPalette.accent else MonitorPalette.muted, maxLines = 1)
-            Text(tab.rail, style = MonitorTypography.text(10f), color = MonitorPalette.faint, maxLines = 1)
+            Text(subtitle ?: tab.rail, style = MonitorTypography.text(10f), color = MonitorPalette.faint, maxLines = 1)
         }
     }
 }

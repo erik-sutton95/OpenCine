@@ -1,20 +1,40 @@
 package com.opencapture.monitorui.settings
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 /** Optional queued report values from an app-owned reporting workflow. */
 public data class MonitorReportStatus(val label: String, val detail: String, val id: String? = null)
 
+/** A focused action from the host's real support workflow. */
+public data class MonitorSupportAction(
+    val id: String, val title: String, val help: String? = null, val actionTitle: String,
+    val accessibilityLabel: String, val enabled: Boolean = true, val action: () -> Unit,
+)
+
 @Composable
 public fun MonitorSupportSettings(
-    automaticReports: Boolean, available: Boolean, automaticHelp: String, unavailableHelp: String,
-    onAutomaticReports: (Boolean) -> Unit, report: () -> Unit, privacy: () -> Unit,
+    automaticReports: Boolean? = null, available: Boolean = false, automaticHelp: String = "", unavailableHelp: String = "",
+    onAutomaticReports: ((Boolean) -> Unit)? = null, report: () -> Unit, privacy: (() -> Unit)? = null,
     status: MonitorReportStatus? = null, discard: (() -> Unit)? = null, feedback: () -> Unit = {},
+    reportTitle: String = "Report a problem",
+    reportHelp: String = "Tell us what happened in the app. Choose whether to include technical details and an email for a reply.",
+    reportActionTitle: String = "Open", actions: List<MonitorSupportAction> = emptyList(),
 ) {
     MonitorSettingsRowCard(title = "Help & Feedback") {
-        MonitorSettingsInlineRow("Report a problem",
-            "Tell us what happened in the app. Choose whether to include technical details and an email for a reply.",
-            showTopDivider = false) { MonitorSettingsActionPill("Open", onClick = report) }
+        MonitorSettingsInlineRow(reportTitle, reportHelp, showTopDivider = false) {
+            MonitorSettingsActionPill(reportActionTitle, onClick = report,
+                modifier = Modifier.testTag("support.report.open").semantics { contentDescription = reportTitle })
+        }
+        actions.forEach { action ->
+            MonitorSettingsInlineRow(action.title, action.help) {
+                MonitorSettingsActionPill(action.actionTitle, enabled = action.enabled, onClick = action.action,
+                    modifier = Modifier.testTag(action.id).semantics { contentDescription = action.accessibilityLabel })
+            }
+        }
         if (status != null) {
             MonitorSettingsInlineRow("Report status", status.detail) { MonitorSettingsValueText(status.label) }
             status.id?.let { id ->
@@ -26,15 +46,19 @@ public fun MonitorSupportSettings(
                 }
             }
         }
-        if (available) {
-            MonitorSettingsSwitchInlineRow("Automatic error reports", automaticReports, automaticHelp) {
-                feedback(); onAutomaticReports(!automaticReports)
+        if (automaticReports != null) {
+            if (available && onAutomaticReports != null) {
+                MonitorSettingsSwitchInlineRow("Automatic error reports", automaticReports, automaticHelp) {
+                    feedback(); onAutomaticReports(!automaticReports)
+                }
+            } else {
+                MonitorSettingsInlineRow("Automatic error reports", unavailableHelp) { MonitorSettingsValueText("Off") }
             }
-        } else {
-            MonitorSettingsInlineRow("Automatic error reports", unavailableHelp) { MonitorSettingsValueText("Off") }
         }
-        MonitorSettingsInlineRow("Reporting Privacy", "What reports contain, retention, and how to request deletion.") {
-            MonitorSettingsActionPill("Read", onClick = privacy)
+        privacy?.let { action ->
+            MonitorSettingsInlineRow("Reporting Privacy", "What reports contain, retention, and how to request deletion.") {
+                MonitorSettingsActionPill("Read", onClick = action)
+            }
         }
     }
 }

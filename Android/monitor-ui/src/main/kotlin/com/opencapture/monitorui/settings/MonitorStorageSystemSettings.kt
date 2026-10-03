@@ -1,24 +1,32 @@
 package com.opencapture.monitorui.settings
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.opencapture.monitorui.MonitorPalette
 
 /** The host supplies cache scope, current IO state and actions. */
 @Composable
 public fun MonitorCacheSettings(
-    cacheOriginals: Boolean, sizeLabel: String, clearing: Boolean = false,
-    cacheHelp: String, scopeHelp: String, clearHelp: String,
-    onCacheOriginals: (Boolean) -> Unit, clear: () -> Unit, feedback: () -> Unit = {},
+    cacheOriginals: Boolean? = null, sizeLabel: String, clearing: Boolean = false,
+    cacheHelp: String = "", scopeHelp: String, clearHelp: String,
+    onCacheOriginals: ((Boolean) -> Unit)? = null, clear: () -> Unit, feedback: () -> Unit = {},
 ) {
     MonitorSettingsRowCard {
-        MonitorSettingsSwitchInlineRow(
-            title = "Full Resolution Caching", help = cacheHelp,
-            showTopDivider = false, isOn = cacheOriginals,
-        ) { feedback(); onCacheOriginals(!cacheOriginals) }
-        MonitorSettingsInlineRow("Local Media Cache", scopeHelp) { MonitorSettingsValueText(sizeLabel) }
+        if (cacheOriginals != null && onCacheOriginals != null) {
+            MonitorSettingsSwitchInlineRow(
+                title = "Full Resolution Caching", help = cacheHelp,
+                showTopDivider = false, isOn = cacheOriginals,
+            ) { feedback(); onCacheOriginals(!cacheOriginals) }
+        }
+        MonitorSettingsInlineRow("Local Media Cache", scopeHelp,
+            showTopDivider = cacheOriginals != null && onCacheOriginals != null) {
+            MonitorSettingsValueText(sizeLabel)
+        }
         MonitorSettingsInlineRow("Clear Cache", clearHelp) {
-            MonitorSettingsTextAction(if (clearing) "Clearing…" else "Clear",
-                color = MonitorPalette.recording, onClick = clear)
+            if (clearing) MonitorSettingsValueText("Clearing…")
+            else MonitorSettingsTextAction("Clear", color = MonitorPalette.recording, onClick = clear)
         }
     }
 }
@@ -41,21 +49,30 @@ public fun MonitorAppInformationSettings(
 public fun MonitorProjectLegalSettings(
     sourceHelp: String, termsHelp: String,
     source: () -> Unit, privacy: () -> Unit, terms: () -> Unit,
-    licenses: () -> Unit, notice: () -> Unit,
+    licenses: (() -> Unit)? = null, notice: (() -> Unit)? = null,
 ) {
     MonitorSettingsRowCard(title = "Project & Legal") {
         MonitorSettingsInlineRow("Source Code", sourceHelp, showTopDivider = false) {
-            MonitorSettingsActionPill("Open", onClick = source)
+            MonitorSettingsActionPill("Open", onClick = source,
+                modifier = Modifier.semantics { contentDescription = "Open Source Code" })
         }
         MonitorSettingsInlineRow("Privacy", "What this app stores on this phone.") {
-            MonitorSettingsActionPill("Open", onClick = privacy)
+            MonitorSettingsActionPill("Open", onClick = privacy,
+                modifier = Modifier.semantics { contentDescription = "Open Privacy Policy" })
         }
-        MonitorSettingsInlineRow("Terms", termsHelp) { MonitorSettingsActionPill("Open", onClick = terms) }
-        MonitorSettingsInlineRow("Licenses", "Apache 2.0 and third-party notices.") {
-            MonitorSettingsActionPill("Open", onClick = licenses)
+        MonitorSettingsInlineRow("Terms", termsHelp) {
+            MonitorSettingsActionPill("Open", onClick = terms,
+                modifier = Modifier.semantics { contentDescription = "Open Terms of Use" })
         }
-        MonitorSettingsInlineRow("NOTICE", "Attribution shipped with the app.") {
-            MonitorSettingsActionPill("Open", onClick = notice)
+        licenses?.let { action ->
+            MonitorSettingsInlineRow("Licenses", "Apache 2.0 and third-party notices.") {
+                MonitorSettingsActionPill("Open", onClick = action)
+            }
+        }
+        notice?.let { action ->
+            MonitorSettingsInlineRow("NOTICE", "Attribution shipped with the app.") {
+                MonitorSettingsActionPill("Open", onClick = action)
+            }
         }
     }
 }

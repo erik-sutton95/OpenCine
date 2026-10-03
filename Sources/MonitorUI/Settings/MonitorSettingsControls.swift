@@ -220,18 +220,4 @@ public struct MonitorSettingsRowCard<Content: View>: View {
     }
 }
 
-public struct MonitorSettingsTabScrollArea<Content: View>: View {
-    private let tabID: String
-    private let content: Content
-    public init(tabID: String, @ViewBuilder content: () -> Content) {
-        self.tabID = tabID; self.content = content()
-    }
-    public var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 8) { content }
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 22)
-        }
-        .scrollDismissesKeyboard(.interactively).monitorScrollFade().id(tabID)
-    }
-}
 #endif
