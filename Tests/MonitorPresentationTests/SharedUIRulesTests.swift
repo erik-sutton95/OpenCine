@@ -104,4 +104,20 @@ struct SharedUIRulesTests {
         }
         #expect(found == Self.allowedGlobals)
     }
+
+    @Test func nativeViewsImportOnlyPresentationMediaAndSystemFrameworks() throws {
+        let allowed: Set = ["Foundation", "SwiftUI", "UIKit", "CoreGraphics", "CoreImage",
+            "CoreText", "Metal", "MetalKit", "MetalPerformanceShaders", "os",
+            "MonitorPresentation", "OpenCineMedia"]
+        for file in try Self.sources(["Sources/MonitorUI"], extensions: ["swift"]) {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            for line in source.split(separator: "\n") {
+                let words = line.split(separator: " ").map(String.init)
+                guard let index = words.firstIndex(of: "import"), index + 1 < words.count,
+                    words[..<index].allSatisfy({ $0.hasPrefix("@") }) else { continue }
+                #expect(allowed.contains(words[index + 1]), "\(file.lastPathComponent): \(line)")
+            }
+            #expect(!source.contains("OpenCineApple"), "\(file.lastPathComponent) reaches a native owner")
+        }
+    }
 }

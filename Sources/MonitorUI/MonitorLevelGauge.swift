@@ -39,7 +39,8 @@
 
         public static func label(_ value: Double?) -> String {
             guard let value else { return "—" }
-            return String(format: "%+.1f°", abs(value) < 0.05 ? 0 : value)
+            let displayed: Double = abs(value) < 0.05 ? 0 : value
+            return String(format: "%+.1f°", displayed)
         }
 
         public var body: some View {

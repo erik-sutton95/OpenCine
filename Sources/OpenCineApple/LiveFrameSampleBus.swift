@@ -10,6 +10,10 @@ public final class LiveFrameSampleBus {
     public enum Role: Sendable { case live, playback }
     public final class Source: @unchecked Sendable {
         fileprivate let role: Role
+        private let active = NSLock()
+        private var current = true
+        nonisolated public var isActive: Bool { active.withLock { current } }
+        nonisolated fileprivate func retire() { active.withLock { current = false } }
         public let exposureCeiling: ScopeExposureCeiling
         fileprivate init(_ role: Role, profile: ScopeClipProfile) {
             self.role = role; exposureCeiling = ScopeExposureCeiling(profile: profile)
@@ -42,8 +46,8 @@ public final class LiveFrameSampleBus {
     public func openSource(_ role: Role) -> Source {
         let source = Source(role, profile: profile)
         switch role {
-        case .live: clearLive(); liveSource = source
-        case .playback: clearPlayback(); playbackSource = source
+        case .live: liveSource?.retire(); clearLive(); liveSource = source
+        case .playback: playbackSource?.retire(); clearPlayback(); playbackSource = source
         }
         return source
     }
@@ -56,6 +60,7 @@ public final class LiveFrameSampleBus {
     }
     public func closeSource(_ source: Source?) {
         guard let source, isCurrent(source) else { return }
+        source.retire()
         switch source.role {
         case .live: liveSource = nil; clearLive()
         case .playback: playbackSource = nil; clearPlayback()

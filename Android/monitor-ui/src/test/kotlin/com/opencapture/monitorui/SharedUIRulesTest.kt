@@ -93,4 +93,19 @@ class SharedUIRulesTest {
         val found = sources.filter { it.extension == "kt" }.flatMap { mutableGlobals(it.readText()) }.toSet()
         assertEquals(allowedGlobals, found)
     }
+
+    @Test
+    fun nativeViewsImportOnlyMediaAndSystemFrameworks() {
+        val allowed = listOf("android.", "androidx.", "java.", "kotlin.", "kotlinx.",
+            "com.opencapture.monitorui.", "com.opencapture.opencine.media.")
+        for (file in File("src/main").walk().filter { it.extension == "kt" }) {
+            val source = file.readText()
+            for (line in source.lineSequence().filter { it.trimStart().startsWith("import ") }) {
+                val name = line.trim().removePrefix("import ").substringBefore(' ')
+                assertTrue(allowed.any(name::startsWith), "${file.name}: $line")
+            }
+            assertTrue(!source.contains("com.opencapture.opencine.runtime."),
+                "${file.name} reaches a native owner")
+        }
+    }
 }

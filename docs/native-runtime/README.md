@@ -12,6 +12,36 @@ target lifetime belong in the shared runtime. The platform adds no graphics libr
 Applications supply raw color interpretation and source calibration as values or callbacks;
 common algorithms do not infer those facts from a manufacturer.
 
+Media owns portable assist options: detector RGB/sensitivity, zebra paint,
+histogram/traffic-light compensation and anamorphic presets/correction. App
+aliases retain their existing stored scalar values and labels; display swatches
+remain theme bindings. Unknown source aspect stays absent in the common helper.
+The Android source adapter retains its previous fallback geometry and Float
+aspect arithmetic, while Apple uses Double geometry. Sampling is unchanged by
+desqueeze, which corrects presentation only.
+
+Media also owns the portable stereo meter values and `MonitorAudioMeterBallistics`.
+The source passes linear peaks and elapsed seconds; the pure step returns a new
+value with the existing instant attack, 26 dB/s level decay, 1.8 second peak hold
+and 12 dB/s peak release. Camera wire indicators remain in their source adapters.
+Known silence is a meter value; absent telemetry stays an
+absent source observation rather than invoking a fabricated sample.
+
+`MonitorPlaybackAudioMeterRuntime` owns the actual Apple audio tap, cancellable
+track query and meter polling. Android `MonitorPcmAudioInput` owns prepared PCM
+sampling; the app maps its player SDK encodings into `MonitorPcmFormat` and keeps
+the SDK player/factory. Audio-session and conform-preview mute policies remain
+application actions. Neither owner introduces a player SDK dependency.
+
+Each audio producer captures a source lease, and each format preparation captures
+a sampling writer. Replacement and reprepare clear measured peaks and reject late
+writes; a retired source cannot prepare or close its successor. The immutable peak
+sample carries both generations so `MonitorAudioMeterSampler` resets held peaks
+even if a new measurement arrives before polling sees the source transition.
+Unmeasured source data stays absent, measured zero is silence, and owner close is
+terminal. Android input close is tied to actual player disposal. Media playback
+navigation and per-clip player selection remain application composition.
+
 Each native owner has its own frame/sample publication lifetime. Replacing or retiring a source
 must reject its late frames and clear only its own publications. Covers and rotation preserve
 the picture host. Codec, frame leases, renderer scheduling and sampling demand retain one owner
@@ -33,3 +63,28 @@ Tickets also carry the current live/playback producer lease, so a retired source
 or invalidate a successor preview. Native backdrop workers deliver bounded immutable bitmap
 publications; their private working raster is reused without changing retained UI pixels.
 Consumer close retires admission and releases native workers; rotation only detaches the window.
+
+The Android Vulkan owner builds on the existing `:vulkan` module. It owns ImageReader/AHB
+delivery, GPU/window threads, presentation synchronization and source sampling. The app supplies
+crash-guard, diagnostic and display-policy callbacks. The renderer's legacy `OpcVulkan` JNI class
+and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axis values and
+imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.
+
+Apple `MonitorLiveVideoRuntime` owns Annex-B format admission, the retained display layer,
+one sticky VideoToolbox decoder, assist/decoded-source/preview demand and layer/Metal handoff.
+Source configuration supplies calibration, transfer interpretation and diagnostics. The runtime
+signals a random-access need; the integration's connection owner decides whether and how to
+request it. `health` captures one source's format, reference, output and display facts, while
+cached image repaint leaves its source freshness unchanged.
+
+Capture `sourceToken` before queuing encoded or decoded input. `reset()` advances that source
+identity without replacing the picture host; VT rebuilds also fence queued decoder output.
+`close()` is terminal and cannot reopen or erase a successor publication lease. A pixel-buffer
+source calls `preparePixelBufferSource` and submits through the same owner, preserving its token
+through asynchronous delivery. Apps keep simulator footage selection and raw wire color mapping.
+
+Android already owns its encoded admission and MediaCodec/reference state in `:decoder`.
+`MonitorSurfacePictureHost` and `MonitorTexturePictureHost` own the corresponding native View
+attachment/listener lifetimes in `:native-runtime`, without a Compose dependency. The texture
+program is either the existing GLES owner or a direct decoder surface. Old-window destroy and
+update callbacks cannot release a replacement surface or refresh its presentation clock.
