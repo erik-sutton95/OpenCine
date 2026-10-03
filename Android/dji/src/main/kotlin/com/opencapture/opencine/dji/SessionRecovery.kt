@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.RetryBackoff
+
 /**
  * Whether an interrupted camera session is being recovered, and how the operator is told.
  *
@@ -71,11 +73,13 @@ class ReconnectBackoff(
     val jitterFraction: Double = 0.3,
 ) {
     fun delayMs(attempt: Int, jitter: Double): Long {
-        val exponent = maxOf(0, attempt).toDouble()
-        val capped = minOf(maxMs.toDouble(), baseMs * Math.pow(multiplier, exponent))
-        val clampedJitter = jitter.coerceIn(0.0, 1.0)
-        val signedSpread = (clampedJitter * 2 - 1) * jitterFraction
-        val jittered = capped * (1 + signedSpread)
+        val jittered = RetryBackoff(
+            initialDelay = baseMs.toDouble(),
+            maximumDelay = maxMs.toDouble(),
+            multiplier = multiplier,
+            jitterFraction = jitterFraction,
+        ).delay(attempt, jitter)
+        // Keep the legacy millisecond truncation and exact Long cap at this boundary.
         return minOf(maxMs, maxOf(0L, jittered.toLong()))
     }
 }

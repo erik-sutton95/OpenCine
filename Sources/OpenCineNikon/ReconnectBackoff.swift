@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Jittered exponential backoff schedule for reconnect / live-view-restart retries.
 ///
@@ -36,12 +37,9 @@ public struct ReconnectBackoff: Sendable, Equatable {
     ///   - attempt: zero-based retry index; negatives are treated as 0.
     ///   - jitter: a sample in `0...1` (clamped); 0 = lower bound, 0.5 = un-jittered, 1 = upper bound.
     public func delaySeconds(forAttempt attempt: Int, jitter: Double) -> Double {
-        let exponent = Double(max(0, attempt))
-        let capped = min(maxSeconds, baseSeconds * pow(multiplier, exponent))
-        let clampedJitter = min(1, max(0, jitter))
-        // Map the 0...1 sample onto ±jitterFraction around the un-jittered delay.
-        let signedSpread = (clampedJitter * 2 - 1) * jitterFraction
-        let jittered = capped * (1 + signedSpread)
-        return min(maxSeconds, max(0, jittered))
+        RetryBackoff(
+            initialDelay: baseSeconds, maximumDelay: maxSeconds,
+            multiplier: multiplier, jitterFraction: jitterFraction
+        ).delay(forAttempt: attempt, jitter: jitter)
     }
 }
