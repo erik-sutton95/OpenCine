@@ -84,6 +84,7 @@ class MonitorZebraZone(
     val enabled: Boolean, val threshold: Int, val maximum: Int, val paint: MonitorZebraPaint,
     colors: List<MonitorSettingsColorDot>, val onEnabled: () -> Unit,
     val onThreshold: (Int) -> Unit, val onPaint: (MonitorZebraPaint) -> Unit,
+    val allowsEditingWhenOff: Boolean = false,
 ) {
     val colors: List<MonitorSettingsColorDot> = colors.toList()
 }
@@ -181,19 +182,20 @@ private fun zebraNumberColors(values: MonitorZebraNumberZone) {
 
 @Composable
 private fun zebraZone(title: String, help: String, values: MonitorZebraZone) {
+    val editable = values.enabled || values.allowsEditingWhenOff
     MonitorSettingsSwitchInlineRow(title, isOn = values.enabled, help = help, stacked = false, onToggle = values.onEnabled)
     Column(Modifier.padding(start = 14.dp).alpha(if (values.enabled) 1f else .35f)) {
         MonitorSettingsInlineRow("Threshold", showTopDivider = false, stacked = true) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 MonitorSlider(values.threshold.toFloat(), 0f..values.maximum.toFloat(),
                     Modifier.weight(1f).semantics { contentDescription = "$title threshold" },
-                    enabled = values.enabled) { values.onThreshold(it.toInt()) }
+                    enabled = editable) { values.onThreshold(it.toInt()) }
                 Text(values.threshold.toString(), style = MonitorTypography.text(12f, FontWeight.Medium),
                     color = MonitorPalette.text, modifier = Modifier.width(34.dp))
             }
         }
         MonitorSettingsInlineRow("Color", showTopDivider = false, stacked = true) {
-            MonitorSettingsColorDots(values.colors, values.paint.label, enabled = values.enabled) {
+            MonitorSettingsColorDots(values.colors, values.paint.label, enabled = editable) {
                 values.onPaint(MonitorZebraPaint.fromPersisted(it))
             }
         }
