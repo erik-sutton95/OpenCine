@@ -8,6 +8,56 @@ import Testing
         let parent = FileManager.default.temporaryDirectory.appendingPathComponent("opencine-cache-" + UUID().uuidString)
         return (parent, MonitorMediaCacheDirectory(root: parent.appendingPathComponent("camera")))
     }
+    private struct RetirementFixture {
+        let parent: URL, ownPrepared: URL, ownUnprepared: URL, siblingPrepared: URL, siblingUnprepared: URL
+        let own: MonitorMediaCacheDirectory, sibling: MonitorMediaCacheDirectory
+    }
+    private func retirementFixture() throws -> RetirementFixture {
+        let (parent, own) = directory()
+        let sibling = MonitorMediaCacheDirectory(root: parent.appendingPathComponent("camera-extra"))
+        let ownPrepared = parent.appendingPathComponent(".clearing-camera-" + UUID().uuidString)
+        let ownUnprepared = parent.appendingPathComponent(".retiring-camera-" + UUID().uuidString)
+        let siblingPrepared = parent.appendingPathComponent(".clearing-camera-extra-" + UUID().uuidString)
+        let siblingUnprepared = parent.appendingPathComponent(".retiring-camera-extra-" + UUID().uuidString)
+        for (root, count) in [(own.root, 2), (ownPrepared, 7), (ownUnprepared, 5),
+            (sibling.root, 17), (siblingPrepared, 11), (siblingUnprepared, 13)] {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try Data(repeating: UInt8(count), count: count).write(to: root.appendingPathComponent("take.mov"))
+        }
+        return .init(parent: parent, ownPrepared: ownPrepared, ownUnprepared: ownUnprepared,
+            siblingPrepared: siblingPrepared, siblingUnprepared: siblingUnprepared, own: own, sibling: sibling)
+    }
+    @Test func prefixOverlappingRootsDoNotShareRetiredByteCounts() async throws {
+        let fixture = try retirementFixture(); defer { try? FileManager.default.removeItem(at: fixture.parent) }
+        #expect(await fixture.own.totalByteCount() == 14)
+        #expect(await fixture.sibling.totalByteCount() == 41)
+    }
+    @Test func clearPreservesPrefixOverlappingRetiredRoots() async throws {
+        let fixture = try retirementFixture(); defer { try? FileManager.default.removeItem(at: fixture.parent) }
+        try await fixture.own.clear(preserving: [])
+        #expect(!FileManager.default.fileExists(atPath: fixture.ownPrepared.path))
+        #expect(try Data(contentsOf: fixture.ownUnprepared.appendingPathComponent("take.mov")) == Data(repeating: 5, count: 5))
+        #expect(try Data(contentsOf: fixture.sibling.root.appendingPathComponent("take.mov")) == Data(repeating: 17, count: 17))
+        #expect((try? Data(contentsOf: fixture.siblingPrepared.appendingPathComponent("take.mov"))) == Data(repeating: 11, count: 11))
+        #expect(try Data(contentsOf: fixture.siblingUnprepared.appendingPathComponent("take.mov")) == Data(repeating: 13, count: 13))
+        #expect(await fixture.own.totalByteCount() == 5)
+        #expect(await fixture.sibling.totalByteCount() == 41)
+    }
+    @Test func unrecognizedRetirementNamesRemainOutsideOwnedCache() async throws {
+        let (parent, directory) = directory(); defer { try? FileManager.default.removeItem(at: parent) }
+        let names = [".clearing-camera-retry", ".retiring-camera-1-1-1-1-1",
+            ".clearing-camera-" + UUID().uuidString + "-extra"]
+        for name in names {
+            let root = parent.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try Data([1, 2, 3]).write(to: root.appendingPathComponent("take.mov"))
+        }
+        #expect(await directory.totalByteCount() == 0)
+        try await directory.clear(preserving: [])
+        for name in names {
+            #expect(try Data(contentsOf: parent.appendingPathComponent(name).appendingPathComponent("take.mov")) == Data([1, 2, 3]))
+        }
+    }
     @Test func clearRetiresOldWriterBeforeNewRootCommit() async throws {
         let (parent, directory) = directory(); defer { try? FileManager.default.removeItem(at: parent) }
         try directory.write(Data("{\"unknown\":19}".utf8), at: "index.json")

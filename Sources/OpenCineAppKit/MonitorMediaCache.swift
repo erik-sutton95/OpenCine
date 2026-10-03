@@ -182,8 +182,15 @@ public struct MonitorMediaCacheEntry: Sendable {
 
     private nonisolated static func retiredRoots(root: URL, manager: FileManager, includeUnprepared: Bool) -> [URL] {
         ((try? manager.contentsOfDirectory(at: root.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? [])
-            .filter { $0.lastPathComponent.hasPrefix(".clearing-" + root.lastPathComponent + "-")
-                || (includeUnprepared && $0.lastPathComponent.hasPrefix(".retiring-" + root.lastPathComponent + "-")) }
+            .filter { isRetirementName($0.lastPathComponent, prefix: ".clearing-" + root.lastPathComponent + "-")
+                || (includeUnprepared && isRetirementName($0.lastPathComponent, prefix: ".retiring-" + root.lastPathComponent + "-")) }
+    }
+    private nonisolated static func isRetirementName(_ name: String, prefix: String) -> Bool {
+        guard name.hasPrefix(prefix) else { return false }
+        let suffix = String(name.dropFirst(prefix.count))
+        guard let id = UUID(uuidString: suffix) else { return false }
+        // The whole suffix must be one canonical UUID, never another root's name or extra text.
+        return id.uuidString.caseInsensitiveCompare(suffix) == .orderedSame
     }
 }
 

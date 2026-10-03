@@ -122,7 +122,14 @@ public class MonitorMediaCacheDirectory(public val root: File) {
         }
     }
     private fun retiredRoots(includeUnprepared: Boolean): List<File> = root.parentFile?.listFiles().orEmpty().filter {
-        it.name.startsWith(".clearing-${root.name}-") || (includeUnprepared && it.name.startsWith(".retiring-${root.name}-"))
+        isRetirementName(it.name, ".clearing-${root.name}-") ||
+            (includeUnprepared && isRetirementName(it.name, ".retiring-${root.name}-"))
+    }
+    private fun isRetirementName(name: String, prefix: String): Boolean {
+        if (!name.startsWith(prefix)) return false
+        val suffix = name.removePrefix(prefix)
+        // UUID.fromString also accepts abbreviated groups. Require the entire canonical suffix.
+        return runCatching { UUID.fromString(suffix).toString().equals(suffix, ignoreCase = true) }.getOrDefault(false)
     }
 }
 

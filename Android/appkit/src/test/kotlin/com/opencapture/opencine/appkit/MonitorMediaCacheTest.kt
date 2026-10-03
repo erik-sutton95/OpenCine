@@ -11,6 +11,59 @@ class MonitorMediaCacheTest {
         val parent = File(System.getProperty("java.io.tmpdir"), "opencine-cache-${UUID.randomUUID()}")
         return parent to MonitorMediaCacheDirectory(File(parent, "camera"))
     }
+    private data class RetirementFixture(
+        val parent: File, val ownPrepared: File, val ownUnprepared: File,
+        val siblingPrepared: File, val siblingUnprepared: File,
+        val own: MonitorMediaCacheDirectory, val sibling: MonitorMediaCacheDirectory,
+    )
+    private fun retirementFixture(): RetirementFixture {
+        val (parent, own) = directory()
+        val sibling = MonitorMediaCacheDirectory(File(parent, "camera-extra"))
+        val ownPrepared = File(parent, ".clearing-camera-${UUID.randomUUID()}")
+        val ownUnprepared = File(parent, ".retiring-camera-${UUID.randomUUID()}")
+        val siblingPrepared = File(parent, ".clearing-camera-extra-${UUID.randomUUID()}")
+        val siblingUnprepared = File(parent, ".retiring-camera-extra-${UUID.randomUUID()}")
+        for ((root, count) in listOf(own.root to 2, ownPrepared to 7, ownUnprepared to 5,
+            sibling.root to 17, siblingPrepared to 11, siblingUnprepared to 13)) {
+            check(root.mkdirs()); File(root, "take.mov").writeBytes(ByteArray(count) { count.toByte() })
+        }
+        return RetirementFixture(parent, ownPrepared, ownUnprepared, siblingPrepared, siblingUnprepared, own, sibling)
+    }
+    @Test fun prefixOverlappingRootsDoNotShareRetiredByteCounts() = runTest {
+        val fixture = retirementFixture()
+        try {
+            assertEquals(14L, fixture.own.totalByteCount())
+            assertEquals(41L, fixture.sibling.totalByteCount())
+        } finally { fixture.parent.deleteRecursively() }
+    }
+    @Test fun clearPreservesPrefixOverlappingRetiredRoots() = runTest {
+        val fixture = retirementFixture()
+        try {
+            fixture.own.clear(emptyList())
+            assertFalse(fixture.ownPrepared.exists())
+            assertContentEquals(ByteArray(5) { 5 }, File(fixture.ownUnprepared, "take.mov").readBytes())
+            assertContentEquals(ByteArray(17) { 17 }, File(fixture.sibling.root, "take.mov").readBytes())
+            assertTrue(fixture.siblingPrepared.exists(), "Sibling prepared retirement must remain")
+            assertContentEquals(ByteArray(11) { 11 }, File(fixture.siblingPrepared, "take.mov").readBytes())
+            assertContentEquals(ByteArray(13) { 13 }, File(fixture.siblingUnprepared, "take.mov").readBytes())
+            assertEquals(5L, fixture.own.totalByteCount())
+            assertEquals(41L, fixture.sibling.totalByteCount())
+        } finally { fixture.parent.deleteRecursively() }
+    }
+    @Test fun unrecognizedRetirementNamesRemainOutsideOwnedCache() = runTest {
+        val (parent, directory) = directory()
+        try {
+            val names = listOf(".clearing-camera-retry", ".retiring-camera-1-1-1-1-1",
+                ".clearing-camera-${UUID.randomUUID()}-extra")
+            for (name in names) {
+                val root = File(parent, name); check(root.mkdirs())
+                File(root, "take.mov").writeBytes(byteArrayOf(1, 2, 3))
+            }
+            assertEquals(0L, directory.totalByteCount())
+            directory.clear(emptyList())
+            for (name in names) assertContentEquals(byteArrayOf(1, 2, 3), File(File(parent, name), "take.mov").readBytes())
+        } finally { parent.deleteRecursively() }
+    }
     @Test fun clearRetiresOldWriterBeforeNewRootCommit() = runTest {
         val (parent, directory) = directory()
         try {
