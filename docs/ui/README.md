@@ -89,6 +89,14 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   overhang. Placement fits the body between fixed controls without rewriting storage.
   Compose options anchors are expressed in dp relative to an injected canvas origin;
   Apple options anchors use the panel canvas coordinates.
+- `MonitorAssistTool` owns the current 18 tool labels, configuration availability
+  and glyph mapping; `MonitorAssistToolGlyph` renders the actual native artwork.
+  Sources retain capability filtering, saved selection and toolbar order. Legacy
+  Apple playback/magnification IDs stay in the app compatibility adapter. Existing
+  default platform grouping is preserved: Apple groups desqueeze with mirror;
+  Compose groups desqueeze with framing and gives mirror its own group. Stored
+  identities retain their original platform spelling, including Compose DESQ and
+  Apple DE-SQ; this is a presentation catalog, not a persistence migration.
 - `MonitorNDFilterChip` displays a portable Media suggestion and operator notation,
   never a camera command. The actual histogram calculation lives in Media and
   returns absent for an empty/nonfinite measurement, separately from known zero.
