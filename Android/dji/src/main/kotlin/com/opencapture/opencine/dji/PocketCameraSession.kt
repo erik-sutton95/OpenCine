@@ -390,8 +390,12 @@ class PocketCameraSession(
 
     /** OpenCineCore seam for ISO, white balance and record (CORE-02). UI controls submit here. */
     override val control: DjiCameraSessionAdapter
-        get() = controlSeam ?: DjiCameraSessionAdapter(this, scope).also { controlSeam = it }
-    private var controlSeam: DjiCameraSessionAdapter? = null
+        get() = controlBinding.session
+    private val controlBinding by lazy {
+        DjiControlSessionBinding(this, scope, onClose = { disconnect() })
+    }
+    private val controlSeam: DjiCameraSessionAdapter? get() = controlBinding.cached
+    private var reportedCapture = CameraStatus()
 
     // Camera-reported values for the seam. [status] carries optimistic HUD values; these never do.
     private var reportedIsoIndex: Int? = null
@@ -442,6 +446,7 @@ class PocketCameraSession(
     private var zoomColorHopUntilElapsed = 0L
     private var zoomColorHopGeneration = 0L
     private var pendingZoomAfterHop: Double? = null
+    private var pendingZoomAfterHopStage: ((ControlWireEvent) -> Unit)? = null
     private var zoomStop = 1.0
     private var zoomStopTouched = false
     var zoomPinchPreview: Double? = null
@@ -464,6 +469,7 @@ class PocketCameraSession(
     private val lastZoomActivityAt: Long?
         get() = maxOf(lastZoomWireAt, datalink?.lastProgrammedZoomAt ?: 0L).takeIf { it > 0L }
     private var pendingZoomPayload: ByteArray? = null
+    private var pendingZoomStage: ((ControlWireEvent) -> Unit)? = null
     private var zoomFlushJob: Job? = null
     private val faceDetector = appHost.createFaceDetector()
     private val _faceAFArmed = MutableStateFlow(false)
@@ -556,6 +562,10 @@ class PocketCameraSession(
     override fun stopScan() = ble.stopScan()
 
     fun startScan(reconnect: String?) {
+        if (reconnect != null && !holdsMonitor) {
+            controlBinding.beginConnection()
+            reportedCapture = CameraStatus()
+        }
         reconnectTarget = reconnect
         _connectionTargetId.value = reconnect
         _isReconnecting.value = reconnect != null
@@ -603,6 +613,10 @@ class PocketCameraSession(
                 ConnectionPhase.LIVE -> leaveLiveForReconnect()
                 else -> return
             }
+        }
+        if (!holdsMonitor) {
+            controlBinding.beginConnection()
+            reportedCapture = CameraStatus()
         }
         reconnectTarget = null
         _connectionTargetId.value = camera.id
@@ -655,9 +669,16 @@ class PocketCameraSession(
     /** Borrow the tile's transport and decoder; Multiview remains the sole repair owner. */
     fun updateMultiview(camera: FoundCamera?, driver: DatalinkDriver?, status: CameraStatus) {
         if (!isMultiviewBorrowed) return
+        if (connectedCamera?.id != camera?.id) {
+            controlBinding.beginConnection()
+            reportedCapture = CameraStatus()
+        }
         connectedCamera = camera
         datalink = driver
+        // Tile settings are decoded reports; editor pins live only in this borrowed session.
+        reportedCapture = status
         _status.value = status
+        controlSeam?.sessionDidChange()
         hasVideoFormat = decoder.hasFormat
         _phase.value = ConnectionPhase.LIVE
     }
@@ -679,6 +700,8 @@ class PocketCameraSession(
     fun releaseMultiview() {
         formatPin = null
         if (!isMultiviewBorrowed) return
+        controlBinding.retire(com.opencapture.opencine.core.SessionCloseReason.REQUESTED)
+        reportedCapture = CameraStatus()
         controlLease?.invalidate()
         if (!isMultiviewControlOnly) {
             endGimbalStick()
@@ -703,6 +726,8 @@ class PocketCameraSession(
             releaseMultiview()
             return
         }
+        controlBinding.retire(com.opencapture.opencine.core.SessionCloseReason.REQUESTED)
+        reportedCapture = CameraStatus()
         appHost.setCameraSessionActive(false)
         // Operator ended the session: an incident still open ends as userEnded.
         appHost.incidents.endSession(SystemClock.elapsedRealtime() / 1000.0)
@@ -776,7 +801,7 @@ class PocketCameraSession(
         zoomColorHopPending = false
         zoomColorHopUntilElapsed = 0L
         zoomColorHopGeneration += 1
-        pendingZoomAfterHop = null
+        discardZoomAfterHop()
         resetZoomHud()
         clearLocalTracking()
         clearFaceAF()
@@ -785,7 +810,7 @@ class PocketCameraSession(
         faceAFArmJob = null
         faceTickJob?.cancel()
         faceTickJob = null
-        pendingZoomPayload = null
+        discardPendingZoom()
         zoomFlushJob?.cancel()
         zoomFlushJob = null
         lastTapFocusAt = null
@@ -2743,6 +2768,11 @@ class PocketCameraSession(
         val cam = connectedCamera?.model
         next = StatusExtras.apply(frame, next, cam?.name ?: "", cam?.family ?: "")
         val reported = StatusExtras.apply(frame, CameraStatus(), cam?.name ?: "", cam?.family ?: "")
+        reportedCapture = StatusExtras.apply(
+            frame, reportedCapture, cam?.name ?: "", cam?.family ?: "")
+        if (StatusExtras.reportsShootingMode(frame)) {
+            reportedCapture = reportedCapture.copy(shootingMode = next.shootingMode)
+        }
         next = absorbStaleShootingMode(next, StatusExtras.reportsShootingMode(frame))
         next = next.mergingModeDependentCaps(prev)
         if (next.shootingMode != prev.shootingMode) {
@@ -2928,6 +2958,28 @@ class PocketCameraSession(
         )
     }
 
+    override fun captureControlState(): DjiCaptureControlState =
+        DjiCaptureControlState(reportedCapture, connectedCamera?.model)
+
+    override fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) {
+        if (reportedCapture.expoMode != CameraCommands.EXPO_MANUAL ||
+            denominator !in reportedCapture.availableShutterDenoms) {
+            onStage(ControlWireEvent.NOT_SENT)
+            return
+        }
+        // Common duration edits never implicitly switch Auto into Manual.
+        setShutterDenom(denominator, onStage, ensureManual = false)
+    }
+
+    override fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) =
+        setEv(value.thirds, onStage)
+
+    override fun writeFocusMode(continuous: Boolean, onStage: (ControlWireEvent) -> Unit) =
+        setFocusMode(continuous, onStage)
+
+    override fun writeZoom(ratio: Double, onStage: (ControlWireEvent) -> Unit) =
+        setZoom(ratio, onStage)
+
     override fun noteControlRejection(note: String) {
         _controlNote.value = note
     }
@@ -2963,7 +3015,9 @@ class PocketCameraSession(
         )
     }
 
-    fun setEv(thirds: Int) {
+    fun setEv(thirds: Int) = setEv(thirds, null)
+
+    private fun setEv(thirds: Int, onStage: ((ControlWireEvent) -> Unit)?) {
         val ev = EvComp.fromThirds(thirds)
         val previous = _status.value.evComp
         pinExpo(evComp = ev.rawValue)
@@ -2973,6 +3027,7 @@ class PocketCameraSession(
             "${ev.rawValue}",
             "EV",
             coalesce = true,
+            onStage = onStage,
             onFail = {
                 if (_status.value.evComp == ev.rawValue) {
                     clearExpoPin(ev = true)
@@ -3119,8 +3174,13 @@ class PocketCameraSession(
         fireZoom(CameraCommands.zoomLens(position), announce = false, name = "Zoom slider")
     }
 
-    fun setZoom(factor: Double) {
-        if (!supportsZoom) return
+    fun setZoom(factor: Double) = setZoom(factor, null)
+
+    private fun setZoom(factor: Double, onStage: ((ControlWireEvent) -> Unit)?) {
+        if (!supportsZoom) {
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
+            return
+        }
         if (_gimbalMoveRunning.value) cancelProgrammedMove()
         val from = CamFov.displayLabel(_zoomReadout.value)
         val to = CamFov.displayLabel(factor)
@@ -3129,13 +3189,17 @@ class PocketCameraSession(
         if (write == null) {
             _controlNote.value = "Zoom $to — no command"
             Log.i(TAG, "zoom: tap ignored — no write for $to")
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
             return
         }
-        if (blockZoomColorHopIfRecording(factor)) return
+        if (blockZoomColorHopIfRecording(factor)) {
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
+            return
+        }
         zoomPinchPreview = null
         dropDLog2ForZoom(factor)
         if (CamFov.holdZoomWrite(factor, _status.value.colorMode, zoomColorHopPending)) {
-            pendingZoomAfterHop = factor
+            queueZoomAfterHop(factor, onStage)
             return
         }
         zoomPin =
@@ -3145,14 +3209,16 @@ class PocketCameraSession(
         _controlNote.value = name
         when (write) {
             is CamFov.ChipWrite.Lens ->
-                fireZoom(CameraCommands.zoomLens(write.position), announce = true, name = name)
+                fireZoom(CameraCommands.zoomLens(write.position), announce = true, name = name, onStage = onStage)
             is CamFov.ChipWrite.Slew ->
-                fireZoom(CameraCommands.zoomSlew(write.value), announce = true, name = name)
+                fireZoom(CameraCommands.zoomSlew(write.value), announce = true, name = name, onStage = onStage)
         }
         refreshZoomHud()
     }
 
-    fun setZoomSlider(factor: Double) {
+    fun setZoomSlider(factor: Double) = setZoomSlider(factor, null)
+
+    private fun setZoomSlider(factor: Double, onStage: ((ControlWireEvent) -> Unit)?) {
         if (_gimbalMoveRunning.value) cancelProgrammedMove()
         val position = CamFov.pinchLens(factor)
         val tenths = CamFov.displayTenths(factor)
@@ -3160,13 +3226,16 @@ class PocketCameraSession(
             lastPinchLogTenths = tenths
             Log.i(TAG, "zoom: setZoomSlider ${CamFov.displayLabel(factor)} lens=$position")
         }
-        if (blockZoomColorHopIfRecording(factor)) return
-        dropDLog2ForZoom(factor)
-        if (CamFov.holdZoomWrite(factor, _status.value.colorMode, zoomColorHopPending)) {
-            pendingZoomAfterHop = factor
+        if (blockZoomColorHopIfRecording(factor)) {
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
             return
         }
-        fireZoom(CameraCommands.zoomLens(position), announce = false, name = "Zoom slider")
+        dropDLog2ForZoom(factor)
+        if (CamFov.holdZoomWrite(factor, _status.value.colorMode, zoomColorHopPending)) {
+            queueZoomAfterHop(factor, onStage)
+            return
+        }
+        fireZoom(CameraCommands.zoomLens(position), announce = false, name = "Zoom slider", onStage = onStage)
     }
 
     fun setZoomSlew(value: Int) {
@@ -3191,12 +3260,12 @@ class PocketCameraSession(
         val first = zoomPinchPreview == null
         dropDLog2ForZoom(factor)
         if (CamFov.holdZoomWrite(factor, _status.value.colorMode, zoomColorHopPending)) {
-            pendingZoomAfterHop = factor
+            queueZoomAfterHop(factor, null)
             zoomPinchPreview = factor
             refreshZoomHud()
             return
         }
-        pendingZoomAfterHop = null
+        discardZoomAfterHop()
         zoomPinchPreview = factor
         val lens = CamFov.pinchLens(factor)
         refreshZoomHud()
@@ -3207,7 +3276,7 @@ class PocketCameraSession(
     }
 
     fun endZoomPinch() {
-        pendingZoomAfterHop = null
+        discardZoomAfterHop()
         flushPendingZoom()
         val preview = zoomPinchPreview
         if (preview != null) {
@@ -3780,9 +3849,13 @@ class PocketCameraSession(
         )
     }
 
-    fun setShutterDenom(denom: Int) {
+    fun setShutterDenom(denom: Int) = setShutterDenom(denom, null, ensureManual = true)
+
+    private fun setShutterDenom(
+        denom: Int, onStage: ((ControlWireEvent) -> Unit)?, ensureManual: Boolean,
+    ) {
         formatPin?.shutterAngle = null
-        if (_status.value.expoMode != CameraCommands.EXPO_MANUAL) {
+        if (ensureManual && _status.value.expoMode != CameraCommands.EXPO_MANUAL) {
             val previousExpo = _status.value.expoMode
             pinExpo(expoMode = CameraCommands.EXPO_MANUAL)
             _status.value = _status.value.copy(expoMode = CameraCommands.EXPO_MANUAL)
@@ -3806,6 +3879,7 @@ class PocketCameraSession(
             "$denom",
             "1/$denom",
             coalesce = true,
+            onStage = onStage,
             onFail = {
                 if (_status.value.shutterDenom == denom) {
                     clearExpoPin(shutter = true)
@@ -4017,8 +4091,13 @@ class PocketCameraSession(
         )
     }
 
-    fun setFocusMode(continuous: Boolean) {
-        if (!supportsFocusMode) return
+    fun setFocusMode(continuous: Boolean) = setFocusMode(continuous, null)
+
+    private fun setFocusMode(continuous: Boolean, onStage: ((ControlWireEvent) -> Unit)?) {
+        if (!supportsFocusMode) {
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
+            return
+        }
         val next =
             if (continuous) CameraCommands.FOCUS_CONTINUOUS else CameraCommands.FOCUS_SINGLE
         val previous = _status.value.focusMode
@@ -4035,6 +4114,7 @@ class PocketCameraSession(
             DjiNative.CMD_SET_FOCUS_MODE,
             if (continuous) "2" else "1",
             "Focus",
+            onStage = onStage,
             onFail = {
                 if (focusPin?.requestId == requestPin?.requestId && focusPin?.focusMode != null && _status.value.focusMode == next) {
                     focusPin = focusPin?.copy(focusMode = null)?.takeIf { it.focusTrack != null }
@@ -4441,15 +4521,29 @@ class PocketCameraSession(
 
     private fun flushZoomAfterColorHop() {
         val factor = pendingZoomAfterHop ?: return
-        pendingZoomAfterHop = null
         if (CamFov.holdZoomWrite(factor, _status.value.colorMode, zoomColorHopPending)) {
-            pendingZoomAfterHop = factor
             return
         }
+        val onStage = pendingZoomAfterHopStage
+        pendingZoomAfterHop = null
+        pendingZoomAfterHopStage = null
         zoomPinchPreview = factor
         markZoomStop(factor)
         refreshZoomHud()
-        setZoomSlider(factor)
+        setZoomSlider(factor, onStage)
+    }
+
+    private fun queueZoomAfterHop(factor: Double, onStage: ((ControlWireEvent) -> Unit)?) {
+        pendingZoomAfterHopStage?.invoke(ControlWireEvent.NOT_SENT)
+        pendingZoomAfterHop = factor
+        pendingZoomAfterHopStage = onStage
+    }
+
+    private fun discardZoomAfterHop() {
+        val callback = pendingZoomAfterHopStage
+        pendingZoomAfterHop = null
+        pendingZoomAfterHopStage = null
+        callback?.invoke(ControlWireEvent.NOT_SENT)
     }
 
     private fun restoreDLog2IfNeeded(factor: Double) {
@@ -4471,19 +4565,27 @@ class PocketCameraSession(
     }
 
     /** iOS `CameraSetMailbox.zoomCoalesceHold`; 20 Hz latest-wins slider. */
-    private fun fireZoom(payload: ByteArray, announce: Boolean, name: String) {
-        if (!supportsZoom) return
+    private fun fireZoom(
+        payload: ByteArray, announce: Boolean, name: String,
+        onStage: ((ControlWireEvent) -> Unit)? = null,
+    ) {
+        if (!supportsZoom) {
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
+            return
+        }
         if (_gimbalMoveRunning.value) cancelProgrammedMove()
         val dl = datalink
-        if (dl == null) {
+        if (!controlLeaseAllows() || dl == null || !endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding)) {
             _controlNote.value = "Zoom not available"
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
             return
         }
         if (announce) {
-            pendingZoomPayload = null
+            discardPendingZoom()
             zoomFlushJob?.cancel()
             zoomFlushJob = null
             dl.sendDuml(0x02, CameraCommands.CMD_ZOOM, payload)
+            onStage?.invoke(ControlWireEvent.SENT)
             _controlNote.value = name
             lastZoomWireAt = SystemClock.elapsedRealtime()
             return
@@ -4491,24 +4593,28 @@ class PocketCameraSession(
         val now = SystemClock.elapsedRealtime()
         val wait = CamFov.SLIDER_COALESCE_MS - (now - lastZoomWireAt)
         if (wait <= 0L) {
-            pendingZoomPayload = null
+            discardPendingZoom()
             zoomFlushJob?.cancel()
             zoomFlushJob = null
             lastZoomWireAt = now
             dl.sendDuml(0x02, CameraCommands.CMD_ZOOM, payload)
+            onStage?.invoke(ControlWireEvent.SENT)
             return
         }
+        discardPendingZoom()
         pendingZoomPayload = payload
+        pendingZoomStage = onStage
         if (zoomFlushJob != null) return
         zoomFlushJob =
             scope.launch {
                 delay(wait.coerceAtLeast(1L))
                 val bytes = pendingZoomPayload
+                val callback = pendingZoomStage
                 pendingZoomPayload = null
+                pendingZoomStage = null
                 zoomFlushJob = null
                 if (bytes != null) {
-                    datalink?.sendDuml(0x02, CameraCommands.CMD_ZOOM, bytes)
-                    lastZoomWireAt = SystemClock.elapsedRealtime()
+                    sendQueuedZoom(bytes, callback)
                 }
             }
     }
@@ -4517,9 +4623,28 @@ class PocketCameraSession(
         zoomFlushJob?.cancel()
         zoomFlushJob = null
         val bytes = pendingZoomPayload ?: return
+        val callback = pendingZoomStage
         pendingZoomPayload = null
-        datalink?.sendDuml(0x02, CameraCommands.CMD_ZOOM, bytes)
+        pendingZoomStage = null
+        sendQueuedZoom(bytes, callback)
+    }
+
+    private fun sendQueuedZoom(bytes: ByteArray, onStage: ((ControlWireEvent) -> Unit)?) {
+        val dl = datalink
+        if (!controlLeaseAllows() || dl == null || !endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding)) {
+            onStage?.invoke(ControlWireEvent.NOT_SENT)
+            return
+        }
+        dl.sendDuml(0x02, CameraCommands.CMD_ZOOM, bytes)
         lastZoomWireAt = SystemClock.elapsedRealtime()
+        onStage?.invoke(ControlWireEvent.SENT)
+    }
+
+    private fun discardPendingZoom() {
+        val callback = pendingZoomStage
+        pendingZoomPayload = null
+        pendingZoomStage = null
+        callback?.invoke(ControlWireEvent.NOT_SENT)
     }
 
     private fun markZoomStop(factor: Double) {
@@ -4874,8 +4999,8 @@ class PocketCameraSession(
         restGimbalStickWire()
         zoomFlushJob?.cancel()
         zoomFlushJob = null
-        pendingZoomPayload = null
-        pendingZoomAfterHop = null
+        discardPendingZoom()
+        discardZoomAfterHop()
         zoomColorHopGeneration += 1
         zoomColorHopPending = false
         restoreDLog2OnWide = false

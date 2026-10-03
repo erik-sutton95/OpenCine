@@ -77,7 +77,8 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         pictureControls: [String] = [],
         rawCompressions: [String] = [],
         codecBitDepths: [String] = [],
-        codecBitDepth: String? = nil
+        codecBitDepth: String? = nil,
+        advertisedIrisValues: [String] = []
     ) {
         self.resolutionFrameRate = resolutionFrameRate
         self.codec = codec
@@ -85,6 +86,7 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         self.isoValues = isoValues
         self.shutterValues = shutterValues
         self.irisValues = irisValues
+        self.advertisedIrisValues = advertisedIrisValues
         self.whiteBalanceValues = whiteBalanceValues
         self.focusModes = focusModes
         self.focusAreas = focusAreas
@@ -125,6 +127,8 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
     public let shutterValues: [String]
     /// Apertures valid for the mounted lens.
     public let irisValues: [String]
+    /// Actual f-number descriptor choices, excluding the legacy body/lens fallback.
+    public let advertisedIrisValues: [String]
     /// Kelvin and preset white-balance values valid on the body.
     public let whiteBalanceValues: [String]
     /// Movie autofocus modes valid on the body.
@@ -335,6 +339,7 @@ public enum AndroidCameraPropertyReadbackWire {
         appendOptions("options.iso", values: controls.isoValues, to: &fields)
         appendOptions("options.shutter", values: controls.shutterValues, to: &fields)
         appendOptions("options.iris", values: controls.irisValues, to: &fields)
+        appendOptions("options.advertisedIris", values: controls.advertisedIrisValues, to: &fields)
         appendOptions(
             "options.whiteBalance", values: controls.whiteBalanceValues, to: &fields)
         appendOptions("options.focusMode", values: controls.focusModes, to: &fields)

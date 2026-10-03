@@ -115,6 +115,12 @@ everything in flight: a late receipt, snapshot or record outcome never reaches t
 Operator copy for outcomes is `note(for:_:)`; apps route notes, the media refresh after a stop
 and, while their views still read an app status type, a projection (`onChange`).
 
+`cancelEdit(key)` retires only that setting's pending target and captured editors. A native
+gesture can take over without changing the session epoch or invalidating unrelated settings.
+The old coalescing wake cannot send a younger successor early, and an already-sent command's
+receipt cannot clear that successor. Camera reports remain authoritative; cancellation sends
+no command and does not undo admitted camera work.
+
 `AppShell` (SwiftUI; Compose `AppShell`) renders the root from a `ShellModel`, a `ShellBrand`
 (name, nearby note), `ShellActions` (diagnostics, problem report, watch feed, multiview,
 integration actions) and two slots: `monitor` (keyed by the monitor lifetime, so covers and
@@ -146,7 +152,7 @@ recording suppresses a compatibility timer's default zero. Presentation creates 
 visibility policy keeps Lock when locked, capture/settings while recording, and hides media for
 a borrowed session. Native return and operator edit decorations stay in the control builders.
 
-`control.captureField(key)` projects ISO, shutter and white-balance descriptors into typed
+`control.captureField(key)` projects ISO, shutter, white-balance, exposure-compensation and focus descriptors into typed
 `MonitorCaptureChoice` detents and an immutable editor. Missing reports have no selection, even
 when the drum visually centers a legal option. `MonitorCaptureReadout` (Compose
 `field.quickControl()`) and `MonitorCaptureDrum` preserve that editor through hold/drag/release and

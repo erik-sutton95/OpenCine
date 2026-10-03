@@ -831,6 +831,7 @@ struct PTPIPClientSessionTests {
 
         let controls = session.refreshAndroidPropertySnapshot(.bootstrap).controls
         #expect(controls.irisValues == ["f/4.0", "f/5.6"])
+        #expect(controls.advertisedIrisValues == controls.irisValues)
         #expect(controls.whiteBalanceValues == ["5000K", "5600K", "Sunny"])
         #expect(controls.focusModes == ["AF-S", "AF-C", "AF-F", "MF"])
         #expect(controls.focusAreas == ["Single"])
@@ -954,6 +955,7 @@ struct PTPIPClientSessionTests {
         let zr = try controls(model: "ZR")
         #expect(zr.isoValues == ISOPickerPolicy.highBaseOptions)
         #expect(!zr.irisValues.isEmpty)
+        #expect(zr.advertisedIrisValues.isEmpty)
         #expect(!zr.whiteBalanceValues.isEmpty)
         #expect(zr.focusModes == ["AF-S", "AF-C", "AF-F", "MF"])
         #expect(!zr.focusAreas.isEmpty)
@@ -966,6 +968,7 @@ struct PTPIPClientSessionTests {
         let z8 = try controls(model: "Z8")
         #expect(z8.isoValues.isEmpty)
         #expect(z8.irisValues.isEmpty)
+        #expect(z8.advertisedIrisValues.isEmpty)
         #expect(z8.whiteBalanceValues.isEmpty)
         #expect(z8.focusModes.isEmpty)
         #expect(z8.focusAreas.isEmpty)

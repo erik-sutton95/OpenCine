@@ -149,6 +149,122 @@ struct NikonCameraSessionTests {
         #expect(stage(session, lost) == .outcomeUnknown)
     }
 
+    @Test("Camera observations exclude queued targets, including after command confirmation")
+    func controlTargetsAreNotCameraReports() {
+        let driver = Driver(Self.movieFacts())
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let operation = session.request(.set(.iso(.manual(1600)))).operation
+        #expect(session.refresh().value(of: .iso).value == .iso(.manual(800)))
+        session.operationSent(operation)
+        #expect(session.refresh().value(of: .iso).value == .iso(.manual(800)))
+        guard let write = driver.queued.last?.writes.last else {
+            Issue.record("The admitted ISO target never reached the wire queue")
+            return
+        }
+        session.writeLanded(operation, write: write, readback: write.data)
+        #expect(stage(session, operation) == .confirmed)
+        #expect(session.refresh().value(of: .iso).value == .iso(.manual(800)))
+
+        driver.nikonControlFacts.reported = driver.nikonControlFacts.reported.applying(
+            property: .isoControlSensitivity, data: Data(ByteCoding.uint32LE(1250)))
+        #expect(session.refresh().value(of: .iso).value == .iso(.manual(1250)))
+    }
+
+    @Test("Common movie exposure uses the active circuit and exact advertised domain")
+    func movieExposureDomainsAndReadback() {
+        var facts = Self.movieFacts()
+        facts.reported = facts.reported.applying(
+            property: .movieShutterMode,
+            data: Data([PTPCameraPropertyDecoders.shutterModeCode(.speed)])
+        )
+        .applying(property: .movieShutterSpeed, data: Data(ByteCoding.uint32LE(2 << 16 | 100)))
+        .applying(property: .movieFNumber, data: Data(ByteCoding.uint16LE(280)))
+        facts.shutterLabels = ["2/100", "1/100", "180°", "1/0", "Bulb"]
+        facts.apertureLabels = ["f/2.8", "f/4.0", "f/NaN", "unknown"]
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        #expect(session.refresh().value(of: .shutter).value == .shutter(.duration(Rational(1, 50))))
+        #expect(session.refresh().value(of: .aperture).value == .aperture(2.8))
+        #expect(session.request(.set(.shutter(.angle(180)))).stage == .rejected(.outOfDomain))
+        #expect(session.request(.set(.aperture(5.6))).stage == .rejected(.outOfDomain))
+        #expect(driver.queued.isEmpty)
+
+        let shutter = session.request(.set(.shutter(.duration(Rational(1, 100))))).operation
+        let aperture = session.request(.set(.aperture(4))).operation
+        #expect(driver.queued.map(\.setting) == [.shutter, .aperture])
+        #expect(
+            driver.queued.flatMap(\.writes).map(\.property) == [.movieShutterSpeed, .movieFNumber])
+        for (operation, item) in zip([shutter, aperture], driver.queued) {
+            guard let write = item.writes.first else {
+                Issue.record("An advertised exposure value never reached the existing encoder")
+                return
+            }
+            session.operationSent(operation)
+            session.writeLanded(operation, write: write, readback: write.data)
+            #expect(stage(session, operation) == .confirmed)
+        }
+        // Confirmation did not manufacture a new camera observation.
+        #expect(session.refresh().value(of: .aperture).value == .aperture(2.8))
+    }
+
+    @Test("A reported exposure with no write domain stays visible and unavailable")
+    func reportDoesNotCreateAWriteDomain() {
+        var facts = Self.movieFacts()
+        facts.reported = facts.reported
+            .applying(
+                property: .movieShutterMode,
+                data: Data([PTPCameraPropertyDecoders.shutterModeCode(.speed)])
+            )
+            .applying(property: .movieShutterSpeed, data: Data(ByteCoding.uint32LE(1 << 16 | 50)))
+            .applying(property: .movieFNumber, data: Data(ByteCoding.uint16LE(280)))
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "")
+        #expect(session.refresh().value(of: .shutter).value == .shutter(.duration(Rational(1, 50))))
+        #expect(session.refresh().value(of: .aperture).value == .aperture(2.8))
+        #expect(
+            session.request(.set(.shutter(.duration(Rational(1, 50))))).stage
+                == .rejected(.unavailable(.notReady)))
+        #expect(session.request(.set(.aperture(2.8))).stage == .rejected(.unavailable(.notReady)))
+        #expect(driver.queued.isEmpty)
+    }
+
+    @Test("Mode changes retire exposure edits; locked and unknown circuits cannot write")
+    func exposureModeAndLockAdmission() {
+        var facts = Self.movieFacts()
+        facts.reported = facts.reported.applying(
+            property: .movieShutterMode,
+            data: Data([PTPCameraPropertyDecoders.shutterModeCode(.speed)])
+        )
+        .applying(property: .movieShutterSpeed, data: Data(ByteCoding.uint32LE(1 << 16 | 50)))
+        facts.shutterLabels = ["1/50", "1/100", "180°"]
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let stale = CameraCommand(
+            .set(.shutter(.duration(Rational(1, 100)))),
+            preconditions: CommandPreconditions(session.refresh()))
+        driver.nikonControlFacts.reported = driver.nikonControlFacts.reported.applying(
+            property: .movieShutterMode,
+            data: Data([PTPCameraPropertyDecoders.shutterModeCode(.angle)])
+        )
+        .applying(property: .movieShutterAngle, data: Data(ByteCoding.int32LE(18_000)))
+        #expect(session.submit(stale).stage == .rejected(.staleCapabilities))
+        driver.nikonControlFacts.reported = driver.nikonControlFacts.reported.applying(
+            property: .movieTVLockSetting, data: Data([1]))
+        #expect(
+            session.request(.set(.shutter(.angle(180)))).stage == .rejected(.unavailable(.busy)))
+        driver.nikonControlFacts.reported = driver.nikonControlFacts.reported.applying(
+            property: .liveViewSelector, data: Data([0]))
+        #expect(session.refresh().value(of: .shutter).value == nil)
+        #expect(session.request(.set(.shutter(.angle(180)))).stage == .rejected(.supportUnknown))
+        #expect(driver.queued.isEmpty)
+
+        let unknown = PTPCameraPropertySnapshot(shutterSpeed: "1/50", captureSelector: .video)
+        #expect((NikonExposureSettings.reported(unknown)[.shutter] ?? nil) == nil)
+        #expect(
+            NikonExposureSettings.descriptors(unknown, shutterLabels: ["1/50"], apertureLabels: [])
+                .isEmpty)
+    }
+
     @Test("The confirmed record target runs; a target the camera already reports sends nothing")
     func confirmedRecordTargetIsHonored() {
         // Seam: the prompt asked to start, the camera started on its own meanwhile.

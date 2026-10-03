@@ -112,6 +112,11 @@ data class PocketControlState(
 /** The Pocket session as the seam drives it. `PocketCameraSession` and the JVM tests implement it. */
 interface PocketControlPort {
     fun controlState(): PocketControlState
+    fun captureControlState(): DjiCaptureControlState? = null
+    fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
+    fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
+    fun writeFocusMode(continuous: Boolean, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
+    fun writeZoom(ratio: Double, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
 
     fun setIsoIndex(index: Int, onStage: ((ControlWireEvent) -> Unit)? = null)
 
@@ -135,8 +140,16 @@ interface PocketControlPort {
 class DjiCameraSessionAdapter(
     private val port: PocketControlPort,
     private val scope: CoroutineScope,
+    private val onClose: ((SessionCloseReason) -> Unit)?,
     private val clock: () -> MonotonicInstant = { MonotonicInstant.now() },
 ) : OpenCineCameraSession {
+    /** Retain the original constructor and its trailing clock lambda. */
+    constructor(
+        port: PocketControlPort,
+        scope: CoroutineScope,
+        clock: () -> MonotonicInstant = { MonotonicInstant.now() },
+    ) : this(port, scope, null, clock)
+
     override val id: CameraSessionID = CameraSessionID()
 
     /** ACK to camera-reported value. Record telemetry trails its ACK by about 1 s. */
@@ -159,7 +172,10 @@ class DjiCameraSessionAdapter(
     private val open = HashMap<OperationID, Expectation>()
     private val waiters = HashMap<OperationID, CompletableDeferred<CommandReceipt>>()
 
-    private class Expectation(var deadline: MonotonicInstant, val shows: (PocketControlState) -> Boolean)
+    private class Expectation(
+        var deadline: MonotonicInstant, val shows: (PocketControlState) -> Boolean,
+        val permitsReportBeforeAck: Boolean = false,
+    )
 
     /** A snapshot rebuilt from the session right now. */
     val current: CameraSnapshot
@@ -220,11 +236,13 @@ class DjiCameraSessionAdapter(
     fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
         val capabilities = current.capabilities
         val model = port.controlState().model ?: return MonitorLayoutCapabilities(capabilities, base)
-        // ponytail: the app drives zoom, focus and aperture with its own DUML calls, not through
-        // this seam, so they are not descriptors and the body table lays them out. Delete this
-        // copy once the seam routes them.
-        return MonitorLayoutCapabilities(capabilities, model.motion, base)
-            .copy(zoom = model.supportsZoom, focus = model.supportsFocusMode, iris = model.supportsAperture)
+        var layout = MonitorLayoutCapabilities(capabilities, model.motion, base)
+        if (port.captureControlState() == null) {
+            // Compatibility for callers that have not supplied the additive capture port.
+            layout = layout.copy(zoom = model.supportsZoom, focus = model.supportsFocusMode)
+        }
+        // Variable iris strategy remains a typed panel, not a common f-number edit.
+        return layout.copy(iris = model.supportsAperture)
     }
 
     // ---- session hooks ----
@@ -236,7 +254,9 @@ class DjiCameraSessionAdapter(
         if (open.isEmpty()) return
         val state = port.controlState()
         for ((operation, expectation) in open.toList()) {
-            if (receipts[operation]?.stage == CommandStage.AwaitingObservation && expectation.shows(state)) {
+            if ((receipts[operation]?.stage == CommandStage.AwaitingObservation ||
+                (expectation.permitsReportBeforeAck && receipts[operation]?.stage == CommandStage.Sent)) &&
+                expectation.shows(state)) {
                 finish(operation, CommandStage.Confirmed)
             }
         }
@@ -262,7 +282,7 @@ class DjiCameraSessionAdapter(
 
     override suspend fun close(reason: SessionCloseReason): Unit = closeNow(reason)
 
-    /** Ends this seam only. Never sends a camera command and never stops a recording. */
+    /** Retires this seam, then calls its optional connection owner once; never sends a command. */
     override fun closeNow(reason: SessionCloseReason) {
         if (closed) return
         for (operation in open.keys.toList()) abandon(operation)
@@ -274,6 +294,7 @@ class DjiCameraSessionAdapter(
                 authority = ControlAuthority.Unavailable(UnavailableReason.Link),
                 revision = last.revision.next(),
             )
+        onClose?.invoke(reason)
     }
 
     // ---- commands ----
@@ -297,14 +318,18 @@ class DjiCameraSessionAdapter(
         if (alreadyReported(command.intent, snapshot)) return advance(operation, CommandStage.Confirmed)
         val plan = wirePlan(command.intent)
             ?: return advance(operation, CommandStage.Rejected(CommandRejection.Unsupported))
-        open[operation] = Expectation(clock() + wireTimeout, plan.shows)
+        open[operation] = Expectation(clock() + wireTimeout, plan.shows, plan.requiresReport)
         expire(wireTimeout)
-        plan.fire { event -> handle(event, operation) }
+        plan.fire { event ->
+            handle(if (plan.requiresReport && event == ControlWireEvent.CONFIRMED)
+                ControlWireEvent.ACKNOWLEDGED else event, operation)
+        }
         return receipts.getValue(operation)
     }
 
     private class WirePlan(
         val shows: (PocketControlState) -> Boolean,
+        val requiresReport: Boolean = false,
         val fire: ((ControlWireEvent) -> Unit) -> Unit,
     )
 
@@ -317,6 +342,34 @@ class DjiCameraSessionAdapter(
         when (intent) {
             is CameraCommandIntent.Set ->
                 when (val value = intent.value) {
+                    is SettingValue.Shutter -> {
+                        val duration = (value.value as? com.opencapture.opencine.core.ShutterValue.Duration)?.seconds
+                        if (duration == null || duration.numerator != 1 || duration.denominator <= 0) null
+                        else WirePlan({ port.captureControlState()?.reported?.shutterDenom == duration.denominator }, true) {
+                            port.writeShutter(duration.denominator, it)
+                        }
+                    }
+                    is SettingValue.ExposureCompensation -> EvComp.allCases.firstOrNull {
+                        com.opencapture.opencine.core.Rational(it.thirds, 3) == value.stops
+                    }?.let { target ->
+                        WirePlan({ port.captureControlState()?.reported?.evComp == target.rawValue }, true) {
+                            port.writeExposureCompensation(target, it)
+                        }
+                    }
+                    is SettingValue.FocusMode -> {
+                        val continuous = when (value.mode) {
+                            com.opencapture.opencine.core.FocusMode.SINGLE -> false
+                            com.opencapture.opencine.core.FocusMode.CONTINUOUS -> true
+                            com.opencapture.opencine.core.FocusMode.MANUAL -> null
+                        }
+                        if (continuous == null) null else WirePlan({
+                            port.captureControlState()?.reported?.focusMode ==
+                                if (continuous) CameraCommands.FOCUS_CONTINUOUS else CameraCommands.FOCUS_SINGLE
+                        }, true) { port.writeFocusMode(continuous, it) }
+                    }
+                    is SettingValue.Zoom -> WirePlan({
+                        port.captureControlState()?.reported?.zoomFactor?.let { CamFov.matches(it, value.ratio) } ?: false
+                    }, true) { port.writeZoom(value.ratio, it) }
                     is SettingValue.Iso -> isoIndex(value.value)?.let { index ->
                         WirePlan({ it.isoIndex == index }) { onStage -> port.setIsoIndex(index, onStage) }
                     }
@@ -444,7 +497,7 @@ class DjiCameraSessionAdapter(
         val last = _snapshots.value
         val connection = connection(state, last.connection)
         val declared = CapabilitySnapshot(
-            last.capabilities.revision, descriptors(state),
+            last.capabilities.revision, descriptors(state) + (port.captureControlState()?.descriptors ?: emptyList()),
             timecode = timecodeSupport(state.model), audioLevels = audioLevelsSupport(state.model),
         )
         val capabilities =
@@ -461,7 +514,7 @@ class DjiCameraSessionAdapter(
                 },
                 capabilities = capabilities,
                 mode = mode(state.shootingMode),
-                settings = settings(state),
+                settings = settings(state) + (port.captureControlState()?.settings ?: emptyMap()),
                 recording = state.recording?.let {
                     ObservedValue(if (it) RecordingState.RECORDING else RecordingState.IDLE, ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,

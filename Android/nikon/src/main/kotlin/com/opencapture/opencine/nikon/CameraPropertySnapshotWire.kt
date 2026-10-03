@@ -127,6 +127,7 @@ object CameraPropertySnapshotWire {
                     isoValues = value.options("options.iso"),
                     shutterValues = value.options("options.shutter"),
                     irisValues = value.options("options.iris"),
+                    advertisedIrisValues = value.options("options.advertisedIris"),
                     whiteBalanceValues = value.options("options.whiteBalance"),
                     focusModes = value.options("options.focusMode"),
                     focusAreas = value.options("options.focusArea"),

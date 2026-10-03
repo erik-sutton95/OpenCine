@@ -20,7 +20,7 @@ Depends only on `OpenCineCore`, `OpenCineMedia` and `OpenCineMotion` (same packa
 swift build && swift test --filter OpenCineDJITests   # from the repository root
 ```
 
-`DJICameraSessionAdapter` is OpenCineCore's `CameraSession` for ISO, white balance and record
+`DJICameraSessionAdapter` is OpenCineCore's `CameraSession` for common capture controls
 over a `DJIControlPort` the app's DJI session implements (Pocket: `CameraSession+DJIControlPort`).
 `DJICameraSessionAdapterPortTests` drive it with a fake port, without any app. The adapter reads
 time from OpenCineCore's shared `MonotonicInstant.now()` (injectable), lists what the connected
@@ -29,9 +29,17 @@ else unknown. It publishes timecode (`timecode_info`; Nano: unsupported) and liv
 (`cam_audio_status_v2` in dBFS; every known body), each unknown until the camera reports
 (`CameraStatus.audioMeters` is `nil` until then). `CameraModel.motion` is what a body declares to
 OpenCineMotion (`MotionCapabilities.pocketGimbal` with camera-reported pose; `nil` without a gimbal),
-and `layout(base:)` projects the snapshot and that motion for a monitor; zoom, focus and aperture
-still come from the body flags there because the app drives them outside the seam. DJI's official
+and `layout(base:)` projects the snapshot and that motion for a monitor. DJI's official
 Rec.709 look curves live in `DJILook`, not on the neutral `LiveColorScience`.
+
+The additive `DJICaptureControlState` supplies actual decoded reports separately from pending
+presentation pins. It enables shutter durations, exposure compensation, AF-S/AF-C and zoom,
+with mirrored Kotlin ports. Shutter choices come from the camera's capability report and require
+reported Manual exposure; a common duration request never switches exposure mode implicitly.
+Zoom bounds follow the reported format and mode. ACK and legacy optimistic settlement never
+manufacture an observation; an actual matching report can confirm a sent command before its ACK.
+Measured iris is a read-only f-number. Auto/Starburst aperture strategy remains a typed DJI panel.
+Older ports retain their original controls until they provide this optional state and writes.
 
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
 
@@ -43,8 +51,10 @@ the native program runner, connection and live-view policies (`LiveViewEnablePol
 (OpenCineCore `CameraSession` over a `PocketControlPort`). Depends on `core`, `media`, `decoder` and `platform`; Android framework adapters stay outside portable policy.
 The adapter mirrors the Swift one for SHELL-01: timecode and audio level support and values
 (`CameraStatus.audioMetersReported` keeps "not reported" apart from silence across the facade),
-`pocketGimbal` and `CameraModel.motion`, and `layout(base)` with the same body-flag rule for zoom,
-focus and aperture.
+`pocketGimbal` and `CameraModel.motion`, and `layout(base)` with the same capture descriptor rules.
+`DjiControlSessionBinding` caches one control seam per native connection, retires it before a
+replacement, and fences late close callbacks from the successor. Borrowed Multiview settings
+come from the tile's actual decoded aggregate; editor pins remain in the borrowed presentation.
 
 Wire bytes come through `DjiNative`, a JNI facade whose class name is part of the native symbols
 (`Java_com_opencapture_opencine_dji_DjiNative_<name>`). The Swift side is the product

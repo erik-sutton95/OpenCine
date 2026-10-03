@@ -39,6 +39,7 @@ struct AndroidCameraPropertyReadbackTests {
         #expect(bootstrap.controls.isoValues == ISOPickerPolicy.highBaseOptions)
         #expect(bootstrap.controls.shutterValues == ["90°", "180°", "360°"])
         #expect(bootstrap.controls.irisValues.first == "f/2.8")
+        #expect(bootstrap.controls.advertisedIrisValues == bootstrap.controls.irisValues)
         #expect(bootstrap.controls.whiteBalanceValues.contains("5560K"))
         #expect(bootstrap.controls.focusModes.contains("AF-C"))
         #expect(bootstrap.controls.audioInputs == ["Microphone", "Line"])
@@ -109,11 +110,29 @@ struct AndroidCameraPropertyReadbackTests {
         #expect(
             fields["options.iso"] == ISOPickerPolicy.highBaseOptions.joined(separator: "\u{1F}"))
         #expect(fields["options.iris"]?.contains("f/2.8") == true)
+        #expect(fields["options.advertisedIris"] == fields["options.iris"])
         #expect(fields["options.focusMode"]?.contains("AF-C") == true)
         #expect(fields["options.audioInput"] == "Microphone\u{1F}Line")
         #expect(fields["options.shutter"] == "90°\u{1F}180°\u{1F}360°")
         #expect(fields["options.codec"] == "R3D NE\u{1F}H.265")
         #expect(!wire.contains("D09E"))
+    }
+
+    @Test func legacyLensFallbackDoesNotBecomeAnAdvertisedCommonApertureDomain() throws {
+        var options = FakeZRServer.Options()
+        options.descriptorEnumOverrides = [.movieFNumber: []]
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        let readback = session.refreshAndroidPropertySnapshot(.bootstrap)
+        #expect(readback.properties.fNumber == "f/2.8")
+        #expect(!readback.controls.irisValues.isEmpty)
+        #expect(readback.controls.advertisedIrisValues.isEmpty)
+        let fields = wireFields(AndroidCameraPropertyReadbackWire.encode(readback))
+        #expect(fields["options.iris"] != nil)
+        #expect(fields["options.advertisedIris"] == nil)
+        #expect(server.receivedPropertyWrites().isEmpty)
     }
 
     @Test func bootstrapPreservesEveryValidCardInCameraOrder() throws {

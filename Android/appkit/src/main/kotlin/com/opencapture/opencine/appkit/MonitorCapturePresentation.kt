@@ -34,7 +34,10 @@ public object MonitorCapturePresentation {
     public fun title(key: SettingKey): String? = when (key) {
         SettingKey.ISO -> "ISO"
         SettingKey.SHUTTER -> "SHUTTER"
+        SettingKey.APERTURE -> "IRIS"
         SettingKey.WHITE_BALANCE -> "WB"
+        SettingKey.EXPOSURE_COMPENSATION -> "EV"
+        SettingKey.FOCUS_MODE -> "FOCUS"
         else -> null
     }
 
@@ -50,10 +53,19 @@ public object MonitorCapturePresentation {
                 else "${number(shutter.seconds.doubleValue)}s"
             is ShutterValue.Angle -> "${number(shutter.degrees)}°"
         }
+        is SettingValue.Aperture -> "f/${number(value.fNumber)}"
         is SettingValue.WhiteBalance -> when (val wb = value.value) {
             WhiteBalanceValue.Auto -> "Auto"
             is WhiteBalanceValue.Preset -> wb.id
             is WhiteBalanceValue.Kelvin -> "${wb.kelvin}K"
+        }
+        is SettingValue.ExposureCompensation -> if (value.stops.numerator == 0) "0.0"
+            else (if (value.stops.numerator < 0) "−" else "+") +
+                String.format(java.util.Locale.ROOT, "%.1f", kotlin.math.abs(value.stops.doubleValue))
+        is SettingValue.FocusMode -> when (value.mode) {
+            com.opencapture.opencine.core.FocusMode.MANUAL -> "MF"
+            com.opencapture.opencine.core.FocusMode.SINGLE -> "AF-S"
+            com.opencapture.opencine.core.FocusMode.CONTINUOUS -> "AF-C"
         }
         else -> ""
     }

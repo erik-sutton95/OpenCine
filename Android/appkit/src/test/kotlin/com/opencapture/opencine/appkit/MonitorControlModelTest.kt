@@ -17,6 +17,10 @@ import com.opencapture.opencine.core.testing.FakeDevice
 import com.opencapture.opencine.core.testing.djiLike
 import com.opencapture.opencine.core.testing.lunaLike
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -59,6 +63,65 @@ class MonitorControlModelTest {
     private fun TestScope.tick() {
         advanceTimeBy(120)
         runCurrent()
+    }
+
+    @Test fun canceledEditCannotWakeSuccessorEarlyOrRetireOtherSetting() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.djiLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val old = assertNotNull(model.edit(SettingKey.ZOOM))
+        val unrelated = assertNotNull(model.edit(SettingKey.ISO))
+        assertTrue(model.commit(SettingValue.Zoom(2.0), old, "Zoom 2"))
+        assertTrue(model.commit(iso(800), unrelated, "ISO 800"))
+        runCurrent()
+        advanceTimeBy(60); runCurrent()
+        model.cancelEdit(SettingKey.ZOOM)
+        assertFalse(model.isCurrent(old))
+        assertTrue(model.isCurrent(unrelated))
+        assertFalse(model.commit(SettingValue.Zoom(2.0), old, "Retired zoom"))
+        val successor = assertNotNull(model.edit(SettingKey.ZOOM))
+        assertTrue(model.commit(SettingValue.Zoom(3.0), successor, "Zoom 3"))
+        runCurrent()
+        advanceTimeBy(60); runCurrent()
+        assertEquals(listOf("set ${iso(800)}"), camera.wire)
+        assertEquals(SettingValue.Zoom(3.0), model.state.value.pending[SettingKey.ZOOM])
+        advanceTimeBy(60); runCurrent()
+        assertEquals(listOf("set ${iso(800)}", "set ${SettingValue.Zoom(3.0)}"), camera.wire)
+    }
+
+    @Test fun canceledInFlightReceiptCannotClearSuccessorPending() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.djiLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        assertTrue(model.commit(SettingValue.Zoom(2.0), assertNotNull(model.edit(SettingKey.ZOOM)), "Zoom 2"))
+        tick()
+        assertEquals(1, camera.wire.size)
+        model.cancelEdit(SettingKey.ZOOM)
+        assertTrue(model.commit(SettingValue.Zoom(3.0), assertNotNull(model.edit(SettingKey.ZOOM)), "Zoom 3"))
+        tick()
+        assertEquals(2, camera.wire.size)
+        assertEquals(SettingValue.Zoom(3.0), model.state.value.pending[SettingKey.ZOOM])
+        camera.advance(3.seconds); runCurrent()
+        assertNull(model.state.value.pending[SettingKey.ZOOM])
+        assertEquals(SettingValue.Zoom(3.0), camera.current.value(SettingKey.ZOOM).value)
+    }
+
+    @Test
+    fun retiredBindingDoesNotReadNativeSnapshots() = runTest {
+        val owner = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
+        val model = MonitorControlModel(owner)
+        val camera = FakeCameraSession.djiLike()
+        var reads = 0
+        val counted = object : CameraSession by camera {
+            override val snapshots get() = camera.snapshots.also { reads += 1 }
+        }
+        owner.cancel()
+        model.bind(counted)
+        runCurrent()
+        assertEquals(0, reads)
+        assertNull(model.state.value.snapshot)
     }
 
     @Test
