@@ -36,7 +36,7 @@ public struct MonitorFalseColorMenu<Scale: Hashable>: View {
     @Binding private var scale: Scale
     @Binding private var referenceEnabled: Bool
     private let read709: Binding<Bool>?
-    private let reference: MonitorFalseColorReferenceValues
+    private let reference: MonitorFalseColorReferenceValues?
     private let title: (Scale) -> String
     private let scaleHelp: String
     private let readHelp: String
@@ -58,6 +58,19 @@ public struct MonitorFalseColorMenu<Scale: Hashable>: View {
         self.compact = compact; self.selectionFeedback = selectionFeedback; self.readFeedback = readFeedback
         self.referenceFeedback = referenceFeedback; self.onReferenceEnabled = onReferenceEnabled
     }
+    /// An unavailable source reference is omitted without inventing calibration values.
+    public init(scales: [Scale], scale: Binding<Scale>, referenceEnabled: Binding<Bool>,
+        read709: Binding<Bool>? = nil, optionalReference: MonitorFalseColorReferenceValues?,
+        title: @escaping (Scale) -> String, scaleHelp: String, readHelp: String, referenceHelp: String,
+        compact: Bool = false, selectionFeedback: @escaping () -> Void = {},
+        readFeedback: @escaping () -> Void = {}, referenceFeedback: @escaping () -> Void = {},
+        onReferenceEnabled: @escaping () -> Void = {}) {
+        self.scales = scales; self._scale = scale; self._referenceEnabled = referenceEnabled
+        self.read709 = read709; self.reference = optionalReference; self.title = title
+        self.scaleHelp = scaleHelp; self.readHelp = readHelp; self.referenceHelp = referenceHelp
+        self.compact = compact; self.selectionFeedback = selectionFeedback; self.readFeedback = readFeedback
+        self.referenceFeedback = referenceFeedback; self.onReferenceEnabled = onReferenceEnabled
+    }
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             MonitorSettingsInlineRow(title: "Scale", help: scaleHelp, showTopDivider: false, stacked: true) {
@@ -72,9 +85,11 @@ public struct MonitorFalseColorMenu<Scale: Hashable>: View {
                         .buttonStyle(MonitorSettingsButtonStyle())
                 }
             }
-            MonitorSettingsInlineRow(title: "Reference key", stacked: true) {
-                MonitorFalseColorReference(values: reference, inspector: true)
-                    .accessibilityLabel("False color reference key")
+            if let reference {
+                MonitorSettingsInlineRow(title: "Reference key", stacked: true) {
+                    MonitorFalseColorReference(values: reference, inspector: true)
+                        .accessibilityLabel("False color reference key")
+                }
             }
             MonitorSettingsSwitchInlineRow(title: "Reference Display", help: referenceHelp, stacked: compact,
                 isOn: referenceEnabled, feedback: referenceFeedback) {
@@ -99,6 +114,29 @@ public struct MonitorZebraZone<Paint: Hashable> {
     }
 }
 
+/// A known, source-calibrated integer editor. Absence lives on the zone, never as a zero value.
+public struct MonitorZebraNumberEntry {
+    let value: Binding<Int>
+    let maximum: Int
+    let identifier: String
+    public init(value: Binding<Int>, maximum: Int, identifier: String = "") {
+        precondition(maximum >= 0)
+        self.value = value; self.maximum = maximum; self.identifier = identifier
+    }
+}
+
+/// Native direct entry can configure a zone before it is enabled; the source owns conversion.
+public struct MonitorZebraNumberZone<Paint: Hashable> {
+    let enabled: Binding<Bool>
+    let entry: MonitorZebraNumberEntry?
+    let colors: [MonitorSettingsColorDot<Paint>]
+    let paint: Binding<Paint>
+    public init(enabled: Binding<Bool>, entry: MonitorZebraNumberEntry?,
+        colors: [MonitorSettingsColorDot<Paint>], paint: Binding<Paint>) {
+        self.enabled = enabled; self.entry = entry; self.colors = colors; self.paint = paint
+    }
+}
+
 public struct MonitorZebraMenu<Unit: Hashable, Paint: Hashable>: View {
     private let units: [Unit]
     @Binding private var unit: Unit
@@ -107,8 +145,12 @@ public struct MonitorZebraMenu<Unit: Hashable, Paint: Hashable>: View {
     private let unitsHelp: String
     private let highlightHelp: String
     private let midtoneHelp: String
-    private let highlight: MonitorZebraZone<Paint>
-    private let midtone: MonitorZebraZone<Paint>
+    private enum Zone {
+        case slider(MonitorZebraZone<Paint>)
+        case number(MonitorZebraNumberZone<Paint>)
+    }
+    private let highlight: Zone
+    private let midtone: Zone
     private let compact: Bool
     private let selectionFeedback: () -> Void
     private let toggleFeedback: () -> Void
@@ -118,7 +160,16 @@ public struct MonitorZebraMenu<Unit: Hashable, Paint: Hashable>: View {
         selectionFeedback: @escaping () -> Void = {}, toggleFeedback: @escaping () -> Void = {}) {
         self.units = units; self._unit = unit; self.title = title; self.unitsTitle = unitsTitle
         self.unitsHelp = unitsHelp; self.highlightHelp = highlightHelp; self.midtoneHelp = midtoneHelp
-        self.highlight = highlight; self.midtone = midtone; self.compact = compact
+        self.highlight = .slider(highlight); self.midtone = .slider(midtone); self.compact = compact
+        self.selectionFeedback = selectionFeedback; self.toggleFeedback = toggleFeedback
+    }
+    public init(units: [Unit], unit: Binding<Unit>, title: @escaping (Unit) -> String,
+        unitsTitle: String, unitsHelp: String, highlightHelp: String, midtoneHelp: String,
+        highlight: MonitorZebraNumberZone<Paint>, midtone: MonitorZebraNumberZone<Paint>, compact: Bool = false,
+        selectionFeedback: @escaping () -> Void = {}, toggleFeedback: @escaping () -> Void = {}) {
+        self.units = units; self._unit = unit; self.title = title; self.unitsTitle = unitsTitle
+        self.unitsHelp = unitsHelp; self.highlightHelp = highlightHelp; self.midtoneHelp = midtoneHelp
+        self.highlight = .number(highlight); self.midtone = .number(midtone); self.compact = compact
         self.selectionFeedback = selectionFeedback; self.toggleFeedback = toggleFeedback
     }
     public var body: some View {
@@ -131,7 +182,13 @@ public struct MonitorZebraMenu<Unit: Hashable, Paint: Hashable>: View {
             zone(title: "Midtone", help: midtoneHelp, values: midtone)
         }
     }
-    private func zone(title: String, help: String, values: MonitorZebraZone<Paint>) -> some View {
+    @ViewBuilder private func zone(title: String, help: String, values: Zone) -> some View {
+        switch values {
+        case .slider(let values): sliderZone(title: title, help: help, values: values)
+        case .number(let values): numberZone(title: title, help: help, values: values)
+        }
+    }
+    private func sliderZone(title: String, help: String, values: MonitorZebraZone<Paint>) -> some View {
         VStack(spacing: 0) {
             MonitorSettingsSwitchInlineRow(title: title, help: help, isOn: values.enabled.wrappedValue,
                 feedback: toggleFeedback) { values.enabled.wrappedValue.toggle() }
@@ -153,6 +210,44 @@ public struct MonitorZebraMenu<Unit: Hashable, Paint: Hashable>: View {
             }.padding(.leading, 14).opacity(values.enabled.wrappedValue ? 1 : 0.4)
                 .disabled(!values.enabled.wrappedValue)
         }
+    }
+    private func numberZone(title: String, help: String, values: MonitorZebraNumberZone<Paint>) -> some View {
+        MonitorSettingsInlineRow(title: title, help: help, stacked: compact) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    numberSwitch(title: title, values: values)
+                    numberEntry(values.entry)
+                    if compact { Spacer(minLength: 4) }
+                    numberColors(values)
+                }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        numberSwitch(title: title, values: values)
+                        numberEntry(values.entry)
+                    }
+                    numberColors(values)
+                }
+            }
+        }
+    }
+    private func numberSwitch(title: String, values: MonitorZebraNumberZone<Paint>) -> some View {
+        Button {
+            toggleFeedback(); values.enabled.wrappedValue.toggle()
+        } label: {
+            MonitorSettingsSwitchGraphic(isOn: values.enabled.wrappedValue)
+        }.buttonStyle(MonitorSettingsButtonStyle())
+            .accessibilityLabel(title).accessibilityValue(values.enabled.wrappedValue ? "On" : "Off")
+    }
+    @ViewBuilder private func numberEntry(_ entry: MonitorZebraNumberEntry?) -> some View {
+        if let entry {
+            MonitorSettingsNumberField(value: entry.value, maximum: entry.maximum)
+                .accessibilityIdentifier(entry.identifier)
+        }
+    }
+    private func numberColors(_ values: MonitorZebraNumberZone<Paint>) -> some View {
+        MonitorSettingsColorDots(colors: values.colors, selected: values.paint.wrappedValue, compact: compact) {
+            selectionFeedback(); values.paint.wrappedValue = $0
+        }.buttonStyle(MonitorSettingsButtonStyle())
     }
 }
 #endif
