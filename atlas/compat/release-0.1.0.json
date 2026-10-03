@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "df56eee2f04dca160204f19efcbb6803e0abfece",
+      "commit": "a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "df56eee2f04dca160204f19efcbb6803e0abfece",
-        "where": "2026-10-03 frozen b786/365508c source union; integration diff only pin: root591/just check, BFT, native phone and iPad531 each with1 existing skip, native settings rotation and persisted joystick UI2 each, Android697/lint/packaging/JNI8, installed Android9 input cases passed. Exact APK/native/JUnit and xcresults retained union-b786-*; physical cameras untested."
+        "commit": "a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
+        "where": "2026-10-03 fixed 5b80/6460 source, integration differs only pin: Swift591/just/BFT green; full native538 with1 existing skip at a2b4/683, a527 strict/BFT; final actual settings/Display UI3 pass at 5b80/6460. Canonical Android697/lint/debug/release/native staging, JNI8 exact; final installed Display/8assist/native bridge3 pass19.337s. Changed native core b3868ffe explicitly exercised; 89 saved simulator preferences restored byte-identically with private cache retirement. union2-insta consumer evidence; physical cameras untested."
       }
     },
     {
