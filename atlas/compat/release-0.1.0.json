@@ -75,7 +75,7 @@
     {
       "repo": "openinstacine",
       "branch": "opencine/integration",
-      "commit": "a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
+      "commit": "4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-03",
@@ -111,8 +111,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
-        "where": "2026-10-03 fixed 5b80/6460 source, integration differs only pin: Swift591/just/BFT green; full native538 with1 existing skip at a2b4/683, a527 strict/BFT; final actual settings/Display UI3 pass at 5b80/6460. Canonical Android697/lint/debug/release/native staging, JNI8 exact; final installed Display/8assist/native bridge3 pass19.337s. Changed native core b3868ffe explicitly exercised; 89 saved simulator preferences restored byte-identically with private cache retirement. union2-insta consumer evidence; physical cameras untested."
+        "commit": "4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
+        "where": "2026-10-03 local integration4a83/source130 differs only pin1afdda: Swift591/just, generic BFT both arches and canonical Android697/lint/debug/release/staging/JNI8 exact passed on integration. Native integration163b64e9; APK/XML/log packet integration-1afdda-consumer-evidence. Actual iOS settings/cache/sharing3 passed67.539s at ab91/130 and installed Android JNI/Display/assist3 passed19.394s with earlier92ba6ec9, all134 iOS/4 Android preferences restored. Exact source/artifact attribution retained; no final integration runtime hash claim. Physical cameras untested."
       }
     },
     {
