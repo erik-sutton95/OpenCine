@@ -143,6 +143,12 @@
       "coordinates": "com.opencapture.opencine:vulkan"
     },
     {
+      "name": ":native-runtime",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:native-runtime"
+    },
+    {
       "name": ":monitor-ui",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -204,7 +210,8 @@
       ":media",
       ":platform",
       ":decoder",
-      ":vulkan"
+      ":vulkan",
+      ":native-runtime"
     ],
     "ui": [
       "MonitorPresentation",

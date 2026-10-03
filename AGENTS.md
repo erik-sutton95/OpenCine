@@ -65,6 +65,9 @@ package dependency.
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
   `OpenCineApple`.
+- Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
+  composition. Before changing effects, sampling or native frame ownership, read
+  [the runtime guide](docs/native-runtime/README.md).
 - Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app (today they
   depend on Core and Media only).
 - `OpenCineMulticam` imports Foundation and `OpenCineCore` only and names no manufacturer, UI
