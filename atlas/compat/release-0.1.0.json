@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "c4c7939ec2953a57a5625d45d8f2057670c7a840",
+      "commit": "8be585a43a057adbc2b9c6edc812ddfac3153745",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "c4c7939ec2953a57a5625d45d8f2057670c7a840",
-        "where": "Source129f6748 with pin-only successorc4c7939 on product400962e: root626, generic iOS BFT, Android939/main/native staging and JNI73 pass. Actual prior Z2 phone4/pad7 and exact installed Android8 retained in SHELL-03-Z2-nikon.md. Canonical just/native-check retain pre-existing swift-format baseline failures, no full-check green claim. Physical cameras untested."
+        "commit": "8be585a43a057adbc2b9c6edc812ddfac3153745",
+        "where": "2026-10-03 frozen b786/c989e775 Display source; integration diff only pin: root626/BFT, canonical Android949 with native staging/lint/debug/test packaging/JNI73 passed; Display native9 and installed Android11 plus portrait/landscape independent Photo/Video/reorder proofs retained. Canonical just/native format baseline remains failed, not reported green. Physical cameras untested."
       }
     }
   ]
