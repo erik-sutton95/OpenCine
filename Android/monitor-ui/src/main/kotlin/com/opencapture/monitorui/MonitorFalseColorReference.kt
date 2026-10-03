@@ -71,6 +71,7 @@ fun MonitorFalseColorReference(values: MonitorFalseColorReferenceValues, modifie
             "False Color",
             color = MonitorPalette.text,
             fontSize = 8.5.sp,
+            lineHeight = 10.sp,
             fontFamily = MonitorTypography.fontFamily,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.TopStart),
@@ -79,6 +80,7 @@ fun MonitorFalseColorReference(values: MonitorFalseColorReferenceValues, modifie
             values.subtitle,
             color = MonitorPalette.muted,
             fontSize = 7.5.sp,
+            lineHeight = 9.sp,
             fontFamily = MonitorTypography.fontFamily,
             modifier = Modifier.align(Alignment.TopEnd),
         )
@@ -89,6 +91,7 @@ fun MonitorFalseColorReference(values: MonitorFalseColorReferenceValues, modifie
                         marker.label,
                         color = MonitorPalette.muted,
                         fontSize = 5.5.sp,
+                        lineHeight = 7.sp,
                         fontFamily = MonitorTypography.fontFamily,
                         modifier =
                             Modifier.offset(
@@ -108,6 +111,7 @@ fun MonitorFalseColorReference(values: MonitorFalseColorReferenceValues, modifie
                         label,
                         color = MonitorPalette.muted,
                         fontSize = 5.5.sp,
+                        lineHeight = 7.sp,
                         fontFamily = MonitorTypography.fontFamily,
                     )
                 }

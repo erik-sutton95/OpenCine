@@ -73,7 +73,7 @@ fun <Scale> MonitorFalseColorMenu(scales: List<Scale>, scale: Scale, onScale: (S
     if (reference != null) {
         Text("REFERENCE KEY", style = MonitorTypography.text(8f, FontWeight.Medium).copy(letterSpacing = 1.sp),
             color = MonitorPalette.faint, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
-        MonitorFalseColorReference(reference, Modifier.fillMaxWidth().height(52.dp))
+        MonitorFalseColorReference(reference, Modifier.fillMaxWidth().height(52.dp).testTag("monitor.false-color.reference"))
     }
     MonitorSettingsSwitchInlineRow("Reference Display", isOn = referenceEnabled, help = referenceHelp,
         stacked = false) { onReferenceEnabled(!referenceEnabled) }
@@ -130,23 +130,52 @@ fun <UnitValue> MonitorZebraMenu(units: List<UnitValue>, unit: UnitValue,
 @Composable
 private fun zebraNumberZone(title: String, help: String, values: MonitorZebraNumberZone) {
     MonitorSettingsInlineRow(title, help = help, stacked = true) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.clickable(interactionSource = remember { MutableInteractionSource() },
-                indication = null, role = Role.Switch, onClick = values.onEnabled)
-                .semantics { contentDescription = title; stateDescription = if (values.enabled) "On" else "Off" }) {
-                MonitorSettingsSwitchGraphic(values.enabled)
-            }
-            values.entry?.let { entry ->
-                Box(Modifier.testTag(entry.identifier)) {
-                    MonitorSettingsNumberField(entry.value, entry.maximum, entry.onChange)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val colorWidth = values.colors.size * 44 + maxOf(0, values.colors.size - 1) * 4
+            val minimumWidth = 39 + colorWidth + 4 + if (values.entry == null) 16 else 44 + 24
+            if (maxWidth >= minimumWidth.dp) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    zebraNumberSwitch(title, values)
+                    zebraNumberEntry(values.entry)
+                    Spacer(Modifier.weight(1f).widthIn(min = 4.dp))
+                    zebraNumberColors(values)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        zebraNumberSwitch(title, values)
+                        zebraNumberEntry(values.entry)
+                    }
+                    zebraNumberColors(values)
                 }
             }
-            Spacer(Modifier.weight(1f))
-            MonitorSettingsColorDots(values.colors, values.paint.label, compact = true) {
-                MonitorZebraPaint.entries.firstOrNull { color -> color.label == it }?.let(values.onPaint)
-            }
         }
+    }
+}
+
+@Composable
+private fun zebraNumberSwitch(title: String, values: MonitorZebraNumberZone) {
+    Box(Modifier.clickable(interactionSource = remember { MutableInteractionSource() },
+        indication = null, role = Role.Switch, onClick = values.onEnabled)
+        .semantics { contentDescription = title; stateDescription = if (values.enabled) "On" else "Off" }) {
+        MonitorSettingsSwitchGraphic(values.enabled)
+    }
+}
+
+@Composable
+private fun zebraNumberEntry(entry: MonitorZebraNumberEntry?) {
+    entry?.let {
+        Box(Modifier.testTag(it.identifier)) {
+            MonitorSettingsNumberField(it.value, it.maximum, it.onChange)
+        }
+    }
+}
+
+@Composable
+private fun zebraNumberColors(values: MonitorZebraNumberZone) {
+    MonitorSettingsColorDots(values.colors, values.paint.label, compact = true) {
+        MonitorZebraPaint.entries.firstOrNull { color -> color.label == it }?.let(values.onPaint)
     }
 }
 

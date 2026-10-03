@@ -213,23 +213,41 @@ public struct MonitorZebraMenu<Unit: Hashable, Paint: Hashable>: View {
     }
     private func numberZone(title: String, help: String, values: MonitorZebraNumberZone<Paint>) -> some View {
         MonitorSettingsInlineRow(title: title, help: help, stacked: compact) {
-            HStack(spacing: 8) {
-                Button {
-                    toggleFeedback(); values.enabled.wrappedValue.toggle()
-                } label: {
-                    MonitorSettingsSwitchGraphic(isOn: values.enabled.wrappedValue)
-                }.buttonStyle(MonitorSettingsButtonStyle())
-                    .accessibilityLabel(title).accessibilityValue(values.enabled.wrappedValue ? "On" : "Off")
-                if let entry = values.entry {
-                    MonitorSettingsNumberField(value: entry.value, maximum: entry.maximum)
-                        .accessibilityIdentifier(entry.identifier)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    numberSwitch(title: title, values: values)
+                    numberEntry(values.entry)
+                    if compact { Spacer(minLength: 4) }
+                    numberColors(values)
+                }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        numberSwitch(title: title, values: values)
+                        numberEntry(values.entry)
+                    }
+                    numberColors(values)
                 }
-                if compact { Spacer(minLength: 4) }
-                MonitorSettingsColorDots(colors: values.colors, selected: values.paint.wrappedValue, compact: compact) {
-                    selectionFeedback(); values.paint.wrappedValue = $0
-                }.buttonStyle(MonitorSettingsButtonStyle())
             }
         }
+    }
+    private func numberSwitch(title: String, values: MonitorZebraNumberZone<Paint>) -> some View {
+        Button {
+            toggleFeedback(); values.enabled.wrappedValue.toggle()
+        } label: {
+            MonitorSettingsSwitchGraphic(isOn: values.enabled.wrappedValue)
+        }.buttonStyle(MonitorSettingsButtonStyle())
+            .accessibilityLabel(title).accessibilityValue(values.enabled.wrappedValue ? "On" : "Off")
+    }
+    @ViewBuilder private func numberEntry(_ entry: MonitorZebraNumberEntry?) -> some View {
+        if let entry {
+            MonitorSettingsNumberField(value: entry.value, maximum: entry.maximum)
+                .accessibilityIdentifier(entry.identifier)
+        }
+    }
+    private func numberColors(_ values: MonitorZebraNumberZone<Paint>) -> some View {
+        MonitorSettingsColorDots(colors: values.colors, selected: values.paint.wrappedValue, compact: compact) {
+            selectionFeedback(); values.paint.wrappedValue = $0
+        }.buttonStyle(MonitorSettingsButtonStyle())
     }
 }
 #endif
