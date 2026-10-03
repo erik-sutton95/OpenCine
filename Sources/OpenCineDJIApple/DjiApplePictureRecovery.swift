@@ -104,10 +104,10 @@ public final class DjiApplePictureRecovery {
         }
         public func repairEndpoint(_ endpoint: DjiApplePictureRecoveryEndpoint,
             reason: String, pictureIntent: Int, timeout: Duration) async -> Result {
-            guard let owner, owner.isCurrent(self), owner.isTransportCurrent(endpoint),
+            guard let owner, owner.isEndpointCurrent(self, endpoint: endpoint),
                 let native = owner.native else { return .superseded }
             let started = native.prepare()
-            guard owner.isCurrent(self), owner.isTransportCurrent(endpoint) else { return .superseded }
+            guard owner.isEndpointCurrent(self, endpoint: endpoint) else { return .superseded }
             do {
                 try await endpoint.negotiate(reason)
                 guard owner.isPictureCurrent(self, endpoint: endpoint, intent: pictureIntent)
@@ -119,10 +119,9 @@ public final class DjiApplePictureRecovery {
                 return .superseded
             } catch {
                 // A cover retires picture intent, not a genuine transport failure.
-                guard owner.isCurrent(self), owner.context().endpointIdentity == endpoint.identity
-                else { return .superseded }
+                guard owner.isEndpointCurrent(self, endpoint: endpoint) else { return .superseded }
                 owner.event(.negotiationFailed(reason: reason))
-                return .exhausted
+                return owner.isEndpointCurrent(self, endpoint: endpoint) ? .exhausted : .superseded
             }
         }
         public func waitForPicture(_ endpoint: DjiApplePictureRecoveryEndpoint,
@@ -138,7 +137,8 @@ public final class DjiApplePictureRecovery {
                 else { return .superseded }
                 if picture.fresh {
                     owner.event(.restored)
-                    return .restored
+                    return owner.isPictureCurrent(self, endpoint: endpoint, intent: pictureIntent)
+                        ? .restored : .superseded
                 }
                 guard owner.timing.monotonicNow() < deadline else { break }
                 native.probe()
@@ -150,16 +150,21 @@ public final class DjiApplePictureRecovery {
             guard owner.isPictureCurrent(self, endpoint: endpoint, intent: pictureIntent)
             else { return .superseded }
             let now = owner.timing.wallNow()
+            let transport = endpoint.transport()
+            // Injected observations can synchronously retire or replace the attempt.
+            guard owner.isPictureCurrent(self, endpoint: endpoint, intent: pictureIntent,
+                transport: transport) else { return .superseded }
             let pictureSinceLastHold = owner.lastSessionHoldAt.map { held in
                 picture.lastPresentedAt.map { $0 > held } ?? false
             } ?? false
             owner.sessionHoldCycles = FeedWatchdog.nextSessionHoldCycles(
-                lastVideoPacketAge: endpoint.transport().lastVideoPacketAt.map { now - $0 },
+                lastVideoPacketAge: transport.lastVideoPacketAt.map { now - $0 },
                 previousCycles: owner.sessionHoldCycles, pictureSinceLastCycle: pictureSinceLastHold)
             owner.lastSessionHoldAt = now
             owner.event(owner.sessionHoldCycles > 0
                 ? .holdForWatchdog(cycles: owner.sessionHoldCycles) : .escalateSession)
-            return .exhausted
+            return owner.isPictureCurrent(self, endpoint: endpoint, intent: pictureIntent)
+                ? .exhausted : .superseded
         }
     }
     public var isBusy: Bool { task != nil }
@@ -221,14 +226,24 @@ public final class DjiApplePictureRecovery {
     private func isCurrent(_ attempt: Attempt) -> Bool {
         attempt.owner === self && generation == attempt.generation && isBusy && !Task.isCancelled
     }
-    private func isTransportCurrent(_ endpoint: DjiApplePictureRecoveryEndpoint) -> Bool {
-        context().endpointIdentity == endpoint.identity && !endpoint.transport().closed
+    private func isEndpointCurrent(_ attempt: Attempt,
+        endpoint: DjiApplePictureRecoveryEndpoint) -> Bool {
+        guard isCurrent(attempt) else { return false }
+        let current = context()
+        return current.endpointIdentity == endpoint.identity && isCurrent(attempt)
     }
     private func isPictureCurrent(_ attempt: Attempt,
         endpoint: DjiApplePictureRecoveryEndpoint, intent: Int) -> Bool {
+        guard isCurrent(attempt) else { return false }
+        let transport = endpoint.transport()
+        return isPictureCurrent(attempt, endpoint: endpoint, intent: intent, transport: transport)
+    }
+    private func isPictureCurrent(_ attempt: Attempt,
+        endpoint: DjiApplePictureRecoveryEndpoint, intent: Int,
+        transport: DjiApplePictureRecoveryTransport) -> Bool {
         let current = context()
-        return isCurrent(attempt) && current.endpointIdentity == endpoint.identity
-            && !endpoint.transport().closed && current.pictureIntent == intent && !current.browsingMedia
+        return current.endpointIdentity == endpoint.identity && !transport.closed
+            && current.pictureIntent == intent && !current.browsingMedia && isCurrent(attempt)
     }
 }
 

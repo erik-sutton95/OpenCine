@@ -19,6 +19,9 @@ struct DJIApplePictureRecoveryTests {
         var waits: [(TimeInterval, CheckedContinuation<Void, Never>)] = []
         var negotiation: ((String) async throws -> Void)?
         var probeEffect: (() -> Void)?
+        var wallEffect: (() -> Void)?
+        var transportEffect: (() -> Void)?
+        var eventEffect: ((DjiApplePictureRecovery.Event) -> Void)?
         lazy var owner = DjiApplePictureRecovery(context: { [unowned self] in
             var current = policy
             current.endpointIdentity = endpointPresent
@@ -33,20 +36,29 @@ struct DJIApplePictureRecoveryTests {
                 probeEffect?()
             },
             picture: { [unowned self] _, _ in .init(fresh: fresh, lastPresentedAt: presented) }),
-            timing: .init(wallNow: { [unowned self] in time },
+            timing: .init(wallNow: { [unowned self] in
+                wallEffect?()
+                return time
+            },
                 monotonicNow: { [unowned self] in time }, wait: { [unowned self] duration in
                     let c = duration.components
                     await withCheckedContinuation {
                         waits.append((time + Double(c.seconds) + Double(c.attoseconds) / 1e18, $0))
                     }
-                }), event: { [unowned self] in events.append($0) })
+                }), event: { [unowned self] in
+                    events.append($0)
+                    eventEffect?($0)
+                })
         var endpoint: DjiApplePictureRecoveryEndpoint {
             .init(identity: ObjectIdentifier(identity),
                 negotiate: { [unowned self] reason in
                     trace.append("negotiate")
                     try await negotiation?(reason)
                 },
-                transport: { [unowned self] in transport })
+                transport: { [unowned self] in
+                    transportEffect?()
+                    return transport
+                })
         }
         func start(timeout: Duration = .seconds(16)) {
             let admitted = owner.start { [self] attempt in
@@ -193,6 +205,107 @@ struct DJIApplePictureRecoveryTests {
         #expect(peer.result == .superseded)
         #expect(peer.trace.isEmpty)
         #expect(peer.events == [.admitted, .released])
+    }
+
+    @Test func simulatedCurrentClosedDriverRetainsNativePreparationWithoutEnablingPicture() async {
+        let peer = Peer()
+        peer.transport.closed = true
+        peer.start(timeout: .zero)
+        await peer.settle()
+        #expect(peer.trace == ["gimbal", "prepare", "negotiate"],
+            "Donor cleanup precedes rebuildUDP, whose closed-driver path sends nothing")
+        #expect(peer.result == .superseded)
+        #expect(peer.events == [.admitted, .released])
+    }
+
+    @Test func simulatedDeadlineTransportReadCannotSpendItsSuccessorsHeldCycle() async {
+        let peer = Peer()
+        peer.transport.lastVideoPacketAt = peer.time
+        var wallReads = 0
+        var successorReady: CheckedContinuation<Void, Never>?
+        var successorResult: DjiApplePictureRecovery.Result?
+        peer.wallEffect = {
+            wallReads += 1
+            // After the picture sample, the deadline samples wall time for packet age.
+            guard wallReads == 2 else { return }
+            peer.transportEffect = {
+                peer.transportEffect = nil
+                peer.owner.cancel()
+                let admitted = peer.owner.start { attempt in
+                    await withCheckedContinuation { successorReady = $0 }
+                    successorResult = await attempt.repairEndpoint(peer.endpoint,
+                        reason: "SIMULATED B", pictureIntent: 7, timeout: .zero)
+                }
+                #expect(admitted)
+            }
+        }
+        peer.start(timeout: .zero)
+        await peer.settle()
+        #expect(peer.result == .superseded)
+        #expect(peer.owner.isBusy, "A's completion cannot release B's suspended attempt")
+        #expect(peer.events == [.admitted, .admitted], "The stale snapshot authorizes no deadline event")
+        successorReady?.resume()
+        await peer.settle()
+        #expect(successorResult == .exhausted)
+        #expect(peer.events == [.admitted, .admitted, .holdForWatchdog(cycles: 1), .released],
+            "Retired A must not spend B's first held cycle")
+    }
+
+    @Test func simulatedRecoveryEventRetirementReturnsSupersededWithoutReleasingSuccessor() async {
+        let dispositions: [DjiApplePictureRecovery.Event] = [
+            .restored, .holdForWatchdog(cycles: 1), .escalateSession]
+        for disposition in dispositions {
+            let peer = Peer()
+            peer.fresh = disposition == .restored
+            peer.transport.lastVideoPacketAt = disposition == .escalateSession ? nil : peer.time
+            var successorReady: CheckedContinuation<Void, Never>?
+            peer.eventEffect = { event in
+                guard event == disposition else { return }
+                peer.eventEffect = nil
+                peer.owner.cancel()
+                let admitted = peer.owner.start { _ in
+                    await withCheckedContinuation { successorReady = $0 }
+                }
+                #expect(admitted)
+            }
+            peer.start(timeout: .zero)
+            await peer.settle()
+            #expect(peer.result == .superseded)
+            #expect(peer.owner.isBusy)
+            #expect(peer.events == [.admitted, disposition, .admitted])
+            successorReady?.resume()
+            await peer.settle()
+            #expect(peer.events == [.admitted, disposition, .admitted, .released])
+        }
+    }
+
+    @Test func simulatedTransportAuthorityReadCannotEnableRetiredOrReplacedEndpoint() async {
+        for replacement in [false, true] {
+            let peer = Peer()
+            let nextIdentity = NSObject()
+            var successorReady: CheckedContinuation<Void, Never>?
+            peer.transportEffect = {
+                peer.transportEffect = nil
+                if replacement {
+                    peer.policy.endpointIdentity = ObjectIdentifier(nextIdentity)
+                } else {
+                    peer.owner.cancel()
+                    let admitted = peer.owner.start { _ in
+                        await withCheckedContinuation { successorReady = $0 }
+                    }
+                    #expect(admitted)
+                }
+            }
+            peer.start(timeout: .zero)
+            await peer.settle()
+            #expect(peer.result == .superseded)
+            #expect(peer.trace == ["gimbal", "prepare", "negotiate"])
+            #expect(peer.events == (replacement ? [.admitted, .released] : [.admitted, .admitted]))
+            #expect(peer.owner.isBusy == !replacement)
+            successorReady?.resume()
+            await peer.settle()
+            #expect(!peer.owner.isBusy)
+        }
     }
 
     @Test func simulatedRetiredMediaReturnCannotClaimAfterItsCanceledWaitResumes() async {

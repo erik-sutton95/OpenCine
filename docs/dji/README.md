@@ -106,6 +106,11 @@ without canceling admitted negotiation; a genuine current-transport failure stil
 session recovery. Driver/run replacement suppresses stale completion. Existing 100ms
 polling, 16s picture deadline and FeedWatchdog held-cycle policy remain unchanged. Manual
 timing tests exercise canceled waits that deliberately resume after a successor starts.
+Current-driver preparation still precedes negotiation when that driver is closed; the
+native negotiation's existing closed path sends nothing, and picture enable remains
+refused. Injected transport observations are rechecked before held-history mutation or
+completion effects. If an effect retires the attempt, its result is `superseded` and its
+completion cannot release the successor. Authorized held history survives local retirement.
 The app retains native watchdog actions, gimbal cleanup, connection/backoff/credential
 policy, journal and explicit owned-versus-borrowed teardown. This Apple-only workflow adds
 no Kotlin scheduler or portable contract; physical camera qualification remains untested.
