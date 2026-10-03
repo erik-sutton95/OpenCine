@@ -191,6 +191,14 @@ writing replacements. The five mirrored `MonitorDisplayPreferencesTests` /
 `MonitorDisplayPreferencesTest` scenarios verify legacy keys/order/defaults, explicit false,
 independent layouts, read-only fallback and storage/key isolation.
 
+`MonitorToolUsagePreferences` owns the existing assist-usage persistence schema. An app
+supplies its domain and key; the palette keeps its existing usage lifetime and ranking.
+Apple retains Codable Data and its whole-value fallback for a partial document. Android
+retains JSONObject strings and defaults individual missing fields. Reads never rewrite
+missing or malformed data, unknown tool IDs survive, and a failed nonfinite write leaves
+the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
+ranking inputs, empty values, separate app/key namespaces and these codec differences.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
