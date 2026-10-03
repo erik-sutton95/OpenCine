@@ -92,6 +92,24 @@ Apple-specific ownership move changes no portable/Kotlin protocol or hardware ad
 Larger connection, foreground, negotiated picture repair and watchdog execution remain
 separate increments; full Pocket session migration and physical qualification are unfinished.
 
+`DjiApplePictureRecovery` owns one session's serialized repair task and retirement
+generation, actual endpoint negotiation, genuine-picture deadline and held-cycle history.
+`start` admits one operation; its `Attempt` can repair an endpoint or await picture after
+the host's existing full rejoin. `claim` queues current media return behind that same
+repair, including a nil-driver gap. Local cancellation sends no camera command and
+preserves the existing per-session held-cycle history.
+
+The native adapter supplies ordered preparation, one initial enable, bounded first-picture
+inspection and a freshness predicate derived from actual source/presentation reports.
+The integration never imports the neutral native runtime. Media retires picture intent
+without canceling admitted negotiation; a genuine current-transport failure still reaches
+session recovery. Driver/run replacement suppresses stale completion. Existing 100ms
+polling, 16s picture deadline and FeedWatchdog held-cycle policy remain unchanged. Manual
+timing tests exercise canceled waits that deliberately resume after a successor starts.
+The app retains native watchdog actions, gimbal cleanup, connection/backoff/credential
+policy, journal and explicit owned-versus-borrowed teardown. This Apple-only workflow adds
+no Kotlin scheduler or portable contract; physical camera qualification remains untested.
+
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
 
 The Kotlin DJI layer, moved from the OpenPocketCine app without behavior change (SHELL-04): BLE
