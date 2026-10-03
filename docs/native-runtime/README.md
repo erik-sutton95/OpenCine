@@ -12,6 +12,13 @@ target lifetime belong in the shared runtime. The platform adds no graphics libr
 Applications supply raw color interpretation and source calibration as values or callbacks;
 common algorithms do not infer those facts from a manufacturer.
 
+Media also owns the portable stereo meter values and `MonitorAudioMeterBallistics`.
+The source passes linear peaks and elapsed seconds; the pure step returns a new
+value with the existing instant attack, 26 dB/s level decay, 1.8 second peak hold
+and 12 dB/s peak release. Camera wire indicators and native audio taps remain in
+their source adapters. Known silence is a meter value; absent telemetry stays an
+absent source observation rather than invoking a fabricated sample.
+
 Each native owner has its own frame/sample publication lifetime. Replacing or retiring a source
 must reject its late frames and clear only its own publications. Covers and rotation preserve
 the picture host. Codec, frame leases, renderer scheduling and sampling demand retain one owner
