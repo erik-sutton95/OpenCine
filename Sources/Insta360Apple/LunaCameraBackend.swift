@@ -901,6 +901,10 @@ extension LunaCameraBackend: LunaMediaSourcePort {
         return media
     }
 
+    public func mediaCatalogRecord(_ asset: MediaAssetID, binding: MediaBrowseBinding) -> LunaMediaCatalogRecord? {
+        connectedMedia?.catalogRecord(asset, binding: binding)
+    }
+
     func mediaRequest(_ request: LunaRequest, source: LunaMediaSourceState) async throws -> Data {
         guard mediaSourceState == source, let session else { throw MediaServiceError.retired }
         let reply = try await session.mediaRequest(request, epoch: source.epoch)

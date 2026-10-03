@@ -3,6 +3,13 @@ import Insta360Protocol
 import OpenCineCore
 import OpenCineMedia
 
+/// Immutable source facts for the app's legacy catalog/address codec. The neutral library never
+/// interprets this payload, and lookup is admitted only for its producing browse and asset.
+public struct LunaMediaCatalogRecord: Sendable {
+    public let asset: MediaAssetID
+    public let file: LunaMediaFile
+}
+
 /// Native host operations. The source chooses addressing; the host supplies the existing
 /// streaming transport and exact thumbnail codec without an integration-to-runtime dependency.
 @MainActor public protocol LunaMediaIO: AnyObject, Sendable {
@@ -55,6 +62,12 @@ struct LunaMediaSourceState: Equatable, Sendable {
     func retire() {
         current?.retire(); current = nil
         returnTask?.cancel(); returnTask = nil
+    }
+
+    func catalogRecord(_ asset: MediaAssetID, binding: MediaBrowseBinding) -> LunaMediaCatalogRecord? {
+        guard let current, current.binding == binding, (try? check(current)) != nil,
+            let file = current.catalogFile(asset) else { return nil }
+        return .init(asset: asset, file: file)
     }
 
     func check(_ browse: LunaMediaBrowse, returning: Bool = false) throws {
@@ -141,6 +154,8 @@ struct LunaMediaSourceState: Equatable, Sendable {
         guard let owner else { throw MediaServiceError.retired }
         try owner.check(self)
     }
+
+    func catalogFile(_ asset: MediaAssetID) -> LunaMediaFile? { files[asset] }
 
     func catalog() async throws -> any MediaCatalogCursor {
         try check(); cursor?.close()

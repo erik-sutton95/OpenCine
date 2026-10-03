@@ -445,6 +445,9 @@ class LunaBackend(
         return LunaMediaService(session, mediaPort, scope).also { connectedMedia = it }
     }
 
+    public fun mediaCatalogRecord(asset: com.opencapture.opencine.media.MediaAssetID,
+        binding: MediaBrowseBinding): LunaMediaCatalogRecord? = connectedMedia?.catalogRecord(asset, binding)
+
     private suspend fun requestMedia(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray {
         if (mediaSourceState != source) throw MediaServiceException(MediaServiceFailure.RETIRED)
         val currentSession = session ?: throw MediaServiceException(MediaServiceFailure.RETIRED)

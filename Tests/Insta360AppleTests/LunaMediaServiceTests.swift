@@ -54,6 +54,29 @@ private actor MediaSink: MediaByteSink {
 }
 
 @MainActor @Suite struct LunaMediaServiceTests {
+    @Test func preservationRecordIsBoundToProducingBrowseAndSurvivesReplacement() async throws {
+        let port = MediaPort(); let service = port.service()
+        let old = try await service.openBrowse()
+        let asset = try #require(try await (try await old.catalog()).next()?.upserts.first)
+        let captured = try #require(service.catalogRecord( asset.id, binding: old.binding))
+        var release: CheckedContinuation<Void, Never>?
+        let encoding = Task {
+            await withCheckedContinuation { release = $0 }
+            return captured.file.uri
+        }
+        #expect(await eventually { release != nil })
+        let current = try await service.openBrowse()
+        port.paths = ["/storage_internal/DCIM/Camera01/IMG_successor.jpg"]
+        _ = try await (try await current.catalog()).next()
+        #expect(service.catalogRecord( asset.id, binding: old.binding) == nil)
+        release?.resume()
+        #expect(await encoding.value == "/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4")
+        #expect(captured.asset == asset.id, "encoding owns A's immutable value, not a latest-catalog lookup")
+        await current.close()
+        #expect(service.catalogRecord( asset.id, binding: current.binding) == nil)
+        service.retire()
+    }
+
     @Test func failedCatalogDoesNotCloseMediaOwner() async throws {
         let port = MediaPort(); let service = port.service()
         let browse = try await service.openBrowse()

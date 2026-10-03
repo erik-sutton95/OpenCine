@@ -40,6 +40,25 @@ private class MediaPort : LunaMediaSourcePort {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LunaMediaServiceTest {
+    @Test fun preservationRecordIsBoundToProducingBrowseAndSurvivesReplacement() = runTest {
+        val port = MediaPort(); val service = port.service(backgroundScope)
+        val old = service.openBrowse()
+        val asset = assertNotNull(old.catalog().next()).upserts.first()
+        val captured = assertNotNull(service.catalogRecord(asset.id, old.binding))
+        val release = CompletableDeferred<Unit>()
+        val encoding = backgroundScope.async { release.await(); captured.file.path }
+        runCurrent()
+        val current = service.openBrowse()
+        port.paths = listOf("/storage_internal/DCIM/Camera01/IMG_successor.jpg")
+        current.catalog().next()
+        assertNull(service.catalogRecord(asset.id, old.binding))
+        release.complete(Unit); runCurrent()
+        assertEquals("/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4", encoding.await())
+        assertEquals(asset.id, captured.asset)
+        current.close(); assertNull(service.catalogRecord(asset.id, current.binding))
+        service.retire()
+    }
+
     @Test fun failedCatalogDoesNotCloseMediaOwner() = runTest {
         val nativeOwner = Job()
         val nativeScope = CoroutineScope(nativeOwner + StandardTestDispatcher(testScheduler))

@@ -3,12 +3,16 @@ package com.opencapture.opencine.insta360.luna
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.insta360.shell.LunaMediaTransferPort
+import com.opencapture.opencine.insta360.shell.CameraMediaItem
 import com.opencapture.opencine.media.*
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.Base64
 import java.util.Locale
 import java.util.UUID
+
+/** Immutable facts captured by the app's legacy codec, fenced to the producing browse/asset. */
+public data class LunaMediaCatalogRecord(public val asset: MediaAssetID, public val file: CameraMediaItem)
 
 internal data class LunaMediaSourceState(val session: CameraSessionID, val epoch: ControlEpoch, val connection: Long)
 internal interface LunaMediaSourcePort {
@@ -48,6 +52,12 @@ internal class LunaMediaService(
     fun retire() {
         current?.retire(); current = null
         returnJob?.cancel(); returnJob = null
+    }
+
+    fun catalogRecord(asset: MediaAssetID, binding: MediaBrowseBinding): LunaMediaCatalogRecord? {
+        val browse = current ?: return null
+        if (browse.binding != binding || browse.closed || port.mediaSourceState != browse.source) return null
+        return browse.catalogFile(asset)?.let { LunaMediaCatalogRecord(asset, LunaReadout.mediaItem(it)) }
     }
 
     suspend fun check(browse: LunaMediaBrowse, returning: Boolean = false) {
@@ -121,6 +131,7 @@ internal class LunaMediaBrowse(
     }
 
     suspend fun check() = owner.check(this)
+    fun catalogFile(asset: MediaAssetID): LunaMediaFile? = files[asset]
     override suspend fun catalog(): MediaCatalogCursor {
         check(); cursor?.close()
         return LunaMediaCursor(this, scope).also { cursor = it }
