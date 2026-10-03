@@ -118,7 +118,7 @@
     {
       "repo": "openzcine",
       "branch": "opencine/integration",
-      "commit": "a3b11f98cc28e7014a500ae199f6199b7f3ea8ee",
+      "commit": "cddc1d98f14f3744d31b72cc5037b68a6f7dfab6",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "CORE-02",
@@ -150,8 +150,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "a3b11f98cc28e7014a500ae199f6199b7f3ea8ee",
-        "where": "2026-10-03 local integrationa3b11/source9e930 differs only pin1afdda: Swift626/generic BFT and canonical Android936+wear5/lint/debug/release/testAPK/staging/JNI73 exact passed on integration. Native9685cae1 and APK/XML/log packet integration-1afdda-consumer-evidence. Exact filter source9e930/shared58c909 has actual native iOS4, true Android portrait5 and landscape1 passing with original policy/viewport and44dp floor; source/artifacts separately retained. Selection increment in progress and synthesized iOS selection input limitation documented; no integrated selection claim. Physical cameras untested."
+        "commit": "cddc1d98f14f3744d31b72cc5037b68a6f7dfab6",
+        "where": "2026-10-03 integrationcddc/source77d07 differs only pin5d7: Swift626, generic BFT both arches, canonical Android949 across phone/wear/wear-relay/core-api/0fail/skips/lint/debug/release/testAPK/staging/JNI73 exact passed. Immutable integration-5d7-consumer-evidence APK/XML/log manifest, native1299215b. Actual bounded native List selection2 at exact77d and UIKit ownership1 passed; original prefs/APKs/cache/rotation restored. Timed iOS gestures remain untested and original filter AX red reproduces in archived donor. Additional matrix fixture proof queued. Full Z2 unfinished, physical cameras untested."
       }
     }
   ]
