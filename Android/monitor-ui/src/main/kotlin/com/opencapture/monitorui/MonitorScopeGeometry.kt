@@ -1,13 +1,6 @@
 package com.opencapture.monitorui
 
-data class MonitorScopeRect(val x: Float, val y: Float, val width: Float, val height: Float) {
-    val minX get() = x
-    val minY get() = y
-    val maxX get() = x + width
-    val maxY get() = y + height
-    val midX get() = x + width / 2f
-    val midY get() = y + height / 2f
-}
+
 
 object MonitorScopeGeometry {
     fun waveformPlot(width: Float, height: Float, density: Float = 1f): MonitorScopeRect {

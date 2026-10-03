@@ -248,8 +248,6 @@ private fun guideStrokes(guides: MonitorScopeGuides, transfer: MonitorTransfer):
     if (guides.middle) add(GuideStroke(WaveformIre.middleGrayIRE(transfer), false, false))
 }
 
-data class MonitorScopePoint(val x: Float, val y: Float)
-
 object MonitorVectorscopeGraticule {
     const val SKIN_ANGLE_DEGREES = 123.0
     const val SKIN_LENGTH = 0.92

@@ -77,6 +77,18 @@ Resources load through `Bundle.module`; consumers copy no fonts or icons and add
   waveform/parade multiplier is 0.25; Compose waveform is 0.25 and parade is 1.0. This
   inherited platform difference is preserved until physical qualification. Both vectorscopes
   use 1.0. New empty trace products and zero intensity clear displayed scope output.
+- `MonitorMovableScopePanel` owns body drag, stationary hold and corner resize. Storage
+  and camera sources stay outside the view. Swift receives an immutable panel layout and
+  typed move actions; Compose receives normalized center values and commits at release.
+  Cancelled input clears transient movement without saving, including lock and geometry
+  changes. `MonitorScopeStoredCenter` retains the existing fraction field names, with
+  independent portrait and landscape storage selected by the app.
+- Native resize targets preserve their existing platform sizing: Apple uses a 56 point
+  target; Compose adapts its 90 dp target down to a 44 dp minimum on small panels. The
+  visible corner is 14 points/dp with a 2 point/dp exterior gap and 12 point/dp bottom
+  overhang. Placement fits the body between fixed controls without rewriting storage.
+  Compose options anchors are expressed in dp relative to an injected canvas origin;
+  Apple options anchors use the panel canvas coordinates.
 - No dependency on `OpenPocketViewCore`, any vendor/camera package, or any app target.
 - Shared views take focused values and action closures; they never reach an app model or
   camera session.
