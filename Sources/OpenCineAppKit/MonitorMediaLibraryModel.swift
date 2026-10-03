@@ -61,7 +61,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     @ObservationIgnored private var service: (any CameraMediaService)?
     @ObservationIgnored private var browse: (any CameraMediaBrowse)?
     @ObservationIgnored private var cursor: (any MediaCatalogCursor)?
-    @ObservationIgnored private var lifetime = UUID()
+    public private(set) var lifetimeToken = UUID()
     @ObservationIgnored private var listing = UUID()
     @ObservationIgnored private var openTask: Task<Void, Never>?
     @ObservationIgnored private var listTask: Task<Void, Never>?
@@ -157,12 +157,12 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     }
     public func begin() {
         guard !browsing else { return }
-        browsing = true; note = nil
+        lifetimeToken = UUID(); browsing = true; note = nil
         open()
     }
     private func open() {
         guard let service else { return }
-        let generation = lifetime
+        let generation = lifetimeToken
         openTask = Task { [weak self] in
             guard let self, self.current(generation), !Task.isCancelled else { return }
             do {
@@ -176,19 +176,19 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         }
     }
     public func close() {
-        lifetime = UUID(); listing = UUID(); browsing = false; fetching = false
+        lifetimeToken = UUID(); listing = UUID(); browsing = false; fetching = false
         openTask?.cancel(); openTask = nil; listTask?.cancel(); listTask = nil
         cursor?.close(); cursor = nil
         retireOperations()
         let closed = browse; browse = nil
         if let closed { Task { await closed.close() } }
     }
-    private func current(_ generation: UUID) -> Bool { browsing && lifetime == generation }
+    private func current(_ generation: UUID) -> Bool { browsing && lifetimeToken == generation }
     public func refresh() {
         guard browsing else { return }
         guard let browse else { if openTask == nil { open() }; return }
         listTask?.cancel(); cursor?.close(); cursor = nil
-        let request = UUID(); listing = request; let generation = lifetime
+        let request = UUID(); listing = request; let generation = lifetimeToken
         fetching = true; fetchedCount = 0; note = nil
         listTask = Task { [weak self] in
             guard let self, self.current(generation), self.listing == request, !Task.isCancelled else { return }
@@ -250,7 +250,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     public func ensureThumbnail(_ id: MediaAssetID) {
         guard thumbnails[id] == nil, let record = record(id), cache.entry(record).thumbnailURL == nil,
             let source = browse?.thumbnails else { return }
-        let operation = UUID(), generation = lifetime, cacheGeneration = cache.directory.generation
+        let operation = UUID(), generation = lifetimeToken, cacheGeneration = cache.directory.generation
         thumbnails[id] = operation
         thumbnailTasks[id] = Task { [weak self] in
             guard let self, self.current(generation), self.thumbnails[id] == operation else { return }
@@ -285,7 +285,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             let address = record.address.representations[representation], transfers[id] == nil else {
             throw MediaServiceError.unavailable
         }
-        let operation = UUID(), generation = lifetime
+        let operation = UUID(), generation = lifetimeToken
         let writer = try cache.directory.beginWrite(at: address)
         transferring.insert(id)
         if descriptor.byteCount != nil { progress[id] = 0 }
@@ -334,7 +334,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     }
     public func delete(_ ids: [MediaAssetID]) async throws -> [MediaDeleteResult] {
         guard let browse, let source = browse.deletion else { throw MediaServiceError.unsupported }
-        let generation = lifetime
+        let generation = lifetimeToken
         let results = try await source.delete(ids)
         guard current(generation), self.browse?.binding == browse.binding, !Task.isCancelled else {
             throw MediaServiceError.retired

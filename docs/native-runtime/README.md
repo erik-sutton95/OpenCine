@@ -113,3 +113,25 @@ its donor whole-chunk completion; Android bounds reads to the remaining known by
 HTTP/native read fixtures exercise no-EOF completion, header precedence, cancellation and partial
 receipts. `MonitorMediaThumbnailEncoder` owns packed NV12 video-range conversion to the existing
 sRGB JPEG output with explicit stride and plane guards.
+
+
+### Native clip player on Apple
+
+`MonitorApplePlaybackOwner` owns the real AVPlayer item, output-before-replacement attachment,
+readiness KVO/deadline, time/end observers and native seek completion. Its Media item token and
+request identity fence every callback, suspension and multi-call native operation. Native track
+metadata probes follow readiness instead of delaying transport; retired probes cannot publish
+facts into a newer item. `MonitorPlaybackFeedSession` owns the moved
+AVPlayer video-output/display-link/pull/assist pipeline, while `MonitorPlaybackFeedHost` retains
+the actual identity player layer and processed picture siblings. Source profile, HDR display,
+journal and frame-advanced notification are required or defaulted app facts/actions.
+
+Main owns host/policy/source orchestration. The serial pull queue owns held buffers and parked
+seek work and receives immutable source/effect snapshots. A short lock admits only enqueueing
+existing assist-engine work; source or look retirement cannot wait on AVFoundation/CI work.
+Old submissions cannot follow successor reset/history, and stale native seek/present callbacks
+cannot kick, publish or hide the successor. Host ownership comes from the existing native
+picture lease, so an old feed shutdown cannot clear another feed's host or sample source.
+Native 420 video-range output, first-picture pulling, paused parking and identity/overlay/LUT
+handoff remain the exercised donor policies. Android still uses the actual shared effects and
+surface runtime through its small app Media3 adapter; shared modules add no Media3 dependency.
