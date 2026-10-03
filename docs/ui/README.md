@@ -100,6 +100,12 @@ tools are omitted and unavailable sections expose no editor or reset. Apps resol
 calibration and supply their existing saved bindings and feedback. Optional input/orientation
 controls likewise receive real supported values and actions rather than creating app preferences.
 
+`MonitorExposureMeterSettings` and `MonitorLookSettings` own the common EV Meter and LUT
+cards in both implementations. The app supplies the current operator choice, its exercised
+exposure-reading help, selected-look text and existing toggle/picker actions. Camera readings,
+catalog selection, persistence and platform feedback stay with their current owners; presenting
+either card sends no camera command.
+
 `MonitorLinkHealthScale` renders a supplied known score using the existing common link
 bands. The source still interprets delivery observations; the view never reads a transport.
 
