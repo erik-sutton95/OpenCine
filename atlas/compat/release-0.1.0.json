@@ -10,7 +10,7 @@
   "platform": {
     "repo": "opencine",
     "branch": "main",
-    "commit": "5b80bb8e4a267307d5529c1ca155c885fa311933",
+    "commit": "1afdda9c53393713c7fd87df3bac6a08c00b6df5",
     "description": "OpenCine: shared camera contracts, media runtime, UI 2.0 design system, multicam engine and the DJI, Nikon and Insta360 integrations of the OpenCapture apps (Swift and Kotlin), plus their atlas",
     "verify": [
       "swift build --build-tests",
@@ -21,8 +21,8 @@
     ],
     "evidence": {
       "status": "passed",
-      "commit": "5b80bb8e4a267307d5529c1ca155c885fa311933",
-      "where": "2026-10-03 fixed 5b80 union: full Swift1908 Testing/86 XCTest, build/strict, shared Android951 unique/2 existing skips plus lint/release/Vulkan; generic MonitorUI/Apple/DJIApple passed at a527, one Swift-only assist column followup proven native. atlas91/basic check passed. Root union2 logs and I3 reviewed-union; SHELL-03-I4. Local integration only; physical cameras untested."
+      "commit": "1afdda9c53393713c7fd87df3bac6a08c00b6df5",
+      "where": "2026-10-03 fixed local1afdda union: full Swift1934 Testing+86 XCTest/build/strict, DJIApple generic both arches; unchanged Android inputs reuse ab91 full961 unique/2 existing skips/lint/release/Vulkan and MonitorUI generic. Atlas91/check passed. Exact settings/media packet with source-attributed Android/iOS native inputs plus Pocket894 recovery packet; SHELL-03-I4. Local integration only; thin apps unfinished, physical cameras untested."
     }
   },
   "apps": [
