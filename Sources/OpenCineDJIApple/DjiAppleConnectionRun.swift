@@ -163,7 +163,18 @@ public final class DjiAppleConnectionRun {
             do {
                 try self.check(attempt)
                 attempt.path = try self.observe(attempt).path
+                switch route {
+                case .cameraAccessPoint, .infrastructureNetwork, .phoneHotspot: break
+                case .usb, .captureDevice: throw Failure.setupNotSaved
+                }
                 self.native.prepare(target, preservingSource, attempt)
+                try self.check(attempt)
+                // A new workflow cannot consume an old drain's held pairing approval.
+                // These retire only local delivery/requests/mailbox; host teardown retains
+                // native transport and motion authority. Preparation may reentrantly retire A.
+                self.exchange.stopBLEDrain()
+                try self.check(attempt)
+                self.exchange.retire(Failure.disconnected)
                 try self.check(attempt)
                 try await self.run(target, route: route, attempt: attempt)
                 try self.check(attempt)

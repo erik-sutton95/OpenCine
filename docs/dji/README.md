@@ -130,6 +130,12 @@ the initial enable, independently of fresh-picture recovery. Retirement sends no
 command and leaves explicit transport/motion teardown with the host. Borrowed or
 unknown connection authority refuses before native preparation. Manual-clock tests
 replay independent SIMULATED app-donor traces; physical qualification remains untested.
+After current owned preparation, a replacement retires the old BLE drain and local
+exchange state before GATT. Old held or late approval cannot qualify the new workflow;
+reentrant preparation cannot retire a successor's request or held reply.
+Unsupported USB/capture-device routes refuse before native preparation or Bluetooth
+writes. Unknown network credentials on a supported station route still fail at the
+original post-pairing sampling boundary.
 Pocket retains storage namespaces, permissions, native picture/watchdog, error copy,
 scan and full recovery budgets. Android keeps its existing owner and platform cadence;
 no portable or Kotlin scheduler is added. Full Pocket P2 migration is unfinished.

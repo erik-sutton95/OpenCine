@@ -370,6 +370,84 @@ struct DJIAppleConnectionRunTests {
         } else { Issue.record("SIMULATED approval timeout was accepted") }
     }
 
+    @Test func replacementCannotUseOldHeldApprovalAsItsOwnPairingEvidence() async {
+        let peer = Peer(); peer.cached = true
+        defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
+        peer.exchange.receive(.init(sender: 0, receiver: 0, seq: 41, flags: Duml.flagResponse,
+            cmdSet: 7, cmdId: 0x45, payload: [0, 1]))
+        peer.onSend = { $0.cmdSet == 7 && $0.cmdId == 0x45 }
+        peer.owner.replace(target: peer.camera, setup: .cameraWiFi)
+        await peer.until { peer.result != nil || peer.wakes.contains { $0.0 == 90 } }
+        #expect(peer.result == nil)
+        #expect(peer.owner.isRunning)
+        #expect(!peer.trace.contains("BLE AP-wake"))
+        peer.exchange.receive(.init(sender: 0, receiver: 0, seq: 42, flags: Duml.flagResponse,
+            cmdSet: 7, cmdId: 0x45, payload: [0, 1]))
+        await peer.finished()
+        #expect(peer.connected?.joinedSSID == peer.network)
+        #expect(peer.trace.filter { $0 == "enable" }.count == 1)
+    }
+
+    @Test func retiredPreparationCannotRetireSuccessorReplyRequestOrHeldApproval() async throws {
+        let peer = Peer()
+        defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
+        var successor: DjiAppleControlExchange.Request?
+        peer.onPrepare = { _ in
+            peer.owner.retire()
+            successor = peer.exchange.request(matching: [(7, 7)], timeout: .seconds(4), consumeHold: false)
+            peer.exchange.receive(.init(sender: 0, receiver: 0, seq: 52, flags: Duml.flagResponse,
+                cmdSet: 7, cmdId: 0x45, payload: [0, 1]))
+        }
+        peer.owner.replace(target: peer.camera, setup: .cameraWiFi)
+        await peer.until { successor != nil }
+        for _ in 0..<10 { await Task.yield() }
+        #expect(peer.trace == ["prepare"])
+        #expect(peer.result == nil)
+        peer.exchange.receive(.init(sender: 0, receiver: 0, seq: 53, flags: Duml.flagResponse,
+            cmdSet: 7, cmdId: 7, payload: [0] + Duml.packString(peer.network)))
+        let reply = try await successor?.value()
+        #expect(reply?.seq == 53)
+        let held = peer.exchange.request(matching: [(7, 0x45)])
+        let approval = try await held.value()
+        #expect(approval.seq == 52)
+    }
+
+    @Test func oldBLEDrainCannotReseedApprovalDuringSuccessorGattAwait() async {
+        let peer = Peer(); peer.cached = true
+        let gate = Gate()
+        let old = AsyncStream.makeStream(of: Duml.Frame.self)
+        defer { gate.resume(); old.continuation.finish()
+            peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
+        peer.exchange.startBLEDrain(old.stream)
+        peer.onConnect = { await gate.wait() }
+        peer.onSend = { $0.cmdSet == 7 && $0.cmdId == 0x45 }
+        peer.owner.replace(target: peer.camera, setup: .cameraWiFi)
+        await peer.until { gate.isWaiting }
+        old.continuation.yield(.init(sender: 0, receiver: 0, seq: 61, flags: Duml.flagResponse,
+            cmdSet: 7, cmdId: 0x45, payload: [0, 1]))
+        for _ in 0..<10 { await Task.yield() }
+        gate.resume()
+        await peer.until { peer.result != nil || peer.wakes.contains { $0.0 == 90 } }
+        #expect(peer.result == nil)
+        #expect(!peer.trace.contains("BLE AP-wake"))
+        peer.exchange.receive(.init(sender: 0, receiver: 0, seq: 62, flags: Duml.flagResponse,
+            cmdSet: 7, cmdId: 0x45, payload: [0, 1]))
+        await peer.finished()
+        #expect(peer.connected?.joinedSSID == peer.network)
+    }
+
+    @Test(arguments: [DJIConnectionRoute.usb, DJIConnectionRoute.captureDevice])
+    func unsupportedRouteNeverPreparesNativeSourceOrSendsBluetooth(route: DJIConnectionRoute) async {
+        let peer = Peer()
+        defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
+        peer.owner.replace(target: peer.camera, route: route)
+        await peer.finished()
+        #expect(peer.trace.isEmpty)
+        if case .failure(let error) = peer.result {
+            #expect(error as? DjiAppleConnectionRun.Failure == .setupNotSaved)
+        } else { Issue.record("SIMULATED unsupported route was accepted") }
+    }
+
     @MainActor private final class Gate {
         var continuation: CheckedContinuation<Void, Never>?
         var isWaiting: Bool { continuation != nil }
