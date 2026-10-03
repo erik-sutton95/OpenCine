@@ -67,7 +67,7 @@
 
         fileprivate var body: some View {
             MonitorSettingsRowCard(title: tool.displaySettingsTitle, onReset: reset) { menu }
-                .accessibilityIdentifier("settings.assist.\(tool.rawValue)")
+                // Keep each title and control's own accessibility identifier.
         }
     }
 
