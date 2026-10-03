@@ -69,6 +69,7 @@ public data class MonitorDisplayToggle(
     val title: String,
     val isOn: Boolean,
     val accessibilityLabel: String = title,
+    val help: String? = null,
     val action: () -> Unit,
 )
 
@@ -99,6 +100,9 @@ public data class MonitorDisplayOrderGroup(
     val move: (String, Int) -> Unit,
 )
 
+/** Editor-led sections offer canvas editing; control-led sections keep visibility rows available. */
+public enum class MonitorDisplaySectionStyle { EDITOR, CONTROLS }
+
 /** Only an eligible host supplies the live editor action; storage stays outside UI. */
 public data class MonitorDisplaySection(
     val id: String,
@@ -115,6 +119,7 @@ public data class MonitorDisplaySection(
     val pinsTitle: String? = null,
     val pins: List<MonitorDisplayToggle> = emptyList(),
     val tools: MonitorDisplayOrderGroup? = null,
+    val style: MonitorDisplaySectionStyle = MonitorDisplaySectionStyle.EDITOR,
 )
 
 private val DisplayShape = RoundedCornerShape(12.dp)
@@ -140,17 +145,49 @@ public fun MonitorDisplaySettings(
             testTag = "monitor.settings.display.capture",
             title = { id -> choices.first { it.id == id }.title }, onSelect = onSelect)
     }
+    MonitorDisplaySections(sections, expandedSection, onExpand, compact, onInteraction, scrollContext)
+    MonitorSettingsGroupCard(title = order.title, caption = order.caption, onReset = order.reset) {
+        MonitorDisplayOrderList(order.items, order.move, onInteraction,
+            scrollContext?.scrollState, scrollContext?.viewportBounds)
+    }
+}
+
+/** Typed sections for hosts with or without a separate capture-layout picker and ordering. */
+@Composable
+public fun MonitorDisplaySections(
+    sections: List<MonitorDisplaySection>,
+    expandedSection: String? = null,
+    onExpand: ((String?) -> Unit)? = null,
+    compact: Boolean = false,
+    onInteraction: () -> Unit = {},
+    scrollContext: MonitorSettingsScrollContext? = LocalMonitorSettingsScrollContext.current,
+) {
     sections.forEach { section ->
         key(section.id) {
             MonitorSettingsGroupCard(title = section.title, caption = section.caption, onReset = section.reset,
-                captionMaxLines = Int.MAX_VALUE, expanded = expandedSection == section.id,
-                onExpandToggle = { onExpand(if (expandedSection == section.id) null else section.id) }) {
+                captionMaxLines = Int.MAX_VALUE,
+                expanded = if (onExpand == null) null else expandedSection == section.id,
+                onExpandToggle = onExpand?.let { expand ->
+                    { expand(if (expandedSection == section.id) null else section.id) }
+                }) {
                 Column(Modifier.testTag("monitor.settings.display.section.${section.id}"),
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val edit = section.edit
-                    if (edit != null) {
+                    section.edit?.let { edit ->
                         MonitorSettingsActionPill(title = section.editTitle, onClick = edit,
                             modifier = Modifier.testTag("monitor.settings.display.edit.${section.id}"))
+                    } ?: section.unavailableEditHelp?.let { DisplayCaption(it) }
+                    if (section.style == MonitorDisplaySectionStyle.CONTROLS) {
+                        section.visibility.forEach { item ->
+                            key(item.id) {
+                                MonitorSettingsSwitchInlineRow(title = item.title, help = item.help,
+                                    isOn = item.isOn, onToggle = item.action,
+                                    testTag = "monitor.settings.display.toggle.${item.id}")
+                            }
+                        }
+                    } else if (section.edit == null) {
+                        MonitorDisplayToggleGrid(section.visibility, compact)
+                    }
+                    if (section.edit != null || section.style == MonitorDisplaySectionStyle.CONTROLS) {
                         if (section.readouts.isNotEmpty()) {
                             section.readoutsTitle?.let { DisplayCaption(it) }
                             MonitorDisplayToggleGrid(section.readouts, compact)
@@ -164,17 +201,10 @@ public fun MonitorDisplaySettings(
                             MonitorDisplayOrderList(tools.items, tools.move, onInteraction,
                                 scrollContext?.scrollState, scrollContext?.viewportBounds)
                         }
-                    } else {
-                        section.unavailableEditHelp?.let { DisplayCaption(it) }
-                        MonitorDisplayToggleGrid(section.visibility, compact)
                     }
                 }
             }
         }
-    }
-    MonitorSettingsGroupCard(title = order.title, caption = order.caption, onReset = order.reset) {
-        MonitorDisplayOrderList(order.items, order.move, onInteraction,
-            scrollContext?.scrollState, scrollContext?.viewportBounds)
     }
 }
 

@@ -88,6 +88,12 @@ bindings or current values/actions, supported ranges, optional head-tracking con
 status text and feedback policy. Storage keys, stick command cancellation and integration
 curve/size mapping remain in the app. No motion setting starts a camera command by itself.
 
+`MonitorDisplaySections` owns typed Display cards, editor admission, visibility controls and
+clean-view pins, including hosts without a separate capture-layout picker. `MonitorDisplaySettings`
+composes it with a supplied capture choice and ordering. Editor sections retain compact grids;
+control sections retain native help rows and pins while offline. Apps supply saved values,
+eligibility and reset actions. Neither component creates a capture-mode preference or a namespace.
+
 ## Import rules
 
 - Native scope plots consume portable Media values for histogram/traffic readings, transfer

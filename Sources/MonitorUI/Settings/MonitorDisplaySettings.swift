@@ -18,15 +18,17 @@
         public let title: String
         public let isOn: Bool
         public let accessibilityLabel: String
+        public let help: String?
         public let action: () -> Void
         public init(
             id: String, title: String, isOn: Bool, accessibilityLabel: String? = nil,
-            action: @escaping () -> Void
+            help: String? = nil, action: @escaping () -> Void
         ) {
             self.id = id
             self.title = title
             self.isOn = isOn
             self.accessibilityLabel = accessibilityLabel ?? title
+            self.help = help
             self.action = action
         }
     }
@@ -78,6 +80,9 @@
         }
     }
 
+    /// Editor-led sections offer canvas editing; control-led sections keep visibility rows available.
+    public enum MonitorDisplaySectionStyle: Equatable, Sendable { case editor, controls }
+
     /// Typed contents of a display mode. Only an eligible host supplies the live editor action.
     public struct MonitorDisplaySection: Identifiable {
         public let id: String
@@ -94,13 +99,14 @@
         public let pinsTitle: String?
         public let pins: [MonitorDisplayToggle]
         public let tools: MonitorDisplayOrderGroup?
+        public let style: MonitorDisplaySectionStyle
         public init(
             id: String, title: String, caption: String, reset: (() -> Void)? = nil,
             editTitle: String = "Edit view", editHint: String? = nil, edit: (() -> Void)? = nil,
             unavailableEditHelp: String? = nil, visibility: [MonitorDisplayToggle] = [],
             readoutsTitle: String? = nil, readouts: [MonitorDisplayToggle] = [],
             pinsTitle: String? = nil, pins: [MonitorDisplayToggle] = [],
-            tools: MonitorDisplayOrderGroup? = nil
+            tools: MonitorDisplayOrderGroup? = nil, style: MonitorDisplaySectionStyle = .editor
         ) {
             self.id = id
             self.title = title
@@ -116,6 +122,7 @@
             self.pinsTitle = pinsTitle
             self.pins = pins
             self.tools = tools
+            self.style = style
         }
     }
 
@@ -150,18 +157,7 @@
                     captureChoices
                 }
             }
-            MonitorSnapshotRows(sections, id: \.id) { section in
-                MonitorSettingsGroupCard(
-                    title: section.title, caption: section.caption,
-                    onReset: section.reset,
-                    expansion: Binding(
-                        get: { expandedSection == section.id },
-                        set: { expandedSection = $0 ? section.id : nil })
-                ) {
-                    sectionContents(section)
-                }
-                .accessibilityIdentifier("monitor.settings.display.section.\(section.id)")
-            }.rows
+            MonitorDisplaySections(sections: sections, expandedSection: $expandedSection)
             MonitorSettingsGroupCard(
                 title: order.title, caption: order.caption, onReset: order.reset
             ) {
@@ -175,12 +171,54 @@
             )
             .accessibilityIdentifier("monitor.settings.display.capture")
         }
+    }
+
+    /// Typed display sections also serve hosts with no separate capture-layout picker or ordering.
+    public struct MonitorDisplaySections: View {
+        private let sections: [MonitorDisplaySection]
+        private let expandedSection: Binding<String?>?
+        public init(sections: [MonitorDisplaySection], expandedSection: Binding<String?>? = nil) {
+            self.sections = sections
+            self.expandedSection = expandedSection
+        }
+        public var body: some View {
+            MonitorSnapshotRows(sections, id: \.id) { section in
+                if section.style == .controls {
+                    // A card identifier propagates over IDs assigned inside native inline rows.
+                    sectionCard(section)
+                } else {
+                    sectionCard(section)
+                        .accessibilityIdentifier("monitor.settings.display.section.\(section.id)")
+                }
+            }.rows
+        }
+        private func sectionCard(_ section: MonitorDisplaySection) -> some View {
+            MonitorSettingsGroupCard(
+                title: section.title, caption: section.caption, onReset: section.reset,
+                expansion: expandedSection.map { expanded in
+                    Binding(get: { expanded.wrappedValue == section.id },
+                        set: { expanded.wrappedValue = $0 ? section.id : nil })
+                }
+            ) { sectionContents(section) }
+        }
         @ViewBuilder private func sectionContents(_ section: MonitorDisplaySection) -> some View {
             VStack(alignment: .leading, spacing: 10) {
                 if let edit = section.edit {
                     MonitorSettingsActionPill(title: section.editTitle, action: edit)
                         .accessibilityHint(section.editHint ?? "")
                         .accessibilityIdentifier("monitor.settings.display.edit.\(section.id)")
+                } else if let help = section.unavailableEditHelp { caption(help) }
+                if section.style == .controls {
+                    MonitorSnapshotRows(section.visibility, id: \.id) { item in
+                        MonitorSettingsSwitchInlineRow(
+                            title: item.title, help: item.help, isOn: item.isOn,
+                            identifier: "monitor.settings.display.toggle.\(item.id)", action: item.action
+                        )
+                    }.rows
+                } else if section.edit == nil {
+                    MonitorDisplayToggleGrid(items: section.visibility)
+                }
+                if section.edit != nil || section.style == .controls {
                     if !section.readouts.isEmpty {
                         if let title = section.readoutsTitle { caption(title) }
                         MonitorDisplayToggleGrid(items: section.readouts)
@@ -193,17 +231,12 @@
                         caption(tools.caption)
                         MonitorDisplayOrderList(items: tools.items, move: tools.move)
                     }
-                } else {
-                    if let help = section.unavailableEditHelp { caption(help) }
-                    MonitorDisplayToggleGrid(items: section.visibility)
                 }
             }
         }
         private func caption(_ text: String) -> some View {
-            Text(text).font(MonitorTheme.font(11, weight: .semibold)).foregroundStyle(
-                MonitorTheme.muted
-            )
-            .fixedSize(horizontal: false, vertical: true)
+            Text(text).font(MonitorTheme.font(11, weight: .semibold)).foregroundStyle(MonitorTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
