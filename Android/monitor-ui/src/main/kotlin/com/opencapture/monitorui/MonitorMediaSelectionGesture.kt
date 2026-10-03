@@ -51,6 +51,8 @@ fun MonitorMediaSelectionHost(
     onSelectionChange: (Boolean, Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     sessionKey: Any = Unit,
+    configuration: MonitorMediaSelectionConfiguration = MonitorMediaSelectionConfiguration.Standard,
+    onFeedback: (MonitorMediaSelectionFeedback) -> Unit = {},
     content: @Composable (MonitorMediaHitRegistry) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -67,8 +69,13 @@ fun MonitorMediaSelectionHost(
     val latestOpen by rememberUpdatedState(onOpen)
     val latestChange by rememberUpdatedState(onSelectionChange)
     val latestScroll by rememberUpdatedState(scroll)
-    controller.slop = with(density) { MonitorMediaSelectionPolicy.HOLD_SLOP.dp.toPx() }
-    controller.bind(latestIds, latestSelecting, latestSelected)
+    val latestFeedback by rememberUpdatedState(onFeedback)
+    val latestConfiguration by rememberUpdatedState(configuration)
+    val latestSessionKey by rememberUpdatedState(sessionKey)
+    controller.configuration = configuration
+    controller.holdMs = configuration.holdMilliseconds
+    controller.slop = with(density) { configuration.movementTolerance.dp.toPx() }
+    controller.bind(latestIds, latestSelecting, latestSelected, latestSessionKey)
     fun abort() {
         controller.cancel()
         steal.value = false
@@ -91,7 +98,7 @@ fun MonitorMediaSelectionHost(
     }
 
     val orientation = LocalConfiguration.current.orientation
-    DisposableEffect(orientation, sessionKey) {
+    DisposableEffect(orientation, sessionKey, configuration) {
         onDispose { abort() }
     }
     val view = LocalView.current
@@ -121,7 +128,7 @@ fun MonitorMediaSelectionHost(
             val height = viewportH
             val width = viewportW
             val hit = registry.resolve(controller.fingerX, controller.fingerY, width, height, nearest = true)
-            dispatch(controller.afterScroll(hit), latestOpen, latestChange, steal)
+            dispatch(controller.afterScroll(hit), latestOpen, latestChange, steal, latestFeedback)
             val delta = controller.edgeScroll(dt, height, densityValue)
             if (delta != 0f) {
                 val consumed = latestScroll.scrollBy(delta)
@@ -149,7 +156,12 @@ fun MonitorMediaSelectionHost(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    controller.bind(latestIds, latestSelecting, latestSelected)
+                    // The actual browsing cell owns this complete touch. It may
+                    // enter selection during the hold, without arming us twice.
+                    if (!latestSelecting && !latestConfiguration.allowsSelectionEntry) {
+                        return@awaitEachGesture
+                    }
+                    controller.bind(latestIds, latestSelecting, latestSelected, latestSessionKey)
                     val startHit = registry.resolve(
                         down.position.x, down.position.y, viewportW, viewportH, nearest = false)
                     controller.down(startHit, down.position.x, down.position.y, down.uptimeMillis)
@@ -168,7 +180,7 @@ fun MonitorMediaSelectionHost(
                                 local.x, local.y, viewportW, viewportH, nearest = controller.consuming)
                             dispatch(
                                 controller.move(current, local.x, local.y),
-                                latestOpen, latestChange, steal,
+                                latestOpen, latestChange, steal, latestFeedback,
                             )
                             inBand = controller.inEdgeBand(viewportH, densityValue)
                             if (controller.consuming) {
@@ -196,14 +208,14 @@ fun MonitorMediaSelectionHost(
                             return@awaitEachGesture
                         }
                         "up" -> {
-                            dispatch(controller.up(childConsumed), latestOpen, latestChange, steal)
+                            dispatch(controller.up(childConsumed), latestOpen, latestChange, steal, latestFeedback)
                             steal.value = false
                             inBand = false
                             return@awaitEachGesture
                         }
                         null -> dispatch(
                             controller.holdDue(down.uptimeMillis + controller.holdMs),
-                            latestOpen, latestChange, steal,
+                            latestOpen, latestChange, steal, latestFeedback,
                         )
                     }
                     steal.value = controller.consuming
@@ -223,7 +235,7 @@ fun MonitorMediaSelectionHost(
                             local.x, local.y, viewportW, viewportH, nearest = true)
                         dispatch(
                             controller.move(current, local.x, local.y),
-                            latestOpen, latestChange, steal,
+                            latestOpen, latestChange, steal, latestFeedback,
                         )
                         inBand = controller.inEdgeBand(viewportH, densityValue)
                     }
@@ -243,9 +255,10 @@ fun MonitorMediaHitTarget(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    DisposableEffect(id, registry) { onDispose { registry.remove(id) } }
+    val owner = remember(id, registry) { Any() }
+    DisposableEffect(id, registry, owner) { onDispose { registry.remove(id, owner) } }
     Box(
-        modifier.onGloballyPositioned { coords -> registry.putFrom(id, coords) },
+        modifier.onGloballyPositioned { coords -> registry.putFrom(id, coords, owner) },
         content = content,
     )
 }
@@ -255,12 +268,14 @@ private fun dispatch(
     onOpen: (String) -> Unit,
     onSelectionChange: (Boolean, Set<String>) -> Unit,
     steal: MutableState<Boolean>,
+    onFeedback: (MonitorMediaSelectionFeedback) -> Unit,
 ) {
     when (news) {
         is MonitorMediaSelectionController.News.Open -> onOpen(news.id)
         is MonitorMediaSelectionController.News.Selection -> {
             steal.value = true
             onSelectionChange(news.selecting, news.selected)
+            news.feedback?.let(onFeedback)
         }
         null -> Unit
     }
