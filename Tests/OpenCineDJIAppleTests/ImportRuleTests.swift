@@ -20,7 +20,8 @@ import Testing
                 #expect(allowed.contains(words[index + 1]), "\(file): \(line)")
             }
             for forbidden in ["OpenPocketViewCore", "ControlLiveLog", "StartupConnectionCopy",
-                "FeedIncidentRuntime", "CameraWifiKeychain", "WatcherRelayProtocol"] {
+                "FeedIncidentRuntime", "CameraWifiKeychain", "WatcherRelayProtocol",
+                "FileManager", "FileHandle", "UserDefaults", "ble-gatt.log"] {
                 #expect(!source.contains(forbidden), "\(file) imports app policy: \(forbidden)")
             }
             if source.contains("import CoreBluetooth") || source.contains("import NetworkExtension")

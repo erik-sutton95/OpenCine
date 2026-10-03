@@ -389,22 +389,7 @@ public final class DjiAppleBluetoothLink: NSObject {
 
     private func persistGatt(_ text: String) {
         host.journal(text)
-        DispatchQueue.global(qos: .utility).async {
-            guard
-                let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-                    .first?.appendingPathComponent("ble-gatt.log")
-            else { return }
-            let row = Data("\(ISO8601DateFormatter().string(from: Date())) \(text)\n".utf8)
-            if FileManager.default.fileExists(atPath: url.path) {
-                if let handle = try? FileHandle(forWritingTo: url) {
-                    defer { try? handle.close() }
-                    _ = try? handle.seekToEnd()
-                    try? handle.write(contentsOf: row)
-                }
-            } else {
-                try? row.write(to: url)
-            }
-        }
+        host.bluetoothGattJournal(text)
     }
 
     private func requestNotify(_ c: CBCharacteristic, on peripheral: CBPeripheral) {
