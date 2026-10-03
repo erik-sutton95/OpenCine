@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
+      "commit": "ac43610b7203eb1500c3a034328ed3abb32f41df",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
-        "where": "2026-10-03 local integration8973/sourceaa845 differs only pin1afdda: Swift279/generic BFT and canonical Android506/lint/debug/release/sharedUI127/staging/JNI41 exact passed on integration. Nativefcf2b15e and APK/XML/log packet integration-1afdda-consumer-evidence. Exact recovery source894/aa845 shared native69/affected14/full647 all0fail/skips, just/handbook99 passed;337 preferences restored and original Pocket absence preserved. Real authority reds/fixes retained in picture-recovery proof. Apple-only recovery execution; ongoing full P2 and existing optical automation limitation not claimed complete. Physical cameras untested."
+        "commit": "ac43610b7203eb1500c3a034328ed3abb32f41df",
+        "where": "2026-10-03 integrationac436/source8c4c differs only pin5d7: Swift279, generic BFT both arches, canonical Android506/0fail/skips/lint/debug/release/sharedUI/staging/JNI41 exact passed. Immutable integration-5d7-consumer-evidence APK/XML/log manifest, native77237a17. Exact connection owner734/8c native659, affected97, package88 Testing+8 actualUDP and handbook99 passed; connection-run-final-proof retains194 artifact hashes/22 references. Native observable replacement reds fixed with attempt guards. Fresh339 original prefs/two IDs/Pocket absence/Documents restored. Apple-only connection execution; recovery episode and full P2 ongoing. Physical cameras untested."
       }
     },
     {
