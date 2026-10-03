@@ -1,6 +1,10 @@
 import Foundation
 import OpenCineCore
 
+/// Source name for the common route kind used by DJI connection execution. It adds no
+/// manufacturer-specific route and keeps optional network facts separate from route intent.
+public typealias DJIConnectionRoute = RouteKind
+
 /// A stage of a DJI connect, as the app's pipeline reports it: Bluetooth, then Wi-Fi, then the
 /// datalink.
 public enum DJIConnectionStage: Hashable, Sendable {

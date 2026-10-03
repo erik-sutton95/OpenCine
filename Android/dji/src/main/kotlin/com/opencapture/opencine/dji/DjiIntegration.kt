@@ -28,6 +28,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import com.opencapture.opencine.core.ConnectionPhase as CorePhase
 
+/** Common route kind, separate from optional saved network facts (Swift DJIConnectionRoute). */
+public typealias DjiConnectionRoute = RouteKind
+
 /**
  * What [DjiIntegration] needs from the DJI session (Swift `DJIConnectPort`): Bluetooth discovery,
  * the setup for the next connect, one connection, its core session. [PocketCameraSession] is the

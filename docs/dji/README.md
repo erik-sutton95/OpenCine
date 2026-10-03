@@ -89,7 +89,7 @@ explicit transport disconnect remains with its actual owner and never sends stop
 Date-based transport observations and monotonic path grace retain their original clocks.
 The real native endpoint and SIMULATED manual-clock peer use the same interface. This
 Apple-specific ownership move changes no portable/Kotlin protocol or hardware admission.
-Larger connection, foreground, negotiated picture repair and watchdog execution remain
+Larger foreground and watchdog execution remain
 separate increments; full Pocket session migration and physical qualification are unfinished.
 
 `DjiApplePictureRecovery` owns one session's serialized repair task and retirement
@@ -111,9 +111,28 @@ native negotiation's existing closed path sends nothing, and picture enable rema
 refused. Injected transport observations are rechecked before held-history mutation or
 completion effects. If an effect retires the attempt, its result is `superseded` and its
 completion cannot release the successor. Authorized held history survives local retirement.
-The app retains native watchdog actions, gimbal cleanup, connection/backoff/credential
+The app retains native watchdog actions, gimbal cleanup, full recovery backoff/credential
 policy, journal and explicit owned-versus-borrowed teardown. This Apple-only workflow adds
 no Kotlin scheduler or portable contract; physical camera qualification remains untested.
+
+`DjiAppleConnectionRun` owns the finite Bluetooth/pair/AP-or-station/registration
+workflow. It uses the existing exchange and heartbeat owners and preserves native
+retry/settle/credential/identity rules. OS services are one per-instance transport
+aggregate; saved credentials and native source preparation, endpoint attachment and
+synchronous initial-enable policy are grouped host adapters. `DJIConnectionRoute`
+(Kotlin `DjiConnectionRoute`) aliases Core's route kind; optional station credentials
+are sampled after pairing, so a missing network stays unknown until that boundary.
+
+Run identity fences awaits and synchronous effects. A retired factory attempt closes
+only its unadopted endpoint; a reentrant observation cannot authorize closing one
+handed to a successor. Registered/subscribed remains a synchronous host action before
+the initial enable, independently of fresh-picture recovery. Retirement sends no
+command and leaves explicit transport/motion teardown with the host. Borrowed or
+unknown connection authority refuses before native preparation. Manual-clock tests
+replay independent SIMULATED app-donor traces; physical qualification remains untested.
+Pocket retains storage namespaces, permissions, native picture/watchdog, error copy,
+scan and full recovery budgets. Android keeps its existing owner and platform cadence;
+no portable or Kotlin scheduler is added. Full Pocket P2 migration is unfinished.
 
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
 
