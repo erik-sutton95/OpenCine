@@ -6,6 +6,7 @@ class ScopeSourceLifetime(private val bus: ScopeSampleBus, private val role: Sco
     private var active = false
     private var retired = false
     private var owner: ScopeSampleBus.Source? = null
+    val ownedSource: ScopeSampleBus.Source? @Synchronized get() = owner
     val source: ScopeSampleBus.Source? @Synchronized get() = owner.takeIf { active }
 
     @Synchronized fun attach() {

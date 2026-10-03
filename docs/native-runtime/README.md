@@ -21,3 +21,15 @@ Verify portable changes on the mirrored Swift/Kotlin golden vectors, and runtime
 actual consuming app. Include source replacement, cancellation and picture-host lifetime when
 those paths change. Compile and simulated native checks are recorded separately from physical
 camera qualification.
+
+The GLES owner retains its EGL window, OES decoder surface, grading targets and bounded raw tap
+through assist changes. A render-generation ticket fences asynchronous surface and present
+callbacks across detach/re-attach. Each producer lease owns separate scope calibration/history;
+late work cannot update a successor source. The app supplies source dimensions, clip profile,
+transfer inference permission and display options, plus its existing graphics-helper factory.
+
+Inspector previews belong to one monitor and retain one admitted job until delivery or discard.
+Tickets also carry the current live/playback producer lease, so a retired source cannot publish
+or invalidate a successor preview. Native backdrop workers deliver bounded immutable bitmap
+publications; their private working raster is reused without changing retained UI pixels.
+Consumer close retires admission and releases native workers; rotation only detaches the window.
