@@ -118,6 +118,14 @@ pills and compact display switches use the same shared settings presentation.
   Compose groups desqueeze with framing and gives mirror its own group. Stored
   identities retain their original platform spelling, including Compose DESQ and
   Apple DE-SQ; this is a presentation catalog, not a persistence migration.
+- `MonitorScopeTraceMenu`, `MonitorVectorscopeMenu`, `MonitorHistogramMenu` and
+  `MonitorCrushClipMenu` own the actual scope tuning rows. Hosts bind typed current
+  values and provide existing selection feedback and explanatory content; the views
+  read no preference namespace, sampler or camera model. Swift retains its native
+  stepped slider, while Compose retains its 44 dp pill slider with horizontal input
+  and parent scrolling. Color cells retain 44 point/dp targets, and fraction controls
+  speak the full stop value while drawing the compact glyph. Shared settings primitives
+  also serve the full operator page; inspector tuning adds no duplicate row owner.
 - `MonitorNDFilterChip` displays a portable Media suggestion and operator notation,
   never a camera command. The actual histogram calculation lives in Media and
   returns absent for an empty/nonfinite measurement, separately from known zero.
