@@ -44,7 +44,7 @@ class LunaBackend(
     /** Drops the camera's saved Wi-Fi from the host's store (forget); the approval identity stays. */
     private val forgetWifi: (cameraId: String) -> Unit = {},
     private val mediaTransfer: LunaMediaTransferPort? = null,
-) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort {
+) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort, LunaMediaCatalogRecordSource {
     companion object {
         /** OpenInstaCine's persisted name. Changing it orphans every saved camera approval. */
         const val DEFAULT_CLIENT_IDENTITY_PREFERENCES = "openinstacine.client-identity"
@@ -129,10 +129,20 @@ class LunaBackend(
         override suspend fun prepareMediaReturn(binding: MediaBrowseBinding) {
             prepareMediaLiveReturn?.invoke(binding)
         }
+        override fun mediaBrowseChanged(active: Boolean, binding: MediaBrowseBinding, source: LunaMediaSourceState) {
+            if (mediaSourceState != source) return
+            if (active) { mediaPausedBinding = binding; livePaused = true }
+            else if (mediaPausedBinding == binding) {
+                mediaPausedBinding = null
+                // Preserve the donor's restart grace; this timer is not a new source frame report.
+                lastVideoAt.set(android.os.SystemClock.elapsedRealtime()); livePaused = false
+            }
+        }
     }
     private val lastVideoAt = java.util.concurrent.atomic.AtomicLong()
     /** Live video is stopped on purpose while the album is open; the watchdog must not fire. */
     @Volatile private var livePaused = false
+    private var mediaPausedBinding: MediaBrowseBinding? = null
     private val scanner = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val record = result.scanRecord ?: return
@@ -306,7 +316,7 @@ class LunaBackend(
         } finally {
             withContext(NonCancellable) { withTimeoutOrNull(1_500) { runCatching { channel.request(2) } } }
             poll?.cancel(); watchdog?.cancel(); heartbeat?.cancel(); cameraSocket.close(); receiver.cancel(); channel.close(); tcp = null
-            settingsRefresh?.cancel(); livePaused = false
+            settingsRefresh?.cancel(); livePaused = false; mediaPausedBinding = null
             settings = null; device = null; capture = null; mode = LunaShootingMode.VIDEO; publish()
         }
     }
@@ -445,7 +455,7 @@ class LunaBackend(
         return LunaMediaService(session, mediaPort, scope).also { connectedMedia = it }
     }
 
-    public fun mediaCatalogRecord(asset: com.opencapture.opencine.media.MediaAssetID,
+    public override fun mediaCatalogRecord(asset: com.opencapture.opencine.media.MediaAssetID,
         binding: MediaBrowseBinding): LunaMediaCatalogRecord? = connectedMedia?.catalogRecord(asset, binding)
 
     private suspend fun requestMedia(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray {

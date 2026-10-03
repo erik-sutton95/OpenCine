@@ -20,6 +20,11 @@ private class MediaPort : LunaMediaSourcePort {
     var failNext: Int? = null
     var held: CompletableDeferred<ByteArray>? = null
     val prepared = mutableListOf<MediaBrowseBinding>()
+    var activeBrowse: MediaBrowseBinding? = null
+    override fun mediaBrowseChanged(active: Boolean, binding: MediaBrowseBinding, source: LunaMediaSourceState) {
+        if (mediaSourceState != source) return
+        if (active) activeBrowse = binding else if (activeBrowse == binding) activeBrowse = null
+    }
     var paths = listOf("/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4")
     override suspend fun mediaRequest(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray {
         if (mediaSourceState != source) throw MediaServiceException(MediaServiceFailure.RETIRED)
@@ -40,6 +45,16 @@ private class MediaPort : LunaMediaSourcePort {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LunaMediaServiceTest {
+    @Test fun browsePauseIntentIsBoundToCurrentSourceAndLease() = runTest {
+        val port = MediaPort(); val service = port.service(backgroundScope)
+        val old = service.openBrowse()
+        assertEquals(old.binding, port.activeBrowse)
+        val current = service.openBrowse(); old.close()
+        assertEquals(current.binding, port.activeBrowse, "Late A.close cannot unpause B")
+        current.close(); assertNull(port.activeBrowse)
+        val replaced = service.openBrowse(); assertEquals(replaced.binding, port.activeBrowse)
+        service.retire(); assertNull(port.activeBrowse)
+    }
     @Test fun preservationRecordIsBoundToProducingBrowseAndSurvivesReplacement() = runTest {
         val port = MediaPort(); val service = port.service(backgroundScope)
         val old = service.openBrowse()
@@ -72,6 +87,25 @@ class LunaMediaServiceTest {
             assertEquals(service.sessionID, browse.binding.session)
         } finally { service.retire(); nativeOwner.cancel() }
     }
+    @Test fun catalogReplacementRetiresRemovedRepresentationTransfer() = runTest {
+        val port = MediaPort(); val release = CompletableDeferred<Unit>(); var entered = false
+        port.mediaTransfer = object : LunaMediaTransferPort {
+            override suspend fun transfer(url: String, sink: MediaByteSink): MediaTransferReceipt {
+                entered = true; release.await(); sink.write(byteArrayOf(1)); return MediaTransferReceipt(1)
+            }
+        }
+        val service = port.service(backgroundScope); val browse = service.openBrowse()
+        val representation = assertNotNull(browse.catalog().next()).upserts.first().representations.first()
+        val transfer = assertNotNull(browse.transfers); val chunks = mutableListOf<ByteArray>()
+        val sink = object : MediaByteSink { override suspend fun write(chunk: ByteArray) { chunks += chunk } }
+        val old = backgroundScope.async { runCatching { transfer.transfer(representation.id, sink) } }
+        runCurrent(); assertTrue(entered)
+        port.paths = listOf("/storage_internal/DCIM/Camera01/IMG_successor.jpg")
+        browse.catalog().next(); release.complete(Unit); runCurrent()
+        assertEquals(MediaServiceFailure.RETIRED, assertIs<MediaServiceException>(old.await().exceptionOrNull()).failure)
+        assertTrue(chunks.isEmpty()); service.retire()
+    }
+
     @Test fun retiredTransferCannotWriteThroughItsNativeSink() = runTest {
         val port = MediaPort(); val release = CompletableDeferred<Unit>(); var entered = false
         port.mediaTransfer = object : LunaMediaTransferPort {

@@ -122,6 +122,8 @@ public class MonitorMediaLibraryModel<P>(
         favorites = if (changed.favorite) favorites + changed.address.favoriteKey else favorites - changed.address.favoriteKey
         favoritesStore.saveFavorites(favorites)
         mutate { it.copy(records = it.records.map { old -> if (old.asset.id == id) changed else old }) }
+        try { cache.save(state.value.records) }
+        catch (_: Exception) { mutate { it.copy(note = "Could not save local clip favorites.") } }
     }
     public fun bind(service: CameraMediaService?) {
         val wasBrowsing = state.value.browsing
@@ -204,14 +206,19 @@ public class MonitorMediaLibraryModel<P>(
         val records = catalog.assets.mapNotNull { byID[it.id] }
         mutate { it.copy(catalog = catalog, records = records, fetchedCount = records.size,
             selectedIDs = it.selectedIDs.intersect(records.map { record -> record.asset.id }.toSet())) }
+        retireOperations(records.map { it.asset.id }.toSet())
         reloadEntries()
     }
     private fun reloadEntries() { mutate { it.copy(entries = it.records.associate { record -> record.asset.id to cache.entry(record) }, cacheRevision = it.cacheRevision + 1) } }
-    private fun retireOperations() {
-        transfers.values.forEach { it.task.cancel(); it.writer.abort() }; transfers.clear()
-        thumbnailTasks.values.forEach { it.cancel() }; thumbnailWriters.values.forEach { it.abort() }
-        thumbnails.clear(); thumbnailTasks.clear(); thumbnailWriters.clear()
-        mutate { it.copy(transferring = emptySet(), progress = emptyMap()) }
+    /** An app-owned playback/delivery adapter committed through this same root lifetime. */
+    public fun refreshLocalCache() { reloadEntries() }
+    private fun retireOperations(retained: Set<MediaAssetID> = emptySet()) {
+        val removedTransfers = transfers.keys.filterNot { it in retained }.toSet()
+        removedTransfers.forEach { id -> transfers.remove(id)?.let { it.task.cancel(); it.writer.abort() } }
+        thumbnails.keys.filterNot { it in retained }.forEach { id ->
+            thumbnailTasks.remove(id)?.cancel(); thumbnailWriters.remove(id)?.abort(); thumbnails.remove(id)
+        }
+        mutate { it.copy(transferring = it.transferring - removedTransfers, progress = it.progress - removedTransfers) }
     }
     public fun ensureThumbnail(id: MediaAssetID) {
         if (id in thumbnails) return
@@ -237,6 +244,10 @@ public class MonitorMediaLibraryModel<P>(
             }
         }
         thumbnailTasks[id] = task; task.start()
+    }
+    public suspend fun ensureThumbnailAndWait(id: MediaAssetID) {
+        ensureThumbnail(id)
+        thumbnailTasks[id]?.join()
     }
     public suspend fun cacheRepresentation(representation: MediaRepresentationID, id: MediaAssetID): File {
         val record = record(id) ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
@@ -278,6 +289,10 @@ public class MonitorMediaLibraryModel<P>(
         transfers[id] = Transfer(operation, writer, task); task.start()
         try { return task.await() }
         catch (error: CancellationException) { task.cancel(); throw error }
+        catch (error: Exception) {
+            if (current(generation) && transfers[id]?.id == operation) mutate { it.copy(note = "Could not download that clip.") }
+            throw error
+        }
         finally {
             if (transfers[id]?.id == operation) {
                 transfers.remove(id); mutate { it.copy(transferring = it.transferring - id, progress = it.progress - id) }

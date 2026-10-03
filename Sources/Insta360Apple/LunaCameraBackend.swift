@@ -886,7 +886,7 @@ public final class LunaCameraBackend: CameraBackend {
     }
 }
 
-extension LunaCameraBackend: LunaMediaSourcePort {
+extension LunaCameraBackend: LunaMediaSourcePort, LunaMediaCatalogRecordSource {
     var mediaSourceState: LunaMediaSourceState? {
         guard isControlReady, let session, session.current.connection == .ready,
             session.current.authority == .owner else { return nil }

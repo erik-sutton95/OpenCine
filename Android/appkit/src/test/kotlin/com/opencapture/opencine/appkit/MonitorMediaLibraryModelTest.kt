@@ -148,6 +148,25 @@ class MonitorMediaLibraryModelTest {
             assertEquals(listOf(MediaAssetID("new")), fixture.model.state.value.records.map { it.asset.id }); assertFalse(fixture.model.state.value.fetching)
         } finally { fixture.model.dispose(); fixture.root.deleteRecursively() }
     }
+    @Test fun removedAssetTransferCannotPopulateRecycledAddress() = runTest {
+        val source = LibraryTransfer()
+        val oldAsset = asset("old", "take.mov"); val newAsset = asset("new", "take.mov")
+        val browse = LibraryBrowse(mutableListOf(
+            LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(oldAsset), complete = true))),
+            LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(newAsset), complete = true)))))
+        browse.transfers = source
+        val fixture = fixture(LibraryService(browse), backgroundScope); val model = fixture.model
+        try {
+            model.begin(); runCurrent()
+            val old = backgroundScope.async { runCatching { model.cacheOriginal(oldAsset.id) } }
+            runCurrent(); assertEquals(1, source.pending.size)
+            model.refresh(); runCurrent(); assertEquals(listOf(newAsset.id), model.state.value.records.map { it.asset.id })
+            assertTrue(model.state.value.transferring.isEmpty() && model.state.value.progress.isEmpty())
+            source.release(0); runCurrent(); assertTrue(old.await().isFailure)
+            assertNull(model.state.value.entries[newAsset.id]?.original)
+            assertFalse(java.io.File(fixture.root, "files/take.mov").exists())
+        } finally { model.dispose(); fixture.root.deleteRecursively() }
+    }
     @Test fun clearAndLateTransferFinallyCannotEraseSuccessorProgressOrFile() = runTest {
         val source = LibraryTransfer()
         val browse = LibraryBrowse(mutableListOf(LibraryCursor(mutableListOf(MediaCatalogDelta(reset = true, upserts = listOf(asset("take")), complete = true)))))

@@ -25,6 +25,21 @@ import Testing
             facts: .init(format: "mov", dateKey: "20261003", orderKey: asset.filename))
     }
 }
+@MainActor private final class FavoriteLibraryCodec: MonitorMediaCatalogCodec {
+    typealias Payload = String
+    let asset = MediaAsset(id: .init("A"), filename: "A.mov", representations: [])
+    func decode(_ bytes: Data) throws -> [MonitorMediaRecord<String>] {
+        let favorite = try JSONDecoder().decode(Bool.self, from: bytes)
+        return [.init(asset: asset, payload: "A.mov", address: .init(thumbnail: "thumb.jpg",
+            representations: [:], favoriteKey: "A.mov"), favorite: favorite)]
+    }
+    func encode(_ records: [MonitorMediaRecord<String>]) throws -> Data {
+        try JSONEncoder().encode(records[0].favorite)
+    }
+    func capture(_ asset: MediaAsset, binding: MediaBrowseBinding) throws -> MonitorMediaRecord<String> {
+        throw MediaServiceError.unsupported
+    }
+}
 @MainActor private final class LibraryCursor: MediaCatalogCursor {
     var pages: [MediaCatalogDelta]
     var held = false
@@ -81,6 +96,21 @@ import Testing
 }
 
 @MainActor @Suite struct MonitorMediaLibraryModelTests {
+    @available(macOS 14, *)
+    @Test func unfavoriteSurvivesLegacyCatalogReload() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let codec = FavoriteLibraryCodec(), favorites = LibraryFavorites()
+        let cache = MonitorMediaCache(directory: .init(root: root), codec: codec, eligibility: .exactSize,
+            catalogAddress: "index.json", preservedMetadata: ["index.json"])
+        try cache.directory.write(Data("true".utf8), at: "index.json")
+        let original = MonitorMediaLibraryModel(cache: cache, favorites: favorites)
+        #expect(original.records[0].favorite)
+        original.toggleFavorite(.init("A")); original.close()
+        let reloaded = MonitorMediaLibraryModel(cache: cache, favorites: favorites)
+        defer { reloaded.close() }
+        #expect(!reloaded.records[0].favorite, "the legacy index cannot resurrect a removed local favorite")
+    }
     private func asset(_ id: String, name: String? = nil, volume: String? = nil) -> MediaAsset {
         .init(id: .init(id), volumeID: volume, filename: name ?? id + ".mov", kind: .video,
             representations: [.init(id: .init(id + "-original"), role: .original, byteCount: 2)], deletable: true)
@@ -152,6 +182,24 @@ import Testing
         let (root, model, _) = model(LibraryService(LibraryBrowse([LibraryCursor(pages)])))
         defer { model.close(); try? FileManager.default.removeItem(at: root) }
         model.begin(); #expect(await eventually { model.records.map(\.asset.id) == [.init("new")] && !model.fetching })
+    }
+    @available(macOS 14, *)
+    @Test func removedAssetTransferCannotPopulateRecycledAddress() async throws {
+        let source = LibraryTransfer()
+        let oldAsset = asset("old", name: "take.mov"), newAsset = asset("new", name: "take.mov")
+        let browse = LibraryBrowse([LibraryCursor([.init(reset: true, upserts: [oldAsset], complete: true)]),
+            LibraryCursor([.init(reset: true, upserts: [newAsset], complete: true)])]); browse.transfers = source
+        let (root, model, _) = model(LibraryService(browse))
+        defer { model.close(); try? FileManager.default.removeItem(at: root) }
+        model.begin(); #expect(await eventually { model.records.count == 1 && !model.fetching })
+        let old = Task { try? await model.cacheOriginal(oldAsset.id) }
+        #expect(await eventually { source.pending.count == 1 })
+        model.refresh(); #expect(await eventually { model.records.map(\.asset.id) == [newAsset.id] && !model.fetching })
+        #expect(model.transferring.isEmpty && model.progress.isEmpty)
+        source.release(0)
+        #expect(await old.value == nil)
+        #expect(model.entries[newAsset.id]?.originalURL == nil)
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("files/take.mov").path))
     }
     @available(macOS 14, *)
     @Test func clearAndLateTransferFinallyCannotEraseSuccessorProgressOrFile() async throws {

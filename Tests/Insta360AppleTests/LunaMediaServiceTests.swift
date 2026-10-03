@@ -15,6 +15,12 @@ import Testing
     var failNext: LunaCommand?
     var held: CheckedContinuation<Data, Error>?
     var prepared: [MediaBrowseBinding] = []
+    var activeBrowse: MediaBrowseBinding?
+    func mediaBrowseChanged(_ active: Bool, binding: MediaBrowseBinding, source: LunaMediaSourceState) {
+        guard mediaSourceState == source else { return }
+        if active { activeBrowse = binding }
+        else if activeBrowse == binding { activeBrowse = nil }
+    }
     var paths = ["/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4"]
 
     func mediaRequest(_ request: LunaRequest, source: LunaMediaSourceState) async throws -> Data {
@@ -54,6 +60,20 @@ private actor MediaSink: MediaByteSink {
 }
 
 @MainActor @Suite struct LunaMediaServiceTests {
+    @Test func browsePauseIntentIsBoundToCurrentSourceAndLease() async throws {
+        let port = MediaPort(); let service = port.service()
+        let old = try await service.openBrowse()
+        #expect(port.activeBrowse == old.binding)
+        let current = try await service.openBrowse()
+        await old.close()
+        #expect(port.activeBrowse == current.binding, "late A.close cannot unpause B")
+        await current.close()
+        #expect(port.activeBrowse == nil)
+        let replaced = try await service.openBrowse()
+        #expect(port.activeBrowse == replaced.binding)
+        service.retire()
+        #expect(port.activeBrowse == nil)
+    }
     @Test func preservationRecordIsBoundToProducingBrowseAndSurvivesReplacement() async throws {
         let port = MediaPort(); let service = port.service()
         let old = try await service.openBrowse()
@@ -87,6 +107,21 @@ private actor MediaSink: MediaByteSink {
         #expect(browse.binding.session == service.sessionID)
         service.retire()
     }
+    @Test func catalogReplacementRetiresRemovedRepresentationTransfer() async throws {
+        let port = MediaPort(); let io = MediaIO(); port.mediaIO = io
+        let service = port.service(); let browse = try await service.openBrowse()
+        let representation = try #require(try await (try await browse.catalog()).next()?.upserts.first?.representations.first)
+        let transfer = try #require(browse.transfers); let sink = MediaSink()
+        let old = Task { try await transfer.transfer(representation.id, into: sink) }
+        #expect(await eventually { io.held != nil })
+        port.paths = ["/storage_internal/DCIM/Camera01/IMG_successor.jpg"]
+        _ = try await (try await browse.catalog()).next()
+        io.release()
+        await #expect(throws: MediaServiceError.retired) { try await old.value }
+        #expect(await sink.chunks.isEmpty)
+        service.retire()
+    }
+
     @Test func retiredTransferCannotWriteThroughItsNativeSink() async throws {
         let port = MediaPort(); let io = MediaIO(); port.mediaIO = io
         let service = port.service(); let browse = try await service.openBrowse()

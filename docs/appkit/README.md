@@ -249,4 +249,10 @@ delivery presentation remain typed app consumers until their later adoption slic
 Mirrored tests: `MonitorMediaLibraryModelTests`/`MonitorMediaLibraryModelTest`,
 `MonitorMediaCacheTests`/`MonitorMediaCacheTest` and
 `MonitorMediaPreferencesTests`/`MonitorMediaPreferencesTest`; portable delta fixtures are
-`MediaCatalogTests`/`MediaCatalogTest`. Actual app gallery adoption is a separate consumer gate.
+`MediaCatalogTests`/`MediaCatalogTest`. Actual app gallery adoption is a separate consumer gate. The exercised Luna adopter supplies its
+legacy codec and preference namespace to this owner, then consumes its state directly on both
+platforms. Native thumbnail/transfer services are optional: absent operations stay unavailable.
+Favorites save through the exact catalog codec as well as their supplied preference overlay so
+an unfavorited stored row cannot reappear as starred after reload. Catalog removals retire only
+operations for those removed identities; late writes and receipts cannot complete a recycled
+asset or clear a successor's progress.

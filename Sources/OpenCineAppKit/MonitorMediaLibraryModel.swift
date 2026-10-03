@@ -145,6 +145,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         let record = records[position]
         if record.favorite { favorites.insert(record.address.favoriteKey) } else { favorites.remove(record.address.favoriteKey) }
         favoritesStore.saveFavorites(favorites)
+        do { try cache.save(records) }
+        catch { note = "Could not save local clip favorites." }
     }
 
     /// Replacement retires callbacks before any source cleanup suspends. Offline records remain.
@@ -222,6 +224,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             byID[capture.asset.id] = capture
         }
         records = catalog.assets.compactMap { byID[$0.id] }
+        retireOperations(except: Set(records.map(\.asset.id)))
         fetchedCount = records.count
         selectedIDs.formIntersection(Set(records.map(\.asset.id)))
         reloadEntries()
@@ -230,12 +233,19 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         entries = Dictionary(records.map { ($0.asset.id, cache.entry($0)) }, uniquingKeysWith: { _, latest in latest })
         cacheRevision &+= 1
     }
-    private func retireOperations() {
-        for transfer in transfers.values { transfer.task.cancel(); transfer.writer.abort() }
-        transfers.removeAll(); transferring.removeAll(); progress.removeAll()
-        for task in thumbnailTasks.values { task.cancel() }
-        for writer in thumbnailWriters.values { writer.abort() }
-        thumbnails.removeAll(); thumbnailTasks.removeAll(); thumbnailWriters.removeAll()
+    /// An app-owned playback/delivery adapter committed through this same cache root lifetime.
+    public func refreshLocalCache() { reloadEntries() }
+    private func retireOperations(except retained: Set<MediaAssetID> = []) {
+        for id in Array(transfers.keys) where !retained.contains(id) {
+            let transfer = transfers.removeValue(forKey: id)
+            transfer?.task.cancel(); transfer?.writer.abort()
+            transferring.remove(id); progress[id] = nil
+        }
+        for id in Array(thumbnails.keys) where !retained.contains(id) {
+            thumbnailTasks.removeValue(forKey: id)?.cancel()
+            thumbnailWriters.removeValue(forKey: id)?.abort()
+            thumbnails[id] = nil
+        }
     }
     public func ensureThumbnail(_ id: MediaAssetID) {
         guard thumbnails[id] == nil, let record = record(id), cache.entry(record).thumbnailURL == nil,
@@ -262,6 +272,10 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 self.reloadEntries()
             } catch { /* A thumbnail refusal leaves the original row and cache untouched. */ }
         }
+    }
+    public func ensureThumbnailAndWait(_ id: MediaAssetID) async {
+        ensureThumbnail(id)
+        await thumbnailTasks[id]?.value
     }
     /// Actual bounded transfer through an owned staging writer. Success never becomes a camera
     /// observation, and an old completion/finally cannot clear a successor operation's progress.
@@ -304,7 +318,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         defer {
             if transfers[id]?.id == operation { transfers[id] = nil; transferring.remove(id); progress[id] = nil }
         }
-        return try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+        do { return try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() } }
+        catch {
+            if current(generation), transfers[id]?.id == operation, !(error is CancellationError) {
+                note = "Could not download that clip."
+            }
+            throw error
+        }
     }
     public func cacheOriginal(_ id: MediaAssetID) async throws -> URL {
         guard let representation = record(id)?.asset.representations.first(where: { $0.role == .original }) else {

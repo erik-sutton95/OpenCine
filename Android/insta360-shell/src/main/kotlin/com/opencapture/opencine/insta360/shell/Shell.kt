@@ -56,6 +56,7 @@ public interface CameraMediaServiceSource {
 /** Existing app HTTP driver; the source supplies addressing, the driver streams to owned staging. */
 public interface LunaMediaTransferPort {
  public suspend fun transfer(url: String, sink: MediaByteSink): MediaTransferReceipt
+ public suspend fun transfer(url: String, expectedByteCount: Long?, sink: MediaByteSink): MediaTransferReceipt = transfer(url, sink)
 }
 
 /**

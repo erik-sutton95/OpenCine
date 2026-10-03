@@ -81,7 +81,7 @@ let package = Package(
         // Apple runtime: decoded-frame leases, VideoToolbox decoder, UVC capture source. Every
         // file sits behind `#if canImport(...)`; Core and Media never depend on it.
         .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia"]),
-        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple"]),
+        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple", "OpenCineMedia"]),
 
         // MARK: UI
         // Presentation policy and native SwiftUI monitor screens. MonitorUI is iOS-only source
