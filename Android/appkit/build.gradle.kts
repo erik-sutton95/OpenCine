@@ -27,6 +27,7 @@ android {
 
 dependencies {
     api(project(":core"))
+    api(project(":media"))
     api(project(":monitor-ui"))
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(testFixtures(project(":core")))

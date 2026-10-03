@@ -14,7 +14,7 @@ struct AppKitRules {
         #expect(!files.isEmpty)
         let allowed: Set<String> = [
             "Foundation", "Observation", "SwiftUI", "UIKit", "OpenCineCore", "OpenCineMulticam",
-            "MonitorPresentation", "MonitorUI",
+            "MonitorPresentation", "MonitorUI", "OpenCineMedia",
         ]
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)

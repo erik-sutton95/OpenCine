@@ -86,7 +86,7 @@ let package = Package(
         // MARK: UI
         // Presentation policy and native SwiftUI monitor screens. MonitorUI is iOS-only source
         // (`#if os(iOS)`); on macOS it compiles empty so `swift test` runs the presentation tests.
-        .target(name: "MonitorPresentation"),
+        .target(name: "MonitorPresentation", dependencies: ["OpenCineMedia"]),
         .target(
             name: "MonitorUI", dependencies: ["MonitorPresentation", "OpenCineMedia"],
             resources: [.process("Resources/Fonts"), .copy("Resources/Icons")]
@@ -106,7 +106,7 @@ let package = Package(
         // legacy mirrors, the connection model, the cameras and pair screens, the root and monitor
         // lifetime (ShellModel, AppShell) and the common controls (MonitorControlModel). Never
         // imports an integration or an app; apps list their integrations.
-        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "MonitorPresentation", "MonitorUI"]),
+        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "MonitorPresentation", "MonitorUI", "OpenCineMedia"]),
         .testTarget(
             name: "OpenCineAppKitTests",
             dependencies: [

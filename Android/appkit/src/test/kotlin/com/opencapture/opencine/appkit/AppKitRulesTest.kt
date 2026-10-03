@@ -18,7 +18,7 @@ class AppKitRulesTest {
         val allowed = listOf(
             "import kotlin.", "import kotlinx.", "import java.util.", "import org.json.", "import android.",
             "import androidx.", "import com.opencapture.opencine.core.", "import com.opencapture.opencine.multicam.",
-            "import com.opencapture.opencine.appkit.", "import com.opencapture.monitorui.",
+            "import com.opencapture.opencine.appkit.", "import com.opencapture.opencine.media.", "import com.opencapture.monitorui.",
         )
         for (file in files) {
             for (line in file.readLines().filter { it.startsWith("import ") }) {
@@ -26,6 +26,6 @@ class AppKitRulesTest {
             }
         }
         val projects = Regex("""project\("(:[\w-]+)"\)""").findAll(File("build.gradle.kts").readText()).map { it.groupValues[1] }.toSet()
-        assertEquals(emptySet(), projects - setOf(":core", ":multicam", ":monitor-ui"))
+        assertEquals(emptySet(), projects - setOf(":core", ":media", ":multicam", ":monitor-ui"))
     }
 }
