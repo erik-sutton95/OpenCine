@@ -56,4 +56,15 @@ struct ReconnectBackoffTests {
             backoff.delaySeconds(forAttempt: 0, jitter: 2)
                 == backoff.delaySeconds(forAttempt: 0, jitter: 1))
     }
+
+    @Test func legacyDefaultAndMutablePolicyRemainCompatible() {
+        var backoff = ReconnectBackoff()
+        #expect(backoff.maxSeconds == 30)
+        #expect(backoff.delaySeconds(forAttempt: 20, jitter: 0.5) == 30)
+        backoff.baseSeconds = 2
+        backoff.maxSeconds = 20
+        backoff.multiplier = 3
+        backoff.jitterFraction = 0
+        #expect(backoff.delaySeconds(forAttempt: 1, jitter: 1) == 6)
+    }
 }

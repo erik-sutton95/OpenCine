@@ -24,6 +24,15 @@ interface changes driven by the first real adapter slices (CORE-02).
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`). No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 | Android `com.opencapture.opencine:vulkan` | The native Vulkan live-feed renderer `libopc_vulkan.so` (moved unchanged from Pocket, MEDIA-02): imports the decoder's `AHardwareBuffer`, grades with 3D cubes, draws scopes and grab-pass glass, presents to the `SurfaceView` swapchain; upright-raster (Pocket #482) and present-batch lifetime included. Android library (NDK 28.2, CMake, shaders compiled by the NDK `glslc` and embedded), arm64-v8a only. The JNI facade keeps its original name `com.opencapture.openpocketcine.feed.OpcVulkan` because the 21 exported symbols derive from it. The session that drives it stays in the app. | Android apps |
 
+## Retry delay policy
+
+`RetryBackoff` is the pure jittered exponential calculation shared by the integrations.
+The caller supplies the initial delay, maximum, growth factor and jitter sample.
+Inputs and result use the same caller-chosen unit; it owns no clock, random source,
+sleep or retry lifecycle. Swift and Kotlin expose the same values and valid vectors.
+Legacy reconnect adapters keep their existing defaults, public names and units;
+integer millisecond conversion remains at the consuming boundary.
+
 ## OpenCineMedia rules
 
 - Pure functions and value types. No mutable global state: a test rejects `static var` and

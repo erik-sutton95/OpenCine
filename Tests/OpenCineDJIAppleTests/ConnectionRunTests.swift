@@ -456,7 +456,7 @@ struct DJIAppleConnectionRunTests {
     }
     private enum SimulatedFailure: Error { case handshake }
 
-    @MainActor private final class Peer {
+    @MainActor final class Peer {
         let network = "OsmoPocket4-SIMULATED"
         let camera = DJISighting(id: "FC064E5E-2B01-4F6B-94D2-663C03C8F001", name: "OsmoPocket4-SIMULATED",
             model: CameraModel.resolve(modelId: 0x0021, name: "OsmoPocket4-SIMULATED", brand: .dji), modelId: 0x0021)
@@ -469,6 +469,7 @@ struct DJIAppleConnectionRunTests {
         var ownsConnection: Bool? = true
         var onObserve: (() -> Void)?
         var onPrepare: ((DjiAppleConnectionRun.Attempt) -> Void)?
+        var preparedTargets: [DJISighting] = []
         var onAttach: (((any DjiAppleConnectionEndpoint)?, DjiAppleConnectionRun.Attempt) -> Void)?
         var onRegistered: ((DjiAppleConnectionRun.Attempt) -> Void)?
         var onStage: ((DJIConnectionStage) -> Void)?
@@ -480,6 +481,8 @@ struct DJIAppleConnectionRunTests {
         var onSend: ((Duml.Frame) -> Bool)?
         var onClosedRead: (() -> Void)?
         var onMake: ((Endpoint) -> Void)?
+        /// SIMULATED recovery uses one manual clock across native and episode owners.
+        var timingSleep: (@MainActor @Sendable (Duration) async throws -> Void)?
         var apReady = true
         var denied = false
         var made: [Endpoint] = []
@@ -522,7 +525,9 @@ struct DJIAppleConnectionRunTests {
                 let snapshot = DjiAppleConnectionRun.NativeContext(ownsConnection: ownsConnection,
                     endpoint: currentEndpoint, path: currentPath)
                 onObserve?(); return snapshot
-            }, prepare: { [unowned self] _, _, attempt in trace.append("prepare"); onPrepare?(attempt) },
+            }, prepare: { [unowned self] target, _, attempt in
+                preparedTargets.append(target); trace.append("prepare"); onPrepare?(attempt)
+            },
                 attach: { [unowned self] endpoint, path, attempt in
                     trace.append(endpoint == nil ? "dispose" : "attach")
                     if endpoint == nil { currentEndpoint?.close() }
@@ -532,7 +537,8 @@ struct DJIAppleConnectionRunTests {
                     trace.append("registered"); onRegistered?(attempt)
                     if attempt.isCurrent { trace.append("enable") }
                 }), timing: .init(wallNow: { [unowned self] in time }, uptime: { [unowned self] in time },
-                    sleep: { [unowned self] duration in
+                    sleep: { @MainActor [unowned self] duration in
+                        if let timingSleep { try await timingSleep(duration); return }
                         let c = duration.components
                         let seconds = Double(c.seconds) + Double(c.attoseconds) / 1e18
                         trace.append(String(format: "sleep %.1f", seconds)); time += seconds
@@ -609,7 +615,7 @@ struct DJIAppleConnectionRunTests {
         }
     }
 
-    @MainActor private final class Endpoint: DjiAppleConnectionEndpoint {
+    @MainActor final class Endpoint: DjiAppleConnectionEndpoint {
         unowned let peer: Peer
         private var closed = false
         var isClosed: Bool { let value = closed; peer.onClosedRead?(); return value }
