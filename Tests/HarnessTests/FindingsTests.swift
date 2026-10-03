@@ -28,14 +28,22 @@ import Testing
     /// clock. The DJI adapter stamps no observation time (CameraStatus carries no arrival time), so
     /// its freshness stays unknown rather than guessed.
     @Test func telemetryFreshnessUsesOneClock() async throws {
-        let rig = Rig()
+        let reportedAt = MonotonicInstant.zero + .seconds(100)
+        let rig = Rig(now: { reportedAt })
         let entries = [rig.entry("Pocket", rig.dji), rig.entry("Z", rig.nikon), rig.entry("Luna", rig.luna)]
         let g = try group(entries)
         var state = await rig.state(entries)
-        state.now = MonotonicInstant.now()
-        let summary = g.summary(at: state, telemetryMaxAge: .seconds(3))
-        #expect(summary.entries[0].telemetry == .unknown, "DJI observations carry no timestamp")
-        #expect(summary.entries[1].telemetry == .fresh)
-        #expect(summary.entries[2].telemetry == .fresh)
+        #expect(state.cameras[rig.nikon.id]?.power.battery.observedAt == reportedAt)
+        #expect(state.cameras[rig.luna.id]?.mode.observedAt == reportedAt)
+        state.now = reportedAt + .seconds(3)
+        let fresh = g.summary(at: state, telemetryMaxAge: .seconds(3))
+        #expect(fresh.entries[0].telemetry == .unknown, "DJI observations carry no timestamp")
+        #expect(fresh.entries[1].telemetry == .fresh)
+        #expect(fresh.entries[2].telemetry == .fresh)
+        state.now = reportedAt + .seconds(4)
+        let stale = g.summary(at: state, telemetryMaxAge: .seconds(3))
+        #expect(stale.entries[0].telemetry == .unknown)
+        #expect(stale.entries[1].telemetry == .stale)
+        #expect(stale.entries[2].telemetry == .stale)
     }
 }

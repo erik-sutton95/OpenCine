@@ -1,6 +1,7 @@
 import Foundation
 import Insta360Apple
 import Insta360Protocol
+import OpenCineCore
 
 /// A Luna camera behind a session's link, for tests: it applies the real SET bodies the session
 /// builds and answers readbacks in the real reply encodings.
@@ -28,7 +29,8 @@ public final class FakeLuna {
 
     /// Confirmations return as soon as a readback matches, so only failure tests pass a short
     /// settle; the long default absorbs main-thread stalls while the host app launches.
-    public func makeSession(settle: Duration = .seconds(5)) -> LunaCameraSession {
+    public func makeSession(settle: Duration = .seconds(5),
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
         let session = LunaCameraSession(
             send: { [unowned self] in try await self.receive($0) },
             functionMode: { LunaFunctionMode.normalVideo.rawValue },
@@ -39,14 +41,15 @@ public final class FakeLuna {
                     .iso: settle, .shutter: settle, .whiteBalance: settle, .recording: settle,
                     .zoom: settle, .focusMode: settle,
                 ],
-                readbackInterval: .milliseconds(40)))
+                readbackInterval: .milliseconds(40)), now: now)
         self.session = session
         return session
     }
 
     /// A live session that has heard every report once.
-    public func connectedSession(settle: Duration = .seconds(5)) -> LunaCameraSession {
-        let session = makeSession(settle: settle)
+    public func connectedSession(settle: Duration = .seconds(5),
+        now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
+        let session = makeSession(settle: settle, now: now)
         session.linkChanged(.streaming, serial: "LUNA-TEST")
         reportDevice()
         reportSettings()
