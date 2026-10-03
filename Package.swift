@@ -40,6 +40,7 @@ let package = Package(
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
+        .library(name: "OpenCineDJIApple", targets: ["OpenCineDJIApple"]),
         // The Swift side of the Android `DjiNative` JNI facade: an app links it into its Swift
         // Android library (the exports ship in that .so). Its wire helpers also build on Darwin.
         .library(name: "OpenCineDJIAndroid", targets: ["OpenCineDJIAndroid"]),
@@ -121,6 +122,9 @@ let package = Package(
         .testTarget(
             name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport"],
             exclude: ["Fixtures"]),
+        // iOS Bluetooth/network adapters over portable DJI policy; no UI or app dependency.
+        .target(name: "OpenCineDJIApple", dependencies: ["OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
+        .testTarget(name: "OpenCineDJIAppleTests", dependencies: ["OpenCineDJIApple", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
         // Header-only shim for the NDK's <jni.h>; empty on Darwin.
         .target(name: "OpenCineJNI"),
         .target(name: "OpenCineDJIAndroid", dependencies: ["OpenCineDJI", "OpenCineJNISupport"]),

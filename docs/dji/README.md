@@ -41,6 +41,26 @@ manufacture an observation; an actual matching report can confirm a sent command
 Measured iris is a read-only f-number. Auto/Starburst aperture strategy remains a typed DJI panel.
 Older ports retain their original controls until they provide this optional state and writes.
 
+## Apple transport (`OpenCineDJIApple`)
+
+The iOS-only integration target owns Bluetooth discovery and link delivery, Wi-Fi joining,
+local-network evidence, the Network.framework datalink and its receive/video assembly.
+It depends directly on `OpenCineDJI`, `OpenCineMedia` and `OpenCineMotion`. It imports no UI,
+app or neutral monitor runtime. Portable DJI gimbal move/zoom execution and Bluetooth peer
+selection remain in `OpenCineDJI`; app views and composition stay outside the integration.
+
+`DjiAppleTransportHost` supplies per-instance diagnostic delivery, permission copy and
+local-network evidence callbacks. The app owns privacy redaction, journal storage, credentials,
+Bonjour permission presentation, foreground policy and incident enrichment. Bluetooth and
+datalink owners preserve their main-actor callback ordering; background assembly protects its
+own value state. A queue with no pending item has an unknown age (`nil`), while known empty
+counts and bytes are zero. Legacy incident schemas may map that age in their app adapter.
+
+The package remains resolvable on other platforms through iOS source guards. The Pocket app
+adopts these owners with configured aliases and host callbacks; its remaining camera-session
+orchestration is a separate migration. Import-rule and callback/assembly tests live in
+`Tests/OpenCineDJIAppleTests`. This is a local candidate: camera behavior is untested on hardware.
+
 ## Android (`Android/dji`, `com.opencapture.opencine:dji`)
 
 The Kotlin DJI layer, moved from the OpenPocketCine app without behavior change (SHELL-04): BLE

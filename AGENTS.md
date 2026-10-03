@@ -65,8 +65,11 @@ package dependency.
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
   `OpenCineApple`.
-- Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app (today they
-  depend on Core and Media only).
+- Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app. Their
+  neutral dependencies are Core, Media and Motion as declared in the manifests.
+  `OpenCineDJIApple` adds iOS Bluetooth and network adapters above DJI, Media and Motion;
+  it never imports UI, an app or the neutral Apple monitor runtime. App policy and secure
+  storage arrive through explicit host values and callbacks.
 - `OpenCineMulticam` imports Foundation and `OpenCineCore` only and names no manufacturer, UI
   framework or transport.
 - UI (`MonitorPresentation`, `MonitorUI`, `monitor-ui`) never imports a camera protocol core,
