@@ -65,8 +65,6 @@ import kotlin.math.roundToInt
 import kotlin.math.cos
 import kotlin.math.sin
 
-data class MonitorScopeGuides(val clip: Boolean = true, val crush: Boolean = true, val middle: Boolean = true)
-
 private val Boundary = Color(220 / 255f, 235 / 255f, 225 / 255f, 0.8f)
 private val ClipColor = Color(255 / 255f, 150 / 255f, 142 / 255f, 0.8f)
 private val MiddleColor = Color(246 / 255f, 241 / 255f, 226 / 255f, 0.8f)

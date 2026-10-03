@@ -1,6 +1,7 @@
 #if os(iOS)
 import MetalKit
 import OpenCineMedia
+import MonitorPresentation
 import SwiftUI
 
 /// Complete trace and guide composition, independent of source lifetime and operator storage.
