@@ -1,9 +1,9 @@
 {
   "code_lines": {
-    "opencine": 173470,
-    "openinstacine": 126513,
-    "openpocketcine": 130219,
-    "openzcine": 150138
+    "opencine": 175909,
+    "openinstacine": 126226,
+    "openpocketcine": 130133,
+    "openzcine": 150518
   },
   "note": "Written by `atlas dupes --write-baseline`; see tools/dupes.py for the metric.",
   "pairs": {
@@ -32,20 +32,20 @@
       "lines": 636
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 27932,
-      "blocks": 1551,
+      "block_lines": 27802,
+      "blocks": 1546,
       "exact_files": 158,
       "file_lines": 31244,
       "files": 237,
-      "lines": 59176
+      "lines": 59046
     },
     "openinstacine|openzcine": {
-      "block_lines": 611,
-      "blocks": 58,
+      "block_lines": 590,
+      "blocks": 57,
       "exact_files": 0,
       "file_lines": 199,
       "files": 3,
-      "lines": 810
+      "lines": 789
     },
     "openpocketcine|openzcine": {
       "block_lines": 1339,
@@ -58,9 +58,9 @@
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at 614ecc84cfe40e7dfb164757f98066e6b8a6a7f2",
-    "openinstacine": "opencine/integration a37bf692aaf15f9bfe9faa470b21ff8b4efd2a67",
-    "openpocketcine": "opencine/integration 4aaf9f8ed5c4aa00552c8af434168073a588b591",
-    "openzcine": "opencine/integration ec39fb0c0c90624a3b2e5d124dfa93cae21e3c6c"
+    "opencine": "working tree at b08ac3a2a4636a66597645b82cacd5d7440d4946",
+    "openinstacine": "opencine/integration 4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
+    "openpocketcine": "opencine/integration 8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
+    "openzcine": "opencine/integration a3b11f98cc28e7014a500ae199f6199b7f3ea8ee"
   }
 }
