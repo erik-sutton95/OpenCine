@@ -29,7 +29,7 @@
     {
       "repo": "openpocketcine",
       "branch": "opencine/integration",
-      "commit": "04846b905e6fa01b835894c0f558eb6935a36605",
+      "commit": "23e817f1a06cbf0869d88199997c7f019d1833b8",
       "pr_title": "Adopt the shared OpenCine packages 0.1.0",
       "work_packages": [
         "UI-01",
@@ -68,8 +68,8 @@
       ],
       "evidence": {
         "status": "passed",
-        "commit": "04846b905e6fa01b835894c0f558eb6935a36605",
-        "where": "P1 source4f5e8a76: phone642/pad643, targeted native15, UIReview7phone/3pad, Android506/install8/JNI41; local scratchpad/pocket-p1-foundation/P1-EVIDENCE.md. Exact combined SDK0549153 root331/generic iOS build-for-testing/Android main+unit compile106tasks passed, local scratchpad/dji-common-controls/capture-union-pocket-*.log. Physical cameras untested."
+        "commit": "23e817f1a06cbf0869d88199997c7f019d1833b8",
+        "where": "Source901cc047 with pin-only successor23e817f on product400962e: root279/full just check/handbook99, generic iOS BFT, shared DJI368/Pocket506/main/native staging17 libraries/lint/debug/release and exact JNI41 both APKs pass. Earlier full P2 phone637 plus final GATT targeted16 retained. local scratchpad/pocket-p2-runtime/P2-EVIDENCE.md and combined400/SHA256SUMS.txt. Mechanical module qualifications restore exact prior files when prefixes removed. Physical cameras untested."
       }
     },
     {
