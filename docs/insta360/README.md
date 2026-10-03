@@ -8,7 +8,7 @@ OpenCineCore `CameraSession` for Luna. Extracted from OpenInstaCine (VENDOR-03).
 | Product | What it holds | Imports |
 |---|---|---|
 | `Insta360Protocol` | UCD2 framing, protobuf, Luna requests/status/schema tables, gimbal pose, screen wire. Pure Foundation, builds and tests on macOS. | Foundation |
-| `Insta360Apple` | `LunaCameraBackend` (BLE consent, encrypted Wi-Fi credential handoff, camera Wi-Fi join, TCP 6666 control and HEVC preview, media), `LunaCameraSession` (`OpenCineCore.CameraSession`: ISO, shutter, white balance, record with readback confirmation; publishes host-derived timecode (`ingest(timecode:)`, origin `.clockDerived`) and no audio levels; `LunaCameraSession.motion` is the gimbal with camera-reported pose; `layout(base:)` is what a monitor lays out, with zoom and focus still on until the session routes them), the `CameraBackend` discovery/connection/picture/media seam, `LunaIntegrationConfiguration`. | Insta360Protocol, CKcp, OpenCineCore, OpenCineMotion, Apple frameworks |
+| `Insta360Apple` | `LunaCameraBackend` (BLE consent, encrypted Wi-Fi credential handoff, camera Wi-Fi join, TCP 6666 control and HEVC preview, media), `LunaCameraSession` (`OpenCineCore.CameraSession`: ISO, shutter, white balance, record with readback confirmation; publishes host-derived timecode (`ingest(timecode:)`, origin `.clockDerived`) and no audio levels; `LunaCameraSession.motion` is the gimbal with camera-reported pose; `layout(base:)` is what a monitor lays out, with zoom and focus still on until the session routes them), the `CameraBackend` discovery/connection/picture/media seam, `LunaIntegrationConfiguration`. | Insta360Protocol, CKcp, OpenCineCore, OpenCineMotion, OpenCineMedia, Apple frameworks |
 | `Insta360AppleTestSupport` | `FakeLuna`, a scripted camera behind a session's link. Test targets only. | Insta360Apple |
 
 `CKcp` (internal C target) is KCP plus two shims (`luna_kcp_*`, `luna_add_ipv4_alias`).
@@ -64,6 +64,26 @@ join the camera Wi-Fi.
 - Tests: `LunaIntegrationTests` / `LunaIntegrationTest` against `FakeLunaPort` (Swift test support,
   Kotlin test source), same method names.
 
+## Optional connected-camera media service
+
+The successful connection registers its real media producer as `CameraMediaService` in
+`ConnectedCamera.services`. The connection port may omit it; no common shell downcast or
+manufacturer selection supplies a default. Swift app ports pass through the backend producer;
+Kotlin delegated ports implement `CameraMediaServiceSource` from `insta360-shell`.
+
+The producer owns one browse lease across nested covers and rotation. Catalog refresh replaces
+only its pull cursor. Close retires work before yielding and performs the existing stop/access/start
+return sequence only while its captured session, control epoch, connection and browse owner remain
+current. Every protocol hop checks that authority, and commands use `LunaCameraSession`'s actual
+transport/lifetime. No ACK becomes a fresh-picture or confirmed-delete observation.
+
+`OpenCineMedia` defines opaque assets/representations, bounded upsert/removal pages, native staging
+sinks and optional thumbnail/transfer/delete operations. Native IO is supplied by `LunaMediaIO`
+(Swift) or the existing thumbnail codec plus `LunaMediaTransferPort` (Android). Unimplemented IO
+is absent; source requests/addressing stay in the integration. The runtime preparation callback
+must independently validate the captured native/session owner. The source never imports the
+neutral Apple runtime, AppKit or UI. Current native camera/device behavior remains untested.
+
 ## Common lens controls
 
 `LunaCameraSession.configureLens(zoomDomain:)` (Kotlin `configureLens(range)`)
@@ -100,7 +120,8 @@ through the consuming app.
 ## Kotlin (Android/)
 
 Two modules of the platform Gradle build (`Android/` at the repository root: one wrapper and
-version catalog, AGP/Kotlin matching the apps); `:insta360-shell` depends on `project(":core")`.
+version catalog, AGP/Kotlin matching the apps); `:insta360-shell` depends on `project(":core")`
+and exposes `api(project(":media"))` for the real producer and streaming driver contracts.
 
 | Module | Coordinate | What it holds |
 |---|---|---|

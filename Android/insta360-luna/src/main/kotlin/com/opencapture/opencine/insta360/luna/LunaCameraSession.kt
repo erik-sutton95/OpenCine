@@ -18,6 +18,7 @@ import com.opencapture.opencine.core.ConnectionAttemptID
 import com.opencapture.opencine.core.ConnectionPhase
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
+import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.FocusMode
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.IntegrationID
@@ -114,6 +115,22 @@ class LunaCameraSession internal constructor(
     private var current = CameraSnapshot(id, connection = ConnectionState.Connecting(ConnectionAttemptID(), ConnectionPhase.LINK))
     private val feed = MutableStateFlow(current)
     override val snapshots: StateFlow<CameraSnapshot> = feed.asStateFlow()
+
+    /** Integration media commands use this actual session lifetime and transport path. */
+    internal suspend fun mediaRequest(request: LunaControl.Request, epoch: ControlEpoch): ByteArray {
+        fun checkOwner() {
+            synchronized(lock) {
+                check(!closed && current.connection == ConnectionState.Ready &&
+                    current.authority == ControlAuthority.Owner && current.epoch == epoch) {
+                    "The media source session retired."
+                }
+            }
+        }
+        currentCoroutineContext().ensureActive(); checkOwner()
+        val reply = send(request)
+        currentCoroutineContext().ensureActive(); checkOwner()
+        return reply
+    }
 
     /** Recording colour profile (option 35) as a namespaced id; camera-reported or unknown. */
     @Volatile var recordingProfile: ObservedValue<String> = ObservedValue.unknown

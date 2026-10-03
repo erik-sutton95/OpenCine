@@ -344,6 +344,19 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         return receipts[operation]!
     }
 
+    /// Integration-owned media commands share the actual session lifetime and transport path.
+    /// No result from a replaced epoch can authorize a subsequent browse/return command.
+    func mediaRequest(_ request: LunaRequest, epoch: ControlEpoch) async throws -> Data {
+        try Task.checkCancellation()
+        guard !closed, current.connection == .ready, current.authority == .owner,
+            current.epoch == epoch else { throw CancellationError() }
+        let reply = try await send(request)
+        try Task.checkCancellation()
+        guard !closed, current.connection == .ready, current.authority == .owner,
+            current.epoch == epoch else { throw CancellationError() }
+        return reply
+    }
+
     public func outcome(of operation: OperationID) async -> CommandReceipt? {
         guard let receipt = receipts[operation] else { return nil }
         if receipt.isFinished || Task.isCancelled { return receipt }

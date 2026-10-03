@@ -161,14 +161,14 @@ let package = Package(
         .target(name: "CKcp", exclude: ["LICENSE"]),
         .target(
             name: "Insta360Apple",
-            dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion"]
+            dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion", "OpenCineMedia"]
         ),
-        .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol", "OpenCineCore"]),
+        .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol", "OpenCineCore", "OpenCineMedia"]),
         .testTarget(
             name: "Insta360AppleTests",
             dependencies: [
                 "Insta360Apple", "Insta360AppleTestSupport", "Insta360Protocol", "OpenCineCore",
-                "OpenCineMotion",
+                "OpenCineMotion", "OpenCineMedia",
             ]
         ),
 

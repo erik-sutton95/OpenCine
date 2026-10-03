@@ -1,0 +1,251 @@
+package com.opencapture.opencine.insta360.luna
+
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.ControlEpoch
+import com.opencapture.opencine.insta360.shell.LunaMediaTransferPort
+import com.opencapture.opencine.media.*
+import kotlinx.coroutines.*
+import java.text.SimpleDateFormat
+import java.util.Base64
+import java.util.Locale
+import java.util.UUID
+
+internal data class LunaMediaSourceState(val session: CameraSessionID, val epoch: ControlEpoch, val connection: Long)
+internal interface LunaMediaSourcePort {
+    val mediaSourceState: LunaMediaSourceState?
+    val mediaTransfer: LunaMediaTransferPort?
+    val mediaThumbnailsAvailable: Boolean
+    suspend fun mediaRequest(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray
+    suspend fun encodeMediaThumbnail(response: ByteArray): ByteArray
+    suspend fun prepareMediaReturn(binding: MediaBrowseBinding)
+}
+
+/** Real producer: one media owner and source-fenced ordering across each suspended protocol step. */
+internal class LunaMediaService(
+    override val sessionID: CameraSessionID,
+    private val port: LunaMediaSourcePort,
+    private val scope: CoroutineScope,
+) : CameraMediaService {
+    private var current: LunaMediaBrowse? = null
+    private var returnJob: Job? = null
+
+    override suspend fun openBrowse(): CameraMediaBrowse {
+        val source = port.mediaSourceState?.takeIf { it.session == sessionID }
+            ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        returnJob?.cancel(); returnJob = null
+        current?.retire()
+        val browse = LunaMediaBrowse(this, source, port, scope)
+        current = browse
+        try {
+            request(LunaControl.stopLive, browse, optional = true)
+            return browse
+        } catch (error: Exception) {
+            browse.retire()
+            throw error
+        }
+    }
+
+    fun retire() {
+        current?.retire(); current = null
+        returnJob?.cancel(); returnJob = null
+    }
+
+    suspend fun check(browse: LunaMediaBrowse, returning: Boolean = false) {
+        currentCoroutineContext().ensureActive()
+        if (current !== browse || port.mediaSourceState != browse.source || (!returning && browse.closed)) {
+            throw MediaServiceException(MediaServiceFailure.RETIRED)
+        }
+    }
+
+    suspend fun request(
+        request: LunaControl.Request, browse: LunaMediaBrowse,
+        optional: Boolean = false, returning: Boolean = false,
+    ): ByteArray? {
+        check(browse, returning)
+        val reply = try { port.mediaRequest(request, browse.source) }
+        catch (error: Exception) {
+            check(browse, returning)
+            if (error is CancellationException || !optional) throw error
+            null
+        }
+        check(browse, returning)
+        return reply
+    }
+
+    suspend fun returnToLive(browse: LunaMediaBrowse) {
+        if (current !== browse) return
+        val job = scope.launch {
+            try {
+                check(browse, returning = true)
+                port.prepareMediaReturn(browse.binding)
+                check(browse, returning = true)
+                request(LunaControl.stopLive, browse, optional = true, returning = true)
+                request(LunaControl.accessCameraFileState(LunaControl.SHOOTING_VIEW_ACCESS_STATE),
+                    browse, optional = true, returning = true)
+                request(LunaControl.startLive, browse, returning = true)
+            } catch (_: Exception) { /* Retirement/failure cannot authorize another live enable. */ }
+        }
+        returnJob = job
+        job.join()
+        if (current === browse) returnJob = null
+    }
+}
+
+internal class LunaMediaBrowse(
+    private val owner: LunaMediaService,
+    val source: LunaMediaSourceState,
+    private val port: LunaMediaSourcePort,
+    private val scope: CoroutineScope,
+) : CameraMediaBrowse, CameraMediaThumbnailService, CameraMediaTransferService, CameraMediaDeleteService {
+    override val binding = MediaBrowseBinding(source.session, source.epoch)
+    var closed = false
+        private set
+    private var cursor: LunaMediaCursor? = null
+    private var files = emptyMap<MediaAssetID, LunaMediaFile>()
+    private var representations = emptyMap<MediaRepresentationID, String>()
+    private val jobs = mutableMapOf<UUID, Deferred<*>>()
+    override val thumbnails: CameraMediaThumbnailService? get() = if (port.mediaThumbnailsAvailable) this else null
+    override val transfers: CameraMediaTransferService? get() = if (port.mediaTransfer != null) this else null
+    override val deletion: CameraMediaDeleteService get() = this
+
+    fun retire() {
+        closed = true; cursor?.close()
+        val cancelling = jobs.values.toList(); jobs.clear()
+        cancelling.forEach { it.cancel() }
+    }
+
+    override suspend fun close() {
+        if (closed) return
+        retire()
+        owner.returnToLive(this)
+    }
+
+    suspend fun check() = owner.check(this)
+    override suspend fun catalog(): MediaCatalogCursor {
+        check(); cursor?.close()
+        return LunaMediaCursor(this, scope).also { cursor = it }
+    }
+
+    suspend fun <T> perform(operation: suspend () -> T): T {
+        check()
+        val id = UUID.randomUUID()
+        // An operation failure belongs to its caller, never the supplied native/session scope.
+        val task = scope.async(start = CoroutineStart.UNDISPATCHED) { runCatching { check(); operation() } }
+        jobs[id] = task
+        try { return task.await().getOrThrow().also { check() } }
+        finally { jobs.remove(id); if (!task.isCompleted) task.cancel() }
+    }
+
+    suspend fun list(): List<MediaAsset> {
+        owner.request(LunaControl.accessCameraFileState(LunaControl.ALBUM_ACCESS_STATE), this, optional = true)
+        val response = owner.request(LunaControl.fileList(), this)
+            ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val listing = LunaMediaFile.list(response).first
+        val metadata = owner.request(LunaControl.fileInfoList(), this, optional = true)
+            ?.let { runCatching { LunaMediaFile.infoList(it) }.getOrNull() }.orEmpty().associateBy { it.uri }
+        check()
+        val listed = listing.map { metadata[it] ?: LunaMediaFile(it) }.filterNot { it.isProxy }
+        val nextFiles = mutableMapOf<MediaAssetID, LunaMediaFile>()
+        val nextRepresentations = mutableMapOf<MediaRepresentationID, String>()
+        val assets = listed.map { file ->
+            val asset = asset(file)
+            nextFiles[asset.id] = file
+            nextRepresentations[asset.representations.first().id] = "http://192.168.42.1${file.uri}"
+            file.proxyUri?.let { uri ->
+                nextRepresentations[asset.representations.first { it.role == MediaRepresentationRole.PROXY }.id] = "http://192.168.42.1$uri"
+            }
+            asset
+        }
+        files = nextFiles; representations = nextRepresentations
+        return assets
+    }
+
+    override suspend fun thumbnail(asset: MediaAssetID): ByteArray = perform {
+        if (!port.mediaThumbnailsAvailable) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
+        val file = files[asset] ?: throw MediaServiceException(MediaServiceFailure.UNKNOWN_ASSET)
+        val response = owner.request(LunaControl.fileExtra(file.uri, extraType = 2), this)
+            ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        port.encodeMediaThumbnail(response).also { check() }
+    }
+
+    override suspend fun transfer(representation: MediaRepresentationID, sink: MediaByteSink): MediaTransferReceipt = perform {
+        val transfer = port.mediaTransfer ?: throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
+        val url = representations[representation] ?: throw MediaServiceException(MediaServiceFailure.UNKNOWN_ASSET)
+        val ownedSink = object : MediaByteSink {
+            override suspend fun write(chunk: ByteArray) {
+                withContext(scope.coroutineContext.minusKey(Job)) { check() }
+                sink.write(chunk)
+                withContext(scope.coroutineContext.minusKey(Job)) { check() }
+            }
+        }
+        transfer.transfer(url, ownedSink)
+    }
+
+    override suspend fun delete(assets: List<MediaAssetID>): List<MediaDeleteResult> = perform {
+        assets.map { asset ->
+            check()
+            val file = files[asset]
+            val outcome = if (file == null) MediaDeleteOutcome.UNSUPPORTED else try {
+                owner.request(LunaControl.deleteFiles(file.uri), this)
+                MediaDeleteOutcome.ACCEPTED
+            } catch (_: LunaRefused) { MediaDeleteOutcome.REFUSED }
+            catch (error: Exception) {
+                check()
+                if (error is CancellationException) throw error
+                MediaDeleteOutcome.UNKNOWN
+            }
+            MediaDeleteResult(asset, outcome)
+        }
+    }
+
+    companion object {
+        fun asset(file: LunaMediaFile): MediaAsset {
+            val metadata = file.metadata
+            val identity = "${file.uri}|${metadata?.creationStamp ?: ""}|${metadata?.fileSize ?: ""}"
+            val id = MediaAssetID(Base64.getEncoder().encodeToString(identity.toByteArray(Charsets.UTF_8)))
+            val original = MediaRepresentation(MediaRepresentationID(id.rawValue + ":original"),
+                MediaRepresentationRole.ORIGINAL, metadata?.fileSize?.takeIf { it > 0 })
+            val representations = mutableListOf(original)
+            if (file.proxyUri != null) representations += MediaRepresentation(
+                MediaRepresentationID(id.rawValue + ":proxy"), MediaRepresentationRole.PROXY)
+            val pixels = metadata?.let { data ->
+                val width = data.width; val height = data.height
+                if (width != null && height != null && width > 0 && height > 0) MediaPixelSize(width, height) else null
+            }
+            val duration = metadata?.durationMilliseconds?.let { it.toDouble() / 1000 }
+                ?: metadata?.durationSeconds?.toDouble()
+            val kind = if (file.isVideo) MediaAssetKind.VIDEO
+                else if (metadata?.subMediaType == 3L || file.uri.substringAfterLast('.').lowercase() in setOf("jpg", "jpeg", "dng")) MediaAssetKind.PHOTO else null
+            val date = metadata?.creationStamp?.takeIf { it >= 1_000_000_000_000 }?.let {
+                runCatching { SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT).apply { isLenient = false }.parse(it.toString())?.time }.getOrNull()
+            }
+            return MediaAsset(id, filename = file.uri.substringAfterLast('/'), kind = kind,
+                capturedAt = date, durationSeconds = duration, pixelSize = pixels,
+                frameRate = metadata?.frameRate?.takeIf { it > 0 }?.toDouble(),
+                colorLabel = metadata?.gammaMode, representations = representations, deletable = true)
+        }
+    }
+}
+
+internal class LunaMediaCursor(private val browse: LunaMediaBrowse, private val scope: CoroutineScope) : MediaCatalogCursor {
+    private var pending: Deferred<Result<MediaCatalogDelta>>? = null
+    private var closed = false
+    private var finished = false
+    override suspend fun next(): MediaCatalogDelta? {
+        if (closed) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        browse.check()
+        if (finished) return null
+        if (pending != null) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val task = scope.async { runCatching {
+            browse.perform { MediaCatalogDelta(reset = true, upserts = browse.list(), complete = true) }
+        } }
+        pending = task
+        try {
+            val value = task.await().getOrThrow()
+            if (closed) throw MediaServiceException(MediaServiceFailure.RETIRED)
+            browse.check(); finished = true
+            return value
+        } finally { pending = null; if (!task.isCompleted) task.cancel() }
+    }
+    override fun close() { closed = true; pending?.cancel(); pending = null }
+}

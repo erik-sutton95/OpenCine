@@ -23,4 +23,6 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     // CoreSessionSource hands out an OpenCineCore CameraSession.
     api(project(":core"))
+    // The real connected-camera media producer exposes portable Media services.
+    api(project(":media"))
 }

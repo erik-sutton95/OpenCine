@@ -1,0 +1,206 @@
+import Foundation
+@testable import Insta360Apple
+import Insta360AppleTestSupport
+import Insta360Protocol
+import OpenCineCore
+import OpenCineMedia
+import Testing
+
+/// Controlled transport behind the actual production producer. No socket, camera or sleeps.
+@MainActor private final class MediaPort: LunaMediaSourcePort {
+    var mediaSourceState: LunaMediaSourceState? = .init(session: .init(), epoch: .init(1), connection: 1)
+    var mediaIO: (any LunaMediaIO)?
+    var requests: [LunaRequest] = []
+    var holdNext: LunaCommand?
+    var failNext: LunaCommand?
+    var held: CheckedContinuation<Data, Error>?
+    var prepared: [MediaBrowseBinding] = []
+    var paths = ["/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4"]
+
+    func mediaRequest(_ request: LunaRequest, source: LunaMediaSourceState) async throws -> Data {
+        guard mediaSourceState == source else { throw MediaServiceError.retired }
+        requests.append(request)
+        if request.command == failNext {
+            failNext = nil; throw URLError(.badServerResponse)
+        }
+        if request.command == holdNext {
+            holdNext = nil
+            return try await withCheckedThrowingContinuation { held = $0 }
+        }
+        if request.command == .getFileList {
+            return try paths.reduce(Data()) { try $0 + ProtoMessage.blob(field: 1, value: Data($1.utf8)) }
+        }
+        return Data()
+    }
+    func release(_ response: Data = Data()) { let waiter = held; held = nil; waiter?.resume(returning: response) }
+    func prepareMediaReturn(_ binding: MediaBrowseBinding) async { prepared.append(binding) }
+    func service() -> LunaMediaService { LunaMediaService(session: mediaSourceState!.session, port: self) }
+}
+
+@MainActor private final class MediaIO: LunaMediaIO {
+    var held: CheckedContinuation<Void, Never>?
+    func jpeg(_ thumbnail: LunaThumbnail) async throws -> Data { Data([1]) }
+    func transfer(from url: URL, into sink: any MediaByteSink) async throws -> MediaTransferReceipt {
+        await withCheckedContinuation { held = $0 }
+        try await sink.write(Data([1]))
+        return .init(byteCount: 1)
+    }
+    func release() { let waiter = held; held = nil; waiter?.resume() }
+}
+
+private actor MediaSink: MediaByteSink {
+    var chunks: [Data] = []
+    func write(_ chunk: Data) { chunks.append(chunk) }
+}
+
+@MainActor @Suite struct LunaMediaServiceTests {
+    @Test func failedCatalogDoesNotCloseMediaOwner() async throws {
+        let port = MediaPort(); let service = port.service()
+        let browse = try await service.openBrowse()
+        let first = try await browse.catalog(); port.failNext = .getFileList
+        await #expect(throws: URLError.self) { try await first.next() }
+        let next = try await browse.catalog()
+        #expect(try await next.next()?.upserts.count == 1)
+        #expect(browse.binding.session == service.sessionID)
+        service.retire()
+    }
+    @Test func retiredTransferCannotWriteThroughItsNativeSink() async throws {
+        let port = MediaPort(); let io = MediaIO(); port.mediaIO = io
+        let service = port.service(); let browse = try await service.openBrowse()
+        let page = try #require(try await (try await browse.catalog()).next())
+        let representation = try #require(page.upserts.first?.representations.first)
+        let transfer = try #require(browse.transfers)
+        let sink = MediaSink()
+        let download = Task { try await transfer.transfer(representation.id, into: sink) }
+        #expect(await eventually { io.held != nil })
+        port.mediaSourceState = nil
+        io.release()
+        await #expect(throws: MediaServiceError.retired) { try await download.value }
+        #expect(await sink.chunks.isEmpty)
+        service.retire()
+    }
+    @Test func closingOldBrowseAfterReplacementCannotSendAccessOrStart() async throws {
+        let port = MediaPort(); let service = port.service()
+        let old = try await service.openBrowse()
+        port.requests.removeAll(); port.holdNext = .stopLive
+        let close = Task { await old.close() }
+        #expect(await eventually { port.held != nil })
+        let current = try await service.openBrowse()
+        port.release()
+        await close.value
+        #expect(port.requests.map(\.command) == [.stopLive, .stopLive])
+        #expect(current.binding != old.binding)
+        service.retire()
+    }
+
+    @Test func connectionChangeAfterAccessCannotStartNewLive() async throws {
+        let port = MediaPort(); let service = port.service()
+        let browse = try await service.openBrowse()
+        port.requests.removeAll(); port.holdNext = .setAccessCameraFileState
+        let close = Task { await browse.close() }
+        #expect(await eventually { port.held != nil })
+        port.mediaSourceState = .init(session: browse.binding.session, epoch: browse.binding.epoch, connection: 2)
+        port.release(); await close.value
+        #expect(port.requests.map(\.command) == [.stopLive, .setAccessCameraFileState])
+        #expect(port.prepared == [browse.binding])
+        await browse.close()
+        #expect(port.requests.count == 2, "duplicate close cannot retry return")
+        service.retire()
+    }
+
+    @Test func epochChangeAfterAlbumAccessCannotListNewSource() async throws {
+        let port = MediaPort(); let service = port.service()
+        let browse = try await service.openBrowse()
+        let cursor = try await browse.catalog()
+        port.requests.removeAll(); port.holdNext = .setAccessCameraFileState
+        let page = Task { try await cursor.next() }
+        #expect(await eventually { port.held != nil })
+        port.mediaSourceState = .init(session: browse.binding.session, epoch: browse.binding.epoch.next(), connection: 1)
+        port.release()
+        await #expect(throws: MediaServiceError.retired) { try await page.value }
+        #expect(port.requests.map(\.command) == [.setAccessCameraFileState])
+        service.retire()
+    }
+
+    @Test func replacedCursorRejectsLatePageAndKeepsCurrentListing() async throws {
+        let port = MediaPort(); let service = port.service()
+        let browse = try await service.openBrowse()
+        let previous = try await browse.catalog()
+        port.holdNext = .getFileList
+        let old = Task { try await previous.next() }
+        #expect(await eventually { port.held != nil })
+        let current = try await browse.catalog()
+        port.paths = ["/storage_internal/DCIM/Camera01/IMG_current.jpg"]
+        let page = try #require(try await current.next())
+        port.release()
+        await #expect(throws: (any Error).self) { try await old.value }
+        #expect(page.reset && page.complete && page.upserts.map(\.filename) == ["IMG_current.jpg"])
+        #expect(try await current.next() == nil)
+        #expect(page.volumes == nil, "the album does not report a storage topology")
+        service.retire()
+    }
+
+    @Test func actualDeleteAcknowledgesOnlyListedAssetsAndNoSyntheticReadService() async throws {
+        let port = MediaPort(); let service = port.service()
+        let browse = try await service.openBrowse()
+        let page = try #require(try await (try await browse.catalog()).next())
+        let asset = try #require(page.upserts.first)
+        #expect(browse.thumbnails == nil && browse.transfers == nil)
+        #expect(asset.volumeID == nil && asset.capturedAt == nil && asset.pixelSize == nil)
+        #expect(asset.representations[0].byteCount == nil && asset.deletable == true)
+        let deletion = try #require(browse.deletion)
+        port.requests.removeAll()
+        let result = try await deletion.delete([asset.id, .init("not-listed")])
+        #expect(result.map(\.outcome) == [.accepted, .unsupported])
+        #expect(port.requests.map(\.command) == [.deleteFiles])
+        #expect(page.removed.isEmpty, "an ACK is not a reported removal")
+        await browse.close()
+        await #expect(throws: MediaServiceError.retired) { try await deletion.delete([asset.id]) }
+        service.retire()
+    }
+
+    @Test func actualSessionRejectsMediaReplyFromRetiredEpoch() async throws {
+        var sent = 0
+        var waiter: CheckedContinuation<Data, Error>?
+        let session = LunaCameraSession(send: { _ in
+            sent += 1
+            return try await withCheckedThrowingContinuation { waiter = $0 }
+        }, functionMode: { 7 }, readSettings: {}, readCapture: {})
+        session.linkChanged(.streaming, serial: nil)
+        let epoch = session.current.epoch
+        let reply = Task { try await session.mediaRequest(LunaProtocol.stopLiveRequest, epoch: epoch) }
+        #expect(await eventually { waiter != nil })
+        session.linkChanged(.streaming, serial: nil)
+        waiter?.resume(returning: Data())
+        await #expect(throws: CancellationError.self) { try await reply.value }
+        await #expect(throws: CancellationError.self) {
+            try await session.mediaRequest(LunaProtocol.startLiveRequest, epoch: epoch)
+        }
+        #expect(sent == 1)
+        session.close(.requested)
+    }
+
+    @Test func actualConnectionRegistersMediaByProtocolTypeAndRejectsWrongSession() async throws {
+        for matching in [true, false] {
+            let port = FakeLunaPort()
+            let source = MediaPort()
+            var made: LunaMediaService?
+            port.makeMediaService = { id in
+                source.mediaSourceState = .init(session: matching ? id : .init(), epoch: .init(1), connection: 1)
+                let service = source.service(); made = service; return service
+            }
+            let integration = LunaIntegration(port: port)
+            let events = integration.connect(.nearby(.init(id: UUID().uuidString, name: "SIMULATED", model: "",
+                routes: [.cameraAccessPoint])))
+            #expect(await eventually { port.connects.count == 1 })
+            port.finishConnect()
+            var camera: ConnectedCamera?
+            for await case .connected(let connected) in events { camera = connected }
+            let connected = try #require(camera)
+            let registered = connected.services[(any CameraMediaService).self]
+            #expect((registered != nil) == matching)
+            #expect(connected.services[LunaMediaService.self] == nil, "lookup is the protocol contract")
+            made?.retire(); await connected.session.close(.requested)
+        }
+    }
+}

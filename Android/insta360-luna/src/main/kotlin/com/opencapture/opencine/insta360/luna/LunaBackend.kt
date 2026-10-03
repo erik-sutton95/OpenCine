@@ -14,6 +14,13 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.ParcelUuid
 import com.opencapture.opencine.core.ConnectionFailure
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.ConnectionState
+import com.opencapture.opencine.core.ControlAuthority
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.MediaBrowseBinding
+import com.opencapture.opencine.media.MediaServiceException
+import com.opencapture.opencine.media.MediaServiceFailure
 import com.opencapture.opencine.insta360.shell.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -36,6 +43,7 @@ class LunaBackend(
     clientIdentityPreferences: String = DEFAULT_CLIENT_IDENTITY_PREFERENCES,
     /** Drops the camera's saved Wi-Fi from the host's store (forget); the approval identity stays. */
     private val forgetWifi: (cameraId: String) -> Unit = {},
+    private val mediaTransfer: LunaMediaTransferPort? = null,
 ) : CameraBackend, CameraControls, CameraMediaStore, CoreSessionSource, LunaConnectPort {
     companion object {
         /** OpenInstaCine's persisted name. Changing it orphans every saved camera approval. */
@@ -98,6 +106,30 @@ class LunaBackend(
     override val readout = _readout.asStateFlow()
     /** OpenCineCore session for the current camera: recording, ISO, shutter and WB go through it. */
     private var session: LunaCameraSession? = null
+    private var mediaConnectionGeneration = 0L
+    private var connectedMedia: LunaMediaService? = null
+    /** Native host preparation must validate this captured session/epoch before acting. */
+    var prepareMediaLiveReturn: (suspend (MediaBrowseBinding) -> Unit)? = null
+    private val mediaSourceState: LunaMediaSourceState?
+        get() {
+            val currentSession = session ?: return null
+            val snapshot = currentSession.snapshots.value
+            if (tcp == null || _phase.value != ConnectionPhase.LIVE ||
+                snapshot.connection != ConnectionState.Ready || snapshot.authority != ControlAuthority.Owner) return null
+            return LunaMediaSourceState(currentSession.id, snapshot.epoch, mediaConnectionGeneration)
+        }
+    private val mediaPort = object : LunaMediaSourcePort {
+        override val mediaSourceState: LunaMediaSourceState? get() = this@LunaBackend.mediaSourceState
+        override val mediaTransfer: LunaMediaTransferPort? get() = this@LunaBackend.mediaTransfer
+        override val mediaThumbnailsAvailable: Boolean get() = true
+        override suspend fun mediaRequest(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray =
+            requestMedia(request, source)
+        override suspend fun encodeMediaThumbnail(response: ByteArray): ByteArray =
+            this@LunaBackend.encodeMediaThumbnail(response)
+        override suspend fun prepareMediaReturn(binding: MediaBrowseBinding) {
+            prepareMediaLiveReturn?.invoke(binding)
+        }
+    }
     private val lastVideoAt = java.util.concurrent.atomic.AtomicLong()
     /** Live video is stopped on purpose while the album is open; the watchdog must not fire. */
     @Volatile private var livePaused = false
@@ -128,6 +160,8 @@ class LunaBackend(
     private fun fail(failure: ConnectionFailure) { _failure.value = failure.message; _failureDetail.value = failure }
     override fun stopScan() { if (scanActive) runCatching { bluetooth?.adapter?.bluetoothLeScanner?.stopScan(scanner) }; scanActive = false }
     override fun connect(id: String) {
+        connectedMedia?.retire()
+        mediaConnectionGeneration += 1
         val previous = connectJob
         previous?.cancel()
         socket?.close()
@@ -334,7 +368,11 @@ class LunaBackend(
         releaseNetworkRequest()
         _joinedSSID.value = null
     }
-    override fun disconnect() { stopScan(); connectJob?.cancel(); runCatching { socket?.close() }; setPhase(ConnectionPhase.IDLE); _failure.value = null; _failureDetail.value = null }
+    override fun disconnect() {
+        connectedMedia?.retire(); mediaConnectionGeneration += 1
+        stopScan(); connectJob?.cancel(); runCatching { socket?.close() }
+        setPhase(ConnectionPhase.IDLE); _failure.value = null; _failureDetail.value = null
+    }
     override fun forget(id: String) = forgetWifi(id)
     override fun close() { disconnect(); cleanup(); scope.cancel() }
     override fun sceneActive(active: Boolean) {
@@ -385,6 +423,7 @@ class LunaBackend(
     }
 
     override fun openSession(): LunaCameraSession {
+        connectedMedia?.retire(); connectedMedia = null
         val previous = session
         val next = LunaCameraSession(
             send = { request -> (tcp ?: throw IllegalStateException("The camera connection is not open.")).request(request.code, request.body) },
@@ -399,6 +438,21 @@ class LunaBackend(
         if (_phase.value == ConnectionPhase.LIVE) next.linkChanged(ConnectionPhase.LIVE)
         return next
     }
+
+    override fun mediaService(session: CameraSessionID): CameraMediaService? {
+        if (this.session?.id != session) return null
+        connectedMedia?.takeIf { it.sessionID == session }?.let { return it }
+        return LunaMediaService(session, mediaPort, scope).also { connectedMedia = it }
+    }
+
+    private suspend fun requestMedia(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray {
+        if (mediaSourceState != source) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        val currentSession = session ?: throw MediaServiceException(MediaServiceFailure.RETIRED)
+        val reply = currentSession.mediaRequest(request, source.epoch)
+        if (mediaSourceState != source) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        return reply
+    }
+
     private suspend fun refreshDevice(request: LunaControl.Request) {
         call(request)?.let { runCatching { LunaDeviceStatus.parse(it) }.getOrNull() }?.let(::applyDevice)
     }
@@ -529,7 +583,10 @@ class LunaBackend(
         return uris.map { infos[it] ?: LunaMediaFile(it) }.filterNot { it.isProxy }.map(LunaReadout::mediaItem)
     }
     override suspend fun thumbnailJpeg(path: String): ByteArray {
-        val thumbnail = LunaThumbnail.parse(media(LunaControl.fileExtra(path, extraType = 2)))
+        return encodeMediaThumbnail(media(LunaControl.fileExtra(path, extraType = 2)))
+    }
+    private suspend fun encodeMediaThumbnail(response: ByteArray): ByteArray {
+        val thumbnail = LunaThumbnail.parse(response)
         return withContext(Dispatchers.Default) {
             val bitmap = android.graphics.Bitmap.createBitmap(thumbnail.argb(), thumbnail.width, thumbnail.height, android.graphics.Bitmap.Config.ARGB_8888)
             java.io.ByteArrayOutputStream().also { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, it); bitmap.recycle() }.toByteArray()
