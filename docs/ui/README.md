@@ -260,3 +260,13 @@ CoreGraphics import or retroactive conformances. Kotlin separates the same actua
 from native view files in its existing package; native APIs and persisted identifiers are unchanged.
 The existing Swift Codable versus Android caller-owned codec and native absent-audio label/rounding
 differences remain explicit in the mirrored value-contract scenarios.
+
+Delivery composition lives in `MonitorMediaDeliveryPanel` on SwiftUI and Compose. Its mirrored
+immutable value supplies destination eligibility, optional export controls, project or internet
+service facts, and the footer action. Typed actions return to the host; the only view slot is
+destination artwork. Missing controls stay absent. Hosts keep credentials, project requests,
+network handoffs, file ownership, native sharing and export tasks. SwiftUI keeps the header and
+footer visible while the content scrolls at constrained card heights. Compact progress receives
+busy and known-progress visibility independently, so network switching can retain a reported
+progress bar. Actual Insta popup renders exercise both overflow heights and busy progress;
+physical delivery and Android input remain untested.
