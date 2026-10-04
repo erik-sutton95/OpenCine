@@ -47,6 +47,8 @@ public class MonitorAssistState(
     private val onPersistPins: ((Set<String>) -> Unit)? = null,
     playbackNames: Set<String> = emptySet(),
     private val onPersistPlayback: ((Set<String>) -> Unit)? = null,
+    // Explicit toggle only: live before persistence; playback after persistence.
+    private val onToggle: ((MonitorAssistTool, Boolean) -> Unit)? = null,
 ) {
     public var lutOn: Boolean by mutableStateOf(true)
         private set
@@ -337,6 +339,7 @@ public class MonitorAssistState(
             MonitorAssistTool.MIRROR -> mirror = !mirror
             MonitorAssistTool.DESQ -> desqueeze = !desqueeze
         }
+        onToggle?.invoke(tool, isOn(tool))
         if (tool in stackableScopeTools && isOn(tool)) bringToFront(tool)
         persist()
     }
@@ -355,6 +358,7 @@ public class MonitorAssistState(
         playbackVisibleTools =
             if (tool in playbackVisibleTools) playbackVisibleTools - tool else playbackVisibleTools + tool
         onPersistPlayback?.invoke(playbackVisibleTools.map { it.name }.toSet())
+        onToggle?.invoke(tool, isPlaybackVisible(tool))
     }
 
     public fun togglePin(tool: MonitorAssistTool): Unit {

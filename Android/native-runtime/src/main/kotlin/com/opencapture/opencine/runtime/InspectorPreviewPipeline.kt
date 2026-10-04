@@ -89,16 +89,20 @@ class InspectorPreviewPipeline(private val scopeBus: ScopeSampleBus,
 
     fun cancel(ticket: InspectorPreviewAdmission.Ticket?) { if (ticket != null) gate.complete(ticket) }
 
-    fun submit(ticket: InspectorPreviewAdmission.Ticket, frame: InspectorPreviewFrame) {
+    fun submit(ticket: InspectorPreviewAdmission.Ticket, frame: InspectorPreviewFrame) =
+        submit(ticket, frame, admission = { true })
+
+    fun submit(ticket: InspectorPreviewAdmission.Ticket, frame: InspectorPreviewFrame,
+        admission: () -> Boolean) {
         executor.execute {
             var deliveryPosted = false
             try {
-                val active = synchronized(lock) { subscription?.takeIf { gate.isCurrent(ticket) } } ?: return@execute
+                val active = synchronized(lock) { subscription?.takeIf { gate.isCurrent(ticket) && admission() } } ?: return@execute
                 val gl = renderer ?: InspectorPreviewRenderer(glFactory).also { renderer = it }
                 val image = gl.render(active.context, active.plan, frame)
                 deliveryPosted = main.post {
                     try {
-                        val receiver = synchronized(lock) { subscription?.takeIf { gate.isCurrent(ticket) }?.receive }
+                        val receiver = synchronized(lock) { subscription?.takeIf { gate.isCurrent(ticket) && admission() }?.receive }
                         receiver?.invoke(image)
                     } finally {
                         // Retain admission until delivery/discard: a blocked

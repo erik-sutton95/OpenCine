@@ -102,6 +102,11 @@ class NativeGlesFeedSession(
         }
     private val sampleBusy = AtomicBoolean(false)
     private val previewSource = InspectorPreviewSource()
+    private val sourceAdmission = java.util.concurrent.atomic.AtomicReference<((Any) -> Boolean)?>(null)
+    /** Optional per-source publication policy. Existing callers retain their exact default path. */
+    fun setSourceAdmission(admission: ((Any) -> Boolean)?) { sourceAdmission.set(admission) }
+    private fun sourceCurrent(epoch: Long?): Boolean = previewSource.isCurrent(epoch, sourceAdmission.get())
+
     private val scopeLifetime = ScopeSourceLifetime(scopeBus,
         if (playback) ScopeSampleBus.Role.PLAYBACK
         else ScopeSampleBus.Role.LIVE)
@@ -223,12 +228,13 @@ class NativeGlesFeedSession(
         val now = System.nanoTime()
         if (now < nextScopeAtNs) return
         val sourceEpoch = previewSource.captureEpoch() ?: return
+        if (!sourceCurrent(sourceEpoch)) return
         val currentSamples = samples
         val scopeOwner = currentSamples.source
         if (!scopeBus.isCurrent(scopeOwner)) return
         if (!sampleBusy.compareAndSet(false, true)) return
         val previewTicket = preview.acquire(policy.previewOwner, playback, now, scopeOwner)?.takeIf {
-            if (previewSource.isCurrent(sourceEpoch)) true
+            if (sourceCurrent(sourceEpoch)) true
             else { preview.cancel(it); false }
         }
         val thermal =
@@ -236,7 +242,7 @@ class NativeGlesFeedSession(
                 val pm = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
                 ScopeSampler.thermalMultiplier(pm.currentThermalStatus)
             }.getOrDefault(1.0)
-        val backdropTicket = if (previewSource.isCurrent(sourceEpoch)) {
+        val backdropTicket = if (sourceCurrent(sourceEpoch)) {
             backdrop?.acquire(this, now)
         } else null
         val scopeDue = policy.scopeWorkDue(now, lastScopeWorkNs, thermal)
@@ -274,17 +280,19 @@ class NativeGlesFeedSession(
                 var previewSubmitted = false
                 var backdropSubmitted = false
                 try {
-                    if (backdropTicket != null && previewSource.isCurrent(sourceEpoch)) {
+                    if (backdropTicket != null && sourceCurrent(sourceEpoch)) {
                         backdrop?.submit(backdropTicket,
-                            InspectorPreviewFrame.fromTap(packed, width, height, bottomUp = true), currentPlan)
+                            InspectorPreviewFrame.fromTap(packed, width, height, bottomUp = true), currentPlan,
+                            admission = { lifecycle.isCurrent(generation) && sourceCurrent(sourceEpoch) })
                         backdropSubmitted = true
                     }
-                    if (previewTicket != null) {
+                    if (previewTicket != null && sourceCurrent(sourceEpoch)) {
                         preview.submit(previewTicket,
-                            InspectorPreviewFrame.fromTap(packed, width, height, bottomUp = true))
+                            InspectorPreviewFrame.fromTap(packed, width, height, bottomUp = true),
+                            admission = { lifecycle.isCurrent(generation) && sourceCurrent(sourceEpoch) })
                         previewSubmitted = true
                     }
-                    if (!scopeDue || !previewSource.isCurrent(sourceEpoch) ||
+                    if (!scopeDue || !sourceCurrent(sourceEpoch) ||
                         !scopeBus.isCurrent(scopeOwner)) return@execute
                     var transfer = policy.transfer
                     policy.iso?.let(currentSamples.ceiling::syncISO)
@@ -308,7 +316,7 @@ class NativeGlesFeedSession(
                             ceiling = currentSamples.ceiling,
                         )
                     mainHandler.post {
-                        if (previewSource.isCurrent(sourceEpoch) && scopeBus.publish(scopeOwner, sampled)) {
+                        if (sourceCurrent(sourceEpoch) && scopeBus.publish(scopeOwner, sampled)) {
                             currentSamples.previous = sampled
                         }
                     }
@@ -321,6 +329,7 @@ class NativeGlesFeedSession(
                     if (!previewSubmitted) preview.cancel(previewTicket)
                     Log.w(logTag, "scope tap failed", error)
                 } finally {
+                    if (!previewSubmitted) preview.cancel(previewTicket)
                     if (!backdropSubmitted) backdrop?.cancel(backdropTicket)
                     sampleBusy.set(false)
                 }
@@ -554,14 +563,24 @@ class NativeGlesFeedSession(
                             look = false,
                         )
                     }
-                    check(EGL14.eglSwapBuffers(eglDisplay, eglSurface)) { "live present failed" }
-                    if (lifecycle.isCurrent(generation)) onFramePresented(lastOesTimestampNs.takeIf { it > 0 })
+                    if (!previewSource.present(sourceAdmission.get()) {
+                            if (lifecycle.isCurrent(generation)) {
+                                check(EGL14.eglSwapBuffers(eglDisplay, eglSurface)) { "live present failed" }
+                            }
+                        }) continue
+                    if (lifecycle.isCurrent(generation) && previewSource.admits(sourceAdmission.get())) {
+                        onFramePresented(lastOesTimestampNs.takeIf { it > 0 })
+                    }
+                    val presentedSourceEpoch = previewSource.captureEpoch()
                     presentedUpscaler = presentationOptions.upscaler
                     // The first present is the look-free blit; the graded one follows.
                     needsPresent = !signaledFirstFrame
                     if (!signaledFirstFrame) {
                         signaledFirstFrame = true
-                        mainHandler.post { if (lifecycle.isCurrent(generation)) onFirstFrame() }
+                        mainHandler.post {
+                            if (lifecycle.isCurrent(generation) &&
+                                (sourceAdmission.get() == null || sourceCurrent(presentedSourceEpoch))) onFirstFrame()
+                        }
                     }
                 }
                 maybeTapScopes(

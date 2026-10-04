@@ -50,6 +50,7 @@ import Testing
     var completions: [DjiAppleMediaLiveReturn.Result] = []
     var inject = true
     var manifest = true
+    var transformManifest: ((Data) throws -> Data)?
     var wireHeld: [Bool] = []
     var ticket: DjiAppleMediaIngress?
     var retiredTicket: DjiAppleMediaIngress?
@@ -96,7 +97,8 @@ import Testing
             let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .deletingLastPathComponent().appendingPathComponent(
                     "OpenCineDJITests/Fixtures/nano-manifest.bin")
-            let data = try Data(contentsOf: fixture)
+            let original = try Data(contentsOf: fixture)
+            let data = try transformManifest?(original) ?? original
             #expect(
                 service?.ingest(
                     self.frame([0x4a, 1, 0, 0, counter, 0, 0, 0, 0, 0] + [UInt8](data)),
@@ -350,4 +352,42 @@ import Testing
         await browse.close()
         #expect(peer.returns == 0 && peer.exits == 0 && peer.enables == 0 && peer.writes.isEmpty)
     }
+    @Test func legacyAssetFactoryUsesExactlyTheProducedContentIdentity() async throws {
+        let peer = MediaPeer(), clock = MediaClock(), service = owner(peer, clock)
+        let browse = try await service.openBrowse(), cursor = try await browse.catalog()
+        let page = try #require(try await cursor.next()), asset = try #require(page.upserts.first)
+        let captured = try #require(service.mediaCatalogRecord(asset.id, binding: browse.binding))
+        #expect(DjiAppleMediaAssets.asset(for: captured.file) == asset)
+        var recycled = captured.file; recycled.sizeBytes += 1
+        #expect(MediaListCommand.pageKey(recycled) == MediaListCommand.pageKey(captured.file))
+        #expect(DjiAppleMediaAssets.asset(for: recycled).id != asset.id)
+        service.retire()
+    }
+    @Test func newestPageRemovesOnlyOldContentProvenAtTheSamePageKey() async throws {
+        let peer = MediaPeer(), clock = MediaClock(), service = owner(peer, clock)
+        let browse = try await service.openBrowse(), cursor = try await browse.catalog()
+        let first = try #require(try await cursor.next()), old = try #require(first.upserts.first)
+        let captured = try #require(service.mediaCatalogRecord(old.id, binding: browse.binding))
+        let before = captured.file.sizeBytes, after = before + 1024
+        #expect(before > 0 && after <= UInt32.max)
+        peer.transformManifest = { data in
+            var oldBytes = UInt32(before).littleEndian, newBytes = UInt32(after).littleEndian
+            let oldSize = withUnsafeBytes(of: &oldBytes) { Data($0) }
+            let newSize = withUnsafeBytes(of: &newBytes) { Data($0) }
+            let range = try #require(data.range(of: oldSize))
+            var replaced = data; replaced.replaceSubrange(range, with: newSize)
+            #expect(MediaManifest.decode(replaced).first?.sizeBytes == after)
+            return replaced
+        }
+        let newest = try service.newestCatalog(binding: browse.binding)
+        let delta = try #require(try await newest.next()), replacement = try #require(delta.upserts.first)
+        #expect(!delta.reset && delta.removed == [old.id] && replacement.id != old.id)
+        let fresh = try #require(service.mediaCatalogRecord(replacement.id, binding: browse.binding))
+        #expect(fresh.file.sizeBytes == after && fresh.file.id == captured.file.id)
+        #expect(service.mediaCatalogRecord(old.id, binding: browse.binding) == nil)
+        #expect(first.upserts.dropFirst().allSatisfy { service.mediaCatalogRecord($0.id, binding: browse.binding) != nil })
+        #expect(try await newest.next() == nil)
+        service.retire()
+    }
+
 }

@@ -38,6 +38,14 @@ public enum MonitorGuideAspect: String, CaseIterable, Identifiable, Codable, Sen
     }
 }
 
+/// Which selected frame area stays clear when the optional guide mask is enabled.
+public enum MonitorGuideMaskPolicy: Equatable, Sendable {
+    /// Keep the union of the actual selected frame rectangles clear.
+    case union
+    /// Keep their bounding rectangle clear, including space between crossing frames.
+    case envelope
+}
+
 public enum MonitorGridOption: String, CaseIterable, Identifiable, Sendable {
     case thirds = "Thirds"
     case phi = "Phi Grid"

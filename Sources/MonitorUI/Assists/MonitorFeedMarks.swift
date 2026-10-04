@@ -4,6 +4,7 @@ import SwiftUI
 
 public typealias MonitorGuideFamily = MonitorPresentation.MonitorGuideFamily
 public typealias MonitorGuideAspect = MonitorPresentation.MonitorGuideAspect
+public typealias MonitorGuideMaskPolicy = MonitorPresentation.MonitorGuideMaskPolicy
 public typealias MonitorGridOption = MonitorPresentation.MonitorGridOption
 
 extension MonitorGuideAspect {
@@ -166,9 +167,14 @@ public struct MonitorAspectGuideFrames: View {
     let selectedRatios: Set<MonitorGuideAspect>
     var maskEnabled = false
     let feed: CGRect
+    let maskPolicy: MonitorGuideMaskPolicy
 
-    public init(selectedRatios: Set<MonitorGuideAspect>, maskEnabled: Bool = false, feed: CGRect) {
+    public init(
+        selectedRatios: Set<MonitorGuideAspect>, maskEnabled: Bool = false, feed: CGRect,
+        maskPolicy: MonitorGuideMaskPolicy = .union
+    ) {
         self.selectedRatios = selectedRatios; self.maskEnabled = maskEnabled; self.feed = feed
+        self.maskPolicy = maskPolicy
     }
     public var body: some View {
         let frames =
@@ -180,8 +186,14 @@ public struct MonitorAspectGuideFrames: View {
                 Canvas { context, _ in
                     context.fill(Path(feed), with: .color(.black.opacity(0.6)))
                     context.blendMode = .destinationOut
-                    for frame in frames {
-                        context.fill(Path(frame.rect), with: .color(.black))
+                    switch maskPolicy {
+                    case .union:
+                        for frame in frames {
+                            context.fill(Path(frame.rect), with: .color(.black))
+                        }
+                    case .envelope:
+                        let envelope = frames.reduce(CGRect.null) { $0.union($1.rect) }
+                        context.fill(Path(envelope), with: .color(.black))
                     }
                 }
             }

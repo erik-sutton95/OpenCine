@@ -117,6 +117,10 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     @ObservationIgnored private var lastSaved: Data?
     @ObservationIgnored private var inspectorLUTCache: InspectorLUTCache?
 
+    /// Cached preparation fact, independent of clean pins and live/playback visibility.
+    /// Querying this property never resolves or prepares a cube.
+    public var hasPreparedLUT: Bool { lutDimension >= 2 }
+
     public var lutArmed: Bool { lutEnabled }
 
     /// Flags are what the monitor *shows*; DISP 2 applies the pin filter here.
@@ -222,10 +226,16 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     public let looks: Looks
     @ObservationIgnored private let storage: UserDefaults
     @ObservationIgnored private let keys: MonitorAssistPreferenceKeys
+    @ObservationIgnored private let onToggle: (@MainActor (MonitorAssistSelection, Bool) -> Void)?
     @ObservationIgnored private let cleanPinCases: [MonitorAssistSelection]
 
+    /// Explicit toggle side effect after mutation: live before persistence, playback after.
+    /// Direct assignments and visibility changes do not invoke this callback.
     public init(looks: Looks, storage: UserDefaults, keys: MonitorAssistPreferenceKeys,
-        cleanPinCases: [MonitorAssistSelection]) {
+        cleanPinCases: [MonitorAssistSelection],
+        onToggle: (@MainActor (MonitorAssistSelection, Bool) -> Void)? = nil
+    ) {
+        self.onToggle = onToggle
         self.looks = looks; self.storage = storage; self.keys = keys; self.cleanPinCases = cleanPinCases
         if let data = storage.data(forKey: keys.assist),
             let snapshot = try? JSONDecoder().decode(MonitorAssistSnapshot.self, from: data) {
@@ -304,6 +314,7 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
             playbackVisibleTools.insert(tool)
         }
         storage.set(playbackVisibleTools.map(\.rawValue).sorted(), forKey: keys.playback)
+        onToggle?(tool, isPlaybackVisible(tool))
 
     }
 
@@ -341,6 +352,7 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
         case .magnification: break
         default: break
         }
+        onToggle?(tool, isOn(tool))
         persist()
     }
 

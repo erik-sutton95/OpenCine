@@ -314,6 +314,7 @@ class DatalinkDriver(
     private val lastGimbalStickElapsed = AtomicLong(0)
 
     var onStatusFrame: ((DumlFrame) -> Unit)? = null
+    val mediaIngress = DjiAndroidMediaIngressSlot()
     var onAccessUnit: ((ByteArray, Long) -> Unit)? = null
     var onReferenceDiscontinuity: ((Long) -> Unit)? = null
     var onVideoEpochChanged: ((Long) -> Unit)? = null
@@ -741,6 +742,7 @@ class DatalinkDriver(
             onReferenceDiscontinuity = null
             onVideoEpochChanged = null
             onStatusFrame = null
+            mediaIngress.capture()?.let(mediaIngress::retire)
         },
         // This is the sole send admitted after closed=true. The executor is shut
         // down only by this queued task, after its best-effort STOP has run.
@@ -1260,10 +1262,10 @@ class DatalinkDriver(
                 )
             }
         }
+        // Capture on the raw receive thread; never admit an old packet into a successor query.
+        val mediaBatch = DjiAndroidMediaReceiveBatch.capture(frames, mediaIngress, receiveEpoch)
         main.post {
-            if (!closed.get() && receiveEpoch == nativeFeedbackEpoch.get()) {
-                frames.forEach { onStatusFrame?.invoke(it) }
-            }
+            mediaBatch.deliver(nativeFeedbackEpoch::get, closed::get) { frame -> onStatusFrame?.invoke(frame) }
         }
     }
 

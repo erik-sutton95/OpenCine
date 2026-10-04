@@ -108,6 +108,143 @@ import Testing
         let expected = try #require(looks.cube).preparedForExport(bakeExposure: true, stops: -1, transfer: .dlog)
         #expect(state.exportCube(bakeExposure: true) == expected)
     }
+
+    @Test func explicitToggleSideEffectObservesDonorLiveAndPlaybackPersistenceOrder() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        var events: [String] = []
+        weak var observed: MonitorAssistState<StateTestLooks>?
+        let state = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults,
+            keys: keys, cleanPinCases: allowed,
+            onToggle: { tool, enabled in
+                guard let current = observed else { Issue.record("Missing current state"); return }
+                if events.count < 2 {
+                    #expect(current.isOn(tool) == enabled)
+                    let data = defaults.data(forKey: self.keys.assist)
+                    let persisted = data.flatMap {
+                        try? JSONDecoder().decode(MonitorAssistSnapshot.self, from: $0)
+                    }
+                    #expect((persisted?.tools.contains(tool.rawValue) ?? false) == !enabled)
+                } else {
+                    #expect(current.isPlaybackVisible(tool) == enabled)
+                    #expect(
+                        (defaults.array(forKey: self.keys.playback) as? [String] ?? []).contains(
+                            tool.rawValue) == enabled)
+                }
+                events.append("\(tool.rawValue):\(enabled)")
+            })
+        observed = state
+        state.toggle(.falseColor)
+        state.toggle(.falseColor)
+        state.togglePlayback(.falseColor)
+        state.togglePlayback(.falseColor)
+        #expect(events == ["FALSE:true", "FALSE:false", "FALSE:true", "FALSE:false"])
+        state.falseColor = true
+        state.clean = true
+        state.toggleCleanViewPin(.falseColor)
+        state.persist()
+        state.togglePlayback(.evMeter)
+        #expect(events.count == 4)
+    }
+
+    @Test func nilToggleSideEffectRetainsStoredSchemasAndNamespaceIsolation() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let originalKeys = keys
+        let observerKeys = MonitorAssistPreferenceKeys(
+            assist: "observed", cleanPins: "observedPins", playback: "observedPlayback")
+        var count = 0
+        let plain = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults,
+            keys: originalKeys, cleanPinCases: allowed)
+        let observed = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults,
+            keys: observerKeys, cleanPinCases: allowed, onToggle: { _, _ in count += 1 })
+        for state in [plain, observed] {
+            state.toggle(.falseColor)
+            state.toggle(.peaking)
+            state.togglePlayback(.zebra)
+            state.togglePlayback(.zebra)
+        }
+        let plainJSON =
+            try JSONSerialization.jsonObject(
+                with: #require(defaults.data(forKey: originalKeys.assist))) as? NSDictionary
+        let observedJSON =
+            try JSONSerialization.jsonObject(
+                with: #require(defaults.data(forKey: observerKeys.assist))) as? NSDictionary
+        #expect(plainJSON == observedJSON && count == 4)
+        #expect(defaults.array(forKey: originalKeys.playback) as? [String] == [])
+        #expect(defaults.array(forKey: observerKeys.playback) as? [String] == [])
+        #expect(plainJSON?["onToggle"] == nil)
+        plain.toggle(.falseColor)
+        #expect(count == 4 && observed.falseColor)
+    }
+
+    @Test func preparedLookAvailabilityUsesTheCachedOwnerAndSurvivesCleanUnpinning() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let looks = CountingPreparedLooks()
+        weak var observed: MonitorAssistState<CountingPreparedLooks>?
+        var warmHasLUT: Bool?
+        let state = MonitorAssistState(
+            looks: looks, storage: defaults,
+            keys: keys, cleanPinCases: allowed,
+            onToggle: { tool, enabled in
+                guard tool == .falseColor, enabled, let current = observed else { return }
+                warmHasLUT = current.lutEnabled && current.hasPreparedLUT
+            })
+        observed = state
+        let preparedReads = looks.resolverCalls
+        #expect(preparedReads > 0)
+        state.clean = true
+        state.cleanViewPinnedTools.remove(.lut)
+        #expect(state.lutEnabled && state.effects.lutDimension == 0)
+        looks.available = false
+        #expect(state.hasPreparedLUT && state.hasPreparedLUT)
+        state.toggle(.falseColor)
+        #expect(warmHasLUT == true && looks.resolverCalls == preparedReads)
+        state.refreshLUTCube()
+        #expect(!state.hasPreparedLUT && looks.resolverCalls == preparedReads + 1)
+        looks.available = true
+        state.refreshLUTCube()
+        #expect(state.hasPreparedLUT && state.effects.lutDimension == 0)
+        let refreshedReads = looks.resolverCalls
+        state.lutEnabled = false
+        state.refreshLUTCube()
+        #expect(!state.hasPreparedLUT && looks.resolverCalls == refreshedReads)
+        state.lutEnabled = true
+        state.refreshLUTCube()
+        #expect(state.hasPreparedLUT && looks.resolverCalls == refreshedReads + 1)
+    }
+
+    @Test func hostLookReadinessDefersNativeResolutionUntilMigratedPreferencesAreRestored() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let looks = ReadinessPreparedLooks()
+        let state = MonitorAssistState(
+            looks: looks, storage: defaults,
+            keys: keys, cleanPinCases: allowed)
+        #expect(looks.nativeRequests.isEmpty && !state.hasPreparedLUT)
+        // The host restores its saved look/migration and source interpretation before readiness.
+        looks.selection = 7
+        looks.transfer = .dlogm
+        looks.ready = true
+        state.refreshLUTCube()
+        #expect(
+            looks.nativeRequests == [ReadinessPreparedLooks.Request(selection: 7, transfer: .dlogm)]
+        )
+        #expect(state.hasPreparedLUT && state.effects.transfer == .dlogm)
+        _ = state.hasPreparedLUT
+        state.clean = true
+        state.cleanViewPinnedTools.remove(.lut)
+        _ = state.effects
+        #expect(looks.nativeRequests.count == 1 && state.hasPreparedLUT)
+    }
 }
 
 @MainActor private final class StateTestLooks: MonitorLookProvider {
@@ -121,5 +258,45 @@ import Testing
             let r = Float(index & 1), g = Float((index >> 1) & 1), b = Float((index >> 2) & 1)
             return selection == 0 ? [r, g, b] : [b, r, g]
         })
+    }
+}
+
+@MainActor private final class CountingPreparedLooks: MonitorLookProvider {
+    var selection = 0
+    var transfer = MonitorTransfer.rec709
+    var referenceClipByte = 255
+    var available = true
+    private(set) var resolverCalls = 0
+    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
+    var cube: CubeLUT? {
+        resolverCalls += 1
+        guard available else { return nil }
+        return CubeLUT(
+            size: 2,
+            rgb: (0..<8).flatMap { index -> [Float] in
+                [Float(index & 1), Float((index >> 1) & 1), Float((index >> 2) & 1)]
+            })
+    }
+}
+
+@MainActor private final class ReadinessPreparedLooks: MonitorLookProvider {
+    struct Request: Equatable {
+        let selection: Int
+        let transfer: MonitorTransfer
+    }
+    var selection = 0
+    var transfer = MonitorTransfer.rec709
+    var referenceClipByte = 255
+    var ready = false
+    private(set) var nativeRequests: [Request] = []
+    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
+    var cube: CubeLUT? {
+        guard ready else { return nil }
+        nativeRequests.append(Request(selection: selection, transfer: transfer))
+        return CubeLUT(
+            size: 2,
+            rgb: (0..<8).flatMap { index -> [Float] in
+                [Float(index & 1), Float((index >> 1) & 1), Float((index >> 2) & 1)]
+            })
     }
 }

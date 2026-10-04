@@ -440,12 +440,26 @@ private struct DjiAppleMediaPage {
             self.sd = step.sdCursor
             self.internalStore = step.internalCursor
             self.finished = self.newestOnly || !browse.playbackHeld || !step.moreAvailable
-            let assets = step.fresh.map(Self.asset)
+            let assets = step.fresh.map { DjiAppleMediaAssets.asset(for: $0) }
             if reset && !self.newestOnly { browse.records.removeAll() }
+            // Newest-page reconciliation preserves old locations unless this actual source page
+            // proves new content at the same store/path. Only its exact old asset ID is removed.
+            var removed = Set<MediaAssetID>()
+            if self.newestOnly {
+                let incoming = Dictionary(zip(assets, step.fresh).map {
+                    (MediaListCommand.pageKey($0.1), $0.0.id)
+                }, uniquingKeysWith: { _, newer in newer })
+                for (oldID, file) in browse.records {
+                    if let newID = incoming[MediaListCommand.pageKey(file)], oldID != newID {
+                        removed.insert(oldID)
+                    }
+                }
+                for id in removed { browse.records[id] = nil }
+            }
             for (asset, file) in zip(assets, step.fresh) { browse.records[asset.id] = file }
             return MediaCatalogDelta(
                 reset: reset && !self.newestOnly, upserts: assets,
-                complete: self.finished)
+                removed: removed.sorted { $0.rawValue < $1.rawValue }, complete: self.finished)
         }
         pending = task
         pendingID = id
@@ -475,7 +489,14 @@ private struct DjiAppleMediaPage {
         pendingID = nil
     }
 
-    private static func asset(_ file: MediaFile) -> MediaAsset {
+
+}
+
+
+/// One integration-owned identity/representation factory shared by the producer and legacy codec.
+/// Callers pass actual immutable MediaFile facts; no app parses or constructs opaque asset IDs.
+public enum DjiAppleMediaAssets {
+    public static func asset(for file: MediaFile) -> MediaAsset {
         // Store/path are source routing; content evidence prevents recycled-path removal.
         let stamp = file.filenameTimestamp.map { "stamp=\($0)" }
         let size = file.sizeBytes > 0 ? "size=\(file.sizeBytes)" : nil

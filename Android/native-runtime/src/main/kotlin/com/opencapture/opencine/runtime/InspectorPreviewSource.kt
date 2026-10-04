@@ -22,4 +22,19 @@ class InspectorPreviewSource {
     }
     @Synchronized fun captureEpoch(): Long? = epoch.takeIf { ready && latchedEpoch == epoch }
     @Synchronized fun isCurrent(ticket: Long?): Boolean = ticket != null && captureEpoch() == ticket
+
+    /** The predicate reads captured thread-safe facts only, never actor or SDK state. */
+    @Synchronized fun admits(admission: ((Any) -> Boolean)?): Boolean =
+        admission == null || identity?.let(admission) == true
+
+    @Synchronized fun isCurrent(ticket: Long?, admission: ((Any) -> Boolean)?): Boolean =
+        isCurrent(ticket) && admits(admission)
+
+    /** Source retirement/configuration uses the same short lock as final native presentation. */
+    @Synchronized fun present(admission: ((Any) -> Boolean)?, action: () -> Unit): Boolean {
+        if (admission != null && (captureEpoch() == null || !admits(admission))) return false
+        action()
+        return true
+    }
+
 }

@@ -52,6 +52,14 @@ enum class MonitorGuideAspect(val label: String) {
     }
 }
 
+/** Which selected frame area stays clear when the optional guide mask is enabled. */
+enum class MonitorGuideMaskPolicy {
+    /** Keep the union of the actual selected frame rectangles clear. */
+    UNION,
+    /** Keep their bounding rectangle clear, including space between crossing frames. */
+    ENVELOPE,
+}
+
 data class MonitorGridSegment(val from: MonitorScopePoint, val to: MonitorScopePoint)
 
 object MonitorGridGeometry {
