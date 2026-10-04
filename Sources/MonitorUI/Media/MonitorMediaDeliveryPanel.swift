@@ -190,7 +190,7 @@
                     }
                 case .projects(
                     let heading, let help, let signInNotice, let loading, let error, let choices,
-                    let selectedID, let allowsCreation):
+                    let selectedID, let allowsCreation, _):
                     sectionHeader(heading)
                     HStack(spacing: 4) {
                         Text("Project").font(MonitorTheme.font(14, weight: .semibold))
@@ -232,12 +232,11 @@
                                 MonitorIcon.folder.frame(width: 14, height: 14).foregroundStyle(
                                     MonitorTheme.muted)
                                 Text(
-                                    choices.first { $0.id == selectedID }?.label
-                                        ?? "Select a project"
+                                    service.selectedProjectLabel ?? "Select a project"
                                 )
                                 .font(MonitorTheme.font(13, weight: .semibold))
                                 .foregroundStyle(
-                                    choices.contains { $0.id == selectedID }
+                                    service.selectedProjectLabel != nil
                                         ? MonitorTheme.text : MonitorTheme.muted
                                 ).lineLimit(1)
                                 Spacer()
@@ -396,48 +395,30 @@
     public struct MonitorMediaDeliveryProgress<DestinationIcon: View>: View {
         private let value: MonitorMediaDeliveryProgressValue
         private let onCancel: (() -> Void)?
+        private let onExpand: (() -> Void)?
         private let destinationIcon: DestinationIcon
+
         public init(
-            value: MonitorMediaDeliveryProgressValue, onCancel: (() -> Void)? = nil,
+            value: MonitorMediaDeliveryProgressValue,
+            onCancel: (() -> Void)? = nil,
+            onExpand: (() -> Void)? = nil,
             @ViewBuilder destinationIcon: () -> DestinationIcon
         ) {
             self.value = value
             self.onCancel = onCancel
+            self.onExpand = onExpand
             self.destinationIcon = destinationIcon()
         }
+
         public var body: some View {
-            HStack(spacing: 10) {
-                if value.preparing {
-                    ProgressView().controlSize(.small).tint(MonitorTheme.accent)
-                } else {
-                    destinationIcon.frame(width: 13, height: 13).foregroundStyle(
-                        MonitorTheme.accent)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(value.status).font(MonitorTheme.font(12, weight: .semibold))
-                        .foregroundStyle(MonitorTheme.text).lineLimit(1)
-                    if let batch = value.batch {
-                        Text(batch).font(MonitorTheme.font(10, weight: .medium)).monospacedDigit()
-                            .foregroundStyle(MonitorTheme.muted)
-                    }
-                }
-                Spacer(minLength: 4)
-                if value.showsProgress {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(MonitorTheme.border.opacity(0.55))
-                            Capsule().fill(MonitorTheme.accent).frame(
-                                width: max(4, geo.size.width * value.fraction))
-                        }
-                    }.frame(width: 44, height: 4)
-                }
-                if let onCancel {
-                    Button("Cancel", action: onCancel).font(
-                        MonitorTheme.font(11, weight: .semibold)
-                    ).foregroundStyle(MonitorTheme.muted)
-                }
-            }.padding(.horizontal, 14).padding(.vertical, 10)
-                .monitorGlass(in: RoundedRectangle(cornerRadius: 12), density: .delivery)
+            MonitorMediaDeliveryProgressContent(
+                value: value,
+                onCancel: onCancel,
+                onExpand: onExpand,
+                destinationIcon: destinationIcon
+            )
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .monitorGlass(in: RoundedRectangle(cornerRadius: 12), density: .delivery)
         }
     }
 #endif

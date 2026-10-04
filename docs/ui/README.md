@@ -268,5 +268,12 @@ destination artwork. Missing controls stay absent. Hosts keep credentials, proje
 network handoffs, file ownership, native sharing and export tasks. SwiftUI keeps the header and
 footer visible while the content scrolls at constrained card heights. Compact progress receives
 busy and known-progress visibility independently, so network switching can retain a reported
-progress bar. Actual Insta popup renders exercise both overflow heights and busy progress;
-physical delivery and Android input remain untested.
+progress bar. Optional compact expansion is distinct from cancellation and
+defaults to absent; expanded progress receives optional filename and destination
+details plus typed Collapse/Cancel actions. Project labels prefer a supplied
+choice ID match, then an optional known selected label without adding an
+unlisted choice. The original four-argument Kotlin compact call with trailing
+destination artwork remains supported. Actual Insta popup renders exercise both
+overflow heights and busy progress; Nikon hosted UIKit actions exercise popup
+admission, request values and progress controls at portrait and compact
+landscape geometries. Physical delivery and Android input remain untested.

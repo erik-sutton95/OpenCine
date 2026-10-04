@@ -50,7 +50,11 @@ data class MonitorMediaDeliveryValue(
             val busyTitle: String = "Switching networks…") : Service
         @Immutable data class Projects(val heading: String, val help: String, val signInNotice: String? = null,
             val loading: Boolean, val error: String? = null, val choices: List<Choice>?, val selectedID: String?,
-            val allowsCreation: Boolean = true) : Service
+            val allowsCreation: Boolean = true, val selectedLabel: String? = null) : Service {
+            /** A known listed ID wins over the supplied label outside the offered choices. */
+            val selectedProjectLabel: String?
+                get() = choices?.firstOrNull { it.id == selectedID }?.label ?: selectedLabel
+        }
     }
     @Immutable data class Footer(val summary: String? = null, val postExport: Choices? = null,
         val actionTitle: String, val enabled: Boolean)

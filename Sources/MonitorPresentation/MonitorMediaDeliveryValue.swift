@@ -97,7 +97,19 @@ public struct MonitorMediaDeliveryValue: Equatable, Sendable {
             heading: String, message: String, busy: Bool, busyTitle: String = "Switching networks…")
         case projects(
             heading: String, help: String, signInNotice: String?, loading: Bool, error: String?,
-            choices: [Choice]?, selectedID: String?, allowsCreation: Bool = true)
+            choices: [Choice]?, selectedID: String?, allowsCreation: Bool = true,
+            selectedLabel: String? = nil)
+
+        /// A listed ID takes precedence; a host can supply a known selection outside its choices.
+        public var selectedProjectLabel: String? {
+            guard
+                case .projects(
+                    _, _, _, _, _, let choices, let selectedID, _, let selectedLabel
+                ) = self
+            else { return nil }
+            return choices?.first { $0.id == selectedID }?.label ?? selectedLabel
+        }
+
     }
     public struct Footer: Equatable, Sendable {
         public let summary: String?
