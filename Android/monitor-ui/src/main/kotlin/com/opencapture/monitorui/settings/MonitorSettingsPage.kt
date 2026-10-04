@@ -39,6 +39,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorCameraAction
@@ -78,6 +79,7 @@ public fun MonitorSettingsPage(
     modifier: Modifier = Modifier,
     sharingSubtitle: String? = null,
     sharingRail: String? = null,
+    tabSpacing: Dp = 6.dp,
     rows: @Composable ColumnScope.(MonitorSettingsTab) -> Unit,
 ) {
     MonitorPageScaffold(
@@ -96,7 +98,7 @@ public fun MonitorSettingsPage(
                             .monitorScrollFade(scroll, vertical = false).horizontalScroll(scroll)
                             .monitorTabStrip().testTag("monitor.settings.tabs"),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(tabSpacing),
                     ) {
                         tabs.forEach { tab ->
                             SettingsTab(tab, selection, onSelect, feedback, tab != tabs.first(),

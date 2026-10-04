@@ -69,6 +69,12 @@ Display, Storage and System identities. The host supplies brand text, connection
 actions and typed section composition. SwiftUI includes keyboard insets; Compose uses the
 host's window insets. Android sharing currently retains its existing placeholder.
 
+The optional `tabSpacing` argument defaults to 6 points/dp, preserving existing
+callers. Swift applies it to both orientations; Compose applies it to portrait
+tabs and keeps its already joined landscape column. A host can supply zero
+for joined edges in both orientations without replacing the page owner.
+Pocket uses this policy; other current consumers keep their defaults.
+
 Common `MonitorSettings` controls own row, help, switch, reset and card presentation.
 `MonitorOperatorSafetySettings` and `MonitorPanelSettings` accept values/bindings and actions;
 they never locate app storage or a camera session. Common sections continue to move here as

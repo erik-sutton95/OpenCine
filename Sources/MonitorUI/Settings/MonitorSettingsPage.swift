@@ -10,6 +10,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
     private let brand: String
     @Binding private var selection: MonitorSettingsTab
     private let tabs: [MonitorSettingsTab]
+    private let tabSpacing: CGFloat
     private let isLive: Bool
     private let phaseLabel: String
     private let sharingSubtitle: String?
@@ -23,7 +24,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
 
     public init(
         safeArea: EdgeInsets, brand: String, selection: Binding<MonitorSettingsTab>,
-        tabs: [MonitorSettingsTab] = MonitorSettingsTab.allCases,
+        tabs: [MonitorSettingsTab] = MonitorSettingsTab.allCases, tabSpacing: CGFloat = 6,
         isLive: Bool, phaseLabel: String, sharingSubtitle: String? = nil,
         sharingRail: String? = nil, scrollOffsets: Binding<[String: CGFloat]>? = nil,
         feedback: @escaping () -> Void = {}, onClose: @escaping () -> Void,
@@ -31,7 +32,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
         @ViewBuilder rows: @escaping (MonitorSettingsTab) -> Rows
     ) {
         self.safeArea = safeArea; self.brand = brand; self._selection = selection
-        self.tabs = tabs; self.isLive = isLive; self.phaseLabel = phaseLabel
+        self.tabs = tabs; self.tabSpacing = tabSpacing; self.isLive = isLive; self.phaseLabel = phaseLabel
         self.sharingSubtitle = sharingSubtitle; self.sharingRail = sharingRail
         self.scrollOffsets = scrollOffsets; self.feedback = feedback
         self.onClose = onClose; self.disconnect = disconnect; self.rows = rows
@@ -54,7 +55,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
     private func navigation(portrait: Bool) -> some View {
         VStack(alignment: .leading, spacing: portrait ? 9 : 8) {
             ScrollView(portrait ? .horizontal : .vertical, showsIndicators: false) {
-                MonitorTabStrip(vertical: !portrait, spacing: 6) {
+                MonitorTabStrip(vertical: !portrait, spacing: tabSpacing) {
                     ForEach(tabs) { tab in
                         MonitorNavigationItem(
                             tab.rawValue, subtitle: tab == .sharing ? (sharingRail ?? tab.rail) : tab.rail,
