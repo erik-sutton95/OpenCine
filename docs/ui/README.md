@@ -238,6 +238,15 @@ summaries. Apps provide interpreted values and explanatory content; missing netw
 optional, and stable saved-camera identifiers retain each row's help state. Pairing, credentials,
 transport health scoring and device-specific processing choices remain with their owners.
 
+The common playback screen owns the fixed video canvas, transport, metadata/conform panels,
+clean-view chrome and native zoom/scrub gestures. It takes immutable accepted item facts and
+item/edit-token actions, with fixed native-picture, feed-assist, canvas-assist and tool positions.
+Apps retain native factories, source calibration, audio, deletion and delivery transactions. The
+picture stays mounted while controls, panels and orientation change. Kotlin retains the existing
+separate native control window; the app supplies its platform back handler without a new package
+edge. UI edit ownership is retired before calling the host, so a delayed cancellation cannot take
+a successor edit on the same item. The existing playback owner decides seeking and resume policy.
+
 ## Checks
 
 ```sh
@@ -260,3 +269,20 @@ CoreGraphics import or retroactive conformances. Kotlin separates the same actua
 from native view files in its existing package; native APIs and persisted identifiers are unchanged.
 The existing Swift Codable versus Android caller-owned codec and native absent-audio label/rounding
 differences remain explicit in the mirrored value-contract scenarios.
+
+Delivery composition lives in `MonitorMediaDeliveryPanel` on SwiftUI and Compose. Its mirrored
+immutable value supplies destination eligibility, optional export controls, project or internet
+service facts, and the footer action. Typed actions return to the host; the only view slot is
+destination artwork. Missing controls stay absent. Hosts keep credentials, project requests,
+network handoffs, file ownership, native sharing and export tasks. SwiftUI keeps the header and
+footer visible while the content scrolls at constrained card heights. Compact progress receives
+busy and known-progress visibility independently, so network switching can retain a reported
+progress bar. Optional compact expansion is distinct from cancellation and
+defaults to absent; expanded progress receives optional filename and destination
+details plus typed Collapse/Cancel actions. Project labels prefer a supplied
+choice ID match, then an optional known selected label without adding an
+unlisted choice. The original four-argument Kotlin compact call with trailing
+destination artwork remains supported. Actual Insta popup renders exercise both
+overflow heights and busy progress; Nikon hosted UIKit actions exercise popup
+admission, request values and progress controls at portrait and compact
+landscape geometries. Physical delivery and Android input remain untested.
