@@ -17,11 +17,16 @@ public struct NikonConnection: Sendable {
     public var session: any CameraSession
     public var host: String
     public var path: CameraPath.Kind?
+    public var services: CameraServices
 
-    public init(session: any CameraSession, host: String, path: CameraPath.Kind?) {
+    public init(
+        session: any CameraSession, host: String, path: CameraPath.Kind?,
+        services: CameraServices = CameraServices()
+    ) {
         self.session = session
         self.host = host
         self.path = path
+        self.services = services
     }
 }
 
@@ -329,7 +334,7 @@ public final class NikonIntegration: CameraIntegration {
     private func connected(_ attempt: Attempt, _ connection: NikonConnection) {
         guard current === attempt else { return }
         current = nil
-        attempt.continuation.yield(.connected(ConnectedCamera(saved: record(attempt, connection), session: connection.session)))
+        attempt.continuation.yield(.connected(ConnectedCamera(saved: record(attempt, connection), session: connection.session, services: connection.services)))
         attempt.continuation.finish()
     }
 

@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.CameraIntegration
 import com.opencapture.opencine.core.CameraProfile
 import com.opencapture.opencine.core.ConnectTarget
+import com.opencapture.opencine.core.CameraServices
 import com.opencapture.opencine.core.ConnectedCamera
 import com.opencapture.opencine.core.ConnectionAttemptID
 import com.opencapture.opencine.core.ConnectionEvent
@@ -55,7 +56,10 @@ sealed interface NikonConnectRequest {
 }
 
 /** A connected session and the setup the app saved it under. */
-data class NikonConnection(val session: CoreCameraSession, val host: String, val kind: RouteKind?)
+data class NikonConnection(
+    val session: CoreCameraSession, val host: String, val kind: RouteKind?,
+    val services: CameraServices = CameraServices(),
+)
 
 /**
  * What [NikonIntegration] needs from the app's camera pipeline (Swift `NikonConnectPort`): its
@@ -254,7 +258,7 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
         }
         try {
             val connection = port.connect(connecting)
-            outcome = ConnectionEvent.Connected(ConnectedCamera(record(previous, connection, device), connection.session))
+            outcome = ConnectionEvent.Connected(ConnectedCamera(record(previous, connection, device), connection.session, connection.services))
         } catch (error: NikonConnectException) {
             outcome = ConnectionEvent.Failed(error.failure)
         } catch (error: CancellationException) {

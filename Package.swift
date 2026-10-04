@@ -133,12 +133,12 @@ let package = Package(
         // MARK: Nikon
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and
         // NikonCameraSession (OpenCineCore.CameraSession over the app's NikonControlDriver).
-        .target(name: "OpenCineNikon", dependencies: ["OpenCineCore"]),
+        .target(name: "OpenCineNikon", dependencies: ["OpenCineCore", "OpenCineMedia"]),
         // OpenCineMulticam is a test-only dependency: the multi-body tests run real
         // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
         .testTarget(
             name: "OpenCineNikonTests",
-            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMulticam", "OpenCineCoreTestSupport"]),
+            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMedia", "OpenCineMulticam", "OpenCineCoreTestSupport"]),
         // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
         // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
         // media browse and the JNI exports of the Kotlin class

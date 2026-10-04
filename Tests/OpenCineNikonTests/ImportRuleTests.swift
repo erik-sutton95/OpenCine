@@ -1,13 +1,13 @@
 import Foundation
 import Testing
 
-/// The package stays UI-free and app-free: sources import Foundation and OpenCineCore products
+/// The package stays UI-free and app-free: sources import Foundation, OpenCineCore and neutral OpenCineMedia products
 /// only (plan VENDOR-02: no UI, no app types). The Apple transports (SHELL-04) may also import
 /// Darwin, os and ImageCaptureCore, inside a file-wide `#if` so the Android build compiles them
 /// out.
 @Suite struct ImportRuleTests {
     @Test func sourcesImportOnlyFoundationAndOpenCineCore() throws {
-        let allowed: Set = ["Foundation", "OpenCineCore"]
+        let allowed: Set = ["Foundation", "OpenCineCore", "OpenCineMedia"]
         let platformOnly: Set = ["Darwin", "os", "ImageCaptureCore"]
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
