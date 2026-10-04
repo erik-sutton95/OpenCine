@@ -135,3 +135,37 @@ picture lease, so an old feed shutdown cannot clear another feed's host or sampl
 Native 420 video-range output, first-picture pulling, paused parking and identity/overlay/LUT
 handoff remain the exercised donor policies. Android still uses the actual shared effects and
 surface runtime through its small app Media3 adapter; shared modules add no Media3 dependency.
+
+### Native media export on Apple
+
+`MonitorMediaExporter` owns native copy/transcode, compatible-preset selection and fallback,
+full-raster Core Image look baking, export-session progress and output readability. The caller
+supplies the source and prepared destination URLs. `Look` takes a sampled Media cube, encoded
+value preservation and an optional QuickTime metadata key/value replacement. Source-specific
+curve selection and metadata keys stay in the app or integration adapter.
+
+Same-format originals, and an ungraded M4V original exported as MP4, retain the byte-copy path.
+Grading retains the source display raster and the existing compatible quality preference.
+Optional Sendable/Encodable metadata writes a sibling `meta.json` only after the video becomes
+readable, using sorted, pretty-printed JSON and ISO8601 dates. Applications keep their existing
+storage namespace, filename policy and preparation progress before calling the native owner.
+
+The first consuming app's unchanged native fixtures pass before and after adoption: encoded
+sample preservation, both curve directions and embedded metadata, raster fitting, preset and
+progress mapping. Shared filesystem fixtures cover original-byte preservation and optional
+sidecar shape/absence. Physical-device export remains untested.
+
+`MonitorReaderWriterMediaExporter` supplies the separate reader/writer operation for sources
+whose readable media may end before their declared duration. It keeps native coded geometry,
+the preferred transform, caller-prepared cubes, separate video/audio readers and atomic metadata
+sidecars. A source with no decoded video is refused; a byte fraction alone does not establish
+readability. `MonitorMovieFile` supplies container facts and progress-duration scaling, and
+`MonitorMovieTimecode` copies existing timecode as a best-effort post-export operation. A partial
+source skips timecode embedding. Apps retain destination storage, cube sampling and metadata policy.
+
+Six synthetic iOS simulator scenarios exercise complete export, composition, LUT baking,
+timecode and readable partial output. Native macOS cannot decode the same generated partial
+fixture, so its scenario proves refusal instead. A separate native macOS proof exports the
+readable prefix of an existing sample to a playable movie with metadata. Unreadable audio does
+not imply readable video is absent. These are simulated and native framework checks; physical
+devices and the consuming app's delivery workflow remain untested.

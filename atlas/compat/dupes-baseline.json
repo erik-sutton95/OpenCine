@@ -1,51 +1,51 @@
 {
   "code_lines": {
-    "opencine": 175909,
-    "openinstacine": 126226,
-    "openpocketcine": 130133,
-    "openzcine": 150518
+    "opencine": 185659,
+    "openinstacine": 123010,
+    "openpocketcine": 130423,
+    "openzcine": 151242
   },
-  "note": "Written by `atlas dupes --write-baseline`; see tools/dupes.py for the metric.",
+  "note": "Written by atlas dupes --write-baseline at the reviewed852 local integration. Pocket/Insta copied lines56659->55295. Shared/Pocket+144 and shared/Nikon+42 are explicit add/migrate remainders from new common playback/conform owners while those apps retain their donor implementations; exact candidate-dupe-deltas evidence identifies the blocks. Net duplicated lines across all pairs decrease1255. Retire those app donors in P2/Z2; this checkpoint does not declare thin-app completion.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 10231,
-      "blocks": 619,
+      "block_lines": 10135,
+      "blocks": 611,
       "exact_files": 13,
-      "file_lines": 9104,
-      "files": 77,
-      "lines": 19335
+      "file_lines": 9079,
+      "files": 76,
+      "lines": 19214
     },
     "opencine|openpocketcine": {
-      "block_lines": 1852,
-      "blocks": 149,
+      "block_lines": 2021,
+      "blocks": 167,
       "exact_files": 2,
-      "file_lines": 509,
-      "files": 9,
-      "lines": 2361
+      "file_lines": 484,
+      "files": 8,
+      "lines": 2505
     },
     "opencine|openzcine": {
-      "block_lines": 487,
-      "blocks": 42,
+      "block_lines": 523,
+      "blocks": 47,
       "exact_files": 1,
       "file_lines": 149,
       "files": 3,
-      "lines": 636
+      "lines": 672
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 27802,
-      "blocks": 1546,
-      "exact_files": 158,
-      "file_lines": 31244,
-      "files": 237,
-      "lines": 59046
+      "block_lines": 25897,
+      "blocks": 1438,
+      "exact_files": 149,
+      "file_lines": 29398,
+      "files": 228,
+      "lines": 55295
     },
     "openinstacine|openzcine": {
-      "block_lines": 590,
-      "blocks": 57,
+      "block_lines": 517,
+      "blocks": 48,
       "exact_files": 0,
       "file_lines": 199,
       "files": 3,
-      "lines": 789
+      "lines": 716
     },
     "openpocketcine|openzcine": {
       "block_lines": 1339,
@@ -58,9 +58,9 @@
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at b08ac3a2a4636a66597645b82cacd5d7440d4946",
-    "openinstacine": "opencine/integration 4a83b353a9b36e5b5ca91b1207e0731c584e12f6",
-    "openpocketcine": "opencine/integration 8973f0a24e829908ea5d7f1e58ee3bc2f1a92e64",
-    "openzcine": "opencine/integration a3b11f98cc28e7014a500ae199f6199b7f3ea8ee"
+    "opencine": "working tree at 4c547de63b245b256bbbaa038dbb1d8bb0d6bb70",
+    "openinstacine": "opencine/integration 51086b73a7d88dcf506298b15c8b76edfa1d6798",
+    "openpocketcine": "opencine/integration de40e9291fe433012f8f535cb3e91d0217822256",
+    "openzcine": "opencine/integration b7a25cca0867b17bfa20330bf059f5a04165e48c"
   }
 }

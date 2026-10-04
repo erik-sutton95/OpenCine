@@ -238,6 +238,15 @@ summaries. Apps provide interpreted values and explanatory content; missing netw
 optional, and stable saved-camera identifiers retain each row's help state. Pairing, credentials,
 transport health scoring and device-specific processing choices remain with their owners.
 
+The common playback screen owns the fixed video canvas, transport, metadata/conform panels,
+clean-view chrome and native zoom/scrub gestures. It takes immutable accepted item facts and
+item/edit-token actions, with fixed native-picture, feed-assist, canvas-assist and tool positions.
+Apps retain native factories, source calibration, audio, deletion and delivery transactions. The
+picture stays mounted while controls, panels and orientation change. Kotlin retains the existing
+separate native control window; the app supplies its platform back handler without a new package
+edge. UI edit ownership is retired before calling the host, so a delayed cancellation cannot take
+a successor edit on the same item. The existing playback owner decides seeking and resume policy.
+
 ## Checks
 
 ```sh

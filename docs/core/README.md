@@ -214,6 +214,14 @@ The app owns, and this product never names:
 
 ### Network hops and camera claims
 
+`FrameioInternetHop` holds serialized popup/delivery completion authority. An operator-approved
+hop begins with a token; transferring it to delivery invalidates the popup's token without
+another network operation. Only the current token can end the hop, so a late cancelled
+delivery cannot release a successor. Keep this value in the host that owns the route and
+mutate it on that host's executor. Apps supply the native leave/rejoin actions and retain the
+original connection for rejoin. This Swift owner currently serves the iOS-only delivery
+consumers; Android feature adoption remains separate.
+
 Every Frame.io byte, including token refresh and upload parts, goes through
 `FrameioHTTPTransport.send`. That is the single place an app enforces route ownership:
 
