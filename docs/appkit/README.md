@@ -325,3 +325,26 @@ exercise late native readiness/events/seeks, same-item and replacement look race
 library retirement, synchronous observer/native replacement and manual-clock pointer pacing.
 Native and
 actual consumer adoption gates remain separate from portable fake-port evidence.
+
+## Delivery lifetime
+
+`MonitorDeliveryModel` owns one delivery operation, its progress, cancellation, toast timers
+and share presentation lease. The app supplies immutable progress and completion facts and
+retains export, download, Photos, network admission and OS presentation policy. Swift uses
+MainActor and Observation; Kotlin uses the supplied owner dispatcher and a child supervisor.
+Close the Kotlin model before cancelling the supplied scope when its host is disposed.
+
+Replacement retires authority before cancelling outgoing work. Late progress and completion
+cannot replace a successor; a late share result releases only its supplied staging resource.
+State is committed before observation and callbacks, so a callback can start another operation.
+Completion callbacks may return the toast resulting from an admitted platform side effect.
+The model checks authority again before publishing a share or toast.
+
+A sheet binding captures its share ID. `clearSharePresentation(id:)` releases that matching
+lease; `completeSharePresentation(id:)` acknowledges the matching producing run once, whether
+binding dismissal or the OS callback arrived first. A newer run retires that acknowledgement.
+The app resumes its player only after an accepted acknowledgement. The supplied release callback
+never infers a cleanup path from an original or cached URL.
+
+Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
+Native adapter and physical presentation checks remain separate consumer verification.
