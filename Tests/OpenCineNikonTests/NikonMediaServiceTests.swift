@@ -6,6 +6,39 @@ import Testing
 
 @MainActor @Suite("SIMULATED Nikon real catalog producer")
 struct NikonMediaServiceTests {
+    @Test func firstPageResetRetiresOldRawCatalogWhileSubsequentPagesAccumulate() async throws {
+        let io = MediaIOFixture()
+        let clock = CatalogClock()
+        let firstObject = io.record(1, 4, "FIRST.MOV")
+        let secondObject = io.record(1, 5, "SECOND.MOV")
+        io.objects = [firstObject.location: firstObject, secondObject.location: secondObject]
+        io.snapshot = .init(
+            handles: [firstObject.location, secondObject.location],
+            authoritativeStorages: [1], storageListAuthoritative: true)
+        io.onObject = { clock.advance(.milliseconds(120)) }
+        let source = NikonMediaService(session: io.session, io: io, now: { clock.read() })
+        source.configure(.init(cached: [], category: .all))
+        let browse = try await source.openBrowse()
+        let cursor = try await browse.catalog()
+        let first = try #require(try await cursor.next())
+        let second = try #require(try await cursor.next())
+        #expect(first.reset)
+        #expect(!second.reset)
+        #expect(first.upserts.count == 1 && second.upserts.count == 1)
+        let stale = io.record(1, 6, "STALE.MOV").asset(namespace: io.cameraNamespace)
+        let afterFirst = MediaCatalog(assets: [stale]).applying(first)
+        #expect(afterFirst.assets.map(\.id) == first.upserts.map(\.id))
+        let afterSecond = afterFirst.applying(second)
+        #expect(
+            Set(afterSecond.assets.map(\.id)) == Set((first.upserts + second.upserts).map(\.id)))
+        cursor.close()
+        io.snapshot = .init(handles: [], authoritativeStorages: [1], storageListAuthoritative: true)
+        let empty = try #require(try await browse.catalog().next())
+        #expect(empty.reset && empty.complete && empty.upserts.isEmpty)
+        #expect(afterSecond.applying(empty).assets.isEmpty)
+        await browse.close()
+    }
+
     @Test func failedCardCannotTombstoneOrClaimCompleteWhileConfirmedEmptyCardCan() async throws {
         let io = MediaIOFixture()
         let empty = io.record(1, 4, "EMPTY-OLD.MOV")

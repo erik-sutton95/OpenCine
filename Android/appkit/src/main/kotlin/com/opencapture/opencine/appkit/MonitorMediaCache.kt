@@ -13,23 +13,61 @@ import java.util.UUID
 public enum class MonitorMediaCacheFailure { RETIRED, INVALID_ADDRESS, EMPTY, INVALID_RECEIPT }
 public class MonitorMediaCacheException(public val failure: MonitorMediaCacheFailure) : IOException(failure.name)
 public data class MonitorMediaCacheAddress(
-    public val thumbnail: String,
+    public val thumbnail: String?,
     public val representations: Map<MediaRepresentationID, String>,
     public val favoriteKey: String,
+    /** Ordered read alternatives; transfer destination remains the canonical address. */
+    public val readAlternatives: Map<MediaRepresentationID, List<String>> = emptyMap(),
 )
+public enum class MonitorMediaFavoriteAuthority { LEGACY_COMBINED, SOURCE, LOCAL_OVERLAY }
 public data class MonitorMediaRecord<P>(
     public val asset: MediaAsset,
     public val payload: P,
     public val address: MonitorMediaCacheAddress,
     public val favorite: Boolean = false,
     public val facts: MonitorMediaFilterFacts = MonitorMediaFilterFacts(),
+    public val favoriteAuthority: MonitorMediaFavoriteAuthority = MonitorMediaFavoriteAuthority.LEGACY_COMBINED,
+    public val sourceFavorite: Boolean? = null,
 )
+public interface MonitorMediaCatalogByteStore {
+    public val namespace: String
+    public val generation: Long
+    public fun read(): ByteArray?
+    public fun write(bytes: ByteArray, ifCurrent: () -> Boolean)
+    /** Null means unchanged; no byte write or registry update. Override under the original lock. */
+    public fun update(ifCurrent: () -> Boolean, encode: (ByteArray?) -> ByteArray?) {
+        if (!ifCurrent()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+        val current = read()?.copyOf()
+        if (!ifCurrent()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+        val bytes = encode(current) ?: return
+        if (!ifCurrent()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+        write(bytes, ifCurrent)
+    }
+}
 public interface MonitorMediaCatalogCodec<P> {
     public fun decode(bytes: ByteArray): List<MonitorMediaRecord<P>>
     public fun encode(records: List<MonitorMediaRecord<P>>): ByteArray
+    /** Pure preparation against authoritative bytes under the store's original update lock. */
+    public fun encodeForPersistence(records: List<MonitorMediaRecord<P>>, currentBytes: ByteArray?): ByteArray? = encode(records)
     /** Capture immutable preservation facts before later encoding/IO can suspend. */
     public fun capture(asset: MediaAsset, binding: MediaBrowseBinding): MonitorMediaRecord<P>
+    /** Capture old removals/new values/local amendments under the producing binding before IO. */
+    public fun captureCatalog(delta: MediaCatalogDelta, binding: MediaBrowseBinding,
+        existing: List<MonitorMediaRecord<P>>): MonitorMediaCatalogCapture<P> =
+        MonitorMediaCatalogCapture(delta.reset, delta.upserts.map { capture(it, binding) }, delta.removed)
+    /** Optional exact cache IO over immutable captured rows; never query source here. */
+    public suspend fun prepareCatalog(capture: MonitorMediaCatalogCapture<P>, binding: MediaBrowseBinding,
+        existing: List<MonitorMediaRecord<P>>): MonitorMediaCatalogCapture<P> = capture
+
 }
+public data class MonitorMediaCatalogCapture<P>(
+    public val resetLibrary: Boolean,
+    public val upserts: List<MonitorMediaRecord<P>>,
+    public val removed: List<MediaAssetID> = emptyList(),
+    public val amendments: List<MonitorMediaRecord<P>> = emptyList(),
+    public val order: List<MediaAssetID>? = null,
+    public val sourceFavoriteKeys: Set<String>? = null,
+)
 public sealed interface MonitorMediaOriginalEligibility {
     public data object ExactSize : MonitorMediaOriginalEligibility
     public data class MinimumFraction(public val numerator: Long, public val denominator: Long) : MonitorMediaOriginalEligibility
@@ -50,7 +88,24 @@ public data class MonitorMediaCacheEntry(public val original: File?, public val 
 }
 
 /** An explicitly shared root lifetime. Clear and destination replacement fence all writer leases. */
-public class MonitorMediaCacheDirectory(public val root: File) {
+/** One caller-owned declared root; gallery and settings share each namespace's write generation. */
+public class MonitorMediaCacheRoot(public val root: File,
+    private val accountLegacyUnpreparedRoots: Boolean = false,
+) {
+    private val directories = mutableMapOf<String, MonitorMediaCacheDirectory>()
+    @Synchronized public fun directory(namespace: String): MonitorMediaCacheDirectory {
+        if (namespace.isEmpty() || namespace == "." || namespace == ".." || '/' in namespace || '\\' in namespace) {
+            throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+        }
+        return directories.getOrPut(namespace) {
+            MonitorMediaCacheDirectory(File(root, namespace), accountLegacyUnpreparedRoots)
+        }
+    }
+}
+
+public class MonitorMediaCacheDirectory(public val root: File,
+    private val accountLegacyUnpreparedRoots: Boolean = false,
+) {
     internal val lock = Any()
     internal var revision: Long = 0
     internal val current = mutableMapOf<String, UUID>()
@@ -123,7 +178,8 @@ public class MonitorMediaCacheDirectory(public val root: File) {
     }
     private fun retiredRoots(includeUnprepared: Boolean): List<File> = root.parentFile?.listFiles().orEmpty().filter {
         isRetirementName(it.name, ".clearing-${root.name}-") ||
-            (includeUnprepared && isRetirementName(it.name, ".retiring-${root.name}-"))
+            (includeUnprepared && (isRetirementName(it.name, ".retiring-${root.name}-") ||
+                (accountLegacyUnpreparedRoots && it.name.startsWith(".retiring-${root.name}-"))))
     }
     private fun isRetirementName(name: String, prefix: String): Boolean {
         if (!name.startsWith(prefix)) return false
@@ -167,25 +223,120 @@ public class MonitorMediaCacheWrite internal constructor(
 }
 
 /** Schema, root lifetime and size policy are supplied by the actual app composition. */
+internal data class MonitorMediaCatalogAuthority(val owner: UUID, val directoryGeneration: Long,
+    val storeNamespace: String?, val storeGeneration: Long?)
 public class MonitorMediaCache<P>(
     public val directory: MonitorMediaCacheDirectory,
     public val codec: MonitorMediaCatalogCodec<P>,
     public val eligibility: MonitorMediaOriginalEligibility,
     private val catalogAddress: String,
     private val preservedMetadata: List<String>,
+    private val persistEmptyCatalog: Boolean = true,
+    public val catalogStore: MonitorMediaCatalogByteStore? = null,
 ) {
-    public fun load(): List<MonitorMediaRecord<P>> = runCatching { codec.decode(directory.read(catalogAddress)) }.getOrDefault(emptyList())
-    public fun save(records: List<MonitorMediaRecord<P>>) { directory.write(codec.encode(records), catalogAddress) }
+    private val catalogOwner = UUID.randomUUID()
+    internal val catalogAuthority: MonitorMediaCatalogAuthority get() = MonitorMediaCatalogAuthority(
+        catalogOwner, directory.generation, catalogStore?.namespace, catalogStore?.generation)
+    internal fun isCurrent(authority: MonitorMediaCatalogAuthority): Boolean = catalogAuthority == authority
+    public fun load(): List<MonitorMediaRecord<P>> = runCatching {
+        val namespace = catalogStore?.namespace; val generation = catalogStore?.generation
+        val bytes = if (catalogStore != null) {
+            val bytes = catalogStore.read()?.copyOf()
+            if (catalogStore.namespace != namespace || catalogStore.generation != generation) return@runCatching emptyList()
+            bytes
+        } else directory.read(catalogAddress)
+        val records = if (bytes == null) emptyList() else codec.decode(bytes)
+        if (catalogStore?.namespace != namespace || catalogStore?.generation != generation) emptyList() else records
+    }.getOrElse { emptyList() }
+    public fun save(records: List<MonitorMediaRecord<P>>, ifCurrent: () -> Boolean = { true }) {
+        if (!ifCurrent()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+        if (!persistEmptyCatalog && records.isEmpty()) return
+        val directoryGeneration = directory.generation
+        if (catalogStore != null) {
+            val namespace = catalogStore.namespace; val generation = catalogStore.generation
+            val admitted = { ifCurrent() && directory.generation == directoryGeneration
+                && catalogStore.namespace == namespace && catalogStore.generation == generation }
+            catalogStore.update(admitted) { currentBytes ->
+                if (!admitted()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+                val bytes = codec.encodeForPersistence(records, currentBytes)
+                if (!admitted()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+                bytes
+            }
+            if (!admitted()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+        } else {
+            val bytes = codec.encode(records)
+            if (!ifCurrent() || directory.generation != directoryGeneration) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+            directory.write(bytes, catalogAddress)
+        }
+    }
     public fun entry(record: MonitorMediaRecord<P>): MonitorMediaCacheEntry {
         var original: File? = null; var proxy: File? = null
         record.asset.representations.forEach { representation ->
             val address = record.address.representations[representation.id] ?: return@forEach
-            val location = directory.existing(address) ?: return@forEach
+            val candidates = listOf(address) + record.address.readAlternatives[representation.id].orEmpty()
+            val location = candidates.asSequence().mapNotNull { directory.existing(it) }.firstOrNull {
+                representation.role != MediaRepresentationRole.ORIGINAL || eligibility.accepts(it.length(), representation.byteCount)
+            } ?: return@forEach
             if (representation.role == MediaRepresentationRole.ORIGINAL) {
                 if (eligibility.accepts(location.length(), representation.byteCount)) original = location
             } else if (proxy == null) proxy = location
         }
-        return MonitorMediaCacheEntry(original, proxy, directory.existing(record.address.thumbnail))
+        return MonitorMediaCacheEntry(original, proxy, record.address.thumbnail?.let { directory.existing(it) })
     }
+    /** Only immutable paths and size facts are captured; filesystem reads run on IO. */
+    public fun readPlan(records: List<MonitorMediaRecord<P>>): MonitorMediaCacheReadPlan {
+        val plan = records.map { record ->
+            MediaCacheRecordReadPlan(record.asset.id,
+                record.address.thumbnail?.let { runCatching { directory.file(it) }.getOrNull() },
+                record.asset.representations.map { representation ->
+                    val canonical = record.address.representations[representation.id]
+                    val addresses = canonical?.let { listOf(it) + record.address.readAlternatives[representation.id].orEmpty() }.orEmpty()
+                    MediaCacheRepresentationReadPlan(representation.role, representation.byteCount,
+                        addresses.mapNotNull { runCatching { directory.file(it) }.getOrNull() })
+                })
+        }
+        return MonitorMediaCacheReadPlan(UUID.randomUUID(), directory.generation, plan, eligibility)
+    }
+    public suspend fun snapshot(records: List<MonitorMediaRecord<P>>): MonitorMediaCacheSnapshot = readPlan(records).read()
     public suspend fun clear() { directory.clear(preservedMetadata) }
+}
+
+
+/** Admission identity accompanies the immutable worker result. */
+public class MonitorMediaCacheSnapshot internal constructor(
+    public val planID: UUID, public val generation: Long,
+    public val entries: Map<MediaAssetID, MonitorMediaCacheEntry>,
+)
+internal data class MediaCacheRepresentationReadPlan(
+    val role: MediaRepresentationRole, val expected: Long?, val locations: List<File>,
+)
+internal data class MediaCacheRecordReadPlan(
+    val id: MediaAssetID, val thumbnail: File?, val representations: List<MediaCacheRepresentationReadPlan>,
+)
+
+/** No live codec, source catalog or owner state is read by the filesystem worker. */
+public class MonitorMediaCacheReadPlan internal constructor(
+    public val id: UUID, public val generation: Long,
+    private val records: List<MediaCacheRecordReadPlan>, private val eligibility: MonitorMediaOriginalEligibility,
+) {
+    public suspend fun read(): MonitorMediaCacheSnapshot = withContext(Dispatchers.IO) {
+        val entries = linkedMapOf<MediaAssetID, MonitorMediaCacheEntry>()
+        records.forEach { record ->
+            currentCoroutineContext().ensureActive()
+            var original: File? = null; var proxy: File? = null
+            record.representations.forEach { representation ->
+                for (location in representation.locations) {
+                    currentCoroutineContext().ensureActive()
+                    if (!location.isFile || location.length() <= 0) continue
+                    if (representation.role == MediaRepresentationRole.ORIGINAL) {
+                        if (eligibility.accepts(location.length(), representation.expected)) { original = location; break }
+                    } else if (proxy == null) { proxy = location; break }
+                }
+            }
+            val thumbnail = record.thumbnail?.takeIf { it.isFile && it.length() > 0 }
+            entries[record.id] = MonitorMediaCacheEntry(original, proxy, thumbnail)
+        }
+        currentCoroutineContext().ensureActive()
+        MonitorMediaCacheSnapshot(id, generation, entries.toMap())
+    }
 }

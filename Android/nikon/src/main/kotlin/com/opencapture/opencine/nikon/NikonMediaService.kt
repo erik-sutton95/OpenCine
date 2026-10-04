@@ -302,8 +302,9 @@ public class NikonMediaService(
                     StorageVolume(id = slot.storageId.toString(), freeBytes = if (slot.freeSpaceBytes >= 0)
                         ObservedValue(slot.freeSpaceBytes, ObservationOrigin.CAMERA_REPORTED, null) else ObservedValue.unknown)
                 } else null
+                val reset = first
                 first = false; complete = !page.hasMore
-                MediaCatalogDelta(upserts = additions, removed = removed, volumes = volumes, complete = complete)
+                MediaCatalogDelta(reset = reset, upserts = additions, removed = removed, volumes = volumes, complete = complete)
             }
         }
     }
@@ -324,4 +325,19 @@ private fun NikonMediaClipRecord.asset(namespace: String): MediaAsset {
         representations = listOf(MediaRepresentation(MediaRepresentationID(id.rawValue),
             if (contentKind == NikonMediaContentKind.PLAYABLE_PROXY) MediaRepresentationRole.PROXY else MediaRepresentationRole.ORIGINAL,
             byteCount = size)))
+}
+
+/** Library rows have real immutable cache identity, separate from raw camera catalog identity. */
+public object NikonMediaLibraryAssets {
+    public fun asset(namespace: String, identity: String, clip: NikonMediaClipRecord): MediaAsset {
+        val fields = listOf("library", namespace, identity)
+        val fingerprint = fields.joinToString("") { "${it.toByteArray(Charsets.UTF_8).size}:$it" }
+        val id = MediaAssetID(Base64.getEncoder().encodeToString(fingerprint.toByteArray(Charsets.UTF_8)))
+        return MediaAsset(id = id, filename = clip.filename,
+            kind = if (clip.contentKind == NikonMediaContentKind.STILL_PHOTO) MediaAssetKind.PHOTO else MediaAssetKind.VIDEO,
+            pixelSize = if (clip.pixelWidth > 0 && clip.pixelHeight > 0) MediaPixelSize(clip.pixelWidth, clip.pixelHeight) else null,
+            representations = listOf(MediaRepresentation(MediaRepresentationID(id.rawValue),
+                if (clip.contentKind == NikonMediaContentKind.PLAYABLE_PROXY) MediaRepresentationRole.PROXY else MediaRepresentationRole.ORIGINAL,
+                byteCount = clip.sizeBytes.takeIf { it > 0 && it != 0xFFFF_FFFFL })))
+    }
 }

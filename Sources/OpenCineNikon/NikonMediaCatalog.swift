@@ -201,3 +201,32 @@ public struct NikonMediaCatalogRecord: Sendable {
     func header(_ location: MediaObjectHandle, source: NikonMediaSourceIdentity) async throws
         -> Data?
 }
+
+/// A local library row is distinct from a camera observation and needs no invented PTP location.
+/// The host supplies its existing immutable cache identity. Metadata size changes keep that row.
+public enum NikonMediaLibraryAssets {
+    public static func asset(
+        namespace: String, identity: String, filename: String,
+        captureDate: String, sizeBytes: UInt64, pixelWidth: UInt32?, pixelHeight: UInt32?
+    ) -> MediaAsset {
+        let fields = ["library", namespace, identity, captureDate]
+        let encoded = fields.map { "\($0.utf8.count):\($0)" }.joined()
+        let id = MediaAssetID(Data(encoded.utf8).base64EncodedString())
+        let dimensions: MediaPixelSize?
+        if let width = pixelWidth, let height = pixelHeight, width > 0, height > 0 {
+            dimensions = .init(width: Int(width), height: Int(height))
+        } else {
+            dimensions = nil
+        }
+        return .init(
+            id: id, filename: filename,
+            kind: MediaClipFilename.isPhoto(filename) ? .photo : .video,
+            pixelSize: dimensions,
+            representations: [
+                .init(
+                    id: .init(id.rawValue),
+                    role: MediaClipFilename.isPlayableProxy(filename) ? .proxy : .original,
+                    byteCount: sizeBytes > 0 && sizeBytes != 0xFFFF_FFFF ? sizeBytes : nil)
+            ])
+    }
+}

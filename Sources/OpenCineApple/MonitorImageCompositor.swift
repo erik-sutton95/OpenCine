@@ -16,6 +16,16 @@ private enum Peak {
     static let maskClosingRadius = 1.0
 }
 
+/// Additional analysis-window admission after the fused detector passes its runtime probe.
+/// This is an Apple Core Image graph policy; renderer calibration and source settings stay values.
+public enum MonitorPeakingFusedWindowPolicy: Equatable, Sendable {
+    /// Preserve the shared renderer's existing rejection of analysed windows at most eight pixels.
+    case extendedAnalysisWindow
+    /// Attempt the admitted kernel without an additional window-size rejection.
+    /// A kernel that cannot apply still uses the unchanged filter-chain fallback.
+    case admittedKernel
+}
+
 /// Encoded camera codes (encoded by the source). Default Core Image linearizes a Rec.709
 /// tag - or treats an untagged cube result as linear and DeviceRGB-encodes it. Either
 /// way the official log→709 cube looks like uncorrected log (lifted blacks, dull reds).
@@ -365,12 +375,14 @@ public enum MonitorImageCompositor {
 
     public static func applyPeaking(
         over base: CIImage, source: CIImage, extent: CGRect,
-        color: MonitorRGB, sense: MonitorPeakingSensitivity, gateScale: Double = 1
+        color: MonitorRGB, sense: MonitorPeakingSensitivity, gateScale: Double = 1,
+        fusedWindowPolicy: MonitorPeakingFusedWindowPolicy = .extendedAnalysisWindow
     ) -> CIImage {
         if let kernel = fusedPeakingKernel, fusedPeakingCheck.matches,
             let fused = applyFusedPeaking(
                 kernel: kernel, over: base, source: source, extent: extent,
-                color: color, sense: sense, gateScale: gateScale)
+                color: color, sense: sense, gateScale: gateScale,
+                fusedWindowPolicy: fusedWindowPolicy)
         {
             return fused
         }
@@ -381,10 +393,13 @@ public enum MonitorImageCompositor {
 
     private static func applyFusedPeaking(
         kernel: CIKernel, over base: CIImage, source: CIImage, extent: CGRect,
-        color: MonitorRGB, sense: MonitorPeakingSensitivity, gateScale: Double
+        color: MonitorRGB, sense: MonitorPeakingSensitivity, gateScale: Double,
+        fusedWindowPolicy: MonitorPeakingFusedWindowPolicy = .extendedAnalysisWindow
     ) -> CIImage? {
         let cropped = extent.insetBy(dx: Peak.edgeInset, dy: Peak.edgeInset)
-        guard cropped.width > 8, cropped.height > 8 else { return nil }
+        if fusedWindowPolicy == .extendedAnalysisWindow {
+            guard cropped.width > 8, cropped.height > 8 else { return nil }
+        }
         let grey = greyscale(source).clampedToExtent()
         let blurred = grey.applyingFilter(
             "CIGaussianBlur", parameters: [kCIInputRadiusKey: Peak.reblurRadius])

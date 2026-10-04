@@ -14,8 +14,25 @@ import java.util.UUID
 public data class MonitorMediaFilterFacts(
     public val format: String? = null, public val resolution: String? = null,
     public val dateKey: String? = null, public val orderKey: String? = null, public val color: String? = null,
+    /** Explicit host category policy; never rewrites source asset.kind. */
+    public val presentationKind: MediaAssetKind? = null,
 )
 public enum class MonitorMediaCategoryFilter { ALL, VIDEOS, PHOTOS, FAVORITES }
+public data class MonitorMediaLibraryActionToken internal constructor(
+    public val lifetime: UUID, public val binding: MediaBrowseBinding?,
+)
+public data class MonitorMediaLibraryCopy(
+    public val openFailed: String = "Could not open the camera library.",
+    public val listFailed: String = "Could not list camera clips.",
+    public val favoriteSaveFailed: String = "Could not save local clip favorites.",
+    public val downloadFailed: String = "Could not download that clip.",
+    public val listing: String? = null, public val empty: String? = null,
+)
+public enum class MonitorMediaCatalogPersistence { EACH_DELTA, LISTING_COMPLETE_OR_NON_CANCEL_FAILURE }
+/** A fresh refresh base is unpublished until an actual source page is admitted. */
+public enum class MonitorMediaCatalogBase { RETAIN_OBSERVED, FRESH_LISTING }
+public enum class MonitorMediaCacheScanning { IMMEDIATE, BACKGROUND }
+public enum class MonitorMediaLibraryVisibility { SOURCE_AVAILABILITY, ALL_RECORDS, CACHED_ONLY }
 public enum class MonitorMediaSort { NEWEST, OLDEST, NAME, RATING }
 public interface MonitorMediaFavoritesStore {
     public fun favorites(): Set<String>
@@ -37,6 +54,9 @@ public data class MonitorMediaLibraryState<P>(
     public val colors: Set<String> = emptySet(), public val dateStart: String? = null, public val dateEnd: String? = null,
     public val selecting: Boolean = false, public val selectedIDs: Set<MediaAssetID> = emptySet(),
     public val lifetimeToken: UUID = UUID.randomUUID(),
+    public val visibility: MonitorMediaLibraryVisibility = MonitorMediaLibraryVisibility.SOURCE_AVAILABILITY,
+    /** Accepted source deltas in this listing; local/cache changes never count. */
+    public val catalogPageCount: Int = 0,
 ) {
     public val activeFilterCount: Int get() = formats.size + resolutions.size + colors.size +
         if (dateStart == null && dateEnd == null) 0 else 1
@@ -48,39 +68,58 @@ public data class MonitorMediaLibraryState<P>(
 public class MonitorMediaLibraryModel<P>(
     public val cache: MonitorMediaCache<P>, private val favoritesStore: MonitorMediaFavoritesStore,
     private var service: CameraMediaService? = null, scope: CoroutineScope,
+    private val cacheScanning: MonitorMediaCacheScanning,
+    private val catalogPersistence: MonitorMediaCatalogPersistence = MonitorMediaCatalogPersistence.EACH_DELTA,
+    private val initialCatalog: MediaCatalog? = null,
+    initialRecords: List<MonitorMediaRecord<P>>? = null,
+    private val copy: MonitorMediaLibraryCopy = MonitorMediaLibraryCopy(),
+    private val readSnapshot: suspend (MonitorMediaCacheReadPlan) -> MonitorMediaCacheSnapshot = { it.read() },
     private val sleep: suspend (Long) -> Unit = { delay(it) },
+    private val catalogBase: MonitorMediaCatalogBase = MonitorMediaCatalogBase.RETAIN_OBSERVED,
 ) {
+    /** Original constructor, including positional and trailing sleep lambda compatibility. */
+    public constructor(cache: MonitorMediaCache<P>, favoritesStore: MonitorMediaFavoritesStore,
+        service: CameraMediaService? = null, scope: CoroutineScope, sleep: suspend (Long) -> Unit = { delay(it) }) :
+        this(cache, favoritesStore, service, scope, cacheScanning = MonitorMediaCacheScanning.IMMEDIATE, sleep = sleep)
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
     private var favorites = favoritesStore.favorites()
-    private val mutable = MutableStateFlow(MonitorMediaLibraryState(records = cache.load().map {
-        it.copy(favorite = it.favorite || it.address.favoriteKey in favorites)
-    }))
+    private val mutable = MutableStateFlow(MonitorMediaLibraryState(records = (initialRecords ?: cache.load()).map { projected(it, favorites) }))
     public val state: StateFlow<MonitorMediaLibraryState<P>> = mutable.asStateFlow()
+    private val retirementTasks = mutableSetOf<Job>()
+    private var disposed = false
     private var browse: CameraMediaBrowse? = null
     private var cursor: MediaCatalogCursor? = null
     private val lifetime: UUID get() = state.value.lifetimeToken
     private var listing = UUID.randomUUID()
     private var openTask: Job? = null
     private var listTask: Job? = null
+    private var reconciliationTask: Deferred<Unit>? = null
+    private var entryTask: Job? = null
+    private var entryRequest = UUID.randomUUID()
     private data class Transfer(val id: UUID, val writer: MonitorMediaCacheWrite, val task: Deferred<File>)
     private val transfers = mutableMapOf<MediaAssetID, Transfer>()
     private val thumbnails = mutableMapOf<MediaAssetID, UUID>()
     private val thumbnailTasks = mutableMapOf<MediaAssetID, Job>()
     private val thumbnailWriters = mutableMapOf<MediaAssetID, MonitorMediaCacheWrite>()
-    init { mutate { it.copy(catalog = MediaCatalog(assets = it.records.map { record -> record.asset })) }; reloadEntries() }
+    init { mutate { it.copy(catalog = initialCatalog ?: MediaCatalog(assets = it.records.map { record -> record.asset })) }; reloadEntries() }
     private fun mutate(change: (MonitorMediaLibraryState<P>) -> MonitorMediaLibraryState<P>) { mutable.value = change(mutable.value) }
     public val canRefresh: Boolean get() = service != null
     public val binding: MediaBrowseBinding? get() = browse?.binding
     public val canTransfer: Boolean get() = browse?.transfers != null
     public val canDelete: Boolean get() = browse?.deletion != null
     public val libraryRecords: List<MonitorMediaRecord<P>> get() = state.value.records.let { records ->
-        if (service == null) records.filter { state.value.entries[it.asset.id]?.isPlayableOffline == true } else records
+        when (state.value.visibility) {
+            MonitorMediaLibraryVisibility.ALL_RECORDS -> records
+            MonitorMediaLibraryVisibility.CACHED_ONLY -> records.filter { state.value.entries[it.asset.id]?.isPlayableOffline == true }
+            MonitorMediaLibraryVisibility.SOURCE_AVAILABILITY -> if (service == null)
+                records.filter { state.value.entries[it.asset.id]?.isPlayableOffline == true } else records
+        }
     }
     public fun records(category: MonitorMediaCategoryFilter): List<MonitorMediaRecord<P>> = libraryRecords.filter {
         when (category) {
             MonitorMediaCategoryFilter.ALL -> true
-            MonitorMediaCategoryFilter.VIDEOS -> it.asset.kind == MediaAssetKind.VIDEO
-            MonitorMediaCategoryFilter.PHOTOS -> it.asset.kind == MediaAssetKind.PHOTO
+            MonitorMediaCategoryFilter.VIDEOS -> (it.facts.presentationKind ?: it.asset.kind) == MediaAssetKind.VIDEO
+            MonitorMediaCategoryFilter.PHOTOS -> (it.facts.presentationKind ?: it.asset.kind) == MediaAssetKind.PHOTO
             MonitorMediaCategoryFilter.FAVORITES -> it.favorite
         }
     }
@@ -117,23 +156,42 @@ public class MonitorMediaLibraryModel<P>(
     public fun select(ids: Set<MediaAssetID>, selecting: Boolean = true) { mutate { it.copy(selecting = selecting, selectedIDs = ids.toSet()) } }
     public fun selectAll() { select(displayedRecords.map { it.asset.id }.toSet()) }
     public fun clearSelection() { select(emptySet(), selecting = false) }
+    public fun visibility(value: MonitorMediaLibraryVisibility) { mutate { it.copy(visibility = value) } }
+    public fun isLocallyFavorite(id: MediaAssetID): Boolean = record(id)?.let { it.address.favoriteKey in favorites } ?: false
+    private fun projected(record: MonitorMediaRecord<P>, favorites: Set<String>): MonitorMediaRecord<P> =
+        record.copy(favorite = when (record.favoriteAuthority) {
+            MonitorMediaFavoriteAuthority.LEGACY_COMBINED -> record.favorite || record.address.favoriteKey in favorites
+            MonitorMediaFavoriteAuthority.SOURCE -> record.sourceFavorite ?: record.favorite
+            MonitorMediaFavoriteAuthority.LOCAL_OVERLAY -> record.sourceFavorite == true || record.address.favoriteKey in favorites
+        })
     public fun toggleFavorite(id: MediaAssetID) {
         val record = record(id) ?: return
-        val changed = record.copy(favorite = !record.favorite)
-        favorites = if (changed.favorite) favorites + changed.address.favoriteKey else favorites - changed.address.favoriteKey
-        favoritesStore.saveFavorites(favorites)
+        val generation = lifetime
+        val on = if (record.favoriteAuthority == MonitorMediaFavoriteAuthority.LOCAL_OVERLAY)
+            record.address.favoriteKey !in favorites else !record.favorite
+        favorites = if (on) favorites + record.address.favoriteKey else favorites - record.address.favoriteKey
+        val changed = record.copy(favorite = if (record.favoriteAuthority == MonitorMediaFavoriteAuthority.LOCAL_OVERLAY)
+            record.sourceFavorite == true || on else on)
         mutate { it.copy(records = it.records.map { old -> if (old.asset.id == id) changed else old }) }
-        try { cache.save(state.value.records) }
-        catch (_: Exception) { mutate { it.copy(note = "Could not save local clip favorites.") } }
+        if (lifetime != generation) return
+        favoritesStore.saveFavorites(favorites)
+        if (lifetime != generation) return
+        try { cache.save(state.value.records) { lifetime == generation } }
+        catch (_: Exception) { if (lifetime == generation) mutate { it.copy(note = copy.favoriteSaveFailed) } }
     }
     public fun bind(service: CameraMediaService?) {
         val wasBrowsing = state.value.browsing
-        close(); this.service = service
-        if (wasBrowsing) begin()
+        this.service = service
+        val retired = retire()
+        if (wasBrowsing && lifetime == retired.token && !state.value.browsing) begin()
     }
     public fun begin() {
-        if (state.value.browsing) return
-        mutate { it.copy(lifetimeToken = UUID.randomUUID(), browsing = true, note = null) }
+        if (disposed || state.value.browsing) return
+        val generation = UUID.randomUUID()
+        mutate { it.copy(lifetimeToken = generation, browsing = true, note = null, catalogPageCount = 0) }
+        if (!current(generation)) return
+        if (cacheScanning == MonitorMediaCacheScanning.BACKGROUND) reloadEntries()
+        if (!current(generation)) return
         open()
     }
     private fun open() {
@@ -143,87 +201,262 @@ public class MonitorMediaLibraryModel<P>(
             if (!current(generation)) return@launch
             try {
                 val opened = service.openBrowse()
-                if (!current(generation) || !isActive) { opened.close(); return@launch }
+                if (!current(generation) || !isActive) { withContext(NonCancellable) { opened.close() }; return@launch }
                 browse = opened; openTask = null; refresh()
             } catch (error: Exception) {
-                if (current(generation)) { openTask = null; mutate { it.copy(note = "Could not open the camera library.") } }
+                if (current(generation)) { openTask = null; mutate { it.copy(note = copy.openFailed) } }
             }
         }
         openTask = task; task.start()
     }
-    private fun retire(): CameraMediaBrowse? {
-        listing = UUID.randomUUID()
-        mutate { it.copy(lifetimeToken = UUID.randomUUID(), browsing = false, fetching = false) }
-        openTask?.cancel(); openTask = null; listTask?.cancel(); listTask = null; cursor?.close(); cursor = null
-        retireOperations()
-        val closed = browse; browse = null
-        return closed
+    private data class Retirement(val token: UUID, val browse: CameraMediaBrowse?)
+    private fun retire(): Retirement {
+        val token = UUID.randomUUID(); listing = UUID.randomUUID(); entryRequest = UUID.randomUUID()
+        val oldOpen = openTask; val oldList = listTask; val oldReconciliation = reconciliationTask; val oldCursor = cursor; val oldEntries = entryTask; val closed = browse
+        openTask = null; listTask = null; reconciliationTask = null; cursor = null; entryTask = null; browse = null
+        val retired = extractRetiredOperations()
+        val cleanup = closed?.let(::prepareRetirement)
+        mutate { it.copy(lifetimeToken = token, browsing = false, fetching = false, catalogPageCount = 0,
+            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+        oldOpen?.cancel(); oldList?.cancel(); oldReconciliation?.cancel(); oldCursor?.close(); oldEntries?.cancel(); retired.dispose()
+        cleanup?.start()
+        return Retirement(token, closed)
     }
-    public fun close() { val closed = retire(); if (closed != null) owner.launch { closed.close() } }
+    // Register before publication: a synchronous dispose observer must see the old lease.
+    private fun prepareRetirement(closed: CameraMediaBrowse): Job {
+        val task = owner.launch(NonCancellable, start = CoroutineStart.LAZY) { closed.close() }
+        retirementTasks.add(task)
+        task.invokeOnCompletion { retirementTasks.remove(task) }
+        return task
+    }
+    public fun close() { retire() }
     public suspend fun dispose() {
-        val closed = retire()
-        try { if (closed != null) withContext(NonCancellable) { closed.close() } } finally { owner.cancel() }
+        disposed = true
+        retire()
+        try {
+            withContext(NonCancellable) {
+                while (retirementTasks.isNotEmpty()) {
+                    val pending = retirementTasks.toList()
+                    pending.forEach { it.start() }
+                    pending.joinAll()
+                }
+            }
+        } finally { owner.cancel() }
     }
-    private fun current(generation: UUID): Boolean = state.value.browsing && lifetime == generation
+
+    private fun current(generation: UUID): Boolean = !disposed && state.value.browsing && lifetime == generation
+    private fun admitted(generation: UUID, request: UUID, binding: MediaBrowseBinding): Boolean =
+        current(generation) && listing == request && browse?.binding == binding
     public fun refresh() {
         if (!state.value.browsing) return
         val browse = browse ?: run { if (openTask == null) open(); return }
-        listTask?.cancel(); cursor?.close(); cursor = null
         val request = UUID.randomUUID(); listing = request; val generation = lifetime
-        mutate { it.copy(fetching = true, fetchedCount = 0, note = null) }
+        val oldTask = listTask; val oldReconciliation = reconciliationTask; val oldCursor = cursor; listTask = null; reconciliationTask = null; cursor = null
+        oldTask?.cancel(); oldReconciliation?.cancel(); oldCursor?.close()
+        if (!admitted(generation, request, browse.binding)) return
+        mutate { it.copy(fetching = true, fetchedCount = 0, note = copy.listing, catalogPageCount = 0) }
+        if (!admitted(generation, request, browse.binding)) return
         val task = owner.launch(start = CoroutineStart.LAZY) {
-            if (!current(generation) || listing != request) return@launch
+            if (!admitted(generation, request, browse.binding) || !isActive) return@launch
             try {
                 val opened = browse.catalog()
-                if (!current(generation) || listing != request || !isActive) { opened.close(); return@launch }
+                if (!admitted(generation, request, browse.binding) || !isActive) { opened.close(); return@launch }
                 cursor = opened
                 try {
-                    while (true) {
-                        val delta = opened.next() ?: break
-                        if (!current(generation) || listing != request || !isActive) return@launch
-                        // No suspension between the fenced delta and immutable source capture.
-                        val captures = delta.upserts.map { cache.codec.capture(it, browse.binding) }
-                        apply(delta, captures); cache.save(state.value.records)
-                    }
+                    consumeCursor(opened, browse.binding, generation, request, catalogBase == MonitorMediaCatalogBase.FRESH_LISTING)
                 } finally { opened.close() }
-                if (current(generation) && listing == request) {
-                    cursor = null; listTask = null; mutate { it.copy(fetching = false) }
+                if (admitted(generation, request, browse.binding)) {
+                    cursor = null; listTask = null; mutate { it.copy(fetching = false, note = if (it.records.isEmpty()) copy.empty else null) }
                 }
             } catch (error: Exception) {
-                if (current(generation) && listing == request) {
+                if (admitted(generation, request, browse.binding)) {
                     cursor = null; listTask = null
-                    mutate { it.copy(fetching = false, note = if (error is CancellationException) it.note else "Could not list camera clips.") }
+                    mutate { it.copy(fetching = false, note = if (error is CancellationException) it.note else copy.listFailed) }
                 }
             }
         }
         listTask = task; task.start()
     }
-    private fun apply(delta: MediaCatalogDelta, captures: List<MonitorMediaRecord<P>>) {
-        val catalog = state.value.catalog.applying(delta)
-        val byID = linkedMapOf<MediaAssetID, MonitorMediaRecord<P>>()
-        if (!delta.reset) state.value.records.forEach { byID[it.asset.id] = it }
-        delta.removed.forEach { byID.remove(it) }
-        captures.forEach { byID[it.asset.id] = it.copy(favorite = it.favorite || it.address.favoriteKey in favorites) }
-        val records = catalog.assets.mapNotNull { byID[it.id] }
-        mutate { it.copy(catalog = catalog, records = records, fetchedCount = records.size,
-            selectedIDs = it.selectedIDs.intersect(records.map { record -> record.asset.id }.toSet())) }
-        retireOperations(records.map { it.asset.id }.toSet())
+    private suspend fun consumeCursor(cursor: MediaCatalogCursor, binding: MediaBrowseBinding,
+        generation: UUID, request: UUID, freshBase: Boolean = false) {
+        var listingCatalog = MediaCatalog()
+        val authority = cache.catalogAuthority
+        var appliedPage = false; var checkpointAttempted = false
+        val context = currentCoroutineContext()
+        fun checkpoint() {
+            context.ensureActive()
+            if (!(cache.isCurrent(authority) && admitted(generation, request, binding))) throw MediaServiceException(MediaServiceFailure.RETIRED)
+            checkpointAttempted = true
+            cache.save(state.value.records) { context.isActive && (cache.isCurrent(authority) && admitted(generation, request, binding)) }
+        }
+        try {
+            while (true) {
+                val delta = cursor.next() ?: break
+                currentCoroutineContext().ensureActive()
+                if (!(cache.isCurrent(authority) && admitted(generation, request, binding))) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                val previous = state.value.records.toList()
+                val captured = cache.codec.captureCatalog(delta, binding, previous)
+                if (!cache.isCurrent(authority) || !admitted(generation, request, binding)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                val capture = cache.codec.prepareCatalog(captured, binding, previous)
+                currentCoroutineContext().ensureActive()
+                if (!cache.isCurrent(authority) || !admitted(generation, request, binding)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                val nextCatalog = (if (freshBase) listingCatalog else state.value.catalog).applying(delta)
+                if (!apply(nextCatalog, capture, generation, request, binding, authority)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                listingCatalog = nextCatalog
+                appliedPage = true
+                if (catalogPersistence == MonitorMediaCatalogPersistence.EACH_DELTA) checkpoint()
+            }
+            currentCoroutineContext().ensureActive()
+            if (catalogPersistence == MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE && appliedPage) checkpoint()
+        } catch (error: Exception) {
+            if (catalogPersistence == MonitorMediaCatalogPersistence.LISTING_COMPLETE_OR_NON_CANCEL_FAILURE &&
+                appliedPage && !checkpointAttempted && error !is CancellationException &&
+                (error as? MediaServiceException)?.failure != MediaServiceFailure.RETIRED &&
+                currentCoroutineContext().isActive && (cache.isCurrent(authority) && admitted(generation, request, binding))) checkpoint()
+            throw error
+        }
+    }
+    private fun apply(catalog: MediaCatalog, capture: MonitorMediaCatalogCapture<P>,
+        generation: UUID, request: UUID, binding: MediaBrowseBinding, authority: MonitorMediaCatalogAuthority): Boolean {
+        return applyCapture(capture, catalog) { cache.isCurrent(authority) && admitted(generation, request, binding) }
+    }
+    /** Actual captured host index transaction; raw camera observations stay unchanged. */
+    public fun applyLocalRecords(capture: MonitorMediaCatalogCapture<P>,
+        token: MonitorMediaLibraryActionToken, persist: Boolean = false) {
+        if (!applyCapture(capture, null) { isCurrent(token) }) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        if (persist) cache.save(state.value.records) { isCurrent(token) }
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+    }
+    private fun applyCapture(capture: MonitorMediaCatalogCapture<P>, catalog: MediaCatalog?,
+        ifCurrent: () -> Boolean): Boolean {
+        if (!ifCurrent()) return false
+        val capturedFavorites = capture.sourceFavoriteKeys ?: favorites
+        val old = state.value
+        val values = linkedMapOf<MediaAssetID, MonitorMediaRecord<P>>()
+        if (!capture.resetLibrary) old.records.forEach { values[it.asset.id] = it }
+        capture.removed.forEach { values.remove(it) }
+        capture.upserts.forEach { values[it.asset.id] = projected(it, capturedFavorites) }
+        // An amendment requires a surviving row; it cannot resurrect an absent tombstone.
+        capture.amendments.forEach { if (it.asset.id in values) values[it.asset.id] = projected(it, capturedFavorites) }
+        val order = (capture.order.orEmpty() + values.keys).distinct().filter { it in values }
+        val records = order.mapNotNull { values[it] }.map { projected(it, capturedFavorites) }
+        val retained = records.map { it.asset.id }.toSet()
+        val retired = extractRetiredOperations(retained)
+        capture.sourceFavoriteKeys?.let { favorites = it.toSet() }
+        mutate { it.copy(catalog = catalog ?: old.catalog, records = records,
+            catalogPageCount = it.catalogPageCount + if (catalog != null) 1 else 0,
+            fetchedCount = records.size, selectedIDs = it.selectedIDs.intersect(retained),
+            entries = it.entries.filterKeys { id -> id in retained },
+            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+        retired.dispose()
+        if (!ifCurrent()) return false
+        if (capture.sourceFavoriteKeys != null) favoritesStore.saveFavorites(favorites)
+        if (!ifCurrent()) return false
+        reloadEntries()
+        return ifCurrent()
+    }
+    private fun reloadEntries() {
+        val request = UUID.randomUUID(); val generation = lifetime; entryRequest = request
+        val previous = entryTask; entryTask = null; previous?.cancel()
+        if (entryRequest != request || lifetime != generation) return
+        when (cacheScanning) {
+            MonitorMediaCacheScanning.IMMEDIATE -> {
+                val entries = state.value.records.associate { it.asset.id to cache.entry(it) }
+                if (entryRequest == request && lifetime == generation) mutate { it.copy(entries = entries, cacheRevision = it.cacheRevision + 1) }
+            }
+            MonitorMediaCacheScanning.BACKGROUND -> {
+                val plan = cache.readPlan(state.value.records)
+                val task = owner.launch(start = CoroutineStart.LAZY) {
+                    try {
+                        val snapshot = readSnapshot(plan)
+                        if (!isActive || entryRequest != request || lifetime != generation ||
+                            snapshot.planID != plan.id || snapshot.generation != cache.directory.generation) return@launch
+                        entryTask = null
+                        mutate { it.copy(entries = snapshot.entries, cacheRevision = it.cacheRevision + 1) }
+                    } catch (error: Exception) { if (entryRequest == request && lifetime == generation) entryTask = null }
+                }
+                entryTask = task; task.start()
+            }
+        }
+    }
+
+    public val actionToken: MonitorMediaLibraryActionToken get() = MonitorMediaLibraryActionToken(lifetime, browse?.binding)
+    public fun isCurrent(token: MonitorMediaLibraryActionToken): Boolean = lifetime == token.lifetime && browse?.binding == token.binding
+    /** Accepted local action; camera observations stay unchanged until a source delta. */
+    public fun applyLocalRemoval(ids: Set<MediaAssetID>, token: MonitorMediaLibraryActionToken, removeLocalFavorites: Boolean = true) {
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        val old = state.value; val removed = old.records.filter { it.asset.id in ids }
+        val records = old.records.filterNot { it.asset.id in ids }
+        if (removeLocalFavorites) favorites = favorites - removed.map { it.address.favoriteKey }.toSet()
+        val retired = extractRetiredOperations(records.map { it.asset.id }.toSet())
+        mutate { it.copy(records = records, selectedIDs = it.selectedIDs - ids,
+            entries = it.entries.filterKeys { id -> id !in ids }, fetchedCount = records.size,
+            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+        retired.dispose()
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        if (removeLocalFavorites) favoritesStore.saveFavorites(favorites)
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        cache.save(state.value.records) { isCurrent(token) }
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
         reloadEntries()
     }
-    private fun reloadEntries() { mutate { it.copy(entries = it.records.associate { record -> record.asset.id to cache.entry(record) }, cacheRevision = it.cacheRevision + 1) } }
+    /** Actual local metadata IO changes display facts, never camera observations. */
+    public fun updateLocalFacts(updates: Map<MediaAssetID, MonitorMediaFilterFacts>, token: MonitorMediaLibraryActionToken) {
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        mutate { it.copy(records = it.records.map { record -> updates[record.asset.id]?.let { facts -> record.copy(facts = facts) } ?: record }) }
+    }
+    /** Collects the real supplied cursor; app composition performs no query/paging loop. */
+    public suspend fun reconcileCatalog(supplied: MediaCatalogCursor, binding: MediaBrowseBinding,
+        token: MonitorMediaLibraryActionToken) {
+        if (!isCurrent(token) || !state.value.browsing || token.binding != binding) {
+            supplied.close(); throw MediaServiceException(MediaServiceFailure.RETIRED)
+        }
+        val request = UUID.randomUUID(); val generation = lifetime; listing = request
+        val oldList = listTask; val oldReconciliation = reconciliationTask; val oldCursor = cursor
+        listTask = null; reconciliationTask = null; cursor = null
+        oldList?.cancel(); oldReconciliation?.cancel(); oldCursor?.close()
+        if (!admitted(generation, request, binding)) { supplied.close(); throw MediaServiceException(MediaServiceFailure.RETIRED) }
+        mutate { it.copy(fetching = false, catalogPageCount = 0) }
+        if (!admitted(generation, request, binding)) { supplied.close(); throw MediaServiceException(MediaServiceFailure.RETIRED) }
+        cursor = supplied
+        val work = owner.async(start = CoroutineStart.LAZY) {
+            try {
+                consumeCursor(supplied, binding, generation, request)
+                if (!admitted(generation, request, binding) || !isActive) throw MediaServiceException(MediaServiceFailure.RETIRED)
+            } finally {
+                supplied.close()
+                if (admitted(generation, request, binding)) { cursor = null; reconciliationTask = null }
+            }
+        }
+        reconciliationTask = work; work.start()
+        try { work.await() } catch (error: CancellationException) { work.cancel(); throw error }
+    }
+
     /** An app-owned playback/delivery adapter committed through this same root lifetime. */
     public fun refreshLocalCache() { reloadEntries() }
-    private fun retireOperations(retained: Set<MediaAssetID> = emptySet()) {
-        val removedTransfers = transfers.keys.filterNot { it in retained }.toSet()
-        removedTransfers.forEach { id -> transfers.remove(id)?.let { it.task.cancel(); it.writer.abort() } }
-        thumbnails.keys.filterNot { it in retained }.forEach { id ->
-            thumbnailTasks.remove(id)?.cancel(); thumbnailWriters.remove(id)?.abort(); thumbnails.remove(id)
+    private data class RetiredOperations(val ids: Set<MediaAssetID>, val dispose: () -> Unit)
+    private fun extractRetiredOperations(retained: Set<MediaAssetID> = emptySet()): RetiredOperations {
+        val ids = transfers.keys.filterNot { it in retained }.toSet()
+        val oldTransfers = ids.mapNotNull { transfers.remove(it) }
+        val thumbIDs = thumbnails.keys.filterNot { it in retained }
+        val tasks = thumbIDs.mapNotNull { thumbnailTasks.remove(it) }
+        val writers = thumbIDs.mapNotNull { thumbnailWriters.remove(it) }
+        thumbIDs.forEach { thumbnails.remove(it) }
+        return RetiredOperations(ids) {
+            oldTransfers.forEach { it.task.cancel(); it.writer.abort() }
+            tasks.forEach { it.cancel() }; writers.forEach { it.abort() }
         }
-        mutate { it.copy(transferring = it.transferring - removedTransfers, progress = it.progress - removedTransfers) }
     }
+    private fun retireOperations(retained: Set<MediaAssetID> = emptySet()) {
+        val retired = extractRetiredOperations(retained)
+        if (retired.ids.isNotEmpty()) mutate { it.copy(transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+        retired.dispose()
+    }
+
     public fun ensureThumbnail(id: MediaAssetID) {
         if (id in thumbnails) return
         val record = record(id) ?: return
+        val address = record.address.thumbnail ?: return
         if (cache.entry(record).thumbnail != null) return
         val source = browse?.thumbnails ?: return
         val operation = UUID.randomUUID(); val generation = lifetime; val cacheGeneration = cache.directory.generation
@@ -233,7 +466,7 @@ public class MonitorMediaLibraryModel<P>(
                 if (!current(generation) || thumbnails[id] != operation) return@launch
                 val bytes = source.thumbnail(id)
                 if (!current(generation) || thumbnails[id] != operation || cache.directory.generation != cacheGeneration || !isActive) return@launch
-                val writer = cache.directory.beginWrite(record.address.thumbnail); thumbnailWriters[id] = writer
+                val writer = cache.directory.beginWrite(address); thumbnailWriters[id] = writer
                 try {
                     writer.write(bytes)
                     if (!current(generation) || thumbnails[id] != operation || !isActive) return@launch
@@ -260,8 +493,6 @@ public class MonitorMediaLibraryModel<P>(
         if (id in transfers) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
         val operation = UUID.randomUUID(); val generation = lifetime
         val writer = cache.directory.beginWrite(address)
-        mutate { it.copy(transferring = it.transferring + id,
-            progress = if (descriptor.byteCount != null) it.progress + (id to 0.0) else it.progress) }
         val sink = object : MediaByteSink {
             var bytes = 0L
             override suspend fun write(chunk: ByteArray) {
@@ -280,6 +511,7 @@ public class MonitorMediaLibraryModel<P>(
                 currentCoroutineContext().ensureActive()
                 if (!current(generation) || transfers[id]?.id != operation) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 val file = writer.commit(receipt); reloadEntries()
+                if (!current(generation) || transfers[id]?.id != operation || !isActive) throw MediaServiceException(MediaServiceFailure.RETIRED)
                 if (id in state.value.progress) mutate { it.copy(progress = it.progress + (id to 1.0)) }
                 sleep(450)
                 currentCoroutineContext().ensureActive()
@@ -287,11 +519,17 @@ public class MonitorMediaLibraryModel<P>(
                 file
             } finally { writer.abort() }
         }
-        transfers[id] = Transfer(operation, writer, task); task.start()
+        transfers[id] = Transfer(operation, writer, task)
+        mutate { it.copy(transferring = it.transferring + id,
+            progress = if (descriptor.byteCount != null) it.progress + (id to 0.0) else it.progress) }
+        if (!current(generation) || transfers[id]?.id != operation) {
+            task.cancel(); writer.abort(); throw MediaServiceException(MediaServiceFailure.RETIRED)
+        }
+        task.start()
         try { return task.await() }
         catch (error: CancellationException) { task.cancel(); throw error }
         catch (error: Exception) {
-            if (current(generation) && transfers[id]?.id == operation) mutate { it.copy(note = "Could not download that clip.") }
+            if (current(generation) && transfers[id]?.id == operation) mutate { it.copy(note = copy.downloadFailed) }
             throw error
         }
         finally {
@@ -306,13 +544,20 @@ public class MonitorMediaLibraryModel<P>(
     public suspend fun delete(ids: List<MediaAssetID>): List<MediaDeleteResult> {
         val browse = browse ?: throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
         val source = browse.deletion ?: throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
-        val generation = lifetime; val results = source.delete(ids)
+        val token = actionToken; val results = source.delete(ids)
         currentCoroutineContext().ensureActive()
-        if (!current(generation) || this.browse?.binding != browse.binding) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        if (!isCurrent(token) || this.browse?.binding != browse.binding) throw MediaServiceException(MediaServiceFailure.RETIRED)
         val accepted = results.filter { it.outcome == MediaDeleteOutcome.ACCEPTED }.map { it.asset }.toSet()
         // This optimistic local change does not mutate the reported source catalog.
-        mutate { it.copy(records = it.records.filterNot { record -> record.asset.id in accepted }, selectedIDs = it.selectedIDs - accepted) }
-        cache.save(state.value.records); reloadEntries(); return results
+        applyLocalRemoval(accepted, token, removeLocalFavorites = false); return results
     }
-    public suspend fun clearCache() { retireOperations(); cache.clear(); reloadEntries() }
+    public suspend fun clearCache() {
+        val token = actionToken; retireOperations()
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        cache.clear()
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        reloadEntries()
+    }
 }

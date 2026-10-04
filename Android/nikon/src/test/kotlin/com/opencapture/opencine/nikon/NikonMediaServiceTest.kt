@@ -21,6 +21,28 @@ import kotlin.test.assertTrue
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class NikonMediaServiceTest {
+    @Test fun firstPageResetRetiresOldRawCatalogWhileSubsequentPagesAccumulate() = runTest {
+        val port = Port()
+        port.pages += page("FIRST.MOV").replace("OZCMEDIA2\t0", "OZCMEDIA2\t1")
+        port.pages += page("SECOND.MOV").replace("\n7\t", "\n8\t")
+        val source = NikonMediaService(port.session, port, backgroundScope, StandardTestDispatcher(testScheduler))
+        val browse = source.openBrowse(); val cursor = browse.catalog()
+        val first = assertNotNull(cursor.next()); val second = assertNotNull(cursor.next())
+        assertTrue(first.reset); assertFalse(second.reset)
+        assertEquals(1, first.upserts.size); assertEquals(1, second.upserts.size)
+        val stale = first.upserts.single().copy(id = MediaAssetID("SIMULATED-stale"), filename = "STALE.MOV")
+        val afterFirst = MediaCatalog(assets = listOf(stale)).applying(first)
+        assertEquals(first.upserts.map { it.id }, afterFirst.assets.map { it.id })
+        val afterSecond = afterFirst.applying(second)
+        assertEquals((first.upserts + second.upserts).map { it.id }.toSet(), afterSecond.assets.map { it.id }.toSet())
+        cursor.close()
+        port.pages += "OZCMEDIA2\t0\t0\t0"
+        val empty = assertNotNull(browse.catalog().next())
+        assertTrue(empty.reset); assertTrue(empty.complete); assertTrue(empty.upserts.isEmpty())
+        assertTrue(afterSecond.applying(empty).assets.isEmpty())
+        browse.close()
+    }
+
     @Test fun realPagerPublishesBothCardsAndCapturesExactRemovalIdentity() = runTest {
         val port = Port()
         port.pages += "OZCMEDIA2\t1\t1\t0\n7\t1\t200\t20261004T120000\t6048\t3402\t0\t0\t0\tr3d\t\t\tA.R3D"

@@ -184,8 +184,10 @@ import OpenCineMedia
         cursor.browse.pairingUpdates = pairingUpdates
         listedCount = cursor.listedCount
         if complete { coveredCategory = cursor.request.category }
+        let reset = !cursor.hasPublished
+        cursor.hasPublished = true
         return .init(
-            upserts: objects.map { $0.asset(namespace: namespace) },
+            reset: reset, upserts: objects.map { $0.asset(namespace: namespace) },
             removed: removed.map { $0.asset(namespace: namespace).id }, volumes: volumes,
             complete: complete)
     }
@@ -229,6 +231,7 @@ import OpenCineMedia
     let now: @Sendable () -> Duration
     var closed = false
     var listedCount = 0
+    var hasPublished = false
     private var pulling = false
     private var initialized = false
     private var finished = false

@@ -29,6 +29,11 @@ public protocol NikonMonitorLink: NikonControlTransport {
     func shutdown() async
 }
 
+/// Optional real GetEventEx support; pushed event-socket draining remains a separate owner.
+@MainActor public protocol NikonDeviceEventPollLink: AnyObject, Sendable {
+    func pollDeviceEvents() async -> [PTPEvent]
+}
+
 /// Nikon monitor wire ownership: the common command queue and one control lifetime, retained
 /// across replacement links. Its caller publishes images and chrome; this module sends and
 /// confirms camera commands only at the pump's safe point.
@@ -54,6 +59,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     private var previewGeneration = 0
     private var keepAliveTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
+    private var deviceEventPoll: (ticket: UUID, task: Task<Void, Never>)?
     private var startFailures = 0
     private var propertyBootstrap: NikonPropertyBootstrap?
     private var backgroundRetirement: Task<Void, Never>?
@@ -409,6 +415,41 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         }
     }
 
+    /// The exact existing GetEventEx cadence at an admitted app/control safe point.
+    /// A ticket belongs to one link/runtime generation; late results cannot publish or clear a successor.
+    @discardableResult
+    public func pollDeviceEventsAtSafePoint(
+        frameCounter: Int,
+        framePeriodMilliseconds: Double, roundTripMilliseconds: Double?,
+        receive: @escaping @MainActor (PTPEvent) -> Void
+    ) -> Bool {
+        guard !closed, let link, let polling = link as? any NikonDeviceEventPollLink,
+            deviceEventPoll == nil
+        else { return false }
+        let stride = LiveViewPollPacing.eventPollStride(
+            roundTripMilliseconds: roundTripMilliseconds,
+            framePeriodMilliseconds: framePeriodMilliseconds)
+        guard frameCounter.isMultiple(of: stride) else { return false }
+        let ticket = UUID()
+        let capturedGeneration = generation
+        let capturedLink = ObjectIdentifier(link)
+        let task = Task { [weak self] in
+            defer { if self?.deviceEventPoll?.ticket == ticket { self?.deviceEventPoll = nil } }
+            guard let self, deviceEventPoll?.ticket == ticket, generation == capturedGeneration,
+                !closed, !Task.isCancelled, self.link.map(ObjectIdentifier.init) == capturedLink
+            else { return }
+            let events = await polling.pollDeviceEvents()
+            for event in events {
+                guard deviceEventPoll?.ticket == ticket, generation == capturedGeneration,
+                    !closed, !Task.isCancelled, self.link.map(ObjectIdentifier.init) == capturedLink
+                else { return }
+                receive(event)
+            }
+        }
+        deviceEventPoll = (ticket, task)
+        return true
+    }
+
     /// Drains every kept-link reader before returning a borrowed session to its member.
     @discardableResult
     public func retirePumps() -> Task<Void, Never>? { stopBackgroundTasks() }
@@ -417,16 +458,22 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     private func stopBackgroundTasks() -> Task<Void, Never>? {
         let keepAlive = keepAliveTask
         let events = eventTask
+        let polledEvents = deviceEventPoll?.task
+        deviceEventPoll = nil
+        polledEvents?.cancel()
         keepAliveTask = nil
         eventTask = nil
         keepAlive?.cancel()
         events?.cancel()
         let preview = stopPreview()
         let earlier = backgroundRetirement
-        guard keepAlive != nil || events != nil || preview != nil else { return earlier }
+        guard keepAlive != nil || events != nil || polledEvents != nil || preview != nil else {
+            return earlier
+        }
         let retirement = Task {
             await keepAlive?.value
             await events?.value
+            await polledEvents?.value
             await preview?.value
             await earlier?.value
         }
@@ -497,7 +544,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
 }
 
 #if canImport(Darwin) && canImport(os)
-    extension NativeCameraSession: NikonMonitorLink {
+    extension NativeCameraSession: NikonMonitorLink, NikonDeviceEventPollLink {
         /// Serial reported during the session's identity exchange.
         public nonisolated var serialNumber: String { identity.serialNumber }
     }
