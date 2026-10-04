@@ -174,7 +174,7 @@ fun MonitorMediaDeliveryPanel(
                                 .padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 MonitorIcon(MonitorIcon.FOLDER, null, Modifier.size(14.dp), MonitorPalette.muted)
-                                Text(service.choices.firstOrNull { it.id == service.selectedID }?.label ?: "Select a project",
+                                Text(service.selectedProjectLabel ?: "Select a project",
                                     Modifier.weight(1f), style = MonitorTypography.text(13f, FontWeight.SemiBold), color = MonitorPalette.text)
                                 MonitorIcon(MonitorIcon.CHEVRONS_UP_DOWN, null, Modifier.size(11.dp), MonitorPalette.muted)
                             }
@@ -260,25 +260,29 @@ fun MonitorMediaDeliveryPanel(
 private fun Modifier.deliveryOptionPlate(opacity: Float = .04f): Modifier = clip(DeliveryOptionShape)
     .background(Color.White.copy(alpha = opacity), DeliveryOptionShape)
 
+/** Existing four-parameter/trailing-lambda contract retains its compact default rendering. */
 @Composable
-fun MonitorMediaDeliveryProgress(value: MonitorMediaDeliveryProgressValue, onCancel: (() -> Unit)? = null,
-    modifier: Modifier = Modifier, destinationIcon: @Composable () -> Unit) {
+fun MonitorMediaDeliveryProgress(
+    value: MonitorMediaDeliveryProgressValue,
+    onCancel: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    destinationIcon: @Composable () -> Unit,
+) {
+    MonitorMediaDeliveryProgress(value, onCancel, modifier, onExpand = null, destinationIcon = destinationIcon)
+}
+
+/** An optional independent expansion action leaves cancellation owned by the same host. */
+@Composable
+fun MonitorMediaDeliveryProgress(
+    value: MonitorMediaDeliveryProgressValue,
+    onCancel: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    onExpand: (() -> Unit)? = null,
+    destinationIcon: @Composable () -> Unit,
+) {
     val shape = RoundedCornerShape(50)
-    Row(modifier.fillMaxWidth().shadow(12.dp, shape, ambientColor = Color.Black.copy(alpha = .35f))
-        .clip(shape).monitorMaterial(MonitorMaterial.Delivery, shape).padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (value.preparing) CircularProgressIndicator(Modifier.size(16.dp), color = MonitorPalette.accent, strokeWidth = 2.dp)
-        else Box(Modifier.size(13.dp)) { destinationIcon() }
-        Column(Modifier.weight(1f)) {
-            Text(value.status, style = MonitorTypography.text(12f, FontWeight.SemiBold), color = MonitorPalette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            value.batch?.let { Text(it, style = MonitorTypography.readout(10f, FontWeight.Medium), color = MonitorPalette.muted, maxLines = 1) }
-        }
-        if (value.showsProgress) {
-            Box(Modifier.size(width = 44.dp, height = 4.dp).clip(shape).background(MonitorPalette.border.copy(alpha = .55f))) {
-                Box(Modifier.fillMaxWidth(value.fraction.toFloat().coerceIn(0f, 1f)).height(4.dp).background(MonitorPalette.accent))
-            }
-        }
-        onCancel?.let { Text("Cancel", style = MonitorTypography.text(11f, FontWeight.SemiBold), color = MonitorPalette.muted,
-            modifier = Modifier.monitorChromeClickable(onClick = it)) }
+    Box(modifier.fillMaxWidth().shadow(12.dp, shape, ambientColor = Color.Black.copy(alpha = .35f))
+        .clip(shape).monitorMaterial(MonitorMaterial.Delivery, shape).padding(horizontal = 14.dp, vertical = 11.dp)) {
+        MonitorMediaDeliveryProgressContent(value, onCancel, onExpand, destinationIcon = destinationIcon)
     }
 }
