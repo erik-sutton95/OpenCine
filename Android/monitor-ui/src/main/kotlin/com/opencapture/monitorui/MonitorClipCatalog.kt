@@ -41,10 +41,14 @@ import androidx.compose.ui.unit.sp
 
 @Immutable
 data class MonitorClipValue(val id: String, val title: String, val detail: String,
-    val duration: String?, val source: String, val favorite: Boolean,
+    val duration: String?, val source: String?, val favorite: Boolean,
     val progress: Float? = null,
     /** iOS `stateTag` tint (green for a file already on the phone); used with [MonitorIosParity]. */
-    val sourceTint: Color = MonitorPalette.muted)
+    val sourceTint: Color = MonitorPalette.muted,
+    val burstCount: Int? = null, val mediaBadge: String? = null,
+    val completionBadge: String? = null, val transferCaption: String? = null,
+    val accessibilityDescription: String? = null, val favoriteLabel: String? = null,
+    val selectionEntryLabel: String? = null)
 
 /** Grid and list share one presentation value and one thumbnail-loader slot. */
 @Composable
@@ -61,10 +65,11 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
                 role = Role.Button,
                 onClick = { if (selecting) onSelect() else onOpen() },
                 onLongClick = onSelect,
-            ).semantics { contentDescription = clip.title }
+                onLongClickLabel = clip.selectionEntryLabel,
+            ).semantics { contentDescription = clip.accessibilityDescription ?: clip.title }
             else Modifier.semantics {
                 role = Role.Button
-                contentDescription = clip.title
+                contentDescription = clip.accessibilityDescription ?: clip.title
                 onClick(label = if (selecting) "Toggle selection" else "Open") {
                     if (selecting) onSelect() else onOpen()
                     true
@@ -80,7 +85,7 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
         thumbnail()
         clip.progress?.let { progress ->
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
-                Text("${(progress * 100).toInt()}%", style = MonitorTypography.readout(11f, FontWeight.SemiBold))
+                Text(clip.transferCaption ?: "${(progress * 100).toInt()}%", style = MonitorTypography.readout(11f, FontWeight.SemiBold))
             }
         }
     }
@@ -94,10 +99,10 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(clip.duration.orEmpty(), style = MonitorTypography.readout(9.5f))
-            Text(clip.source, color = MonitorPalette.muted, style = MonitorTypography.text(7.5f, FontWeight.SemiBold))
+            clip.source?.let { Text(it, color = MonitorPalette.muted, style = MonitorTypography.text(7.5f, FontWeight.SemiBold)) }
         }
         if (favoriteAction != null) {
-            MonitorClipFavorite(clip.favorite, favoriteAction)
+            MonitorClipFavorite(clip.favorite, favoriteAction, clip.favoriteLabel ?: if (clip.favorite) "Remove from favorites" else "Add to favorites")
         }
     } else Column(surface, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(MonitorPalette.backgroundDeep)) {
@@ -106,20 +111,28 @@ fun MonitorClipCard(clip: MonitorClipValue, list: Boolean, selecting: Boolean, s
                 Box(Modifier.align(Alignment.TopStart)) {
                     MonitorClipSelection(selected, if (clicks) onSelect else null)
                 }
+            } else clip.burstCount?.let {
+                ClipBadge("$it frames", Modifier.align(Alignment.TopStart).padding(6.dp))
             }
             if (favoriteAction != null) {
                 Box(Modifier.align(Alignment.TopEnd)) {
-                    MonitorClipFavorite(clip.favorite, favoriteAction)
+                    MonitorClipFavorite(clip.favorite, favoriteAction, clip.favoriteLabel ?: if (clip.favorite) "Remove from favorites" else "Add to favorites")
                 }
             }
-            if (MonitorIosParity.enabled) {
-                IosClipTag(clip.source, clip.sourceTint, state = true, Modifier.align(Alignment.BottomStart).padding(6.dp))
-                clip.duration?.takeIf(String::isNotEmpty)?.let {
-                    IosClipTag(it, MonitorPalette.text, state = false, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+            clip.source?.let {
+                if (MonitorIosParity.enabled) IosClipTag(it, clip.sourceTint, state = true,
+                    Modifier.align(Alignment.BottomStart).padding(6.dp))
+                else ClipBadge(it, Modifier.align(Alignment.BottomStart).padding(6.dp))
+            }
+            Column(Modifier.align(Alignment.BottomEnd).padding(6.dp),
+                horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                clip.mediaBadge?.let { ClipBadge(it) }
+                clip.duration?.let {
+                    if (MonitorIosParity.enabled) {
+                        if (it.isNotEmpty()) IosClipTag(it, MonitorPalette.text, state = false, Modifier)
+                    } else ClipBadge(it)
                 }
-            } else {
-                ClipBadge(clip.source, Modifier.align(Alignment.BottomStart).padding(6.dp))
-                clip.duration?.let { ClipBadge(it, Modifier.align(Alignment.BottomEnd).padding(6.dp)) }
+                clip.completionBadge?.let { ClipBadge(it) }
             }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
