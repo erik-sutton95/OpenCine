@@ -56,7 +56,7 @@ fun MonitorPlaybackScrubber(progressSeconds: Float, durationSeconds: Float,
     update: (com.opencapture.opencine.media.MonitorPlaybackScrubToken, Double) -> Unit,
     commit: (com.opencapture.opencine.media.MonitorPlaybackScrubToken, Double) -> Unit,
     cancel: (com.opencapture.opencine.media.MonitorPlaybackScrubToken, MonitorEditingCancellation) -> Unit,
-    modifier: Modifier = Modifier) {
+    modifier: Modifier = Modifier, bufferedFraction: Float = 0f) {
     val duration = max(0.1f, durationSeconds)
     val window = LocalWindowInfo.current.containerSize
     val latestItem by rememberUpdatedState(item)
@@ -150,6 +150,10 @@ fun MonitorPlaybackScrubber(progressSeconds: Float, durationSeconds: Float,
         val cy = size.height / 2f
         val trackTop = cy - trackHeight / 2f
         drawRoundRect(hairline, Offset(0f, trackTop), Size(size.width, trackHeight), CornerRadius(trackHeight / 2f))
+        if (bufferedFraction.isFinite() && bufferedFraction > 0f) {
+            drawRoundRect(accent.copy(alpha = 0.32f), Offset(0f, trackTop),
+                Size(size.width * bufferedFraction.coerceIn(0f, 1f), trackHeight), CornerRadius(trackHeight / 2f))
+        }
         drawRoundRect(accent, Offset(0f, trackTop), Size(max(trackHeight, size.width * fraction), trackHeight), CornerRadius(trackHeight / 2f))
         drawCircle(Color.White, thumbSize / 2f, Offset((size.width * fraction).coerceIn(0f, size.width), cy))
     }
