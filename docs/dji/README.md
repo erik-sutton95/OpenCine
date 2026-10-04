@@ -223,3 +223,34 @@ integration-level names are source aliases of the existing JVM types
 private fields and runtime owner remain in use. Legacy callers and compiled
 entry points remain compatible; retirement of the old names belongs to a later
 minor release after all consumers migrate. JNI class/member names are unchanged.
+
+## Native Apple media browse producer
+
+`DjiAppleMediaService` owns playback entry retries, wire-ordered SD/trigger/internal
+catalog queries, assembler collection, paged cursors and the finite live-return
+loop. `DjiAppleMediaPort` supplies primitive IO, actual captured connection facts
+and admission through the genuine picture-recovery owner. Thumbnail, transfer and
+delete services remain absent until their real owners migrate.
+
+Raw UDP reception captures a query/browse/source ingress ticket before actor
+queueing. Endpoint replacement retires catalog admission while preserving the
+same-session return authority, including a nil-driver recovery gap. Closing a
+retired connection sends no return command. Fixed wire counters do not provide
+remote packet correlation; the ticket fences locally queued input.
+
+No-response catalog work throws unavailable; it never publishes a known-empty
+catalog. An actual completed empty reply publishes known empty. Gallery-open
+refusal and newest-page fallback after failed playback entry remain intact.
+
+Swift and Kotlin connection records forward supplied optional services, preserving
+legacy absent defaults. `DJICameraSessionID` and `DJIControlEpoch` alias the exact
+Core identity types through the declared DJI dependency; the Apple target adds
+no dependency or direct Core import.
+
+The local Pocket adopter passes portable/strict/repository checks, both simulator
+architecture builds, all 16 selected native recovery/cache/port methods, Android
+native staging, full shared/consumer checks and JNI/package validation. Shared
+manual-clock owner and mirrored registration scenarios pass. Physical camera
+listing/gallery/live return remains untested. The browse producer is Apple-only;
+Android retains its existing media owner. Full library/cache/player migration
+and app pin moves remain separate work.

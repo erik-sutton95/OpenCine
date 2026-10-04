@@ -1,6 +1,7 @@
 package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraServices
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectionEvent
 import com.opencapture.opencine.core.ConnectionFailure
@@ -37,6 +38,7 @@ private class FakeDjiPort : DjiConnectPort {
     override val failureDetail = MutableStateFlow<ConnectionFailure?>(null)
     override var joinedSSID: String? = null
     override val control: CameraSession = FakeCameraSession.djiLike()
+    override var services = CameraServices()
     var scans = 0
     var scanStops = 0
     var disconnects = 0
@@ -57,6 +59,10 @@ private class FakeDjiPort : DjiConnectPort {
         phaseFlow.value = ConnectionPhase.IDLE
     }
 }
+
+/** SIMULATED registration fact; no camera operation or fabricated readiness. */
+private class RegisteredDjiService
+private class UnregisteredDjiService
 
 /** Swift suite `DJIIntegrationTests`, same method names. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -83,6 +89,40 @@ class DjiIntegrationTest {
         val seen = mutableListOf<ConnectionEvent>()
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { events.collect { seen += it } }
         return seen
+    }
+
+    @Test
+    fun connectedForwardsOptionalServicesAndKeepsSessionOwner() = runTest {
+        val port = FakeDjiPort()
+        val service = RegisteredDjiService()
+        port.services = CameraServices().plus(RegisteredDjiService::class, service)
+        port.found.value = listOf(pocket)
+        val events = collect(integration(port).connect(ConnectTarget.Nearby(NearbyCamera(
+            "cam-1", name = "OsmoPocket3-AAAA", model = "Osmo Pocket 3",
+            routes = setOf(RouteKind.CAMERA_ACCESS_POINT),
+        ))))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val camera = assertIs<ConnectionEvent.Connected>(events.last()).camera
+        assertEquals(port.control.id, camera.session.id)
+        assertTrue(camera.services.get<RegisteredDjiService>() === service)
+        assertEquals(null, camera.services.get<UnregisteredDjiService>())
+    }
+
+    @Test
+    fun legacyConnectionKeepsOptionalServicesAbsent() = runTest {
+        val port = FakeDjiPort()
+        port.found.value = listOf(pocket)
+        val events = collect(integration(port).connect(ConnectTarget.Nearby(NearbyCamera(
+            "cam-1", name = "OsmoPocket3-AAAA", model = "Osmo Pocket 3",
+            routes = setOf(RouteKind.CAMERA_ACCESS_POINT),
+        ))))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val camera = assertIs<ConnectionEvent.Connected>(events.last()).camera
+        assertEquals(null, camera.services.get<RegisteredDjiService>())
     }
 
     @Test

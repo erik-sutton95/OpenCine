@@ -169,6 +169,9 @@ public final class DjiAppleDatalink {
     /// Called (on the main actor) for every DUML frame the camera pushes.
     /// Status, control ACKs, and media-list chunks (`0x00/0x27`) all arrive here.
     public var onStatusFrame: ((Duml.Frame) -> Void)?
+    /// Query authority is captured on the native receive queue, before the Main hop.
+    public nonisolated let mediaIngress = DjiAppleMediaIngressSlot()
+    public var onMediaFrame: ((Duml.Frame, DjiAppleMediaIngress?) -> Void)?
     /// Called (on the main actor) with each complete HEVC access unit (DJI marker already stripped).
     public var onAccessUnit: (([UInt8]) -> Void)?
     public var onVideoDiscontinuity: (() -> Void)?
@@ -902,6 +905,8 @@ public final class DjiAppleDatalink {
         closed = true
         onAccessUnit = nil
         onStatusFrame = nil
+        onMediaFrame = nil
+        if let ticket = mediaIngress.capture() { mediaIngress.retire(ticket) }
         ackTimer?.cancel()
         ackTimer = nil
         wire.withLock {
@@ -1597,11 +1602,12 @@ public final class DjiAppleDatalink {
                 // Main only needs DUML frames and the 34-byte telemetry cursor.
                 // Hand over the frames scanned here instead of rescanning on Main.
                 guard !frames.isEmpty || Self.carriesTelemetryCursor(bytes) else { return }
+                let mediaAdmission = self?.mediaIngress.capture()
                 Task(priority: .high) { @MainActor in
                     guard let self, !self.closed, self.udpGeneration == generation,
                         self.conn === socket
                     else { return }
-                    self.ingest(bytes, frames: frames)
+                    self.ingest(bytes, frames: frames, mediaAdmission: mediaAdmission)
                 }
             }
         )
@@ -1646,7 +1652,8 @@ public final class DjiAppleDatalink {
         datagram.count == 34 && datagram[6] == 0x01
     }
 
-    private func ingest(_ datagram: [UInt8], frames: [Duml.Frame]) {
+    private func ingest(_ datagram: [UInt8], frames: [Duml.Frame],
+        mediaAdmission: DjiAppleMediaIngress?) {
         // 0x01 telemetry carries a cursor at [10:12]. Video (0x02) has no such field - Mimo echoes
         // the video packet's own transport seq (bytes 4-5) instead, 96% of ACKs in the capture.
         if Self.carriesTelemetryCursor(datagram) {
@@ -1672,6 +1679,7 @@ public final class DjiAppleDatalink {
             {
                 lastSelfieFlipReply.withLock { $0 = Date() }
             }
+            if frame.cmdSet == 0, frame.cmdId == 0x27 { onMediaFrame?(frame, mediaAdmission) }
             onStatusFrame?(frame)
         }
     }

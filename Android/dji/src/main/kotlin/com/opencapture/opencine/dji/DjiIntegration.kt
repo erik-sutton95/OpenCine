@@ -3,6 +3,8 @@ package com.opencapture.opencine.dji
 import com.opencapture.opencine.core.CameraIntegration
 import com.opencapture.opencine.core.CameraProfile
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.CameraServices
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectedCamera
 import com.opencapture.opencine.core.ConnectionAttemptID
@@ -11,6 +13,7 @@ import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.core.ConnectionProgress
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionStep
+import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.DiscoveryMode
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
@@ -27,6 +30,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import com.opencapture.opencine.core.ConnectionPhase as CorePhase
+
+/** The common session identity exposed through DJI's downward integration boundary. */
+public typealias DJICameraSessionID = CameraSessionID
+
+/** The common control epoch exposed through DJI's downward integration boundary. */
+public typealias DJIControlEpoch = ControlEpoch
 
 /** Common route kind, separate from optional saved network facts (Swift DJIConnectionRoute). */
 public typealias DjiConnectionRoute = RouteKind
@@ -45,6 +54,8 @@ interface DjiConnectPort {
     val failureDetail: StateFlow<ConnectionFailure?>
     val joinedSSID: String?
     val control: CameraSession
+    /** Actual source-owned optional services; older ports keep no advertised defaults. */
+    val services: CameraServices get() = CameraServices()
     fun startScan()
     fun stopScan()
     fun useSetup(setup: CameraConnectionSetup, network: MultiviewNetworkStore.Network?, restoreAccessPoint: Boolean)
@@ -277,7 +288,7 @@ class DjiIntegration(
                 // shared StateFlow of the owner would end it at once if a card ever lingers.
                 if (current != attempt) return@first true
                 when (phase) {
-                    ConnectionPhase.LIVE -> outcome = ConnectionEvent.Connected(ConnectedCamera(record(target, camera, route), port.control))
+                    ConnectionPhase.LIVE -> outcome = ConnectionEvent.Connected(ConnectedCamera(record(target, camera, route), port.control, port.services))
                     ConnectionPhase.FAILED -> port.failureDetail.value?.let { outcome = ConnectionEvent.Failed(withRouteActions(it, camera, route)) }
                     ConnectionPhase.IDLE -> return@first true
                     else -> {
