@@ -154,3 +154,18 @@ The first consuming app's unchanged native fixtures pass before and after adopti
 sample preservation, both curve directions and embedded metadata, raster fitting, preset and
 progress mapping. Shared filesystem fixtures cover original-byte preservation and optional
 sidecar shape/absence. Physical-device export remains untested.
+
+`MonitorReaderWriterMediaExporter` supplies the separate reader/writer operation for sources
+whose readable media may end before their declared duration. It keeps native coded geometry,
+the preferred transform, caller-prepared cubes, separate video/audio readers and atomic metadata
+sidecars. A source with no decoded video is refused; a byte fraction alone does not establish
+readability. `MonitorMovieFile` supplies container facts and progress-duration scaling, and
+`MonitorMovieTimecode` copies existing timecode as a best-effort post-export operation. A partial
+source skips timecode embedding. Apps retain destination storage, cube sampling and metadata policy.
+
+Six synthetic iOS simulator scenarios exercise complete export, composition, LUT baking,
+timecode and readable partial output. Native macOS cannot decode the same generated partial
+fixture, so its scenario proves refusal instead. A separate native macOS proof exports the
+readable prefix of an existing sample to a playable movie with metadata. Unreadable audio does
+not imply readable video is absent. These are simulated and native framework checks; physical
+devices and the consuming app's delivery workflow remain untested.
