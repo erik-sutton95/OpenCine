@@ -199,6 +199,33 @@ missing or malformed data, unknown tool IDs survive, and a failed nonfinite writ
 the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
 ranking inputs, empty values, separate app/key namespaces and these codec differences.
 
+## Multiview stage
+
+One stage for every app's multicam (feature name Multiview): `MultiviewStage` (SwiftUI,
+`MultiviewStageView.swift`; Compose, `MultiviewStageView.kt`) lays the slots out with
+`MultiviewPresentationLayout` (Grid or Center stage) and draws each slot's picture (an app slot),
+identity chrome, tally, battery, readouts and options, plus close, the app's network button, the
+assist tools (`MultiviewTool`: LAYOUT, CAMERA, FIT, LUT), the program readouts, DISP and record on
+all cameras. The native canvases that keep each slot's picture host mounted live in the shared UI
+(`MultiviewStageCanvas` in MonitorUI, `MultiviewTileCanvas` in monitor-ui).
+
+Values and actions only. The app maps its cameras to `MultiviewTile` values (or uses
+`MultiviewTile(entry, summary:, snapshot:)` when its cameras report only through their
+`CameraSession`), owns sessions, sheets, its settings panel and the camera picker
+(`MultiviewCameraPicker` rows are `MultiviewPickerRow` values with the app's refusals), and
+answers `MultiviewStageActions`. Record goes through `MultiviewRecordContext`: the confirmation
+holds the plan the operator saw and re-checks it before `record(plan, slot)`; the stage never
+starts, stops or compensates a camera on its own, and closing calls `close` only. Copy follows
+`MultiviewTally` (unknown is the dash, never a guess) and `MultiviewRecordContext.refusal`.
+Qualified camera counts, routes and limits stay app parameters.
+
+Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
+ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come
+from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoch milliseconds
+(Swift `Date`); selection, arrangement and fill are actions (`select`, `arrange`, `setFill`)
+where SwiftUI takes bindings; `record` suspends where Swift is `async`; the SwiftUI stage takes
+a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` and `interactive`.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
@@ -212,6 +239,8 @@ ranking inputs, empty values, separate app/key namespaces and these codec differ
 | `ShellModelTests` (routes, connect A then replace with B and deliver A late, close once, disconnect during a pending edit, close while recording sends no stop, cover and reveal keep the host and connection, link loss keeps the held picture, stale record receipt, borrow and return, scene activity once per change) | `ShellModelTest`, same method names |
 | `MonitorControlModelTests` (pending over the report, coalescing, record unknown stays unknown, record from a fresh report, domain or authority change obsoletes the editor, a retired binding drops late outcomes, notes) | `MonitorControlModelTest`, same method names |
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
+| `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
+| `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
 
 Kotlin differences: JSON is org.json from android.jar (the real artifact backs the JVM tests);
 `StoredString` (`SharedPreferences.stored(key)`) replaces `StoredData`
