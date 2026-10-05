@@ -9,7 +9,7 @@ import XCTest
 final class LunaMotionServiceTests: XCTestCase {
     @MainActor private final class Wire {
         var sent: [(request: LunaRequest, timeout: Duration?)] = []
-        var reply: (LunaRequest) -> Data = { _ in Data() }
+        var reply: (LunaRequest) throws -> Data = { _ in Data() }
         var pauses: [Duration] = []
     }
 
@@ -18,11 +18,11 @@ final class LunaMotionServiceTests: XCTestCase {
         let session = LunaCameraSession(
             send: {
                 wire.sent.append(($0, nil))
-                return wire.reply($0)
+                return try wire.reply($0)
             },
             sendWithin: {
                 wire.sent.append(($0, $1))
-                return wire.reply($0)
+                return try wire.reply($0)
             },
             functionMode: { LunaFunctionMode.normalVideo.rawValue },
             readSettings: {}, readCapture: {})
@@ -95,8 +95,14 @@ final class LunaMotionServiceTests: XCTestCase {
     }
 
     func testAngleReadUpdatesTheLatestPoseAndPosesStartUnknown() async throws {
+        struct NoAnswer: Error {}
         let wire = Wire()
         let (motion, _) = service(wire)
+        // The stream keeps only the newest pose, so the camera answers once `.unknown` was read.
+        wire.reply = { _ in throw NoAnswer() }
+        var poses = await motion.poses().makeAsyncIterator()
+        let first = await poses.next()
+        XCTAssertNil(first?.value, "unknown until the camera answers GET_ANGLE")
         wire.reply = { request in
             guard request == (try? LunaProtocol.gimbalGetAngleRequest()),
                 let pitch = try? ProtoMessage.float(field: 3, value: -12.5),
@@ -104,9 +110,6 @@ final class LunaMotionServiceTests: XCTestCase {
             else { return Data() }
             return pitch + yaw
         }
-        var poses = await motion.poses().makeAsyncIterator()
-        let first = await poses.next()
-        XCTAssertNil(first?.value, "unknown until the camera answers GET_ANGLE")
         let reading = await poses.next()
         XCTAssertEqual(reading?.value?.pitchDeg, -12.5)
         XCTAssertEqual(reading?.value?.yawDeg, 33)
