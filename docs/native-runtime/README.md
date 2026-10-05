@@ -187,5 +187,9 @@ fallback and operator error wording; camera and delivery policy stay outside the
 
 `MonitorMovieTimecode` moves the existing QuickTime box/sample copier. Its golden chunk-offset,
 track-reference, no-timecode and existing-timecode cases remain unchanged in the consuming app.
+The copied track's header and edit-list durations are rescaled to the export's movie timescale
+(Media3 writes 10000; a camera proxy's 1000 copied raw would cut an 8 s track to 0.8 s).
 Controlled codec tests and JVM file tests do not prove native encoding or physical-device
 behavior; consuming apps also need real decoded video, audio, metadata and progress evidence.
+OpenZCine's `NativeReadableMovieExportTest` supplies that evidence on an API 35 arm64 emulator
+(SIMULATED input; physical devices untested).
