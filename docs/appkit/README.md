@@ -247,6 +247,7 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
 | `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, host isolation, backoff) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`; the envelope cases are Swift only |
+| `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |
 
 Kotlin differences: JSON is org.json from android.jar (the real artifact backs the JVM tests);
 `StoredString` (`SharedPreferences.stored(key)`) replaces `StoredData`
@@ -384,7 +385,7 @@ never infers a cleanup path from an original or cached URL.
 Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
 Native adapter and physical presentation checks remain separate consumer verification.
 
-## Reliability reporting network (iOS)
+## Reliability reporting network and spool (iOS)
 
 The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
 (Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera session
@@ -393,6 +394,8 @@ gate. `ReliabilityReportingHostPolicy` and `ReliabilityReportingNetwork.decision
 HTTPS to the DSN host and fail a refused request without an HTTP response, so the SDK keeps the
 envelope cached. `ReliabilityReportingRedirectGuard` drops redirects off the DSN host,
 `ReliabilityReportingEnvelopeID` reads the event ID from a plain or gzip envelope header with
-bounded reads, and `ReliabilityReportingBackoff` spaces retries. The SDK, the URLProtocol that
-applies this policy to the SDK's own URLSession, consent, the privacy scrub and receipts stay in
-the apps.
+bounded reads, and `ReliabilityReportingBackoff` spaces retries. `ReliabilityReportingReceipts`
+keeps a queued or confirmed receipt per incident, and `FeedSessionSummaryStore` keeps the
+per-session denominators (`FeedIncidentSessionSummary`, OpenCineMedia) in the spool with the
+media JSON shape (`FeedIncidentCoding`). The SDK, the URLProtocol that applies this policy to the
+SDK's own URLSession, consent and the privacy scrub stay in the apps.

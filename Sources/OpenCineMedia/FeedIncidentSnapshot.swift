@@ -582,6 +582,39 @@ public struct FeedIncidentBundle: Equatable, Sendable, Codable {
     public var aggregatedErrors: [FeedIncidentErrorCount]
 }
 
+/// One session's healthy exposure and incident count, kept even when the session had no dropout
+/// (the denominator for incident rates). Apps persist it with `FeedSessionSummaryStore`.
+public struct FeedIncidentSessionSummary: Equatable, Sendable, Codable {
+    public var sessionID: String
+    public var healthyExposureSeconds: Double
+    public var incidentCount: Int
+    public var outcome: String
+    public var sourceRevision: String
+    public var recordedAt: Date?
+    public var appVersion: String?
+    public var appBuild: String?
+    public var testSource: FeedIncidentTestSource?
+    public var buildIdentity: String?
+
+    public init(
+        sessionID: String, healthyExposureSeconds: Double, incidentCount: Int, outcome: String,
+        sourceRevision: String, recordedAt: Date? = Date(), appVersion: String? = nil,
+        appBuild: String? = nil, testSource: FeedIncidentTestSource? = nil,
+        buildIdentity: String? = nil
+    ) {
+        self.sessionID = sessionID
+        self.healthyExposureSeconds = healthyExposureSeconds
+        self.incidentCount = incidentCount
+        self.outcome = outcome
+        self.sourceRevision = sourceRevision
+        self.recordedAt = recordedAt
+        self.appVersion = appVersion
+        self.appBuild = appBuild
+        self.testSource = testSource
+        self.buildIdentity = buildIdentity
+    }
+}
+
 /// Stable grouping keys for a future vendor event. Not an SDK payload.
 public struct FeedIncidentGrouping: Equatable, Sendable, Codable {
     public var schemaVersion: Int
