@@ -28,6 +28,8 @@ accept the iOS look.
 ```sh
 cd Android
 ./gradlew :monitor-ui:testDebugUnitTest :monitor-ui:lint
+# Instrumented input tests (real pointer delivery into the shared components) on one device:
+ANDROID_SERIAL=<device> ./gradlew :monitor-ui:connectedDebugAndroidTest
 ```
 
 An app includes the platform build from a sibling OpenCine checkout and substitutes the
