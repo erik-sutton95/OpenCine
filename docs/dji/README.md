@@ -254,3 +254,54 @@ manual-clock owner and mirrored registration scenarios pass. Physical camera
 listing/gallery/live return remains untested. The browse producer is Apple-only;
 Android retains its existing media owner. Full library/cache/player migration
 and app pin moves remain separate work.
+
+## Native Apple subject tracking
+
+`DjiAppleSubjectTracking` owns one actual ActiveTrack workflow: request IDs, pending
+operator-box acceptance, live/poll report handling, smoothing, polling and local
+clear history. Its snapshot is committed before host notifications. The host
+supplies the actual datalink/control-generation binding, its existing low-level
+command admission and native face/focus presentation. No app or UI is imported.
+
+The captured binding and generation retire stale acknowledgement/poll work. A
+captured publication authority fences synchronous native preparation after
+reentrant replacement. Local stop/reset sends no camera command. Existing DJI
+wire/math policies and operator conditional CLEAR remain unchanged. Manual timing
+can be injected without sleeping or creating a camera. This Apple-only source
+candidate is uncompiled and unexecuted; Android keeps its current integration
+owner, and physical camera tracking remains untested.
+
+`DjiAppleCameraSettings` owns the actual camera-settings FIFO and coherent GET/SET
+workflows. It consumes low-level native request IO and captured typed audio/glamour
+facts, and emits typed native presentation outcomes. The host retains optimistic
+pins, control notes, logging and real packet admission. The owner does not call a
+host's old whole workflow, invent raw blobs or change shared command contracts.
+Tracking publication also uses its original committed revision across callbacks;
+a local clear during notification cannot send an outgoing SET afterward. All
+paired source scenarios remain uncompiled/unexecuted and physical untested.
+
+`DjiAppleTapFocus` is a source-only Apple candidate that owns the complete independent tap
+request task. It sends the original untracked PREPARE before point ACK admission, then
+uses the existing native request primitive for point, hint and commit with 800 ms deadlines.
+The actual endpoint/control generation and local task identity fence every continuation
+and synchronous native/diagnostic callback. Point refusal stops; hint refusal still commits.
+The owner sends no command on retirement and never joins the settings FIFO. Native focus
+presentation and diagnostic copy remain explicit host policy. Portable command builders
+and Kotlin behavior are unchanged; platform and physical qualification remain untested.
+
+
+### Apple first-picture format and zoom-color ownership candidate
+
+A source-only DJIApple candidate owns the complete first-picture format kick/restore task,
+its original50ms pin wait and0.8s settle floors, actual binding/task admission and local reset.
+The host supplies only the existing single-format pin/shutter-rematch primitive and live-view
+request primitive. No nil transport is converted into readiness.
+
+The same candidate owns color-hop deadlines, camera-status D-Log confirmation, captured
+pending zoom/stage accounting, actual mailbox command descriptors/options and parked-wide
+restoration. Its flush sends the shared slider recipe directly; it never invokes the app's
+old whole slider workflow. Native HUD/pins/logging/ISO preference and gesture presentation
+remain host policy. Captured endpoint/control ownership fences callbacks and pending writes;
+committed snapshot revisions fence synchronous publication reentry. Android's existing
+integration remains unchanged. Candidate cases and actual native host fixtures have not been
+compiled or executed; physical behavior is untested.
