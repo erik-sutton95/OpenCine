@@ -114,8 +114,9 @@ The Luna's timecode is time of day from its own clock, which the phone sets.
 cmd 214 twice, each stamped at send, on the control path (Android: `LunaBackend.syncClock`).
 `LunaFrameTimecode` turns live frame stamps into that timecode: the frame clock does not follow
 the camera's time of day, so frames are pinned to the phone clock by their earliest arrival (less
-90 ms of capture latency), and a new value is reported once a second. The Android app still
-derives the frame timecode in its own facade.
+90 ms of capture latency), and a new value is reported once a second. Kotlin
+`LunaFrameTimecode` (insta360-luna) is its twin, in Android's millisecond clock with the zone
+offset taken at the frame's time of day.
 
 ## Common lens controls
 
