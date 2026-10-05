@@ -124,6 +124,23 @@ import Testing
         #expect(record?.device == nil, "no serial was read")
     }
 
+    /// A legacy hotspot setup (main's records could carry one) is no dead chip: Luna dials the
+    /// camera over its own Wi-Fi, keeps the setup, and makes the camera Wi-Fi preferred again.
+    @Test func aLegacyHotspotSetupConnectsOverCameraWiFi() async throws {
+        let luna = integration()
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let hotspot = SavedRoute(key: "hotspot", kind: .phoneHotspot, network: "Rig iPhone")
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: LunaProtocol.model,
+            routes: [ap, hotspot], preferredRoute: hotspot.id)
+        let events = luna.connect(.saved(saved, route: hotspot.id))
+        #expect(await eventually { port.connects.map(\.id) == [camera] })
+        port.finishConnect()
+        var record: SavedCamera?
+        for await case .connected(let camera) in events { record = camera.saved }
+        #expect(record?.routes == [ap, hotspot] && record?.preferredRoute == ap.id)
+    }
+
     @Test func typedFailuresKeepTheirCopy() async throws {
         // At the backend's own throw sites.
         do {
