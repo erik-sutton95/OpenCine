@@ -34,6 +34,7 @@ coordinates `com.opencapture.opencine:<module>`.
 | Core | `OpenCineMotion` (optional) | | `OpenCineCore` |
 | Core | `OpenCineRelay` (optional) | | nothing |
 | Core | `OpenCineRelayApple` (optional; the relay's Bonjour, socket and encoder shell) | | `OpenCineRelay` |
+| Core | `OpenCineWatch` (optional; the watch companion: phone WatchConnectivity relay, wrist monitor) | | `OpenCineRelay`, on iOS `OpenCineApple` |
 | Core | `OpenCineApple` | `vulkan` (native renderer) | `OpenCineCore`, `OpenCineMedia` |
 | Core | `OpenCineCoreTestSupport` (tests only) | `core` test fixtures | `OpenCineCore` |
 | Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |

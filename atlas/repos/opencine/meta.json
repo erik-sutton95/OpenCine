@@ -48,6 +48,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineWatch",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineApple",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -221,6 +226,8 @@
       "OpenCineRelayTests",
       "OpenCineRelayApple",
       "OpenCineRelayAppleTests",
+      "OpenCineWatch",
+      "OpenCineWatchTests",
       "OpenCineApple",
       "OpenCineAppleTests",
       ":core",

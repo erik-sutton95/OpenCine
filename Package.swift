@@ -29,6 +29,7 @@ let package = Package(
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
         .library(name: "OpenCineRelayApple", targets: ["OpenCineRelayApple"]),
+        .library(name: "OpenCineWatch", targets: ["OpenCineWatch"]),
         .library(name: "OpenCineApple", targets: ["OpenCineApple"]),
         // Fakes for consumers' test targets only; never link it into an app.
         .library(name: "OpenCineCoreTestSupport", targets: ["OpenCineCoreTestSupport"]),
@@ -93,6 +94,21 @@ let package = Package(
         // and encoder callbacks that mutate captured test state.
         .testTarget(
             name: "OpenCineRelayAppleTests", dependencies: ["OpenCineRelayApple", "OpenCineRelay"],
+            swiftSettings: [.swiftLanguageMode(.v5)]),
+        // The watch companion over the relay's watch protocol: the phone's WatchConnectivity relay
+        // (iOS; its CoreImage contexts use OpenCineApple's monitor working space) and the wrist
+        // monitor (watchOS). Every file sits behind `#if os(iOS)` or `#if os(watchOS)`.
+        // ponytail: Swift 5 mode, the mode the iOS apps shipped the phone relay in; move to 6 with
+        // a Sendable pass over its CoreImage contexts.
+        .target(
+            name: "OpenCineWatch",
+            dependencies: [
+                "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]),
+        // iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
+        .testTarget(
+            name: "OpenCineWatchTests", dependencies: ["OpenCineWatch"],
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // Apple runtime: decoded-frame leases, VideoToolbox decoder, UVC capture source. Every
         // file sits behind `#if canImport(...)`; Core and Media never depend on it.
