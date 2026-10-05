@@ -68,7 +68,10 @@ integer millisecond conversion remains at the consuming boundary.
   `move(to:over:)`, `stop` and `poses()`. A programmed move runs as timed targets after
   `admits(_:)`; gimbal mode and speed options stay integration extensions until a second
   integration shares their meaning. Kotlin: package `com.opencapture.opencine.motion` in `:core`
-  (capabilities, targets, feedback, service, projection and the world level; the trajectory math is Swift only).
+  (capabilities, targets, feedback, service, projection, the world level, and `GimbalWaypoint`,
+  `GimbalWaypointSlot`, `GimbalProgram` with `pose`/`duration`, `GimbalProgramCurve`, `GimbalPath`
+  and `GimbalWaypointOverlay`; the Kotlin move engine stays in `Android/dji` and head-look math
+  is Swift only).
 - Raw wire units, coordinate transforms, command pacing, tracking encoders and stick shaping
   stay in the integration. A world reference frame needs the camera to hold one; a phone IMU
   sample alone does not establish it.

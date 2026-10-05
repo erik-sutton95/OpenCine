@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.LevelMode
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.motion.SnapOutcome

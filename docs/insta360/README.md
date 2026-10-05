@@ -110,8 +110,9 @@ programmed moves against its live state, on shared math: `LunaMotionService.hasR
 within the declared tolerance on each axis), `LunaHeadTrackSteering` (the stick toward the AirPods
 head from GET_ANGLE and a model of the sent stick), OpenCineMotion's `HeadTrack.reference` (the
 head's fitted angle, rate and acceleration) and `GimbalProgram.pose(at:)`. Kotlin `LunaMotionService` (insta360-luna) is its twin over the backend's
-`CameraControls` (the stick stream at 50 ms, release, recenter, flip, SET_ANGLE, GET_ANGLE as `poses`);
-the Android app keeps its aim, level and programmed-move loops the same way.
+`CameraControls` (the stick stream at 50 ms, release, recenter, flip, SET_ANGLE, GET_ANGLE as `poses`,
+and `hasReached`); the Android app keeps its aim, level and programmed-move loops the same way,
+on core motion's `GimbalProgram.pose` and `duration`.
 
 ## Clock and timecode
 

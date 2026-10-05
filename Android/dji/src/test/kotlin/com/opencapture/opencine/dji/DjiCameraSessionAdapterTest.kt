@@ -22,8 +22,8 @@ import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.WhiteBalanceValue
+import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.MotionAxis
-import com.opencapture.opencine.motion.GimbalWaypoint as MotionWaypoint
 
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -405,8 +405,8 @@ class DjiCameraSessionAdapterTest {
     fun pocketGimbalReportsPoseInsideItsReach() {
         assertEquals(SupportStatus.SUPPORTED, pocketGimbal.pose)
         assertEquals(setOf(MotionAxis.PAN, MotionAxis.TILT, MotionAxis.ZOOM), pocketGimbal.axes)
-        assertNull(pocketGimbal.target(MotionWaypoint(226.0, 0.0, 1.0)))
-        assertNotNull(pocketGimbal.target(MotionWaypoint(225.0, 70.0, 1.0)))
+        assertNull(pocketGimbal.target(GimbalWaypoint(226.0, 0.0, 1.0)))
+        assertNotNull(pocketGimbal.target(GimbalWaypoint(225.0, 70.0, 1.0)))
     }
 
     @Test

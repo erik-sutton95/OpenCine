@@ -1,6 +1,6 @@
 package com.opencapture.opencine.dji
 
-import com.opencapture.opencine.motion.GimbalWaypoint as MotionWaypoint
+import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.motion.WorldLevel
 import com.opencapture.opencine.motion.WorldLevelSnap
@@ -38,7 +38,7 @@ fun LevelReading.ingest(payload: ByteArray, now: Double) {
 
 /** One `0x04/0x14` timed target to the nearest world target (mode `05` ignores roll). */
 fun WorldLevelSnap.Companion.plan(tiltDeg: Double, pose: GimbalWaypoint, now: Double): Pair<WorldLevelSnap, ByteArray>? {
-    val move = move(tiltDeg, MotionWaypoint(pose.yawDeg, pose.pitchDeg, pose.zoom, pose.nativePitchDeg)) ?: return null
+    val move = move(tiltDeg, pose) ?: return null
     val payload = CameraCommands.gimbalTimedTarget(pose.yawDeg, roundAway(move.nativePitchDeg * 10) / 10, move.duration)
         ?: return null
     return WorldLevelSnap(move.target, now + move.duration + WorldLevelSnap.SETTLE_GRACE) to payload

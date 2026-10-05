@@ -323,4 +323,9 @@ attitude decode, `LevelReading.ingest(_:now:)` over a push and the `0x04/0x14` s
 (`WorldLevelSnap.plan`).
 `GimbalMoveEngine`, `GimbalOverlayMotion` and the program zoom demand are shared in
 OpenCineMotion; `GimbalMoveEngine()` binds them to `.pocketGimbal` and
-`NativeProgramZoomCommand.frame` encodes the demand. Physical behavior is untested.
+`NativeProgramZoomCommand.frame` encodes the demand. On Android the waypoint, program, curve,
+path math and overlay projection are core `motion`'s; `Android/dji` keeps the Kotlin
+`GimbalMoveEngine`, the zoom path and native zoom demand, and binds the Pocket reach
+(`GimbalWaypoint.PAN_MIN_DEG` and the rest, `unwrapYaw(raw)`, `from`, `clamped()`) and the 84°
+overlay field of view (`GimbalWaypointOverlay.project(waypoint, live, aspect)`). Physical
+behavior is untested.

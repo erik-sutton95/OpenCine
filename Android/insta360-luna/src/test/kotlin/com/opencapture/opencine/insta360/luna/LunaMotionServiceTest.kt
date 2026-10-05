@@ -93,4 +93,15 @@ class LunaMotionServiceTest {
         assertNull(motion.readAngle())
         motion.endHold()
     }
+
+    // From the Insta app's LunaGimbalAimTest.levelKeepsYawAndCancelsHeadPitch (reached); Swift
+    // `testArrivalIsWithinHalfADegreeOnEachAxisAcrossTheWrap`.
+    @Test fun arrivalIsWithinHalfADegreeOnEachAxisAcrossTheWrap() {
+        val target = GimbalWaypoint(190.0, 7.0, 2.0, -7.0)
+        assertTrue(LunaMotionService.hasReached(CameraGimbalAngle(7.3, -170.4), target))
+        val far = GimbalWaypoint(200.0, 10.0, 1.0)
+        assertTrue(LunaMotionService.hasReached(CameraGimbalAngle(10.4, -160.4), far))
+        assertFalse(LunaMotionService.hasReached(CameraGimbalAngle(10.6, -160.0), far))
+        assertFalse(LunaMotionService.hasReached(CameraGimbalAngle(10.0, -159.4), far))
+    }
 }

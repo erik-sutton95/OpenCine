@@ -9,6 +9,7 @@ import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.MotionCapabilities
 import com.opencapture.opencine.motion.MotionService
 import com.opencapture.opencine.motion.MotionTarget
+import kotlin.math.abs
 import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -22,8 +23,9 @@ import kotlinx.coroutines.launch
 /**
  * The Luna gimbal (cmd 226) over the backend's [CameraControls] (Swift `LunaMotionService`): the
  * held stick as a MOVE stream, release, recenter, flip, SET_ANGLE and GET_ANGLE, with the shared
- * [MotionService] over them. Aim until arrival, levelling and programmed moves stay with the app
- * until their value types leave the app core. The stick stream runs in [scope].
+ * [MotionService] over them. The app runs aim until arrival, levelling and programmed moves
+ * against its live state, on [hasReached] and the shared `GimbalProgram.pose`. The stick stream
+ * runs in [scope].
  */
 class LunaMotionService(
     private val controls: () -> CameraControls?,
@@ -79,9 +81,8 @@ class LunaMotionService(
     /** GET_ANGLE; also updates [poses]. */
     suspend fun readAngle(): CameraGimbalAngle? {
         val angle = controls()?.gimbalAngle() ?: return null
-        val pan = capabilities.bounds.pan
         // Unwrapped across the unreachable gap; Luna moves carry no zoom, so a pose keeps the neutral 1.
-        val yaw = if (angle.yaw < (pan.start + pan.endInclusive - 360) / 2) angle.yaw + 360 else angle.yaw
+        val yaw = GimbalWaypoint.unwrapYaw(angle.yaw, capabilities.bounds)
         _poses.value = ObservedValue(
             GimbalWaypoint(yaw, angle.pitch, 1.0, -angle.pitch), ObservationOrigin.CAMERA_REPORTED, now(),
         )
@@ -106,5 +107,12 @@ class LunaMotionService(
     companion object {
         /** A held stick repeats MOVE at this period. */
         const val STICK_INTERVAL_MS = 50L
+
+        /** GET_ANGLE within the arrival tolerance of [target] on each axis, yaw across +-180. */
+        fun hasReached(angle: CameraGimbalAngle, target: GimbalWaypoint): Boolean {
+            val tolerance = LunaCameraSession.MOTION.arrivalToleranceDeg
+            return abs(Math.IEEEremainder(angle.yaw - target.yawDeg, 360.0)) <= tolerance &&
+                abs(angle.pitch - target.pitchDeg) <= tolerance
+        }
     }
 }

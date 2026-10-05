@@ -1,6 +1,11 @@
 package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.motion.GimbalPath
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalProgramCurve
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.motion.GimbalWaypointOverlay
 import com.opencapture.opencine.motion.MotionAxis
 import com.opencapture.opencine.motion.MotionBounds
 import com.opencapture.opencine.motion.MotionCapabilities
@@ -15,43 +20,30 @@ import kotlin.math.sin
 import kotlin.math.tan
 import kotlin.time.Duration.Companion.milliseconds
 
-data class GimbalWaypoint(
-    val yawDeg: Double,
-    val pitchDeg: Double,
-    val zoom: Double,
-    val nativePitchDeg: Double? = null,
-) {
-    companion object {
-        const val PAN_MIN_DEG = -48.0
-        const val PAN_MAX_DEG = 225.0
-        const val GAP_MID_DEG = (PAN_MAX_DEG + PAN_MIN_DEG - 360.0) / 2
-        const val TILT_MIN_DEG = -44.0
-        const val TILT_MAX_DEG = 70.0
+// The Pocket reach on the shared waypoint (Swift `HeadTrack.Reach`): pan one arc from -48
+// through front to 225, tilt -44 to 70.
+val GimbalWaypoint.Companion.PAN_MIN_DEG: Double get() = -48.0
+val GimbalWaypoint.Companion.PAN_MAX_DEG: Double get() = 225.0
+val GimbalWaypoint.Companion.TILT_MIN_DEG: Double get() = -44.0
+val GimbalWaypoint.Companion.TILT_MAX_DEG: Double get() = 70.0
 
-        fun unwrapYaw(rawDeg: Double): Double {
-            val unwrapped = if (rawDeg < GAP_MID_DEG) rawDeg + 360.0 else rawDeg
-            return unwrapped
-        }
+fun GimbalWaypoint.Companion.unwrapYaw(rawDeg: Double): Double = unwrapYaw(rawDeg, pocketGimbal.bounds)
 
-        fun from(yawTenth: Int?, pitchTenth: Int?, zoom: Double, nativePitchTenth: Int? = null): GimbalWaypoint? {
-            if (yawTenth == null || pitchTenth == null) return null
-            return GimbalWaypoint(
-                unwrapYaw(yawTenth / 10.0),
-                pitchTenth / 10.0,
-                max(1.0, zoom),
-                nativePitchTenth?.div(10.0),
-            )
-        }
-    }
-
-    fun clamped(): GimbalWaypoint =
-        GimbalWaypoint(
-            yawDeg.coerceIn(PAN_MIN_DEG, PAN_MAX_DEG),
-            pitchDeg.coerceIn(TILT_MIN_DEG, TILT_MAX_DEG),
-            zoom,
-            nativePitchDeg,
-        )
+fun GimbalWaypoint.Companion.from(yawTenth: Int?, pitchTenth: Int?, zoom: Double, nativePitchTenth: Int? = null): GimbalWaypoint? {
+    if (yawTenth == null || pitchTenth == null) return null
+    return GimbalWaypoint(
+        unwrapYaw(yawTenth / 10.0),
+        pitchTenth / 10.0,
+        max(1.0, zoom),
+        nativePitchTenth?.div(10.0),
+    )
 }
+
+fun GimbalWaypoint.clamped(): GimbalWaypoint = clamped(pocketGimbal.bounds)
+
+/** Waypoint marks on the live frame use the Pocket lens's widest horizontal field of view. */
+fun GimbalWaypointOverlay.project(waypoint: GimbalWaypoint, live: GimbalWaypoint, aspect: Double): Triple<Double, Double, Boolean> =
+    project(waypoint, live, aspect, GimbalMoveEngine.WIDE_HFOV)
 
 /**
  * What the Pocket gimbal declares to shared motion (Swift `MotionCapabilities.pocketGimbal`):
@@ -74,12 +66,6 @@ val pocketGimbal = MotionCapabilities(
 
 /** The body's motion service: the Pocket gimbal, or `null` for a body without one. */
 val CameraModel.motion: MotionCapabilities? get() = if (hasGimbal) pocketGimbal else null
-
-enum class GimbalWaypointSlot(val letter: String) {
-    A("A"),
-    B("B"),
-    C("C"),
-}
 
 enum class GimbalMode(val label: String) {
     FOLLOW("Follow"),
@@ -199,89 +185,6 @@ enum class GimbalDoubleTap(val raw: Int, val label: String) {
     }
 }
 
-data class GimbalProgram(
-    val a: GimbalWaypoint? = null,
-    val b: GimbalWaypoint? = null,
-    val c: GimbalWaypoint? = null,
-    val durationAB: Double = DEFAULT_DURATION,
-    val durationBC: Double = DEFAULT_DURATION,
-    val smoothness: Double = 0.0,
-    val loop: Boolean = false,
-) {
-    val canRun: Boolean get() = a != null && b != null
-    val changesZoom: Boolean
-        get() = listOfNotNull(a, b, c).map { it.zoom }.zipWithNext().any { (from, to) -> abs(to - from) > 1e-6 }
-
-    val summary: String
-        get() =
-            when {
-                a != null && b != null && c != null -> "A·B·C"
-                a != null && b != null -> "A·B"
-                a != null || b != null || c != null -> "Partial"
-                else -> "Not set"
-            }
-
-    fun point(slot: GimbalWaypointSlot): GimbalWaypoint? =
-        when (slot) {
-            GimbalWaypointSlot.A -> a
-            GimbalWaypointSlot.B -> b
-            GimbalWaypointSlot.C -> c
-        }
-
-    fun withPoint(
-        slot: GimbalWaypointSlot,
-        point: GimbalWaypoint?,
-    ): GimbalProgram {
-        val next =
-            when (slot) {
-                GimbalWaypointSlot.A -> copy(a = point)
-                GimbalWaypointSlot.B -> copy(b = point)
-                GimbalWaypointSlot.C -> copy(c = point)
-            }
-        return if (point != null) next.seedTravelDurations() else next
-    }
-
-    fun seedTravelDurations(): GimbalProgram {
-        var next = this
-        if (a != null && b != null) next = next.copy(durationAB = max(durationAB, minTravelDuration(a, b)))
-        if (b != null && c != null) next = next.copy(durationBC = max(durationBC, minTravelDuration(b, c)))
-        return next
-    }
-
-    companion object {
-        const val DURATION_STEP = 0.5
-        const val MIN_DURATION = 0.5
-        const val MAX_DURATION = 120.0
-        const val DEFAULT_DURATION = 5.0
-        val durationStops = listOf(2.0, 5.0, 10.0)
-
-        fun snapDuration(value: Double): Double {
-            val clamped = value.coerceIn(MIN_DURATION, MAX_DURATION)
-            return (kotlin.math.round(clamped / DURATION_STEP) * DURATION_STEP)
-        }
-
-        fun minTravelDuration(
-            from: GimbalWaypoint?,
-            to: GimbalWaypoint?,
-        ): Double {
-            if (from == null || to == null) return DEFAULT_DURATION
-            return MIN_DURATION
-        }
-
-        fun steppedDuration(value: Double, delta: Double, floor: Double): Double =
-            snapDuration(max(floor, value + delta))
-
-        fun durationLabel(value: Double): String {
-            val snap = snapDuration(value)
-            return if (abs(snap - kotlin.math.round(snap)) < 0.05) {
-                "${snap.toInt()}s"
-            } else {
-                String.format(java.util.Locale.US, "%.1fs", snap)
-            }
-        }
-    }
-}
-
 object GimbalControl {
     fun modeFromGet(tiltLocked: Boolean, commanded: GimbalMode): GimbalMode =
         when (commanded) {
@@ -319,82 +222,6 @@ class GimbalRampFilter {
         x += (targetX - x) * alpha
         y += (targetY - y) * alpha
         return x to y
-    }
-}
-
-/** Time-preserving quadratic fillet at B; A/C exact, B rounded when smoothness > 0. */
-class GimbalProgramCurve private constructor(program: GimbalProgram) {
-    val a = program.a!!
-    val b = program.b!!
-    val c = program.c!!
-    var durationAB = program.durationAB
-        private set
-    var durationBC = program.durationBC
-        private set
-    val halfCornerDuration = min(durationAB, durationBC) * 0.5 * min(program.smoothness, 1.0)
-    val duration: Double get() = durationAB + durationBC
-
-    private data class Piece(val from: GimbalWaypoint, val control: GimbalWaypoint?, val to: GimbalWaypoint, val duration: Double)
-    private var pieces: List<Piece> = run {
-        val p = GimbalMoveEngine.lerp(a, b, 1 - halfCornerDuration / durationAB)
-        val q = GimbalMoveEngine.lerp(b, c, halfCornerDuration / durationBC)
-        listOf(Piece(a, null, p, durationAB - halfCornerDuration),
-            Piece(p, b, q, 2 * halfCornerDuration), Piece(q, null, c, durationBC - halfCornerDuration))
-    }
-    private val originalProgram = program
-
-    fun position(time: Double): GimbalWaypoint {
-        if (time <= 0) return pieces.first().from
-        if (time >= duration) return c
-        var remaining = time
-        for (piece in pieces) {
-            if (remaining <= piece.duration) {
-                val u = remaining / piece.duration
-                val control = piece.control
-                return if (control == null) GimbalMoveEngine.lerp(piece.from, piece.to, u)
-                else GimbalMoveEngine.lerp(GimbalMoveEngine.lerp(piece.from, control, u),
-                    GimbalMoveEngine.lerp(control, piece.to, u), u)
-            }
-            remaining -= piece.duration
-        }
-        return c
-    }
-
-    fun remaining(time: Double, pose: GimbalWaypoint): GimbalProgramCurve {
-        val result = GimbalProgramCurve(originalProgram)
-        var consumed = max(0.0, time)
-        var rest = emptyList<Piece>()
-        for ((index, piece) in pieces.withIndex()) {
-            if (consumed >= piece.duration) { consumed -= piece.duration; continue }
-            val u = consumed / piece.duration
-            val cut = piece.copy(from = pose,
-                control = piece.control?.let { GimbalMoveEngine.lerp(it, piece.to, u) },
-                duration = piece.duration - consumed)
-            rest = listOf(cut) + pieces.drop(index + 1)
-            break
-        }
-        if (rest.isEmpty()) rest = listOf(Piece(pose, null, c, 0.1))
-        val total = rest.sumOf { it.duration }
-        if (total < 0.1) rest = listOf(rest[0].copy(duration = rest[0].duration + 0.1 - total)) + rest.drop(1)
-        result.pieces = rest
-        result.durationAB = max(0.0, durationAB - max(0.0, time))
-        result.durationBC = rest.sumOf { it.duration } - result.durationAB
-        return result
-    }
-
-    fun samples(count: Int = 80): List<GimbalWaypoint> {
-        val size = max(2, count)
-        return (0 until size).map { position(duration * it / (size - 1)) }
-    }
-
-    companion object {
-        fun create(program: GimbalProgram): GimbalProgramCurve? {
-            if (program.a == null || program.b == null || program.c == null ||
-                !program.smoothness.isFinite() || program.smoothness <= 0 ||
-                !program.durationAB.isFinite() || !program.durationBC.isFinite() ||
-                program.durationAB <= 0 || program.durationBC <= 0) return null
-            return GimbalProgramCurve(program)
-        }
     }
 }
 
@@ -489,7 +316,7 @@ class GimbalMoveEngine {
         val points = listOfNotNull(program.a, program.b, live, program.c)
         if (!points.all {
                 it.yawDeg.isFinite() && it.pitchDeg.isFinite() && it.zoom.isFinite() && it == it.clamped() &&
-                    (it.nativePitchDeg == null || (it.nativePitchDeg.isFinite() && it.nativePitchDeg in -180.0..180.0)) }) {
+                    it.nativePitchDeg.let { native -> native == null || (native.isFinite() && native in -180.0..180.0) } }) {
             failure = "Set reachable gimbal points again"
             return false
         }
@@ -544,7 +371,7 @@ class GimbalMoveEngine {
         if (!running || !isPaused || !live.yawDeg.isFinite() || !live.pitchDeg.isFinite() ||
             !live.zoom.isFinite() || live != live.clamped() ||
             (legs[0].from.nativePitchDeg != null && live.nativePitchDeg == null) ||
-            (live.nativePitchDeg != null && (!live.nativePitchDeg.isFinite() || live.nativePitchDeg !in -180.0..180.0))) return false
+            live.nativePitchDeg.let { native -> native != null && (!native.isFinite() || native !in -180.0..180.0) }) return false
         if (phase == "APPROACH" || phase == "HOLD") {
             val interrupted = verificationInterruptedByPause
             if (!start(program, live)) return false
@@ -610,7 +437,7 @@ class GimbalMoveEngine {
         if (!dt.isFinite() || dt <= 0 || dt > 0.12 || !telemetryAge.isFinite() || telemetryAge !in 0.0..0.3 ||
             !live.yawDeg.isFinite() || !live.pitchDeg.isFinite() ||
             (legs[0].from.nativePitchDeg != null && live.nativePitchDeg == null) ||
-            (live.nativePitchDeg != null && (!live.nativePitchDeg.isFinite() || live.nativePitchDeg !in -180.0..180.0))) {
+            live.nativePitchDeg.let { native -> native != null && (!native.isFinite() || native !in -180.0..180.0) }) {
             return stop(live, "Move interrupted — timing or camera feedback lost")
         }
         if (resumeNeedsCommand) {
@@ -951,7 +778,7 @@ class GimbalMoveEngine {
 
         const val DEBUG_HUD = true
         const val WIDE_HFOV = 84.0
-        const val PITCH_UP_SIGN = 1.0
+        const val PITCH_UP_SIGN = GimbalWaypointOverlay.PITCH_UP_SIGN
 
         fun formatHud(row: Readout): String = formatDebug(GimbalProgram(), null, row)
         fun formatDebug(program: GimbalProgram, live: GimbalWaypoint?, row: Readout?): String {
@@ -967,7 +794,7 @@ class GimbalMoveEngine {
             return lines.joinToString("\n")
         }
 
-        fun wrapAngle(value: Double): Double = ((value + 180) % 360 + 360) % 360 - 180
+        fun wrapAngle(value: Double): Double = GimbalPath.wrapAngle(value)
 
         /**
          * Saved native pitch goes stale once the handle tilts after the point was set:
@@ -984,35 +811,13 @@ class GimbalMoveEngine {
             }
             return program.copy(a = rebase(program.a), b = rebase(program.b), c = rebase(program.c))
         }
-        fun pitchDelta(from: GimbalWaypoint, to: GimbalWaypoint): Double =
-            if (from.nativePitchDeg != null && to.nativePitchDeg != null) wrapAngle(to.nativePitchDeg - from.nativePitchDeg)
-            else to.pitchDeg - from.pitchDeg
-        fun angularDistance(a: GimbalWaypoint, b: GimbalWaypoint): Double = hypot(b.yawDeg - a.yawDeg, pitchDelta(a, b))
-        fun lerp(a: GimbalWaypoint, b: GimbalWaypoint, u: Double): GimbalWaypoint {
-            val t = u.coerceIn(0.0, 1.0)
-            return GimbalWaypoint(a.yawDeg + (b.yawDeg - a.yawDeg) * t,
-                a.pitchDeg + (b.pitchDeg - a.pitchDeg) * t, a.zoom + (b.zoom - a.zoom) * t,
-                if (a.nativePitchDeg != null && b.nativePitchDeg != null) wrapAngle(a.nativePitchDeg + pitchDelta(a, b) * t) else null)
-        }
-        fun tanHalfHFov(zoom: Double): Double = tan(WIDE_HFOV / 2 * Math.PI / 180) / max(zoom, 1.0)
+        fun pitchDelta(from: GimbalWaypoint, to: GimbalWaypoint): Double = GimbalPath.pitchDelta(from, to)
+        fun angularDistance(a: GimbalWaypoint, b: GimbalWaypoint): Double = GimbalPath.angularDistance(a, b)
+        fun lerp(a: GimbalWaypoint, b: GimbalWaypoint, u: Double): GimbalWaypoint = GimbalPath.lerp(a, b, u)
+        fun tanHalfHFov(zoom: Double): Double = GimbalWaypointOverlay.tanHalfHFov(zoom, WIDE_HFOV)
 
-        fun project(waypoint: GimbalWaypoint, live: GimbalWaypoint, aspect: Double): Triple<Double, Double, Boolean> {
-            val tanH = tanHalfHFov(live.zoom)
-            val tanV = tanH / max(aspect, 0.1)
-            val dYaw = (waypoint.yawDeg - live.yawDeg) * Math.PI / 180
-            val tp = PITCH_UP_SIGN * waypoint.pitchDeg * Math.PI / 180
-            val cp = PITCH_UP_SIGN * live.pitchDeg * Math.PI / 180
-            val x = sin(dYaw) * cos(tp)
-            val y = sin(tp)
-            val z = cos(dYaw) * cos(tp)
-            val yc = y * cos(cp) - z * sin(cp)
-            val zc = y * sin(cp) + z * cos(cp)
-            if (zc <= 1e-6) return Triple(if (x >= 0) 1.0 else 0.0, 0.5, false)
-            val nx = 0.5 + (x / zc) / (2 * tanH)
-            val ny = 0.5 - (yc / zc) / (2 * tanV)
-            val onScreen = nx in 0.0..1.0 && ny in 0.0..1.0
-            return Triple(nx.coerceIn(0.0, 1.0), ny.coerceIn(0.0, 1.0), onScreen)
-        }
+        fun project(waypoint: GimbalWaypoint, live: GimbalWaypoint, aspect: Double): Triple<Double, Double, Boolean> =
+            GimbalWaypointOverlay.project(waypoint, live, aspect)
     }
 }
 
