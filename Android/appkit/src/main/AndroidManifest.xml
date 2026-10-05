@@ -2,4 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- ReliabilityReporting watches the active network and the process-bound camera network. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- OperatorHaptics plays the AE lock double click on the vibrator. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>
