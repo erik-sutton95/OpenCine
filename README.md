@@ -90,6 +90,13 @@ The app's candidate branch already points here:
 Edit here, then run the app's own checks against the change. Local paths bypass versions, so a
 release is validated again without them ([atlas/docs/PUBLISH.md](atlas/docs/PUBLISH.md)).
 
+## Test the apps on devices
+
+[docs/testing/TESTER-GUIDE.md](docs/testing/TESTER-GUIDE.md) builds each app against
+`integration/thin-app`, installs it on an iPhone and an Android phone and gives the device
+checklist per app. Which app code moved to which OpenCine owner, with commits and line counts:
+[docs/testing/RETIRED-OWNERS.md](docs/testing/RETIRED-OWNERS.md).
+
 ## Build and test
 
 ```sh
