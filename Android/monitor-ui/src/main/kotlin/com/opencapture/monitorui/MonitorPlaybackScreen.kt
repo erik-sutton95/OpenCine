@@ -649,7 +649,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
 
             // Inside the overlay window: in the host window it sits under the gesture well.
             if (confirmDelete != null) {
-                PlaybackConfirmPopup(
+                MonitorConfirmPopup(
                     title = "Delete this clip from the camera?",
                     confirmTitle = "Delete",
                     onDismiss = { confirmDelete = null },
@@ -851,13 +851,15 @@ private fun playbackTimeLabel(seconds: Float): String {
         .monitorChromeClickable(onClickFeedback = LocalMonitorPlaybackSelectionFeedback.current, onClick = onClick).semantics { contentDescription = label },
         contentAlignment = Alignment.Center) { MonitorIcon(icon, null, tint = MonitorPalette.text, modifier = Modifier.size(size * .38f)) }
 }
+/** Centered Cancel / confirm card over a dimmed screen; a tap outside dismisses. */
 @Composable
-private fun PlaybackConfirmPopup(
+fun MonitorConfirmPopup(
     title: String,
     confirmTitle: String,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     destructive: Boolean = true,
+    onClickFeedback: () -> Unit = LocalMonitorPlaybackSelectionFeedback.current,
 ) {
     Box(
         Modifier
@@ -892,7 +894,7 @@ private fun PlaybackConfirmPopup(
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, MonitorPalette.border, RoundedCornerShape(12.dp))
-                        .monitorChromeClickable(onClickFeedback = LocalMonitorPlaybackSelectionFeedback.current, onClick = onDismiss)
+                        .monitorChromeClickable(onClickFeedback = onClickFeedback, onClick = onDismiss)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -911,7 +913,7 @@ private fun PlaybackConfirmPopup(
                             if (destructive) MonitorPalette.recording.copy(alpha = 0.55f) else MonitorPalette.accent.copy(alpha = 0.55f),
                             RoundedCornerShape(12.dp),
                         )
-                        .monitorChromeClickable(onClickFeedback = LocalMonitorPlaybackSelectionFeedback.current, onClick = onConfirm)
+                        .monitorChromeClickable(onClickFeedback = onClickFeedback, onClick = onConfirm)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {

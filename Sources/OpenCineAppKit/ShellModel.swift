@@ -60,6 +60,9 @@ public final class ShellModel {
     public private(set) var cover: Cover?
     /// The operator opened the pair page (it also shows while nothing is saved).
     public private(set) var pairing = false
+    /// The operator chose the cameras page with nothing saved (to watch a feed, say): an empty
+    /// list shows it instead of the pair page.
+    public private(set) var camerasChosen = false
     /// The app's scene is active. Starts active.
     public private(set) var sceneActive = true
     /// Called once per change of `sceneActive`.
@@ -78,7 +81,7 @@ public final class ShellModel {
 
     public var route: Route {
         if monitor != nil { return .monitor }
-        return pairing || cameras.saved.isEmpty ? .pair : .cameras
+        return pairing || (cameras.saved.isEmpty && !camerasChosen) ? .pair : .cameras
     }
 
     // MARK: Monitor lifetime
@@ -143,6 +146,12 @@ public final class ShellModel {
 
     public func beginPairing() { pairing = true }
     public func endPairing() { pairing = false }
+
+    /// Leaves pairing for the cameras page, which stays even with nothing saved.
+    public func showCameras() {
+        pairing = false
+        camerasChosen = true
+    }
 
     /// Opens `cover` over the current page; the monitor and its session stay.
     public func open(_ cover: Cover) { self.cover = cover }

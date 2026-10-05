@@ -122,6 +122,24 @@ class Dupes(AtlasCase):
         self.assertEqual(self.run_atlas("dupes", "--app", str(app), "--write-baseline")[0], 1)
         self.assertEqual(tree_digest(self.ws), before)
 
+    def test_a_candidate_reads_its_consumer_commits(self):
+        (self.ws / "Alpha/Sources/Copy.swift").unlink()
+        gone = commit(self.ws / "Alpha", {}, "drop the copy")  # the registry ref still has it
+        (self.root / "compat").mkdir()
+        (self.root / "compat/candidates.json").write_text(json.dumps({"candidates": [
+            {"id": "union", "package": {"repo": "opencine", "commit": None},
+             "consumers": [{"repo": "alpha", "ref": "union", "commit": gone, "checks": []}]}]}))
+        self.assertEqual(dupes.measure(*self.reg())["pairs"]["alpha|opencine"]["files"], 1)
+        code, out = self.run_atlas("dupes", "--candidate", "union")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"alpha: candidate union union {gone}", out)
+        self.assertIn("beta: main", out, "a repository the candidate does not list keeps its registry ref")
+        self.assertEqual(dupes.measure(*self.reg(), refs=dupes.candidate_refs(self.root, "union"))["pairs"]["alpha|opencine"]["files"], 0)
+        before = tree_digest(self.ws)
+        self.assertEqual(self.run_atlas("dupes", "--candidate", "union", "--write-baseline")[0], 1)
+        self.assertEqual(self.run_atlas("dupes", "--candidate", "nope")[0], 1)
+        self.assertEqual(tree_digest(self.ws), before)
+
     def test_blocks_skip_types_and_short_bodies(self):
         text = "class Foo(val a: Int) {\n    fun one() { }\n" + "    fun two(x: Int): Int {\n" + "        x\n" * 6 + "    }\n}\n"
         self.assertEqual([b.split("(")[0].strip() for b in dupes.blocks(text, ".kt")], ["fun one", "fun two"])

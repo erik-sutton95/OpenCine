@@ -76,13 +76,15 @@ public fun MonitorSettingsActionPill(
     background: Color = MonitorPalette.accent.copy(alpha = 0.16f),
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    minimumTouchTarget: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
         modifier
-            // 48 dp touch target around the unchanged capsule; inline rows are 50 dp tall.
+            // 48 dp touch target around the unchanged capsule; inline rows are 50 dp tall. A host
+            // that keeps the capsule's own bounds as its touch area passes minimumTouchTarget false.
             .settingsClickable(role = Role.Button, enabled = enabled, onClick = onClick)
-            .minimumInteractiveComponentSize()
+            .then(if (minimumTouchTarget) Modifier.minimumInteractiveComponentSize() else Modifier)
             .alpha(if (enabled) 1f else 0.45f)
             .background(background, CircleShape)
             .border(1.dp, tint.copy(alpha = 0.5f), CircleShape)

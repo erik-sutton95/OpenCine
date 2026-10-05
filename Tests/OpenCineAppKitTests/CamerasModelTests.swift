@@ -68,6 +68,26 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func aReachableRouteBeatsThePreferredOneOnlyWhenTheAppPrefersIt() async {
+        // The camera prefers its access point; a sighting reaches it over Wi-Fi.
+        let reaching = NearbyCamera(
+            id: "n1", savedID: Self.camera.id, name: "CAM-1", model: "Test Body", routes: [.infrastructureNetwork],
+            routeKey: Self.wifi.key)
+        for (policy, expected) in [(CamerasModel.RoutePolicy.preferred, Self.ap), (.preferReachable, Self.wifi)] {
+            let fake = FakeIntegration(id: IntegrationID("test.cameras"))
+            let store = SavedCamerasStore(document: Defaults([:]).at("document"))
+            store.save([Self.camera])
+            let model = CamerasModel(integrations: [AppIntegration(fake)], store: store, routePolicy: policy)
+            #expect(model.defaultRoute(of: Self.camera) == Self.ap.id)
+            fake.publish([reaching])
+            #expect(await eventually { !model.nearby.isEmpty })
+            #expect(CamerasMapping.paired(model)[0].setups.filter(\.isActive).map(\.id) == [expected.id.description])
+            model.connect(Self.camera)
+            #expect(fake.attempts.map(\.target) == [.saved(Self.camera, route: expected.id)])
+        }
+    }
+
+    @available(macOS 14, *)
     @Test func oneAttemptPerCamera() async {
         let model = model()
         model.connect(Self.camera)

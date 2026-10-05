@@ -53,6 +53,11 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
         public val cover: Cover? = null,
         /** The operator opened the pair page (it also shows while nothing is saved). */
         public val pairing: Boolean = false,
+        /**
+         * The operator chose the cameras page with nothing saved (to watch a feed, say): an empty
+         * list shows it instead of the pair page.
+         */
+        public val camerasChosen: Boolean = false,
         /** The app's scene is active. Starts active. */
         public val sceneActive: Boolean = true,
     )
@@ -77,7 +82,7 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
     public val route: Route
         get() = when {
             state.value.monitor != null -> Route.MONITOR
-            state.value.pairing || cameras.state.value.saved.isEmpty() -> Route.PAIR
+            state.value.pairing || (cameras.state.value.saved.isEmpty() && !state.value.camerasChosen) -> Route.PAIR
             else -> Route.CAMERAS
         }
 
@@ -141,6 +146,11 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
 
     public fun endPairing() {
         mutable.update { it.copy(pairing = false) }
+    }
+
+    /** Leaves pairing for the cameras page, which stays even with nothing saved. */
+    public fun showCameras() {
+        mutable.update { it.copy(pairing = false, camerasChosen = true) }
     }
 
     /** Opens [cover] over the current page; the monitor and its session stay. */

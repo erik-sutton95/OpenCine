@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="com.opencapture.monitorui.MonitorTestActivity" android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+        <activity android:name="com.opencapture.monitorui.MonitorBackdropRenderActivity" android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+    </application>
+</manifest>

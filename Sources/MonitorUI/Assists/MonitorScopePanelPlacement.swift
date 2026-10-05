@@ -103,4 +103,39 @@ public struct MonitorScopePanelLayout: Equatable {
 public enum MonitorScopePanelMove {
     case began(CGPoint), changed(CGPoint), ended, cancelled(canvas: CGRect)
 }
+
+/// Where a movable scope panel starts before fitting: its base size times the operator scale,
+/// and the session, saved or default centre kept wholly inside the overlay bounds.
+public enum MonitorScopePanelCentering {
+    /// Operator scale of the meter panels (traffic lights, ND); scopes clamp through their options.
+    public static let scaleRange: ClosedRange<Double> = 0.6...1.6
+
+    public static func clampedScale(_ value: Double) -> Double {
+        min(max(value, scaleRange.lowerBound), scaleRange.upperBound)
+    }
+
+    public static func panelSize(_ baseSize: CGSize, scale: Double) -> CGSize {
+        CGSize(width: (baseSize.width * scale).rounded(), height: (baseSize.height * scale).rounded())
+    }
+
+    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect) -> CGPoint {
+        let halfWidth = size.width / 2
+        let halfHeight = size.height / 2
+        return CGPoint(
+            x: min(max(bounds.minX + halfWidth, point.x), bounds.maxX - halfWidth),
+            y: min(max(bounds.minY + halfHeight, point.y), bounds.maxY - halfHeight))
+    }
+
+    /// Unplaced panels start at the canvas centre; saved and session centres win later.
+    public static func defaultCenter(size: CGSize, bounds: CGRect) -> CGPoint {
+        clamp(CGPoint(x: bounds.midX, y: bounds.midY), size: size, in: bounds)
+    }
+
+    public static func resolvedCenter(
+        session: CGPoint?, stored: MonitorScopeStoredCenter?, defaultCenter: CGPoint,
+        size: CGSize, bounds: CGRect
+    ) -> CGPoint {
+        clamp(session ?? stored?.center(in: bounds) ?? defaultCenter, size: size, in: bounds)
+    }
+}
 #endif

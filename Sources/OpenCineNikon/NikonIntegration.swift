@@ -157,21 +157,34 @@ public final class NikonIntegration: CameraIntegration {
         for listener in listeners.values { listener.continuation.yield(list) }
     }
 
-    /// Sightings as the shared list shows them: a saved setup's sighting names its camera; a
-    /// liveness answer only ever lights a saved camera.
+    /// Sightings as the shared list shows them: a saved setup's sighting names its camera and the
+    /// setup it reaches; a liveness answer only ever lights a saved camera.
     private func nearby() -> [NearbyCamera] {
         let records = port.savedRecords
         let cameras = NikonSavedRecordsV0.layout(records)
         return sightings.compactMap { sighting in
             let saved = CameraStartupPolicy.savedCamera(forDiscovered: sighting, in: records).flatMap { record in
-                cameras.first { camera in camera.members.contains { records[$0.position].id == record.id } }?.camera.id
+                cameras.first { camera in camera.members.contains { records[$0.position].id == record.id } }?.camera
             }
             guard saved != nil || sighting.source != .liveness else { return nil }
             return NearbyCamera(
-                id: sighting.id, savedID: saved, name: sighting.displayName, model: "",
+                id: sighting.id, savedID: saved?.id, name: sighting.displayName, model: "",
                 routes: [sighting.isUSB ? .usb : .infrastructureNetwork],
-                availability: sighting.isHeldByAnotherDevice ? .unavailable(.busy) : .available)
+                availability: sighting.isHeldByAnotherDevice ? .unavailable(.busy) : .available,
+                routeKey: saved.flatMap { Self.reachedRoute(of: $0, at: sighting.ip, usb: sighting.isUSB) })
         }
+    }
+
+    /// The key of the saved setup a sighting at `host` reaches: the one at that address, else a
+    /// cable's USB setup. Never an access point setup: its fixed address answering off the
+    /// camera's own network is no proof of that network.
+    private static func reachedRoute(of camera: SavedCamera, at host: String, usb: Bool) -> String? {
+        let host = PTPIPPairedHosts.normalizedHost(host)
+        return camera.routes.first { route in
+            guard route.kind != .cameraAccessPoint else { return false }
+            let saved = route.extras[NikonSavedRecordsV0.Extra.host].flatMap(PTPIPPairedHosts.normalizedHost)
+            return (host != nil && saved == host) || (usb && route.kind == .usb)
+        }?.key
     }
 
     // MARK: Connecting

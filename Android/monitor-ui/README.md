@@ -28,6 +28,8 @@ accept the iOS look.
 ```sh
 cd Android
 ./gradlew :monitor-ui:testDebugUnitTest :monitor-ui:lint
+# Instrumented tests (real pointer delivery and HWUI pixel readback of the shared components) on one device:
+ANDROID_SERIAL=<device> ./gradlew :monitor-ui:connectedDebugAndroidTest
 ```
 
 An app includes the platform build from a sibling OpenCine checkout and substitutes the
@@ -92,6 +94,8 @@ their own notices.
   no subscription, decoding or shader ownership in the UI module.
 - `MonitorSlider`, `MonitorSwitchGraphic`, `MonitorOptionGroup`: lightweight
   native settings primitives with no captured backdrop or camera dependency.
+- `MonitorTelemetry`: draw-only link (signal bars or feed fps), phone and camera
+  battery gauges. The adapter supplies its delivery-health and battery readouts.
 - `MonitorLayoutPolicy`: pure portrait frame/layout policy, preserving the
   actual source aspect. `MonitorCapabilities` defaults unsupported modules off.
 

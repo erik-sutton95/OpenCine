@@ -29,9 +29,6 @@ data class MonitorZoomTapStops(val singleTap: List<Double>, val doubleTap: List<
     }
 }
 
-/** @deprecated Use [MonitorZoomTapStops]. Kept so existing call sites compile while adapters switch. */
-typealias MonitorZoomStops = MonitorZoomTapStops
-
 object MonitorZoomCaption {
     fun label(factor: Double, opticalStops: List<Double>): String {
         if (!factor.isFinite()) return "WIDE"
