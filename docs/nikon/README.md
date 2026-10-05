@@ -9,7 +9,7 @@ OpenZCine `Sources/OpenZCineCore` without behavior change (plan work package VEN
   object header, capability profiles, still capture, ISO and white-balance policy, raw crop,
   clock sync, busy hold, R3D clip index/header and Nikon media file naming.
 - Discovery (passive listing, infrastructure scan plan), Wi-Fi SSID and screen parsing,
-  credential handoff, camera paths, connect progress and diagnostics, saved camera records and
+  camera paths, connect progress and diagnostics, saved camera records and
   path groups, per-setup stream settings (`LiveViewStreamPreset`, `LiveViewQualityBias`), session
   recovery, reconnect backoff, throughput, poll pacing and watchdog. Link health scoring and signal
   bars are shared in `OpenCineMedia`.
