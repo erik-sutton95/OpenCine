@@ -1,5 +1,20 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.media.FeedIncidentAges
+import com.opencapture.opencine.media.FeedIncidentBuildIdentity
+import com.opencapture.opencine.media.FeedIncidentClassifier
+import com.opencapture.opencine.media.FeedIncidentDecoder
+import com.opencapture.opencine.media.FeedIncidentFailingStage
+import com.opencapture.opencine.media.FeedIncidentKind
+import com.opencapture.opencine.media.FeedIncidentLifecycle
+import com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb
+import com.opencapture.opencine.media.FeedIncidentPersistenceJob
+import com.opencapture.opencine.media.FeedIncidentPrivacy
+import com.opencapture.opencine.media.FeedIncidentRates
+import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentSuppression
+import com.opencapture.opencine.media.FeedRepairPhase
+import com.opencapture.opencine.media.FeedRepairRecord
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -41,8 +56,8 @@ class NeutralUtilityCompatibilityTest {
     }
 
     @Test fun compatibilityPrivacyKeepsTheExistingNetworkAllowlistAndNestedReason() {
-        assertEquals("ssid=OsmoPocket3-A1B2", FeedIncidentBuildIdentity.parse("ssid=OsmoPocket3-A1B2"))
-        assertEquals("ssid=<redacted>", FeedIncidentPrivacy.token("ssid=CafeWiFi"))
+        assertEquals("ssid=OsmoPocket3-A1B2", FeedIncidentBuildIdentity.parse("ssid=OsmoPocket3-A1B2", PrivacyRedactor::redact))
+        assertEquals("ssid=<redacted>", FeedIncidentPrivacy.token("ssid=CafeWiFi", redact = PrivacyRedactor::redact))
         assertEquals("started", FeedIncidentPersistenceJob.Reason.STARTED.name.lowercase())
         assertEquals(mapOf("repairPhase" to "requested", "repairAction" to "decoder"), FeedIncidentNativeBreadcrumb.details(FeedRepairRecord(1.0, "decoder", FeedRepairPhase.REQUESTED)))
     }
