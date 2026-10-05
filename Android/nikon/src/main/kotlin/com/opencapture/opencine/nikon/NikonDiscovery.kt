@@ -23,7 +23,43 @@ enum class NikonDialPurpose {
 }
 
 /** One dial's result on the PTP/IP port (Swift `HostProbeVerdict`). */
-enum class HostProbeVerdict { OPEN, REFUSED, TIMEOUT, NO_ROUTE, NO_NETWORK, DENIED, UNREACHABLE_OTHER }
+enum class HostProbeVerdict {
+    /** TCP accepted: something serves this port. */
+    OPEN,
+
+    /** RST: a host is there and does not serve this port (a router, a laptop, a TV). */
+    REFUSED,
+
+    /** No answer inside the budget: nobody holds the address, or nothing can reach it. */
+    TIMEOUT,
+
+    /** No route to the host: on-link and unanswered at the link layer. */
+    NO_ROUTE,
+
+    /** No route to that network at all. */
+    NO_NETWORK,
+
+    /** The OS refused the dial; says nothing about the host. */
+    DENIED,
+
+    /** Anything else, including running out of descriptors. Never evidence about the host. */
+    UNREACHABLE_OTHER,
+    ;
+
+    /** Something holds this address: only an answer proves it, and a refusal is an answer. */
+    val isOccupied: Boolean
+        get() = when (this) {
+            OPEN, REFUSED -> true
+            TIMEOUT, NO_ROUTE, NO_NETWORK, DENIED, UNREACHABLE_OTHER -> false
+        }
+
+    /** The network declined to carry the dial, rather than a quiet host. */
+    val isSilence: Boolean
+        get() = when (this) {
+            TIMEOUT, NO_ROUTE, NO_NETWORK -> true
+            OPEN, REFUSED, DENIED, UNREACHABLE_OTHER -> false
+        }
+}
 
 /**
  * Every network dial discovery makes (Swift `NikonDialer`). Presence dials can never reach a
@@ -63,6 +99,11 @@ class NikonDiscovery(
     private val log: (String) -> Unit = {},
     private val nowNanos: () -> Long = System::nanoTime,
 ) {
+    /**
+     * The dial budgets are measured, not guessed: an idle ZR on Wi-Fi answers a dial in about 1.0 to
+     * 1.2 s (hardware, 2026-08-04) because its radio is in power-save and listens on its beacon
+     * cadence. Anything shorter measures the app's patience rather than the camera's presence.
+     */
     companion object {
         const val PRESENCE_SWEEP_INTERVAL_MILLIS: Long = 30_000
         const val DIRECTED_ATTEMPT_COUNT: Int = 3
@@ -141,7 +182,7 @@ class NikonDiscovery(
                 val hosts = (1..254).map { "$subnet.$it" }.filterNot { it in excluded || it in locals }
                 val verdicts = muteScan(hosts)
                 val open = verdicts.filterValues { it == HostProbeVerdict.OPEN }.keys.sorted()
-                occupied += verdicts.filterValues { it == HostProbeVerdict.OPEN || it == HostProbeVerdict.REFUSED }.keys
+                occupied += verdicts.filterValues { it.isOccupied }.keys
                 log("infra-search sweep pass=${pass + 1} subnet=$subnet open=[${open.joinToString(" ")}]")
                 if (open.isNotEmpty()) return NikonSearchResult(open, occupied.toList())
             }
