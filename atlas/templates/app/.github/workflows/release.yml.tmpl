@@ -1,0 +1,62 @@
+name: Release
+
+# Manual. Builds the shipping variants only (never the SIMULATED ones) at the chosen ref and keeps
+# them with their tester notes as workflow artifacts. Signing and store upload need the app's
+# own secrets: add them here when the app has an integration to ship.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS archive (unsigned)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: OpenCine at the pinned commit
+        run: scripts/checkout-opencine.sh
+      - name: Project
+        run: brew install xcodegen && (cd ios && xcodegen generate)
+      - name: Archive
+        run: >-
+          xcodebuild -project ios/__NAME__.xcodeproj -scheme __NAME__ -configuration Release
+          -destination 'generic/platform=iOS' -archivePath build/__NAME__.xcarchive
+          CODE_SIGNING_ALLOWED=NO archive
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios
+          path: |
+            build/__NAME__.xcarchive
+            ios/TestFlight/WhatToTest.en-US.txt
+
+  android:
+    name: Android release (unsigned)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: OpenCine at the pinned commit
+        run: scripts/checkout-opencine.sh
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Bundle and APK
+        working-directory: Android
+        run: ./gradlew bundleCameraRelease assembleCameraRelease
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android
+          path: |
+            Android/app/build/outputs/bundle/cameraRelease
+            Android/app/build/outputs/apk/camera/release
+            Android/Play

@@ -1,0 +1,77 @@
+package __APP_ID__
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import com.opencapture.opencine.appkit.AppShell
+import com.opencapture.opencine.appkit.ShellActions
+import com.opencapture.opencine.appkit.ShellModel
+import com.opencapture.opencine.appkit.stored
+
+/**
+ * OpenCine's shared shell ([AppShell]): the cameras and pair pages over [makeShell], with this
+ * app's monitor and cover pages in its slots. The manifest keeps the activity across rotation, so
+ * one shell lives as long as the app's window.
+ */
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val shell = makeShell(getSharedPreferences("__NAME__.cameras", MODE_PRIVATE).stored("document"), lifecycleScope)
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                AppShell(
+                    shell, brand,
+                    // ponytail: no diagnostics share or problem report yet; the app wires its own here.
+                    ShellActions(diagnostics = {}, reportProblem = {}),
+                    monitor = { MonitorSlot(it.camera.saved.displayName, shell::close) },
+                    page = { cover ->
+                        CoverPage(if (cover == ShellModel.Cover.SETTINGS) "Settings" else "Media", shell::dismissCover)
+                    },
+                    // The window draws edge to edge: the pages keep clear of the system bars.
+                    pageFrame = { _, content -> Box(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) { content() } },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The monitor slot. The shell already owns the camera's session and its common controls
+ * (`shell.control`); compose the monitor screen here, as the existing apps do.
+ */
+@Composable
+private fun MonitorSlot(name: String, close: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(Color.Black),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(name, color = Color.White, style = MaterialTheme.typography.titleLarge)
+        Button(onClick = close) { Text("Close") }
+    }
+}
+
+/** A cover page (settings or media) over the current page; covering never disconnects. */
+@Composable
+private fun CoverPage(title: String, done: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
+        Text(title, color = Color.White, style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.Center))
+        Button(onClick = done, modifier = Modifier.align(Alignment.TopEnd)) { Text("Done") }
+    }
+}

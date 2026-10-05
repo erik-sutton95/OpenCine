@@ -1,0 +1,64 @@
+import MonitorUI
+import OpenCineAppKit
+import SwiftUI
+
+@main
+struct __NAME__App: App {
+    @State private var shell = makeShell()
+
+    var body: some Scene {
+        WindowGroup {
+            Root(shell: shell).observeMonitorWindowGeometry().preferredColorScheme(.dark)
+        }
+    }
+}
+
+/// OpenCine's shared shell (`AppShell`): the cameras and pair pages over `makeShell()`, laid out
+/// in the window's physical insets, with this app's monitor and cover pages in its slots.
+private struct Root: View {
+    let shell: ShellModel
+    @Environment(\.monitorWindowGeometry) private var window
+
+    var body: some View {
+        AppShell(
+            model: shell, brand: brand,
+            // ponytail: no diagnostics share or problem report yet; the app wires its own here.
+            actions: ShellActions(diagnostics: {}, reportProblem: {}),
+            safeArea: { _ in window.safeArea }
+        ) { monitor in
+            MonitorSlot(name: monitor.camera.saved.displayName, close: shell.close)
+        } page: { cover in
+            CoverPage(title: cover == .settings ? "Settings" : "Media", done: shell.dismissCover)
+        }
+    }
+}
+
+/// The monitor slot. The shell already owns the camera's session and its common controls
+/// (`shell.control`); compose the monitor screen here, as the existing apps do.
+private struct MonitorSlot: View {
+    let name: String
+    let close: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(name).font(.title2.bold())
+            Button("Close", action: close)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
+    }
+}
+
+/// A cover page (settings or media) over the current page; covering never disconnects.
+private struct CoverPage: View {
+    let title: String
+    let done: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Color.black.ignoresSafeArea()
+                .navigationTitle(title)
+                .toolbar { Button("Done", action: done) }
+        }
+    }
+}

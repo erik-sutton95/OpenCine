@@ -1,0 +1,7 @@
+import OpenCineAppKit
+
+/// The integrations this app ships, in the order the pair page lists them: each an OpenCine
+/// integration with the app's typed slots, for example
+/// `AppIntegration(integration, slots: IntegrationSlots(pairing: { AnyView(PairingTips()) }))`.
+/// Empty until the app has one; `__NAME__Simulated` lists the fake instead (Simulated/).
+@MainActor func integrations() -> [AppIntegration] { [] }

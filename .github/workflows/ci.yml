@@ -101,3 +101,37 @@ jobs:
         env:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
         run: python3 atlas/tools/atlas.py dupes --check --top 3
+
+  # SHELL-05: an app fresh from `atlas new-app` builds against this commit and passes its SIMULATED
+  # contract test (OpenCine's fake integration; no camera, no hardware).
+  template-ios:
+    name: New-app template, iOS (SIMULATED)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: Generate, build both targets, contract test and screenshot on a private simulator
+        env:
+          OUT: ${{ runner.temp }}/template
+        run: brew install xcodegen && scripts/template-app-check.sh ios
+
+  template-android:
+    name: New-app template, Android (SIMULATED)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Generate, unit tests, lint, SIMULATED debug and shipping release
+        env:
+          OUT: ${{ runner.temp }}/template
+        run: scripts/template-app-check.sh android

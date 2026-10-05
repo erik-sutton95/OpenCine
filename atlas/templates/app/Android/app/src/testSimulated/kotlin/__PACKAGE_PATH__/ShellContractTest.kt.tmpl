@@ -1,0 +1,38 @@
+package __APP_ID__
+
+import com.opencapture.opencine.appkit.ShellModel
+import com.opencapture.opencine.appkit.StoredString
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+/**
+ * SIMULATED contract test (OpenCine's fake integration, no hardware): this app's shell
+ * composition pairs the fake camera, shows it on the monitor and returns to the cameras page with
+ * the camera saved. Swift twin: `ShellContract`.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class ShellContractTest {
+    private class Memory : StoredString {
+        private var value: String? = null
+        override fun read(): String? = value
+        override fun write(value: String) {
+            this.value = value
+        }
+    }
+
+    @Test
+    fun theFakeCameraConnectsAndCloses() = runTest {
+        val shell = makeShell(Memory(), backgroundScope)
+        runCurrent()
+        assertEquals(ShellModel.Route.PAIR, shell.route, "nothing saved yet")
+        shell.cameras.connect(shell.cameras.state.value.nearby.first())
+        runCurrent()
+        assertEquals(ShellModel.Route.MONITOR, shell.route)
+        shell.close()
+        runCurrent()
+        assertEquals(ShellModel.Route.CAMERAS, shell.route, "the camera stays saved")
+    }
+}

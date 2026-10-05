@@ -51,6 +51,12 @@ public class FakeIntegration(
     /** Hosts discovery dials. */
     public var endpoints: List<String> = emptyList(),
 ) : CameraIntegration {
+    /**
+     * Called with each new attempt when its flow is collected: a SIMULATED app answers every
+     * connect here (`attempt.connect(session)`) instead of scripting it from a test.
+     */
+    public var onAttempt: ((FakeAttempt) -> Unit)? = null
+
     public enum class DialPurpose {
         /** Reachability only; cannot reach a camera's control service. */
         PRESENCE,
@@ -107,6 +113,7 @@ public class FakeIntegration(
         liveAttempt(target.cameraID)?.finish(FakeAttempt.End.SUPERSEDED)
         val attempt = FakeAttempt(id, target, steps, channel)
         attemptLog += attempt
+        onAttempt?.invoke(attempt)
         try {
             for (event in channel) emit(event)
         } finally {

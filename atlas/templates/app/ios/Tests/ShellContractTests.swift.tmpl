@@ -1,0 +1,28 @@
+import Foundation
+import OpenCineAppKit
+import Testing
+
+/// SIMULATED contract test (OpenCine's fake integration, no hardware): this app's shell
+/// composition pairs the fake camera, shows it on the monitor and returns to the cameras page
+/// with the camera saved. Kotlin twin: `ShellContractTest`.
+@MainActor
+@Suite struct ShellContract {
+    @Test func theFakeCameraConnectsAndCloses() async throws {
+        let shell = makeShell(defaults: try #require(UserDefaults(suiteName: "contract-\(UUID())")))
+        #expect(shell.route == .pair, "nothing saved yet")
+        let camera = try #require(await settled { shell.cameras.nearby.first })
+        shell.cameras.connect(camera)
+        #expect(await settled { shell.route == .monitor ? true : nil } == true)
+        shell.close()
+        #expect(shell.route == .cameras, "the camera stays saved")
+    }
+
+    /// Lets the shell's tasks run until `value` has one; never sleeps.
+    private func settled<T>(_ value: () -> T?) async -> T? {
+        for _ in 0..<1_000 {
+            if let found = value() { return found }
+            await Task.yield()
+        }
+        return nil
+    }
+}

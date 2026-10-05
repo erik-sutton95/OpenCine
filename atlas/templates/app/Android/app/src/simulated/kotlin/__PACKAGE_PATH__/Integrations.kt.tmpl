@@ -1,0 +1,28 @@
+package __APP_ID__
+
+import com.opencapture.opencine.appkit.AppIntegration
+import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.NearbyCamera
+import com.opencapture.opencine.core.RouteKind
+import com.opencapture.opencine.core.testing.FakeCameraSession
+import com.opencapture.opencine.core.testing.FakeIntegration
+import com.opencapture.opencine.core.testing.lunaLike
+
+/**
+ * SIMULATED, developer-only (the `simulated` flavor and its contract test; never released):
+ * OpenCine's [FakeIntegration] with one nearby camera. Every connect reaches a scripted
+ * [FakeCameraSession] on a manual clock, so reported values show and writes never confirm. It
+ * proves the shell composition, not any camera.
+ */
+fun integrations(): List<AppIntegration> {
+    val fake = FakeIntegration(id = IntegrationID("simulated.fake-integration"))
+    fake.publish(
+        listOf(NearbyCamera("simulated-camera", name = "SIMULATED CAMERA", model = "Test Body", routes = setOf(RouteKind.CAMERA_ACCESS_POINT))),
+    )
+    fake.onAttempt = { attempt ->
+        val session = FakeCameraSession.lunaLike()
+        attempt.connect(session)
+        session.cameraReportsStatus()
+    }
+    return listOf(AppIntegration(fake))
+}
