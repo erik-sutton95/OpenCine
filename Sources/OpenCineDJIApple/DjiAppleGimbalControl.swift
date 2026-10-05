@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import OpenCineDJI
 import OpenCineMotion
 

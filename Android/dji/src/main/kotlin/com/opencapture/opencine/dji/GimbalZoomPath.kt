@@ -1,15 +1,20 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalProgram
 import kotlin.math.ceil
 
 /** Zoom visits each saved amount even when the angular path rounds B. */
 internal data class GimbalZoomPath(val legs: List<Leg>) {
     data class Leg(val from: Double, val to: Double, val duration: Double)
 
-    constructor(program: GimbalProgram) : this(if (program.a != null && program.b != null) {
-        listOfNotNull(Leg(program.a.zoom, program.b.zoom, program.durationAB),
-            program.c?.let { Leg(program.b.zoom, it.zoom, program.durationBC) })
-    } else emptyList())
+    constructor(program: GimbalProgram) : this(run {
+        val a = program.a
+        val b = program.b
+        if (a != null && b != null) {
+            listOfNotNull(Leg(a.zoom, b.zoom, program.durationAB),
+                program.c?.let { Leg(b.zoom, it.zoom, program.durationBC) })
+        } else emptyList()
+    })
 
     val duration: Double get() = legs.sumOf { it.duration }
     val end: Double get() = legs.lastOrNull()?.to ?: 1.0

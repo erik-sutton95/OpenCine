@@ -1,11 +1,13 @@
 import Foundation
-import OpenCineMotion
 
 /// Camera-executed timed positions. The phone sends one native command per
 /// leg and observes completion; it never approximates position with a stick.
+/// Reach and arrival tolerance come from the gimbal's declared `MotionCapabilities`.
 public struct GimbalMoveEngine: Equatable, Sendable {
-    public static let arriveDeg = MotionCapabilities.pocketGimbal.arrivalToleranceDeg
     public static let holdSeconds: TimeInterval = 2
+
+    public let capabilities: MotionCapabilities
+    private var arriveDeg: Double { capabilities.arrivalToleranceDeg }
 
     public struct Output: Equatable, Sendable {
         public var target: GimbalWaypoint?
@@ -86,7 +88,9 @@ public struct GimbalMoveEngine: Equatable, Sendable {
     private var curve: GimbalProgramCurve?
     private var nextCurveCommand: TimeInterval = 0
 
-    public init() {}
+    public init(capabilities: MotionCapabilities) {
+        self.capabilities = capabilities
+    }
 
     public mutating func start(program saved: GimbalProgram, live: GimbalWaypoint) -> Bool {
         cancel()
@@ -105,7 +109,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
         guard program.smoothness.isFinite, (0...1).contains(program.smoothness) else { return false }
         let points = [a, b, live] + (program.c.map { [$0] } ?? [])
         guard points.allSatisfy({ $0.yawDeg.isFinite && $0.pitchDeg.isFinite
-            && $0.zoom.isFinite && $0 == $0.clamped()
+            && $0.zoom.isFinite && $0 == $0.clamped(to: capabilities.bounds)
             && ($0.nativePitchDeg.map { $0.isFinite && (-180...180).contains($0) } ?? true) }) else {
             failure = "Set reachable gimbal points again"
             return false
@@ -143,7 +147,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
         // Approach is preparation, not the user-timed take. Avoid a full-arc flick.
         approachDuration = max(GimbalProgram.minDuration,
             ceil(Self.angularDistance(live, a) / Double(approachSteps) / 120 * 10) / 10)
-        needsCommand = Self.angularDistance(live, a) > Self.arriveDeg
+        needsCommand = Self.angularDistance(live, a) > arriveDeg
         phase = needsCommand ? "APPROACH" : "HOLD"
         running = true
         return true
@@ -163,7 +167,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
 
     public mutating func resume(live: GimbalWaypoint) -> Bool {
         guard running, isPaused, live.yawDeg.isFinite, live.pitchDeg.isFinite,
-            live.zoom.isFinite, live == live.clamped(),
+            live.zoom.isFinite, live == live.clamped(to: capabilities.bounds),
             (legs[0].from.nativePitchDeg == nil || live.nativePitchDeg != nil),
             (live.nativePitchDeg.map { $0.isFinite && (-180...180).contains($0) } ?? true) else { return false }
         if phase == "APPROACH" || phase == "HOLD" {
@@ -314,7 +318,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
                 return output(live: live, target: approachTarget, duration: approachDuration)
             }
             if elapsed >= approachDuration,
-                Self.angularDistance(live, approachTarget) <= Self.arriveDeg {
+                Self.angularDistance(live, approachTarget) <= arriveDeg {
                 approachTargets.removeFirst()
                 elapsed = 0
                 if let next = approachTargets.first {
@@ -327,7 +331,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             return output(live: live)
         }
         if phase == "HOLD" {
-            if Self.angularDistance(live, a) > Self.arriveDeg {
+            if Self.angularDistance(live, a) > arriveDeg {
                 return stop(live: live, reason: "Camera moved before the take")
             }
             if elapsed + 1e-9 < Self.holdSeconds { return output(live: live) }
@@ -364,7 +368,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             return output(live: live)
         }
         if phase == "VERIFY", elapsed >= 0.3, checkpoints.isEmpty {
-            guard Self.angularDistance(live, legs[index].to) <= Self.arriveDeg else {
+            guard Self.angularDistance(live, legs[index].to) <= arriveDeg else {
                 return stop(live: live, reason: "Camera missed its final position")
             }
             phase = "DONE"
@@ -453,9 +457,12 @@ public struct GimbalMoveEngine: Equatable, Sendable {
 
     /// Absolute firmware targets may choose the shortest circular arc. Never
     /// send one that could cross the body's missing pan sector.
-    public static func canSendNativeTarget(from live: GimbalWaypoint, to target: GimbalWaypoint) -> Bool {
+    public static func canSendNativeTarget(
+        from live: GimbalWaypoint, to target: GimbalWaypoint, in bounds: MotionBounds
+    ) -> Bool {
         live.yawDeg.isFinite && live.pitchDeg.isFinite && target.yawDeg.isFinite
-            && target.pitchDeg.isFinite && live == live.clamped() && target == target.clamped()
+            && target.pitchDeg.isFinite && live == live.clamped(to: bounds)
+            && target == target.clamped(to: bounds)
             && abs((target.yawDeg * 10).rounded() / 10 - live.yawDeg) < 180
     }
 
@@ -503,7 +510,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             // is not camera acquisition time: interpolating across the command
             // deadline can reject a correct endpoint solely due to radio delay.
             let settled = observations.filter { $0.time >= check.time && $0.time <= check.time + 0.4 }
-                .reversed().prefix { Self.angularDistance($0.pose, check.incoming.to) <= Self.arriveDeg }
+                .reversed().prefix { Self.angularDistance($0.pose, check.incoming.to) <= arriveDeg }
             guard let last = settled.first, let first = settled.last else { return false }
             return last.time - first.time >= 0.08 - 1e-9
         }
@@ -539,7 +546,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
         }
         knots.sort()
         if low == high {
-            return nearby.allSatisfy { Self.angularDistance($0.pose, reference($0, delay: low)) <= Self.arriveDeg }
+            return nearby.allSatisfy { Self.angularDistance($0.pose, reference($0, delay: low)) <= arriveDeg }
         }
         for (lower, upper) in zip(knots, knots.dropFirst()) where upper - lower > 1e-12 {
             let span = upper - lower
@@ -554,7 +561,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
                 let vp = -Self.pitchDelta(from: first, to: last) / span
                 let aa = vy * vy + vp * vp
                 let bb = 2 * (ey * vy + ep * vp)
-                let cc = ey * ey + ep * ep - Self.arriveDeg * Self.arriveDeg
+                let cc = ey * ey + ep * ep - arriveDeg * arriveDeg
                 if aa < 1e-12 {
                     if cc > 1e-10 { feasibleHigh = -1; break }
                     continue
@@ -568,7 +575,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             }
             if feasibleLow <= feasibleHigh {
                 let delay = lower + (feasibleLow + feasibleHigh) / 2
-                if nearby.allSatisfy({ Self.angularDistance($0.pose, reference($0, delay: delay)) <= Self.arriveDeg + 1e-9 }) {
+                if nearby.allSatisfy({ Self.angularDistance($0.pose, reference($0, delay: delay)) <= arriveDeg + 1e-9 }) {
                     return true
                 }
             }
@@ -586,32 +593,32 @@ public struct GimbalMoveEngine: Equatable, Sendable {
             let yaw = other.yawDeg - endpoint.yawDeg
             let pitch = Self.pitchDelta(from: endpoint, to: other)
             let length = hypot(yaw, pitch)
-            guard length > Self.arriveDeg else { return nil }
+            guard length > arriveDeg else { return nil }
             let distance = ((pose.yawDeg - endpoint.yawDeg) * yaw
                 + Self.pitchDelta(from: endpoint, to: pose) * pitch) / length
             let nearest = Self.lerp(endpoint, other, u: distance / length)
-            return Self.angularDistance(pose, nearest) <= Self.arriveDeg + 1e-9 ? distance : nil
+            return Self.angularDistance(pose, nearest) <= arriveDeg + 1e-9 ? distance : nil
         }
         for (index, arrival) in observations.enumerated() {
             guard arrival.time >= check.time, arrival.time <= check.time + 0.2 + 1e-9,
-                Self.angularDistance(arrival.pose, endpoint) <= Self.arriveDeg else { continue }
+                Self.angularDistance(arrival.pose, endpoint) <= arriveDeg else { continue }
             let before = observations[..<index]
             let after = observations[(index + 1)...]
             guard before.contains(where: { arrival.time - $0.time >= 0.08 - 1e-9
-                && Self.angularDistance($0.pose, endpoint) > Self.arriveDeg }),
+                && Self.angularDistance($0.pose, endpoint) > arriveDeg }),
                 after.contains(where: { $0.time - arrival.time >= 0.08 - 1e-9
-                    && Self.angularDistance($0.pose, endpoint) > Self.arriveDeg }) else { continue }
+                    && Self.angularDistance($0.pose, endpoint) > arriveDeg }) else { continue }
             var closest = Double.infinity
             let approaches = (Array(before) + [arrival]).allSatisfy { sample in
                 guard let distance = along(sample.pose, toward: check.incoming.from),
-                    distance <= closest + Self.arriveDeg + 1e-9 else { return false }
+                    distance <= closest + arriveDeg + 1e-9 else { return false }
                 closest = min(closest, distance)
                 return true
             }
             var farthest = -Double.infinity
             let departs = ([arrival] + Array(after)).allSatisfy { sample in
                 guard let distance = along(sample.pose, toward: outgoing.to),
-                    distance >= farthest - Self.arriveDeg - 1e-9 else { return false }
+                    distance >= farthest - arriveDeg - 1e-9 else { return false }
                 farthest = max(farthest, distance)
                 return true
             }
@@ -635,7 +642,7 @@ public struct GimbalMoveEngine: Equatable, Sendable {
         live: GimbalWaypoint, target: GimbalWaypoint? = nil,
         duration: TimeInterval = 0, finished: Bool = false
     ) -> Output {
-        if let target, !Self.canSendNativeTarget(from: live, to: target) {
+        if let target, !Self.canSendNativeTarget(from: live, to: target, in: capabilities.bounds) {
             return stop(live: live, reason: "Camera moved outside the safe rotation path")
         }
         if program.loop, let target {

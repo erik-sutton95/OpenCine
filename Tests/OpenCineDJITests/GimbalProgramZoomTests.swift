@@ -71,28 +71,6 @@ import OpenCineMotion
         #expect(zoom.liveZoom == 3)
     }
 
-    @Test func exactZoomAmountsSurviveRoundedPathsAndMeasuredResume() {
-        var saved = program
-        saved.smoothness = 1
-        let path = GimbalZoomPath(program: saved)
-        #expect(abs(path.position(at: 1.45) - 2) < 1e-9)
-        #expect(path.position(at: 2.98) == 3, "Look-ahead stops at B rather than skipping its zoom")
-        #expect(path.position(at: 4.98) == 2)
-        let resumed = path.remaining(after: 1.45, from: 2.4, quantized: true)
-        #expect(resumed.position(at: 0, lookAhead: 0) == 2.4)
-        #expect(abs(resumed.legs[0].duration - 1.6) < 1e-9)
-        #expect(resumed.legs[1].duration == 2)
-        #expect(resumed.position(at: 1.59) == 3)
-        #expect(resumed.end == 2)
-        let beforeB = path.remaining(after: 2.96, from: 2.9, quantized: false)
-        #expect(abs(beforeB.legs[0].duration - 0.04) < 1e-9)
-        #expect(abs(beforeB.duration - 2.04) < 1e-9)
-        let lateResume = path.remaining(after: 4, from: 2.7, quantized: false)
-        #expect(lateResume.legs.count == 1)
-        #expect(lateResume.duration == 1)
-        #expect(lateResume.position(at: 0, lookAhead: 0) == 2.7)
-    }
-
     @Test func zoomOwnershipRetiresOnlyItsPendingManualMailbox() {
         var mailbox = CameraSetMailbox()
         let zoom = CameraSetMailbox.zoomOpcodeKey

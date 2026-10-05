@@ -1,5 +1,4 @@
 import Foundation
-import OpenCineMotion
 
 /// Zoom visits each saved amount even when the angular path rounds B.
 struct GimbalZoomPath: Equatable, Sendable {

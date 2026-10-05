@@ -1,5 +1,4 @@
 import Foundation
-import OpenCineMotion
 
 /// Display-only dead reckoning between camera attitude reports. Never used to
 /// save a waypoint, drive a motor or verify arrival.

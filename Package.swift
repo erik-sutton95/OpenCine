@@ -163,7 +163,7 @@ let package = Package(
             name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport"],
             exclude: ["Fixtures"]),
         // iOS Bluetooth/network adapters over portable DJI policy; no UI or app dependency.
-        .target(name: "OpenCineDJIApple", dependencies: ["OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
+        .target(name: "OpenCineDJIApple", dependencies: ["OpenCineCore", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
         .testTarget(name: "OpenCineDJIAppleTests", dependencies: ["OpenCineDJIApple", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
         // Header-only shim for the NDK's <jni.h>; empty on Darwin.
         .target(name: "OpenCineJNI"),

@@ -1,18 +1,11 @@
 import Foundation
 
 /// Preparation, timed lens targets and immediate cancellation share one transport owner.
+/// The integration encodes each command for its camera.
 public enum NativeProgramZoomCommand: Equatable, Sendable {
     case position(Double)
     case track(Double)
     case stop
-
-    public var frame: Duml.Frame {
-        switch self {
-        case .position(let factor): return Commands.setZoom(factor: factor)
-        case .track(let factor): return Commands.setZoom(factor: factor)
-        case .stop: return Commands.setZoomStop()
-        }
-    }
 }
 
 public struct NativeProgramZoomDemand: Equatable, Sendable {
@@ -31,7 +24,7 @@ public struct NativeProgramZoomDemand: Equatable, Sendable {
 }
 
 /// Linear zoom-factor targets, sampled above the measured 25 fps picture cadence.
-/// Pocket 4 Pro's seven rocker gears cannot represent arbitrary timed linear moves.
+/// A rocker with a few fixed gears cannot represent arbitrary timed linear moves.
 public enum NativeProgramZoom {
     public static let interval: TimeInterval = 0.02
 

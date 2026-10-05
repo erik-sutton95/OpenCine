@@ -1,6 +1,5 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.motion
 
-import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.asin
@@ -8,69 +7,54 @@ import kotlin.math.atan2
 import kotlin.math.sqrt
 
 /**
- * Camera attitude against gravity from the `0x04/0x05` push. Mirrors iOS core
- * `WorldLevel.swift`: `@24…@39` float32 LE `x, w, y, z` of a unit quaternion
- * mapping world to camera (camera x forward, y up; gravity −y). Fit on 1,014
- * captured frames: tilt matches `−@20` (p50 0.02°). Roll sign is unconfirmed
- * on a rolled handle.
+ * Camera attitude against gravity (Swift `WorldLevel.swift` in OpenCineMotion). The attitude is a
+ * unit quaternion that maps world to camera (camera x forward, y up; gravity -y); the integration
+ * decodes it from its own report. Heading is free and unused.
  */
-object WorldLevel {
-    data class Quat(val w: Double, val x: Double, val y: Double, val z: Double) {
-        operator fun times(r: Quat) = Quat(
+public object WorldLevel {
+    public data class Quat(public val w: Double, public val x: Double, public val y: Double, public val z: Double) {
+        public operator fun times(r: Quat): Quat = Quat(
             w * r.w - x * r.x - y * r.y - z * r.z,
             w * r.x + x * r.w + y * r.z - z * r.y,
             w * r.y - x * r.z + y * r.w + z * r.x,
             w * r.z + x * r.y - y * r.x + z * r.w,
         )
 
-        fun rotate(vx: Double, vy: Double, vz: Double): Vec {
+        public fun rotate(vx: Double, vy: Double, vz: Double): Vec {
             val r = this * Quat(0.0, vx, vy, vz) * Quat(w, -x, -y, -z)
             return Vec(r.x, r.y, r.z)
         }
     }
 
-    data class Vec(val x: Double, val y: Double, val z: Double)
-
-    fun attitude(payload: ByteArray): Quat? {
-        if (payload.size < 40) return null
-        fun f32(o: Int): Double {
-            val bits = (payload[o].toInt() and 0xFF) or ((payload[o + 1].toInt() and 0xFF) shl 8) or
-                ((payload[o + 2].toInt() and 0xFF) shl 16) or ((payload[o + 3].toInt() and 0xFF) shl 24)
-            return Float.fromBits(bits).toDouble()
-        }
-        val q = Quat(f32(28), f32(24), f32(32), f32(36))
-        val norm = sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z)
-        if (!norm.isFinite() || abs(norm - 1) > 1e-3) return null
-        return q
-    }
+    public data class Vec(public val x: Double, public val y: Double, public val z: Double)
 
     /** Unit gravity (down) in the camera frame. */
-    fun gravity(q: Quat): Vec = q.rotate(0.0, -1.0, 0.0)
+    public fun gravity(q: Quat): Vec = q.rotate(0.0, -1.0, 0.0)
 
-    internal fun deg(r: Double) = r * 180 / PI
-    internal fun asinDeg(v: Double) = deg(asin(v.coerceIn(-1.0, 1.0)))
+    internal fun deg(r: Double): Double = r * 180 / PI
+    internal fun asinDeg(v: Double): Double = deg(asin(v.coerceIn(-1.0, 1.0)))
 }
 
-sealed interface LevelMode {
-    data object Unavailable : LevelMode
+public sealed interface LevelMode {
+    public data object Unavailable : LevelMode
     /** Picture roll and look-up tilt from the horizon, degrees. */
-    data class Gauges(val rollDeg: Double, val tiltDeg: Double) : LevelMode
+    public data class Gauges(public val rollDeg: Double, public val tiltDeg: Double) : LevelMode
     /** Lens offset from plumb in picture axes (x right, y up), degrees. */
-    data class Bubble(val xDeg: Double, val yDeg: Double) : LevelMode
+    public data class Bubble(public val xDeg: Double, public val yDeg: Double) : LevelMode
 }
 
 /**
  * Smoothed world level for the LEVEL assist and the Double-tap Level snap.
  * Written on the session thread, read by the overlay on main: synchronized.
  */
-class LevelReading {
+public class LevelReading {
     private var g: WorldLevel.Vec? = null
     private var acceptedAt = Double.NEGATIVE_INFINITY
     private var bubble = false
 
     @Synchronized
-    fun ingest(payload: ByteArray, now: Double) {
-        val q = WorldLevel.attitude(payload) ?: return
+    public fun ingest(attitude: WorldLevel.Quat, now: Double) {
+        val q = attitude
         if (!now.isFinite()) return
         val sample = WorldLevel.gravity(q)
         // After a gap, start over: pre-gap gravity must not bleed into a new pose.
@@ -94,7 +78,7 @@ class LevelReading {
 
     /** Smoothed look-up tilt, or null when stale. */
     @Synchronized
-    fun tiltDeg(now: Double): Double? {
+    public fun tiltDeg(now: Double): Double? {
         val g = g ?: return null
         return if (now - acceptedAt <= STALE_AFTER) tilt(g) else null
     }
@@ -104,14 +88,14 @@ class LevelReading {
      * nadir reads −92, not −88). The snap plans and judges on this; null when stale.
      */
     @Synchronized
-    fun pitchDeg(now: Double): Double? {
+    public fun pitchDeg(now: Double): Double? {
         val g = g ?: return null
         return if (now - acceptedAt <= STALE_AFTER) WorldLevel.deg(atan2(-g.x, -g.y)) else null
     }
 
-    /** [viewFlip]: TT180 XOR MIRROR (picture-relative, like the stick). */
+    /** [viewFlip]: the camera's pan inversion XOR MIRROR (picture-relative, like the stick). */
     @Synchronized
-    fun mode(now: Double, viewFlip: Boolean): LevelMode {
+    public fun mode(now: Double, viewFlip: Boolean): LevelMode {
         val g = g ?: return LevelMode.Unavailable
         if (now - acceptedAt > STALE_AFTER) return LevelMode.Unavailable
         val side = if (viewFlip) -1.0 else 1.0
@@ -122,25 +106,25 @@ class LevelReading {
         }
     }
 
-    private fun tilt(g: WorldLevel.Vec) = -WorldLevel.asinDeg(g.x)
+    private fun tilt(g: WorldLevel.Vec): Double = -WorldLevel.asinDeg(g.x)
 
-    companion object {
-        const val STALE_AFTER = 1.0
-        const val MIN_INTERVAL = 0.08
-        const val SMOOTHING = 0.3
-        const val BUBBLE_ENTER_DEG = 65.0
-        const val BUBBLE_EXIT_DEG = 60.0
+    public companion object {
+        public const val STALE_AFTER: Double = 1.0
+        public const val MIN_INTERVAL: Double = 0.08
+        public const val SMOOTHING: Double = 0.3
+        public const val BUBBLE_ENTER_DEG: Double = 65.0
+        public const val BUBBLE_EXIT_DEG: Double = 60.0
     }
 }
 
-enum class WorldLevelTarget(val tiltDeg: Double, val successNote: String) {
+public enum class WorldLevelTarget(public val tiltDeg: Double, public val successNote: String) {
     HORIZON(0.0, "Leveled to world"),
     PLUMB_DOWN(-90.0, "Leveled top-down"),
     PLUMB_UP(90.0, "Leveled straight up"),
     ;
 
-    companion object {
-        fun nearest(tiltDeg: Double): WorldLevelTarget = when {
+    public companion object {
+        public fun nearest(tiltDeg: Double): WorldLevelTarget = when {
             abs(tiltDeg) < 45 -> HORIZON
             tiltDeg < 0 -> PLUMB_DOWN
             else -> PLUMB_UP
@@ -148,19 +132,19 @@ enum class WorldLevelTarget(val tiltDeg: Double, val successNote: String) {
     }
 }
 
-sealed interface SnapOutcome {
-    data object Pending : SnapOutcome
-    data object Arrived : SnapOutcome
+public sealed interface SnapOutcome {
+    public data object Pending : SnapOutcome
+    public data object Arrived : SnapOutcome
     /** Judged more than a stale window past the deadline (attitude stopped): drop silently. */
-    data object Expired : SnapOutcome
+    public data object Expired : SnapOutcome
     /** Remaining error to 0.1°, or null when the reading went stale. */
-    data class Failed(val errorDeg: Double?) : SnapOutcome
+    public data class Failed(public val errorDeg: Double?) : SnapOutcome
 }
 
-/** One-shot `0x04/0x14` move to the nearest world target. Roll is not commanded. */
-data class WorldLevelSnap(val target: WorldLevelTarget, val deadline: Double) {
+/** One-shot timed move to the nearest world target. Roll is not commanded. */
+public data class WorldLevelSnap(public val target: WorldLevelTarget, public val deadline: Double) {
     /** [tiltDeg] is the unfolded [LevelReading.pitchDeg]. */
-    fun evaluate(tiltDeg: Double?, now: Double): SnapOutcome {
+    public fun evaluate(tiltDeg: Double?, now: Double): SnapOutcome {
         if (now - deadline > LevelReading.STALE_AFTER) return SnapOutcome.Expired
         tiltDeg ?: return SnapOutcome.Failed(null)
         val error = abs(tiltDeg - target.tiltDeg)
@@ -168,19 +152,23 @@ data class WorldLevelSnap(val target: WorldLevelTarget, val deadline: Double) {
         return if (now >= deadline) SnapOutcome.Failed(roundAway(error * 10) / 10) else SnapOutcome.Pending
     }
 
-    companion object {
-        const val TOLERANCE_DEG = 0.5
-        const val SETTLE_GRACE = 1.5
-        const val NO_LEVEL_DATA = "No level data"
-        const val FPV_ROLL_NOTE = " · roll follows the handle in FPV"
+    public companion object {
+        public const val TOLERANCE_DEG: Double = 0.5
+        public const val SETTLE_GRACE: Double = 1.5
+        public const val NO_LEVEL_DATA: String = "No level data"
+        public const val FPV_ROLL_NOTE: String = " · roll follows the handle in FPV"
         /** No live native pitch, or yaw in the unreachable pan gap. */
-        const val UNREACHABLE_NOTE = "Couldn't level from this pose"
+        public const val UNREACHABLE_NOTE: String = "Couldn't level from this pose"
 
         /** 0.1 s per 2°, clamped 0.5…3.0 s on the 0.1 s wire grid. */
-        fun duration(distanceDeg: Double): Double = (roundAway(abs(distanceDeg) * 0.5) / 10).coerceIn(0.5, 3.0)
+        public fun duration(distanceDeg: Double): Double = (roundAway(abs(distanceDeg) * 0.5) / 10).coerceIn(0.5, 3.0)
 
-        /** Native pitch moves opposite to look-up tilt (`native = 180 − tilt`). */
-        fun plan(tiltDeg: Double, pose: GimbalWaypoint, now: Double): Pair<WorldLevelSnap, ByteArray>? {
+        /**
+         * The timed move from [pose] to the nearest world target: the native pitch goal and the
+         * duration. Native pitch moves opposite to look-up tilt (`native = 180 - tilt`); null
+         * without a native pitch.
+         */
+        public fun move(tiltDeg: Double, pose: GimbalWaypoint): WorldLevelMove? {
             val native = pose.nativePitchDeg ?: return null
             if (!tiltDeg.isFinite() || !native.isFinite()) return null
             val target = WorldLevelTarget.nearest(tiltDeg)
@@ -188,16 +176,17 @@ data class WorldLevelSnap(val target: WorldLevelTarget, val deadline: Double) {
             var goal = native - error
             while (goal > 180) goal -= 360
             while (goal < -180) goal += 360
-            val duration = duration(error)
-            val payload = CameraCommands.gimbalTimedTarget(pose.yawDeg, roundAway(goal * 10) / 10, duration)
-                ?: return null
-            return WorldLevelSnap(target, now + duration + SETTLE_GRACE) to payload
+            return WorldLevelMove(target, goal, duration(error))
         }
-
-        fun failureNote(errorDeg: Double?): String =
-            if (errorDeg == null) NO_LEVEL_DATA else String.format(Locale.ROOT, "Couldn't level: %.1f° off", errorDeg)
     }
 }
+
+/** [WorldLevelSnap.move]: the world target, the native pitch goal and the move duration. */
+public data class WorldLevelMove(
+    public val target: WorldLevelTarget,
+    public val nativePitchDeg: Double,
+    public val duration: Double,
+)
 
 /** Swift `.rounded()`: half away from zero (Kotlin `round` is half-even). */
 internal fun roundAway(value: Double): Double = Math.copySign(kotlin.math.floor(abs(value) + 0.5), value)
