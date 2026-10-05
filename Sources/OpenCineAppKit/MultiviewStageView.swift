@@ -13,8 +13,8 @@
         public var add: (Int) -> Void
         /// A `MultiviewCameraAction` other than record, by id, for a slot.
         public var perform: (_ action: String, _ slot: Int) -> Void
-        /// A readout choice: slot, readout index, choice index.
-        public var choose: (_ slot: Int, _ readout: Int, _ choice: Int) -> Void
+        /// A readout choice: slot, readout index and the choice the operator picked, as shown.
+        public var choose: (_ slot: Int, _ readout: Int, _ choice: String) -> Void
         /// The LUT tool.
         public var toggleLUT: () -> Void
         /// The CAMERA tool: the app shows its settings panel for the slot over the stage, and
@@ -32,7 +32,7 @@
         public init(
             openLiveView: @escaping (Int) -> Void, add: @escaping (Int) -> Void,
             perform: @escaping (String, Int) -> Void,
-            choose: @escaping (Int, Int, Int) -> Void = { _, _, _ in },
+            choose: @escaping (Int, Int, String) -> Void = { _, _, _ in },
             toggleLUT: @escaping () -> Void = {}, openSettings: @escaping (Int) -> Void = { _ in },
             close: @escaping () -> Void,
             recordContext: @escaping (Int?) -> MultiviewRecordContext,
@@ -268,8 +268,8 @@
                     .accessibilityLabel(value.title + " " + value.value)
             } else {
                 Menu {
-                    ForEach(Array(value.choices.enumerated()), id: \.offset) { choice, name in
-                        Button(name) { actions.choose(slot, index, choice) }
+                    ForEach(Array(value.choices.enumerated()), id: \.offset) { _, name in
+                        Button(name) { actions.choose(slot, index, name) }
                     }
                 } label: {
                     label
@@ -515,7 +515,8 @@
                         MultiviewTileChrome(
                             tile: tile, index: index, selected: isSelected, compact: compact,
                             condensed: condensed, reservedLeading: footerLeading,
-                            inlineValues: inlineValues
+                            inlineValues: inlineValues,
+                            choose: { actions.choose(index, $0, $1) }
                         ) {
                             closePopups()
                             optionsSlot = index
@@ -563,6 +564,7 @@
             -> some View
         {
             Button {
+                closePopups()
                 optionsSlot = slot
             } label: {
                 HStack(spacing: 5) {
@@ -619,6 +621,8 @@
         var reservedLeading: CGFloat = 0
         /// Grid's selected tile shows its camera values between the footer columns.
         var inlineValues = false
+        /// A pick from an inline value's choices: readout index, choice.
+        var choose: (_ readout: Int, _ choice: String) -> Void = { _, _ in }
         let openOptions: () -> Void
 
         var body: some View {
@@ -703,10 +707,13 @@
                         }
                     }
                     .layoutPriority(1)
+                    .allowsHitTesting(false)
                     if inlineValues {
                         // Inline with both columns; the values take what is left over.
                         HStack(alignment: .bottom, spacing: 4) {
-                            ForEach(tile.readouts, id: \.title) { inlineValue($0) }
+                            ForEach(Array(tile.readouts.enumerated()), id: \.element.title) {
+                                inlineValue($1, index: $0)
+                            }
                         }
                         .frame(maxWidth: 220)
                         .frame(maxWidth: .infinity)
@@ -728,12 +735,12 @@
                         .font(MonitorTheme.font(compact ? 8 : 10, weight: .medium))
                     }
                     .layoutPriority(1)
+                    .allowsHitTesting(false)
                 }
                 .monospacedDigit()
                 .padding(.horizontal, compact ? 8 : 11)
                 .padding(.leading, reservedLeading)
                 .padding(.bottom, compact ? 5 : 9)
-                .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.9), radius: 2, y: 1)
         }
@@ -750,8 +757,10 @@
             }
         }
 
-        private func inlineValue(_ readout: MultiviewReadout) -> some View {
-            VStack(spacing: 1) {
+        /// A value with the camera's advertised choices opens them, as the stage's value row does.
+        @ViewBuilder
+        private func inlineValue(_ readout: MultiviewReadout, index: Int) -> some View {
+            let label = VStack(spacing: 1) {
                 Text(readout.value).font(MonitorTheme.font(11, weight: .medium))
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Text(readout.title).font(MonitorTheme.font(6, weight: .semibold))
@@ -759,8 +768,22 @@
                     .minimumScaleFactor(0.6)
             }
             .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(readout.title + " " + readout.value)
+            if readout.choices.isEmpty {
+                label
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(readout.title + " " + readout.value)
+            } else {
+                Menu {
+                    ForEach(Array(readout.choices.enumerated()), id: \.offset) { _, name in
+                        Button(name) { choose(index, name) }
+                    }
+                } label: {
+                    label
+                }
+                .accessibilityLabel(readout.title + " " + readout.value)
+                .accessibilityIdentifier("multiview.value.\(readout.title.lowercased())")
+            }
         }
 
         /// The camera battery pill without its glyph.

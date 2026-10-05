@@ -219,13 +219,16 @@ starts, stops or compensates a camera on its own, and closing calls `close` only
 `MultiviewTally` (unknown is the dash, never a guess) and `MultiviewRecordContext.refusal`; an
 app may word the confirmation question itself (`prompt`, for a plan that commands a subset).
 A camera action with `closes` closes the SwiftUI options before it runs, and the options close
-once their slot empties. Qualified camera counts, routes and limits stay app parameters.
+once their slot empties. A readout with `choices` opens them wherever it shows (the program row
+and Grid's inline values); `choose` gets the choice as shown, so the app writes only a value the
+camera still advertises. Qualified camera counts, routes and limits stay app parameters.
 
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come
 from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoch milliseconds
 (Swift `Date`); selection, arrangement and fill are actions (`select`, `arrange`, `setFill`)
-where SwiftUI takes bindings; `record` suspends where Swift is `async`; the SwiftUI stage takes
+where SwiftUI takes bindings; `record` returns at once where Swift is `async`, and the app launches
+the plan in a scope that outlives the stage (Live View can replace it mid-command); the SwiftUI stage takes
 a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` and `interactive`.
 
 ## Tests

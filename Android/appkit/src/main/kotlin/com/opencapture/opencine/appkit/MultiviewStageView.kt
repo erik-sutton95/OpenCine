@@ -31,7 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,7 +76,6 @@ import com.opencapture.monitorui.monitorMaterial
 import com.opencapture.monitorui.monitorScrollFade
 import com.opencapture.opencine.multicam.RecordPlan
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 // Swift twin: Sources/OpenCineAppKit/MultiviewStageView.swift. Same types; each platform keeps
 // its shipping look (Compose: per-tile drop-down options and a status card with buttons).
@@ -99,10 +98,13 @@ public class MultiviewStageActions(
     public val close: () -> Unit,
     /** The record plan now: every camera (null) or one slot. */
     public val recordContext: (slot: Int?) -> MultiviewRecordContext,
-    /** Runs an approved plan. */
-    public val record: suspend (plan: RecordPlan, slot: Int?) -> Unit,
-    /** A readout choice: slot, readout index, choice index. */
-    public val choose: (slot: Int, readout: Int, choice: Int) -> Unit = { _, _, _ -> },
+    /**
+     * Runs an approved plan. The app launches it in a scope that outlives the stage: Live View
+     * can replace the stage while a group command is in flight.
+     */
+    public val record: (plan: RecordPlan, slot: Int?) -> Unit,
+    /** A readout choice: slot, readout index and the choice the operator picked, as shown. */
+    public val choose: (slot: Int, readout: Int, choice: String) -> Unit = { _, _, _ -> },
     /** The LUT tool. */
     public val toggleLut: () -> Unit = {},
     /** The CAMERA tool: the app shows its settings panel for the slot over the stage. */
@@ -249,28 +251,37 @@ private fun ProgramReadouts(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             readouts.forEachIndexed { index, readout ->
-                var open by remember { mutableStateOf(false) }
-                Column(
-                    Modifier.weight(1f).then(
-                        if (readout.choices.isEmpty()) Modifier else Modifier
-                            .monitorChromeClickable(onClickFeedback = actions.feedback) { open = true }
-                            .testTag("multiview.value.${readout.title.lowercase()}"),
-                    ),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(readout.value, color = MonitorPalette.text,
-                        style = MonitorTypography.readout(12f, FontWeight.SemiBold), maxLines = 1)
-                    Text(readout.title, color = MonitorPalette.muted,
-                        style = MonitorTypography.text(7f, FontWeight.SemiBold), maxLines = 1)
-                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                        readout.choices.forEachIndexed { choice, name ->
-                            DropdownMenuItem(text = { Text(name) }, onClick = {
-                                open = false
-                                actions.choose(slot, index, choice)
-                            })
-                        }
-                    }
-                }
+                ReadoutValue(readout, slot, index, actions, Modifier.weight(1f), 12f, 7f)
+            }
+        }
+    }
+}
+
+/** A value; one with the camera's advertised choices opens them, and a pick calls `choose`. */
+@Composable
+private fun ReadoutValue(
+    readout: MultiviewReadout, slot: Int, index: Int, actions: MultiviewStageActions, modifier: Modifier,
+    valueSize: Float, titleSize: Float,
+) {
+    var open by remember { mutableStateOf(false) }
+    Column(
+        modifier.then(
+            if (readout.choices.isEmpty()) Modifier else Modifier
+                .monitorChromeClickable(onClickFeedback = actions.feedback) { open = true }
+                .testTag("multiview.value.${readout.title.lowercase()}"),
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(readout.value, color = MonitorPalette.text,
+            style = MonitorTypography.readout(valueSize, FontWeight.SemiBold), maxLines = 1)
+        Text(readout.title, color = MonitorPalette.muted,
+            style = MonitorTypography.text(titleSize, FontWeight.SemiBold), maxLines = 1)
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            readout.choices.forEach { name ->
+                DropdownMenuItem(text = { Text(name) }, onClick = {
+                    open = false
+                    actions.choose(slot, index, name)
+                })
             }
         }
     }
@@ -416,24 +427,23 @@ private fun RecordAllButton(
 ) {
     // The dialog holds the plan the operator saw ([MultiviewRecordContext]): a changed camera,
     // link, mode, availability or reported recording dismisses it; routine telemetry does not.
-    val scope = rememberCoroutineScope()
     val context = actions.recordContext(null)
     val plan = context.plan
-    val enabled = !context.busy && plan.isExecutable
+    val enabled = context.canConfirm
     var pending by remember { mutableStateOf<RecordPlan?>(null) }
     LaunchedEffect(plan, enabled) { pending = null }
     pending?.let { approved ->
         MultiviewRecordConfirmation(approved, null, context.prompt, onDismiss = { pending = null }) {
             pending = null
             val now = actions.recordContext(null)
-            if (!now.busy && now.plan.isExecutable && approved == now.plan) scope.launch { actions.record(approved, null) }
+            if (now.canConfirm && approved == now.plan) actions.record(approved, null)
         }
     }
     val refusal = context.refusal
     Box(
         modifier.alpha(if (enabled || groupBusy) 1f else 0.4f)
             .monitorChromeClickable(enabled = enabled, onClickFeedback = actions.feedback) {
-                if (confirm) pending = plan else scope.launch { actions.record(plan, null) }
+                if (confirm) pending = plan else actions.record(plan, null)
             }
             .semantics {
                 contentDescription = if (recording) "Stop all recording" else "Record all"
@@ -467,7 +477,9 @@ public fun MultiviewRecordConfirmation(
             ) {
                 Text(prompt ?: if (stopping) "Stop recording?" else "Start recording?", color = MonitorPalette.text,
                     style = MonitorTypography.text(16f, FontWeight.SemiBold))
-                Text(single ?: "All connected cameras", color = MonitorPalette.muted, style = MonitorTypography.text(13f))
+                (single ?: "All connected cameras".takeIf { prompt == null })?.let {
+                    Text(it, color = MonitorPalette.muted, style = MonitorTypography.text(13f))
+                }
                 TextButton(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {
                     Text(if (stopping) "Stop" else "Start",
                         color = if (stopping) MonitorPalette.recording else MonitorPalette.accent)
@@ -497,8 +509,9 @@ private fun TileView(
     inlineValues: Boolean,
     picture: @Composable (Int) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val tile = tiles[index]
+    // The gesture outlives a recomposition; it calls the stage's latest actions.
+    val current by rememberUpdatedState(actions)
     val focused = index == selected && tile != null
     var optionsOpen by remember { mutableStateOf(false) }
     var confirmRecord by remember { mutableStateOf<RecordPlan?>(null) }
@@ -513,8 +526,8 @@ private fun TileView(
                 Modifier.fillMaxSize().pointerInput(index, enabled) {
                     if (!enabled) return@pointerInput
                     detectTapGestures(
-                        onDoubleTap = { actions.openLiveView(index) },
-                        onTap = { actions.select(index) },
+                        onDoubleTap = { current.openLiveView(index) },
+                        onTap = { current.select(index) },
                     )
                 }.semantics {
                     contentDescription = "Select camera ${MultiviewTile.letter(index)}, ${tile.name}"
@@ -523,9 +536,7 @@ private fun TileView(
                     if (enabled) onClick { actions.select(index); true }
                 },
             )
-            TileOverlay(
-                tile, index, focused, compact, clean, enabled, footerStart, inlineValues, actions.feedback,
-            ) {
+            TileOverlay(tile, index, focused, compact, clean, enabled, footerStart, inlineValues, actions) {
                 actions.select(index)
                 optionsOpen = true
             }
@@ -546,16 +557,16 @@ private fun TileView(
                     }
                     CameraMenuHeader(tile)
                     tile.actions.forEach { action ->
+                        val record = action.kind == MultiviewCameraAction.Kind.RECORD
                         PopupAction(
-                            action.title, enabled = action.enabled,
+                            action.title, enabled = action.enabled && (!record || context?.canConfirm == true),
                             destructive = action.kind == MultiviewCameraAction.Kind.DESTRUCTIVE,
                             feedback = actions.feedback,
                         ) {
                             optionsOpen = false
                             when {
-                                action.kind == MultiviewCameraAction.Kind.RECORD -> context?.plan?.let { plan ->
-                                    if (confirmRecording) confirmRecord = plan
-                                    else scope.launch { actions.record(plan, index) }
+                                record -> context?.plan?.let { plan ->
+                                    if (confirmRecording) confirmRecord = plan else actions.record(plan, index)
                                 }
                                 action.id == MultiviewCameraAction.LIVE_VIEW -> actions.openLiveView(index)
                                 else -> actions.perform(action.id, index)
@@ -605,7 +616,7 @@ private fun TileView(
         MultiviewRecordConfirmation(approved, tile?.name.orEmpty(), context?.prompt, onDismiss = { confirmRecord = null }) {
             confirmRecord = null
             val now = actions.recordContext(index)
-            if (approved == now.plan && !now.closing) scope.launch { actions.record(approved, index) }
+            if (approved == now.plan && now.canConfirm) actions.record(approved, index)
         }
     }
 }
@@ -622,6 +633,7 @@ private fun CameraMenuHeader(tile: MultiviewTile) {
             Text(tile.storage, style = MonitorTypography.text(12f))
         }
         Text("${tile.format} · ${tile.tally}", style = MonitorTypography.text(12f))
+        tile.note?.let { Text(it, style = MonitorTypography.text(12f)) }
     }
 }
 
@@ -693,12 +705,13 @@ private fun PillButton(action: MultiviewCameraAction, actions: MultiviewStageAct
 @Composable
 private fun TileOverlay(
     tile: MultiviewTile, index: Int, focused: Boolean, compact: Boolean, clean: Boolean, enabled: Boolean,
-    footerStart: Float, inlineValues: Boolean, feedback: () -> Unit, onOptions: () -> Unit,
+    footerStart: Float, inlineValues: Boolean, actions: MultiviewStageActions, onOptions: () -> Unit,
 ) {
+    val feedback = actions.feedback
     Box(Modifier.fillMaxSize()) {
         if (!clean) {
             TileChrome(
-                tile, index, focused, compact, enabled, feedback, onOptions, footerStart = footerStart,
+                tile, index, focused, compact, enabled, actions, onOptions, footerStart = footerStart,
                 values = if (inlineValues) tile.readouts else null,
             )
         }
@@ -731,7 +744,7 @@ private fun TileChrome(
     focused: Boolean,
     compact: Boolean,
     enabled: Boolean,
-    feedback: () -> Unit,
+    actions: MultiviewStageActions,
     onOptions: () -> Unit,
     footerStart: Float = 0f,
     /** Grid's selected tile shows its camera values between the footer's left and right. */
@@ -774,7 +787,7 @@ private fun TileChrome(
         // Its full 44dp hit target does not force a tall header on landscape thumbnails.
         Box(
             Modifier.align(Alignment.TopEnd).size(44.dp)
-                .monitorChromeClickable(enabled = enabled, onClickFeedback = feedback, onClick = onOptions)
+                .monitorChromeClickable(enabled = enabled, onClickFeedback = actions.feedback, onClick = onOptions)
                 .semantics { contentDescription = "Camera $letter options"; role = Role.Button },
             contentAlignment = Alignment.TopEnd,
         ) {
@@ -787,6 +800,10 @@ private fun TileChrome(
                 Text(tile.format, color = Color.White.copy(alpha = 0.75f), style = MonitorTypography.text(small),
                     maxLines = 1)
             }
+            tile.tileNote?.let {
+                Text(it, color = Amber, style = MonitorTypography.text(small, FontWeight.Medium), maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.End))
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 BatteryPill(tile.battery)
@@ -798,14 +815,9 @@ private fun TileChrome(
                     Row(Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.Bottom) {
-                        values.forEach { readout ->
-                            Column(Modifier.weight(1f, fill = false).widthIn(max = 55.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(readout.value, color = MonitorPalette.text,
-                                    style = MonitorTypography.readout(10f, FontWeight.SemiBold), maxLines = 1)
-                                Text(readout.title, color = MonitorPalette.muted,
-                                    style = MonitorTypography.text(6f, FontWeight.SemiBold), maxLines = 1)
-                            }
+                        values.forEachIndexed { value, readout ->
+                            ReadoutValue(readout, index, value, actions,
+                                Modifier.weight(1f, fill = false).widthIn(max = 55.dp), 10f, 6f)
                         }
                     }
                 }
