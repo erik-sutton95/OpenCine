@@ -221,8 +221,10 @@
                 onOpen: { action(.open(item.id)) }, onSelect: { action(.select(item.id)) },
                 onFavorite: { action(.favorite(item.id)) }
             ) { thumbnail(item) }
-            .background(MonitorMediaSelectionAnchor(id: item.id, interaction: selectionInteraction))
+            // On the cell's own element, before the selection anchor joins it: after it, both
+            // carried the identifier and a clip no longer resolved to one element.
             .accessibilityIdentifier("monitor.media.clip.\(item.id)")
+            .background(MonitorMediaSelectionAnchor(id: item.id, interaction: selectionInteraction))
         }
 
         private var selectedItems: [MonitorMediaItem] {
