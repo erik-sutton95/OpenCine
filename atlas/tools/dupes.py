@@ -183,12 +183,13 @@ def measure(reg, root, app=None, refs=None):
 def run(args, reg, root):
     import time  # noqa: PLC0415
     started = time.monotonic()
-    if (args.app or args.candidate) and args.write_baseline:
+    candidate = getattr(args, "candidate", None)  # callers that build their own Namespace predate it
+    if (args.app or candidate) and args.write_baseline:
         print("--app and --candidate measure outside the registry refs; they never write the baseline", file=sys.stderr)
         return FAIL
-    refs = args.candidate and candidate_refs(root, args.candidate)
-    if args.candidate and not refs:
-        print(f"no candidate {args.candidate!r} with consumers in compat/candidates.json", file=sys.stderr)
+    refs = candidate and candidate_refs(root, candidate)
+    if candidate and not refs:
+        print(f"no candidate {candidate!r} with consumers in compat/candidates.json", file=sys.stderr)
         return FAIL
     cur = measure(reg, root, args.app, refs)
     path = root / BASELINE
