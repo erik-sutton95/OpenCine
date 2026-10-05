@@ -1,0 +1,254 @@
+import Foundation
+import OpenCineMedia
+
+/// Per-model camera capabilities keyed on the BLE model id. Only the datalink UDP port and WiFi
+/// security actually vary across the Osmo line. Ported from Osmosis `ble/CameraModel.kt`, including
+/// the Xtra-rebrand 10004/no-poke override — see `resolve(modelId:name:brand:)` and `CameraBrand`.
+public struct CameraModel: Equatable, Sendable {
+    public let name: String
+    public let datalinkPort: Int
+    public let tcpPoke: Bool
+    public let wpa3: Bool
+    public let verified: Bool
+    public let isDrone: Bool
+
+    public init(
+        name: String, datalinkPort: Int = 9004, tcpPoke: Bool = true,
+        wpa3: Bool = false, verified: Bool = false, isDrone: Bool = false
+    ) {
+        self.name = name
+        self.datalinkPort = datalinkPort
+        self.tcpPoke = tcpPoke
+        self.wpa3 = wpa3
+        self.verified = verified
+        self.isDrone = isDrone
+    }
+
+    /// Osmo Action 6 (BLE `0x0018`). Survey 2026-09-21, firmware V01.02.0521:
+    /// handbook `devices/action-6/`.
+    public var isAction6: Bool {
+        name.lowercased().replacingOccurrences(of: " ", with: "").contains("action6")
+    }
+
+    /// Mimo Nano pairs `0x02/0x09 …03` with enable. Pocket never sent it; neither
+    /// did Mimo on Action 6.
+    public var usesNanoLiveViewGate: Bool { family == .nano }
+
+    /// Aperture strategy (`0x02/0x8E` pid `0x0044`) and iris readback
+    /// (`cam_expo_param` `@13`). Action 6 has a variable iris and no AF.
+    public var supportsAperture: Bool { isAction6 }
+
+    /// Pocket 3 / Xtra Muse. BLE id `0x0020` or the advertised name.
+    public var isPocket3: Bool {
+        let n = name.lowercased().replacingOccurrences(of: " ", with: "")
+        return n.contains("pocket3") || n.contains("muse")
+    }
+
+    /// Pocket 4 Pro, including its compact advertised model name.
+    public var isPocket4Pro: Bool {
+        let compactName = name.lowercased().replacingOccurrences(of: " ", with: "")
+        return compactName.contains("pocket4p")
+    }
+
+    /// Rec.709 / HDR / D-Log M Auto ISO range floor. SET bytes are still
+    /// `IsoLimit` — only the label changes (#180).
+    ///
+    /// Pocket 3 and Pocket 4 start at 50 (DJI spec). Pocket 4 Pro wide is 100
+    /// (captured `camcap_iso_auto_max`). Unknown bodies keep 100.
+    public var isoAutoRangeFloor: Int {
+        let n = name.lowercased().replacingOccurrences(of: " ", with: "")
+        if n.contains("pocket4p") || n.contains("4pro") { return 100 }
+        if n.contains("pocket4") || n.contains("pocket3") || n.contains("muse") { return 50 }
+        return 100
+    }
+
+    /// Pocket 3-axis gimbal. Nano has none — hide stick, mode, and A·B·C.
+    public var hasGimbal: Bool { family == .pocket }
+
+    /// Pocket tap-focus burst (`0x22`/`0x30`/`0x68`/`0x32`). Captured on Pocket only:
+    /// Nano has no AF, the Action 6 survey found no AF or focus-distance control, and
+    /// other Action / 360 / drones / unknown bodies fail closed.
+    public var supportsTapFocus: Bool { family == .pocket }
+
+    /// AF-S / AF-C (`0x02/0x24`) and AF-C track (`0x8E` pid `0x3B`). Pocket only, as
+    /// above; Action 6 shows aperture in that slot (`supportsAperture`).
+    public var supportsFocusMode: Bool { family == .pocket }
+
+    /// Zoom chip, hold disc, pinch, gamepad zoom and zoom SETs. Nano is a fixed 1×
+    /// prime (DJI spec); Action 6 `02/B8` uses a different, unimplemented encoding;
+    /// every other non-Pocket body fails closed.
+    public var supportsZoom: Bool { family == .pocket }
+
+    public var family: CameraBodyFamily {
+        CameraBodyFamily.resolve(modelId: nil, name: name)
+    }
+
+    /// Video-mode chip stops (DJI spec). SlowMo / 4K Pocket 3 clamp in
+    /// `activeZoomStops(resolution:shootingMode:)`.
+    public var zoomStops: [Double] { activeZoomStops(resolution: nil, shootingMode: -1) }
+
+    public var zoomMax: Double { zoomStops.last ?? 1 }
+
+    /// Chip cycle for this body, current FORMAT, and shooting mode.
+    ///
+    /// DJI Video: Pocket 4 Pro 1×/3×/6×/12× (60 mm tele). Pocket 4 1×/2×/4×
+    /// (single 20 mm; 4K still 4×). Nano 1×. SlowMo / TimeLapse / SuperNight:
+    /// digital zoom off — Pro keeps 1×/3× optical; everyone else 1×.
+    ///
+    /// Pocket 3 is per-FORMAT: the ceiling follows the capture size class, so
+    /// 1080 keeps 1×/2×/4× while 2.7K and 2160 1:1 stop at 3× and 4K and 3K 1:1
+    /// stop at 2× — see `VideoResolution.pocket3ZoomMax`. With no FORMAT known
+    /// yet, offer the body's absolute range.
+    public func activeZoomStops(resolution: VideoResolution?, shootingMode: Int) -> [Double] {
+        let n = name.lowercased().replacingOccurrences(of: " ", with: "")
+        let isPro = n.contains("pocket4p") || n.contains("4pro")
+        let isPocket4 = n.contains("pocket4")
+        let isPocket3 = n.contains("pocket3") || n.contains("muse")
+        let digitalLocked: Bool = {
+            switch ShootingMode(rawValue: UInt8(truncatingIfNeeded: shootingMode)) {
+            case .slowMo, .timeLapse, .superNight: return true
+            default: return false
+            }
+        }()
+        if isPro { return digitalLocked ? [1, 3] : [1, 3, 6, 12] }
+        if digitalLocked { return [1] }
+        if isPocket4 { return [1, 2, 4] }
+        if isPocket3 {
+            switch resolution?.pocket3ZoomMax {
+            case 2: return [1, 2]
+            case 3: return [1, 2, 3]
+            default: return [1, 2, 4]
+            }
+        }
+        switch family {
+        case .pocket: return [1, 2, 4]
+        case .nano, .other: return [1]
+        }
+    }
+
+    public static let `default` = CameraModel(name: "DJI Osmo camera")
+
+    package static let byId: [Int: CameraModel] = [
+        0x0010: CameraModel(name: "Osmo Action 2"),
+        0x0012: CameraModel(name: "Osmo Action 3"),
+        0x0014: CameraModel(name: "Osmo Action 4"),
+        0x0015: CameraModel(name: "Osmo Action 5 Pro", verified: true),
+        0x0017: CameraModel(name: "Osmo 360", wpa3: true),
+        0x0018: CameraModel(name: "Osmo Action 6", verified: true),
+        0x0019: CameraModel(name: "Osmo Nano", verified: true),
+        0x0020: CameraModel(name: "Osmo Pocket 3", verified: true),
+        0x0021: CameraModel(name: "Osmo Pocket 4", verified: true),
+        0x0022: CameraModel(name: "Osmo Pocket 4 Pro", verified: true),
+        0x0070: CameraModel(
+            name: "Mavic 3", datalinkPort: 9003, tcpPoke: false, verified: true, isDrone: true),
+        0x007E: CameraModel(name: "DJI Neo 2", datalinkPort: 9003, tcpPoke: false, isDrone: true),
+    ]
+
+    /// Xtra's shell-company product names for the DJI models they rebadge, keyed by the shared
+    /// DJI BLE model id — an Xtra advertises the *same* id as the DJI original.
+    static let xtraNames: [Int: String] = [
+        0x0019: "Xtra Atto",  // rebadged Osmo Nano
+        0x0014: "Xtra Edge",  // rebadged Osmo Action 4
+        0x0015: "Xtra Edge Pro",  // rebadged Osmo Action 5 Pro — the only verified Xtra
+        0x0020: "Xtra Muse",  // rebadged Osmo Pocket 3
+    ]
+
+    /// Resolve by BLE model id, then by local name (the Pocket 3 sends no manufacturer data, so it
+    /// only resolves by name). Unknown ids at/above 0x40 are treated as drones.
+    ///
+    /// `brand` matters because the whole Xtra line runs a **10004 / no-poke** datalink instead of
+    /// the DJI-standard 9004 + TCP-7001 poke — a rebrand firmware change, not a model difference.
+    /// The Edge Pro advertises the same model id `0x0015` as a genuine Action 5 Pro yet speaks
+    /// 10004, so the id alone cannot tell them apart; the hardware OUI can. Ported from Osmosis
+    /// `ble/CameraModel.kt`, where the Edge Pro is hardware-verified.
+    public static func resolve(
+        modelId: Int?, name: String?, brand: CameraBrand = .unknown
+    ) -> CameraModel {
+        let base = resolveIgnoringBrand(modelId: modelId, name: name)
+        guard brand == .xtra else { return base }
+        let isEdgePro = modelId == 0x0015 || base.name.contains("Action 5")
+        let xtraName =
+            modelId.flatMap { xtraNames[$0] }
+            ?? (isEdgePro ? "Xtra Edge Pro" : "Xtra \(base.name)")
+        return CameraModel(
+            name: xtraName, datalinkPort: 10004, tcpPoke: false,
+            wpa3: base.wpa3, verified: isEdgePro, isDrone: base.isDrone)
+    }
+
+    private static func resolveIgnoringBrand(modelId: Int?, name: String?) -> CameraModel {
+        if let id = modelId, let m = byId[id] { return m }
+        if let id = modelId, id >= 0x40 {
+            return CameraModel(
+                name: name.map { "DJI drone (\($0))" } ?? "DJI drone",
+                datalinkPort: 9003, tcpPoke: false, isDrone: true)
+        }
+        let n = (name ?? "").lowercased().replacingOccurrences(of: " ", with: "")
+        // "pocket4p" before "pocket4": the Pro's BLE name is OsmoPocket4P-XXXX.
+        switch true {
+        case n.contains("pocket3"), n.contains("muse"): return byId[0x0020]!
+        case n.contains("pocket4p"): return byId[0x0022]!
+        case n.contains("pocket4"): return byId[0x0021]!
+        case n.contains("360"): return byId[0x0017]!
+        case n.contains("nano"), n.contains("atto"): return byId[0x0019]!
+        case n.contains("action6"): return byId[0x0018]!
+        case n.contains("action5"), n.contains("edgepro"): return byId[0x0015]!
+        case n.contains("action4"), n.contains("edge"): return byId[0x0014]!
+        default:
+            return CameraModel(name: name?.isEmpty == false ? name! : CameraModel.default.name)
+        }
+    }
+}
+
+/// Which Osmo line a BLE advert, saved record, or SoftAP SSID belongs to.
+/// Pocket and Nano both sit on `192.168.2.1` and share DJI company-id adverts —
+/// family is how we refuse the other body's Wi-Fi and GATT.
+public enum CameraBodyFamily: Equatable, Sendable {
+    case pocket
+    case nano
+    case other
+
+    public static func resolve(modelId: Int?, name: String?) -> CameraBodyFamily {
+        if let id = modelId {
+            switch id {
+            case 0x0020, 0x0021, 0x0022: return .pocket
+            case 0x0019: return .nano
+            default: break
+            }
+        }
+        let n = (name ?? "").lowercased().replacingOccurrences(of: " ", with: "")
+        if n.contains("pocket") || n.contains("muse") { return .pocket }
+        if n.contains("nano") || n.contains("atto") { return .nano }
+        return .other
+    }
+
+}
+
+/// Camera brand, distinguished primarily by BLE MAC OUI. "Xtra" is a DJI shell-company rebrand
+/// (the Xtra Edge Pro is an Osmo Action 5 Pro) that keeps DJI's firmware and model ids but ships
+/// its own OUI `EC:9E:EA` — and a 10004 / no-poke datalink. Ported from Osmosis `ble/Brand.kt`.
+///
+/// Android applies the OUI test. CoreBluetooth never exposes a peripheral's MAC, so iOS
+/// keys off the advertised name (`xtra` / `edge`). A renamed Xtra with no name tell still
+/// needs the Android OUI path.
+public enum CameraBrand: Equatable, Sendable {
+    case dji
+    case xtra
+    case unknown
+
+    public static let xtraOUI = "EC:9E:EA"
+
+    /// `djiCid` = the advert carried a DJI BLE company id. That is the definitive DJI tell, but it
+    /// is checked *after* the Xtra branches: an Xtra broadcasts DJI's company id too, and its own
+    /// OUI has to win or it would be handed the 9004 config it cannot answer.
+    public static func of(address: String?, name: String?, djiCid: Bool = false) -> CameraBrand {
+        let oui = (address ?? "").uppercased().prefix(8)
+        let n = (name ?? "").lowercased()
+        if oui == xtraOUI { return .xtra }
+        if n.contains("xtra") || n.contains("edge") { return .xtra }
+        if djiCid { return .dji }
+        for tell in ["osmo", "nano", "dji", "pocket", "action"] where n.contains(tell) {
+            return .dji
+        }
+        return .unknown
+    }
+}

@@ -79,6 +79,10 @@ package dependency.
   `OpenCineDJIApple` adds iOS Bluetooth and network adapters above DJI, Media and Motion;
   it never imports UI, an app or the neutral Apple monitor runtime. App policy and secure
   storage arrive through explicit host values and callbacks.
+- `OpenCineCameraVocabulary` (the camera control vocabulary: settings, status, models and their
+  display values, shared by the apps) imports Foundation, Core, Media and Motion only: no UI,
+  integration, app or wire code. Protocol frames and parsers stay in the integration that speaks
+  them (`OpenCineDJI` adds its wire members as `*+DJIWire.swift` extensions).
 - `OpenCineMulticam` imports Foundation and `OpenCineCore` only and names no manufacturer, UI
   framework or transport.
 - UI (`MonitorPresentation`, `MonitorUI`, `monitor-ui`) never imports a camera protocol core,

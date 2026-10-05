@@ -93,6 +93,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineCameraVocabulary",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineDJI",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -254,6 +259,8 @@
       ":multicam"
     ],
     "vendor": [
+      "OpenCineCameraVocabulary",
+      "OpenCineCameraVocabularyTests",
       "OpenCineDJI",
       "OpenCineDJITests",
       "OpenCineDJIApple",

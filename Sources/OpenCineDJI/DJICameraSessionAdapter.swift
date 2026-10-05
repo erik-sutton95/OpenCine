@@ -58,7 +58,7 @@ public protocol DJIControlPort: AnyObject {
     func writeExposureCompensation(
         _ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeFocusMode(
-        _ value: FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+        _ value: OpenCineCameraVocabulary.FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeZoom(
         _ ratio: Double, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func takePhoto()
@@ -308,7 +308,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                 fire: { session.writeExposureCompensation(value, onStage: $0) },
                 requiresReport: true)
         case .set(.focusMode(let mode)):
-            let value: FocusMode
+            let value: OpenCineCameraVocabulary.FocusMode
             switch mode {
             case .single: value = .single
             case .continuous: value = .continuous

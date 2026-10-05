@@ -5,7 +5,9 @@ import Testing
 /// only (plan VENDOR-01 gate "no UI dependency").
 @Suite struct ImportRuleTests {
     @Test func sourcesImportOnlyFoundationAndOpenCineCore() throws {
-        let allowed: Set = ["Foundation", "OpenCineCore", "OpenCineMedia", "OpenCineMotion"]
+        let allowed: Set = [
+            "Foundation", "OpenCineCore", "OpenCineMedia", "OpenCineMotion", "OpenCineCameraVocabulary",
+        ]
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/OpenCineDJI")
