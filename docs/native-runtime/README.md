@@ -169,3 +169,23 @@ fixture, so its scenario proves refusal instead. A separate native macOS proof e
 readable prefix of an existing sample to a playable movie with metadata. Unreadable audio does
 not imply readable video is absent. These are simulated and native framework checks; physical
 devices and the consuming app's delivery workflow remain untested.
+
+
+### Native movie export on Android
+
+`MonitorNativeMovieExporter` owns each codec operation's completion, progress polling, monotonic
+stall deadline and cancellation. The host supplies a typed codec factory for its existing native
+SDK, retaining the original SDR working space and H264/AAC construction. Unknown progress remains
+absent. Each operation captures its own completion; a canceled codec's late callback cannot
+complete a successor. No codec SDK dependency is added to the shared module.
+
+`MonitorMovieExportPreparer` owns approved-LUT preparation, transient output, MOV brand
+finalization, timecode carry, bounded owned-cache pruning and cleanup. Original media remains
+read-only. Metadata copying is best effort. Cleanup failures are suppressed on the original
+export failure or cancellation. Application composition supplies approval, cache prefix, filename
+fallback and operator error wording; camera and delivery policy stay outside the native runtime.
+
+`MonitorMovieTimecode` moves the existing QuickTime box/sample copier. Its golden chunk-offset,
+track-reference, no-timecode and existing-timecode cases remain unchanged in the consuming app.
+Controlled codec tests and JVM file tests do not prove native encoding or physical-device
+behavior; consuming apps also need real decoded video, audio, metadata and progress evidence.
