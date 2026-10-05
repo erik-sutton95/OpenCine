@@ -791,6 +791,14 @@ def main(argv=None):
     p.add_argument("--check", action="store_true", help="fail when a repository pair has more duplicated lines than the baseline")
     p.add_argument("--write-baseline", action="store_true", help="record the current numbers as the baseline")
     p.add_argument("--top", type=int, default=0, metavar="N", help="also list the N largest duplicated files per pair")
+    p.add_argument("--app", metavar="DIR", help="also measure this unregistered app folder (a generated one) against every repository")
+    p = sub.add_parser("new-app", help="a thin app from atlas/templates/app next to OpenCine; writes only the new directory")
+    p.add_argument("name", help="app name, also its Swift type and folder, e.g. OpenFooCine")
+    # Only the SIMULATED fake today: the DJI, Nikon and Luna integrations still need a connect port
+    # that lives in their apps, so a template cannot list them yet.
+    p.add_argument("--integration", choices=["fake"], default="fake", help="what the app lists (default fake, SIMULATED)")
+    p.add_argument("--id", help="bundle and application id (default com.opencapture.<name lowercased>)")
+    p.add_argument("--dest", help="parent folder (default: the folder holding this OpenCine checkout)")
     gp = sub.add_parser("graph", help="Graphify navigation snapshots").add_subparsers(dest="gcmd", required=True)
     p = gp.add_parser("plan", help="read-only: what a build would read, exclude and write")
     p.add_argument("targets", nargs="*", help="repo or repo@ref; default every registered ref")
@@ -828,6 +836,9 @@ def main(argv=None):
     if args.cmd == "dupes":
         import dupes  # noqa: PLC0415
         return dupes.run(args, reg, root)
+    if args.cmd == "new-app":
+        import newapp  # noqa: PLC0415
+        return newapp.run(args, reg, root)
     if args.cmd in ("ensure", "issues", "task") or (args.cmd == "impact" and args.repo not in reg):
         import hub  # noqa: PLC0415
         if args.cmd == "impact":

@@ -1,0 +1,20 @@
+import OpenCineAppKit
+import OpenCineCore
+import OpenCineCoreTestSupport
+
+/// SIMULATED, developer-only (`__NAME__Simulated` and the contract test; never released):
+/// OpenCine's `FakeIntegration` with one nearby camera. Every connect reaches a scripted
+/// `FakeCameraSession` on a manual clock, so reported values show and writes never confirm.
+/// It proves the shell composition, not any camera.
+@MainActor func integrations() -> [AppIntegration] {
+    let fake = FakeIntegration(id: IntegrationID("simulated.fake-integration"))
+    fake.publish([
+        NearbyCamera(id: "simulated-camera", name: "SIMULATED CAMERA", model: "Test Body", routes: [.cameraAccessPoint])
+    ])
+    fake.onAttempt = { attempt in
+        let session = FakeCameraSession.lunaLike()
+        attempt.connect(session: session)
+        Task { await session.cameraReportsStatus() }
+    }
+    return [AppIntegration(fake)]
+}

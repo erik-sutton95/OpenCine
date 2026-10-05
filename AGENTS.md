@@ -172,9 +172,12 @@ python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py chec
 
 ## Adding an app
 
-1. The app depends on OpenCine like the others: SwiftPM `.package(path: "../OpenCine")` (one
-   identity in Xcode too), Gradle `includeBuild("../../../OpenCine/Android")` named `opencine`,
-   `opencine-pins.txt` and `scripts/checkout-opencine.sh` (copy from an existing app).
+1. Start from the template: `atlas new-app <Name>` writes `../<Name>` (brand, integration lists,
+   entitlements, CI, tester notes, release workflow, pin), composing the shared shell, with
+   OpenCine's fake integration only in its SIMULATED variants ([atlas/README.md](atlas/README.md#new-app-template)).
+   Either way the app depends on OpenCine like the others: SwiftPM `.package(path: "../OpenCine")` (one
+   identity in Xcode too), Gradle `includeBuild` of `../OpenCine/Android` named `opencine`,
+   `opencine-pins.txt` and `scripts/checkout-opencine.sh`.
 2. It composes integrations and brand configuration only; shared behavior goes here.
 3. Register it: `atlas/repos/<id>/meta.json` (layer `app`, URL, refs, a `library` edge to
    `opencine` with the ref it builds on) and a short `SUMMARY.md`; add it to the release record

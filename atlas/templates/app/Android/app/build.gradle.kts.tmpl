@@ -1,0 +1,51 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "__APP_ID__"
+    compileSdk = libs.versions.androidCompileSdk.get().toInt()
+    defaultConfig {
+        applicationId = "__APP_ID__"
+        minSdk = 29
+        targetSdk = libs.versions.androidCompileSdk.get().toInt()
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+    // `camera` ships the app's integrations (src/camera). `simulated` lists OpenCine's fake
+    // integration (src/simulated): SIMULATED, developer-only, and it has no release build.
+    flavorDimensions += "integrations"
+    productFlavors {
+        create("camera") {
+            dimension = "integrations"
+            manifestPlaceholders["appLabel"] = "__NAME__"
+        }
+        create("simulated") {
+            dimension = "integrations"
+            applicationIdSuffix = ".simulated"
+            manifestPlaceholders["appLabel"] = "__NAME__ SIMULATED"
+        }
+    }
+    buildFeatures { compose = true }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+}
+
+androidComponents {
+    beforeVariants(selector().withFlavor("integrations" to "simulated").withBuildType("release")) { it.enable = false }
+}
+
+dependencies {
+    implementation("com.opencapture.opencine:appkit")
+    implementation(libs.activity.compose)
+    // Fakes from OpenCine's core test fixtures, for the SIMULATED flavor and its tests only.
+    "simulatedImplementation"(testFixtures("com.opencapture.opencine:core"))
+    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    // The saved-camera store reads JSON with org.json, which android.jar only stubs on the JVM.
+    testImplementation(libs.json)
+}
