@@ -209,6 +209,8 @@ final class LunaOfficialSetTests: XCTestCase {
         XCTAssertEqual(track.command, .openTracking)
         XCTAssertEqual(track.body, hex("089ff3fbcf8a3415823c053f2590a7043e2da709683e"))
         XCTAssertEqual(LunaProtocol.cancelTrackingRequest.body, Data())
+        XCTAssertEqual(LunaProtocol.keyframeRequest.wireCode, 105)
+        XCTAssertEqual(LunaProtocol.keyframeRequest.body, Data())
         XCTAssertEqual(try LunaProtocol.takePicture(mode: .gimbalPano).body, hex("0805"))
         XCTAssertEqual(try LunaProtocol.takePicture(mode: .normal).body, Data())
         XCTAssertEqual(LunaProtocol.stopLiveRequest.body, Data())
