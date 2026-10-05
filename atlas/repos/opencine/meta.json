@@ -88,6 +88,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineAppKitApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineAppUITesting",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -250,6 +255,8 @@
       ":monitor-ui",
       "OpenCineAppKit",
       "OpenCineAppKitTests",
+      "OpenCineAppKitApple",
+      "OpenCineAppKitAppleTests",
       "OpenCineAppUITesting",
       ":appkit"
     ],

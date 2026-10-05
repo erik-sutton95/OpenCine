@@ -16,6 +16,9 @@ import PackageDescription
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
 //   app.
+// - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
+//   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMotion, OpenCineRelay and
+//   OpenCineRelayApple only: never an integration, an app or a third-party package.
 //
 // Platforms: one list for the whole package. macOS is the host for `swift test` only; no macOS
 // app ships (former packages: Core/Multicam/DJI/Insta360 macOS 13, UI 12, Nikon and the harness
@@ -42,6 +45,7 @@ let package = Package(
         .library(name: "OpenCineMulticam", targets: ["OpenCineMulticam"]),
         // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
+        .library(name: "OpenCineAppKitApple", targets: ["OpenCineAppKitApple"]),
         // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
         // it into an app.
         .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
@@ -150,6 +154,10 @@ let package = Package(
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
                 "MonitorPresentation", "MonitorUI",
             ]),
+        // The Apple side of the app shell both camera apps share (head tracking, ...). App
+        // differences arrive as host values and protocols; iOS only, empty elsewhere.
+        .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineMotion"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion"]),
         // XCUITest cases that drive an app only by accessibility identifiers and launch
         // environment; iOS only, empty elsewhere. Depends on nothing in this package.
         // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6

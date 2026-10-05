@@ -22,7 +22,9 @@ struct SharedUIRulesTests {
     static let allowedGlobals: Set<String> = ["MonitorTheme.accentRGB", "MonitorTheme.hdrGain"]
 
     /// The shared UI and the app shell.
-    static let shared = ["Sources/MonitorUI", "Sources/MonitorPresentation", "Sources/OpenCineAppKit"]
+    static let shared = [
+        "Sources/MonitorUI", "Sources/MonitorPresentation", "Sources/OpenCineAppKit", "Sources/OpenCineAppKitApple",
+    ]
 
     static func sources(_ directories: [String], extensions: Set<String>) throws -> [URL] {
         try directories.flatMap { directory -> [URL] in

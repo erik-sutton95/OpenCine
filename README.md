@@ -40,6 +40,7 @@ coordinates `com.opencapture.opencine:<module>`.
 | Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |
 | UI | `MonitorPresentation`, `MonitorUI` | `monitor-ui` | nothing |
 | App shell | `OpenCineAppKit` (saved cameras, connection model, cameras and pair screens, root and monitor lifetime, common controls) | `appkit` | `OpenCineCore` / `core` |
+| App shell | `OpenCineAppKitApple` (iOS composition both camera apps share: head tracking) | | `OpenCineAppKit`, UI, `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineRelayApple` (as needed) |
 | App shell | `OpenCineAppUITesting` (UI tests only: the XCUITest cases every app runs by subclassing) | | nothing (XCTest) |
 | Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
 | Camera vocabulary | `OpenCineCameraVocabulary` (settings, status, models and display values both camera apps share; no wire code) | | `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion` |
