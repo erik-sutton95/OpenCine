@@ -84,7 +84,7 @@ extension DJIControlPort {
         _ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void
     ) { onStage(.notSent) }
     public func writeFocusMode(
-        _ value: FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void
+        _ value: OpenCineCameraVocabulary.FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void
     ) { onStage(.notSent) }
     public func writeZoom(
         _ ratio: Double, onStage: @escaping @MainActor (ControlWireEvent) -> Void

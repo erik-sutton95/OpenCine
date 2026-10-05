@@ -79,6 +79,10 @@ package dependency.
   `OpenCineDJIApple` adds iOS Bluetooth and network adapters above DJI, Media and Motion;
   it never imports UI, an app or the neutral Apple monitor runtime. App policy and secure
   storage arrive through explicit host values and callbacks.
+- `OpenCineCameraVocabulary` (the camera control vocabulary: settings, status, models and their
+  display values, shared by the apps) imports Foundation, Core, Media and Motion only: no UI,
+  integration, app or wire code. Protocol frames and parsers stay in the integration that speaks
+  them (`OpenCineDJI` adds its wire members as `*+DJIWire.swift` extensions).
 - `OpenCineMulticam` imports Foundation and `OpenCineCore` only and names no manufacturer, UI
   framework or transport.
 - UI (`MonitorPresentation`, `MonitorUI`, `monitor-ui`) never imports a camera protocol core,
@@ -86,6 +90,11 @@ package dependency.
   a native sample bus or runtime owner. Views take values and actions; brand variation is a theme value.
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Media, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
+- `OpenCineAppKitApple` (the Apple composition layer of the app shell: code both camera apps share
+  on iOS, such as head tracking) builds on `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`,
+  `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay` and `OpenCineRelayApple` only: never an
+  integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the
+  app shell; app differences arrive as host values and protocols.
 - The harness targets are developer-only and SIMULATED: never make them products.
 - Nothing depends on `atlas/` at build time.
 
