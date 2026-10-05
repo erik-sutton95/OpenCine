@@ -65,6 +65,14 @@ App views share the 44 pt hit-target helpers (`.buttonStyle(.monitorTapTarget)`,
 `minTapTarget`) and the solid page surface (`liquidGlass(in:)`, `glassCapsule`, `glassCircle`;
 floating monitor chrome uses `monitorGlass`). Corner radius is `MonitorTheme.radius`, the page
 backdrop `MonitorTheme.background`. SwiftUI only: Compose uses its own minimum touch target.
+Text uses `MonitorTheme.font(size, weight:)` directly.
+
+Live chrome geometry is shared as well. `MonitorPresentation` holds the layout policy
+(`MonitorEdgeInsets`, `MonitorDeviceOrientation`, `MonitorHorizontalLayoutDirection`,
+`MonitorLayoutRegion`, `StartupSideCutoutAvoidance`, `GimbalCluster`); `MonitorUI` holds the
+CGRect live layout built from `FieldMonitorLayout` (`LiveMonitorLayout.fieldMonitor`,
+`LivePopupPlacement`, `LiveChromeMetrics`, `InterfaceOrientationObserver`, `liveModuleFrame`
+and the `interfaceLocked` environment value). The Compose twin is `MonitorLiveLayout.kt`.
 
 ## Operator settings
 
