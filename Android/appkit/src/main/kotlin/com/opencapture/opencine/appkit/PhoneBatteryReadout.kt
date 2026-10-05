@@ -67,10 +67,21 @@ public fun ObservePhoneBattery(onChange: (PhoneBatteryReadout) -> Unit) {
     LaunchedEffect(readout) { onChange(readout) }
 }
 
-public fun readPhoneBatteryReadout(intent: Intent?, manager: BatteryManager?): PhoneBatteryReadout {
-    val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, Int.MIN_VALUE)
-    val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, Int.MIN_VALUE)
-    val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+public fun readPhoneBatteryReadout(intent: Intent?, manager: BatteryManager?): PhoneBatteryReadout =
+    phoneBatteryReadout(
+        level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, Int.MIN_VALUE),
+        scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, Int.MIN_VALUE),
+        status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN),
+        fallbackPercent = { readPhoneBatteryPercent(manager) },
+    )
+
+/** One battery broadcast's values; [fallbackPercent] is read only when the broadcast has no level. */
+public fun phoneBatteryReadout(
+    level: Int?,
+    scale: Int?,
+    status: Int?,
+    fallbackPercent: () -> Int?,
+): PhoneBatteryReadout {
     val broadcastPercent =
         if (level != null && scale != null && level >= 0 && scale > 0) {
             validBatteryPercent((level.toDouble() * 100.0 / scale.toDouble()).roundToInt())
@@ -88,7 +99,7 @@ public fun readPhoneBatteryReadout(intent: Intent?, manager: BatteryManager?): P
             else -> null
         }
     return PhoneBatteryReadout(
-        percent = broadcastPercent ?: readPhoneBatteryPercent(manager),
+        percent = broadcastPercent ?: validBatteryPercent(fallbackPercent()),
         externalPower = externalPower,
     )
 }
