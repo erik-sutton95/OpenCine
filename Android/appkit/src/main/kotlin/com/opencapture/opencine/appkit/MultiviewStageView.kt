@@ -557,9 +557,10 @@ private fun TileView(
                     }
                     CameraMenuHeader(tile)
                     tile.actions.forEach { action ->
+                        // The app's `enabled` decides the record option (its plan, group and closing state).
                         val record = action.kind == MultiviewCameraAction.Kind.RECORD
                         PopupAction(
-                            action.title, enabled = action.enabled && (!record || context?.canConfirm == true),
+                            action.title, enabled = action.enabled,
                             destructive = action.kind == MultiviewCameraAction.Kind.DESTRUCTIVE,
                             feedback = actions.feedback,
                         ) {
@@ -616,7 +617,7 @@ private fun TileView(
         MultiviewRecordConfirmation(approved, tile?.name.orEmpty(), context?.prompt, onDismiss = { confirmRecord = null }) {
             confirmRecord = null
             val now = actions.recordContext(index)
-            if (approved == now.plan && now.canConfirm) actions.record(approved, index)
+            if (approved == now.plan && !now.closing) actions.record(approved, index)
         }
     }
 }
