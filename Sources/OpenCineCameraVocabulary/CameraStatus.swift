@@ -87,8 +87,10 @@ public struct CameraStatus: Equatable, Sendable {
     public var zoomLens: UInt16?
     /// Hybrid zoom (1.0×…12×). Prefers lens `@14` (monotonic 1×→12× pinch).
     public var zoomFactor: Double? {
-        CamFov.hybridFactor(raw: zoomFactorRaw, lens: zoomLens)
+        zoomFactorOverride ?? CamFov.hybridFactor(raw: zoomFactorRaw, lens: zoomLens)
     }
+    /// Bodies that report a plain zoom factor set this directly.
+    public var zoomFactorOverride: Double?
     /// Last `0x8E` pid `0x0020` GET reply.
     public var audioChannel: AudioChannel?
     /// Last `0x8E` pid `0x0039` 62-byte glamour blob.

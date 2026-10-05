@@ -75,6 +75,10 @@ import Testing
         #expect(Commands.setShootingMode(.photo, model: pro).payload == [0x17])
         #expect(Commands.setShootingMode(.video, model: pocket3).payload == [0x01])
         #expect(ShootingMode.photo.wireByte(for: nil) == 0x17)
+        // The enum rawValue only carries Pocket 4; fromWire maps both photo bytes to `.photo`.
+        #expect(ShootingMode(rawValue: 0x05) == nil)
+        #expect(ShootingMode.fromWire(0x05) == .photo)
+        #expect(ShootingMode(rawValue: 0x17) == .photo)
     }
 
     @Test func captureCommandRoutesPhotoVideoAndPocket3Timelapse() {
@@ -150,6 +154,7 @@ import Testing
         let hd240 = VideoFormat(resolution: .p1080, frameRate: .fps240)
         let fourK30 = VideoFormat(resolution: .p4K, frameRate: .fps30)
         #expect(fourK120.setPayload == [0x10, 0x07, 0x00, 0x00, 0x00])
+        #expect(fourK120.setPayload(shootingMode: nil) == [0x10, 0x07, 0x00, 0x00, 0x00])
         #expect(
             Commands.setVideoFormat(resolution: .p4K, frameRate: .fps120).payload
                 == [0x10, 0x07, 0x00, 0x00, 0x00])
