@@ -89,8 +89,9 @@ neutral Apple runtime, AppKit or UI. Current native camera/device behavior remai
 `LunaSubjectTracking` (Swift) owns one connection's Deep Track boxes and tap focus. It reads the
 camera's 0x85 track frames and 8315 notifications, and sends cmd 237, the tracking cancel and the
 tap-focus ROI only through `LunaCameraSession` while that session is ready and owned. Control
-admission, notes and face boxes stay in the app. The Android app still sends these three requests
-from its own session facade.
+admission, notes and face boxes stay in the app. Kotlin `LunaSubjectTracking` (insta360-luna) is its
+twin over the backend's `CameraControls`, which builds the wire rectangles; the Android app keeps its
+start policy (ignore the previous subject until one near the new box).
 
 Requests the common model does not describe yet (gimbal, clock sync, keyframe and photography
 options) use `LunaCameraSession.control(_:timeout:)`, which sends only while the session is ready
