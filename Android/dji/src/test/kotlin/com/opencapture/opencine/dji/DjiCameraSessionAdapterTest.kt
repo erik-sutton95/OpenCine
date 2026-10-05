@@ -25,7 +25,9 @@ import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.motion.MotionAxis
 import com.opencapture.opencine.motion.GimbalWaypoint as MotionWaypoint
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -97,6 +99,22 @@ class DjiCameraSessionAdapterTest {
         port.capture = capture.copy(reported = capture.reported.copy(focusMode = CameraCommands.FOCUS_CONTINUOUS))
         seam.sessionDidChange()
         assertEquals(CommandStage.Confirmed, seam.receipt(receipt.operation)?.stage)
+    }
+
+    /** A control model that binds after the session changed starts from it, as on iOS. */
+    @Test
+    fun lateFollowerStartsFromTheSessionAsItIsNow() = runTest {
+        val port = FakePort()
+        val seam = adapter(port)
+        port.state = port.state.copy(isoIndex = 0x06)
+        seam.sessionDidChange() // nobody follows yet: nothing is rebuilt
+        val seen = mutableListOf<CameraSnapshot>()
+        val follower = launch(start = CoroutineStart.UNDISPATCHED) { seam.snapshots.collect { seen += it } }
+        val first = seen.first()
+        assertEquals(ConnectionState.Ready, first.connection)
+        assertNotNull(first.capabilities[SettingKey.ISO], "The first snapshot describes the camera")
+        assertEquals(seam.current.value(SettingKey.ISO), first.value(SettingKey.ISO))
+        follower.cancel()
     }
 
     @Test
