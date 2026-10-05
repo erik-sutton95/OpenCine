@@ -97,6 +97,16 @@ options) use `LunaCameraSession.control(_:timeout:)`, which sends only while the
 and owned and passes the caller's timeout to the backend. On iOS the app sends nothing through
 the backend directly; a DEBUG-only lab probe is the one exception.
 
+## Gimbal motion
+
+`LunaMotionService` (Swift) is the Luna gimbal on the session's control path: the held stick
+repeats cmd 226 MOVE every 50 ms (a held stick at rest keeps repeating MOVE 0, 0, which is the
+release request itself), single steering MOVEs, release, recenter, flip, SET_ANGLE with yaw wrapped
+and pitch kept inside `LunaCameraSession.motion`, and GET_ANGLE as `latestPose`. It implements the
+shared `MotionService` over those requests; `move(to:over:)` accepts only `over: nil`, because the
+camera plans each SET as its own move. Aim until arrival, head tracking and programmed moves stay
+in the app for now. The Android app still sends its gimbal requests from its own facade.
+
 ## Common lens controls
 
 `LunaCameraSession.configureLens(zoomDomain:)` (Kotlin `configureLens(range)`)
