@@ -66,6 +66,9 @@ package dependency.
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
   `OpenCineApple`. `OpenCineRelayApple` (the relay's Bonjour, socket and encoder shell) depends on
   `OpenCineRelay` and Apple frameworks only, never on UI, an integration or an app.
+  `OpenCineWatch` (the watch companion: the phone's WatchConnectivity relay and the wrist
+  monitor) depends on `OpenCineRelay`, on iOS also `OpenCineApple`, and Apple frameworks only,
+  never on the shared UI, an integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.

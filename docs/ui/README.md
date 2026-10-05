@@ -263,6 +263,7 @@ a successor edit on the same item. The existing playback owner decides seeking a
 ```sh
 swift build && swift test --filter MonitorPresentationTests   # macOS
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
+xcodebuild test -scheme OpenCine-Package -destination <private simulator> -only-testing:MonitorUITests
 python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iOS + Android)
 ```
 
