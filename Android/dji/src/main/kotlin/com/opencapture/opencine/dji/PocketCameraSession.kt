@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.CameraValuePin
 import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect
 import com.opencapture.opencine.media.RecoveryReason
@@ -23,6 +24,13 @@ import android.view.Surface
 import com.opencapture.opencine.media.SerialSessionGate
 import com.opencapture.opencine.decoder.HevcDecoder
 import android.os.Build
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.motion.GimbalWaypointSlot
+import com.opencapture.opencine.motion.LevelReading
+import com.opencapture.opencine.motion.SnapOutcome
+import com.opencapture.opencine.motion.WorldLevelSnap
+import com.opencapture.opencine.platform.LocalVPNProbe
 import java.util.UUID
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
@@ -748,7 +756,7 @@ class PocketCameraSession(
         _connectionTargetId.value = camera.id
         _isReconnecting.value = false
         appHost.setCameraSessionActive(true)
-        LocalVPNFilter.noteIfActive(appContext)
+        LocalVPNProbe.noteIfActive(appContext) { DjiLog.log("notice", "session", "vpn", it) }
         connectJob?.cancel()
         if (!holdsMonitor) publishPhase(ConnectionPhase.CONNECTING_GATT)
         connectJob =

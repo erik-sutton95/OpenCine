@@ -316,16 +316,25 @@ public data class ReliabilityReportingReceipt(
 public object ReliabilityReportingReceipts {
     public fun directory(root: File): File = File(root, "receipts")
 
+    /**
+     * The receipt file of [incidentID], or null for an ID that could name a file outside the
+     * receipts directory (a path separator or `..`).
+     */
+    public fun file(incidentID: String, root: File): File? {
+        if (incidentID.contains('/') || incidentID.contains('\\') || incidentID.contains("..")) return null
+        return File(directory(root), "$incidentID.json")
+    }
+
     public fun load(incidentID: String, root: File): ReliabilityReportingReceipt? {
-        val file = File(directory(root), "$incidentID.json")
+        val file = file(incidentID, root) ?: return null
         if (!file.isFile) return null
         return runCatching { decode(file.readText()) }.getOrNull()
     }
 
     public fun store(receipt: ReliabilityReportingReceipt, root: File) {
+        val file = file(receipt.incidentID, root) ?: return
         val dir = directory(root)
         dir.mkdirs()
-        val file = File(dir, "${receipt.incidentID}.json")
         val tmp = File(dir, "${receipt.incidentID}.json.tmp")
         tmp.writeText(encode(receipt))
         if (!tmp.renameTo(file)) {

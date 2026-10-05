@@ -5,8 +5,9 @@ import OpenCineMotion
 
 /// The Luna gimbal (cmd 226) on the session's control path: the held stick as a MOVE stream,
 /// single steering MOVEs, release, recenter, flip, SET_ANGLE and GET_ANGLE, with the shared
-/// `MotionService` over them. Steering loops (aim until arrival, head tracking, programmed moves)
-/// stay with the app until their value types leave the DJI-shaped app core.
+/// `MotionService` over them. The app runs the steering loops (aim until arrival, head tracking,
+/// programmed moves) against its live state; their math is `hasReached`, `LunaHeadTrackSteering`,
+/// `HeadTrack.reference` and `GimbalProgram.pose(at:)`.
 @MainActor public final class LunaMotionService: MotionService {
     /// Official app range: sint32 ±99 on each VirtualRC axis.
     public nonisolated static let stickFullScale = 99.0
@@ -156,8 +157,95 @@ import OpenCineMotion
         return stream
     }
 
+    /// GET_ANGLE within the arrival tolerance of `target` on each axis, yaw across ±180.
+    public nonisolated static func hasReached(_ angle: LunaGimbalAngle, _ target: GimbalWaypoint) -> Bool {
+        let tolerance = LunaCameraSession.motion.arrivalToleranceDeg
+        return abs(remainder(Double(angle.yaw) - target.yawDeg, 360)) <= tolerance
+            && abs(Double(angle.pitch) - target.pitchDeg) <= tolerance
+    }
+
     private func send(_ request: LunaRequest?, timeout: Duration?) async -> Bool {
         guard let request, let session = session() else { return false }
         return (try? await session.control(request, timeout: timeout)) != nil
+    }
+}
+
+/// Head tracking steers with the stick (MOVE), not SET_ANGLE: fw 1.1.15 re-plans every SET as its
+/// own start-stop move, so a SET stream judders at the send rate (about 11 deg/s rms at 30 Hz
+/// against 0.05 for the stick). Each tick commands the head's own rate plus a pull toward its
+/// exact angle, from GET_ANGLE carried forward by a model of the rate the sent sticks give.
+public struct LunaHeadTrackSteering: Sendable {
+    /// Live-tunable feel. Defaults are fw 1.1.15's.
+    public struct Tuning: Equatable, Sendable {
+        /// Stick rate per VirtualRC unit. The gyro reads 0.635 and 0.54 deg/s per unit at steady
+        /// speed; these are what tracked a 20° sine best against GET_ANGLE (lag 0.02 s, 8%
+        /// overshoot).
+        public var panDegPerSec: Double
+        public var tiltDegPerSec: Double
+        /// Pull toward the head's exact angle (1/s).
+        public var gain: Double
+        /// Share of the stick's ease-in lag the head's acceleration is fed forward over.
+        public var accelFeed: Double
+
+        public init(panDegPerSec: Double = 0.75, tiltDegPerSec: Double = 0.64, gain: Double = 4, accelFeed: Double = 1) {
+            self.panDegPerSec = panDegPerSec
+            self.tiltDegPerSec = tiltDegPerSec
+            self.gain = gain
+            self.accelFeed = accelFeed
+        }
+    }
+
+    /// One tick: the stick to send and the angles it steers between.
+    public struct Step: Equatable, Sendable {
+        public var pan: Int32
+        public var tilt: Int32
+        /// GET_ANGLE carried forward to now (yaw unwrapped as read).
+        public var yaw: Double
+        public var pitch: Double
+        /// The head's pitch inside the Luna's tilt reach.
+        public var wantPitch: Double
+    }
+
+    /// The stick's ease-in lag, fw 1.1.15.
+    public static let stickLagSeconds = 0.23
+    /// GET_ANGLE round trip is 20 to 40 ms on the camera AP; half of it, roughly.
+    public static let angleReadLatency = 0.015
+
+    private var yawRate = 0.0
+    private var pitchRate = 0.0
+    private var last: TimeInterval
+
+    /// `now` is uptime seconds, the clock of every later call.
+    public init(now: TimeInterval) { last = now }
+
+    /// The stick toward `head` from a GET_ANGLE read at `readAt`. The reading was taken about
+    /// half a round trip before it arrived; the head has kept turning since.
+    public func step(
+        yaw: Double, pitch: Double, readAt: TimeInterval, toward head: HeadTrack.Reference,
+        now: TimeInterval, tuning: Tuning
+    ) -> Step {
+        let age = now - readAt + Self.angleReadLatency
+        let yaw = yaw + yawRate * age
+        let pitch = pitch + pitchRate * age
+        let reach = LunaCameraSession.motion.bounds.tilt
+        let wantPitch = min(max(head.pitch, reach.lowerBound), reach.upperBound)
+        // Feed the head's rate forward, plus its acceleration times the stick's ease-in lag so
+        // the camera speeds up in step with the head instead of trailing it.
+        let lag = Self.stickLagSeconds * tuning.accelFeed
+        let yawRate = head.yawRate + head.yawAccel * lag + tuning.gain * (head.yaw - yaw)
+        let pitchRate = head.pitchRate + head.pitchAccel * lag + tuning.gain * (wantPitch - pitch)
+        let full = LunaMotionService.stickFullScale
+        return Step(
+            pan: Int32(min(max((yawRate / tuning.panDegPerSec).rounded(), -full), full)),
+            tilt: Int32(min(max((pitchRate / tuning.tiltDegPerSec).rounded(), -full), full)),
+            yaw: yaw, pitch: pitch, wantPitch: wantPitch)
+    }
+
+    /// Records the stick just sent: the modelled camera rate eases toward it.
+    public mutating func sent(pan: Int32, tilt: Int32, now: TimeInterval, tuning: Tuning) {
+        let k = 1 - exp(-(now - last) / Self.stickLagSeconds)
+        last = now
+        yawRate += (Double(pan) * tuning.panDegPerSec - yawRate) * k
+        pitchRate += (Double(tilt) * tuning.tiltDegPerSec - pitchRate) * k
     }
 }

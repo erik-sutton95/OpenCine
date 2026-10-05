@@ -4,7 +4,7 @@ import Testing
 @Suite struct DJIAppleImportRuleTests {
     @Test func nativeTransportImportsOnlyItsDownwardProductsAndSystemFrameworks() throws {
         let allowed: Set = ["Foundation", "CoreBluetooth", "Network", "NetworkExtension", "Darwin", "os",
-            "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]
+            "OpenCineCore", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/OpenCineDJIApple")

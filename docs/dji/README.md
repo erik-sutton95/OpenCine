@@ -316,6 +316,16 @@ take, pause, cancel). It reads session facts through `DjiAppleGimbalHost` when i
 and writes the observable gimbal state the host publishes; picture flip, zoom retirement
 and the journal stay host policy. `DjiAppleGimbalLink` is the datalink surface, so the
 owner tests run on manual clocks with a fake link. Cancellation re-checks the caller's
-`ifCurrent` after every published write. `CameraValuePin`, `WorldLevel`,
-`GimbalOverlayMotion` and `GimbalRampFilter` moved into OpenCineDJI next to their Kotlin
-mirrors in `Android/dji`. Physical behavior is untested.
+`ifCurrent` after every published write. `GimbalRampFilter` moved into OpenCineDJI next to
+its Kotlin mirror in `Android/dji`. `CameraValuePin` is OpenCineCore's and the world level
+math OpenCineMotion's (Kotlin: `core` and `motion`); OpenCineDJI keeps the `0x04/0x05`
+attitude decode, `LevelReading.ingest(_:now:)` over a push and the `0x04/0x14` snap frame
+(`WorldLevelSnap.plan`).
+`GimbalMoveEngine`, `GimbalOverlayMotion` and the program zoom demand are shared in
+OpenCineMotion; `GimbalMoveEngine()` binds them to `.pocketGimbal` and
+`NativeProgramZoomCommand.frame` encodes the demand. On Android the waypoint, program, curve,
+path math and overlay projection are core `motion`'s; `Android/dji` keeps the Kotlin
+`GimbalMoveEngine`, the zoom path and native zoom demand, and binds the Pocket reach
+(`GimbalWaypoint.PAN_MIN_DEG` and the rest, `unwrapYaw(raw)`, `from`, `clamped()`) and the 84°
+overlay field of view (`GimbalWaypointOverlay.project(waypoint, live, aspect)`). Physical
+behavior is untested.
