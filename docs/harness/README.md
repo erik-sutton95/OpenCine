@@ -50,6 +50,11 @@ generic iOS build succeeded. All five packages at the pinned SHAs.
 | `AdmissionTests` | 8.4 | Luna's access point conflicts with a router the others use; two camera access points cannot share a phone; Nikon USB control plus HDMI capture coexist; the qualified count is a budget value |
 | `FindingsTests` | 15.6 | F1 regression: one group deadline and one freshness check mean the same instant to every session |
 
+The shared Multiview stage scenarios (`twoMemberStage`, `fourMemberStage`, SIMULATED, over
+`FakeIntegration` and the shared engine) live in `OpenCineAppKitTests/MultiviewStageTests` and
+Kotlin `appkit` `MultiviewStageTest`, because the harness layer must not depend on the shared UI
+(atlas layers). See [appkit](../appkit/README.md#multiview-stage).
+
 Physical combinations: [TOPOLOGY.md](TOPOLOGY.md) (nothing qualified).
 
 ## What simulation proves, and what it does not

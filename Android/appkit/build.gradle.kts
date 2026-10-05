@@ -29,6 +29,7 @@ dependencies {
     api(project(":core"))
     api(project(":media"))
     api(project(":monitor-ui"))
+    api(project(":multicam"))
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlin.test.junit)

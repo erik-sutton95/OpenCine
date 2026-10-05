@@ -106,11 +106,12 @@ let package = Package(
         // legacy mirrors, the connection model, the cameras and pair screens, the root and monitor
         // lifetime (ShellModel, AppShell) and the common controls (MonitorControlModel). Never
         // imports an integration or an app; apps list their integrations.
-        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "MonitorPresentation", "MonitorUI", "OpenCineMedia"]),
+        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "OpenCineMulticam", "MonitorPresentation", "MonitorUI", "OpenCineMedia"]),
         .testTarget(
             name: "OpenCineAppKitTests",
             dependencies: [
-                "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "MonitorPresentation", "MonitorUI",
+                "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
+                "MonitorPresentation", "MonitorUI",
             ]),
 
         // MARK: DJI
