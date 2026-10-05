@@ -175,9 +175,8 @@ public struct MonitorScopeTraceMetalView: UIViewRepresentable {
     let samples: ScopeSamples
     var trail: ScopeSamples = .empty
     let mode: MonitorScopeTraceMetal.Mode
-    var transfer: MonitorTransfer = .rec709
-    /// The bundle's live-tap ceiling for `transfer` (``ScopeAssistBundle/clipByte``).
-    let clipByte: Int
+    /// Code placement: the bundle's transfer on its live-tap ceiling, or a source's own table.
+    let axis: ScopeLevelAxis
     var revision: UInt64 = 0
     /// Operator brightness scales the premultiplied trace colour.
     var opacity: Double = 1
@@ -191,8 +190,16 @@ public struct MonitorScopeTraceMetalView: UIViewRepresentable {
         transfer: MonitorTransfer = .rec709, clipByte: Int, revision: UInt64 = 0,
         opacity: Double = 1, layoutSize: CGSize = .zero,
         configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr }) {
-        self.samples = samples; self.trail = trail; self.mode = mode; self.transfer = transfer
-        self.clipByte = clipByte; self.revision = revision; self.opacity = opacity
+        self.init(samples: samples, trail: trail, mode: mode,
+            axis: ScopeLevelAxis(transfer: transfer, clipByte: clipByte), revision: revision,
+            opacity: opacity, layoutSize: layoutSize, configureDisplay: configureDisplay)
+    }
+
+    public init(samples: ScopeSamples, trail: ScopeSamples = .empty, mode: MonitorScopeTraceMetal.Mode,
+        axis: ScopeLevelAxis, revision: UInt64 = 0, opacity: Double = 1, layoutSize: CGSize = .zero,
+        configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr }) {
+        self.samples = samples; self.trail = trail; self.mode = mode; self.axis = axis
+        self.revision = revision; self.opacity = opacity
         self.layoutSize = layoutSize; self.configureDisplay = configureDisplay
     }
 
@@ -221,7 +228,7 @@ public struct MonitorScopeTraceMetalView: UIViewRepresentable {
         renderer.setDisplay(configureDisplay(view), view: view)
         let explicit = layoutSize.width > 1 && layoutSize.height > 1
         renderer.update(
-            samples: samples, trail: trail, mode: mode, transfer: transfer, clipByte: clipByte,
+            samples: samples, trail: trail, mode: mode, axis: axis,
             revision: revision, opacity: opacity,
             bounds: explicit ? layoutSize : view.bounds.size,
             lockLayout: explicit, view: view)
@@ -243,16 +250,15 @@ public final class MonitorScopeTraceRenderer: NSObject, MTKViewDelegate {
     private struct BuildInputs: Equatable {
         var revision: UInt64 = 0
         var mode: MonitorScopeTraceMetal.Mode = .waveform(.rgb)
-        var transfer: MonitorTransfer = .rec709
-        /// The bundle's live-tap ceiling: the level table (and so every vertex) depends on it.
-        var clipByte = 255
+        /// Every vertex depends on the level table.
+        var axis = ScopeLevelAxis(transfer: .rec709, clipByte: 255)
         var bounds: CGSize = .zero
         var pointCount = 0
         var opacity: Double = 1
 
         /// Same vertex placement and colour for the same points.
         func sameProduct(_ other: Self) -> Bool {
-            mode == other.mode && transfer == other.transfer && bounds == other.bounds
+            mode == other.mode && axis == other.axis && bounds == other.bounds
                 && opacity == other.opacity
         }
     }
@@ -341,13 +347,13 @@ public final class MonitorScopeTraceRenderer: NSObject, MTKViewDelegate {
 
     func update(
         samples: ScopeSamples, trail: ScopeSamples, mode: MonitorScopeTraceMetal.Mode,
-        transfer: MonitorTransfer, clipByte: Int, revision: UInt64, opacity: Double = 1,
+        axis: ScopeLevelAxis, revision: UInt64, opacity: Double = 1,
         bounds: CGSize, lockLayout: Bool = false, view: MTKView
     ) {
         layoutLocked = lockLayout
         let settled = bounds.width > 1 ? bounds : view.bounds.size
         let next = BuildInputs(
-            revision: revision, mode: mode, transfer: transfer, clipByte: clipByte, bounds: settled,
+            revision: revision, mode: mode, axis: axis, bounds: settled,
             pointCount: samples.points.count + trail.points.count, opacity: opacity)
         // Identical bundles (same revision) never rebuild.
         guard next != inputs else { return }
@@ -411,11 +417,7 @@ public final class MonitorScopeTraceRenderer: NSObject, MTKViewDelegate {
     ) -> (current: DrawRange, trail: DrawRange?)? {
         let bounds = inputs.bounds
         guard bounds.width > 1, bounds.height > 1 else { return nil }
-        let table: [Float]
-        switch inputs.mode {
-        case .waveform, .parade:
-            table = MonitorWaveformAxis.levelTable(for: inputs.transfer, clipByte: inputs.clipByte)
-        }
+        let table = inputs.axis.table
         // Array == short-circuits on shared storage: the trail is usually the
         // exact array the previous build drew as current.
         let reused = ring.last.flatMap { last in

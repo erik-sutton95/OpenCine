@@ -42,6 +42,31 @@ class ScopeSamplingTest {
         assertEquals(60, remapped.sum())
     }
 
+    @Test fun sourceOwnedLevelAxisPlacesCodesAndGreyLine() {
+        val transfer = ScopeLevelAxis.of(MonitorTransfer.DLOG2, ceiling = calibratedCeiling())
+        assertEquals(
+            WaveformIre.levelTable(MonitorTransfer.DLOG2, ceiling = calibratedCeiling()).toList(),
+            transfer.table.toList(),
+        )
+        assertEquals(MonitorTransfer.DLOG2.middleGrayPaperIRE, transfer.middleGrayIre)
+
+        // A source with its own placement: code c sits at c/255 * 100 IRE, grey at 41.
+        val linear = ScopeLevelAxis(FloatArray(256) { it / 255f * 100f }, 41.0)
+        val bins = IntArray(256).also { it[0] = 5; it[128] = 7; it[255] = 9 }
+        assertEquals(bins.toList(), linear.remapHistogram(bins).toList())
+        val display =
+            ScopeSampler.histogramDisplay(
+                ScopeSamples(bins, bins, bins, bins, emptyList()),
+                ScopeHistogramDisplay.EMPTY,
+                linear,
+            )
+        assertEquals(
+            ScopeSampler.displayChannel(bins, ScopeHistogramDisplay.EMPTY.luma, linear).toList(),
+            display.luma.toList(),
+        )
+        assertEquals(true, display.luma[128] > 0f)
+    }
+
     @Test fun samplingCadenceShedsScopes() {
         assertEquals(1_000_000_000L / 25, ScopeSampler.minIntervalNs(2))
         assertEquals(1_000_000_000L / 10, ScopeSampler.minIntervalNs(3))

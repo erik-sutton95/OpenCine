@@ -180,11 +180,29 @@ object WaveformIre {
         transfer: MonitorTransfer,
         iso: Int? = null,
         ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
-    ): IntArray {
+    ): IntArray = ScopeLevelAxis.of(transfer, iso, ceiling).remapHistogram(bins)
+
+    fun levelTable(transfer: MonitorTransfer, iso: Int? = null, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): FloatArray {
+        return FloatArray(256) { ire(it / 255.0, transfer, iso, ceiling).toFloat() }
+    }
+
+    fun middleGrayIRE(transfer: MonitorTransfer): Double = transfer.middleGrayPaperIRE
+}
+
+/**
+ * Where each tap code lands on the 0..100 WAVE axis, and where the mid-grey guide sits. A shared
+ * transfer builds it from its anchors; a source that owns a measured placement supplies the table
+ * and grey line itself. iOS `ScopeLevelAxis`.
+ */
+class ScopeLevelAxis(val table: FloatArray, val middleGrayIre: Double) {
+    init {
+        require(table.size == 256) { "ScopeLevelAxis needs one IRE per tap code" }
+    }
+
+    /** Native-code histogram counts onto this axis. Conserves total count. */
+    fun remapHistogram(bins: IntArray): IntArray {
         val out = IntArray(256)
-        val table = levelTable(transfer, iso, ceiling)
-        val limit = minOf(bins.size, 256)
-        for (code in 0 until limit) {
+        for (code in 0 until minOf(bins.size, 256)) {
             val count = bins[code]
             if (count == 0) continue
             val bucket = round(table[code] / 100.0 * 255).toInt().coerceIn(0, 255)
@@ -193,11 +211,19 @@ object WaveformIre {
         return out
     }
 
-    fun levelTable(transfer: MonitorTransfer, iso: Int? = null, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): FloatArray {
-        return FloatArray(256) { ire(it / 255.0, transfer, iso, ceiling).toFloat() }
-    }
+    override fun equals(other: Any?): Boolean =
+        other is ScopeLevelAxis && middleGrayIre == other.middleGrayIre && table.contentEquals(other.table)
 
-    fun middleGrayIRE(transfer: MonitorTransfer): Double = transfer.middleGrayPaperIRE
+    override fun hashCode(): Int = 31 * table.contentHashCode() + middleGrayIre.hashCode()
+
+    companion object {
+        fun of(
+            transfer: MonitorTransfer,
+            iso: Int? = null,
+            ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
+        ): ScopeLevelAxis =
+            ScopeLevelAxis(WaveformIre.levelTable(transfer, iso, ceiling), WaveformIre.middleGrayIRE(transfer))
+    }
 }
 
 data class ScopeChannelLight(

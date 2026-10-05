@@ -294,12 +294,18 @@ object ScopeSampler {
         transfer: MonitorTransfer,
         iso: Int? = null,
         ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
+    ): ScopeHistogramDisplay = histogramDisplay(samples, previous, ScopeLevelAxis.of(transfer, iso, ceiling))
+
+    fun histogramDisplay(
+        samples: ScopeSamples,
+        previous: ScopeHistogramDisplay,
+        axis: ScopeLevelAxis,
     ): ScopeHistogramDisplay =
         ScopeHistogramDisplay(
-            luma = displayChannel(samples.histogramLuma, previous.luma, transfer, iso, ceiling),
-            red = displayChannel(samples.histogramRed, previous.red, transfer, iso, ceiling),
-            green = displayChannel(samples.histogramGreen, previous.green, transfer, iso, ceiling),
-            blue = displayChannel(samples.histogramBlue, previous.blue, transfer, iso, ceiling),
+            luma = displayChannel(samples.histogramLuma, previous.luma, axis),
+            red = displayChannel(samples.histogramRed, previous.red, axis),
+            green = displayChannel(samples.histogramGreen, previous.green, axis),
+            blue = displayChannel(samples.histogramBlue, previous.blue, axis),
         )
 
     fun displayChannel(
@@ -308,8 +314,10 @@ object ScopeSampler {
         transfer: MonitorTransfer,
         iso: Int? = null,
         ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
-    ): FloatArray {
-        val remapped = WaveformIre.remapHistogram(native, transfer, iso, ceiling)
+    ): FloatArray = displayChannel(native, previous, ScopeLevelAxis.of(transfer, iso, ceiling))
+
+    fun displayChannel(native: IntArray, previous: FloatArray, axis: ScopeLevelAxis): FloatArray {
+        val remapped = axis.remapHistogram(native)
         val blended = FloatArray(256)
         val hasPrevious = previous.size == 256
         for (i in 0 until 256) {
