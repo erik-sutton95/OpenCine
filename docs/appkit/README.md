@@ -246,8 +246,12 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
-| `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, host isolation, backoff) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`; the envelope cases are Swift only |
+| `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
 | `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |
+| `ReliabilityReportingTests` (event levels, consent and revoke purge, DSN shape, launch origin, event ID and fingerprint, original release and origin of a queued incident, queued then confirmed receipts and dedup, open checkpoints and revoked consent never capture, session summaries) | `ReliabilityReportingTest`, mostly the same names |
+| `ProblemReportingTests` (manual report kept without automatic consent, feedback schema, bounded attachment, endpoint, Retry-After, HTTP accept and retry, expiry, image normalization) | `ManualProblemReportTest`, `ManualReportImagesTest` (Kotlin's own report format) |
+| `FeedIncidentStoreTests` (interrupted not crash, retention, corrupt file, journal-free redacted export, size caps) | `FeedIncidentStoreTest` |
+| `DiagnosticJournalTests` (redacted lines, trim to the cap on its cadence) | Swift only (no Kotlin journal) |
 
 Kotlin differences: JSON is org.json from android.jar (the real artifact backs the JVM tests);
 `StoredString` (`SharedPreferences.stored(key)`) replaces `StoredData`
@@ -385,7 +389,7 @@ never infers a cleanup path from an original or cached URL.
 Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
 Native adapter and physical presentation checks remain separate consumer verification.
 
-## Reliability reporting network and spool (iOS)
+## Reliability reporting, incidents and problem reports (iOS)
 
 The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
 (Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera session
@@ -397,5 +401,19 @@ envelope cached. `ReliabilityReportingRedirectGuard` drops redirects off the DSN
 bounded reads, and `ReliabilityReportingBackoff` spaces retries. `ReliabilityReportingReceipts`
 keeps a queued or confirmed receipt per incident, and `FeedSessionSummaryStore` keeps the
 per-session denominators (`FeedIncidentSessionSummary`, OpenCineMedia) in the spool with the
-media JSON shape (`FeedIncidentCoding`). The SDK, the URLProtocol that applies this policy to the
-SDK's own URLSession, consent and the privacy scrub stay in the apps.
+media JSON shape (`FeedIncidentCoding`). A receipt's file is named by its incident ID; an ID with a
+path separator or `..` is refused (Kotlin likewise).
+
+The stateful core is host-built instances, like Kotlin's: the app's one holder makes a
+`DiagnosticsHost` (names, release package, version, environment, support email, redaction),
+`ReliabilityReportingConsent` (the stored choice), `ReliabilityReportingDSN` (the build's and the
+launch environment's candidates), the gate, `FeedIncidentOrigin` (the current run's test source and
+build identity), `ReliabilityReporting` (consent epochs, SDK start and purge, typed incident and
+session-summary events, queued and confirmed receipts, idle polls and backoff), `FeedIncidentRuntime`
+(the recorder, the `FeedIncidentStore` spool and the report extras) and `ProblemReporting` (the
+operator's one-off report and its `ProblemReportImage`s), plus `DiagnosticJournal` (the redacted,
+capped journal the shared report reads). `ReliabilityReportingPrivacy` holds the
+rules for what may leave the phone. The app implements `ReliabilityReportingSink` over its SDK
+(options, start, close, flush, breadcrumbs, tags, capture of a `ReliabilityEvent`) and applies the
+privacy rules to the SDK's own events; it also keeps the URLProtocol that applies the network
+policy to the SDK's session. Nothing here links the SDK.
