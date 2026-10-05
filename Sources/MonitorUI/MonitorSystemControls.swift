@@ -16,6 +16,7 @@
         private let media: () -> Media
         private let record: () -> Record
         private let display: () -> Display
+        @Environment(\.monitorPresentationIsVisible) private var presentationIsVisible
 
         public init(
             layout: FieldMonitorLayout, visibility: MonitorSystemControlsVisibility,
@@ -47,13 +48,13 @@
                     place(layout.settings, content: settings)
                         .opacity(navigationHidden ? 0 : 1)
                         .allowsHitTesting(!navigationHidden)
-                        .accessibilityHidden(navigationHidden || !visible)
+                        .accessibilityHidden(navigationHidden || !exposed)
                 }
                 if visibility.media {
                     place(layout.media, content: media)
                         .opacity(navigationHidden ? 0 : 1)
                         .allowsHitTesting(!navigationHidden)
-                        .accessibilityHidden(navigationHidden || !visible)
+                        .accessibilityHidden(navigationHidden || !exposed)
                 }
                 // Constant structural positions preserve confirmation and display state while
                 // a popup enters. Their z-index allows Stop and DISP above the capture backdrop.
@@ -67,9 +68,13 @@
             .allowsHitTesting(interactive && visible)
         }
 
+        /// Each control's explicit AX attachment beats zero opacity, so a covered screen must
+        /// hide it here even when the app leaves `visible` at its default.
+        private var exposed: Bool { visible && presentationIsVisible }
+
         private func place<Content: View>(_ rect: MonitorRect, @ViewBuilder content: () -> Content) -> some View {
             content()
-                .accessibilityHidden(!visible)
+                .accessibilityHidden(!exposed)
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
         }
