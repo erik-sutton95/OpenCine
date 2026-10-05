@@ -23,16 +23,41 @@ public enum WaveformIre {
     public static func remapHistogram(
         _ bins: [Int], transfer: MonitorTransfer, clipByte: Int
     ) -> [Int] {
+        ScopeLevelAxis(transfer: transfer, clipByte: clipByte).remapHistogram(bins)
+    }
+
+    public static func levelTable(for transfer: MonitorTransfer, clipByte: Int) -> [Float] {
+        (0...255).map { Float(ire(Double($0) / 255.0, transfer: transfer, clipByte: clipByte)) }
+    }
+}
+
+/// Where each tap code lands on the 0...100 WAVE axis, and where the mid-grey guide sits.
+/// A shared transfer builds it from its anchors; a source that owns a measured placement
+/// supplies the table and grey line itself.
+public struct ScopeLevelAxis: Equatable, Sendable {
+    /// One IRE value (0...100) per tap code 0...255.
+    public var table: [Float]
+    public var middleGrayIRE: Double
+
+    public init(table: [Float], middleGrayIRE: Double) {
+        precondition(table.count == 256, "ScopeLevelAxis needs one IRE per tap code")
+        self.table = table
+        self.middleGrayIRE = middleGrayIRE
+    }
+
+    public init(transfer: MonitorTransfer, clipByte: Int) {
+        self.init(
+            table: WaveformIre.levelTable(for: transfer, clipByte: clipByte),
+            middleGrayIRE: transfer.middleGrayPaperIRE)
+    }
+
+    /// Native-code histogram counts onto this axis. Conserves total count.
+    public func remapHistogram(_ bins: [Int]) -> [Int] {
         var out = [Int](repeating: 0, count: 256)
-        let table = levelTable(for: transfer, clipByte: clipByte)
         for code in 0..<min(bins.count, 256) where bins[code] != 0 {
             let bucket = Int((Double(table[code]) / 100.0 * 255).rounded())
             out[min(255, max(0, bucket))] += bins[code]
         }
         return out
-    }
-
-    public static func levelTable(for transfer: MonitorTransfer, clipByte: Int) -> [Float] {
-        (0...255).map { Float(ire(Double($0) / 255.0, transfer: transfer, clipByte: clipByte)) }
     }
 }

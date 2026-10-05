@@ -9,8 +9,7 @@ public struct MonitorWaveformScopePlot: View {
     let samples: ScopeSamples
     let trail: ScopeSamples
     let mode: MonitorScopeTraceMetal.Mode
-    let transfer: MonitorTransfer
-    let clipByte: Int
+    let axis: ScopeLevelAxis
     let revision: UInt64
     let intensity: Double
     let guides: MonitorScopeGuides
@@ -20,8 +19,17 @@ public struct MonitorWaveformScopePlot: View {
         transfer: MonitorTransfer, clipByte: Int, revision: UInt64, intensity: Double,
         guides: MonitorScopeGuides = .default, size: CGSize,
         configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr }) {
-        self.samples = samples; self.trail = trail; self.mode = mode; self.transfer = transfer
-        self.clipByte = clipByte; self.revision = revision; self.intensity = intensity
+        self.init(samples: samples, trail: trail, mode: mode,
+            axis: ScopeLevelAxis(transfer: transfer, clipByte: clipByte), revision: revision,
+            intensity: intensity, guides: guides, size: size, configureDisplay: configureDisplay)
+    }
+    /// A source with its own measured code placement passes its axis directly.
+    public init(samples: ScopeSamples, trail: ScopeSamples = .empty, mode: MonitorScopeTraceMetal.Mode,
+        axis: ScopeLevelAxis, revision: UInt64, intensity: Double,
+        guides: MonitorScopeGuides = .default, size: CGSize,
+        configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr }) {
+        self.samples = samples; self.trail = trail; self.mode = mode; self.axis = axis
+        self.revision = revision; self.intensity = intensity
         self.guides = guides; self.size = size; self.configureDisplay = configureDisplay
     }
     public var body: some View {
@@ -29,7 +37,7 @@ public struct MonitorWaveformScopePlot: View {
             if MonitorScopeTraceMetal.isAvailable {
                 let plot = MonitorWaveformAxis.plotRect(in: size)
                 MonitorScopeTraceMetalView(samples: samples, trail: trail, mode: mode,
-                    transfer: transfer, clipByte: clipByte, revision: revision, opacity: intensity,
+                    axis: axis, revision: revision, opacity: intensity,
                     layoutSize: plot.size, configureDisplay: configureDisplay)
                     .frame(width: plot.width, height: plot.height)
                     .offset(x: plot.minX, y: plot.minY)
@@ -37,15 +45,16 @@ public struct MonitorWaveformScopePlot: View {
                 switch mode {
                 case .waveform(let mode):
                     WaveformCanvasPlot(samples: samples, trail: trail, mode: mode,
-                        transfer: transfer, clipByte: clipByte, opacity: intensity)
+                        table: axis.table, opacity: intensity)
                         .frame(width: size.width, height: size.height)
                 case .parade(let mode):
                     ParadeCanvasPlot(samples: samples, trail: trail, mode: mode,
-                        transfer: transfer, clipByte: clipByte, opacity: intensity)
+                        table: axis.table, opacity: intensity)
                         .frame(width: size.width, height: size.height)
                 }
             }
-            ScopeGuideOverlay(clip: guides.clip, crush: guides.crush, middle: guides.middle, transfer: transfer)
+            ScopeGuideOverlay(clip: guides.clip, crush: guides.crush, middle: guides.middle,
+                middleGrayIRE: axis.middleGrayIRE)
                 .frame(width: size.width, height: size.height)
         }
     }
@@ -83,14 +92,12 @@ private struct WaveformCanvasPlot: View, Equatable {
     var samples: ScopeSamples
     var trail: ScopeSamples = .empty
     var mode: MonitorWaveformMode = .rgb
-    var transfer: MonitorTransfer = .rec709
-    var clipByte: Int
+    var table: [Float]
     var opacity: Double = 1
 
     var body: some View {
         Canvas { context, size in
             let rect = MonitorWaveformAxis.plotRect(in: size)
-            let table = MonitorWaveformAxis.levelTable(for: transfer, clipByte: clipByte)
             var traces = context
             traces.clip(to: Path(MonitorScopeGeometry.traceClipRect(rect)))
             drawTrace(
@@ -149,7 +156,7 @@ private struct ScopeGuideOverlay: View {
     var clip = true
     var crush = true
     var middle = true
-    var transfer: MonitorTransfer = .rec709
+    var middleGrayIRE: Double
 
     var body: some View {
         Canvas { context, size in
@@ -160,9 +167,9 @@ private struct ScopeGuideOverlay: View {
                 path.addLine(to: CGPoint(x: rect.maxX, y: y))
                 context.stroke(path, with: .color(color), style: style)
             }
-            let grayIRE = MonitorWaveformAxis.middleGrayIRE(transfer: transfer)
+            let grayIRE = middleGrayIRE
             for stroke in MonitorWaveformAxis.guideStrokes(
-                clip: clip, crush: crush, middle: middle, transfer: transfer)
+                clip: clip, crush: crush, middle: middle, middleGrayIRE: grayIRE)
             {
                 let y = MonitorWaveformAxis.scaleLineY(stroke.ire, rect)
                 let isGray = abs(stroke.ire - grayIRE) < 0.05
@@ -185,14 +192,12 @@ private struct ParadeCanvasPlot: View, Equatable {
     var samples: ScopeSamples
     var trail: ScopeSamples = .empty
     var mode: MonitorParadeMode = .rgb
-    var transfer: MonitorTransfer = .rec709
-    var clipByte: Int
+    var table: [Float]
     var opacity: Double = 1
 
     var body: some View {
         Canvas { context, size in
             let rect = MonitorWaveformAxis.plotRect(in: size)
-            let table = MonitorWaveformAxis.levelTable(for: transfer, clipByte: clipByte)
             var traces = context
             traces.clip(to: Path(MonitorScopeGeometry.traceClipRect(rect)))
             drawLanes(

@@ -239,8 +239,16 @@ public enum ScopeSampler {
         samples: ScopeSamples, previous: ScopeHistogramDisplay, transfer: MonitorTransfer,
         clipByte: Int
     ) -> ScopeHistogramDisplay {
+        histogramDisplay(
+            samples: samples, previous: previous,
+            axis: ScopeLevelAxis(transfer: transfer, clipByte: clipByte))
+    }
+
+    public static func histogramDisplay(
+        samples: ScopeSamples, previous: ScopeHistogramDisplay, axis: ScopeLevelAxis
+    ) -> ScopeHistogramDisplay {
         func channel(_ native: [Int], _ previous: [Float]) -> [Float] {
-            displayChannel(native, previous: previous, transfer: transfer, clipByte: clipByte)
+            displayChannel(native, previous: previous, axis: axis)
         }
         return ScopeHistogramDisplay(
             luma: channel(samples.histogramLuma, previous.luma),
@@ -253,7 +261,14 @@ public enum ScopeSampler {
     public static func displayChannel(
         _ native: [Int], previous: [Float], transfer: MonitorTransfer, clipByte: Int
     ) -> [Float] {
-        let remapped = WaveformIre.remapHistogram(native, transfer: transfer, clipByte: clipByte)
+        displayChannel(
+            native, previous: previous, axis: ScopeLevelAxis(transfer: transfer, clipByte: clipByte))
+    }
+
+    public static func displayChannel(
+        _ native: [Int], previous: [Float], axis: ScopeLevelAxis
+    ) -> [Float] {
+        let remapped = axis.remapHistogram(native)
         var blended = [Float](repeating: 0, count: 256)
         let hasPrevious = previous.count == 256
         for i in 0..<256 {
