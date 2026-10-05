@@ -155,9 +155,8 @@ Still to do from the same sweep: 12 Kotlin aliases that instrumented tests use a
 
 | Item | Verdict |
 |---|---|
-| iOS monitor | no whole-screen slot remains: `NikonMonitorShell` mounts the shared `MonitorScreen` through bounded slots |
-| Android `MonitorShell` placeholder (`MainActivity.kt`, mounted when the Swift core is unavailable; still present after the shared AppShell adoption `6bbae148`) | retire (follow-up Z-1): the last whole-screen slot; needs a decision on what a build without the Swift core shows |
-| Compatibility projection: iOS `NativeAppModel.makeShellModel` writing shared control changes back into `CameraDisplayState` (about 140 lines, read by `MonitorPanels` and `MonitorUnified`); Android `bridge/MonitorZones.kt` rebuilt from the shared layout (8 consumer files) | retire (follow-up Z-1): behavior-bearing; the panels must read the shared control model first |
+| Monitor slots | no whole-screen slot remains: iOS `NikonMonitorShell` and Android `MonitorScreen` mount the shared monitor through bounded slots; the Android `MonitorShell` placeholder is retired (Pocket mounts its monitor with no core gate) |
+| Compatibility projection | none: the panels read the shared control model's pending targets at read time (iOS) and the shared `MonitorFieldLayout` directly (Android); retired by the nikon-z1 lane |
 | Native runtime | no duplicate: the app ships no shader, SPIR-V or native code and loads OpenCine's assets; `scripts/check-gles-shaders.sh` lints the OpenCine copy (follow-up X-1: move it into OpenCine `scripts/`) |
 | Test-only frozen donors (`:frozen-vulkan-donor`, `FrozenNikon*`, parity tests, about 4,700 lines) | stay until the Z-3 parity checkpoint closes |
 | `Sources/OpenZCineAndroidFacade` (25 exports `Java_com_opencapture_openzcine_bridge_SwiftCore_*`, Frame.io, LUT, scope, playback-audio and feed-effects wires), `AndroidLiveViewPolicyWire` | brand wire format; the dead export `feedEffectsScalars` and the ignored policy parameters are follow-up Z-4 (both sides in step) |
@@ -165,10 +164,9 @@ Still to do from the same sweep: 12 Kotlin aliases that instrumented tests use a
 | Saved keys and credentials (`NativeCameraConnectionStore` rebrand migration, `CameraWiFiCredentialStore`, assist and scope storage keys) | brand wire format |
 | Discovery: `NativeCameraDiscovery`, `InfrastructureCameraFinder` (iOS), Kotlin discovery adapters | SDK adapter and Nikon feature (passive discovery); follow-up Z-6 (an Apple Nikon integration target) |
 | Nikon calibration and policy (`ExposureScale`, `FalseColor`, `FocusAssist`, `TrafficLightsMeter`, `MonitorLUT`, RED LUTs, `ThermalLoadPolicy`, `MonitorChrome` DISP modes, MF drive, photography) | Nikon feature |
-| App copies of shared owners: `FeedUpscaler`, `OpenZCineCore.MonitorAssistTool`, `StoredLUT`, `RelayBitrateAdaptation`, `RelayControlLease`, `SettingsDashScale`, `MovablePanel`, level gauge, `MonitorChromeEditLayout`, Android `AndroidBatteryReadout`, `MonitorFrameRateSampler`, recovery card, audio meters, framing assists, glass chrome | retire (follow-up Z-2): renames of more than ten sites, or a visible change toward the shared UI that the Nikon parity rule allows with screenshots |
+| App copies of shared owners: `FeedUpscaler`, `OpenZCineCore.MonitorAssistTool`, `StoredLUT`, `RelayBitrateAdaptation`, `RelayControlLease`, `SettingsDashScale`, `MovablePanel`, level gauge, `MonitorChromeEditLayout`, `MonitorFrameRateSampler`, recovery card, audio meters, framing assists, glass chrome | retire (follow-up Z-2): renames of more than ten sites, or a visible change toward the shared UI that the Nikon parity rule allows with screenshots |
 | Media residue (`MediaBrowser`, `MediaLibrary`, `MonitorPanels` media blocks; Android media cache, share, gallery, delivery and library owners) | follow-up Z-3 (Z-2 media owners, adopter by adopter) |
-| Aliases over shared types with more than ten sites or a stored shape: media filter names (`MediaResolutionBucket`, `MediaPhotoSizeClass`, `MediaDateWindow`, `MediaFilterOptions`, 18 sites), `StreamPreset`/`QualityBias` (about 20), audio meter aliases (about 18, incl. the facade wire), `StoredLUT` (Codable index), `FrameScopeSampler` (fixes the transfer), the `FrameRateSampler` re-export | retire (follow-up Z-2) |
-| `AnchoredPinchZoom` (`MediaBrowser.swift`) versus `MonitorPlaybackZoom`; Android `JpegFrameDecoder` (app sample-size constant differs from the shared default) | retire (follow-up Z-7) after a behavior check |
+| Aliases over shared types with more than ten sites or a stored shape: media filter names (`MediaResolutionBucket`, `MediaPhotoSizeClass`, `MediaDateWindow`, `MediaFilterOptions`, 18 sites), `StreamPreset`/`QualityBias` (about 20), audio meter aliases (about 18, incl. the facade wire), `StoredLUT` (Codable index) | retire (follow-up Z-2) |
 | Source sync | none |
 
 Retired here (`fbbbd705`, `4f11941d`, `5c8bda63`, production -364 lines net):
@@ -186,6 +184,20 @@ Retired here (`fbbbd705`, `4f11941d`, `5c8bda63`, production -364 lines net):
 - Tooling: `scripts/check-vulkan-shaders.sh` (the recipe calls OpenCine's script directly).
 - Tests: `Tests/OpenZCineCoreTests/MediaFilterDerivationTests.swift`, the same 18 cases as OpenCine's
   `NikonMediaFilterDerivationTests` run through the app's legacy alias names.
+
+Retired by the nikon-z1 lane (OpenZCine `8bef53c3`, `9010d9d2`, `5e175fa8`, `82acde96`, `d41a253f`; OpenCine `6dd6dd4`):
+
+- Z-1, iOS: `makeShellModel`'s write-back of the control's pending edits and reported recording into
+  `CameraDisplayState`; the command grid, side column, values bar and picker read the pending target
+  over the report (`NativeAppModel.shownCameraValues`). Recording stays camera-authoritative.
+- Z-1, Android: `bridge/MonitorZones.kt` (`MonitorZones`, `ZoneStyle`, `ZoneFrame`); its consumers take
+  `MonitorFieldLayout` and `MonitorRect`. The `MonitorShell` placeholder and its core gate; the three scope
+  helpers that called the core unguarded now fail closed like every other core call.
+- Z-7: `AnchoredPinchZoom` (the shared `MonitorPlaybackZoom`'s unbounded API line for line) and the Android
+  `JpegFrameDecoder` forwarder (callers pass the Nikon 1024 cap to `MonitorJpegFrameDecoder`).
+- Z-2 (part): the `FrameRateSampler` re-export, the `FrameScopeSampler` wrapper of
+  `MonitorUIImageScopeSampler`, and Android `AndroidBatteryReadout` (appkit's `rememberPhoneBatteryReadout`;
+  its mapping test moved to `PhoneBatteryReadoutTest`).
 
 ## Follow-ups
 
@@ -208,13 +220,11 @@ Retired here (`fbbbd705`, `4f11941d`, `5c8bda63`, production -364 lines net):
 | I-6 | Insta | Brand renames (`openpocketcine.version*`, `PocketCameraSession`, module and package names) | release tooling, JNI names in step |
 | I-7 | Insta | Inert DJI behavior on reached paths | visible-behavior decision |
 | I-8 | Insta | Multiview stubs, inert gimbal-limit pulse | edits in live UI files |
-| Z-1 | Nikon | Projection and the last whole-screen slot | behavior decision; panels on the shared control model |
-| Z-2 | Nikon | Larger app copies of shared owners | renames, screenshots |
+| Z-2 | Nikon | Larger app copies of shared owners | renames, screenshots; `FeedUpscaler` and `StoredLUT` are drop-in swaps that also edit `ios/RunnerTests/RunnerTests.swift` |
 | Z-3 | Nikon | Z-2 media owners | owner-by-owner adoption |
 | Z-4 | Nikon | `feedEffectsScalars`, ignored policy parameters | JNI export gate |
 | Z-5 | Nikon | Relay and watch wire convergence | wire version decision |
 | Z-6 | Nikon | Discovery into an Apple Nikon integration target | hardware-qualified reason |
-| Z-7 | Nikon | `AnchoredPinchZoom`, `JpegFrameDecoder` | behavior check |
 | X-1 | Nikon, OpenCine | `check-gles-shaders.sh` into OpenCine | none |
 | X-2 | all apps | Shared release and staging scripts | new shared tooling |
 | X-3 | Pocket, Insta | Stale references found while retiring: Pocket `tools/performance-status-probe.sh` calls `AndroidSessionWire.statusJSON`, which no longer exists; three links in Pocket `docs/audits/*.md` point at moved view-core files; Insta `docs/implementation/architecture.md` and the handbook `protocol/ucd2-frame.md` name the moved `Adapters/Insta360Protocol` | docs and tooling refresh |
