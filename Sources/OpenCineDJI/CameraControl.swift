@@ -1530,6 +1530,37 @@ public enum GimbalRamp: Int, CaseIterable, Sendable, Hashable {
     public static let pickerOrder: [GimbalRamp] = [.off, .soft, .medium]
 }
 
+/// First-order follow on analog throw. Off is a passthrough.
+public struct GimbalRampFilter: Equatable, Sendable {
+    public var x: Double = 0
+    public var y: Double = 0
+
+    public init(x: Double = 0, y: Double = 0) {
+        self.x = x
+        self.y = y
+    }
+
+    public mutating func reset() {
+        x = 0
+        y = 0
+    }
+
+    public mutating func tick(
+        targetX: Double, targetY: Double, ramp: GimbalRamp, dt: TimeInterval
+    ) -> (Double, Double) {
+        let tau = ramp.tau
+        if tau <= 0 || dt <= 0 {
+            x = targetX
+            y = targetY
+            return (x, y)
+        }
+        let alpha = 1 - exp(-dt / tau)
+        x += (targetX - x) * alpha
+        y += (targetY - y) * alpha
+        return (x, y)
+    }
+}
+
 /// What the stick double-tap and gamepad Circle/B do: body recenter
 /// (`FE 08`) or a one-shot snap to world level (`WorldLevelSnap`).
 public enum GimbalDoubleTap: Int, CaseIterable, Sendable, Hashable {
