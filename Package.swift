@@ -39,6 +39,9 @@ let package = Package(
         .library(name: "OpenCineMulticam", targets: ["OpenCineMulticam"]),
         // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
+        // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
+        // it into an app.
+        .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
         .library(name: "OpenCineDJIApple", targets: ["OpenCineDJIApple"]),
@@ -128,6 +131,11 @@ let package = Package(
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
                 "MonitorPresentation", "MonitorUI",
             ]),
+        // XCUITest cases that drive an app only by accessibility identifiers and launch
+        // environment; iOS only, empty elsewhere. Depends on nothing in this package.
+        // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6
+        // with a MainActor pass over XCTest's expectation waits.
+        .target(name: "OpenCineAppUITesting", swiftSettings: [.swiftLanguageMode(.v5)]),
 
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,

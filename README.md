@@ -39,6 +39,7 @@ coordinates `com.opencapture.opencine:<module>`.
 | Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |
 | UI | `MonitorPresentation`, `MonitorUI` | `monitor-ui` | nothing |
 | App shell | `OpenCineAppKit` (saved cameras, connection model, cameras and pair screens, root and monitor lifetime, common controls) | `appkit` | `OpenCineCore` / `core` |
+| App shell | `OpenCineAppUITesting` (UI tests only: the XCUITest cases every app runs by subclassing) | | nothing (XCTest) |
 | Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
 | DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia` / `core`, `media`, `decoder`, `platform` |
 | Nikon | `OpenCineNikon`, `OpenCineNikonAndroid` (Swift side of `NikonNative`: Android session layer and JNI exports) | `nikon` (JNI facade `NikonNative`) | `OpenCineCore`, `OpenCineJNISupport` / `core` |
