@@ -305,3 +305,17 @@ remain host policy. Captured endpoint/control ownership fences callbacks and pen
 committed snapshot revisions fence synchronous publication reentry. Android's existing
 integration remains unchanged. Candidate cases and actual native host fixtures have not been
 compiled or executed; physical behavior is untested.
+
+## Native Apple gimbal control
+
+`DjiAppleGimbalControl` owns the Pocket gimbal over the native datalink: the stick stream
+(ramp, invert, rest), mode and speed SETs with their `CameraValuePin` readback pins, the
+`GimbalStickMapping` pose (Flip, TT180, body face), the limit watch, Double-tap Level
+(`WorldLevelSnap`), head-tracking target tokens and programmed moves (countdown, native
+take, pause, cancel). It reads session facts through `DjiAppleGimbalHost` when it decides
+and writes the observable gimbal state the host publishes; picture flip, zoom retirement
+and the journal stay host policy. `DjiAppleGimbalLink` is the datalink surface, so the
+owner tests run on manual clocks with a fake link. Cancellation re-checks the caller's
+`ifCurrent` after every published write. `CameraValuePin`, `WorldLevel`,
+`GimbalOverlayMotion` and `GimbalRampFilter` moved into OpenCineDJI next to their Kotlin
+mirrors in `Android/dji`. Physical behavior is untested.
