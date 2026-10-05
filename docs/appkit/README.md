@@ -7,8 +7,8 @@ module `com.opencapture.opencine:appkit`.
 
 ## Boundaries
 
-- Builds on `OpenCineCore`, `OpenCineMedia`, `OpenCineMulticam` and the shared UI; never an integration or an
-  app. Apps list their integrations and fill the typed slots (`AppKitRules`, Kotlin
+- Builds on `OpenCineCore`, `OpenCineMedia`, `OpenCineMulticam` and the shared UI (plus the system zlib);
+  never an integration or an app. Apps list their integrations and fill the typed slots (`AppKitRules`, Kotlin
   `AppKitRulesTest`).
 - Names no brand, product or app, and keeps no unlisted mutable global (the shared UI rules scan
   it: `SharedUIRulesTests`, Kotlin `SharedUIRulesTest`).
@@ -246,6 +246,7 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
 | `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
 | `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
+| `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, host isolation, backoff) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`; the envelope cases are Swift only |
 
 Kotlin differences: JSON is org.json from android.jar (the real artifact backs the JVM tests);
 `StoredString` (`SharedPreferences.stored(key)`) replaces `StoredData`
@@ -382,3 +383,16 @@ never infers a cleanup path from an original or cached URL.
 
 Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
 Native adapter and physical presentation checks remain separate consumer verification.
+
+## Reliability reporting network (iOS)
+
+The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
+(Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera session
+is live or the camera's IPv4 path is up; the app supplies `cameraIPv4Prefix` and keeps one shared
+gate. `ReliabilityReportingHostPolicy` and `ReliabilityReportingNetwork.decision` forward only
+HTTPS to the DSN host and fail a refused request without an HTTP response, so the SDK keeps the
+envelope cached. `ReliabilityReportingRedirectGuard` drops redirects off the DSN host,
+`ReliabilityReportingEnvelopeID` reads the event ID from a plain or gzip envelope header with
+bounded reads, and `ReliabilityReportingBackoff` spaces retries. The SDK, the URLProtocol that
+applies this policy to the SDK's own URLSession, consent, the privacy scrub and receipts stay in
+the apps.
