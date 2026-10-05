@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.opencapture.opencine.platform.LocalVPNProbe
 import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.Socket
@@ -303,7 +304,7 @@ class CameraApJoiner(context: Context) : CameraNetworkPath {
             DjiLog.log(
                 "info", "session", "wifi", "wifi: available $network reassoc=$reassociated",
             )
-            LocalVPNFilter.noteIfActive(appContext)
+            LocalVPNProbe.noteIfActive(appContext) { DjiLog.log("notice", "session", "vpn", it) }
             if (resumeNow?.isActive == true) resumeNow.resume(true)
             if (reassociated) onReassociated?.invoke()
         }
