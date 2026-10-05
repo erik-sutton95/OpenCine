@@ -602,9 +602,10 @@
                     }
                 }
                 if stats.videoFrames == 0 {
-                    throw mappedExportError(
-                        videoReader.error
-                            ?? ExportError.failed("this clip's media data is unreadable"))
+                    // No decoded frame is a refusal whatever the reader reports: a cut-off
+                    // sample (-11880) and undecodable data (-11821) both mean an unreadable clip.
+                    trace("no decoded video \(videoReader.error.map(describe) ?? "nil")")
+                    throw ExportError.failed("this clip's media data is unreadable")
                 }
                 return stats
             }

@@ -185,7 +185,8 @@
             }
 
         #elseif os(macOS)
-            /// Native macOS cannot decode this synthetic prefix even though complete chunks remain.
+            /// The kept media bytes are overwritten, so this prefix is undecodable by construction.
+            /// Native macOS read the plain prefix nondeterministically (sometimes one frame).
             /// The separate real-prefix proof covers successful partial recovery; this fixture proves refusal.
             func testUnreadableSyntheticPrefixDoesNotProduceFinishedMovie() async throws {
                 let dir = FileManager.default.temporaryDirectory
@@ -196,7 +197,8 @@
                 try await Self.writeMovieWithTimecode(
                     to: sourceURL, frameCount: 60, optimizeForNetworkUse: true)
                 let truncatedURL = dir.appendingPathComponent("truncated.mov")
-                try Self.truncateMdatPayload(from: sourceURL, to: truncatedURL, keepFraction: 0.35)
+                try Self.truncateMdatPayload(
+                    from: sourceURL, to: truncatedURL, keepFraction: 0.35, payloadFill: 0xFF)
                 XCTAssertTrue(MonitorMovieFile.mediaDataExtendsPastEndOfFile(at: truncatedURL))
                 let asset = AVURLAsset(url: truncatedURL)
                 let tracks = try await asset.loadTracks(withMediaType: .video)
@@ -243,8 +245,8 @@
                     AVVideoCodecKey: AVVideoCodecType.h264,
                     AVVideoWidthKey: 320,
                     AVVideoHeightKey: 240,
-                    // This encoding still fails the truncated vector on native macOS.
-                    // A byte fraction alone does not prove native readability.
+                    // Every frame is a sync sample, yet native macOS may still refuse a plain
+                    // truncated prefix: a byte fraction alone does not prove native readability.
                     AVVideoCompressionPropertiesKey: [AVVideoMaxKeyFrameIntervalKey: 1],
                 ])
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
@@ -431,7 +433,11 @@
 
         /// Copies `from` up through the `mdat` header plus `keepFraction` of its payload, leaving
         /// the declared atom size intact so the file looks like a Nikon proxy whose media was cut off.
-        private static func truncateMdatPayload(from: URL, to: URL, keepFraction: Double) throws {
+        /// `payloadFill` overwrites the kept payload: with 0xFF every H.264 sample's 4-byte NAL
+        /// length overruns the sample, so no decoder can frame a NAL unit, let alone a picture.
+        private static func truncateMdatPayload(
+            from: URL, to: URL, keepFraction: Double, payloadFill: UInt8? = nil
+        ) throws {
             let data = try Data(contentsOf: from)
             var offset = 0
             var output = Data()
@@ -454,7 +460,13 @@
                     let payload = max(0, atomSize - header)
                     let keepPayload = min(payload, max(1, Int(Double(payload) * keepFraction)))
                     let end = min(data.count, offset + header + keepPayload)
-                    output.append(data.subdata(in: offset..<end))
+                    var media = data.subdata(in: offset..<end)
+                    if let payloadFill {
+                        media.replaceSubrange(
+                            header..<media.count,
+                            with: Data(repeating: payloadFill, count: media.count - header))
+                    }
+                    output.append(media)
                     try output.write(to: to)
                     return
                 }
