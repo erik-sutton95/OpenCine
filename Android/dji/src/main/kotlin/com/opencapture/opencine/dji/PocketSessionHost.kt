@@ -1,5 +1,11 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.media.FeedIncidentBreadcrumb
+import com.opencapture.opencine.media.FeedIncidentSessionContext
+import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentTestSource
+import com.opencapture.opencine.media.FeedRepairRecord
+
 /**
  * What [PocketCameraSession] needs from the app that hosts it: operator preferences, feed
  * diagnostics, build identity and the face detector. The app keeps those (and its UI); the
