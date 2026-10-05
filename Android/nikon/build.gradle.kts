@@ -28,6 +28,7 @@ android {
 
 dependencies {
     api(project(":core"))
+    api(project(":media"))
     api(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)

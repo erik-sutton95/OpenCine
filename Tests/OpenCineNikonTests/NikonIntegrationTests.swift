@@ -2,6 +2,7 @@ import Foundation
 import OpenCineCore
 import OpenCineCoreTestSupport
 import OpenCineNikon
+import OpenCineMedia
 import Testing
 
 /// A scripted Nikon pipeline: it records discovery modes, connects, cancels and forgets, holds each
@@ -117,6 +118,24 @@ final class FakeNikonPort: NikonConnectPort {
         #expect(list.map(\.routes) == [[.infrastructureNetwork], [.infrastructureNetwork], [.infrastructureNetwork], [.usb]])
     }
 
+    @Test func connectedServicesPreserveExactInstanceAndDefaultEmpty() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let studio = try #require(camera.routes.first { $0.key == "infrastructure|Studio" })
+        let native = FakeCameraSession.nikonLike()
+        let marker = IntegrationMediaMarker(sessionID: native.id)
+        var services = CameraServices(); services.register(marker, as: (any CameraMediaService).self)
+        let defaults = NikonConnection(session: native, host: "192.168.50.23", path: .infrastructure)
+        #expect(defaults.services[(any CameraMediaService).self] == nil)
+        let events = nikon.connect(.saved(camera, route: studio.id))
+        #expect(await eventually { port.connects.count == 1 })
+        port.finish(.success(.init(session: native, host: "192.168.50.23", path: .infrastructure, services: services)))
+        let (_, _, end) = await outcome(events)
+        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        #expect(camera.services[(any CameraMediaService).self] === marker)
+        #expect(camera.session.id == marker.sessionID)
+    }
+
     @Test func aSavedSetupConnectsThroughTheAppFunnel() async throws {
         let nikon = integration()
         let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
@@ -228,4 +247,10 @@ final class FakeNikonPort: NikonConnectPort {
 func eventually(_ condition: () -> Bool) async -> Bool {
     for _ in 0..<10_000 where !condition() { await Task.yield() }
     return condition()
+}
+
+@MainActor private final class IntegrationMediaMarker: CameraMediaService {
+    let sessionID: CameraSessionID
+    init(sessionID: CameraSessionID) { self.sessionID = sessionID }
+    func openBrowse() async throws -> any CameraMediaBrowse { throw MediaServiceError.unavailable }
 }

@@ -1,5 +1,9 @@
 package com.opencapture.monitorui
 
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -71,6 +75,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+enum class MonitorPlaybackZoomBoundary { PICTURE, CANVAS }
+
 /** Accepted owner facts and source labels; the UI holds no player/library/load state. */
 data class MonitorPlaybackPresentation(
     val item: MonitorPlaybackItemToken?, val title: String, val subtitle: String, val source: String?,
@@ -79,6 +85,12 @@ data class MonitorPlaybackPresentation(
     val durationLabel: String, val playing: Boolean, val reachedEnd: Boolean, val scrubbing: Boolean,
     val muted: Boolean, val looping: Boolean, val previous: Boolean, val next: Boolean, val favorite: Boolean,
     val conform: MonitorConformPreview.Source, val conformTarget: Double?,
+    val initialChromeVisible: Boolean = true, val loopAvailable: Boolean = true, val shareEnabled: Boolean = true,
+    val buffered: Float = 0f,
+    val doubleTapResetsZoom: Boolean = false,
+    val continuousPanBounds: Boolean = false,
+    val zoomBoundary: MonitorPlaybackZoomBoundary = MonitorPlaybackZoomBoundary.PICTURE,
+    val horizontalPresentationScale: Float = 1f, val verticalPresentationScale: Float = 1f,
 )
 
 class MonitorPlaybackActions(
@@ -106,11 +118,26 @@ class MonitorPlaybackActions(
 data class MonitorPlaybackPictureGeometry(val item: MonitorPlaybackItemToken?, val feed: MonitorRect,
     val zoom: MonitorPlaybackZoom, val canvasWidth: Float, val canvasHeight: Float)
 class MonitorPlaybackToolsContext(val portrait: Boolean, val frame: MonitorRect,
-    val expanded: Boolean, val onExpansionHandled: () -> Unit)
+    val expanded: Boolean, val onExpansionHandled: () -> Unit,
+    val onExpandedChanged: (Boolean) -> Unit) {
+    constructor(portrait: Boolean, frame: MonitorRect, expanded: Boolean, onExpansionHandled: () -> Unit) :
+        this(portrait, frame, expanded, onExpansionHandled, {})
+}
 class MonitorPlaybackInspectorContext(val width: Float, val height: Float, val leading: Float,
     val top: Float, val bottom: Float, val trailing: Float, val toolbarFloor: Float)
 
-/** One native picture child, with the original native control window and finite assist slots. */
+data class MonitorPlaybackCanvasContext(val geometry: MonitorPlaybackPictureGeometry,
+    val chromeVisible: Boolean, val assistExpanded: Boolean, val analysis: MonitorRect)
+
+/** Source content only. Page state and control admission remain in the common page. */
+class MonitorPlaybackPageSlots(
+    val headerAccessory: @Composable () -> Unit = {},
+    val canvasDetails: @Composable (MonitorPlaybackCanvasContext) -> Unit = {},
+    val onChromeVisibilityChanged: (Boolean) -> Unit = {},
+    val onAssistExpansionChanged: (Boolean) -> Unit = {},
+)
+
+/** Original overload keeps positional and trailing assistInspector callers unchanged. */
 @Composable
 fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPlaybackActions,
     modifier: Modifier = Modifier,
@@ -120,10 +147,27 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
     canvasAssists: @Composable (MonitorPlaybackPictureGeometry) -> Unit,
     tools: @Composable (MonitorPlaybackToolsContext) -> Unit,
     assistInspector: @Composable (MonitorPlaybackInspectorContext) -> Unit,
+) = MonitorPlaybackScreen(value, actions, MonitorPlaybackPageSlots(), modifier,
+    backHandler = backHandler, picture = picture, feedAssists = feedAssists,
+    canvasAssists = canvasAssists, tools = tools, assistInspector = assistInspector)
+
+/** One native picture child, with the original native control window and finite assist slots. */
+@Composable
+fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPlaybackActions,
+    slots: MonitorPlaybackPageSlots, modifier: Modifier = Modifier, coverPresented: Boolean = false,
+    backHandler: @Composable (() -> Unit) -> Unit = {},
+    picture: @Composable (MonitorPlaybackPictureGeometry) -> Unit,
+    feedAssists: @Composable (MonitorPlaybackPictureGeometry) -> Unit,
+    canvasAssists: @Composable (MonitorPlaybackPictureGeometry) -> Unit,
+    tools: @Composable (MonitorPlaybackToolsContext) -> Unit,
+    assistInspector: @Composable (MonitorPlaybackInspectorContext) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf<MonitorPlaybackItemToken?>(null) }
-    var chromeVisible by remember { mutableStateOf(true) }
+    var chromeVisible by remember { mutableStateOf(value.initialChromeVisible) }
+    var headerBottomPx by remember { mutableStateOf(0f) }
+    var accessoryBottomPx by remember { mutableStateOf(0f) }
+    var footerTopPx by remember { mutableStateOf<Float?>(null) }
     var assistMode by remember { mutableStateOf(false) }
     var conformMenu by remember { mutableStateOf(false) }
     var infoOpen by remember { mutableStateOf(false) }
@@ -181,7 +225,11 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
         zoom = MonitorPlaybackZoom(); frameScrubbing = false; assistMode = false
         flashJob?.cancel(); flashSymbol = null
     }
-    LaunchedEffect(infoOpen, conformMenu, chromeVisible) { if (infoOpen || conformMenu || !chromeVisible) assistMode = false }
+    LaunchedEffect(infoOpen, conformMenu, chromeVisible, coverPresented) {
+        if (infoOpen || conformMenu || !chromeVisible || coverPresented) assistMode = false
+    }
+    LaunchedEffect(chromeVisible) { slots.onChromeVisibilityChanged(chromeVisible) }
+    LaunchedEffect(assistMode) { slots.onAssistExpansionChanged(assistMode) }
     fun seekBy(delta: Float) { withItem { currentActions.seekBy(it, delta.toDouble()) } }
     fun flashTransport(willPlay: Boolean) {
         flashJob?.cancel()
@@ -212,9 +260,12 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
             val fitted = MonitorRect((constraints.maxWidth - width) / 2, (constraints.maxHeight - height) / 2, width, height)
             val geometry = MonitorPlaybackPictureGeometry(value.item, fitted, zoom,
                 constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
-            LaunchedEffect(fitted.width, fitted.height) {
+            LaunchedEffect(fitted.width, fitted.height, value.horizontalPresentationScale, value.verticalPresentationScale) {
                 cancelEdit(MonitorEditingCancellation.INTERRUPTED)
-                zoom = zoom.endGesture(fitted.width, fitted.height)
+                zoom = zoom.endGesture(
+                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
+                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
+                    value.horizontalPresentationScale, value.verticalPresentationScale)
             }
             val overlayWidthPx = constraints.maxWidth
             val overlayHeightPx = constraints.maxHeight
@@ -309,7 +360,13 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 })
                 val latestOnPinch by rememberUpdatedState<(Float, Offset) -> Unit>({ magnification, centroid ->
                     val anchor = monitorPlaybackUnitPoint(centroid, fitted.width, fitted.height)
-                    zoom =
+                    zoom = if (value.continuousPanBounds) {
+                        zoom.pinchChangedBounded(magnification, anchor.first, anchor.second,
+                            fitted.width, fitted.height,
+                            if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
+                            if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
+                            value.horizontalPresentationScale, value.verticalPresentationScale)
+                    } else {
                         zoom.pinchChanged(
                             magnification,
                             anchor.first,
@@ -317,26 +374,39 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                             fitted.width,
                             fitted.height,
                         )
+                    }
                 })
                 val latestOnPinchEnd by rememberUpdatedState({
-                    zoom = zoom.endGesture(fitted.width, fitted.height)
+                    zoom = zoom.endGesture(
+                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
+                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
+                    value.horizontalPresentationScale, value.verticalPresentationScale)
                 })
                 val latestOnPan by rememberUpdatedState<(Offset) -> Unit>({ translation ->
-                    zoom = zoom.panChanged(translation.x, translation.y)
+                    zoom = if (value.continuousPanBounds) zoom.panChangedBounded(translation.x, translation.y,
+                        if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
+                        if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
+                        value.horizontalPresentationScale, value.verticalPresentationScale)
+                    else zoom.panChanged(translation.x, translation.y)
                 })
                 val latestOnPanEnd by rememberUpdatedState({
-                    zoom = zoom.endGesture(fitted.width, fitted.height)
+                    zoom = zoom.endGesture(
+                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
+                    if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
+                    value.horizontalPresentationScale, value.verticalPresentationScale)
                 })
                 // Gesture well matches iOS: hits the unzoomed letterbox, not the scaled raster.
                 Box(
                     Modifier
                         .fillMaxSize()
+                        .semantics { contentDescription = "Playback picture controls" }
                         .pointerInput(value.item, fitted.width, fitted.height) {
                             val source = value.item
                             var gestureEdit: MonitorPlaybackScrubToken? = null
                             detectMonitorPlaybackVideoGestures(
                                 isReady = { latestReady && currentValue.item == source },
                                 isZoomed = { latestZoomed },
+                                config = MonitorPlaybackGestureConfig(enableTap = !currentValue.doubleTapResetsZoom),
                                 onTap = { if (currentValue.item == source) latestOnTap() },
                                 onChromeSwipe = { if (currentValue.item == source) latestOnSwipe(it) },
                                 onScrubStart = {
@@ -363,6 +433,14 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 onPinchEnd = { if (currentValue.item == source) latestOnPinchEnd() },
                                 onPan = { if (currentValue.item == source) latestOnPan(it) },
                                 onPanEnd = { if (currentValue.item == source) latestOnPanEnd() },
+                            )
+                        }
+                        .pointerInput(value.item, value.doubleTapResetsZoom) {
+                            if (!value.doubleTapResetsZoom) return@pointerInput
+                            val source = value.item
+                            detectTapGestures(
+                                onTap = { if (currentValue.item == source && !frameScrubbing) latestOnTap() },
+                                onDoubleTap = { if (currentValue.item == source) zoom = zoom.reset() },
                             )
                         },
                 )
@@ -398,6 +476,10 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     )
                 }
                 canvasAssists(geometry)
+                val analysisTop = if (chromeVisible) max(headerBottomPx, accessoryBottomPx) else 0f
+                val analysisBottom = if (chromeVisible) footerTopPx ?: geometry.canvasHeight else geometry.canvasHeight
+                slots.canvasDetails(MonitorPlaybackCanvasContext(geometry, chromeVisible, assistMode,
+                    MonitorRect(0f, analysisTop, geometry.canvasWidth, max(1f, analysisBottom - analysisTop))))
             }
             if (!ready || loadError != null) {
                 Box(
@@ -434,6 +516,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     subtitle = value.subtitle,
                     source = value.source.orEmpty(), portrait = portraitPlayback,
                     modifier = Modifier.align(Alignment.TopCenter)
+                        .onGloballyPositioned { headerBottomPx = it.boundsInRoot().bottom }
                         .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))
                         .padding(
                         start = max(MonitorPlaybackLayout.headerGutter(sideInset), backX + fieldLayout.lock.width + 12f).dp,
@@ -449,13 +532,17 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         MonitorPlaybackActionChip(MonitorIcon.INFO, "Clip info", { infoOpen = !infoOpen }, active = infoOpen)
                         MonitorPlaybackActionChip(
                             MonitorIcon.SHARE, "Share clip", { withItem { currentActions.share(it) } },
-                            title = if (portraitPlayback) null else "SHARE", active = true,
+                            title = if (portraitPlayback) null else "SHARE", active = true, enabled = value.shareEnabled,
                         )
                         if (actions.delete != null) {
                             MonitorPlaybackActionChip(MonitorIcon.TRASH, "Delete clip", { confirmDelete = value.item }, destructive = true)
                         }
                     },
                 )
+                Box(Modifier.align(Alignment.TopCenter).padding(top = (headerTop + 48f).dp)
+                    .onGloballyPositioned { accessoryBottomPx = it.boundsInRoot().bottom }) {
+                    slots.headerAccessory()
+                }
                 PlaybackBackButton(
                     modifier = Modifier.align(Alignment.TopStart)
                         .offset(x = backX.dp, y = headerTop.dp)
@@ -469,6 +556,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 com.opencapture.monitorui.MonitorPlaybackFooter(
                     position = value.positionLabel, duration = value.durationLabel, portrait = portraitPlayback,
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .onGloballyPositioned { footerTopPx = it.boundsInRoot().top }
                         .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                         .background(Brush.verticalGradient(
                             0f to Color.Transparent, 0.38f to Color.Black.copy(alpha = 0.4f),
@@ -490,6 +578,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                             update = { edit, time -> currentActions.updateScrub(edit, time) },
                             commit = { edit, time -> currentActions.updateScrub(edit, time); currentActions.commitScrub(edit) },
                             cancel = { edit, reason -> currentActions.cancelScrub(edit, reason) }, modifier = Modifier.fillMaxWidth(),
+                            bufferedFraction = value.buffered,
                         )
                     },
                     transport = {
@@ -519,12 +608,13 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 if (isMuted) MonitorIcon.VOLUME_X else MonitorIcon.VOLUME_2,
                                 if (isMuted) "Unmute" else "Mute", { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
                             )
-                            MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop clip", { withItem { currentActions.loop(it, !looping) } }, active = looping)
+                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop clip", { withItem { currentActions.loop(it, !looping) } }, active = looping)
                             MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, "Hide playback controls", { chromeVisible = false })
                         }
                     },
                 )
-                tools(MonitorPlaybackToolsContext(portraitPlayback, assistRect, assistMode) { assistMode = false })
+                tools(MonitorPlaybackToolsContext(portraitPlayback, assistRect, assistMode,
+                    onExpansionHandled = { assistMode = false }, onExpandedChanged = { assistMode = it }))
             } else {
                 Box(
                     Modifier

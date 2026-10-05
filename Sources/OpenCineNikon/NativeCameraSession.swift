@@ -1,5 +1,6 @@
 #if canImport(Darwin) && canImport(os)
     import Foundation
+    import OpenCineMedia
     import os
 
     private let connectionLogger = Logger(subsystem: "OpenCineNikon", category: "camera-connection")
@@ -803,6 +804,115 @@
                 "listMediaObjectHandles: \(handles.count, privacy: .public) handle(s) across \(storageIDs.count, privacy: .public) slot(s)"
             )
             return handles
+        }
+
+        /// Typed snapshot for source reconciliation. Uses the same vendor/standard storage
+        /// queries and one unfiltered handle query per storage as the legacy method above.
+        /// A refused, malformed or failed card is distinct from an acknowledged empty card.
+        public func mediaHandleSnapshot(
+            admit: @escaping @Sendable () async throws -> Void
+        ) async throws -> NikonMediaHandleSnapshot {
+            let vendor = try await mediaStorageIDs(.getVendorStorageIDs, admit: admit)
+            let standard = try await mediaStorageIDs(.getStorageIDs, admit: admit)
+            var seen: Set<UInt32> = []
+            let ids = (vendor.ids + standard.ids).filter {
+                $0 != 0 && $0 != 0xFFFF_FFFF && seen.insert($0).inserted
+            }
+            var handles: [MediaObjectHandle] = []
+            var authoritative: Set<UInt32> = []; var failed: Set<UInt32> = []
+            for storageID in ids {
+                try await admit()
+                let result: PTPIPTransactionResult
+                do {
+                    result = try await transact(operationCode: .getObjectHandles,
+                        parameters: [storageID, 0, 0], dataPhase: .dataIn)
+                } catch {
+                    try await admit(); try Task.checkCancellation()
+                    failed.insert(storageID); continue
+                }
+                try await admit()
+                guard result.operationResponse.responseCode == .ok, result.data.count >= 4,
+                    UInt64(ByteCoding.readUInt32LE(Array(result.data), at: 0))
+                        <= UInt64((result.data.count - 4) / 4) else {
+                    failed.insert(storageID); continue
+                }
+                authoritative.insert(storageID)
+                handles.append(contentsOf: PTPStorageIDs.parse(Array(result.data)).map {
+                    MediaObjectHandle(storageID: storageID, handle: $0)
+                })
+            }
+            return .init(handles: handles, authoritativeStorages: authoritative,
+                failedStorages: failed, storageListAuthoritative:
+                    (vendor.accepted || standard.accepted) && !vendor.failed && !standard.failed)
+        }
+
+        private func mediaStorageIDs(
+            _ operation: PTPOperationCode, admit: @escaping @Sendable () async throws -> Void
+        ) async throws
+            -> (ids: [UInt32], accepted: Bool, failed: Bool) {
+            try await admit()
+            let result: PTPIPTransactionResult
+            do { result = try await transact(operationCode: operation, dataPhase: .dataIn) }
+            catch {
+                try await admit(); try Task.checkCancellation()
+                return ([], false, true)
+            }
+            try await admit()
+            guard result.operationResponse.responseCode == .ok else { return ([], false, false) }
+            guard result.data.count >= 4,
+                UInt64(ByteCoding.readUInt32LE(Array(result.data), at: 0))
+                    <= UInt64((result.data.count - 4) / 4) else { return ([], false, true) }
+            return (PTPStorageIDs.parse(Array(result.data)), true, false)
+        }
+
+        private func admittedMediaStorageIDs(
+            admit: @escaping @Sendable () async throws -> Void, requireComplete: Bool = false
+        ) async throws -> [UInt32] {
+            let vendor = try await mediaStorageIDs(.getVendorStorageIDs, admit: admit)
+            let standard = try await mediaStorageIDs(.getStorageIDs, admit: admit)
+            if requireComplete && (vendor.failed || standard.failed || (!vendor.accepted && !standard.accepted)) {
+                throw MediaServiceError.unavailable
+            }
+            var seen: Set<UInt32> = []
+            return (vendor.ids + standard.ids).filter {
+                $0 != 0 && $0 != 0xFFFF_FFFF && seen.insert($0).inserted
+            }
+        }
+
+        /// Source-qualified storage observations using the donor's exact best-effort reads.
+        public func mediaStorageRecords(
+            admit: @escaping @Sendable () async throws -> Void
+        ) async throws -> [NikonMediaStorageRecord] {
+            let ids = try await admittedMediaStorageIDs(admit: admit)
+            var records: [NikonMediaStorageRecord] = []
+            for id in ids {
+                try await admit()
+                let result: PTPIPTransactionResult
+                do { result = try await transact(operationCode: .getStorageInfo, parameters: [id], dataPhase: .dataIn) }
+                catch { try await admit(); try Task.checkCancellation(); continue }
+                try await admit()
+                if result.operationResponse.responseCode == .ok, let info = PTPStorageInfo(Array(result.data)) {
+                    records.append(.init(id: id, info: info))
+                }
+            }
+            return records
+        }
+
+        /// Per-command admitted format listing. Legacy callers retain the original method.
+        public func mediaFilteredHandles(
+            formats: [UInt32], admit: @escaping @Sendable () async throws -> Void
+        ) async throws -> [MediaObjectHandle] {
+            let ids = try await admittedMediaStorageIDs(admit: admit, requireComplete: true)
+            var records: [MediaObjectHandle] = []
+            for id in ids {
+                for format in formats {
+                    try await admit()
+                    let handles = try await getObjectHandles(storageID: id, format: format)
+                    try await admit()
+                    records.append(contentsOf: handles.map { .init(storageID: id, handle: $0) })
+                }
+            }
+            return records
         }
 
         /// Lists media object handles limited to the given PTP object formats - one

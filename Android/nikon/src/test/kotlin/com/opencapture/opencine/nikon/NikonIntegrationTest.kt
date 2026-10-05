@@ -106,6 +106,28 @@ class NikonIntegrationTest {
     }
 
     @Test
+    fun connectedServicesPreserveExactInstanceAndDefaultEmpty() = runTest {
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val native = FakeCameraSession.nikonLike()
+        val marker = object : com.opencapture.opencine.media.CameraMediaService {
+            override val sessionID = native.id
+            override suspend fun openBrowse(): com.opencapture.opencine.media.CameraMediaBrowse =
+                throw com.opencapture.opencine.media.MediaServiceException(com.opencapture.opencine.media.MediaServiceFailure.UNAVAILABLE)
+        }
+        val services = com.opencapture.opencine.core.CameraServices().plus(com.opencapture.opencine.media.CameraMediaService::class, marker)
+        kotlin.test.assertNull(NikonConnection(native, "192.168.50.23", RouteKind.INFRASTRUCTURE_NETWORK).services.get<com.opencapture.opencine.media.CameraMediaService>())
+        val events = mutableListOf<ConnectionEvent>()
+        val job = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        port.pending.complete(NikonConnection(native, "192.168.50.23", RouteKind.INFRASTRUCTURE_NETWORK, services))
+        job.join()
+        val connected = assertIs<ConnectionEvent.Connected>(events.last()).camera
+        kotlin.test.assertSame(marker, connected.services.get<com.opencapture.opencine.media.CameraMediaService>())
+        assertEquals(native.id, connected.session.id)
+    }
+
+    @Test
     fun aSavedSetupConnectsThroughTheAppFunnel() = runTest {
         val camera = cameras().first()
         val studio = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
