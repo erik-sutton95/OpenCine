@@ -156,7 +156,10 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
         if (wanted == null) port.stopDiscovery() else port.startDiscovery(wanted)
     }
 
-    /** A saved setup's sighting names its camera; a liveness answer only ever lights a saved camera. */
+    /**
+     * A saved setup's sighting names its camera and the setup it reaches; a liveness answer only
+     * ever lights a saved camera.
+     */
     private fun nearby(sightings: List<NikonSighting>): List<NearbyCamera> {
         val cameras = NikonSavedRecordsV0.read(port.savedRecords() ?: "[]")?.let(NikonSavedRecordsV0::layout).orEmpty()
         return sightings.mapNotNull { sighting ->
@@ -166,16 +169,18 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
                     record.host.equals(sighting.host, ignoreCase = true) ||
                         (name != null && nikonAssignedName(record.cameraName) == name)
                 }
-            }?.camera?.id
+            }?.camera
             if (saved == null && sighting.source == NikonSighting.Source.LIVENESS) return@mapNotNull null
+            val usb = sighting.source == NikonSighting.Source.USB
             NearbyCamera(
-                sighting.host, savedID = saved, name = sighting.displayName, model = "",
-                routes = setOf(if (sighting.source == NikonSighting.Source.USB) RouteKind.USB else RouteKind.INFRASTRUCTURE_NETWORK),
+                sighting.host, savedID = saved?.id, name = sighting.displayName, model = "",
+                routes = setOf(if (usb) RouteKind.USB else RouteKind.INFRASTRUCTURE_NETWORK),
                 availability = if (sighting.source == NikonSighting.Source.HELD_BY_ANOTHER_DEVICE) {
                     Availability.Unavailable(UnavailableReason.Busy)
                 } else {
                     Availability.Available
                 },
+                routeKey = saved?.let { reachedRoute(it, sighting.host, usb) },
             )
         }
     }
@@ -299,6 +304,16 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
     }
 
     companion object {
+        /**
+         * The key of the saved setup a sighting at [host] reaches: the one at that address, else a
+         * cable's USB setup. Never an access point setup: its fixed address answering off the
+         * camera's own network is no proof of that network.
+         */
+        private fun reachedRoute(camera: SavedCamera, host: String, usb: Boolean): String? = camera.routes.firstOrNull { route ->
+            route.kind != RouteKind.CAMERA_ACCESS_POINT &&
+                (route.extras[NikonSavedRecordsV0.Extra.HOST].equals(host, ignoreCase = true) || (usb && route.kind == RouteKind.USB))
+        }?.key
+
         fun failure(reason: ConnectionFailure.Reason, code: String, message: String): ConnectionFailure = ConnectionFailure(
             reason, null, "Couldn't connect", message,
             if (reason == ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.LOCAL_NETWORK)) {

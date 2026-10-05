@@ -55,6 +55,11 @@ class ShellModelTest {
     @Test
     fun routesFollowSavedCamerasPairingAndTheMonitor() = runTest {
         assertEquals(ShellModel.Route.PAIR, shell(saved = emptyList()).route)
+        val empty = shell(saved = emptyList())
+        empty.showCameras()
+        assertEquals(ShellModel.Route.CAMERAS, empty.route, "the operator chose the list")
+        empty.beginPairing()
+        assertEquals(ShellModel.Route.PAIR, empty.route)
         val shell = shell()
         assertEquals(ShellModel.Route.CAMERAS, shell.route)
         shell.beginPairing()
