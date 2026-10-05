@@ -1,4 +1,4 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.media
 
 /**
  * One in-flight ML Kit face task. Watchdog and completion both [take] this

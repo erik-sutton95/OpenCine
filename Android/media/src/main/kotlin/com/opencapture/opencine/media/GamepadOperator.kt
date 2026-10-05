@@ -1,4 +1,4 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.media
 
 /** iOS `GamepadOperator`. Discussion #159 map. Extended pads only. */
 enum class GamepadOperatorAction {
@@ -89,12 +89,16 @@ object GamepadShutterSync {
         val preferred = ShutterAngle.label(ShutterAngle.nearestDegrees(preferredAngle))
         if (denom <= 0) return preferred
         val mapped = ShutterAngle.denom(preferredAngle, fps, available)
-        return if (mapped == denom) preferred else ShutterAngle.nearestLabel(denom, fps)
+        return if (mapped == denom) preferred else ShutterAngle.label(ShutterAngle.nearestDegrees(degrees(denom, fps)))
     }
 
     fun shouldPersistPreferredAngle(usesAngle: Boolean, isPhoto: Boolean, expoIsAuto: Boolean): Boolean =
         usesAngle && !isPhoto && !expoIsAuto
 
     fun preferredAngle(afterDenom: Int, fps: Int): Double =
-        ShutterAngle.nearestDegrees(ShutterAngle.degrees(afterDenom, fps))
+        ShutterAngle.nearestDegrees(degrees(afterDenom, fps))
+
+    /** An out-of-range rate reads as the 24 fps fallback and an unknown 1/N as the default angle. */
+    private fun degrees(denom: Int, fps: Int): Double =
+        ShutterAngle.degrees(denom, ShutterAngle.effectiveFps(fps)) ?: ShutterAngle.DEFAULT_DEGREES
 }

@@ -1,4 +1,4 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.media
 
 import kotlin.test.Test
 import kotlin.test.assertFalse
