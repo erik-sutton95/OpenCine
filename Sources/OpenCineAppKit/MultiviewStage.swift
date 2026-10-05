@@ -208,11 +208,15 @@ public struct MultiviewRecordContext: Hashable, Sendable {
     public let plan: RecordPlan
     public let busy: Bool
     public let closing: Bool
+    /// The app's own confirmation question (an eligible-subset plan naming the cameras it
+    /// commands); `nil` asks the shared `question(single:)`.
+    public let prompt: String?
 
-    public init(plan: RecordPlan, busy: Bool = false, closing: Bool = false) {
+    public init(plan: RecordPlan, busy: Bool = false, closing: Bool = false, prompt: String? = nil) {
         self.plan = plan
         self.busy = busy
         self.closing = closing
+        self.prompt = prompt
     }
 
     public var stopping: Bool { plan.direction == .stop }

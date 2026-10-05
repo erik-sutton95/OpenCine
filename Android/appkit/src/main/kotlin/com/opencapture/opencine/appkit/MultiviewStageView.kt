@@ -423,7 +423,7 @@ private fun RecordAllButton(
     var pending by remember { mutableStateOf<RecordPlan?>(null) }
     LaunchedEffect(plan, enabled) { pending = null }
     pending?.let { approved ->
-        MultiviewRecordConfirmation(approved, null, onDismiss = { pending = null }) {
+        MultiviewRecordConfirmation(approved, null, context.prompt, onDismiss = { pending = null }) {
             pending = null
             val now = actions.recordContext(null)
             if (!now.busy && now.plan.isExecutable && approved == now.plan) scope.launch { actions.record(approved, null) }
@@ -452,7 +452,7 @@ private fun RecordAllButton(
 /** Start or stop on every camera (`single` null) or on one camera, after the operator confirms. */
 @Composable
 public fun MultiviewRecordConfirmation(
-    plan: RecordPlan, single: String?, onDismiss: () -> Unit, onConfirm: () -> Unit,
+    plan: RecordPlan, single: String?, prompt: String? = null, onDismiss: () -> Unit, onConfirm: () -> Unit,
 ) {
     val stopping = MultiviewRecordContext(plan).stopping
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -465,7 +465,7 @@ public fun MultiviewRecordConfirmation(
                     .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(if (stopping) "Stop recording?" else "Start recording?", color = MonitorPalette.text,
+                Text(prompt ?: if (stopping) "Stop recording?" else "Start recording?", color = MonitorPalette.text,
                     style = MonitorTypography.text(16f, FontWeight.SemiBold))
                 Text(single ?: "All connected cameras", color = MonitorPalette.muted, style = MonitorTypography.text(13f))
                 TextButton(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {
@@ -602,7 +602,7 @@ private fun TileView(
         ))
     }
     confirmRecord?.let { approved ->
-        MultiviewRecordConfirmation(approved, tile?.name.orEmpty(), onDismiss = { confirmRecord = null }) {
+        MultiviewRecordConfirmation(approved, tile?.name.orEmpty(), context?.prompt, onDismiss = { confirmRecord = null }) {
             confirmRecord = null
             val now = actions.recordContext(index)
             if (approved == now.plan && !now.closing) scope.launch { actions.record(approved, index) }

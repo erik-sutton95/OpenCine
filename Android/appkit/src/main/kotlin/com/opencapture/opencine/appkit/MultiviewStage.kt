@@ -207,6 +207,11 @@ public data class MultiviewRecordContext(
     val plan: RecordPlan,
     val busy: Boolean = false,
     val closing: Boolean = false,
+    /**
+     * The app's own confirmation question (an eligible-subset plan naming the cameras it
+     * commands); null asks the shared [question].
+     */
+    val prompt: String? = null,
 ) {
     val stopping: Boolean get() = plan.direction == RecordDirection.STOP
 

@@ -965,7 +965,7 @@
             .disabled(!now.canConfirm)
             .accessibilityHint(now.refusal ?? "")
             .confirmationDialog(
-                now.question(single: single != nil), isPresented: $showingConfirmation,
+                now.prompt ?? now.question(single: single != nil), isPresented: $showingConfirmation,
                 titleVisibility: .visible
             ) {
                 Button(now.stopping ? "Stop" : "Start", role: now.stopping ? .destructive : nil) {
