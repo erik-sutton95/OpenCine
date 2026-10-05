@@ -3,12 +3,21 @@ import XCTest
 
 /// Presentation fixture only; no camera or transport is connected. An outside
 /// touch over Record must be consumed before its confirmation/command path.
+/// Every test launches the writable review fixture (`OPV_UI_REVIEW_COMMON_CONTROLS`), so Record
+/// and the zoom chip show the fixture's camera state rather than the read-only preview's unknowns.
 open class MotionUIFlowTests: SharedAppUITestCase {
+    /// The reason beside the disabled Start when the program's points change zoom.
+    open var zoomProgramUnavailableReason: String { "Zoom moves are unavailable in D-Log2" }
+    /// The note a zoom-chip tap raises while recording in D-Log2, or `nil` when the app's
+    /// camera zooms while recording without a color change.
+    open var recordingZoomLockNote: String? { "Can't change color while recording \u{2014} D-Log2 can't zoom" }
+
     func testOutsideTapMinimizesWithoutActivatingCameraControls() {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         if let clip = ProcessInfo.processInfo.environment["OPV_SIM_FEED_CLIP"] {
             app.launchEnvironment["OPV_SIM_FEED_CLIP"] = clip
         }
@@ -88,6 +97,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
         app.launch()
         defer { app.terminate() }
@@ -141,6 +151,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION_ZOOM"] = "1"
         app.launch()
@@ -152,7 +163,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         open.tap()
         let reason = app.staticTexts["motion.zoomUnavailable"]
         XCTAssertTrue(reason.waitForExistence(timeout: 5))
-        XCTAssertEqual(reason.label, "Zoom moves are unavailable in D-Log2")
+        XCTAssertEqual(reason.label, zoomProgramUnavailableReason)
         XCTAssertTrue(reason.isHittable, "The reason must be visible beside the disabled Start button")
         XCTAssertFalse(app.buttons["motion.startStop"].isEnabled)
         XCTAssertTrue(app.buttons["motion.clear"].isEnabled)
@@ -164,6 +175,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_ZOOM_CONTROLS"] = "1"
         app.launch()
@@ -248,6 +260,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_ZOOM_CONTROLS"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_ZOOM_DLOG2_RECORDING"] = "1"
@@ -264,8 +277,14 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         let before = zoom.label
         zoom.tap()
         XCTAssertTrue(app.staticTexts["motion.editor.title"].exists)
-        XCTAssertEqual(zoom.label, before)
-        XCTAssertTrue(app.staticTexts["Can't change color while recording \u{2014} D-Log2 can't zoom"].waitForExistence(timeout: 5))
+        if let note = recordingZoomLockNote {
+            XCTAssertEqual(zoom.label, before)
+            XCTAssertTrue(app.staticTexts[note].waitForExistence(timeout: 5))
+        } else {
+            expectation(for: NSPredicate { _, _ in zoom.label != before }, evaluatedWith: zoom)
+            waitForExpectations(timeout: 5)
+            XCTAssertTrue(app.staticTexts["motion.editor.title"].exists)
+        }
     }
 
     func testEditorKeepsActionsFixedAndFadesOnlyOverflowInBothOrientations() {
@@ -273,6 +292,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION_RUNNING"] = "1"
         app.launchEnvironment["OPV_UI_REVIEW_MOTION_PAUSED"] = "1"
@@ -378,6 +398,7 @@ open class MotionUIFlowTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "live"
+        app.launchEnvironment["OPV_UI_REVIEW_COMMON_CONTROLS"] = "1"
         if let clip = ProcessInfo.processInfo.environment["OPV_SIM_FEED_CLIP"] {
             app.launchEnvironment["OPV_SIM_FEED_CLIP"] = clip
         }
