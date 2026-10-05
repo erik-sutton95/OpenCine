@@ -382,7 +382,7 @@
       "package": {
         "repo": "opencine",
         "ref": "integration/thin-app",
-        "commit": "bb500df8db46484dc186e1f018d4adbeb2f721fb",
+        "commit": "aed102b9d517a3cbb9557994c448310832592c45",
         "products": [
           "OpenCineCore",
           "OpenCineMedia",
@@ -427,7 +427,7 @@
         ],
         "change": "Thin-app migration union: the shared app shell (OpenCineAppKit/appkit), native runtime, media workflow, settings, multicam stage and vendor sessions move from the three apps into OpenCine; the apps keep integration lists, branding, entitlements and brand panels"
       },
-      "recorded_at": "2026-10-05T21:30:00Z",
+      "recorded_at": "2026-10-05T21:45:00Z",
       "recorded_by": "compat lane (thin-app migration); consumer revisions are the integration/thin-app heads this package was verified with in union round 5 and later lane merges; not run through `compat run` yet. Recording a candidate moves no app pin and no registry edge",
       "consumers": [
         {
@@ -669,7 +669,7 @@
         {
           "repo": "openzcine",
           "ref": "integration/thin-app",
-          "commit": "0b7e555e531965e31f5c81ffef02471b0215b91a",
+          "commit": "25a4915518a2135e4858c7da645562d0db158ca5",
           "dependency": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt",
           "platforms": [
             "apple",
