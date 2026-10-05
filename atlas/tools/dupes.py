@@ -10,6 +10,9 @@ Sources: OpenCine from its working tree (what you are about to commit, and what 
 app at the commit of the ref it builds OpenCine on (its registry edge), else its baseline, read
 from Git objects. A missing checkout or commit is reported, never counted as zero.
 
+`--app DIR` also measures an unregistered folder (an app `atlas new-app` just wrote) against every
+repository; it never writes the baseline.
+
 compat/dupes-baseline.json holds the numbers per pair. `--check` fails when a pair has more
 duplicated lines than the baseline; `--write-baseline` records the current numbers (do it in the
 change that explains why they moved, for example an extraction before the app drops its copy).
@@ -135,8 +138,17 @@ def gather(reg, root):
     return sources, missing
 
 
-def measure(reg, root):
+def directory_files(top):
+    """Code files of a folder that need not be a Git checkout (a freshly generated app)."""
+    return [(str(f.relative_to(top)), f.read_text(errors="replace")) for f in sorted(Path(top).rglob("*"))
+            if f.is_file() and code_path(str(f.relative_to(top)))]
+
+
+def measure(reg, root, app=None):
+    """`app`: also measure this unregistered folder (`--app`) against every repository."""
     sources, missing = gather(reg, root)
+    if app:
+        sources[f"app:{Path(app).name}"] = (f"folder {Path(app).name}", directory_files(app))
     names = sorted({n for m in reg.values() for n in (m["display_name"], m["local_dir"])}, key=len, reverse=True)
     app_names = re.compile("|".join(re.escape(n) for n in names), re.I)
     idx = {rid: index(files, app_names) for rid, (_, files) in sources.items()}
@@ -161,7 +173,10 @@ def measure(reg, root):
 def run(args, reg, root):
     import time  # noqa: PLC0415
     started = time.monotonic()
-    cur = measure(reg, root)
+    if args.app and args.write_baseline:
+        print("--app measures a folder outside the registry; it never writes the baseline", file=sys.stderr)
+        return FAIL
+    cur = measure(reg, root, args.app)
     path = root / BASELINE
     base = json.loads(path.read_text()) if path.is_file() else None
     grew = []
