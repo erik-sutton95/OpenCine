@@ -162,7 +162,7 @@ import Insta360Protocol
         Task { @MainActor in
             do {
                 guard let session else { throw CancellationError() }
-                _ = try await session.controlRequest(request)
+                _ = try await session.control(request)
                 finished(nil)
             } catch {
                 finished(error)

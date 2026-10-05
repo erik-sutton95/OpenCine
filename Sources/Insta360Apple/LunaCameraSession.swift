@@ -72,6 +72,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     private let send: @MainActor (LunaRequest) async throws -> Data
+    private let sendWithin: (@MainActor (LunaRequest, Duration) async throws -> Data)?
     private let functionMode: @MainActor () -> UInt32
     private let readSettings: @MainActor () async -> Void
     private let readCapture: @MainActor () async -> Void
@@ -91,10 +92,13 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     private var pump: Task<Void, Never>?
     private var closed = false
 
-    /// `send` returns the camera's 200 body and throws on a 500 or a lost link. `readSettings`
-    /// and `readCapture` ask the camera to report again; answers arrive through `ingest`.
+    /// `send` returns the camera's 200 body and throws on a 500 or a lost link; `sendWithin` does
+    /// the same within a caller timeout (`control(_:timeout:)`), else a timeout falls back to
+    /// `send`. `readSettings` and `readCapture` ask the camera to report again; answers arrive
+    /// through `ingest`.
     public init(
         send: @escaping @MainActor (LunaRequest) async throws -> Data,
+        sendWithin: (@MainActor (LunaRequest, Duration) async throws -> Data)? = nil,
         functionMode: @escaping @MainActor () -> UInt32,
         readSettings: @escaping @MainActor () async -> Void,
         readCapture: @escaping @MainActor () async -> Void,
@@ -104,6 +108,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         let id = CameraSessionID()
         self.id = id
         self.send = send
+        self.sendWithin = sendWithin
         self.functionMode = functionMode
         self.readSettings = readSettings
         self.readCapture = readCapture
@@ -357,14 +362,17 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         return reply
     }
 
-    /// Integration-owned control with no shared intent yet (Deep Track, tap focus) uses this
-    /// session's link while it is ready and owned; the camera's 200 body is success.
-    var admitsControl: Bool {
+    /// Whether `control(_:timeout:)` sends now: the session is open, ready and owned.
+    public var admitsControl: Bool {
         !closed && current.connection == .ready && current.authority == .owner
     }
 
-    func controlRequest(_ request: LunaRequest) async throws -> Data {
+    /// Luna requests the common model does not describe (Deep Track, tap focus, gimbal, clock and
+    /// photography options) go out on this session's link only while it admits control. The
+    /// camera's 200 body is success; `timeout` bounds the wait when the backend supports it.
+    public func control(_ request: LunaRequest, timeout: Duration? = nil) async throws -> Data {
         guard admitsControl else { throw CancellationError() }
+        if let timeout, let sendWithin { return try await sendWithin(request, timeout) }
         return try await send(request)
     }
 

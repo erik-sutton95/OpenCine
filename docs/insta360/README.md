@@ -92,6 +92,11 @@ tap-focus ROI only through `LunaCameraSession` while that session is ready and o
 admission, notes and face boxes stay in the app. The Android app still sends these three requests
 from its own session facade.
 
+Requests the common model does not describe yet (gimbal, clock sync, keyframe and photography
+options) use `LunaCameraSession.control(_:timeout:)`, which sends only while the session is ready
+and owned and passes the caller's timeout to the backend. On iOS the app sends nothing through
+the backend directly; a DEBUG-only lab probe is the one exception.
+
 ## Common lens controls
 
 `LunaCameraSession.configureLens(zoomDomain:)` (Kotlin `configureLens(range)`)
