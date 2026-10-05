@@ -24,13 +24,13 @@ public struct MonitorFeedSharingSettings: View {
     @Binding private var priority: String
     private let priorities: [String]
     private let help: MonitorFeedSharingHelp
-    private let showWiFiCode: () -> Void
+    private let showWiFiCode: (() -> Void)?
     private let passcodeChanged: (String) -> Void
     private let feedback: () -> Void
 
     public init(sharing: Binding<Bool>, passcode: Binding<String>, controlRequests: Binding<Bool>,
         priority: Binding<String>, priorities: [String], help: MonitorFeedSharingHelp,
-        showWiFiCode: @escaping () -> Void, passcodeChanged: @escaping (String) -> Void,
+        showWiFiCode: (() -> Void)?, passcodeChanged: @escaping (String) -> Void,
         feedback: @escaping () -> Void = {}) {
         self._sharing = sharing; self._passcode = passcode
         self._controlRequests = controlRequests; self._priority = priority
@@ -43,9 +43,12 @@ public struct MonitorFeedSharingSettings: View {
         MonitorSettingsRowCard {
             MonitorSettingsSwitchInlineRow(title: "Share this feed", help: help.sharing,
                 showTopDivider: false, isOn: sharing, feedback: feedback) { sharing.toggle() }
-            MonitorSettingsInlineRow(title: "Join camera Wi-Fi", help: help.join) {
-                Button("Show Wi-Fi code", action: showWiFiCode)
-                    .font(MonitorTheme.font(13, weight: .medium))
+            // nil when watchers never join the camera's network (it would drop the monitor).
+            if let showWiFiCode {
+                MonitorSettingsInlineRow(title: "Join camera Wi-Fi", help: help.join) {
+                    Button("Show Wi-Fi code", action: showWiFiCode)
+                        .font(MonitorTheme.font(13, weight: .medium))
+                }
             }
             MonitorSettingsInlineRow(title: "Watcher passcode", help: help.passcode) {
                 SecureField("Optional", text: $passcode)

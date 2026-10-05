@@ -125,7 +125,8 @@ on both platforms, with optional sign-in/sign-out actions. Apps keep credentials
 requests and service-specific copy. Missing actions stay absent.
 
 `MonitorFeedSharingSettings` owns the actual Apple relay-host settings rows: share switch,
-Wi-Fi-code action, passcode field, control requests and supplied priority choices. The app
+Wi-Fi-code action (absent when the app passes none, for cameras whose watchers must not join
+the camera's network), passcode field, control requests and supplied priority choices. The app
 keeps relay admission/lifetime, borrowed-camera policy, keychain writes and Wi-Fi-sheet
 presentation. This is an explicit platform exception: Android currently has no implemented
 feed-sharing settings and retains its existing Coming soon content. No Android relay or

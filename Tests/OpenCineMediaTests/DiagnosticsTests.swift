@@ -76,6 +76,20 @@ import Testing
         #expect(text.count <= PrivacyRedactor.compactCharacterCap)
     }
 
+    @Test func reportsSayUnknownWhenTheHostHasNoVPNProbe() {
+        var env = sampleEnv()
+        env.vpnActive = nil
+        let text = DiagnosticReport.compactSummary(
+            environment: env, recent: [], isSafeNetwork: { _ in false })
+        #expect(text.contains("vpn=unknown"))
+        let full = DiagnosticReport.fullReport(
+            environment: env, journal: [], exceptions: [], isSafeNetwork: { _ in false })
+        #expect(full.contains("vpn: unknown"))
+        let manual = DiagnosticReport.manualReport(
+            environment: env, journal: [], exceptions: [], isSafeNetwork: { _ in false })
+        #expect(manual.contains("vpn: unknown"))
+    }
+
     @Test func compactSummaryFlagsActiveVPN() {
         let env = DiagnosticEnvironment(
             product: "Field monitor",
