@@ -1,10 +1,7 @@
 package com.opencapture.opencine.dji
 
-import com.opencapture.opencine.media.FeedIncidentBreadcrumb
-import com.opencapture.opencine.media.FeedIncidentSessionContext
-import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentSink
 import com.opencapture.opencine.media.FeedIncidentTestSource
-import com.opencapture.opencine.media.FeedRepairRecord
 
 /**
  * What [PocketCameraSession] needs from the app that hosts it: operator preferences, feed
@@ -34,19 +31,6 @@ interface PocketSessionHost {
 
     /** One face detector per session (Face AF); the app owns the detection library. */
     fun createFaceDetector(): FaceDetectorPort
-}
-
-/** The app's feed incident recorder. */
-interface FeedIncidentSink {
-    fun beginSession(context: FeedIncidentSessionContext)
-    fun endSession(nowSeconds: Double)
-    fun ingestSnapshot(snapshot: FeedIncidentSnapshot)
-    fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb)
-    fun recordRepair(repair: FeedRepairRecord)
-    fun noteDecoderGeneration(generation: Int)
-    fun noteSocketGeneration(generation: Int)
-    fun noteExhausted(nowSeconds: Double)
-    fun noteUnexpectedDisconnect(nowSeconds: Double)
 }
 
 /** A picture handed to the face detector; [release] once the detector is done with it. */

@@ -361,3 +361,16 @@ class FeedIncidentRecorder(
         }
     }
 }
+
+/** Where a camera session reports its feed; the host's runtime records it with [FeedIncidentRecorder]. */
+interface FeedIncidentSink {
+    fun beginSession(context: FeedIncidentSessionContext)
+    fun endSession(nowSeconds: Double)
+    fun ingestSnapshot(snapshot: FeedIncidentSnapshot)
+    fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb)
+    fun recordRepair(repair: FeedRepairRecord)
+    fun noteDecoderGeneration(generation: Int)
+    fun noteSocketGeneration(generation: Int)
+    fun noteExhausted(nowSeconds: Double)
+    fun noteUnexpectedDisconnect(nowSeconds: Double)
+}
