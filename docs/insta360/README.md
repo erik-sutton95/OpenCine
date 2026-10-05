@@ -84,6 +84,14 @@ is absent; source requests/addressing stay in the integration. The runtime prepa
 must independently validate the captured native/session owner. The source never imports the
 neutral Apple runtime, AppKit or UI. Current native camera/device behavior remains untested.
 
+## Deep Track and tap focus
+
+`LunaSubjectTracking` (Swift) owns one connection's Deep Track boxes and tap focus. It reads the
+camera's 0x85 track frames and 8315 notifications, and sends cmd 237, the tracking cancel and the
+tap-focus ROI only through `LunaCameraSession` while that session is ready and owned. Control
+admission, notes and face boxes stay in the app. The Android app still sends these three requests
+from its own session facade.
+
 ## Common lens controls
 
 `LunaCameraSession.configureLens(zoomDomain:)` (Kotlin `configureLens(range)`)

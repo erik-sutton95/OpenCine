@@ -357,6 +357,20 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         return reply
     }
 
+    /// Integration-owned control with no shared intent yet (Deep Track, tap focus) uses this
+    /// session's link while it is ready and owned; the camera's 200 body is success.
+    var admitsControl: Bool {
+        !closed && current.connection == .ready && current.authority == .owner
+    }
+
+    func controlRequest(_ request: LunaRequest) async throws -> Data {
+        guard admitsControl else { throw CancellationError() }
+        return try await send(request)
+    }
+
+    /// The function mode (bank) a photography SET is built for now.
+    var requestFunctionMode: UInt32 { functionMode() }
+
     public func outcome(of operation: OperationID) async -> CommandReceipt? {
         guard let receipt = receipts[operation] else { return nil }
         if receipt.isFinished || Task.isCancelled { return receipt }
