@@ -150,7 +150,8 @@ import Testing
 }
 
 /// Optional means optional: no other Core product imports OpenCineRelay, and it imports
-/// Foundation only and names no manufacturer or app.
+/// Foundation only and names no manufacturer or app. Its Apple shell, OpenCineRelayApple,
+/// adds Apple networking and encoding frameworks and nothing else.
 @Suite struct RelayImportRules {
     @Test func relayIsOptionalAndNeutral() throws {
         let root = URL(fileURLWithPath: #filePath)
@@ -169,6 +170,22 @@ import Testing
                         #expect(line == "import Foundation", "\(name): \(line)")
                     }
                     #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
+                } else if target == "OpenCineRelayApple" {
+                    let allowed: Set<String> = [
+                        "Foundation", "OpenCineRelay", "Network", "Observation", "CoreMedia",
+                        "CoreVideo", "VideoToolbox", "os",
+                    ]
+                    for line in text.split(separator: "\n") {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("import ") else { continue }
+                        let module = String(trimmed.dropFirst(7))
+                        #expect(allowed.contains(module), "\(name): \(trimmed)")
+                    }
+                    #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
+                    let first = text.split(separator: "\n").first.map(String.init) ?? ""
+                    #expect(
+                        first.hasPrefix("#if canImport("), "\(name) is not gated to its platform")
+                    #expect(!text.contains("\u{2014}"), "\(name) has an em dash")
                 } else {
                     #expect(!text.contains("OpenCineRelay"), "\(target)/\(name) uses OpenCineRelay")
                 }
