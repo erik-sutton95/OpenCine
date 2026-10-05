@@ -1,5 +1,9 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.media.RecoveryAction
+import com.opencapture.opencine.media.RecoveryEffect
+import com.opencapture.opencine.media.RecoveryReason
+import com.opencapture.opencine.media.RecoveryEffectLog
 import com.opencapture.opencine.media.FeedDecoderErrorOrigin
 import com.opencapture.opencine.media.FeedIncidentAges
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
