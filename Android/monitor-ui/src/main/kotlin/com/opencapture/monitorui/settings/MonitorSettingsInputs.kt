@@ -103,6 +103,9 @@ public fun MonitorSettingsActionPill(
     }
 }
 
+/** The typed digits clamped to `0...maximum`; null when there is no number to commit. */
+internal fun monitorSettingsNumberEntry(raw: String, maximum: Int): Int? = raw.toIntOrNull()?.coerceIn(0, maximum)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 public fun MonitorSettingsNumberField(
@@ -117,7 +120,7 @@ public fun MonitorSettingsNumberField(
     val bringIntoView = remember { BringIntoViewRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     fun commit() {
-        draft.toIntOrNull()?.let { onChange(it.coerceIn(0, maximum)) }
+        monitorSettingsNumberEntry(draft, maximum)?.let(onChange)
         editing = false
         editorHadFocus = false
         keyboard?.hide()
