@@ -63,7 +63,7 @@ public object CamerasMapping {
             val failure = state.failures[camera.id]
             val nearby = sighting(camera, state) != null
             val addable = addableRoutes(camera, model)
-            val active = attempt?.route ?: failure?.let { route(it.target) } ?: camera.preferredRoute ?: camera.routes.firstOrNull()?.id
+            val active = attempt?.route ?: failure?.let { route(it.target) } ?: model.defaultRoute(camera)
             val network = camera.routes.firstOrNull { it.id == active }?.network
             CameraItem(
                 id = camera.id,

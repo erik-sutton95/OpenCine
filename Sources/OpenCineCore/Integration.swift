@@ -56,10 +56,12 @@ public struct NearbyCamera: Hashable, Sendable, Identifiable {
     public var signalBars: Int?
     /// `.unavailable(.busy)`: another device holds the camera.
     public var availability: Availability
+    /// The `SavedRoute.key` of the saved camera's route this sighting reaches, when the integration knows.
+    public var routeKey: String?
 
     public init(
         id: String, savedID: String? = nil, name: String, model: String, routes: Set<RouteKind>,
-        signalBars: Int? = nil, availability: Availability = .available
+        signalBars: Int? = nil, availability: Availability = .available, routeKey: String? = nil
     ) {
         self.id = id
         self.savedID = savedID
@@ -68,6 +70,7 @@ public struct NearbyCamera: Hashable, Sendable, Identifiable {
         self.routes = routes
         self.signalBars = signalBars
         self.availability = availability
+        self.routeKey = routeKey
     }
 }
 

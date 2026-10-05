@@ -30,8 +30,8 @@ private val GENERIC_NAMES = setOf("camera", "nikon camera", "nikon zr", "nikon c
  * `setup-name`, `stream-preset`, `quality-bias`. Swift's `NikonSavedRecordsV0` reads the iOS
  * records, which carry a serial; these do not.
  *
- * Mapping: records of one body group by their assigned camera name, as the list groups them
- * (`SavedCameraGroups`); a generic name is its own camera. Camera id `name:<folded name>`, else
+ * Mapping: records of one body group by their assigned camera name ([nikonAssignedName]); a
+ * generic name is its own camera. Camera id `name:<folded name>`, else
  * the record's profile id. One route per record, most recently seen first (the most recent is
  * preferred), keyed by profile id and transport. `setup-name` -> route title; a record's
  * `custom-name` -> camera name; `wifi-ssid` (access point) or `network-name` (Wi-Fi) -> route

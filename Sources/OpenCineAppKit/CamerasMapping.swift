@@ -25,8 +25,7 @@ public enum CamerasMapping {
             let failure = model.failures[camera.id]
             let nearby = sighting(of: camera, in: model) != nil
             let addable = addableRoutes(of: camera, in: model)
-            let active = attempt?.route ?? failure.flatMap { route(of: $0.target) } ?? camera.preferredRoute
-                ?? camera.routes.first?.id
+            let active = attempt?.route ?? failure.flatMap { route(of: $0.target) } ?? model.defaultRoute(of: camera)
             let network = camera.routes.first { $0.id == active }?.network
             return CameraListItem(
                 id: camera.id, name: camera.displayName,
