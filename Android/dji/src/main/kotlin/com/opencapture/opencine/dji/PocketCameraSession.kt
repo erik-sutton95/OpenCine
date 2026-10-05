@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.CameraValuePin
 import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect
 import com.opencapture.opencine.media.RecoveryReason
@@ -23,6 +24,9 @@ import android.view.Surface
 import com.opencapture.opencine.media.SerialSessionGate
 import com.opencapture.opencine.decoder.HevcDecoder
 import android.os.Build
+import com.opencapture.opencine.motion.LevelReading
+import com.opencapture.opencine.motion.SnapOutcome
+import com.opencapture.opencine.motion.WorldLevelSnap
 import java.util.UUID
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart

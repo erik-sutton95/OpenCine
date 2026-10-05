@@ -15,7 +15,7 @@ public struct CameraValuePin<Value: Equatable & Sendable>: Sendable {
     /// Returns the held value, or releases the pin on confirmation/expiry.
     ///
     /// `confirms` decides when the body has answered the ask. Exact equality
-    /// suits the enum-shaped controls; zoom hands in `CamFov.matches`, because
+    /// suits the enum-shaped controls; zoom hands in a tolerance match, because
     /// its live factor is derived from a lens position and lands a hair off the
     /// number that was asked for.
     public static func reconcile(

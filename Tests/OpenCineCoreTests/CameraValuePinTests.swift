@@ -1,6 +1,5 @@
+import OpenCineCore
 import Testing
-
-@testable import OpenCineDJI
 
 struct CameraValuePinTests {
     @Test func unrelatedFramesAndOlderEchoesCannotConfirmARequest() {

@@ -1,19 +1,19 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.core
 
 /** A pending choice is confirmed only by its field in the current camera report. */
-data class CameraValuePin<T>(val expected: T, val deadlineElapsed: Long) {
-    companion object {
+public data class CameraValuePin<T>(public val expected: T, public val deadlineElapsed: Long) {
+    public companion object {
         /** Every control gives the body this long to answer before the HUD drops back to live. */
-        const val SETTLE_MS = 2_000L
+        public const val SETTLE_MS: Long = 2_000L
 
         /**
          * Returns the held value, or releases the pin on confirmation/expiry.
          *
          * [confirms] decides when the body has answered the ask. Exact equality suits the
-         * enum-shaped controls; zoom hands in [CamFov.matches], because its live factor is derived
+         * enum-shaped controls; zoom hands in a tolerance match, because its live factor is derived
          * from a lens position and lands a hair off the number that was asked for.
          */
-        fun <T> reconcile(
+        public fun <T> reconcile(
             pin: CameraValuePin<T>?,
             reported: T?,
             now: Long,

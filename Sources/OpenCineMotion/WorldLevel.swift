@@ -1,28 +1,9 @@
 import Foundation
-import OpenCineMotion
 
-/// Camera attitude against gravity from the `0x04/0x05` push.
-///
-/// `@24…@39` are float32 LE `x, w, y, z` of a unit quaternion that maps world
-/// to camera (camera x forward, y up; world gravity −y). Fit on 1,014 captured
-/// front/selfie frames: tilt matches display pitch `−@20` (p50 0.02°, p95 0.46°)
-/// and roll stays within 1.1° while the gimbal holds the horizon. Heading is
-/// free (IMU) and unused. Roll sign is not yet confirmed on a rolled handle.
+/// Camera attitude against gravity. The attitude is a unit quaternion that maps world to
+/// camera (camera x forward, y up; world gravity -y); the integration decodes it from its own
+/// report. Heading is free and unused.
 public enum WorldLevel {
-    public static func attitude(_ payload: [UInt8]) -> HeadTrack.Quat? {
-        guard payload.count >= 40 else { return nil }
-        func f32(_ o: Int) -> Double {
-            let bits =
-                UInt32(payload[o]) | UInt32(payload[o + 1]) << 8
-                | UInt32(payload[o + 2]) << 16 | UInt32(payload[o + 3]) << 24
-            return Double(Float(bitPattern: bits))
-        }
-        let q = HeadTrack.Quat(w: f32(28), x: f32(24), y: f32(32), z: f32(36))
-        let norm = (q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z).squareRoot()
-        guard norm.isFinite, abs(norm - 1) <= 1e-3 else { return nil }
-        return q
-    }
-
     /// Unit gravity (down) in the camera frame.
     public static func gravity(_ q: HeadTrack.Quat) -> (x: Double, y: Double, z: Double) {
         q.rotate((0, -1, 0))
@@ -43,7 +24,7 @@ public struct LevelReading: Sendable, Equatable {
     }
 
     public static let staleAfter: TimeInterval = 1.0
-    /// OpenZCine `levelAngleMinInterval` (~10 Hz), with room for push jitter.
+    /// About 10 Hz, with room for report jitter.
     public static let minInterval: TimeInterval = 0.08
     public static let smoothing = 0.3
     public static let bubbleEnterDeg = 65.0
@@ -60,8 +41,8 @@ public struct LevelReading: Sendable, Equatable {
             && a.g?.y == b.g?.y && a.g?.z == b.g?.z
     }
 
-    public mutating func ingest(_ payload: [UInt8], now: TimeInterval) {
-        guard let q = WorldLevel.attitude(payload), now.isFinite else { return }
+    public mutating func ingest(attitude q: HeadTrack.Quat, now: TimeInterval) {
+        guard now.isFinite else { return }
         let sample = WorldLevel.gravity(q)
         // After a gap, start over: pre-gap gravity must not bleed into a new pose.
         if now - acceptedAt > Self.staleAfter {
@@ -97,7 +78,8 @@ public struct LevelReading: Sendable, Equatable {
         return WorldLevel.deg(atan2(-g.x, -g.y))
     }
 
-    /// `viewFlip`: TT180 XOR MIRROR (picture-relative, like the stick), so readings follow the picture.
+    /// `viewFlip`: the camera's pan inversion XOR MIRROR (picture-relative, like the stick), so
+    /// readings follow the picture.
     public func mode(now: TimeInterval, viewFlip: Bool) -> Mode {
         guard let g, now - acceptedAt <= Self.staleAfter else { return .unavailable }
         let side = viewFlip ? -1.0 : 1.0
@@ -137,8 +119,8 @@ public enum WorldLevelTarget: Sendable, Equatable {
     }
 }
 
-/// One-shot `0x04/0x14` move to the nearest world target, judged on the
-/// smoothed world tilt. Roll is not commanded (mode `05` ignores it).
+/// One-shot timed move to the nearest world target, judged on the smoothed world tilt.
+/// Roll is not commanded.
 public struct WorldLevelSnap: Sendable, Equatable {
     public enum Outcome: Sendable, Equatable {
         case pending
@@ -165,10 +147,16 @@ public struct WorldLevelSnap: Sendable, Equatable {
         min(3.0, max(0.5, (abs(distanceDeg) * 0.5).rounded() / 10))
     }
 
-    /// Native pitch moves opposite to look-up tilt (`native = 180 − tilt`), so
-    /// the live native reading plus the world error gives the target.
-    public static func plan(tiltDeg: Double, pose: GimbalWaypoint, now: TimeInterval)
-        -> (snap: WorldLevelSnap, frame: Duml.Frame)?
+    public init(target: WorldLevelTarget, deadline: TimeInterval) {
+        self.target = target
+        self.deadline = deadline
+    }
+
+    /// The timed move from `pose` to the nearest world target: the native pitch goal and the
+    /// move duration. Native pitch moves opposite to look-up tilt (`native = 180 - tilt`), so
+    /// the live native reading plus the world error gives the goal. `nil` without a native pitch.
+    public static func move(tiltDeg: Double, pose: GimbalWaypoint)
+        -> (target: WorldLevelTarget, nativePitchDeg: Double, duration: TimeInterval)?
     {
         guard tiltDeg.isFinite, let native = pose.nativePitchDeg, native.isFinite else { return nil }
         let target = WorldLevelTarget.nearest(tiltDeg: tiltDeg)
@@ -176,13 +164,7 @@ public struct WorldLevelSnap: Sendable, Equatable {
         var goal = native - error
         while goal > 180 { goal -= 360 }
         while goal < -180 { goal += 360 }
-        let duration = duration(distanceDeg: error)
-        guard
-            let frame = Commands.gimbalTimedTarget(
-                yawDeg: pose.yawDeg, nativePitchDeg: (goal * 10).rounded() / 10,
-                duration: duration)
-        else { return nil }
-        return (WorldLevelSnap(target: target, deadline: now + duration + settleGrace), frame)
+        return (target, goal, duration(distanceDeg: error))
     }
 
     /// `tiltDeg` is the unfolded `LevelReading.pitchDeg`.

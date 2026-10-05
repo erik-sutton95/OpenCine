@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Exposure auto/manual. SET is `0x02/0x1E` (`mimo-settings-1`, 8 writes, all ACK `00`).
 /// No GET in that capture — no empty `0x1E`, no `0x8E` pid tracks this field.
