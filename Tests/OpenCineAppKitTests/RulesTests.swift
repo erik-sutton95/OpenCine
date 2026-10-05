@@ -45,7 +45,9 @@ struct AppKitRules {
             "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineMotion",
             "OpenCineRelay", "OpenCineRelayApple",
         ]
-        let system: Set<String> = ["Foundation", "Observation", "SwiftUI", "UIKit", "CoreMotion", "os"]
+        let system: Set<String> = [
+            "Foundation", "Observation", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
+        ]
         let directory = root.appending(path: "Sources/OpenCineAppKitApple")
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" }

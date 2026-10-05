@@ -154,9 +154,10 @@ let package = Package(
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
                 "MonitorPresentation", "MonitorUI",
             ]),
-        // The Apple side of the app shell both camera apps share (head tracking, ...). App
+        // The Apple side of the app shell both camera apps share (head tracking, the watcher's
+        // Wi-Fi join code). App
         // differences arrive as host values and protocols; iOS only, empty elsewhere.
-        .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineMotion"]),
+        .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineMotion"]),
         .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion"]),
         // XCUITest cases that drive an app only by accessibility identifiers and launch
         // environment; iOS only, empty elsewhere. Depends on nothing in this package.
