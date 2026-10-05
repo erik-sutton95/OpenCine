@@ -4,6 +4,8 @@ import kotlin.math.ln
 import kotlin.math.round
 import kotlin.math.roundToInt
 
+enum class MonitorScopeByteLayout { BGRA, RGBA }
+
 /** One sampled pixel for WAVE / PARADE / VECTOR. Bytes are native curve codes. */
 data class ScopePoint(
     val xRatio: Double,
@@ -12,6 +14,8 @@ data class ScopePoint(
     val green: Int,
     val blue: Int,
     val luma: Int,
+    val sampleX: Int? = null,
+    val sampleY: Int? = null,
 )
 
 /** Shared tap product. Histograms are 256-bin native-code counts. */
@@ -142,29 +146,25 @@ object ScopeSampler {
         return minC to maxC
     }
 
-    fun sample(
-        bytes: ByteArray,
-        width: Int,
-        height: Int,
-        bytesPerRow: Int,
-        transfer: MonitorTransfer,
-        includePoints: Boolean,
-        includeVectorPoints: Boolean = false,
-        look: MonitorLUTCube? = null,
-        trafficThreshold: Double = ScopeTrafficLights.DEFAULT_THRESHOLD,
-        previous: ScopeAssistBundle = ScopeAssistBundle.EMPTY,
-        ceiling: ScopeExposureCeiling = ScopeExposureCeiling.UNOBSERVED,
-        iso: Int? = ceiling.resolvedISO(),
-    ): ScopeAssistBundle {
+    /** Existing Android bundle sampling retains its actual RGBA/stride2 default. */
+    fun sampleRaw(bytes: ByteArray, width: Int, height: Int, bytesPerRow: Int,
+        transfer: MonitorTransfer, includePoints: Boolean,
+        layout: MonitorScopeByteLayout = MonitorScopeByteLayout.RGBA,
+        stride: Int = POINT_STRIDE, includeSampleCoordinates: Boolean = false,
+        requireCompleteRows: Boolean = false): ScopeSamples {
+        if (stride <= 0) return ScopeSamples.EMPTY
+        if (requireCompleteRows && (width <= 0 || height <= 0 || width > Int.MAX_VALUE / 4 ||
+                bytesPerRow < width * 4 || bytes.size.toLong() < bytesPerRow.toLong() * height)) {
+            return ScopeSamples.EMPTY
+        }
         val histY = IntArray(256)
         val histR = IntArray(256)
         val histG = IntArray(256)
         val histB = IntArray(256)
-        val needsPoints = includePoints || includeVectorPoints
         val points =
-            if (needsPoints) {
-                val columns = (width + POINT_STRIDE - 1) / POINT_STRIDE
-                val rows = (height + POINT_STRIDE - 1) / POINT_STRIDE
+            if (includePoints) {
+                val columns = (width + stride - 1) / stride
+                val rows = (height + stride - 1) / stride
                 ArrayList<ScopePoint>(maxOf(0, columns * rows))
             } else {
                 ArrayList()
@@ -179,16 +179,16 @@ object ScopeSampler {
             while (x < width) {
                 val i = rowStart + x * 4
                 if (i + 2 >= bytes.size) break
-                val r = bytes[i].toInt() and 0xFF
+                val r = bytes[i + if (layout == MonitorScopeByteLayout.RGBA) 0 else 2].toInt() and 0xFF
                 val g = bytes[i + 1].toInt() and 0xFF
-                val b = bytes[i + 2].toInt() and 0xFF
+                val b = bytes[i + if (layout == MonitorScopeByteLayout.RGBA) 2 else 0].toInt() and 0xFF
                 val lumaValue = lumaW.first * r + lumaW.second * g + lumaW.third * b
                 val luma = lumaValue.roundToInt().coerceIn(0, 255)
                 histY[luma] += 1
                 histR[r] += 1
                 histG[g] += 1
                 histB[b] += 1
-                if (needsPoints) {
+                if (includePoints) {
                     points.add(
                         ScopePoint(
                             xRatio = x / widthDivisor,
@@ -197,13 +197,38 @@ object ScopeSampler {
                             green = g,
                             blue = b,
                             luma = luma,
+                            sampleX = if (includeSampleCoordinates) x else null,
+                            sampleY = if (includeSampleCoordinates) y else null,
                         ),
                     )
                 }
-                x += POINT_STRIDE
+                x += stride
             }
-            y += POINT_STRIDE
+            y += stride
         }
+        return ScopeSamples(histY, histR, histG, histB, points)
+    }
+
+    fun sample(
+        bytes: ByteArray,
+        width: Int,
+        height: Int,
+        bytesPerRow: Int,
+        transfer: MonitorTransfer,
+        includePoints: Boolean,
+        includeVectorPoints: Boolean = false,
+        look: MonitorLUTCube? = null,
+        trafficThreshold: Double = ScopeTrafficLights.DEFAULT_THRESHOLD,
+        previous: ScopeAssistBundle = ScopeAssistBundle.EMPTY,
+        ceiling: ScopeExposureCeiling = ScopeExposureCeiling.UNOBSERVED,
+        iso: Int? = ceiling.resolvedISO(),
+    ): ScopeAssistBundle {
+        val raw = sampleRaw(bytes, width, height, bytesPerRow, transfer, includePoints || includeVectorPoints)
+        val histY = raw.histogramLuma
+        val histR = raw.histogramRed
+        val histG = raw.histogramGreen
+        val histB = raw.histogramBlue
+        val points = raw.points
         val samples =
             ScopeSamples(
                 histogramLuma = histY,
@@ -257,6 +282,8 @@ object ScopeSampler {
                 green = displayByte(green),
                 blue = displayByte(blue),
                 luma = displayByte(luma),
+                sampleX = point.sampleX,
+                sampleY = point.sampleY,
             )
         }
     }

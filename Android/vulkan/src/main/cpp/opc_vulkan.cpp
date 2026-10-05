@@ -1,3 +1,4 @@
+#include <android/bitmap.h>
 #include <android/hardware_buffer.h>
 #include <android/hardware_buffer_jni.h>
 #include <android/log.h>
@@ -11,6 +12,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <cstddef>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -18,6 +20,8 @@
 #include "VulkanPresentBatch.h"
 #include "fullscreen_vert_spv.h"
 #include "feed_frag_spv.h"
+#include "bitmap_feed_vert_spv.h"
+#include "bitmap_feed_frag_spv.h"
 #include "peaking_blur_frag_spv.h"
 #include "peaking_mask_frag_spv.h"
 #include "blit_frag_spv.h"
@@ -144,8 +148,13 @@ VkShaderModule makeShader(VkDevice device, const uint32_t* words, uint32_t count
 
 }  // namespace
 
+#include "BitmapFeedTypes.h"
+
 struct OpcVk {
     std::mutex lock;
+    bool bitmapInput = false;
+    BitmapFeed bitmap{};
+    std::vector<ImageMem> bitmapPendingImages; 
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice gpu = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
@@ -817,10 +826,10 @@ static bool createDevice(OpcVk* r) {
     feats2.pNext = &ycbcrFeat;
     feats2.features.largePoints = VK_TRUE;
     VkDeviceCreateInfo dci{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    dci.pNext = &feats2;
+    dci.pNext = r->bitmapInput ? nullptr : &feats2;
     dci.queueCreateInfoCount = 1;
     dci.pQueueCreateInfos = &qci;
-    dci.enabledExtensionCount = 3;
+    dci.enabledExtensionCount = r->bitmapInput ? 1 : 3;
     dci.ppEnabledExtensionNames = devExt;
     if (vkCreateDevice(r->gpu, &dci, nullptr, &r->device)) return false;
     vkGetDeviceQueue(r->device, r->queueFamily, 0, &r->queue);
@@ -866,7 +875,30 @@ static bool waitFence(OpcVk* r, const char* where) {
     return false;
 }
 
+static bool createBitmapInputResources(OpcVk* r) {
+    // Bitmap input owns no decoder AHB, 1280-pixel bake or scope targets.
+    // Device/queue/command/fence/WSI remain the concrete common renderer.
+    VkSamplerCreateInfo sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    sampler.magFilter = VK_FILTER_LINEAR;
+    sampler.minFilter = VK_FILTER_LINEAR;
+    sampler.addressModeU = sampler.addressModeV = sampler.addressModeW =
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    if (vkCreateSampler(r->device, &sampler, nullptr, &r->linearSampler)) return false;
+    VkDescriptorSetLayoutBinding sampled{
+        0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+    r->blitSetLayout = makeSetLayout(r->device, {sampled});
+    if (!r->blitSetLayout) return false;
+    r->blitLayout = makeLayout(r->device, r->blitSetLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 16);
+    r->swapPassBgra = makePass(r->device, VK_FORMAT_B8G8R8A8_UNORM,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, false);
+    r->swapPassRgba = makePass(r->device, VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, false);
+    return r->linearSampler && r->blitSetLayout && r->blitLayout &&
+        r->swapPassBgra && r->swapPassRgba;
+}
+
 static bool createResources(OpcVk* r) {
+    if (r->bitmapInput) return createBitmapInputResources(r);
     auto usage =
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     if (makeImage(r, kSourceW, kSourceH, VK_FORMAT_R8G8B8A8_UNORM, usage, &r->source)) return false;
@@ -1140,6 +1172,31 @@ static void bindSwapPass(OpcVk* r) {
     r->swapPass = r->swapPassFallback;
 }
 
+static bool isEightBitUnorm(VkFormat format) {
+    return format == VK_FORMAT_R8G8B8A8_UNORM || format == VK_FORMAT_B8G8R8A8_UNORM;
+}
+
+// Prefer an 8-bit sRGB swapchain. The first 8-bit format a panel offers is often a wide-gamut
+// or linear space, and a Rec.709 monitor then displays the JPEG's sRGB numbers shifted cold.
+static VkSurfaceFormatKHR chooseBitmapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) {
+    const VkSurfaceFormatKHR fallback{
+        VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    if (formats.empty()) return fallback;
+    const VkFormat preferred[] = {VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8A8_UNORM};
+    for (VkFormat format : preferred) {
+        for (const auto& candidate : formats) {
+            if (candidate.format == format &&
+                candidate.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                return candidate;
+            }
+        }
+    }
+    for (const auto& candidate : formats) {
+        if (isEightBitUnorm(candidate.format)) return candidate;
+    }
+    return formats[0];
+}
+
 static bool createSwapchain(OpcVk* r, ANativeWindow* window, int w, int h) {
     if (!r->acquisition.prepareToRetire([&] { return waitFence(r, "retire acquisition"); })) return false;
     if (vkDeviceWaitIdle(r->device) != VK_SUCCESS) return false;
@@ -1163,12 +1220,17 @@ static bool createSwapchain(OpcVk* r, ANativeWindow* window, int w, int h) {
                           ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
                           : caps.currentTransform;
     r->swapExtent = {r->windowW, r->windowH};
-    if (caps.currentExtent.width != 0xFFFFFFFFu && r->preTransform == caps.currentTransform) {
+    if (caps.currentExtent.width != 0xFFFFFFFFu &&
+        (r->bitmapInput
+            ? !(caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+            : r->preTransform == caps.currentTransform)) {
         r->swapExtent = caps.currentExtent;
     }
-    r->swapExtent.width = std::clamp(r->swapExtent.width, caps.minImageExtent.width, caps.maxImageExtent.width);
-    r->swapExtent.height =
-        std::clamp(r->swapExtent.height, caps.minImageExtent.height, caps.maxImageExtent.height);
+    if (!r->bitmapInput) {
+        r->swapExtent.width = std::clamp(r->swapExtent.width, caps.minImageExtent.width, caps.maxImageExtent.width);
+        r->swapExtent.height =
+            std::clamp(r->swapExtent.height, caps.minImageExtent.height, caps.maxImageExtent.height);
+    }
     uint32_t fmtCount = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(r->gpu, r->surface, &fmtCount, nullptr);
     std::vector<VkSurfaceFormatKHR> fmts(fmtCount);
@@ -1180,6 +1242,10 @@ static bool createSwapchain(OpcVk* r, ANativeWindow* window, int w, int h) {
             break;
         }
     }
+    const VkSurfaceFormatKHR bitmapFormat = r->bitmapInput
+        ? chooseBitmapSurfaceFormat(fmts)
+        : VkSurfaceFormatKHR{r->swapFormat, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    if (r->bitmapInput) r->swapFormat = bitmapFormat.format;
     bindSwapPass(r);
     LOGI("swapchain win=%dx%d extent=%ux%u pre=0x%x current=0x%x supported=0x%x feedSwap=%d fmt=%u", w, h,
          r->swapExtent.width, r->swapExtent.height, r->preTransform, caps.currentTransform,
@@ -1188,8 +1254,13 @@ static bool createSwapchain(OpcVk* r, ANativeWindow* window, int w, int h) {
     VkSwapchainCreateInfoKHR ci{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
     ci.surface = r->surface;
     ci.minImageCount = std::max(2u, caps.minImageCount);
+    if (r->bitmapInput) {
+        ci.minImageCount = caps.minImageCount + 1;
+        if (caps.maxImageCount > 0 && ci.minImageCount > caps.maxImageCount)
+            ci.minImageCount = caps.maxImageCount;
+    }
     ci.imageFormat = r->swapFormat;
-    ci.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    ci.imageColorSpace = bitmapFormat.colorSpace;
     ci.imageExtent = r->swapExtent;
     ci.imageArrayLayers = 1;
     ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -1197,6 +1268,7 @@ static bool createSwapchain(OpcVk* r, ANativeWindow* window, int w, int h) {
     ci.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
     if (caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
         ci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    if (r->bitmapInput) ci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     ci.presentMode = VK_PRESENT_MODE_FIFO_KHR;
     ci.clipped = VK_TRUE;
     if (vkCreateSwapchainKHR(r->device, &ci, nullptr, &r->swapchain)) return false;
@@ -1719,7 +1791,7 @@ static bool submitAndPresentFrame(OpcVk* r, uint32_t idx, bool cpuReadback) {
         r->swapchainHealthy = false;
         return false;
     }
-    noteAhbReleased(r);
+    if (!r->bitmapInput) noteAhbReleased(r);
     // Presentation must wait for rendering even on the same VkQueue. Submit
     // this before host readback waits so timeout cannot strand an acquired image.
     const VkResult presented = vkQueuePresentKHR(r->queue, &batch.present);
@@ -1737,15 +1809,7 @@ static bool submitAndPresentFrame(OpcVk* r, uint32_t idx, bool cpuReadback) {
     return true;
 }
 
-static bool renderFrame(OpcVk* r) {
-    if (!r->swapchain || !r->window || !r->imported.view || !r->swapchainHealthy) return false;
-    if (!waitFence(r, "begin")) return false;
-    // First picture is the 720p RGB blit. Cube / 3D LUT upload / Fast of the
-    // bake on that submit missed the enable IDR and left WAITING FOR LIVE VIEW.
-    const bool firstPicture = !r->hasPresented;
-    const bool grade = !firstPicture && feedNeedsGrade(r);
-    const bool tap = !firstPicture && r->needTap != 0;
-    if ((grade || tap) && (!ensureGradePipes(r) || !ensureWell(r) || !ensureCubeImages(r))) return false;
+static bool acquireFrameImage(OpcVk* r, uint32_t* imageIndex) {
     uint32_t idx = r->acquiredImage;
     if (!r->hasAcquiredImage) {
         vkResetFences(r->device, 1, &r->fence);
@@ -1765,6 +1829,21 @@ static bool renderFrame(OpcVk* r) {
     // consumed its render-finished semaphore. Retain idx if this wait times out.
     if (!waitFence(r, "acquire")) return false;
     vkResetFences(r->device, 1, &r->fence);
+    *imageIndex = idx;
+    return true;
+}
+
+static bool renderFrame(OpcVk* r) {
+    if (!r->swapchain || !r->window || !r->imported.view || !r->swapchainHealthy) return false;
+    if (!waitFence(r, "begin")) return false;
+    // First picture is the 720p RGB blit. Cube / 3D LUT upload / Fast of the
+    // bake on that submit missed the enable IDR and left WAITING FOR LIVE VIEW.
+    const bool firstPicture = !r->hasPresented;
+    const bool grade = !firstPicture && feedNeedsGrade(r);
+    const bool tap = !firstPicture && r->needTap != 0;
+    if ((grade || tap) && (!ensureGradePipes(r) || !ensureWell(r) || !ensureCubeImages(r))) return false;
+    uint32_t idx = 0;
+    if (!acquireFrameImage(r, &idx)) return false;
     float destX, destY, destW, destH;
     feedDest(r, &destX, &destY, &destW, &destH);
     vkResetCommandBuffer(r->cmd, 0);
@@ -2194,6 +2273,8 @@ static bool renderFrame(OpcVk* r) {
 
 // Teardown retains the existing blocking idle contract. A WSI acquisition is
 // not queue work: wait for its signal too before destroying the shared fence.
+#include "BitmapFeedPipeline.h"
+
 static void finishAcquisitionForShutdown(OpcVk* r) {
     if (!r->acquisition.pending) return;
     const VkResult result = vkWaitForFences(r->device, 1, &r->fence, VK_TRUE, UINT64_MAX);
@@ -2210,6 +2291,9 @@ static void destroyAll(OpcVk* r) {
     vkDeviceWaitIdle(r->device);
     destroyAhbCache(r);
     destroyImportedConversion(r);
+    destroyBitmapFeed(r);
+    for (auto& image : r->bitmapPendingImages) destroyImage(r->device, &image);
+    r->bitmapPendingImages.clear();
     dropWindow(r);
     auto killPipe = [&](VkPipeline p) { if (p) vkDestroyPipeline(r->device, p, nullptr); };
     killPipe(r->blitPipe);
@@ -2625,4 +2709,158 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeProbe(JNIEnv*, jclass) {
     uint32_t n = 0;
     return vkEnumerateInstanceExtensionProperties(nullptr, &n, nullptr) == VK_SUCCESS ? JNI_TRUE : JNI_FALSE;
+}
+
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeProbeBitmap(JNIEnv*, jclass) {
+    uint32_t count = 0;
+    return vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr) == VK_SUCCESS &&
+        count > 0 ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeCreateBitmap(JNIEnv*, jclass) {
+    auto* r = new OpcVk();
+    r->bitmapInput = true;
+    if (!createDevice(r) || !createResources(r)) {
+        destroyAll(r);
+        delete r;
+        return 0;
+    }
+    r->ready = true;
+    return reinterpret_cast<jlong>(r);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeSubmitBitmap(
+    JNIEnv* env, jclass, jlong handle, jobject bitmap
+) {
+    auto* r = fromHandle(handle);
+    if (!r || !bitmap) return JNI_FALSE;
+    std::lock_guard<std::mutex> guard(r->lock);
+    if (!r->ready || !r->bitmapInput || r->bitmap.failed || !waitFence(r, "bitmap source")) return JNI_FALSE;
+    AndroidBitmapInfo info{};
+    if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS ||
+        info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || !info.width || !info.height ||
+        static_cast<uint64_t>(info.width) * 4 > info.stride ||
+        static_cast<uint64_t>(info.width) * info.height * 4 > SIZE_MAX) return JNI_FALSE;
+    void* pixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS) return JNI_FALSE;
+    const size_t row = static_cast<size_t>(info.width) * 4;
+    const size_t count = row * info.height;
+    std::vector<uint8_t> packed(count);
+    for (uint32_t y = 0; y < info.height; ++y) {
+        memcpy(packed.data() + y * row, static_cast<const uint8_t*>(pixels) + y * info.stride, row);
+    }
+    AndroidBitmap_unlockPixels(env, bitmap);
+    if (!uploadBitmapFeedImage(r, &r->bitmap.source, info.width, info.height,
+            VK_FORMAT_B8G8R8A8_UNORM, packed.data(), packed.size())) return JNI_FALSE;
+    r->bitmap.params.sourceSize[0] = info.width;
+    r->bitmap.params.sourceSize[1] = info.height;
+    r->bitmap.hasFrame = true;
+    return renderBitmapFeed(r) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeConfigureBitmap(
+    JNIEnv* env, jclass, jlong handle, jfloatArray params,
+    jint lutSize, jbyteArray lut, jint paintSize, jbyteArray paint,
+    jint weightSize, jbyteArray weight
+) {
+    auto* r = fromHandle(handle);
+    if (!r || !params || env->GetArrayLength(params) != sizeof(BitmapFeedParams) / sizeof(float)) return JNI_FALSE;
+    std::lock_guard<std::mutex> guard(r->lock);
+    if (!r->ready || !r->bitmapInput || r->bitmap.failed || !waitFence(r, "bitmap graph") || !ensureBitmapFeedResources(r)) return JNI_FALSE;
+    BitmapFeedParams next{};
+    env->GetFloatArrayRegion(params, 0, sizeof(next) / sizeof(float), reinterpret_cast<float*>(&next));
+    if (env->ExceptionCheck()) return JNI_FALSE;
+    next.sourceSize[0] = r->bitmap.params.sourceSize[0];
+    next.sourceSize[1] = r->bitmap.params.sourceSize[1];
+    const jint sizes[3]{lutSize, paintSize, weightSize};
+    jbyteArray arrays[3]{lut, paint, weight};
+    bool uploaded[3]{};
+    for (int slot = 0; slot < 3; ++slot) {
+        // Original independent-LIMITS policy: don't upload limits when off,
+        // and don't attempt the weight after paint refused.
+        if (slot > 0 && next.limitsOn <= 0.5f) continue;
+        if (slot == 2 && !uploaded[1]) continue;
+        const int n = sizes[slot];
+        if (!arrays[slot] || n < 2) continue;
+        const uint64_t edge = static_cast<uint64_t>(n);
+        // A Java byte-array length is signed 32-bit. Reject an impossible
+        // payload before cubic multiplication can wrap; no supported cube cap.
+        if (edge > static_cast<uint64_t>(INT32_MAX) / 4 / edge / edge) continue;
+        const uint64_t count = edge * edge * edge * 4;
+        if (count != static_cast<uint64_t>(env->GetArrayLength(arrays[slot]))) continue;
+        std::vector<uint8_t> bytes(static_cast<size_t>(count));
+        env->GetByteArrayRegion(arrays[slot], 0, static_cast<jsize>(count), reinterpret_cast<jbyte*>(bytes.data()));
+        if (env->ExceptionCheck()) return JNI_FALSE;
+        uploaded[slot] = uploadBitmapFeedImage(r, &r->bitmap.cubes[slot],
+            n * n, n, VK_FORMAT_R8G8B8A8_UNORM, bytes.data(), bytes.size());
+        if (!uploaded[slot] && r->bitmap.failed) return JNI_FALSE;
+    }
+    next.lutSize = uploaded[0] ? lutSize : 0;
+    next.paintSize = uploaded[1] ? paintSize : 0;
+    next.weightSize = uploaded[2] ? weightSize : 0;
+    next.limitsOn = next.limitsOn > 0.5f && uploaded[1] && uploaded[2] ? 1.f : 0.f;
+    r->bitmap.params = next;
+    // Source donor updates uniforms/cubes without inventing a new picture.
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeSetBitmapPaused(
+    JNIEnv*, jclass, jlong handle, jboolean paused
+) {
+    auto* r = fromHandle(handle);
+    if (!r) return JNI_FALSE;
+    std::lock_guard<std::mutex> guard(r->lock);
+    if (!r->ready || !r->bitmapInput || r->bitmap.failed) return JNI_FALSE;
+    r->bitmap.paused = paused == JNI_TRUE;
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeClearBitmap(JNIEnv*, jclass, jlong handle) {
+    auto* r = fromHandle(handle);
+    if (!r) return;
+    std::lock_guard<std::mutex> guard(r->lock);
+    if (r->ready && r->bitmapInput) r->bitmap.hasFrame = false;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeRedrawBitmap(JNIEnv*, jclass, jlong handle) {
+    auto* r = fromHandle(handle);
+    if (!r) return JNI_FALSE;
+    std::lock_guard<std::mutex> guard(r->lock);
+    return r->ready && r->bitmapInput && renderBitmapFeed(r) ? JNI_TRUE : JNI_FALSE;
+}
+
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeAttachBitmapWindow(
+    JNIEnv* env, jclass, jlong handle, jobject surface
+) {
+    auto* r = fromHandle(handle);
+    if (!r || !surface) return JNI_FALSE;
+    std::lock_guard<std::mutex> guard(r->lock);
+    if (!r->ready || !r->bitmapInput || r->bitmap.failed) return JNI_FALSE;
+    ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
+    if (!window) return JNI_FALSE;
+    const bool attached = createSwapchain(r, window,
+        ANativeWindow_getWidth(window), ANativeWindow_getHeight(window));
+    ANativeWindow_release(window);
+    return attached ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeClearBitmapPlan(JNIEnv*, jclass, jlong handle) {
+    auto* r = fromHandle(handle);
+    if (!r) return;
+    std::lock_guard<std::mutex> guard(r->lock);
+    if (!r->ready || !r->bitmapInput || r->bitmap.failed) return;
+    // Preserve the original Bitmap clear-plan policy, including remaining controls.
+    r->bitmap.params.lutSize = 0;
+    r->bitmap.params.limitsOn = 0;
 }

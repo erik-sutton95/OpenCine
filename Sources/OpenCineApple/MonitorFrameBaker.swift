@@ -3,6 +3,30 @@ import CoreImage
 import Foundation
 import Metal
 
+/// Only a native publication lease constructs this admission value; no arbitrary workflow callback.
+public struct MonitorFrameBakeSource: Sendable {
+    fileprivate let active: @Sendable () -> Bool
+    #if os(iOS)
+    public init(lease: LiveFrameSampleBus.Source) { active = { lease.isActive } }
+    #endif
+}
+
+/// Explicit encoded-image context. Existing native consumers keep their unmanaged default.
+public enum MonitorFrameBakeWorkingSpace: Sendable {
+    case unmanagedEncodedCodes
+    case encodedSRGB
+}
+
+public enum MonitorFrameBakeScheduling: Equatable, Sendable {
+    case overlapGPUWork
+    case waitForGPUCompletion
+}
+
+public enum MonitorFrameBakeUnavailableTarget: Equatable, Sendable {
+    case retainLatest
+    case drop
+}
+
 /// Evaluate the native look graph at feed/panel size off-main.
 /// The native picture host scales the published texture into the drawable  -  no `createCGImage`.
 public final class MonitorFrameBaker: @unchecked Sendable {
@@ -16,18 +40,36 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         public let timeNs: Int64?
         public let unmanaged: Bool
         public let overlay: Bool
+        fileprivate let source: MonitorFrameBakeSource?
+        fileprivate let epoch: UInt64
+        fileprivate weak var owner: MonitorFrameBaker?
+        /// False once its source lease retires or its baker resets, closes or is released.
+        public var isCurrent: Bool { owner?.admits(epoch: epoch, source: source) ?? false }
     }
     private let device: MTLDevice
+    private let scheduling: MonitorFrameBakeScheduling
+    private let unavailableTarget: MonitorFrameBakeUnavailableTarget
     private let commandQueue: MTLCommandQueue
     private let lutContext: CIContext
     private let displayContext: CIContext
+    private let destinationColorSpace: CGColorSpace
     private let workQueue = DispatchQueue(label: "opv.metal-feed-bake", qos: .userInitiated)
     private let lock = NSLock()
-    private var pending:
-        (
-            image: CIImage, drawableSize: CGSize, pixelFormat: MTLPixelFormat, unmanaged: Bool,
-            overlay: Bool, id: UInt64, generation: Int, timeNs: Int64?
-        )?
+    private struct Request {
+        let prepare: @Sendable () -> CIImage?
+        let drawableSize: CGSize
+        let pixelFormat: MTLPixelFormat
+        let unmanaged: Bool
+        let overlay: Bool
+        let id: UInt64
+        let generation: Int
+        let timeNs: Int64?
+        let epoch: UInt64
+        let source: MonitorFrameBakeSource?
+    }
+    private var pending: Request?
+    private var epoch: UInt64 = 0
+    private var closed = false
     private var pendingDone: (@Sendable () -> Void)?
     private var busy = false
     private var textures: [MTLTexture] = []
@@ -38,34 +80,79 @@ public final class MonitorFrameBaker: @unchecked Sendable {
     private var nextFrameID: UInt64 = 0
     private static let depth = 3
 
-    public init(device: MTLDevice) {
+    public init(device: MTLDevice, workingSpace: MonitorFrameBakeWorkingSpace = .unmanagedEncodedCodes,
+        scheduling: MonitorFrameBakeScheduling = .overlapGPUWork,
+        unavailableTarget: MonitorFrameBakeUnavailableTarget = .retainLatest) {
         self.device = device
+        self.scheduling = scheduling
+        self.unavailableTarget = unavailableTarget
         self.commandQueue = device.makeCommandQueue()!
-        self.lutContext = CIContext(
-            mtlCommandQueue: commandQueue,
-            options: MonitorWorkingSpace.contextOptions)
-        self.displayContext = CIContext(
-            mtlCommandQueue: commandQueue,
-            options: MonitorWorkingSpace.displayContextOptions)
+        switch workingSpace {
+        case .unmanagedEncodedCodes:
+            self.destinationColorSpace = MonitorWorkingSpace.metalDestination
+            self.lutContext = CIContext(mtlCommandQueue: commandQueue, options: MonitorWorkingSpace.contextOptions)
+            self.displayContext = CIContext(mtlCommandQueue: commandQueue, options: MonitorWorkingSpace.displayContextOptions)
+        case .encodedSRGB:
+            let space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+            let options: [CIContextOption: Any] = [.workingFormat: CIFormat.BGRA8,
+                .workingColorSpace: space, .cacheIntermediates: false]
+            self.destinationColorSpace = space
+            self.lutContext = CIContext(mtlCommandQueue: commandQueue, options: options)
+            self.displayContext = CIContext(mtlCommandQueue: commandQueue, options: options)
+        }
     }
 
     public func scheduleBake(
         image: CIImage, drawableSize: CGSize, pixelFormat: MTLPixelFormat,
         unmanaged: Bool = true, overlay: Bool = false,
-        generation: Int = 0, timeNs: Int64? = nil,
+        generation: Int = 0, timeNs: Int64? = nil, source: MonitorFrameBakeSource? = nil,
+        onComplete: @escaping @Sendable () -> Void
+    ) {
+        scheduleBake(preparing: { image }, drawableSize: drawableSize,
+            pixelFormat: pixelFormat, unmanaged: unmanaged, overlay: overlay,
+            generation: generation, timeNs: timeNs, source: source, onComplete: onComplete)
+    }
+
+    /// The bounded native graph preparation runs on the existing bake queue, outside its lock.
+    /// A source adapter supplies calibration/cube facts; this owner coalesces and renders the work.
+    public func scheduleBake(
+        preparing prepare: @escaping @Sendable () -> CIImage?, drawableSize: CGSize,
+        pixelFormat: MTLPixelFormat, unmanaged: Bool = true, overlay: Bool = false,
+        generation: Int = 0, timeNs: Int64? = nil, source: MonitorFrameBakeSource? = nil,
         onComplete: @escaping @Sendable () -> Void
     ) {
         guard drawableSize.width > 0, drawableSize.height > 0 else { return }
         lock.lock()
+        guard !closed else { lock.unlock(); return }
         nextFrameID &+= 1
-        pending = (
-            image, drawableSize, pixelFormat, unmanaged, overlay, nextFrameID, generation, timeNs
-        )
+        pending = Request(prepare: prepare, drawableSize: drawableSize,
+            pixelFormat: pixelFormat, unmanaged: unmanaged, overlay: overlay,
+            id: nextFrameID, generation: generation, timeNs: timeNs, epoch: epoch, source: source)
         pendingDone = onComplete
         let start = !busy
         if start { busy = true }
         lock.unlock()
         if start { workQueue.async { [self] in run() } }
+    }
+
+    /// Retire queued/preparing/GPU work without invalidating textures held by a present.
+    public func reset() {
+        lock.lock()
+        epoch &+= 1
+        pending = nil
+        pendingDone = nil
+        published = nil
+        lock.unlock()
+    }
+
+    public func close() {
+        lock.lock()
+        closed = true
+        epoch &+= 1
+        pending = nil
+        pendingDone = nil
+        published = nil
+        lock.unlock()
     }
 
     public func bakedTexture(for drawableSize: CGSize, pixelFormat: MTLPixelFormat) -> MTLTexture? {
@@ -75,7 +162,8 @@ public final class MonitorFrameBaker: @unchecked Sendable {
     public func acquireFrame(for drawableSize: CGSize, pixelFormat: MTLPixelFormat) -> Frame? {
         lock.lock()
         defer { lock.unlock() }
-        guard let published,
+        // Under `lock`: check admission directly, never through the locking `isCurrent`.
+        guard let published, admittedLocked(epoch: published.epoch, source: published.source),
             published.drawableSize == drawableSize,
             published.pixelFormat == pixelFormat
         else { return nil }
@@ -93,6 +181,17 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         } else {
             retained[key] = count - 1
         }
+    }
+
+    /// Callers hold `lock`. Reset and close advance `epoch`, retiring every earlier frame.
+    private func admittedLocked(epoch frameEpoch: UInt64, source: MonitorFrameBakeSource?) -> Bool {
+        !closed && frameEpoch == epoch && (source?.active() ?? true)
+    }
+
+    fileprivate func admits(epoch frameEpoch: UInt64, source: MonitorFrameBakeSource?) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return admittedLocked(epoch: frameEpoch, source: source)
     }
 
     /// CI bottom-left → Metal/MPS origin. Preserve the source-to-bake orientation.
@@ -134,20 +233,47 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         pendingDone = nil
         lock.unlock()
 
-        let started = bake(
-            request.image, drawableSize: request.drawableSize, pixelFormat: request.pixelFormat,
-            unmanaged: request.unmanaged, overlay: request.overlay,
-            id: request.id, generation: request.generation, timeNs: request.timeNs
-        ) {
-            done?()
+        guard request.source?.active() ?? true else {
+            workQueue.async { [self] in run() }
+            return
         }
-        if started {
-            // Overlap the next cube while this one is still on the GPU.
+        guard let image = autoreleasepool(invoking: request.prepare) else {
+            lock.lock()
+            let admitted = admittedLocked(epoch: request.epoch, source: request.source)
+            lock.unlock()
+            if admitted { done?() }
             workQueue.async { [self] in run() }
             return
         }
         lock.lock()
-        if pending == nil {
+        let admitted = admittedLocked(epoch: request.epoch, source: request.source)
+        lock.unlock()
+        guard admitted else {
+            workQueue.async { [self] in run() }
+            return
+        }
+        let started = bake(
+            image, drawableSize: request.drawableSize, pixelFormat: request.pixelFormat,
+            unmanaged: request.unmanaged, overlay: request.overlay,
+            id: request.id, generation: request.generation, timeNs: request.timeNs, epoch: request.epoch, sourceLease: request.source
+        ) {
+            done?()
+        }
+        if started {
+            // The existing default overlaps work; a source may retain its serial GPU cadence.
+            if scheduling == .overlapGPUWork { workQueue.async { [self] in run() } }
+            return
+        }
+        if unavailableTarget == .drop {
+            lock.lock()
+            let admitted = admittedLocked(epoch: request.epoch, source: request.source)
+            lock.unlock()
+            if admitted { done?() }
+            workQueue.async { [self] in run() }
+            return
+        }
+        lock.lock()
+        if !closed, request.epoch == epoch, pending == nil {
             pending = request
             pendingDone = done
         }
@@ -159,7 +285,7 @@ public final class MonitorFrameBaker: @unchecked Sendable {
     @discardableResult
     private func bake(
         _ source: CIImage, drawableSize: CGSize, pixelFormat: MTLPixelFormat,
-        unmanaged: Bool, overlay: Bool, id: UInt64, generation: Int, timeNs: Int64?,
+        unmanaged: Bool, overlay: Bool, id: UInt64, generation: Int, timeNs: Int64?, epoch requestEpoch: UInt64, sourceLease: MonitorFrameBakeSource?,
         finished: @escaping @Sendable () -> Void
     ) -> Bool {
         let extent = source.extent
@@ -196,18 +322,19 @@ public final class MonitorFrameBaker: @unchecked Sendable {
         context.render(
             prepared, to: target, commandBuffer: commandBuffer,
             bounds: CGRect(x: 0, y: 0, width: width, height: height),
-            colorSpace: MonitorWorkingSpace.metalDestination)
+            colorSpace: destinationColorSpace)
         let completedFrame = Frame(texture: target, drawableSize: drawableSize,
             pixelFormat: pixelFormat, id: id, generation: generation, timeNs: timeNs,
-            unmanaged: unmanaged, overlay: overlay)
+            unmanaged: unmanaged, overlay: overlay, source: sourceLease, epoch: requestEpoch, owner: self)
         commandBuffer.addCompletedHandler { [self] command in
             lock.lock()
             baking.remove(token)
-            if command.status == .completed, id > (published?.id ?? 0) {
+            let admitted = admittedLocked(epoch: requestEpoch, source: sourceLease)
+            if admitted, command.status == .completed, id > (published?.id ?? 0) {
                 published = completedFrame
             }
             lock.unlock()
-            finished()
+            if admitted { finished() }
             workQueue.async { [self] in run() }
         }
         commandBuffer.commit()

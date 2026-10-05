@@ -24,6 +24,7 @@ class FeedEffectsRenderPlan(
     val splitComparison: Boolean,
     val splitVertical: Boolean,
     val scopeTap: ScopeTapPolicy = ScopeTapPolicy.IDLE,
+    val zebraMaskPolicy: MonitorZebraMaskPolicy = MonitorZebraMaskPolicy(),
 ) {
     val falseColorOn: Boolean
         get() = falseColorPaint != null && falseColorWeight != null
@@ -33,7 +34,7 @@ class FeedEffectsRenderPlan(
         lutCube, falseColorPaint, falseColorWeight, peaking, peakingColor, peakingRatioThreshold,
         peakingNoiseGate, zebraHighlightOn, zebraHighlightCode, zebraHighlightColor, zebraMidtoneOn,
         zebraMidtoneCode, zebraMidtoneHalf, zebraMidtoneColor, splitComparison, splitVertical,
-        scopeTap.copy(previewOwner = owner),
+        scopeTap.copy(previewOwner = owner), zebraMaskPolicy,
     )
 
     /** Same shader set and cube textures; only uniforms or scope policy differ. */
@@ -75,6 +76,8 @@ class FeedEffectsRenderPlan(
             h = 31 * h + zebraMidtoneColor.contentHashCode()
             h = 31 * h + if (splitComparison) 1 else 0
             h = 31 * h + if (splitVertical) 1 else 0
+            // The default preserves existing graph keys; an explicit different mask retires the look.
+            if (zebraMaskPolicy != MonitorZebraMaskPolicy()) h = 31 * h + zebraMaskPolicy.hashCode()
             return h
         }
 
