@@ -105,8 +105,11 @@ repeats cmd 226 MOVE every 50 ms (a held stick at rest keeps repeating MOVE 0, 0
 release request itself), single steering MOVEs, release, recenter, flip, SET_ANGLE with yaw wrapped
 and pitch kept inside `LunaCameraSession.motion`, and GET_ANGLE as `latestPose`. It implements the
 shared `MotionService` over those requests; `move(to:over:)` accepts only `over: nil`, because the
-camera plans each SET as its own move. Aim until arrival, head tracking and programmed moves stay
-in the app for now. Kotlin `LunaMotionService` (insta360-luna) is its twin over the backend's
+camera plans each SET as its own move. The app runs aim until arrival, head tracking and
+programmed moves against its live state, on shared math: `LunaMotionService.hasReached` (arrival
+within the declared tolerance on each axis), `LunaHeadTrackSteering` (the stick toward the AirPods
+head from GET_ANGLE and a model of the sent stick), OpenCineMotion's `HeadTrack.reference` (the
+head's fitted angle, rate and acceleration) and `GimbalProgram.pose(at:)`. Kotlin `LunaMotionService` (insta360-luna) is its twin over the backend's
 `CameraControls` (the stick stream at 50 ms, release, recenter, flip, SET_ANGLE, GET_ANGLE as `poses`);
 the Android app keeps its aim, level and programmed-move loops the same way.
 

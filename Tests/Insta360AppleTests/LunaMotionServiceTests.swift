@@ -156,4 +156,30 @@ final class LunaMotionServiceTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(20))
         XCTAssertTrue(wire.sent.isEmpty)
     }
+
+    func testArrivalIsWithinHalfADegreeOnEachAxisAcrossTheWrap() {
+        let target = GimbalWaypoint(yawDeg: 200, pitchDeg: 10, zoom: 1)
+        XCTAssertTrue(LunaMotionService.hasReached(LunaGimbalAngle(pitch: 10.4, yaw: -160.4), target))
+        XCTAssertFalse(LunaMotionService.hasReached(LunaGimbalAngle(pitch: 10.6, yaw: -160), target))
+        XCTAssertFalse(LunaMotionService.hasReached(LunaGimbalAngle(pitch: 10, yaw: -159.4), target))
+    }
+
+    func testHeadTrackSteeringFeedsRatePullsAngleAndModelsTheStick() {
+        let tuning = LunaHeadTrackSteering.Tuning()
+        var steering = LunaHeadTrackSteering(now: 0)
+        // Still camera, head 10° right moving 15 deg/s: 15 + 4 × 10 = 55 deg/s, 73 units.
+        let head = HeadTrack.Reference(yaw: 10, pitch: 120, yawRate: 15)
+        let first = steering.step(yaw: 0, pitch: 0, readAt: 0, toward: head, now: 0, tuning: tuning)
+        XCTAssertEqual(first.pan, 73)
+        XCTAssertEqual(first.wantPitch, 90, "pitch stays inside the Luna's tilt reach")
+        XCTAssertEqual(first.tilt, 99, "the stick clamps to ±99")
+        // One lag later the modelled rate is 1 - 1/e of the stick's; GET_ANGLE is carried on by it.
+        steering.sent(pan: 73, tilt: 0, now: 0.23, tuning: tuning)
+        let rate = 73 * 0.75 * (1 - exp(-1))
+        let second = steering.step(yaw: 0, pitch: 0, readAt: 0.2, toward: head, now: 0.23, tuning: tuning)
+        XCTAssertEqual(second.yaw, rate * (0.03 + 0.015), accuracy: 1e-9)
+        XCTAssertEqual(second.pitch, 0)
+        XCTAssertEqual(
+            second.pan, Int32(((15 + 4 * (10 - second.yaw)) / 0.75).rounded()))
+    }
 }

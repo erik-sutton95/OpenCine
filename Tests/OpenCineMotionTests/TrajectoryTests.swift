@@ -110,6 +110,28 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         #expect(!mark.onScreen)
         #expect(abs(mark.nx) < 1e-9)
     }
+
+    // Moved from the Insta app's LunaShellMappingTests.testProgrammedMovePathInterpolatesLegsAndCurve.
+    @Test func posePathInterpolatesLegsAndCurve() throws {
+        let a = GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1)
+        let b = GimbalWaypoint(yawDeg: 40, pitchDeg: 10, zoom: 1)
+        let c = GimbalWaypoint(yawDeg: 40, pitchDeg: 30, zoom: 1)
+        var take = GimbalProgram(a: a, b: b, durationAB: 4, durationBC: 2)
+        #expect(take.duration == 4)
+        #expect(abs((take.pose(at: 1)?.yawDeg ?? .nan) - 10) < 1e-9)
+        #expect(take.pose(at: 9) == b)
+        take.c = c
+        take.smoothness = 0
+        #expect(take.duration == 6)
+        #expect(abs((take.pose(at: 5)?.pitchDeg ?? .nan) - 20) < 1e-9)
+        #expect(take.pose(at: 6) == c)
+        // Smoothness rounds the B corner: the path no longer passes through B.
+        take.smoothness = 1
+        let corner = try #require(take.pose(at: 4))
+        #expect(GimbalPath.angularDistance(corner, b) > 1)
+        #expect(take.pose(at: 6) == c)
+        #expect(GimbalProgram(a: a).pose(at: 1) == nil)
+    }
 }
 
 @Suite struct GimbalProgramCurveTests {
@@ -264,6 +286,27 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         #expect(HeadTrack.wrapDeg(-190) == 170)
         #expect(abs(HeadTrack.wrapDeg(180)) == 180)
         #expect(HeadTrack.wrapDeg(20) == 20)
+    }
+
+    // Moved from the Insta app's LunaShellMappingTests.testHeadTrackReferenceFitsRateAndAcceleration
+    // (the app's fit window, 0.3 s).
+    @Test func referenceFitsRateAndAcceleration() {
+        #expect(HeadTrack.reference([], at: 1, fitWindow: 0.3) == nil)
+        // yaw = 5 + 30 t + 20 t² (rate 30 + 40 t, accel 40), still pitch, every 40 ms.
+        let samples = (0..<7).map { i -> HeadTrack.Sample in
+            let t = Double(i) * 0.04
+            return HeadTrack.Sample(t: 10 + t, yaw: 5 + 30 * t + 20 * t * t, pitch: 3)
+        }
+        let head = HeadTrack.reference(samples, at: 10.24 + 0.05, fitWindow: 0.3)
+        #expect(abs((head?.yawRate ?? 0) - (30 + 40 * 0.24)) < 1e-6)
+        #expect(abs((head?.yawAccel ?? 0) - 40) < 1e-6)
+        let expectedYaw: Double = 5 + 30 * 0.29 + 20 * 0.29 * 0.29
+        #expect(abs((head?.yaw ?? 0) - expectedYaw) < 1e-6)
+        #expect(abs(head?.pitchRate ?? 1) < 1e-9)
+        // Two samples: a straight line. A stale head holds, with no rate to feed forward.
+        let line = [HeadTrack.Sample(t: 1, yaw: 0, pitch: 0), HeadTrack.Sample(t: 1.04, yaw: 2, pitch: 0)]
+        #expect(abs((HeadTrack.reference(line, at: 1.14, fitWindow: 0.3)?.yaw ?? 0) - (2 + 50 * 0.1)) < 1e-6)
+        #expect(HeadTrack.reference(line, at: 9, fitWindow: 0.3) == HeadTrack.Reference(yaw: 2, pitch: 0))
     }
 }
 

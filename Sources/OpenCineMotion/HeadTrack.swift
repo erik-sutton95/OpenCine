@@ -112,3 +112,92 @@ public enum HeadTrack {
 
     public static func radToDeg(_ rad: Double) -> Double { rad * 180 / .pi }
 }
+
+extension HeadTrack {
+    /// One head-tracking target at its measurement time (uptime seconds).
+    public struct Sample: Equatable, Sendable {
+        public var t: Double
+        public var yaw: Double
+        public var pitch: Double
+
+        public init(t: Double, yaw: Double, pitch: Double) {
+            self.t = t
+            self.yaw = yaw
+            self.pitch = pitch
+        }
+    }
+
+    /// Where the head points: degrees, with rate (deg/s) and acceleration (deg/s²) to feed
+    /// forward.
+    public struct Reference: Equatable, Sendable {
+        public var yaw: Double
+        public var pitch: Double
+        public var yawRate: Double
+        public var pitchRate: Double
+        public var yawAccel: Double
+        public var pitchAccel: Double
+
+        public init(
+            yaw: Double, pitch: Double, yawRate: Double = 0, pitchRate: Double = 0,
+            yawAccel: Double = 0, pitchAccel: Double = 0
+        ) {
+            self.yaw = yaw
+            self.pitch = pitch
+            self.yawRate = yawRate
+            self.pitchRate = pitchRate
+            self.yawAccel = yawAccel
+            self.pitchAccel = pitchAccel
+        }
+    }
+
+    /// Head angle at `time` with its rate and acceleration, from a quadratic least-squares
+    /// fit of the samples within `fitWindow` seconds of the newest (a line with fewer than
+    /// four), carried on past the newest sample; after 0.2 s without one it holds.
+    public static func reference(_ samples: [Sample], at time: Double, fitWindow: Double) -> Reference? {
+        guard let newest = samples.last else { return nil }
+        let recent = samples.filter { newest.t - $0.t <= fitWindow }
+        let xs = recent.map { $0.t - newest.t }
+        func fit(_ ys: [Double]) -> (value: Double, rate: Double, accel: Double) {
+            let n = Double(xs.count)
+            var s = [Double](repeating: 0, count: 5)
+            var sy = [0.0, 0.0, 0.0]
+            for (x, y) in zip(xs, ys) {
+                var power = 1.0
+                for k in 0..<5 {
+                    s[k] += power
+                    if k < 3 { sy[k] += power * y }
+                    power *= x
+                }
+            }
+            func det3(_ m: [[Double]]) -> Double {
+                m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                    + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+            }
+            if xs.count >= 4 {
+                let m = [[s[0], s[1], s[2]], [s[1], s[2], s[3]], [s[2], s[3], s[4]]]
+                let d = det3(m)
+                if abs(d) > 1e-12 {
+                    func solve(_ column: Int) -> Double {
+                        var c = m
+                        for row in 0..<3 { c[row][column] = sy[row] }
+                        return det3(c) / d
+                    }
+                    return (solve(0), solve(1), 2 * solve(2))
+                }
+            }
+            let denominator = n * s[2] - s[1] * s[1]
+            guard xs.count >= 2, abs(denominator) > 1e-12 else { return (ys.last ?? 0, 0, 0) }
+            let rate = (n * sy[1] - s[1] * sy[0]) / denominator
+            return ((sy[0] - rate * s[1]) / n, rate, 0)
+        }
+        // A stale head (no sample for 0.2 s) holds its last angle instead of drifting on.
+        guard time - newest.t <= 0.2 else { return Reference(yaw: newest.yaw, pitch: newest.pitch) }
+        let yaw = fit(recent.map(\.yaw))
+        let pitch = fit(recent.map(\.pitch))
+        let h = max(time - newest.t, 0)
+        return Reference(
+            yaw: yaw.value + yaw.rate * h + yaw.accel * h * h / 2,
+            pitch: pitch.value + pitch.rate * h + pitch.accel * h * h / 2,
+            yawRate: yaw.rate, pitchRate: pitch.rate, yawAccel: yaw.accel, pitchAccel: pitch.accel)
+    }
+}
