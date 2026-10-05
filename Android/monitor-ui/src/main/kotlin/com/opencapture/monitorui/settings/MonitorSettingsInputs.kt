@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,10 +80,12 @@ public fun MonitorSettingsActionPill(
 ) {
     Row(
         modifier
+            // 48 dp touch target around the unchanged capsule; inline rows are 50 dp tall.
+            .settingsClickable(role = Role.Button, enabled = enabled, onClick = onClick)
+            .minimumInteractiveComponentSize()
             .alpha(if (enabled) 1f else 0.45f)
             .background(background, CircleShape)
             .border(1.dp, tint.copy(alpha = 0.5f), CircleShape)
-            .settingsClickable(role = Role.Button, enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
