@@ -20,6 +20,10 @@ object CameraCommands {
     const val COLOR_NORMAL10 = 0x3D
     /** Semantic D-Log M. Nano and Pocket 3 SET is `3D`. */
     const val COLOR_DLOG_M = 0x00
+    /** I-Log (Insta360's log curve). The monitor's I-Log id (`MonitorTransfer.ILOG_BRIDGE_ID`), never a camera byte. */
+    const val COLOR_ILOG = 65_536
+    /** Dolby Vision. Stored as `0xE5`; no DJI body reports it, so the DJI decode tables leave it out. */
+    const val COLOR_DOLBY_VISION = 0xE5
 
     const val EXPO_AUTO = 0x01
     const val EXPO_MANUAL = 0x04
@@ -99,8 +103,13 @@ object CameraCommands {
      * Both photo encodings read back as "Photo"; the body decides which it uses.
      * Pocket 3 presents `0x28` as Low-Light video; other bodies keep SuperNight.
      */
-    fun shootingModeLabel(raw: Int, cameraName: String? = null): String? =
-        when (raw) {
+    /** [profile] carries the session's own names (for example TimeShift or PureVideo). */
+    fun shootingModeLabel(
+        raw: Int,
+        cameraName: String? = null,
+        profile: CameraLabelProfile = CameraLabelProfile.standard,
+    ): String? =
+        profile.shootingModeLabels[raw] ?: when (raw) {
             SHOOT_SLOWMO -> "SlowMo"
             SHOOT_VIDEO -> "Video"
             SHOOT_TIMELAPSE -> "TimeLapse"
@@ -428,20 +437,26 @@ object CameraCommands {
 
     fun resolutionLabel(code: Int): String = VideoResolution.fromRaw(code)?.label ?: "—"
 
-    fun colorLabel(mode: Int, family: String = "pocket"): String =
-        when (mode) {
+    /** [profile] carries the session's own names (for example Standard for Normal). */
+    fun colorLabel(mode: Int, family: String = "pocket", profile: CameraLabelProfile = CameraLabelProfile.standard): String =
+        profile.colorModeLabels[mode] ?: when (mode) {
             COLOR_NORMAL -> if (family == "nano") "Normal 8-bit" else "Normal"
             COLOR_HDR -> "HDR"
             COLOR_DLOG -> "D-Log"
             COLOR_DLOG2 -> "D-Log2"
             COLOR_NORMAL10 -> "Normal 10-bit"
             COLOR_DLOG_M -> if (family == "nano") "D-Log M 10-bit" else "D-Log M"
+            COLOR_ILOG -> "I-Log"
+            COLOR_DOLBY_VISION -> "Dolby Vision"
             else -> "—"
         }
 
     /** `IsoIndex.allCases` raw bytes. Unknown camcap entries are dropped. */
     val ISO_INDEX_ALL = listOf(0x00, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B)
-    val ISO_INDEX_BYTES = ISO_INDEX_ALL.toSet()
+    /** ISO 160, a third stop. Not on the DJI ladder [ISO_INDEX_ALL], so the DJI tables leave it out. */
+    const val ISO_160 = 0xE0
+    /** Every stored ISO stop: the DJI ladder plus [ISO_160]. */
+    val ISO_INDEX_BYTES = (ISO_INDEX_ALL + ISO_160).toSet()
 
     fun isoLabel(index: Int): String =
         when (index) {
@@ -455,6 +470,7 @@ object CameraCommands {
             0x09 -> "6400"
             0x0A -> "12800"
             0x0B -> "25600"
+            ISO_160 -> "160"
             else -> "—"
         }
 
@@ -470,6 +486,7 @@ object CameraCommands {
             0x09 -> 6400
             0x0A -> 12800
             0x0B -> 25600
+            ISO_160 -> 160
             else -> null
         }
 
@@ -484,6 +501,7 @@ object CameraCommands {
             6400 -> 0x09
             12800 -> 0x0A
             25600 -> 0x0B
+            160 -> ISO_160
             else -> null
         }
 

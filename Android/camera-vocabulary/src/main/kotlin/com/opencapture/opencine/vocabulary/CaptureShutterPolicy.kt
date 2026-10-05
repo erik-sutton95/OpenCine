@@ -66,9 +66,13 @@ object CaptureShutterPolicy {
             ?.let { "${it.resolution.tabTitle}${it.frameRate.drumLabel}" } ?: "REC SETUP"
 
     /** iOS `recSetupColor`: color mode hanging under the format; none for stills or before `@2` arrives. */
-    fun portraitSetupCaption(status: CameraStatus, family: String): String? =
+    fun portraitSetupCaption(
+        status: CameraStatus,
+        family: String,
+        profile: CameraLabelProfile = CameraLabelProfile.standard,
+    ): String? =
         if (portraitSetupOpensMode(status.shootingMode) || status.colorMode < 0) null
-        else CameraCommands.colorLabel(status.colorMode, family)
+        else CameraCommands.colorLabel(status.colorMode, family, profile)
 
     fun showsVideoTransport(shootingMode: Int): Boolean = !isStillCapture(shootingMode)
 

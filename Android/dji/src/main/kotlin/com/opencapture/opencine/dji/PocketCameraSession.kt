@@ -55,11 +55,17 @@ import com.opencapture.opencine.vocabulary.FocusPin
 import com.opencapture.opencine.vocabulary.FocusResetPolicy
 import com.opencapture.opencine.vocabulary.FocusTrackMode
 import com.opencapture.opencine.vocabulary.FormatPin
+import com.opencapture.opencine.vocabulary.FoundCamera
 import com.opencapture.opencine.vocabulary.GamepadFaceTrack
 import com.opencapture.opencine.vocabulary.GamepadOperatorAction
 import com.opencapture.opencine.vocabulary.GamepadShutterSync
+import com.opencapture.opencine.vocabulary.GimbalDoubleTap
+import com.opencapture.opencine.vocabulary.GimbalHudCopy
 import com.opencapture.opencine.vocabulary.GimbalLimitContact
 import com.opencapture.opencine.vocabulary.GimbalLimitWatch
+import com.opencapture.opencine.vocabulary.GimbalMode
+import com.opencapture.opencine.vocabulary.GimbalRamp
+import com.opencapture.opencine.vocabulary.GimbalSpeed
 import com.opencapture.opencine.vocabulary.GimbalStickMapping
 import com.opencapture.opencine.vocabulary.IsoLimitPin
 import com.opencapture.opencine.vocabulary.LiveChromeThrottle

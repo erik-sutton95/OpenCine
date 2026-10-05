@@ -1,7 +1,5 @@
 package com.opencapture.opencine.dji
 
-import com.opencapture.opencine.vocabulary.CameraModel
-
 /** Scan-row identity. Lockstep with Swift `FoundCameraIdentity`. */
 object FoundCameraIdentity {
     fun isGenericName(name: String): Boolean {
@@ -42,11 +40,3 @@ object FoundCameraIdentity {
         return existingModelId == null && incomingModelId != null
     }
 }
-
-data class FoundCamera(
-    val id: String,
-    val address: String,
-    val name: String,
-    val model: CameraModel,
-    val modelId: Int?,
-)

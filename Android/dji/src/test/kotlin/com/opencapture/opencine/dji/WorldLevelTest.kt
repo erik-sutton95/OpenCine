@@ -8,6 +8,7 @@ import com.opencapture.opencine.motion.WorldLevel
 import com.opencapture.opencine.motion.WorldLevelSnap
 import com.opencapture.opencine.motion.WorldLevelTarget
 import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.GimbalDoubleTap
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2

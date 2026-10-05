@@ -66,6 +66,12 @@ fun CameraCommands.isSelfieFlipGetReply(cmdSet: Int, cmdId: Int, payload: ByteAr
     return pid == PID_SELFIE_FLIP
 }
 
+/**
+ * DJI decode of an ISO index byte: the DJI ladder only, so ISO 160 (not a DJI byte) reads as
+ * unknown (I-2).
+ */
+internal fun CameraCommands.djiIsoIndex(raw: Int): Int = if (raw == ISO_160) -1 else raw
+
 private val COLOR_KNOWN =
     setOf(
         CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_HDR, CameraCommands.COLOR_DLOG,
@@ -96,6 +102,8 @@ fun CameraCommands.wireColorMode(mode: Int, name: String = "", family: String = 
 
 /** Inverse of [wireColorMode]. */
 fun CameraCommands.parseColorMode(byte: Int, name: String = "", family: String = ""): Int {
+    // No DJI body reports Dolby Vision: the DJI table leaves it out and reads it as unknown (I-2).
+    if (byte == COLOR_DOLBY_VISION) return -1
     if (CameraModel.looksLikeNano(name, family) || CameraModel.looksLikeAction6(name)) {
         return when (byte) {
             0x00 -> COLOR_NORMAL
@@ -481,7 +489,7 @@ fun CameraCommands.parseVideoFormats(value: ByteArray): List<VideoFormat> {
         if (i + 1 >= body.size) return@repeat
         val res = body[i].toInt() and 0xFF
         val fps = body[i + 1].toInt() and 0xFF
-        VideoFormat.parse(res, fps)?.let { if (it !in out) out.add(it) }
+        VideoFormat.parseDji(res, fps)?.let { if (it !in out) out.add(it) }
         i += 3
     }
     return out
@@ -506,7 +514,7 @@ fun CameraCommands.parseIsoIndices(value: ByteArray): List<Int> {
     val body = value.copyOfRange(3, 3 + inner)
     val count = body[1].toInt() and 0xFF
     if (body[0].toInt() != 0 || count < 1 || body.size < 2 + count) return emptyList()
-    return body.copyOfRange(2, 2 + count).map { it.toInt() and 0xFF }.filter { it in ISO_INDEX_BYTES }
+    return body.copyOfRange(2, 2 + count).map { it.toInt() and 0xFF }.filter { it in ISO_INDEX_ALL }
 }
 
 private val MEDIA_LIST_TEMPLATE =

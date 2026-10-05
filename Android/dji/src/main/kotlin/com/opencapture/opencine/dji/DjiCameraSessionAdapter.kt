@@ -657,12 +657,14 @@ class DjiCameraSessionAdapter(
                 )
             }
 
-        fun iso(index: Int): ISOValue = CameraCommands.isoValue(index)?.let { ISOValue.Manual(it) } ?: ISOValue.Auto
+        fun iso(index: Int): ISOValue =
+            CameraCommands.isoValue(CameraCommands.djiIsoIndex(index))?.let { ISOValue.Manual(it) } ?: ISOValue.Auto
 
         fun isoIndex(value: ISOValue): Int? =
             when (value) {
                 ISOValue.Auto -> 0
-                is ISOValue.Manual -> CameraCommands.isoIndexFromValue(value.iso)
+                // The DJI ladder only: ISO 160 has no DJI byte (I-2).
+                is ISOValue.Manual -> CameraCommands.isoIndexFromValue(value.iso)?.takeIf { it in CameraCommands.ISO_INDEX_ALL }
                 is ISOValue.AutoLimited -> null
             }
 

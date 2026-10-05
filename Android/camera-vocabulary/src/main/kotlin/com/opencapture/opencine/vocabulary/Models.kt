@@ -153,6 +153,14 @@ data class CameraModel(
     }
 }
 
+data class FoundCamera(
+    val id: String,
+    val address: String,
+    val name: String,
+    val model: CameraModel,
+    val modelId: Int?,
+)
+
 /** Core `AutoExposureLock`: the Manual values an AE lock pinned. `isoIndex` is the wire byte. */
 data class AutoExposureLock(val isoIndex: Int, val shutterDenom: Int, val shootingMode: Int)
 

@@ -17,6 +17,7 @@ import com.opencapture.opencine.core.testing.FakeCameraSession
 import com.opencapture.opencine.core.testing.djiLike
 import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.FoundCamera
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow

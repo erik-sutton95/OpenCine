@@ -12,6 +12,9 @@ import com.opencapture.opencine.motion.MotionCapabilities
 import com.opencapture.opencine.motion.MotionReferenceFrame
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.GimbalMode
+import com.opencapture.opencine.vocabulary.GimbalRamp
+import com.opencapture.opencine.vocabulary.GimbalSpeed
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -69,18 +72,6 @@ val pocketGimbal = MotionCapabilities(
 /** The body's motion service: the Pocket gimbal, or `null` for a body without one. */
 val CameraModel.motion: MotionCapabilities? get() = if (hasGimbal) pocketGimbal else null
 
-enum class GimbalMode(val label: String) {
-    FOLLOW("Follow"),
-    TILT_LOCKED("Tilt locked"),
-    FPV("FPV"),
-    DIRECTION_LOCK("Direction Lock"),
-    ;
-
-    companion object {
-        val pickerOrder = listOf(FOLLOW, TILT_LOCKED, FPV, DIRECTION_LOCK)
-    }
-}
-
 /** Refresh tilt/speed from attitude receipts, capped at one GET per second. */
 class GimbalParamPoll {
     private var lastRequestAt: Long? = null
@@ -89,19 +80,6 @@ class GimbalParamPoll {
         if (lastRequestAt?.let { nowMs - it < 1_000L } == true) return false
         lastRequestAt = nowMs
         return true
-    }
-}
-
-enum class GimbalSpeed(val wire: Int, val label: String) {
-    FAST(0, "Fast"),
-    DEFAULT(1, "Default"),
-    SLOW(2, "Slow"),
-    ;
-
-    companion object {
-        val pickerOrder = listOf(SLOW, DEFAULT, FAST)
-
-        fun fromWire(value: Int): GimbalSpeed? = entries.firstOrNull { it.wire == value }
     }
 }
 
@@ -158,32 +136,6 @@ class GimbalPrepRestore {
 
     companion object {
         const val IDLE_DELAY = 1.0
-    }
-}
-
-enum class GimbalRamp(val raw: Int, val label: String, val tau: Double) {
-    OFF(0, "Off", 0.0),
-    SOFT(1, "Soft", 0.35),
-    MEDIUM(2, "Medium", 0.18),
-    ;
-
-    companion object {
-        val pickerOrder = listOf(OFF, SOFT, MEDIUM)
-
-        fun fromRaw(value: Int): GimbalRamp = entries.firstOrNull { it.raw == value } ?: OFF
-    }
-}
-
-/** Stick double-tap and gamepad Circle/B: body recenter or a world-level snap. */
-enum class GimbalDoubleTap(val raw: Int, val label: String) {
-    RECENTER(0, "Recenter"),
-    LEVEL(1, "Level"),
-    ;
-
-    companion object {
-        val pickerOrder = listOf(RECENTER, LEVEL)
-
-        fun fromRaw(value: Int): GimbalDoubleTap = entries.firstOrNull { it.raw == value } ?: RECENTER
     }
 }
 
@@ -860,15 +812,3 @@ class GimbalOverlayMotion {
     }
 }
 
-object GimbalHudCopy {
-    const val POSE_NOT_READY = "Gimbal pose not ready"
-    const val NEED_AB = "Set A and B to run"
-    const val HOLD_STILL = "Hold the gimbal still"
-    const val TITLE = "Gimbal"
-    const val MODE = "Mode"
-    const val SPEED = "Speed"
-    const val RAMP = "Ramp"
-    const val PROGRAMMED = "Motion Control"
-    const val RUN = "Start"
-    const val STOP = "Stop"
-}

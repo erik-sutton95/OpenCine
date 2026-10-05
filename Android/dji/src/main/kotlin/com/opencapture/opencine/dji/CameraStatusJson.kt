@@ -227,7 +227,7 @@ private fun videoFormatList(arr: JSONArray?): List<VideoFormat> {
     return buildList(flat.size / 2) {
         var i = 0
         while (i + 1 < flat.size) {
-            VideoFormat.parse(flat[i], flat[i + 1])?.let { add(it) }
+            VideoFormat.parseDji(flat[i], flat[i + 1])?.let { add(it) }
             i += 2
         }
     }

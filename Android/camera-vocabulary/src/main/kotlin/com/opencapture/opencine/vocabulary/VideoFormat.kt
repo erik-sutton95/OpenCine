@@ -13,10 +13,10 @@ data class VideoResolution(val rawValue: Int) {
     val aspect: VideoAspect?
         get() =
             when (rawValue) {
-                0x0A, 0x10, 0x2D -> VideoAspect.SIXTEEN_NINE
+                0x0A, 0x10, 0x2D, 0xD0, 0xD1, 0xD4 -> VideoAspect.SIXTEEN_NINE
                 0x0C, 0x5F, 0x67 -> VideoAspect.FOUR_THREE
                 0x69, 0x6A, 0x6B, 0x7D -> VideoAspect.ONE_ONE
-                0x42, 0x43, 0x6C -> VideoAspect.NINE_SIXTEEN
+                0x42, 0x43, 0x6C, 0xD3 -> VideoAspect.NINE_SIXTEEN
                 else -> null
             }
 
@@ -60,7 +60,10 @@ data class VideoResolution(val rawValue: Int) {
                 0x2D, 0x43, 0x5F -> "2.7K"
                 0x10, 0x67, 0x7D -> "4K"
                 0x6A -> "2160"
-                0x6B, 0x6C -> "3K"
+                0x6B, 0x6C, 0xD4 -> "3K"
+                0xD0, 0xD5 -> "8K"
+                0xD1 -> "6K"
+                0xD3, 0xD6 -> "4K"
                 else -> "%02X".format(rawValue)
             }
 
@@ -71,7 +74,12 @@ data class VideoResolution(val rawValue: Int) {
                 0x2D, 0x43, 0x5F -> "2.7K"
                 0x10, 0x67, 0x7D -> "4K"
                 0x6A -> "2160p"
-                0x6B, 0x6C -> "3K"
+                0x6B, 0x6C, 0xD4 -> "3K"
+                0xD0 -> "8K"
+                0xD1 -> "6K"
+                0xD3 -> "4K"
+                0xD5 -> "8K 2.35:1"
+                0xD6 -> "4K 2.35:1"
                 else -> "0x%02X".format(rawValue)
             }
 
@@ -97,6 +105,14 @@ data class VideoResolution(val rawValue: Int) {
         val P3K_1X1 = VideoResolution(0x6B)
         val P3K_9X16 = VideoResolution(0x6C)
         val P4K_1X1 = VideoResolution(0x7D)
+
+        /** Sizes no DJI body records (Insta360 Luna). Stored bytes; the DJI decode tables leave them out. */
+        val P8K = VideoResolution(0xD0)
+        val P6K = VideoResolution(0xD1)
+        val P4K_9X16 = VideoResolution(0xD3)
+        val P3K = VideoResolution(0xD4)
+        val P8K_235 = VideoResolution(0xD5)
+        val P4K_235 = VideoResolution(0xD6)
 
         fun fromRaw(raw: Int): VideoResolution? =
             if (raw in 0..255) VideoResolution(raw) else null
