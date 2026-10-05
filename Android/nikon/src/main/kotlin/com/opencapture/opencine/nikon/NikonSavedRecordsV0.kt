@@ -11,6 +11,18 @@ import org.json.JSONObject
 import java.util.Locale
 
 /**
+ * The name that identifies a Nikon body, folded; `null` for a generic or placeholder one. The
+ * saved-camera list, nearby matching and the app's records all group and match by it.
+ */
+fun nikonAssignedName(raw: String): String? {
+    val folded = raw.trim().lowercase(Locale.ROOT)
+    if (folded.isEmpty() || folded in GENERIC_NAMES || folded.startsWith("camera ")) return null
+    return folded
+}
+
+private val GENERIC_NAMES = setOf("camera", "nikon camera", "nikon zr", "nikon corporation zr", "ptp-ip camera")
+
+/**
  * The saved setups OpenZCine's Android app wrote before the saved-camera document: one JSON array,
  * one object per setup (preferences `openzcine.saved-cameras` / `records-json`). Keys: `host`,
  * `camera-name`, `transport` (`camera-access-point`, `phone-hotspot`, `infrastructure`, `usb-c`),
@@ -135,7 +147,7 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
         fun layout(records: List<Record>): List<Placed> {
             val groups = LinkedHashMap<String, MutableList<Record>>()
             for (record in records) {
-                val key = assignedName(record.cameraName)?.let { "name:$it" } ?: "record:${record.index}"
+                val key = nikonAssignedName(record.cameraName)?.let { "name:$it" } ?: "record:${record.index}"
                 groups.getOrPut(key) { mutableListOf() } += record
             }
             // Unique even in data the app never canonicalized: a shared id would drop a setup.
@@ -158,15 +170,6 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
                 Placed(camera, members.zip(routes.map { it.key }))
             }
         }
-
-        /** The name that identifies a body; `null` for a generic or placeholder one (app rule). */
-        fun assignedName(raw: String): String? {
-            val folded = raw.trim().lowercase(Locale.ROOT)
-            if (folded.isEmpty() || folded in GENERIC_NAMES || folded.startsWith("camera ")) return null
-            return folded
-        }
-
-        private val GENERIC_NAMES = setOf("camera", "nikon camera", "nikon zr", "nikon corporation zr", "ptp-ip camera")
 
         private val TRANSPORTS = mapOf(
             "camera-access-point" to RouteKind.CAMERA_ACCESS_POINT,
