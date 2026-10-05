@@ -411,6 +411,8 @@ class NativeGlesFeedSession(
             // retries tap consumers. New pictures, looks, sizes and upscaler changes present.
             var needsPresent = false
             var presentedUpscaler: MonitorGlesUpscaler? = null
+            var presentedWidth = 0
+            var presentedHeight = 0
             while (running.get() && lifecycle.isCurrent(generation)) {
                 val pullOes: Boolean
                 synchronized(frameLock) {
@@ -573,8 +575,13 @@ class NativeGlesFeedSession(
                     }
                     val presentedSourceEpoch = previewSource.captureEpoch()
                     presentedUpscaler = presentationOptions.upscaler
+                    // EGL may already hold its next buffer at the old window size, and a held
+                    // (paused) source sends no new frame to replace it: present a resize twice.
+                    val resized = width != presentedWidth || height != presentedHeight
+                    presentedWidth = width
+                    presentedHeight = height
                     // The first present is the look-free blit; the graded one follows.
-                    needsPresent = !signaledFirstFrame
+                    needsPresent = !signaledFirstFrame || resized
                     if (!signaledFirstFrame) {
                         signaledFirstFrame = true
                         mainHandler.post {
