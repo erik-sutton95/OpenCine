@@ -52,6 +52,36 @@ final class LunaCameraSessionTests: XCTestCase {
         }
     }
 
+    /// Requests outside the common model go out only while the session is ready and owned, with
+    /// the caller's timeout when the backend takes one.
+    func testControlRequestsNeedAReadyOwnedSessionAndKeepTheirTimeout() async throws {
+        var plain: [LunaRequest] = []
+        var timed: [(LunaRequest, Duration)] = []
+        let session = LunaCameraSession(
+            send: { plain.append($0); return Data() },
+            sendWithin: { timed.append(($0, $1)); return Data() },
+            functionMode: { LunaFunctionMode.normalVideo.rawValue },
+            readSettings: {}, readCapture: {})
+        let request = LunaProtocol.cancelTrackingRequest
+        XCTAssertFalse(session.admitsControl)
+        do {
+            _ = try await session.control(request)
+            XCTFail("a connecting session must not send")
+        } catch {}
+        session.linkChanged(.streaming, serial: "LUNA-TEST")
+        _ = try await session.control(request)
+        _ = try await session.control(request, timeout: .seconds(2))
+        XCTAssertEqual(plain, [request])
+        XCTAssertEqual(timed.map(\.0), [request])
+        XCTAssertEqual(timed.map(\.1), [.seconds(2)])
+        session.close(.requested)
+        do {
+            _ = try await session.control(request)
+            XCTFail("a closed session must not send")
+        } catch {}
+        XCTAssertEqual(plain.count + timed.count, 2)
+    }
+
     func testAcceptedWriteThatDoesNotStickIsNotApplied() async {
         let camera = FakeLuna()
         let session = camera.connectedSession(settle: .milliseconds(600))

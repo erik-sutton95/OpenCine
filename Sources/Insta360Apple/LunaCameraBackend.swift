@@ -444,6 +444,10 @@ public final class LunaCameraBackend: CameraBackend {
                 guard let self else { throw ConnectionFailure.lunaLinkClosed }
                 return try await self.send(request)
             },
+            sendWithin: { [weak self] request, timeout in
+                guard let self else { throw ConnectionFailure.lunaLinkClosed }
+                return try await self.send(request, timeout: timeout)
+            },
             functionMode: { [weak self] in
                 self?.functionMode ?? LunaFunctionMode.normalVideo.rawValue
             },
