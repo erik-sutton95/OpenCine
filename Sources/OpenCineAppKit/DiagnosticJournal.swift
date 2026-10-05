@@ -36,10 +36,11 @@ public final class DiagnosticJournal: @unchecked Sendable {
     }
 
     /// Already-redacted structured line (exceptions, diagnostics events).
-    /// `logNow` writes os_log on the caller first, for a process about to abort.
+    /// `logNow` writes os_log on the caller first, for a process about to abort; that line is
+    /// redacted too, since os_log keeps it public.
     public func appendRedacted(_ text: String, logNow: Bool = false) {
         let stampedAt = Date()
-        if logNow { log.info("\(text, privacy: .public)") }
+        if logNow { log.info("\(self.redact(text), privacy: .public)") }
         queue.async { [self] in
             let safe = redact(text)
             if !logNow { log.info("\(safe, privacy: .public)") }

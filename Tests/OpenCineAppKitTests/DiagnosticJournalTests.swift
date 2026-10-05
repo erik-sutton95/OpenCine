@@ -2,6 +2,7 @@ import Foundation
 import OpenCineAppKit
 import OpenCineMedia
 import Testing
+import os
 
 /// The journal that was each app's ControlLiveLog: redacted lines, capped on the trim cadence.
 @Suite struct DiagnosticJournalTests {
@@ -22,5 +23,19 @@ import Testing
         #expect(lines.count == DiagnosticReport.journalCap + 39)
         #expect(lines.last?.hasSuffix(" line 2599") == true)
         #expect(!lines.contains { $0.contains("tester@example.com") })
+    }
+
+    /// The immediate os_log line of a process about to abort is redacted as well as the stored one.
+    @Test func immediateLogLineIsRedactedToo() {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        let journal = DiagnosticJournal(
+            subsystem: "com.opencapture.test", category: "session", file: nil,
+            redact: { text in
+                calls.withLock { count in count += 1 }
+                return PrivacyRedactor.redact(text)
+            })
+        journal.appendRedacted("fault tester@example.com", logNow: true)
+        _ = journal.recentLines()  // waits for the queued write
+        #expect(calls.withLock { count in count } == 2)
     }
 }
