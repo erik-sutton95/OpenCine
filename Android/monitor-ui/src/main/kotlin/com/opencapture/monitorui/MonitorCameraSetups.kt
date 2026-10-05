@@ -54,9 +54,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** One connection setup on a saved camera. Tapping connects over it (iOS `CameraSetupChip`). */
+/**
+ * One connection setup on a saved camera. Tapping connects over it (iOS `CameraSetupChip`).
+ * [kind] names the chip for tests and accessibility (`cameraWiFi`, `wifi`, `phoneHotspot`); null names it by [id].
+ */
 @Immutable
-data class MonitorSetupChip(val id: String, val title: String, val active: Boolean, val canForget: Boolean = false)
+data class MonitorSetupChip(
+    val id: String,
+    val title: String,
+    val active: Boolean,
+    val canForget: Boolean = false,
+    val kind: String? = null,
+)
 
 /** iOS `CameraConnectStep`. A backend owns progress; the card only shows it. */
 @Immutable
@@ -122,7 +131,7 @@ internal fun MonitorSetupChips(
                         onLongClick = if (onRenameSetup != null || setup.canForget && onForgetSetup != null) ({ menu = true }) else null,
                     )
                     .semantics { contentDescription = "Connect $cameraName over ${setup.title}" }
-                    .testTag("cameras.setup.${setup.id}"),
+                    .testTag("cameras.setup.${setup.kind ?: setup.id}"),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

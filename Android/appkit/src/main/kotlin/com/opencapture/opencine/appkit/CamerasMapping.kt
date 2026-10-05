@@ -82,9 +82,13 @@ public object CamerasMapping {
                 isBusy = attempt != null,
                 isAvailable = nearby,
                 setups = camera.routes.map {
-                    MonitorSetupChip(it.id.text, title(it), it.id == active, it.kind in addable && camera.routes.size > 1)
+                    MonitorSetupChip(
+                        it.id.text, title(it), it.id == active, it.kind in addable && camera.routes.size > 1,
+                        setupKind(it.kind),
+                    )
                 },
-                canAddSetup = addable.isNotEmpty(),
+                // As on main: Add only while an addable kind is still missing.
+                canAddSetup = (addable - camera.routes.map { it.kind }.toSet()).isNotEmpty(),
                 steps = attempt?.let(::steps).orEmpty(),
                 failure = failure?.let { failure(it.failure, camera) },
             )
@@ -104,6 +108,13 @@ public object CamerasMapping {
         RouteKind.PHONE_HOTSPOT -> "Hotspot"
         RouteKind.USB -> "USB-C"
         RouteKind.CAPTURE_DEVICE -> "HDMI"
+    }
+
+    /** The chip's accessibility name: the setup names the apps' tests have always used. */
+    internal fun setupKind(kind: RouteKind): String = when (kind) {
+        RouteKind.CAMERA_ACCESS_POINT -> "cameraWiFi"
+        RouteKind.INFRASTRUCTURE_NETWORK -> "wifi"
+        RouteKind.PHONE_HOTSPOT, RouteKind.USB, RouteKind.CAPTURE_DEVICE -> kind.rawValue
     }
 
     /** The attempt's plan as card steps; the running step carries the one live caption. */
