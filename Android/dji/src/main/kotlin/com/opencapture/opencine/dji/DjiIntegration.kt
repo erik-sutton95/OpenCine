@@ -37,9 +37,6 @@ public typealias DJICameraSessionID = CameraSessionID
 /** The common control epoch exposed through DJI's downward integration boundary. */
 public typealias DJIControlEpoch = ControlEpoch
 
-/** Common route kind, separate from optional saved network facts (Swift DJIConnectionRoute). */
-public typealias DjiConnectionRoute = RouteKind
-
 /**
  * What [DjiIntegration] needs from the DJI session (Swift `DJIConnectPort`): Bluetooth discovery,
  * the setup for the next connect, one connection, its core session. [PocketCameraSession] is the

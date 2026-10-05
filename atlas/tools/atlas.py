@@ -792,6 +792,7 @@ def main(argv=None):
     p.add_argument("--write-baseline", action="store_true", help="record the current numbers as the baseline")
     p.add_argument("--top", type=int, default=0, metavar="N", help="also list the N largest duplicated files per pair")
     p.add_argument("--app", metavar="DIR", help="also measure this unregistered app folder (a generated one) against every repository")
+    p.add_argument("--candidate", metavar="ID", help="read the apps at this compat/candidates.json record's consumer commits")
     p = sub.add_parser("new-app", help="a thin app from atlas/templates/app next to OpenCine; writes only the new directory")
     p.add_argument("name", help="app name, also its Swift type and folder, e.g. OpenFooCine")
     # Only the SIMULATED fake today: the DJI, Nikon and Luna integrations still need a connect port
