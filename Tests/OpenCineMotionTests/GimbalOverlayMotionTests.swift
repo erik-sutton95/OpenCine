@@ -1,4 +1,3 @@
-import OpenCineDJI
 import OpenCineMotion
 import Testing
 

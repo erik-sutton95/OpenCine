@@ -1,6 +1,5 @@
 import Testing
-import OpenCineMotion
-@testable import OpenCineDJI
+@testable import OpenCineMotion
 
 @Suite struct GimbalLoopVerificationTests {
     @Test(arguments: [(false, 0.12), (true, 0.0), (true, 0.12)])

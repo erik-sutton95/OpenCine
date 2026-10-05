@@ -1,6 +1,5 @@
 import Testing
-import OpenCineMotion
-@testable import OpenCineDJI
+@testable import OpenCineMotion
 
 @Suite struct GimbalLoopTests {
     private func point(_ yaw: Double, _ pitch: Double = 0) -> GimbalWaypoint {

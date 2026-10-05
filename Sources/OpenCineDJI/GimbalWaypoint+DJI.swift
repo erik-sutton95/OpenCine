@@ -29,6 +29,27 @@ extension HeadTrackNative {
     public init() { self.init(bounds: HeadTrack.Reach.bounds) }
 }
 
+// The shared move engine bound to the Pocket gimbal.
+extension GimbalMoveEngine {
+    public init() { self.init(capabilities: .pocketGimbal) }
+
+    public static func canSendNativeTarget(from live: GimbalWaypoint, to target: GimbalWaypoint) -> Bool {
+        canSendNativeTarget(from: live, to: target, in: HeadTrack.Reach.bounds)
+    }
+}
+
+extension NativeProgramZoomCommand {
+    /// Pocket 4 Pro's seven rocker gears cannot represent arbitrary timed linear moves, so every
+    /// command is an absolute zoom factor.
+    public var frame: Duml.Frame {
+        switch self {
+        case .position(let factor): return Commands.setZoom(factor: factor)
+        case .track(let factor): return Commands.setZoom(factor: factor)
+        case .stop: return Commands.setZoomStop()
+        }
+    }
+}
+
 // The waypoint overload needs GimbalWaypoint (motion math), so it lives with it and not
 // in the DJI command builders.
 extension Commands {

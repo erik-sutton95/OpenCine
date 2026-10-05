@@ -88,6 +88,62 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         }
     }
 
+    // The engine streams the smoothed curve as 0.1 s targets and stops a stalled scheduler.
+    @Test func curveStreamsThroughBAndSchedulesFinalTargetBeforeDeadline() {
+        var engine = GimbalMoveEngine()
+        let started = engine.start(program: program(1), live: a)
+        #expect(started)
+        var live = a
+        var start = a
+        var target = a
+        var motionAt = 0.0
+        var sends: [(Double, GimbalWaypoint)] = []
+        for step in 1...800 {
+            let now = Double(step) * 0.01
+            live = GimbalMoveEngine.lerp(start, target, u: (now - motionAt) / 0.1)
+            guard let out = engine.tick(dt: 0.01, live: live) else { break }
+            if let next = out.target {
+                #expect(out.duration == 0.1)
+                sends.append((now, next))
+                start = live
+                target = next
+                motionAt = now
+            }
+            if out.finished { break }
+        }
+        #expect(engine.failure == nil)
+        #expect(engine.readout(live: live)?.phase == "DONE")
+        #expect(sends.count == 99)
+        if let first = sends.first, let last = sends.last {
+            #expect(abs(last.0 - first.0 - 4.9) < 1e-8)
+            #expect(last.1 == c)
+            for pair in zip(sends, sends.dropFirst()) {
+                #expect(abs(pair.1.0 - pair.0.0 - 0.05) < 1e-8)
+            }
+        }
+        #expect(!sends.contains { $0.1 == b })
+    }
+
+    @Test func schedulerCannotSkipTheFinalCCommand() {
+        var engine = GimbalMoveEngine()
+        let started = engine.start(program: program(1), live: a)
+        #expect(started)
+        for _ in 0..<689 { _ = engine.tick(dt: 0.01, live: a) }
+        let skipped = engine.tick(dt: 0.11, live: c)
+        #expect(skipped?.stop == true)
+        #expect(engine.failure == "Move interrupted \u{2014} waypoint dispatch was late")
+    }
+
+    @Test func curveCannotContinueAfterAStalledScheduler() {
+        var engine = GimbalMoveEngine()
+        let started = engine.start(program: program(1), live: a)
+        #expect(started)
+        for _ in 0..<200 { _ = engine.tick(dt: 0.01, live: a) }
+        let late = engine.tick(dt: 0.09, live: a)
+        #expect(late?.stop == true)
+        #expect(late?.target == nil)
+    }
+
     @Test func remainingKeepsTheEndAndStartsAtTheMeasuredPose() {
         let curve = GimbalProgramCurve(program: program(1))!
         let pose = GimbalWaypoint(yawDeg: 10, pitchDeg: 1, zoom: 1, nativePitchDeg: 174)

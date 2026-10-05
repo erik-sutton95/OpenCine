@@ -316,6 +316,8 @@ take, pause, cancel). It reads session facts through `DjiAppleGimbalHost` when i
 and writes the observable gimbal state the host publishes; picture flip, zoom retirement
 and the journal stay host policy. `DjiAppleGimbalLink` is the datalink surface, so the
 owner tests run on manual clocks with a fake link. Cancellation re-checks the caller's
-`ifCurrent` after every published write. `CameraValuePin`, `WorldLevel`,
-`GimbalOverlayMotion` and `GimbalRampFilter` moved into OpenCineDJI next to their Kotlin
-mirrors in `Android/dji`. Physical behavior is untested.
+`ifCurrent` after every published write. `CameraValuePin`, `WorldLevel` and
+`GimbalRampFilter` moved into OpenCineDJI next to their Kotlin mirrors in `Android/dji`.
+`GimbalMoveEngine`, `GimbalOverlayMotion` and the program zoom demand are shared in
+OpenCineMotion; `GimbalMoveEngine()` binds them to `.pocketGimbal` and
+`NativeProgramZoomCommand.frame` encodes the demand. Physical behavior is untested.
