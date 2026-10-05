@@ -64,7 +64,8 @@ package dependency.
 - Core (`OpenCineCore`) imports Foundation only and names no manufacturer; it never imports UI, an
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
-  `OpenCineApple`.
+  `OpenCineApple`. `OpenCineRelayApple` (the relay's Bonjour, socket and encoder shell) depends on
+  `OpenCineRelay` and Apple frameworks only, never on UI, an integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.

@@ -33,6 +33,7 @@ coordinates `com.opencapture.opencine:<module>`.
 | Core | `OpenCineFrameIO` (optional) | | nothing |
 | Core | `OpenCineMotion` (optional) | | `OpenCineCore` |
 | Core | `OpenCineRelay` (optional) | | nothing |
+| Core | `OpenCineRelayApple` (optional; the relay's Bonjour, socket and encoder shell) | | `OpenCineRelay` |
 | Core | `OpenCineApple` | `vulkan` (native renderer) | `OpenCineCore`, `OpenCineMedia` |
 | Core | `OpenCineCoreTestSupport` (tests only) | `core` test fixtures | `OpenCineCore` |
 | Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |
@@ -50,8 +51,8 @@ The package has no third-party dependencies, so linking one product resolves not
 
 | App | Swift products | Android modules |
 |---|---|---|
-| OpenPocketCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineDJI`, `OpenCineDJIAndroid` (Android .so) | `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji` |
-| OpenInstaCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineApple`, `Insta360Protocol`, `Insta360Apple` (+ `Insta360AppleTestSupport` in tests) | `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `insta360-shell`, `insta360-luna` |
+| OpenPocketCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineRelayApple`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineDJI`, `OpenCineDJIAndroid` (Android .so) | `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji` |
+| OpenInstaCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineRelayApple`, `OpenCineApple`, `Insta360Protocol`, `Insta360Apple` (+ `Insta360AppleTestSupport` in tests) | `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `insta360-shell`, `insta360-luna` |
 | OpenZCine (`opencine/integration`) | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineNikon`, `OpenCineNikonAndroid` and `OpenCineJNISupport` (Android .so) | `core`, `monitor-ui`, `multicam`, `nikon` |
 | OpenZCine engine-port candidate | `MonitorUI`, `MonitorPresentation` | `monitor-ui` |
 

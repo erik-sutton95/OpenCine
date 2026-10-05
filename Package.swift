@@ -28,6 +28,7 @@ let package = Package(
         .library(name: "OpenCineFrameIO", targets: ["OpenCineFrameIO"]),
         .library(name: "OpenCineMotion", targets: ["OpenCineMotion"]),
         .library(name: "OpenCineRelay", targets: ["OpenCineRelay"]),
+        .library(name: "OpenCineRelayApple", targets: ["OpenCineRelayApple"]),
         .library(name: "OpenCineApple", targets: ["OpenCineApple"]),
         // Fakes for consumers' test targets only; never link it into an app.
         .library(name: "OpenCineCoreTestSupport", targets: ["OpenCineCoreTestSupport"]),
@@ -78,6 +79,18 @@ let package = Package(
         // Optional second-screen relay wire, control lease and pacing policy. Foundation only.
         .target(name: "OpenCineRelay"),
         .testTarget(name: "OpenCineRelayTests", dependencies: ["OpenCineRelay"]),
+        // The relay's Apple shell: Bonjour listener and browser, HEVC re-encode, socket reader.
+        // Relay plus Apple frameworks only; every file sits behind `#if canImport(Network)`.
+        // ponytail: Swift 5 mode, the mode both apps shipped this queue-confined code in (Swift 6
+        // adds runtime isolation checks on its transport callbacks); move to 6 with a Sendable pass.
+        .target(
+            name: "OpenCineRelayApple", dependencies: ["OpenCineRelay"],
+            swiftSettings: [.swiftLanguageMode(.v5)]),
+        // Swift 5 mode as in the apps' former relay harness: the load tests drive real sockets
+        // and encoder callbacks that mutate captured test state.
+        .testTarget(
+            name: "OpenCineRelayAppleTests", dependencies: ["OpenCineRelayApple", "OpenCineRelay"],
+            swiftSettings: [.swiftLanguageMode(.v5)]),
         // Apple runtime: decoded-frame leases, VideoToolbox decoder, UVC capture source. Every
         // file sits behind `#if canImport(...)`; Core and Media never depend on it.
         .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia"]),
