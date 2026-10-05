@@ -105,6 +105,8 @@ let package = Package(
             resources: [.process("Resources/Fonts"), .copy("Resources/Icons")]
         ),
         .testTarget(name: "MonitorPresentationTests", dependencies: ["MonitorPresentation"]),
+        // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
+        .testTarget(name: "MonitorUITests", dependencies: ["MonitorUI", "MonitorPresentation"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.

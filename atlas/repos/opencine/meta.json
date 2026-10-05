@@ -229,6 +229,7 @@
       "MonitorPresentation",
       "MonitorUI",
       "MonitorPresentationTests",
+      "MonitorUITests",
       ":monitor-ui",
       "OpenCineAppKit",
       "OpenCineAppKitTests",
