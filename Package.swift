@@ -106,7 +106,7 @@ let package = Package(
         // legacy mirrors, the connection model, the cameras and pair screens, the root and monitor
         // lifetime (ShellModel, AppShell) and the common controls (MonitorControlModel). Never
         // imports an integration or an app; apps list their integrations.
-        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "MonitorPresentation", "MonitorUI", "OpenCineMedia"]),
+        .target(name: "OpenCineAppKit", dependencies: ["OpenCineCore", "OpenCineMulticam", "MonitorPresentation", "MonitorUI", "OpenCineMedia"]),
         .testTarget(
             name: "OpenCineAppKitTests",
             dependencies: [
@@ -190,8 +190,8 @@ let package = Package(
         .testTarget(
             name: "HarnessTests",
             dependencies: [
-                "HarnessEngine", "HarnessComposition", "OpenCineCore", "OpenCineCoreTestSupport",
-                "OpenCineMedia", "OpenCineMulticam", "OpenCineDJI", "OpenCineNikon",
+                "HarnessEngine", "HarnessComposition", "OpenCineAppKit", "OpenCineCore",
+                "OpenCineCoreTestSupport", "OpenCineMedia", "OpenCineMulticam", "OpenCineDJI", "OpenCineNikon",
                 "Insta360Apple", "Insta360Protocol", "Insta360AppleTestSupport",
             ]
         ),
