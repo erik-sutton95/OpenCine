@@ -106,7 +106,9 @@ release request itself), single steering MOVEs, release, recenter, flip, SET_ANG
 and pitch kept inside `LunaCameraSession.motion`, and GET_ANGLE as `latestPose`. It implements the
 shared `MotionService` over those requests; `move(to:over:)` accepts only `over: nil`, because the
 camera plans each SET as its own move. Aim until arrival, head tracking and programmed moves stay
-in the app for now. The Android app still sends its gimbal requests from its own facade.
+in the app for now. Kotlin `LunaMotionService` (insta360-luna) is its twin over the backend's
+`CameraControls` (the stick stream at 50 ms, release, recenter, flip, SET_ANGLE, GET_ANGLE as `poses`);
+the Android app keeps its aim, level and programmed-move loops the same way.
 
 ## Clock and timecode
 
