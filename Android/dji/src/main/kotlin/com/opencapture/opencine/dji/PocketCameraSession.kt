@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.media.GamepadOperatorAction
+import com.opencapture.opencine.media.GamepadShutterSync
 import com.opencapture.opencine.core.CameraValuePin
 import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect

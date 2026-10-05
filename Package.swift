@@ -8,12 +8,17 @@ import PackageDescription
 // Dependency rules (plan 3.4; the target edges below encode them, the per-area import tests and
 // `atlas check` enforce them):
 // - OpenCineCore imports Foundation only: never UI, an integration, Multicam or an app.
+// - OpenCineCameraVocabulary imports Core, Media and Motion only: no UI, integration, app or wire
+//   code.
 // - Integrations (OpenCineDJI, OpenCineNikon, Insta360*) never import UI or an app.
 // - OpenCineMulticam imports OpenCineCore only: never an integration or UI.
 // - UI (MonitorPresentation, MonitorUI) never imports an integration, Multicam or an app.
 //   Native views consume portable Media values; presentation policy stays Foundation-only.
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
 //   app.
+// - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
+//   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMotion, OpenCineRelay and
+//   OpenCineRelayApple only: never an integration, an app or a third-party package.
 //
 // Platforms: one list for the whole package. macOS is the host for `swift test` only; no macOS
 // app ships (former packages: Core/Multicam/DJI/Insta360 macOS 13, UI 12, Nikon and the harness
@@ -40,10 +45,12 @@ let package = Package(
         .library(name: "OpenCineMulticam", targets: ["OpenCineMulticam"]),
         // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
+        .library(name: "OpenCineAppKitApple", targets: ["OpenCineAppKitApple"]),
         // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
         // it into an app.
         .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
+        .library(name: "OpenCineCameraVocabulary", targets: ["OpenCineCameraVocabulary"]),
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
         .library(name: "OpenCineDJIApple", targets: ["OpenCineDJIApple"]),
         // The Swift side of the Android `DjiNative` JNI facade: an app links it into its Swift
@@ -147,18 +154,32 @@ let package = Package(
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
                 "MonitorPresentation", "MonitorUI",
             ]),
+        // The Apple side of the app shell both camera apps share (head tracking, the watcher's
+        // Wi-Fi join code). App
+        // differences arrive as host values and protocols; iOS only, empty elsewhere.
+        .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineMotion"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion"]),
         // XCUITest cases that drive an app only by accessibility identifiers and launch
         // environment; iOS only, empty elsewhere. Depends on nothing in this package.
         // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6
         // with a MainActor pass over XCTest's expectation waits.
         .target(name: "OpenCineAppUITesting", swiftSettings: [.swiftLanguageMode(.v5)]),
 
+        // MARK: Camera vocabulary
+        // The camera control vocabulary the monitor shells speak (exposure, colour, focus, video
+        // format, gimbal stick, zoom, camera status and model, tracking boxes and face policies,
+        // feed watchdog, session recovery, media files and LUT selection), shared by the DJI
+        // integration and the Insta360 shell. Wire-free: no protocol frames or byte parsers.
+        .target(name: "OpenCineCameraVocabulary", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
+        .testTarget(
+            name: "OpenCineCameraVocabularyTests", dependencies: ["OpenCineCameraVocabulary", "OpenCineMedia"]),
+
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,
         // media endpoints and DJICameraSessionAdapter (OpenCineCore.CameraSession over a
         // DJIControlPort the app implements), plus what each body declares to OpenCineMotion.
         // Builds with the Swift Android SDK.
-        .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
+        .target(name: "OpenCineDJI", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion", "OpenCineCameraVocabulary"]),
         .testTarget(
             name: "OpenCineDJITests", dependencies: ["OpenCineDJI", "OpenCineMotion", "OpenCineCoreTestSupport"],
             exclude: ["Fixtures"]),

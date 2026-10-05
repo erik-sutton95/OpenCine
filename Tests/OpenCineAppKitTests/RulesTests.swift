@@ -35,4 +35,36 @@ struct AppKitRules {
         let dependencies = target.1.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: ["\""]) }
         #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: allowed))
     }
+
+    /// The Apple composition layer sits above the app shell and the Apple runtimes only: never an
+    /// integration, an app or a third-party package.
+    @Test func appKitAppleImportsOnlyTheAppShellAndAppleLayers() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let package: Set<String> = [
+            "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineMotion",
+            "OpenCineRelay", "OpenCineRelayApple",
+        ]
+        let system: Set<String> = [
+            "Foundation", "Observation", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
+        ]
+        let directory = root.appending(path: "Sources/OpenCineAppKitApple")
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        #expect(!files.isEmpty)
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+            where line.hasPrefix("import ") {
+                let module = String(line.dropFirst("import ".count))
+                #expect(package.contains(module) || system.contains(module), "\(file.lastPathComponent): \(line)")
+            }
+        }
+        let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
+        let target = try #require(
+            manifest.firstMatch(of: #/\.target\(\s*name: "OpenCineAppKitApple",\s*dependencies: \[([^\]]*)\]/#))
+        let dependencies = target.1.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: ["\""]) }
+        #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: package))
+    }
 }

@@ -175,6 +175,8 @@ import Testing
                     let allowed: Set<String> = [
                         "Foundation", "OpenCineRelay", "Network", "Observation", "CoreMedia",
                         "CoreVideo", "VideoToolbox", "os",
+                        // The relay passcodes live in the Keychain.
+                        "Security",
                     ]
                     for line in text.split(separator: "\n") {
                         let trimmed = line.trimmingCharacters(in: .whitespaces)
