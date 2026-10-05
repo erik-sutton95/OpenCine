@@ -38,6 +38,22 @@ extension GimbalMoveEngine {
     }
 }
 
+extension GimbalWaypointOverlay {
+    /// Pocket 3 is 20 mm equivalent on the full 3:2 sensor width: 2·atan(18/20) = 84°.
+    /// Knob: verify with a letter on a frame-edge feature.
+    public static let wideHFovDeg = 84.0
+
+    public static func project(
+        waypoint: GimbalWaypoint, slot: GimbalWaypointSlot, live: GimbalWaypoint, aspect: Double
+    ) -> Mark {
+        project(waypoint: waypoint, slot: slot, live: live, aspect: aspect, wideHFovDeg: wideHFovDeg)
+    }
+
+    public static func marks(program: GimbalProgram, live: GimbalWaypoint, aspect: Double) -> [Mark] {
+        marks(program: program, live: live, aspect: aspect, wideHFovDeg: wideHFovDeg)
+    }
+}
+
 extension NativeProgramZoomCommand {
     /// Pocket 4 Pro's seven rocker gears cannot represent arbitrary timed linear moves, so every
     /// command is an absolute zoom factor.

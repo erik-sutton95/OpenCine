@@ -19,3 +19,11 @@ extension GimbalMoveEngine {
 extension GimbalWaypoint {
     func clamped() -> GimbalWaypoint { clamped(to: reach) }
 }
+
+extension GimbalWaypointOverlay {
+    static func project(
+        waypoint: GimbalWaypoint, slot: GimbalWaypointSlot, live: GimbalWaypoint, aspect: Double
+    ) -> Mark {
+        project(waypoint: waypoint, slot: slot, live: live, aspect: aspect, wideHFovDeg: 84)
+    }
+}

@@ -52,6 +52,64 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
             == GimbalWaypoint(yawDeg: 225, pitchDeg: -44, zoom: 2, nativePitchDeg: 12))
         #expect(GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 0.2).zoom == 1)
     }
+
+    // The waypoint overlay at the 84 degree field of view these numbers were taken with.
+    @Test func overlayIsRectilinearOnTheSphere() {
+        let live = GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1)
+        let point = GimbalWaypoint(yawDeg: 30, pitchDeg: 0, zoom: 1)
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b, live: live, aspect: 16 / 9)
+        let expected = 0.5 + tan(30 * .pi / 180) / (2 * tan(42 * .pi / 180))
+        #expect(abs(mark.nx - expected) < 1e-9)
+        #expect(mark.onScreen)
+    }
+
+    @Test func overlayFollowsLiveYawOnTheSphere() {
+        let point = GimbalWaypoint(yawDeg: 20, pitchDeg: 0, zoom: 1)
+        let atOrigin = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b,
+            live: GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        let afterPan = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b,
+            live: GimbalWaypoint(yawDeg: 20, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        #expect(atOrigin.nx > 0.5)
+        #expect(abs(afterPan.nx - 0.5) < 1e-9)
+    }
+
+    @Test func overlayKeepsDistinctCapturedAnglesBeyondTheFormerPanClamp() {
+        let point = GimbalWaypoint(yawDeg: GimbalWaypoint.unwrapYaw(68.9, in: reach), pitchDeg: -13.7, zoom: 1)
+        let live = GimbalWaypoint(yawDeg: GimbalWaypoint.unwrapYaw(78.2, in: reach), pitchDeg: -13.7, zoom: 1)
+        let mark = GimbalWaypointOverlay.project(waypoint: point, slot: .b, live: live, aspect: 16 / 9)
+        #expect(mark.nx < 0.5)
+        #expect(mark.onScreen)
+        let back = GimbalWaypointOverlay.project(waypoint: point, slot: .b, live: point, aspect: 16 / 9)
+        #expect(abs(back.nx - 0.5) < 1e-9)
+        #expect(abs(back.ny - 0.5) < 1e-9)
+    }
+
+    @Test func overlayZoomScalesTheTangent() {
+        let live = GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 2)
+        let point = GimbalWaypoint(yawDeg: 10, pitchDeg: 0, zoom: 1)
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b, live: live, aspect: 16 / 9)
+        let expected = 0.5 + tan(10 * .pi / 180) / (2 * tan(42 * .pi / 180) / 2)
+        #expect(abs(mark.nx - expected) < 1e-9)
+    }
+
+    @Test func overlayDrawsLookUpAboveCenter() {
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: GimbalWaypoint(yawDeg: 0, pitchDeg: 10, zoom: 1),
+            slot: .b, live: GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        #expect(mark.ny < 0.5)
+    }
+
+    @Test func overlayBehindTheCameraIsOffScreen() {
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: GimbalWaypoint(yawDeg: -170, pitchDeg: 0, zoom: 1),
+            slot: .b, live: GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        #expect(!mark.onScreen)
+        #expect(abs(mark.nx) < 1e-9)
+    }
 }
 
 @Suite struct GimbalProgramCurveTests {
