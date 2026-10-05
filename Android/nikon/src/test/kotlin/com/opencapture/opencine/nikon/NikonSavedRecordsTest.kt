@@ -249,4 +249,12 @@ class NikonSavedRecordsTest {
         assertEquals(listOf("10.0.0.7", "10.0.0.7#2"), two.map { it.id })
         assertNull(codec.patched(shared, two))
     }
+
+    @Test
+    fun genericAndPlaceholderNamesIdentifyNoBody() {
+        for (generic in listOf("", " Camera ", "Nikon Camera", "NIKON ZR", "Nikon Corporation ZR", "PTP-IP Camera", "Camera 192.168.1.5")) {
+            assertNull(nikonAssignedName(generic), generic)
+        }
+        assertEquals("zr_6002199", nikonAssignedName(" ZR_6002199 "))
+    }
 }

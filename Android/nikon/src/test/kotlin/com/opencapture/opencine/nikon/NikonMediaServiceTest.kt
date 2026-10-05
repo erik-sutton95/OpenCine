@@ -149,6 +149,13 @@ class NikonMediaServiceTest {
         browse.close()
     }
 
+    @Test fun withoutAConnectionOwnerTheBrowseIsUnavailableAndNeverReachesTheCamera() = runTest {
+        val port = Port(); port.connected = false
+        val source = NikonMediaService(port.session, port, backgroundScope, StandardTestDispatcher(testScheduler))
+        assertEquals(MediaServiceFailure.UNAVAILABLE, assertFailsWith<MediaServiceException> { source.openBrowse() }.failure)
+        assertEquals(emptyList<String>(), port.order)
+    }
+
     private class Port : NikonMediaSourcePort {
         val session = CameraSessionID()
         var native: Any = Any()
@@ -163,7 +170,8 @@ class NikonMediaServiceTest {
         var onBegin: (() -> Unit)? = null
         var onNext: (() -> Unit)? = null
         var onExit: (() -> Unit)? = null
-        override fun sourceIdentity() = NikonMediaSourceIdentity(native, 1, session, epoch)
+        var connected = true
+        override fun sourceIdentity() = if (connected) NikonMediaSourceIdentity(native, 1, session, epoch) else null
         override fun gateway(source: NikonMediaSourceIdentity): NikonMediaBrowseGateway = object : NikonMediaBrowseGateway {
             override fun begin(): String {
                 handle += 1; val captured = handle

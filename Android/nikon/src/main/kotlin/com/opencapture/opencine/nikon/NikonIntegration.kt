@@ -160,11 +160,11 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
     private fun nearby(sightings: List<NikonSighting>): List<NearbyCamera> {
         val cameras = NikonSavedRecordsV0.read(port.savedRecords() ?: "[]")?.let(NikonSavedRecordsV0::layout).orEmpty()
         return sightings.mapNotNull { sighting ->
-            val name = NikonSavedRecordsV0.assignedName(sighting.displayName)
+            val name = nikonAssignedName(sighting.displayName)
             val saved = cameras.firstOrNull { placed ->
                 placed.members.any { (record, _) ->
                     record.host.equals(sighting.host, ignoreCase = true) ||
-                        (name != null && NikonSavedRecordsV0.assignedName(record.cameraName) == name)
+                        (name != null && nikonAssignedName(record.cameraName) == name)
                 }
             }?.camera?.id
             if (saved == null && sighting.source == NikonSighting.Source.LIVENESS) return@mapNotNull null

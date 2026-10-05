@@ -40,6 +40,21 @@ class MonitorMovieTimecodeTest {
     }
 
     @Test
+    fun `a camera timecode track without an edit list is copied too`() {
+        withFiles { source, target ->
+            Files.write(source, mp4(moovLast = true, withTimecode = true, edits = false))
+            Files.write(target, mp4(moovLast = true, withTimecode = false, edits = false))
+
+            assertTrue(MonitorMovieTimecode.copyTimecodeTrack(source, target))
+
+            val written = Files.readAllBytes(target)
+            assertContentEquals(TIMECODE_SAMPLE, written.timecodeSample())
+            assertContentEquals(VIDEO_SAMPLE, written.videoSample())
+            assertEquals(TIMECODE_TRACK_ID, written.videoTimecodeReference())
+        }
+    }
+
+    @Test
     fun `a streamable export whose header precedes the media keeps every chunk offset valid`() {
         withFiles { source, target ->
             Files.write(source, cameraProxy())
@@ -100,7 +115,12 @@ class MonitorMovieTimecodeTest {
     /** Transformer output: video only, header either trailing (MediaMuxer) or leading (faststart). */
     private fun bakedExport(moovLast: Boolean): ByteArray = mp4(moovLast, withTimecode = false)
 
-    private fun mp4(moovLast: Boolean, withTimecode: Boolean, movieTimescale: Int = MOVIE_TIMESCALE): ByteArray {
+    private fun mp4(
+        moovLast: Boolean,
+        withTimecode: Boolean,
+        movieTimescale: Int = MOVIE_TIMESCALE,
+        edits: Boolean = true,
+    ): ByteArray {
         val ftyp = box("ftyp", "isom".ascii() + intBytes(512) + "isomiso2".ascii())
         val mediaPayload =
             if (withTimecode) VIDEO_SAMPLE + TIMECODE_SAMPLE else VIDEO_SAMPLE
@@ -108,9 +128,9 @@ class MonitorMovieTimecodeTest {
         // Two layouts, one header size: build the moov with placeholder offsets, then place it.
         fun assemble(videoOffset: Int, timecodeOffset: Int): ByteArray {
             val tracks =
-                trak(VIDEO_TRACK_ID, "vide", VIDEO_SAMPLE.size, videoOffset, movieTimescale) +
+                trak(VIDEO_TRACK_ID, "vide", VIDEO_SAMPLE.size, videoOffset, movieTimescale, edits) +
                     if (withTimecode) {
-                        trak(TIMECODE_TRACK_ID, "tmcd", TIMECODE_SAMPLE.size, timecodeOffset, movieTimescale)
+                        trak(TIMECODE_TRACK_ID, "tmcd", TIMECODE_SAMPLE.size, timecodeOffset, movieTimescale, edits)
                     } else {
                         ByteArray(0)
                     }
@@ -150,6 +170,7 @@ class MonitorMovieTimecodeTest {
         sampleBytes: Int,
         chunkOffset: Int,
         movieTimescale: Int,
+        edits: Boolean,
     ): ByteArray {
         val tkhd = ByteArrayOutputStream()
         tkhd.write(intBytes(0)) // version 0 + flags
@@ -168,7 +189,7 @@ class MonitorMovieTimecodeTest {
         val mdia = box("mdia", hdlr + minf)
         // One edit spanning the track, its segment counted in the movie timescale.
         val elst = box("elst", intBytes(0) + intBytes(1) + intBytes(movieTimescale * 2) + intBytes(0) + intBytes(0x0001_0000))
-        return box("trak", box("tkhd", tkhd.toByteArray()) + box("edts", elst) + mdia)
+        return box("trak", box("tkhd", tkhd.toByteArray()) + (if (edits) box("edts", elst) else ByteArray(0)) + mdia)
     }
 
     // MARK: - Independent reader
