@@ -17,17 +17,26 @@ public struct MultiviewReadout: Hashable, Sendable {
     }
 }
 
-/// The pill over a tile's picture while it is not live.
+/// Over a tile's picture while it is not live.
 public struct MultiviewTileStatus: Hashable, Sendable {
+    /// The short line on the tile.
     public var text: String
-    public var accessibilityLabel: String
+    /// The full sentence: the status card's text and what assistive technology reads.
+    public var detail: String
     /// Shows a spinner: the app is still working on it.
     public var inProgress: Bool
+    /// What the status offers as its own buttons, each run through `perform` (the Compose
+    /// status card shows them; the SwiftUI pill opens the options instead).
+    public var actions: [MultiviewCameraAction]
 
-    public init(text: String, accessibilityLabel: String? = nil, inProgress: Bool) {
+    public init(
+        text: String, detail: String? = nil, inProgress: Bool,
+        actions: [MultiviewCameraAction] = []
+    ) {
         self.text = text
-        self.accessibilityLabel = accessibilityLabel ?? text
+        self.detail = detail ?? text
         self.inProgress = inProgress
+        self.actions = actions
     }
 }
 
@@ -79,6 +88,7 @@ public struct MultiviewTile: Hashable, Sendable {
     public var note: String?
     /// The note on the tile itself, `nil` to keep the tile quiet.
     public var tileNote: String?
+    /// The camera's values, for Grid's in-tile row.
     public var readouts: [MultiviewReadout]
     /// Over the picture while it is not live.
     public var status: MultiviewTileStatus?

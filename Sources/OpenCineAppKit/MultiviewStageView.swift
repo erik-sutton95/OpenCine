@@ -17,6 +17,9 @@
         public var choose: (_ slot: Int, _ readout: Int, _ choice: Int) -> Void
         /// The LUT tool.
         public var toggleLUT: () -> Void
+        /// The CAMERA tool: the app shows its settings panel for the slot over the stage, and
+        /// hides it again on `popupsClosed`.
+        public var openSettings: (Int) -> Void
         /// The close button.
         public var close: () -> Void
         /// The record plan now: every camera (`nil`) or one slot.
@@ -30,7 +33,8 @@
             openLiveView: @escaping (Int) -> Void, add: @escaping (Int) -> Void,
             perform: @escaping (String, Int) -> Void,
             choose: @escaping (Int, Int, Int) -> Void = { _, _, _ in },
-            toggleLUT: @escaping () -> Void = {}, close: @escaping () -> Void,
+            toggleLUT: @escaping () -> Void = {}, openSettings: @escaping (Int) -> Void = { _ in },
+            close: @escaping () -> Void,
             recordContext: @escaping (Int?) -> MultiviewRecordContext,
             record: @escaping (RecordPlan, Int?) async -> Void,
             popupsClosed: @escaping () -> Void = {}
@@ -40,6 +44,7 @@
             self.perform = perform
             self.choose = choose
             self.toggleLUT = toggleLUT
+            self.openSettings = openSettings
             self.close = close
             self.recordContext = recordContext
             self.record = record
@@ -72,14 +77,16 @@
     /// The shared Multiview stage: slots laid out by `MultiviewPresentationLayout` (Grid or
     /// Center stage), each with its picture, identity chrome and options, plus close, the app's
     /// network button, the assist tools, the program readouts, DISP and record on all cameras.
-    /// Values and actions only; the app owns sessions, sheets and the camera picker.
-    public struct MultiviewStage<Picture: View, Settings: View, Backdrop: ViewModifier>: View {
+    /// Values and actions only; the app owns sessions, sheets, its settings panel and the
+    /// camera picker.
+    public struct MultiviewStage<Picture: View, Backdrop: ViewModifier>: View {
         private let tiles: [MultiviewTile?]
         private let layout: MultiviewPresentationLayout
         @Binding private var arrangement: MultiviewPresentationLayout.Arrangement
         @Binding private var selected: Int
         @Binding private var fill: Bool
         private let tools: [MultiviewTool]
+        private let readouts: [MultiviewReadout]?
         private let lut: Bool
         private let recording: Bool
         private let busy: Bool
@@ -89,7 +96,6 @@
         private let geometry: MultiviewStageGeometry
         private let actions: MultiviewStageActions
         private let picture: (Int) -> Picture
-        private let settings: (Int, CGSize, EdgeInsets, @escaping () -> Void) -> Settings
         private let backdrop: Backdrop
         private let viewport: CGSize
         private let safeArea: EdgeInsets
@@ -97,28 +103,26 @@
         @State private var toolsExpanded = false
         @State private var toolUsage = MonitorToolUsage()
         @State private var optionsSlot: Int?
-        @State private var settingsSlot: Int?
         @Environment(\.scenePhase) private var scenePhase
 
         /// - Parameters:
         ///   - tiles: one per slot, `nil` while the slot is empty.
         ///   - viewport, safeArea: the stage size and the insets `layout` was made with; the
-        ///     options and settings popups keep inside them.
+        ///     options popup keeps inside them.
+        ///   - readouts: the program camera's values under Center stage, `nil` to hide them.
         ///   - busy: the app is changing membership or the network: no close or add.
         ///   - groupBusy: a group record runs.
-        ///   - settings: the camera settings panel the CAMERA tool opens, for a slot.
         ///   - backdrop: wraps the stage under its popups (a video backdrop reads `geometry`).
         public init(
             tiles: [MultiviewTile?], layout: MultiviewPresentationLayout, viewport: CGSize,
             safeArea: EdgeInsets,
             arrangement: Binding<MultiviewPresentationLayout.Arrangement>,
             selected: Binding<Int>, fill: Binding<Bool>, tools: [MultiviewTool],
-            lut: Bool = false, recording: Bool, busy: Bool = false, groupBusy: Bool,
-            confirmsRecord: Bool, network: MultiviewStageButton? = nil,
-            geometry: MultiviewStageGeometry, actions: MultiviewStageActions,
-            @ViewBuilder picture: @escaping (Int) -> Picture,
-            @ViewBuilder settings: @escaping (Int, CGSize, EdgeInsets, @escaping () -> Void) ->
-                Settings,
+            readouts: [MultiviewReadout]?, lut: Bool = false, recording: Bool,
+            busy: Bool = false, groupBusy: Bool, confirmsRecord: Bool,
+            network: MultiviewStageButton? = nil,
+            geometry: MultiviewStageGeometry = MultiviewStageGeometry(),
+            actions: MultiviewStageActions, @ViewBuilder picture: @escaping (Int) -> Picture,
             backdrop: Backdrop
         ) {
             self.tiles = tiles
@@ -129,6 +133,7 @@
             _selected = selected
             _fill = fill
             self.tools = tools
+            self.readouts = readouts
             self.lut = lut
             self.recording = recording
             self.busy = busy
@@ -138,7 +143,6 @@
             self.geometry = geometry
             self.actions = actions
             self.picture = picture
-            self.settings = settings
             self.backdrop = backdrop
         }
 
@@ -171,8 +175,8 @@
                             .frame(width: layout.network.width, height: layout.network.height)
                             .position(x: layout.network.midX, y: layout.network.midY)
                     }
-                    if arrangement == .centerStage {
-                        selectedReadouts
+                    if arrangement == .centerStage, let readouts {
+                        programReadouts(readouts)
                             .frame(width: layout.readouts.width, height: layout.readouts.height)
                             .position(x: layout.readouts.midX, y: layout.readouts.midY)
                     }
@@ -197,7 +201,6 @@
 
         private func closePopups() {
             optionsSlot = nil
-            settingsSlot = nil
             actions.popupsClosed()
         }
 
@@ -231,25 +234,16 @@
                 }
                 .accessibilityAddTraits(.isModal)
                 .preferredColorScheme(.dark)
-            } else if let slot = settingsSlot {
-                // Same trailing side panel as Live View's gimbal controls.
-                settings(slot, viewport, safeArea, closePopups)
-                    .accessibilityAddTraits(.isModal)
-                    .preferredColorScheme(.dark)
             }
         }
 
-        private var selectedReadouts: some View {
-            let slot = min(tiles.count - 1, max(0, selected))
-            let tile = tiles.indices.contains(slot) ? tiles[slot] : nil
-            return HStack(spacing: 6) {
-                ForEach(Array((tile?.readouts ?? []).enumerated()), id: \.offset) { index, value in
-                    readout(value, slot: slot, index: index)
+        private func programReadouts(_ readouts: [MultiviewReadout]) -> some View {
+            HStack(spacing: 6) {
+                ForEach(Array(readouts.enumerated()), id: \.offset) { index, value in
+                    readout(value, slot: selected, index: index)
                 }
             }
             .frame(maxWidth: 316)
-            .opacity(tile == nil ? 0 : 1)
-            .accessibilityHidden(tile == nil)
             .accessibilityIdentifier("multiview.readouts")
         }
 
@@ -398,9 +392,10 @@
             case .layout: arrangement = arrangement == .grid ? .centerStage : .grid
             case .camera:
                 optionsSlot = nil
-                settingsSlot =
+                let slot =
                     tiles.indices.contains(selected) && tiles[selected] != nil
                     ? selected : tiles.firstIndex { $0 != nil }
+                if let slot { actions.openSettings(slot) }
             case nil: break
             }
         }
@@ -574,7 +569,7 @@
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain).padding(.horizontal, 8)
-            .accessibilityLabel(status.accessibilityLabel)
+            .accessibilityLabel(status.detail)
             .accessibilityHint("Open camera options for details and recovery")
         }
 
@@ -584,25 +579,24 @@
         }
     }
 
-    extension MultiviewStage where Settings == EmptyView, Backdrop == EmptyModifier {
-        /// A stage without a settings panel or a video backdrop.
+    extension MultiviewStage where Backdrop == EmptyModifier {
+        /// A stage without a video backdrop.
         public init(
             tiles: [MultiviewTile?], layout: MultiviewPresentationLayout, viewport: CGSize,
             safeArea: EdgeInsets,
             arrangement: Binding<MultiviewPresentationLayout.Arrangement>,
             selected: Binding<Int>, fill: Binding<Bool>, tools: [MultiviewTool],
-            recording: Bool, busy: Bool = false, groupBusy: Bool, confirmsRecord: Bool,
-            network: MultiviewStageButton? = nil,
+            readouts: [MultiviewReadout]?, lut: Bool = false, recording: Bool, busy: Bool = false,
+            groupBusy: Bool, confirmsRecord: Bool, network: MultiviewStageButton? = nil,
             geometry: MultiviewStageGeometry = MultiviewStageGeometry(),
             actions: MultiviewStageActions, @ViewBuilder picture: @escaping (Int) -> Picture
         ) {
             self.init(
                 tiles: tiles, layout: layout, viewport: viewport, safeArea: safeArea,
                 arrangement: arrangement, selected: selected, fill: fill, tools: tools,
-                recording: recording, busy: busy, groupBusy: groupBusy,
-                confirmsRecord: confirmsRecord, network: network, geometry: geometry,
-                actions: actions, picture: picture, settings: { _, _, _, _ in EmptyView() },
-                backdrop: EmptyModifier())
+                readouts: readouts, lut: lut, recording: recording, busy: busy,
+                groupBusy: groupBusy, confirmsRecord: confirmsRecord, network: network,
+                geometry: geometry, actions: actions, picture: picture, backdrop: EmptyModifier())
         }
     }
 
