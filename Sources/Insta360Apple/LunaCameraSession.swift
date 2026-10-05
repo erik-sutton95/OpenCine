@@ -379,6 +379,31 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     /// The function mode (bank) a photography SET is built for now.
     var requestFunctionMode: UInt32 { functionMode() }
 
+    /// The Luna's timecode is time of day from its own clock, which the phone is expected to set.
+    /// Sets it like the official app on connect (options 12/13/175), then to the millisecond with
+    /// cmd 214 twice, each stamped at send (a GET round trip on the camera AP is about 4 ms; the
+    /// clock SET takes about 220 ms of camera processing). False when the camera refused the SET.
+    /// Android: `LunaBackend.syncClock`.
+    @discardableResult
+    public func syncClock(zone: TimeZone = .current, now: () -> Date = Date.init) async -> Bool {
+        let date = now()
+        guard
+            let request = try? LunaProtocol.setClockRequest(
+                unixSeconds: UInt64(date.timeIntervalSince1970),
+                timeZoneSeconds: Int32(zone.secondsFromGMT(for: date)), zone: zone.identifier),
+            (try? await control(request, timeout: .seconds(2))) != nil
+        else { return false }
+        for count: UInt32 in 0..<2 {
+            let milliseconds = UInt64((now().timeIntervalSince1970 * 1000).rounded())
+            if let request = try? LunaProtocol.syncTimeAccurateRequest(
+                unixMilliseconds: milliseconds, count: count)
+            {
+                _ = try? await control(request, timeout: .seconds(2))
+            }
+        }
+        return true
+    }
+
     public func outcome(of operation: OperationID) async -> CommandReceipt? {
         guard let receipt = receipts[operation] else { return nil }
         if receipt.isFinished || Task.isCancelled { return receipt }

@@ -107,6 +107,16 @@ shared `MotionService` over those requests; `move(to:over:)` accepts only `over:
 camera plans each SET as its own move. Aim until arrival, head tracking and programmed moves stay
 in the app for now. The Android app still sends its gimbal requests from its own facade.
 
+## Clock and timecode
+
+The Luna's timecode is time of day from its own clock, which the phone sets.
+`LunaCameraSession.syncClock()` sends the official app's clock SET (options 12, 13 and 175), then
+cmd 214 twice, each stamped at send, on the control path (Android: `LunaBackend.syncClock`).
+`LunaFrameTimecode` turns live frame stamps into that timecode: the frame clock does not follow
+the camera's time of day, so frames are pinned to the phone clock by their earliest arrival (less
+90 ms of capture latency), and a new value is reported once a second. The Android app still
+derives the frame timecode in its own facade.
+
 ## Common lens controls
 
 `LunaCameraSession.configureLens(zoomDomain:)` (Kotlin `configureLens(range)`)
