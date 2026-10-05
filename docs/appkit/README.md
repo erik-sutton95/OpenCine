@@ -216,8 +216,10 @@ Values and actions only. The app maps its cameras to `MultiviewTile` values (or 
 answers `MultiviewStageActions`. Record goes through `MultiviewRecordContext`: the confirmation
 holds the plan the operator saw and re-checks it before `record(plan, slot)`; the stage never
 starts, stops or compensates a camera on its own, and closing calls `close` only. Copy follows
-`MultiviewTally` (unknown is the dash, never a guess) and `MultiviewRecordContext.refusal`.
-Qualified camera counts, routes and limits stay app parameters.
+`MultiviewTally` (unknown is the dash, never a guess) and `MultiviewRecordContext.refusal`; an
+app may word the confirmation question itself (`prompt`, for a plan that commands a subset).
+A camera action with `closes` closes the SwiftUI options before it runs, and the options close
+once their slot empties. Qualified camera counts, routes and limits stay app parameters.
 
 Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
 ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come

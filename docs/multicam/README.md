@@ -87,7 +87,9 @@ confirmation. It is not synchronized recording, genlock or a shared clock.
   Tests: `Tests/OpenCineNikonTests/NikonMulticamTests.swift`.
 - Each app keeps its own qualified camera count, routes and policies. The stage UI is shared:
   OpenCineAppKit `MultiviewStage` takes `MultiviewTile` values and a `MultiviewRecordContext`
-  over the app's `RecordPlan` ([appkit](../appkit/README.md#multiview-stage)).
+  over the app's `RecordPlan` ([appkit](../appkit/README.md#multiview-stage)). Pocket maps its
+  session tiles (`MultiviewTileValues`); Nikon maps its members in `MulticamStage` and words the
+  eligible-subset confirmation with `MultiviewRecordContext.prompt`.
 
 ## Build and test
 
