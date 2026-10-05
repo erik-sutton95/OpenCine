@@ -9,17 +9,17 @@
     /// Advertises `_opc-mon._tcp` and fans out re-encoded HEVC. Encode/send off the ACK thread.
     public final class WatcherRelayTransport: @unchecked Sendable {
         public let queue = DispatchQueue(label: "opc.watcher-relay.transport", qos: .userInitiated)
-        public var controlRevision: UInt64 = 0
+        var controlRevision: UInt64 = 0
         private let orientationLock = NSLock()
         private var orientation = false
-        public var onChange: (() -> Void)?
-        public var onCommand: ((WatcherRelayCommand, String?) -> Void)?
+        var onChange: (() -> Void)?
+        var onCommand: ((WatcherRelayCommand, String?) -> Void)?
         private var active = true
         private let admission = WatcherRelayAdmission()
-        public var watcherCount = 0
-        public var encoderFailed = false
-        public var pendingControlRequest: (name: String, watcherID: String)?
-        public var holderName = "Host"
+        var watcherCount = 0
+        var encoderFailed = false
+        var pendingControlRequest: (name: String, watcherID: String)?
+        var holderName = "Host"
 
         public typealias SendWire = (Data, NWConnection, @escaping () -> Void) -> Void
         private let sendWire: SendWire
@@ -59,11 +59,11 @@
             else { return nil }
             return port
         }
-        public var peers: [ObjectIdentifier: Peer] = [:]
+        var peers: [ObjectIdentifier: Peer] = [:]
         private let encoder = WatcherRelayEncoder()
         private var bitrate = WatcherRelayBitrate()
-        public var bitsPerSecond: Int { bitrate.bitsPerSecond }
-        public var lease = WatcherRelayControlLease()
+        var bitsPerSecond: Int { bitrate.bitsPerSecond }
+        var lease = WatcherRelayControlLease()
         private var passcode = ""
         private var hostName = ""
         private var cameraName = ""
@@ -139,19 +139,19 @@
             onChange?()
         }
 
-        public func setCeiling(_ index: Int) {
+        func setCeiling(_ index: Int) {
             bitrate.ceilingIndex = index
             encoder.bitsPerSecond = bitrate.bitsPerSecond
         }
 
         /// Called directly by the decoder. Bound admission BEFORE either dispatch queue.
-        public func updateOrientation(_ mirrored: Bool) {
+        func updateOrientation(_ mirrored: Bool) {
             orientationLock.lock()
             orientation = mirrored
             orientationLock.unlock()
         }
 
-        public func submit(_ identity: CVPixelBuffer) {
+        func submit(_ identity: CVPixelBuffer) {
             guard admission.admit() else { return }
             orientationLock.lock()
             let mirrored = orientation
@@ -200,7 +200,7 @@
             }
         }
 
-        public func update(state: WatcherRelayState) {
+        func update(state: WatcherRelayState) {
             isRecording = state.isRecording
             lastState = state
             // Camera FPS is measured by the host present path, independently of relay sends.
@@ -232,7 +232,7 @@
             }
         }
 
-        public func grantControl() {
+        func grantControl() {
             guard let pending = pendingControlRequest else { return }
             lease.grant(name: pending.name, watcherID: pending.watcherID)
             holderName = pending.name
@@ -241,12 +241,12 @@
             onChange?()
         }
 
-        public func denyControl() {
+        func denyControl() {
             pendingControlRequest = nil
             onChange?()
         }
 
-        public func reclaimControl() {
+        func reclaimControl() {
             lease.reclaim(hostName: hostName)
             holderName = hostName
             pendingControlRequest = nil
@@ -254,7 +254,7 @@
             onChange?()
         }
 
-        public func applyCommand(_ command: WatcherRelayCommand, from watcherID: String?)
+        func applyCommand(_ command: WatcherRelayCommand, from watcherID: String?)
             -> WatcherRelayCommand?
         {
             guard lease.shouldProxy(commandFrom: watcherID) else { return nil }
@@ -308,7 +308,7 @@
             }
         }
 
-        public func onMessage(peer: Peer, msg: WatcherRelayFraming.Decoded) throws {
+        func onMessage(peer: Peer, msg: WatcherRelayFraming.Decoded) throws {
             guard !peer.closing else { return }
             switch msg.kind {
             case .hello:
@@ -449,7 +449,7 @@
             }
         }
 
-        public func drop(_ peer: Peer) {
+        func drop(_ peer: Peer) {
             peer.conn.cancel()
             if lease.shouldProxy(commandFrom: peer.watcherID) {
                 _ = lease.park(watcherID: peer.watcherID, name: peer.name, now: Date())
@@ -464,17 +464,17 @@
             onChange?()
         }
 
-        public final class Peer: @unchecked Sendable {
-            public let conn: NWConnection
-            public var buffer = Data()
-            public var authorized = false
-            public var closing = false
-            public var needsKeyframe = true
-            public var inFlight = 0
-            public var stateInFlight = false
-            public var watcherID: String?
-            public var name = "Watcher"
-            public init(conn: NWConnection) { self.conn = conn }
+        final class Peer: @unchecked Sendable {
+            let conn: NWConnection
+            var buffer = Data()
+            var authorized = false
+            var closing = false
+            var needsKeyframe = true
+            var inFlight = 0
+            var stateInFlight = false
+            var watcherID: String?
+            var name = "Watcher"
+            init(conn: NWConnection) { self.conn = conn }
         }
     }
 
@@ -483,13 +483,13 @@
     @MainActor
     @Observable
     public final class WatcherRelayHost {
-        public var watcherCount = 0
-        public var encoderFailed = false
-        public var pendingControlRequest: (name: String, watcherID: String)?
-        public var holderName = "Host"
+        public internal(set) var watcherCount = 0
+        public internal(set) var encoderFailed = false
+        public internal(set) var pendingControlRequest: (name: String, watcherID: String)?
+        public internal(set) var holderName = "Host"
         @ObservationIgnored private var holderWatcherID: String?
         @ObservationIgnored private var controlRevision: UInt64 = 0
-        @ObservationIgnored public private(set) var transport: WatcherRelayTransport?
+        @ObservationIgnored private(set) var transport: WatcherRelayTransport?
         @ObservationIgnored private let versionMismatchReason: String
         @ObservationIgnored private let logSubsystem: String
         @ObservationIgnored private let journal: @Sendable (String) -> Void
