@@ -61,6 +61,11 @@ it from its integration slots, [appkit](../appkit/README.md)). Android's brand i
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
 
+App views share the 44 pt hit-target helpers (`.buttonStyle(.monitorTapTarget)`,
+`minTapTarget`) and the solid page surface (`liquidGlass(in:)`, `glassCapsule`, `glassCircle`;
+floating monitor chrome uses `monitorGlass`). Corner radius is `MonitorTheme.radius`, the page
+backdrop `MonitorTheme.background`. SwiftUI only: Compose uses its own minimum touch target.
+
 ## Operator settings
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and
@@ -120,7 +125,8 @@ on both platforms, with optional sign-in/sign-out actions. Apps keep credentials
 requests and service-specific copy. Missing actions stay absent.
 
 `MonitorFeedSharingSettings` owns the actual Apple relay-host settings rows: share switch,
-Wi-Fi-code action, passcode field, control requests and supplied priority choices. The app
+Wi-Fi-code action (absent when the app passes none, for cameras whose watchers must not join
+the camera's network), passcode field, control requests and supplied priority choices. The app
 keeps relay admission/lifetime, borrowed-camera policy, keychain writes and Wi-Fi-sheet
 presentation. This is an explicit platform exception: Android currently has no implemented
 feed-sharing settings and retains its existing Coming soon content. No Android relay or

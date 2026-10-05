@@ -184,7 +184,7 @@ let package = Package(
         // media browse and the JNI exports of the Kotlin class
         // com.opencapture.opencine.nikon.NikonNative (Android `:nikon`). Everything but the JNI
         // exports also builds and tests on Darwin against scripted fake cameras.
-        .target(name: "OpenCineNikonAndroid", dependencies: ["OpenCineNikon", "OpenCineJNISupport"]),
+        .target(name: "OpenCineNikonAndroid", dependencies: ["OpenCineNikon", "OpenCineMedia", "OpenCineJNISupport"]),
         .testTarget(
             name: "OpenCineNikonAndroidTests",
             dependencies: ["OpenCineNikonAndroid", "OpenCineNikon"]),
