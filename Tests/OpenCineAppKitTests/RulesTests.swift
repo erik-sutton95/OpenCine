@@ -15,6 +15,8 @@ struct AppKitRules {
         let allowed: Set<String> = [
             "Foundation", "Observation", "SwiftUI", "UIKit", "OpenCineCore", "OpenCineMulticam",
             "MonitorPresentation", "MonitorUI", "OpenCineMedia",
+            // The reliability network policy reads a gzip envelope header (system zlib).
+            "zlib",
         ]
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
