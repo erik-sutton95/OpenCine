@@ -1,6 +1,6 @@
 import Testing
 
-@testable import OpenCineNikon
+@testable import OpenCineMedia
 
 @Suite("LinkSignalBars")
 struct LinkSignalBarsTests {

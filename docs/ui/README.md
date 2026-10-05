@@ -61,6 +61,11 @@ it from its integration slots, [appkit](../appkit/README.md)). Android's brand i
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
 
+App views share the 44 pt hit-target helpers (`.buttonStyle(.monitorTapTarget)`,
+`minTapTarget`) and the solid page surface (`liquidGlass(in:)`, `glassCapsule`, `glassCircle`;
+floating monitor chrome uses `monitorGlass`). Corner radius is `MonitorTheme.radius`, the page
+backdrop `MonitorTheme.background`. SwiftUI only: Compose uses its own minimum touch target.
+
 ## Operator settings
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and

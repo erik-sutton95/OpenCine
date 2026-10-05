@@ -1,6 +1,6 @@
 import Testing
 
-@testable import OpenCineNikon
+@testable import OpenCineMedia
 
 @Suite("Camera link health scoring") struct CameraLinkHealthTests {
     @Test func disconnected() {

@@ -11,7 +11,8 @@ OpenZCine `Sources/OpenZCineCore` without behavior change (plan work package VEN
 - Discovery (passive listing, infrastructure scan plan), Wi-Fi SSID and screen parsing,
   credential handoff, camera paths, connect progress and diagnostics, saved camera records and
   path groups, per-setup stream settings (`LiveViewStreamPreset`, `LiveViewQualityBias`), session
-  recovery, reconnect backoff, link health, throughput, signal bars, poll pacing and watchdog.
+  recovery, reconnect backoff, throughput, poll pacing and watchdog. Link health scoring and signal
+  bars are shared in `OpenCineMedia`.
 - `NikonCameraSession`: OpenCineCore's `CameraSession` for ISO, white balance and record over a
   `NikonControlDriver` the app's control service implements (OpenZCine: `NativeAppModel`).
   Settings need no picture; record keeps its live-view preflight.
