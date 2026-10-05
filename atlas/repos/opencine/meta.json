@@ -181,6 +181,12 @@
       "coordinates": "com.opencapture.opencine:multicam"
     },
     {
+      "name": ":camera-vocabulary",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:camera-vocabulary"
+    },
+    {
       "name": ":dji",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -272,6 +278,7 @@
       "Insta360Apple",
       "Insta360AppleTestSupport",
       "Insta360AppleTests",
+      ":camera-vocabulary",
       ":dji",
       ":nikon",
       ":insta360-shell",

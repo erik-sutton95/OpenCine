@@ -10,6 +10,8 @@ import com.opencapture.opencine.motion.MotionAxis
 import com.opencapture.opencine.motion.MotionBounds
 import com.opencapture.opencine.motion.MotionCapabilities
 import com.opencapture.opencine.motion.MotionReferenceFrame
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp

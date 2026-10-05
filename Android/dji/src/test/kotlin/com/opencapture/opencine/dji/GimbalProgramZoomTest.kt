@@ -2,6 +2,9 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.motion.GimbalProgram
 import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -40,7 +40,12 @@ import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
 import com.opencapture.opencine.motion.MonitorLayoutCapabilities
-import com.opencapture.opencine.dji.ConnectionPhase as PocketPhase
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.ConnectionPhase as PocketPhase
+import com.opencapture.opencine.vocabulary.EvComp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay

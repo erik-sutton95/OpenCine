@@ -1,5 +1,14 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.vocabulary.ApertureStrategy
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.FocusTrackMode
+import com.opencapture.opencine.vocabulary.VideoFormat
+import com.opencapture.opencine.vocabulary.VideoResolution
+
 /**
  * Overlay fields the JNI status JSON does not yet carry, parsed from the same
  * subscribe pushes / GET replies the camera already sends.

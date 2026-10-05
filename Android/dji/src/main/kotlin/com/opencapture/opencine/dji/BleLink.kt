@@ -26,6 +26,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 
+import com.opencapture.opencine.vocabulary.CameraModel
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger

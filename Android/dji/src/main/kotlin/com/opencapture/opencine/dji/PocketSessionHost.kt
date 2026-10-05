@@ -2,6 +2,7 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.media.FeedIncidentSink
 import com.opencapture.opencine.media.FeedIncidentTestSource
+import com.opencapture.opencine.vocabulary.TrackingBox
 
 /**
  * What [PocketCameraSession] needs from the app that hosts it: operator preferences, feed

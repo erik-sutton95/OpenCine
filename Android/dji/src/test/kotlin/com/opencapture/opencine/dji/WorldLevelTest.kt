@@ -7,6 +7,7 @@ import com.opencapture.opencine.motion.SnapOutcome
 import com.opencapture.opencine.motion.WorldLevel
 import com.opencapture.opencine.motion.WorldLevelSnap
 import com.opencapture.opencine.motion.WorldLevelTarget
+import com.opencapture.opencine.vocabulary.CameraCommands
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
