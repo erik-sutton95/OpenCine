@@ -31,10 +31,16 @@ find_program(GLSLC glslc
 macro(opc_embed_shader NAME STAGE SRC)
   set(spv "${CMAKE_CURRENT_BINARY_DIR}/spv/${NAME}.spv")
   set(hdr "${CMAKE_CURRENT_BINARY_DIR}/spv/${NAME}_spv.h")
+  set(shader_optimization -O)
+  set(shader_target --target-env=vulkan1.1)
+  if("${ARGN}" STREQUAL "UNOPTIMIZED_VULKAN_1_0")
+    set(shader_optimization "")
+    set(shader_target "")
+  endif()
   add_custom_command(
     OUTPUT "${hdr}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/spv"
-    COMMAND "${GLSLC}" -fshader-stage=${STAGE} --target-env=vulkan1.1 -O
+    COMMAND "${GLSLC}" -fshader-stage=${STAGE} ${shader_target} ${shader_optimization}
             "${CMAKE_CURRENT_SOURCE_DIR}/${SRC}" -o "${spv}"
     COMMAND "${CMAKE_COMMAND}"
             -Dspv=${spv} -Dhdr=${hdr} -Dsym=${NAME}_spv
@@ -48,6 +54,8 @@ endmacro()
 set(OPC_SPV_HEADERS "")
 opc_embed_shader(fullscreen_vert vertex shaders/fullscreen.vert)
 opc_embed_shader(feed_frag fragment shaders/feed.frag)
+opc_embed_shader(bitmap_feed_frag fragment shaders/bitmap_feed.frag UNOPTIMIZED_VULKAN_1_0)
+opc_embed_shader(bitmap_feed_vert vertex shaders/bitmap_feed.vert UNOPTIMIZED_VULKAN_1_0)
 opc_embed_shader(peaking_blur_frag fragment shaders/peaking_blur.frag)
 opc_embed_shader(peaking_mask_frag fragment shaders/peaking_mask.frag)
 opc_embed_shader(blit_frag fragment shaders/blit.frag)
@@ -78,4 +86,5 @@ target_link_libraries(opc_vulkan
   android
   log
   nativewindow
+  jnigraphics
   ${VULKAN_LIB})

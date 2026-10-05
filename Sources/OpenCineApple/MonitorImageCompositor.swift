@@ -619,7 +619,44 @@ public enum MonitorImageCompositor {
         return output
     }
 
-    private static func thresholdMask(_ luma: CIImage, above threshold: Double) -> CIImage {
+    /// Render already calibrated code-value zones without inventing a source transfer.
+    /// Existing IRE-based entry points keep their original default graph.
+    public static func applyResolvedZebra(
+        over base: CIImage, source: CIImage, extent: CGRect, zebra: MonitorCodeZebraSpec
+    ) -> CIImage {
+        let luma = source.applyingFilter(
+            "CIColorMatrix",
+            parameters: [
+                "inputRVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+                "inputGVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+                "inputBVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+                "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            ])
+        let highlightSource = zebra.maskPolicy.highlightMeasure == .rec709Luma
+            ? luma : source.applyingFilter("CIMaximumComponent")
+        var output = base
+        if let threshold = zebra.thresholds.highlight {
+            let rgb = zebra.highlightColor.rgb
+            output = blendStripedZebra(
+                over: output,
+                mask: thresholdMask(highlightSource, above: threshold,
+                    bias: zebra.maskPolicy.rampBias),
+                color: CIColor(red: rgb.0, green: rgb.1, blue: rgb.2), extent: extent)
+        }
+        if let lower = zebra.thresholds.midtoneLower,
+            let upper = zebra.thresholds.midtoneUpper {
+            let rgb = zebra.midtoneColor.rgb
+            output = blendStripedZebra(
+                over: output,
+                mask: bandMask(luma, lower: lower, upper: upper,
+                    bias: zebra.maskPolicy.rampBias),
+                color: CIColor(red: rgb.0, green: rgb.1, blue: rgb.2), extent: extent)
+        }
+        return output
+    }
+
+    private static func thresholdMask(_ luma: CIImage, above threshold: Double, bias: Double = 1) -> CIImage {
         let gain = 40.0
         // Bias +1 so luma == threshold paints (`ire100 >= highlight`), matching LiveZebra.
         return luma.applyingFilter(
@@ -630,26 +667,29 @@ public enum MonitorImageCompositor {
                 "inputBVector": CIVector(x: gain, y: 0, z: 0, w: 0),
                 "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
                 "inputBiasVector": CIVector(
-                    x: -threshold * gain + 1, y: -threshold * gain + 1, z: -threshold * gain + 1,
+                    x: -threshold * gain + bias, y: -threshold * gain + bias, z: -threshold * gain + bias,
                     w: 1),
             ]
         ).applyingFilter("CIColorClamp")
     }
 
     private static func bandMask(_ luma: CIImage, centre: Double, halfWidth: Double) -> CIImage {
-        let low = thresholdMask(luma, above: centre - halfWidth)
+        bandMask(luma, lower: centre - halfWidth, upper: centre + halfWidth, bias: 1)
+    }
+
+    private static func bandMask(_ luma: CIImage, lower: Double, upper: Double, bias: Double) -> CIImage {
+        let low = thresholdMask(luma, above: lower, bias: bias)
         let high = luma.applyingFilter(
             "CIColorMatrix",
             parameters: {
                 let gain = 40.0
-                let upper = centre + halfWidth
                 return [
                     "inputRVector": CIVector(x: -gain, y: 0, z: 0, w: 0),
                     "inputGVector": CIVector(x: -gain, y: 0, z: 0, w: 0),
                     "inputBVector": CIVector(x: -gain, y: 0, z: 0, w: 0),
                     "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
                     "inputBiasVector": CIVector(
-                        x: upper * gain + 1, y: upper * gain + 1, z: upper * gain + 1, w: 1),
+                        x: upper * gain + bias, y: upper * gain + bias, z: upper * gain + bias, w: 1),
                 ]
             }()
         ).applyingFilter("CIColorClamp")

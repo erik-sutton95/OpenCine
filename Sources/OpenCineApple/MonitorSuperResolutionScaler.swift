@@ -9,8 +9,6 @@ import os
 #endif
 
 #if os(iOS) && !targetEnvironment(simulator)
-    private enum MonitorSuperResolutionModel { static var isReady: Bool { false } }
-
     /// VideoToolbox's low-latency super-resolution scaler as a feed upscaler, sitting between the
     /// bake and the present's fit.
     ///
@@ -58,6 +56,7 @@ import os
 
         let quality: Quality
         private let device: MTLDevice
+        private let modelReady: @Sendable () -> Bool
         private let log: Logger
         private var textureCache: CVMetalTextureCache?
         private var processor: VTFrameProcessor?
@@ -105,7 +104,9 @@ import os
         private let workingColorSpace =
             CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
 
-        init(device: MTLDevice, quality: Quality, logSubsystem: String = "com.opencapture.opencine") {
+        init(device: MTLDevice, quality: Quality, logSubsystem: String = "com.opencapture.opencine",
+            modelReady: @escaping @Sendable () -> Bool = { false }) {
+            self.modelReady = modelReady
             self.log = Logger(subsystem: logSubsystem, category: "feed-upscale")
             self.device = device
             self.quality = quality
@@ -126,7 +127,7 @@ import os
                     return decline("this device does not support it")
                 }
             case .high:
-                guard MonitorSuperResolutionModel.isReady else {
+                guard modelReady() else {
                     return decline("its model has not been downloaded")
                 }
                 // The iOS cap for video input. A source past it is a configuration this processor
