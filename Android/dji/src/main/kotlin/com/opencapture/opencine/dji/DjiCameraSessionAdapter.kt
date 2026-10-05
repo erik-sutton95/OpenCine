@@ -160,7 +160,17 @@ class DjiCameraSessionAdapter(
     var wireTimeout: Duration = 4.seconds
 
     private val _snapshots = MutableStateFlow(CameraSnapshot(session = id, epoch = ControlEpoch(1)))
-    override val snapshots: StateFlow<CameraSnapshot> = _snapshots.asStateFlow()
+    private val followed = _snapshots.asStateFlow()
+
+    /**
+     * Nothing rebuilds while nobody follows, so a new follower starts from the session as it is
+     * now (Swift `snapshots()` starts from `current`), not from a placeholder.
+     */
+    override val snapshots: StateFlow<CameraSnapshot>
+        get() {
+            rebuild()
+            return followed
+        }
 
     private var epoch = ControlEpoch(1)
     private var attempt = ConnectionAttemptID()
