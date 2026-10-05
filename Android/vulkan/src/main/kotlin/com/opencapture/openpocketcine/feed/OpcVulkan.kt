@@ -1,5 +1,6 @@
 package com.opencapture.openpocketcine.feed
 
+import android.graphics.Bitmap
 import android.view.Surface
 import android.hardware.HardwareBuffer
 import android.util.Log
@@ -28,6 +29,21 @@ object OpcVulkan {
     @JvmStatic external fun nativeProbe(): Boolean
 
     @JvmStatic external fun nativeCreate(): Long
+
+    /** Bitmap source/strip-cube pipeline on the same renderer device and WSI owner. */
+    @JvmStatic external fun nativeProbeBitmap(): Boolean
+
+    @JvmStatic external fun nativeCreateBitmap(): Long
+    @JvmStatic external fun nativeSubmitBitmap(handle: Long, bitmap: Bitmap): Boolean
+    @JvmStatic external fun nativeAttachBitmapWindow(handle: Long, surface: Surface): Boolean
+    @JvmStatic external fun nativeClearBitmapPlan(handle: Long)
+    @JvmStatic external fun nativeConfigureBitmap(
+        handle: Long, params: FloatArray,
+        lutSize: Int, lut: ByteArray?, paintSize: Int, paint: ByteArray?, weightSize: Int, weight: ByteArray?,
+    ): Boolean
+    @JvmStatic external fun nativeSetBitmapPaused(handle: Long, paused: Boolean): Boolean
+    @JvmStatic external fun nativeClearBitmap(handle: Long)
+    @JvmStatic external fun nativeRedrawBitmap(handle: Long): Boolean
 
     @JvmStatic external fun nativeDestroy(handle: Long)
 

@@ -7,7 +7,8 @@ import kotlin.test.assertTrue
 class NativeRuntimeImportRulesTest {
     @Test
     fun nativeOwnersImportOnlyMediaRendererAndSystemFrameworks() {
-        val allowed = listOf("android.", "java.", "kotlin.", "kotlinx.",
+        // javax.microedition.khronos ships in android.jar: GLSurfaceView.Renderer requires it.
+        val allowed = listOf("android.", "java.", "javax.microedition.khronos.", "kotlin.", "kotlinx.",
             "com.opencapture.opencine.runtime.", "com.opencapture.opencine.media.")
         val renderer = "com.opencapture.openpocketcine.feed.OpcVulkan"
         for (file in File("src/main").walk().filter { it.extension == "kt" }) {

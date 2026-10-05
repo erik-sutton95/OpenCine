@@ -12,6 +12,8 @@ import os
 public final class MonitorPresentScaler: @unchecked Sendable {
     private let device: MTLDevice
     private let bilinear: MPSImageBilinearScale
+    private lazy var lanczos = MPSImageLanczosScale(device: device)
+    private let qualityModelReady: @Sendable () -> Bool
     private let log: Logger
     private let logSubsystem: String
     private var options = MonitorPresentationOptions()
@@ -40,7 +42,9 @@ public final class MonitorPresentScaler: @unchecked Sendable {
     private var hdrScratch: MTLTexture?
     private var hdrPipeline: MTLRenderPipelineState?
 
-    public init(device: MTLDevice, logSubsystem: String = "com.opencapture.opencine") {
+    public init(device: MTLDevice, logSubsystem: String = "com.opencapture.opencine",
+        qualityModelReady: @escaping @Sendable () -> Bool = { false }) {
+        self.qualityModelReady = qualityModelReady
         self.logSubsystem = logSubsystem
         log = Logger(subsystem: logSubsystem, category: "feed-upscale")
         self.device = device
@@ -160,6 +164,18 @@ public final class MonitorPresentScaler: @unchecked Sendable {
                 encodeSupersample($0, to: target, commandBuffer: commandBuffer)
             } ?? baked
 
+        if options.exactCopyAtNativeSize,
+            source.width == target.width, source.height == target.height {
+            guard let blit = commandBuffer.makeBlitCommandEncoder() else { return false }
+            blit.copy(from: source, sourceSlice: 0, sourceLevel: 0,
+                sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                sourceSize: MTLSize(width: source.width, height: source.height, depth: 1),
+                to: target, destinationSlice: 0, destinationLevel: 0,
+                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            blit.endEncoding()
+            return true
+        }
+
         let scale = min(
             Double(target.width) / Double(source.width),
             Double(target.height) / Double(source.height))
@@ -186,10 +202,13 @@ public final class MonitorPresentScaler: @unchecked Sendable {
         // ran the cube at feed resolution  -  Lanczos on every replace frame is
         // why enabling a look hitchs a 720p proxy. Quality / AI return above.
         withUnsafePointer(to: &transform) { pointer in
-            bilinear.scaleTransform = pointer
-            bilinear.encode(
+            let scaler: MPSImageScale =
+                options.resampling == .selectedUpscaler && options.upscaler != .off
+                    ? lanczos : bilinear
+            scaler.scaleTransform = pointer
+            scaler.encode(
                 commandBuffer: commandBuffer, sourceTexture: source, destinationTexture: target)
-            bilinear.scaleTransform = nil
+            scaler.scaleTransform = nil
         }
         return true
     }
@@ -279,6 +298,16 @@ public final class MonitorPresentScaler: @unchecked Sendable {
             spatialScaler.colorTexture = source
             spatialScaler.outputTexture = output
             spatialScaler.encode(commandBuffer: commandBuffer)
+            if options.exactCopyAtNativeSize {
+                guard let blit = commandBuffer.makeBlitCommandEncoder() else { return false }
+                blit.copy(from: output, sourceSlice: 0, sourceLevel: 0,
+                    sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                    sourceSize: MTLSize(width: output.width, height: output.height, depth: 1),
+                    to: target, destinationSlice: 0, destinationLevel: 0,
+                    destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+                blit.endEncoding()
+                return true
+            }
             // Bake is flipped for MPS. A blit would put that origin on CAMetalLayer
             // upside down; a 1:1 MPS copy uses the same Y as Fast.
             var copy = MPSScaleTransform(scaleX: 1, scaleY: 1, translateX: 0, translateY: 0)
@@ -342,7 +371,7 @@ public final class MonitorPresentScaler: @unchecked Sendable {
             if let existing, existing.quality == .lowLatency {
                 scaler = existing
             } else {
-                scaler = MonitorSuperResolutionScaler(device: device, quality: .lowLatency, logSubsystem: logSubsystem)
+                scaler = MonitorSuperResolutionScaler(device: device, quality: .lowLatency, logSubsystem: logSubsystem, modelReady: qualityModelReady)
                 superResolver = scaler
             }
             return scaler.encode(source: source, target: target, commandBuffer: commandBuffer,
