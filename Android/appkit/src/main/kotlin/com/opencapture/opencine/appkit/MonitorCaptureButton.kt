@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +54,7 @@ public fun MonitorCaptureButton(
         MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
     takePhoto: () -> Unit = {},
     openMode: (() -> Unit)? = null,
+    onConfirmingChange: (Boolean) -> Unit = {},
 ): Unit {
     val state by control.state.collectAsState()
     val editor = control.recordEditor(confirmationPolicy)
@@ -62,6 +65,12 @@ public fun MonitorCaptureButton(
         approved?.let { if (!control.canCommitRecord(it)) approved = null }
     }
     LaunchedEffect(enabled, photo, confirmationPolicy) { approved = null }
+    // Hosts gate other record paths (remote shutter, watch) while the operator is deciding.
+    val confirming = approved != null
+    val latestConfirming by rememberUpdatedState(onConfirmingChange)
+    val confirmingNow by rememberUpdatedState(confirming)
+    LaunchedEffect(confirming) { latestConfirming(confirming) }
+    DisposableEffect(Unit) { onDispose { if (confirmingNow) latestConfirming(false) } }
     fun press() {
         if (!interactive) return
         when {
