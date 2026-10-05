@@ -53,12 +53,18 @@ public struct MultiviewCameraAction: Hashable, Sendable, Identifiable {
     public var title: String
     public var kind: Kind
     public var enabled: Bool
+    /// The options close before `perform` runs. Options also close once their slot empties.
+    public var closes: Bool
 
-    public init(_ id: String, _ title: String, kind: Kind = .action, enabled: Bool = true) {
+    public init(
+        _ id: String, _ title: String, kind: Kind = .action, enabled: Bool = true,
+        closes: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.kind = kind
         self.enabled = enabled
+        self.closes = closes
     }
 
     /// The id the stage's double tap and the Live View entry share.

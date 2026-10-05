@@ -197,6 +197,11 @@
                     for: UIApplication.willResignActiveNotification)
             ) { _ in closePopups() }
             .onDisappear { closePopups() }
+            // A removed camera takes its options with it.
+            .onChange(of: optionsSlot.map { tiles.indices.contains($0) && tiles[$0] != nil }) {
+                _, open in
+                if open == false { closePopups() }
+            }
         }
 
         private func closePopups() {
@@ -219,11 +224,12 @@
                         tile: tile, maximumHeight: min(520, height), confirmsRecord: confirmsRecord,
                         recordContext: { actions.recordContext(slot) },
                         record: { await actions.record($0, slot) }, close: closePopups
-                    ) { id in
-                        if id == MultiviewCameraAction.liveView {
+                    ) { action in
+                        if action.id == MultiviewCameraAction.liveView {
                             openLiveView(slot)
                         } else {
-                            actions.perform(id, slot)
+                            if action.closes { closePopups() }
+                            actions.perform(action.id, slot)
                         }
                     }
                     .frame(width: min(440, width))
@@ -801,7 +807,7 @@
         let recordContext: () -> MultiviewRecordContext
         let record: (RecordPlan) async -> Void
         let close: () -> Void
-        let perform: (String) -> Void
+        let perform: (MultiviewCameraAction) -> Void
 
         var body: some View {
             MonitorCapturePanel(
@@ -834,14 +840,14 @@
                             .disabled(!action.enabled)
                         case .destructive:
                             Button(role: .destructive) {
-                                perform(action.id)
+                                perform(action)
                             } label: {
                                 actionLabel(action.title)
                             }
                             .disabled(!action.enabled)
                         case .action:
                             Button {
-                                perform(action.id)
+                                perform(action)
                             } label: {
                                 actionLabel(action.title)
                             }

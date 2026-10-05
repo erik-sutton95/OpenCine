@@ -52,6 +52,8 @@ public data class MultiviewCameraAction(
     val title: String,
     val kind: Kind = Kind.ACTION,
     val enabled: Boolean = true,
+    /** The SwiftUI options close before `perform` runs (a Compose menu always closes). */
+    val closes: Boolean = false,
 ) {
     public enum class Kind { ACTION, RECORD, DESTRUCTIVE }
 
