@@ -110,7 +110,8 @@ let package = Package(
         .testTarget(
             name: "OpenCineAppKitTests",
             dependencies: [
-                "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "MonitorPresentation", "MonitorUI",
+                "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
+                "MonitorPresentation", "MonitorUI",
             ]),
 
         // MARK: DJI
@@ -190,8 +191,8 @@ let package = Package(
         .testTarget(
             name: "HarnessTests",
             dependencies: [
-                "HarnessEngine", "HarnessComposition", "OpenCineAppKit", "OpenCineCore",
-                "OpenCineCoreTestSupport", "OpenCineMedia", "OpenCineMulticam", "OpenCineDJI", "OpenCineNikon",
+                "HarnessEngine", "HarnessComposition", "OpenCineCore", "OpenCineCoreTestSupport",
+                "OpenCineMedia", "OpenCineMulticam", "OpenCineDJI", "OpenCineNikon",
                 "Insta360Apple", "Insta360Protocol", "Insta360AppleTestSupport",
             ]
         ),

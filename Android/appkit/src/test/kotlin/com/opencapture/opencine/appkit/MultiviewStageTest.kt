@@ -42,7 +42,7 @@ import kotlin.time.Duration.Companion.seconds
  * SIMULATED. The shared Multiview stage on the shared engine: two and four cameras connect through
  * Core's [FakeIntegration], are admitted against the app's qualification budget, fill the stage's
  * four slots and record together through one confirmed plan. Every camera is a
- * [FakeCameraSession] on a manual clock. Swift twin: `MultiviewStageTests` (HarnessTests), same names.
+ * [FakeCameraSession] on a manual clock. Swift twin: `MultiviewStageTests` (OpenCineAppKitTests), same names.
  */
 class MultiviewStageTest {
     private val slots = 4
