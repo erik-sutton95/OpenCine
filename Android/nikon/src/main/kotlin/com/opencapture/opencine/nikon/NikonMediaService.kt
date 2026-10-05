@@ -19,7 +19,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
 
 public data class NikonMediaSourceIdentity(
     val native: Any, val owner: Long, val session: CameraSessionID, val epoch: ControlEpoch,
@@ -57,7 +56,7 @@ public class NikonNativeMediaSource(
         }
 }
 
-/** One actual bounded native cursor; used by the service and old golden-test compatibility. */
+/** One actual bounded native cursor; used by the service. */
 public class NikonMediaCatalogPager(
     private val gateway: NikonMediaBrowseGateway,
     private val pageSize: Int,
@@ -135,25 +134,6 @@ public class NikonMediaCatalogPager(
 public class NikonMediaBrowsePagingException(message: String) : IllegalStateException(message)
 
 /** Compatibility collector shares the real pager; actual galleries consume CameraMediaService. */
-public suspend fun collectNikonMediaPages(
-    pageSize: Int, gateway: NikonMediaBrowseGateway,
-    ioContext: CoroutineContext = Dispatchers.IO,
-    onStart: suspend (List<CameraStorageSlotStatus>) -> Unit = {},
-    onPage: suspend (NikonMediaBrowseSnapshot) -> Unit,
-): List<NikonMediaClipRecord> {
-    val pager = NikonMediaCatalogPager(gateway, pageSize, ioContext)
-    var clips: List<NikonMediaClipRecord> = emptyList()
-    try {
-        onStart(pager.begin().storageSlots)
-        while (true) {
-            val page = pager.next() ?: return clips
-            clips = page.clips; onPage(page)
-            if (!page.hasMore) return clips
-            yield()
-        }
-    } finally { withContext(NonCancellable) { pager.close() } }
-}
-
 public data class NikonMediaCatalogRecord(val asset: MediaAssetID, val clip: NikonMediaClipRecord?,
     val identity: NikonMediaObjectIdentity)
 public interface NikonMediaCatalogRecordSource {
