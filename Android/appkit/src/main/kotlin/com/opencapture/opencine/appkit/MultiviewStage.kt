@@ -122,7 +122,14 @@ public data class MultiviewTile(
             val state = summary.recording.value
             val recording = state?.let { it == RecordingState.RECORDING || it == RecordingState.TRANSITIONING }
             val control = (summary.control as? RoleStatus.Reported)?.value
-            val ready = control == ConnectionState.Ready
+            // The link as reported: a closed session is not connecting, and no report is a wait.
+            val (status, detail) = when (control) {
+                ConnectionState.Ready -> null to "Connected"
+                is ConnectionState.Disconnected ->
+                    MultiviewTileStatus("Disconnected", inProgress = false) to "Disconnected"
+                null -> MultiviewTileStatus("Waiting for the camera", inProgress = true) to "Waiting for the camera"
+                else -> MultiviewTileStatus("Connecting…", inProgress = true) to "Connecting…"
+            }
             return MultiviewTile(
                 name = entry.name,
                 battery = snapshot?.power?.battery?.value?.let { (it * 100).roundToInt() },
@@ -136,8 +143,8 @@ public data class MultiviewTile(
                     value(SettingKey.ISO), value(SettingKey.SHUTTER), value(SettingKey.WHITE_BALANCE),
                     value(SettingKey.FOCUS_MODE),
                 ),
-                status = if (ready) null else MultiviewTileStatus("Connecting…", inProgress = true),
-                detail = if (ready) "Connected" else "Connecting…",
+                status = status,
+                detail = detail,
                 actions = listOf(
                     MultiviewCameraAction(MultiviewCameraAction.LIVE_VIEW, "Live View"),
                     MultiviewCameraAction(

@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CommandRejection
+import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectedCamera
 import com.opencapture.opencine.core.ConnectionEvent
@@ -25,6 +26,7 @@ import com.opencapture.opencine.multicam.MulticamGroup
 import com.opencapture.opencine.multicam.MulticamSnapshot
 import com.opencapture.opencine.multicam.RecordDirection
 import com.opencapture.opencine.multicam.RecordPlan
+import com.opencapture.opencine.multicam.RoleStatus
 import com.opencapture.opencine.multicam.ResourceAdmission
 import com.opencapture.opencine.multicam.ResourceBudget
 import com.opencapture.opencine.multicam.ResourceRequest
@@ -127,6 +129,13 @@ class MultiviewStageTest {
         val first = stage[0]!!
         assertTrue(first.name == "Camera A" && first.tally == "STBY" && first.battery == 76)
         assertTrue(first.timecode == "01:02:03" && first.status == null)
+        // The link as reported: a closed session is not connecting, and no report is a wait.
+        val link = group.summary(state(), 30.seconds).entries[0]
+        val closed = RoleStatus.Reported(ConnectionState.Disconnected(SessionCloseReason.LINK_LOST))
+        val lost = MultiviewTile(group.entries[0], link.copy(control = closed), null)
+        assertTrue(lost.status?.text == "Disconnected" && lost.status?.inProgress == false)
+        val unreported = MultiviewTile(group.entries[0], link.copy(control = RoleStatus.Unreported), null)
+        assertEquals("Waiting for the camera", unreported.detail)
         assertEquals(listOf("ISO", "SHUTTER", "WB", "FOCUS"), first.readouts.map { it.title })
         assertEquals(listOf("800", "1/50", "5600K", "\u2014"), first.readouts.map { it.value })
         assertTrue(stage.drop(members).all { it == null }, "the other slots stay empty")

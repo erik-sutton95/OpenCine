@@ -264,6 +264,18 @@ extension MultiviewTile {
         let recording = summary.recording.value.map { $0 == .recording || $0 == .transitioning }
         let control: ConnectionState? =
             if case .reported(let state) = summary.control { state } else { nil }
+        // The link as reported: a closed session is not connecting, and no report is a wait.
+        let link: (status: MultiviewTileStatus?, detail: String) =
+            switch control {
+            case .ready: (nil, "Connected")
+            case .disconnected:
+                (MultiviewTileStatus(text: "Disconnected", inProgress: false), "Disconnected")
+            case .discovered, .connecting, .recovering:
+                (MultiviewTileStatus(text: "Connecting…", inProgress: true), "Connecting…")
+            case nil:
+                (MultiviewTileStatus(text: "Waiting for the camera", inProgress: true),
+                 "Waiting for the camera")
+            }
         self.init(
             name: entry.name,
             battery: snapshot?.power.battery.value.map { Int(($0 * 100).rounded()) },
@@ -276,9 +288,7 @@ extension MultiviewTile {
                 failed: control.map { if case .disconnected = $0 { true } else { false } } ?? false),
             recording: summary.recording.value == .recording,
             readouts: [value(.iso), value(.shutter), value(.whiteBalance), value(.focusMode)],
-            status: control == .ready
-                ? nil : MultiviewTileStatus(text: "Connecting…", inProgress: true),
-            detail: control == .ready ? "Connected" : "Connecting…",
+            status: link.status, detail: link.detail,
             actions: [
                 MultiviewCameraAction(MultiviewCameraAction.liveView, "Live View"),
                 MultiviewCameraAction(

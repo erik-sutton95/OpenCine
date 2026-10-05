@@ -103,6 +103,15 @@ import Testing
         let first = try #require(stage[0])
         #expect(first.name == "Camera A" && first.tally == "STBY" && first.battery == 76)
         #expect(first.timecode == "01:02:03" && first.status == nil)
+        // The link as reported: a closed session is not connecting, and no report is a wait.
+        var link = group.summary(at: await state(), telemetryMaxAge: .seconds(30)).entries[0]
+        link.control = .reported(.disconnected(.linkLost))
+        let lost = MultiviewTile(group.entries[0], summary: link, snapshot: nil)
+        #expect(lost.status?.text == "Disconnected" && lost.status?.inProgress == false)
+        link.control = .unreported
+        #expect(
+            MultiviewTile(group.entries[0], summary: link, snapshot: nil).detail
+                == "Waiting for the camera")
         #expect(first.readouts.map(\.title) == ["ISO", "SHUTTER", "WB", "FOCUS"])
         #expect(first.readouts.map(\.value) == ["800", "1/50", "5600K", "\u{2014}"])
         #expect(stage[count...].allSatisfy { $0 == nil }, "the other slots stay empty")
