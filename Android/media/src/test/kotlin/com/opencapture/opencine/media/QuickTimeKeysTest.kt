@@ -37,6 +37,13 @@ class QuickTimeKeysTest {
     }
 
     @Test
+    fun oversizedKeyEntryEndsTheKeyListInsteadOfThrowing() {
+        val keysPayload = byteArrayOf(0, 0, 0, 0, 0, 0, 0, 1) + u32(Int.MAX_VALUE - 4) + "mdta".toByteArray()
+        val hostile = box("moov", box("meta", box("keys", keysPayload)))
+        assertTrue(QuickTimeKeys.keys(hostile, key).isEmpty())
+    }
+
+    @Test
     fun tailReadsTheFileEnd() {
         val bytes = movie("Log", padMdat = 4096)
         val file = File.createTempFile("opc-quicktime-keys", ".mp4")

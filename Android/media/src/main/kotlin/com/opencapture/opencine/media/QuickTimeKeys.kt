@@ -127,7 +127,7 @@ object QuickTimeKeys {
         repeat(count) {
             if (offset + 8 > end) return names
             val size = u32(data, offset)
-            if (size < 8 || offset + size > end) return names
+            if (size < 8 || offset.toLong() + size > end) return names
             names += String(data, offset + 8, size - 8, Charsets.UTF_8)
             offset += size
         }
