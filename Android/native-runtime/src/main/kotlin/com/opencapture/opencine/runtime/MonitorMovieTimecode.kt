@@ -187,15 +187,31 @@ object MonitorMovieTimecode {
         // `tkhd.duration` is counted in the MOVIE timescale, and the export's need not match the
         // camera's; a raw copy would stretch or clip the track against its new movie.
         if (sourceMovieTimescale > 0 && targetMovieTimescale != sourceMovieTimescale) {
-            val durationOffset = trackIDOffset + 4 + 4
-            if (version == 1) {
-                val scaled =
-                    trak.long(durationOffset).rescaled(targetMovieTimescale, sourceMovieTimescale)
-                trak.putLong(durationOffset, scaled)
-            } else {
-                val scaled =
-                    trak.uint(durationOffset).rescaled(targetMovieTimescale, sourceMovieTimescale)
-                trak.putInt(durationOffset, scaled.coerceAtMost(0xFFFF_FFFEL).toInt())
+            fun rescaleMovieTime(offset: Int, wide: Boolean) {
+                if (wide) {
+                    val scaled =
+                        trak.long(offset).rescaled(targetMovieTimescale, sourceMovieTimescale)
+                    trak.putLong(offset, scaled)
+                } else {
+                    val scaled =
+                        trak.uint(offset).rescaled(targetMovieTimescale, sourceMovieTimescale)
+                    trak.putInt(offset, scaled.coerceAtMost(0xFFFF_FFFEL).toInt())
+                }
+            }
+            rescaleMovieTime(trackIDOffset + 4 + 4, wide = version == 1)
+            // Edit segment durations are movie-timescale counts too (their media times are not):
+            // unscaled, an 8 s camera track at 1000 plays for 0.8 s in a 10000 export.
+            trak.path(trak.rootBox(), "edts", "elst")?.let { elst ->
+                val wide = (trak[elst.contentStart].toInt() and 0xFF) == 1
+                val entryBytes = if (wide) 20 else 12
+                val entryCount = trak.int(elst.contentStart + 4)
+                check(
+                    entryCount >= 0 &&
+                        elst.contentStart + 8L + entryCount.toLong() * entryBytes <= elst.end,
+                ) { "Malformed edit list." }
+                repeat(entryCount) { index ->
+                    rescaleMovieTime(elst.contentStart + 8 + index * entryBytes, wide)
+                }
             }
         }
         val stbl = trak.path(trak.rootBox(), "mdia", "minf", "stbl") ?: error("No sample table.")
