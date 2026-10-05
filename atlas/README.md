@@ -54,6 +54,7 @@ python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call site
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
 python3 tools/atlas.py graph build --all --local-only                   # every repo, merged view
 python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json
+python3 tools/atlas.py dupes --candidate opencine-thin-app  # apps at a candidate's consumer commits
 python3 tools/atlas.py new-app OpenFooCine  # a thin app next to OpenCine from templates/app (below)
 python3 tools/atlas.py doctor              # registry, local paths, tooling, snapshots
 python3 tools/atlas.py locate openzcine    # verified path, branch, commit, dirty, worktrees
