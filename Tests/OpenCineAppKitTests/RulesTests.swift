@@ -17,6 +17,11 @@ struct AppKitRules {
             "MonitorPresentation", "MonitorUI", "OpenCineMedia",
             // The reliability network policy reads a gzip envelope header (system zlib).
             "zlib",
+            // Reporting watches for a usable internet path (system Network); the problem report
+            // normalizes attached images (system ImageIO, UniformTypeIdentifiers, CoreTransferable).
+            "Network", "ImageIO", "UniformTypeIdentifiers", "CoreTransferable",
+            // The diagnostic journal writes the unified log (system os).
+            "os",
         ]
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
