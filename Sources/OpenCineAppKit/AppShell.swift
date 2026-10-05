@@ -1,4 +1,5 @@
 #if os(iOS)
+    import MonitorPresentation
     import OpenCineCore
     import SwiftUI
 
@@ -24,12 +25,20 @@
         public var terms: (() -> Void)?
         /// Camera id, integration action id (`RecoveryAction.integration`).
         public var integrationAction: ((String, String) -> Void)?
+        /// The cameras page's Pair, Media and Settings; `nil` opens the shell's pair page or cover.
+        public var pair: (() -> Void)?
+        public var media: (() -> Void)?
+        public var settings: (() -> Void)?
+        /// A tap on one of the app's own NEARBY rows (`AppShell`'s `extraNearby`), by its id.
+        public var extraNearby: ((String) -> Void)?
 
         public init(
             diagnostics: @escaping () -> Void, reportProblem: @escaping () -> Void,
             watchFeed: (() -> Void)? = nil, multiview: (() -> Void)? = nil,
             integrationAction: ((String, String) -> Void)? = nil,
-            privacy: (() -> Void)? = nil, terms: (() -> Void)? = nil
+            privacy: (() -> Void)? = nil, terms: (() -> Void)? = nil,
+            pair: (() -> Void)? = nil, media: (() -> Void)? = nil, settings: (() -> Void)? = nil,
+            extraNearby: ((String) -> Void)? = nil
         ) {
             self.diagnostics = diagnostics
             self.reportProblem = reportProblem
@@ -38,6 +47,10 @@
             self.integrationAction = integrationAction
             self.privacy = privacy
             self.terms = terms
+            self.pair = pair
+            self.media = media
+            self.settings = settings
+            self.extraNearby = extraNearby
         }
     }
 
@@ -48,18 +61,25 @@
     /// Temporary (SHELL-03 I-1): `monitor` is the app's existing native monitor, which presents
     /// `model.cover` over itself while it still owns placement; `page` draws the cover pages
     /// over the cameras and pair pages.
-    public struct AppShell<Monitor: View, Page: View>: View {
+    public struct AppShell<Monitor: View, Page: View, PrePage: View>: View {
         @Bindable var model: ShellModel
         let brand: ShellBrand
         let actions: ShellActions
         let safeArea: (GeometryProxy) -> EdgeInsets
+        let extraNearby: [CameraListItem]
+        let prePage: (EdgeInsets) -> PrePage?
         let monitor: (ShellModel.Monitor) -> Monitor
         let page: (ShellModel.Cover) -> Page
 
-        /// `safeArea` turns the pages' geometry into the insets they lay out in.
+        /// `safeArea` turns the pages' geometry into the insets they lay out in. `extraNearby`:
+        /// the app's own NEARBY rows on the cameras page. `prePage`: the app's own page before
+        /// the shared ones (a first-pair wizard, a connect in progress), shown instead of the
+        /// cameras or pair page while it returns one.
         public init(
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
             safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
+            extraNearby: [CameraListItem] = [],
+            prePage: @escaping (EdgeInsets) -> PrePage?,
             @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
             @ViewBuilder page: @escaping (ShellModel.Cover) -> Page
         ) {
@@ -67,6 +87,8 @@
             self.brand = brand
             self.actions = actions
             self.safeArea = safeArea
+            self.extraNearby = extraNearby
+            self.prePage = prePage
             self.monitor = monitor
             self.page = page
         }
@@ -87,7 +109,9 @@
         }
 
         @ViewBuilder private func pages(_ insets: EdgeInsets) -> some View {
-            if model.route == .pair {
+            if let lead = prePage(insets) {
+                lead
+            } else if model.route == .pair {
                 PairScreen(
                     model: model.cameras, safeArea: insets, onDone: { model.endPairing() },
                     onDiagnostics: actions.diagnostics, onReportProblem: actions.reportProblem,
@@ -96,12 +120,28 @@
             } else {
                 CamerasScreen(
                     model: model.cameras, brandName: brand.name, nearbyNote: brand.nearbyNote,
-                    safeArea: insets, onPair: { model.beginPairing() },
-                    onMedia: { model.open(.media) }, onSettings: { model.open(.settings) },
+                    safeArea: insets, onPair: actions.pair ?? { model.beginPairing() },
+                    onMedia: actions.media ?? { model.open(.media) },
+                    onSettings: actions.settings ?? { model.open(.settings) },
                     onMultiview: actions.multiview, onWatchFeed: actions.watchFeed,
-                    onIntegrationAction: actions.integrationAction, onPrivacy: actions.privacy,
-                    onTerms: actions.terms)
+                    onIntegrationAction: actions.integrationAction,
+                    extraNearby: extraNearby, onExtraNearby: actions.extraNearby ?? { _ in },
+                    onPrivacy: actions.privacy, onTerms: actions.terms)
             }
+        }
+    }
+
+    extension AppShell where PrePage == EmptyView {
+        /// Without pages of the app's own.
+        public init(
+            model: ShellModel, brand: ShellBrand, actions: ShellActions,
+            safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
+            @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
+            @ViewBuilder page: @escaping (ShellModel.Cover) -> Page
+        ) {
+            self.init(
+                model: model, brand: brand, actions: actions, safeArea: safeArea,
+                prePage: { _ in nil }, monitor: monitor, page: page)
         }
     }
 #endif

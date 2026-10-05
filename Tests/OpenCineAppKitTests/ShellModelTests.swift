@@ -35,6 +35,11 @@ import Testing
     @available(macOS 14, *)
     @Test func routesFollowSavedCamerasPairingAndTheMonitor() async {
         #expect(shell(saved: []).route == .pair)
+        let empty = shell(saved: [])
+        empty.showCameras()
+        #expect(empty.route == .cameras, "the operator chose the list")
+        empty.beginPairing()
+        #expect(empty.route == .pair)
         let shell = shell()
         #expect(shell.route == .cameras)
         shell.beginPairing()
