@@ -89,8 +89,9 @@ neutral Apple runtime, AppKit or UI. Current native camera/device behavior remai
 `LunaSubjectTracking` (Swift) owns one connection's Deep Track boxes and tap focus. It reads the
 camera's 0x85 track frames and 8315 notifications, and sends cmd 237, the tracking cancel and the
 tap-focus ROI only through `LunaCameraSession` while that session is ready and owned. Control
-admission, notes and face boxes stay in the app. The Android app still sends these three requests
-from its own session facade.
+admission, notes and face boxes stay in the app. Kotlin `LunaSubjectTracking` (insta360-luna) is its
+twin over the backend's `CameraControls`, which builds the wire rectangles; the Android app keeps its
+start policy (ignore the previous subject until one near the new box).
 
 Requests the common model does not describe yet (gimbal, clock sync, keyframe and photography
 options) use `LunaCameraSession.control(_:timeout:)`, which sends only while the session is ready
@@ -114,8 +115,9 @@ The Luna's timecode is time of day from its own clock, which the phone sets.
 cmd 214 twice, each stamped at send, on the control path (Android: `LunaBackend.syncClock`).
 `LunaFrameTimecode` turns live frame stamps into that timecode: the frame clock does not follow
 the camera's time of day, so frames are pinned to the phone clock by their earliest arrival (less
-90 ms of capture latency), and a new value is reported once a second. The Android app still
-derives the frame timecode in its own facade.
+90 ms of capture latency), and a new value is reported once a second. Kotlin
+`LunaFrameTimecode` (insta360-luna) is its twin, in Android's millisecond clock with the zone
+offset taken at the frame's time of day.
 
 ## Common lens controls
 
