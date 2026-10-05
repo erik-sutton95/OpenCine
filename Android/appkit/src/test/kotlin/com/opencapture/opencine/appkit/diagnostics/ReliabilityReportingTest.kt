@@ -501,6 +501,35 @@ class ReliabilityReportingTest {
         waitForReceipt(id, ReliabilityReportingReceiptState.CONFIRMED)
     }
 
+    @Test
+    fun receiptsRefuseIdsThatLeaveTheReceiptsDirectory() {
+        val outside = File(cacheRoot, "escape.json")
+        for (id in listOf("../escape", "..", "a/b", "a\\b", "receipts/../../escape")) {
+            ReliabilityReportingReceipts.store(
+                ReliabilityReportingReceipt(id, "e", ReliabilityReportingReceiptState.QUEUED, System.currentTimeMillis()),
+                cacheRoot,
+            )
+            assertNull(ReliabilityReportingReceipts.file(id, cacheRoot), id)
+            assertNull(ReliabilityReportingReceipts.load(id, cacheRoot), id)
+        }
+        assertFalse(outside.exists())
+        assertTrue(ReliabilityReportingReceipts.loadAll(cacheRoot).isEmpty())
+        outside.writeText("""{"incidentID":"x","eventID":"e","state":"queued","updatedAt":"2026-10-05T12:00:00Z"}""")
+        assertNull(ReliabilityReportingReceipts.load("../escape", cacheRoot))
+        // A UUID or session ID behaves as before: one `<id>.json` under receipts.
+        for (id in listOf("12c2d058-d584-4270-9aa2-eca08bf20986", "session-12c2d058d58442709aa2eca08bf20986")) {
+            ReliabilityReportingReceipts.store(
+                ReliabilityReportingReceipt(id, "e", ReliabilityReportingReceiptState.QUEUED, System.currentTimeMillis()),
+                cacheRoot,
+            )
+            assertEquals(
+                File(ReliabilityReportingReceipts.directory(cacheRoot), "$id.json"),
+                ReliabilityReportingReceipts.file(id, cacheRoot),
+            )
+            assertEquals(id, ReliabilityReportingReceipts.load(id, cacheRoot)?.incidentID)
+        }
+    }
+
     private fun waitForReceipt(id: String, state: ReliabilityReportingReceiptState) {
         waitUntil { reporting.receipt(id)?.state == state }
         assertEquals(state, reporting.receipt(id)?.state)

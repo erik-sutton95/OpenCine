@@ -31,16 +31,25 @@ public enum ReliabilityReportingReceipts {
         root.appendingPathComponent("receipts", isDirectory: true)
     }
 
+    /// The receipt file of `incidentID`, or nil for an ID that could name a file outside the
+    /// receipts directory (a path separator or `..`).
+    public static func file(incidentID: String, root: URL) -> URL? {
+        guard !incidentID.contains("/"), !incidentID.contains("\\"), !incidentID.contains("..")
+        else { return nil }
+        return directory(root: root).appendingPathComponent("\(incidentID).json")
+    }
+
     public static func load(incidentID: String, root: URL) -> ReliabilityReportingReceipt? {
-        let url = directory(root: root).appendingPathComponent("\(incidentID).json")
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let url = file(incidentID: incidentID, root: root),
+            let data = try? Data(contentsOf: url)
+        else { return nil }
         return try? JSONDecoder().decode(ReliabilityReportingReceipt.self, from: data)
     }
 
     public static func store(_ receipt: ReliabilityReportingReceipt, root: URL) {
-        let dir = directory(root: root)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent("\(receipt.incidentID).json")
+        guard let url = file(incidentID: receipt.incidentID, root: root) else { return }
+        try? FileManager.default.createDirectory(
+            at: directory(root: root), withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(receipt) {
             try? data.write(to: url, options: .atomic)
         }

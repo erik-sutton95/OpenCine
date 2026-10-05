@@ -182,6 +182,40 @@ final class ReliabilityReportingNetworkTests: XCTestCase {
         XCTAssertTrue(manual.cancelled)
     }
 
+    func testReceiptsRefuseIDsThatLeaveTheReceiptsDirectory() throws {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("opc-receipts-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+        try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+        let outside = cacheRoot.appendingPathComponent("escape.json")
+        for id in ["../escape", "..", "a/b", "a\\b", "receipts/../../escape"] {
+            ReliabilityReportingReceipts.store(
+                ReliabilityReportingReceipt(
+                    incidentID: id, eventID: "e", state: .queued, updatedAt: Date()),
+                root: cacheRoot)
+            XCTAssertNil(ReliabilityReportingReceipts.file(incidentID: id, root: cacheRoot), id)
+            XCTAssertNil(ReliabilityReportingReceipts.load(incidentID: id, root: cacheRoot), id)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: outside.path))
+        XCTAssertTrue(ReliabilityReportingReceipts.loadAll(root: cacheRoot).isEmpty)
+        try Data(#"{"incidentID":"x","eventID":"e","state":"queued","updatedAt":0}"#.utf8)
+            .write(to: outside)
+        XCTAssertNil(ReliabilityReportingReceipts.load(incidentID: "../escape", root: cacheRoot))
+        // A UUID or session ID behaves as before: one `<id>.json` under receipts.
+        for id in ["12c2d058-d584-4270-9aa2-eca08bf20986", "session-12c2d058d58442709aa2eca08bf20986"] {
+            ReliabilityReportingReceipts.store(
+                ReliabilityReportingReceipt(
+                    incidentID: id, eventID: "e", state: .queued, updatedAt: Date()),
+                root: cacheRoot)
+            XCTAssertEqual(
+                ReliabilityReportingReceipts.file(incidentID: id, root: cacheRoot),
+                ReliabilityReportingReceipts.directory(root: cacheRoot)
+                    .appendingPathComponent("\(id).json"))
+            XCTAssertEqual(
+                ReliabilityReportingReceipts.load(incidentID: id, root: cacheRoot)?.incidentID, id)
+        }
+    }
+
     private func envelope(eventID: String, trailer: String = "payload") -> Data {
         Data(
             "{\"event_id\":\"\(eventID)\",\"sent_at\":\"2026-09-14T00:00:00Z\"}\n{\"type\":\"event\"}\n\(trailer)\n"
