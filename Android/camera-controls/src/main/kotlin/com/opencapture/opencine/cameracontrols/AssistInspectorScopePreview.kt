@@ -22,13 +22,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorInspectorScopeDemand
+import com.opencapture.opencine.media.MonitorTransfer
 import com.opencapture.opencine.media.ScopeAssistBundle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 /** Reuses one existing latest-frame scope tap; previews never enable a monitor tool. */
 @Composable
-fun AssistInspectorScopePreview(tool: MonitorAssistTool, state: MonitorAssistState, colorMode: Int, playback: Boolean = false) {
+fun AssistInspectorScopePreview(tool: MonitorAssistTool, state: MonitorAssistState, transfer: MonitorTransfer, playback: Boolean = false) {
     if (tool !in listOf(MonitorAssistTool.WAVE, MonitorAssistTool.PARADE, MonitorAssistTool.HISTO,
             MonitorAssistTool.VECTOR, MonitorAssistTool.LIGHTS)) return
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -59,8 +60,8 @@ fun AssistInspectorScopePreview(tool: MonitorAssistTool, state: MonitorAssistSta
     Box(Modifier.fillMaxWidth().height(if (tool == MonitorAssistTool.LIGHTS) 72.dp else 132.dp)
         .clip(RoundedCornerShape(10.dp)).background(LiveDesign.background)) {
         when (tool) {
-            MonitorAssistTool.WAVE -> WaveformPanel(state, colorMode, Modifier.fillMaxSize(), bundle)
-            MonitorAssistTool.PARADE -> ParadePanel(state, colorMode, Modifier.fillMaxSize(), bundle)
+            MonitorAssistTool.WAVE -> WaveformPanel(state, transfer, Modifier.fillMaxSize(), bundle)
+            MonitorAssistTool.PARADE -> ParadePanel(state, transfer, Modifier.fillMaxSize(), bundle)
             MonitorAssistTool.HISTO -> HistogramPanel(state, Modifier.fillMaxSize(), bundle)
             MonitorAssistTool.VECTOR -> VectorscopePanel(state, Modifier.fillMaxSize(), bundle)
             MonitorAssistTool.LIGHTS -> TrafficLightsPanel(state, Modifier.fillMaxSize(), bundle)

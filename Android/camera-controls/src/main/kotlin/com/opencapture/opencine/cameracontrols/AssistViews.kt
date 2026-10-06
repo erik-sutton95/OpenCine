@@ -64,7 +64,7 @@ import com.opencapture.opencine.media.ScopeAssistBundle
 import com.opencapture.opencine.media.ScopeClipSource
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
-import com.opencapture.opencine.vocabulary.fromColorMode
+import com.opencapture.opencine.vocabulary.monitorTransfer
 import kotlin.math.roundToInt
 
 /**
@@ -88,6 +88,8 @@ class AssistLutPicker(
     val onSelect: (String) -> Unit,
     val family: String,
     val cameraName: String?,
+    /** The camera's raw colour mode for the picker's automatic camera look (LutLookResolver). */
+    val colorMode: Int = CameraCommands.COLOR_NORMAL,
 )
 
 private val CardShape = RoundedCornerShape(LiveDesign.CORNER_RADIUS_DP.dp)
@@ -105,7 +107,7 @@ fun AssistOptionsPanel(
     lut: AssistLutPicker,
     modifier: Modifier = Modifier,
     maxHeightDp: Float? = null,
-    colorMode: Int = CameraCommands.COLOR_NORMAL,
+    transfer: MonitorTransfer = MonitorTransfer.REC709,
     embedded: Boolean = false,
     playback: Boolean = false,
     isPhoto: Boolean = false,
@@ -154,7 +156,7 @@ fun AssistOptionsPanel(
             verticalArrangement = Arrangement.spacedBy(panelGap),
         ) {
             if (embedded) {
-                AssistInspectorScopePreview(tool, state, colorMode, playback)
+                AssistInspectorScopePreview(tool, state, transfer, playback)
                 imagePreview?.invoke()
             }
             if (isLut) {
@@ -180,7 +182,7 @@ fun AssistOptionsPanel(
                         onSplitVertical = { state.setSplitComparison(state.splitComparison, it) },
                         onExposure = { state.updateLutExposure(it) },
                         onArmLut = { state.armLut() },
-                        colorMode = colorMode,
+                        colorMode = lut.colorMode,
                         family = lut.family,
                         cameraName = lut.cameraName,
                         isPhoto = isPhoto && !playback,
@@ -195,8 +197,8 @@ fun AssistOptionsPanel(
                         .then(if (!embedded && cap != null) Modifier.monitorScrollFade(optionsScroll).verticalScroll(optionsScroll) else Modifier),
                 ) {
                     if (tool == MonitorAssistTool.WAVE || tool == MonitorAssistTool.PARADE) {
-                        AssistOptionsBody(tool, state, colorMode, host)
-                    } else com.opencapture.monitorui.MonitorOptionGroup { AssistOptionsBody(tool, state, colorMode, host) }
+                        AssistOptionsBody(tool, state, transfer, host)
+                    } else com.opencapture.monitorui.MonitorOptionGroup { AssistOptionsBody(tool, state, transfer, host) }
                 }
             }
         }
@@ -214,12 +216,12 @@ fun AssistOptionsPanel(
 }
 
 @Composable
-private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState, colorMode: Int, host: AssistHost) {
+private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState, transfer: MonitorTransfer, host: AssistHost) {
     when (tool) {
         MonitorAssistTool.LUT, MonitorAssistTool.EV, MonitorAssistTool.LEVEL -> Spacer(Modifier.height(0.dp))
         MonitorAssistTool.PEAK -> PeakingOptions(state, host)
-        MonitorAssistTool.FALSE -> FalseColorOptions(state, colorMode, host)
-        MonitorAssistTool.ZEBRA -> ZebraOptions(state, colorMode, host)
+        MonitorAssistTool.FALSE -> FalseColorOptions(state, transfer, host)
+        MonitorAssistTool.ZEBRA -> ZebraOptions(state, transfer, host)
         MonitorAssistTool.WAVE -> WaveformOptions(state)
         MonitorAssistTool.PARADE -> ParadeOptions(state)
         MonitorAssistTool.HISTO -> HistogramOptions(state)
@@ -248,7 +250,7 @@ private fun PeakingOptions(state: MonitorAssistState, host: AssistHost) {
 }
 
 @Composable
-private fun FalseColorOptions(state: MonitorAssistState, colorMode: Int, host: AssistHost) {
+private fun FalseColorOptions(state: MonitorAssistState, transfer: MonitorTransfer, host: AssistHost) {
     val haptics = LocalOperatorHaptics.current
     val scaleHelp =
             "The camera color mode selects D-Log, D-Log2, D-Log M, Rec.709, or HLG automatically. " +
@@ -269,15 +271,14 @@ private fun FalseColorOptions(state: MonitorAssistState, colorMode: Int, host: A
         listOf("CineStop", "Video", "IRE", "Limits").map(MonitorFalseColorSelection::fromMenuLabel),
         state.falseColorScale, { haptics.selection(); state.setFalseColor(scale = it) }, { it.menuLabel },
         state.falseColorRec709, { haptics.selection(); state.setFalseColorRead(it) },
-        falseColorReferenceValues(state, colorMode, host.scopeCeiling(state)), state.falseColorReference,
+        falseColorReferenceValues(state, transfer, host.scopeCeiling(state)), state.falseColorReference,
         { haptics.selection(); state.setFalseColor(reference = it) }, scaleHelp, readHelp,
         "Show a compact color key over live view while False Color is active.")
 }
 
 @Composable
-private fun ZebraOptions(state: MonitorAssistState, colorMode: Int, host: AssistHost) {
+private fun ZebraOptions(state: MonitorAssistState, transfer: MonitorTransfer, host: AssistHost) {
     val haptics = LocalOperatorHaptics.current
-    val transfer = MonitorTransfer.fromColorMode(colorMode)
     val maximum = ZebraEditor.editorMaximum(state.zebraUnit)
     val ceiling = host.scopeCeiling(state)
     com.opencapture.monitorui.MonitorZebraMenu(MonitorZebraUnit.entries, state.zebraUnit, { it.editorLabel },
@@ -485,8 +486,8 @@ fun AssistOverlayLayer(
     audioPlacementFrame: MonitorRect? = null,
     onOpenOptions: ((MonitorAssistTool, MonitorRect) -> Unit)? = null,
     showsAudio: Boolean = true,
-    /** WAVE / PARADE / FALSE ruler. Playback passes clip color; live uses [CameraStatus.monitorColorMode]. */
-    colorMode: Int = status.monitorColorMode,
+    /** WAVE / PARADE / FALSE ruler curve. Playback passes the clip's; live uses the status's. */
+    transfer: MonitorTransfer = status.monitorTransfer,
     onScopeStackMoved: () -> Unit = {},
     focusLayer: @Composable () -> Unit = {},
 ) {
@@ -548,7 +549,7 @@ fun AssistOverlayLayer(
                 enabled = !locked, onStore = { state.storeCenter(MonitorAssistTool.FALSE, it, portrait) }, fillPlate = false,
                 onOpenOptions = onOpenOptions?.let { open -> { open(MonitorAssistTool.FALSE, it) } }) {
                 com.opencapture.monitorui.MonitorFalseColorReference(
-                    falseColorReferenceValues(state, colorMode, host.scopeCeiling(state)), Modifier.fillMaxSize())
+                    falseColorReferenceValues(state, transfer, host.scopeCeiling(state)), Modifier.fillMaxSize())
             }
         }
         if (!playback) {
@@ -571,7 +572,7 @@ fun AssistOverlayLayer(
             if (!shown(tool)) return@forEach
             key(tool) {
                 Box(Modifier.fillMaxSize().zIndex(zRanks[tool] ?: 1f)) {
-                    StackedScopePanel(tool, state, canvas, placement, locked, onOpenOptions, colorMode)
+                    StackedScopePanel(tool, state, canvas, placement, locked, onOpenOptions, transfer)
                 }
             }
         }
@@ -596,7 +597,7 @@ private fun StackedScopePanel(
     placementBounds: MonitorScopeRect,
     locked: Boolean,
     onOpenOptions: ((MonitorAssistTool, MonitorRect) -> Unit)?,
-    colorMode: Int,
+    transfer: MonitorTransfer,
 ) {
     val portrait = canvas.height > canvas.width
     val (base, scale) =
@@ -638,8 +639,8 @@ private fun StackedScopePanel(
         chip = tool == MonitorAssistTool.ND,
     ) {
         when (tool) {
-            MonitorAssistTool.WAVE -> WaveformPanel(state, colorMode, Modifier.fillMaxSize())
-            MonitorAssistTool.PARADE -> ParadePanel(state, colorMode, Modifier.fillMaxSize())
+            MonitorAssistTool.WAVE -> WaveformPanel(state, transfer, Modifier.fillMaxSize())
+            MonitorAssistTool.PARADE -> ParadePanel(state, transfer, Modifier.fillMaxSize())
             MonitorAssistTool.VECTOR -> VectorscopePanel(state, Modifier.fillMaxSize())
             MonitorAssistTool.HISTO -> HistogramPanel(state, Modifier.fillMaxSize())
             MonitorAssistTool.LIGHTS -> TrafficLightsPanel(state, Modifier.fillMaxSize())
@@ -649,9 +650,8 @@ private fun StackedScopePanel(
     }
 }
 
-/** The false color ruler's values for [colorMode], read through [ceiling]. */
-fun falseColorReferenceValues(state: MonitorAssistState, colorMode: Int, ceiling: ScopeClipSource): MonitorFalseColorReferenceValues {
-    val transfer = MonitorTransfer.fromColorMode(colorMode)
+/** The false color ruler's values for [transfer], read through [ceiling]. */
+fun falseColorReferenceValues(state: MonitorAssistState, transfer: MonitorTransfer, ceiling: ScopeClipSource): MonitorFalseColorReferenceValues {
     val rec709 = state.falseColorRec709
     val segments = FalseColorReference.segments(state.falseColorScale, transfer, rec709, ceiling)
     val markers =
@@ -661,7 +661,7 @@ fun falseColorReferenceValues(state: MonitorAssistState, colorMode: Int, ceiling
             emptyList()
         }
     return MonitorFalseColorReferenceValues(
-            subtitle = "${state.falseColorScale.menuLabel} · ${FalseColorReference.curveKeyLabel(colorMode, rec709)}",
+            subtitle = "${state.falseColorScale.menuLabel} · ${FalseColorReference.curveKeyLabel(transfer, rec709)}",
             segments = segments.mapIndexed { index, segment ->
                 com.opencapture.monitorui.MonitorFalseColorReferenceSegment(index,
                     segment.lowerFraction, segment.upperFraction, segment.band.red, segment.band.green, segment.band.blue)
