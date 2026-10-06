@@ -21,9 +21,10 @@ struct SharedUIRulesTests {
     /// match exactly, so removing a global also removes it here.
     static let allowedGlobals: Set<String> = ["MonitorTheme.accentRGB", "MonitorTheme.hdrGain"]
 
-    /// The shared UI and the app shell.
+    /// The shared UI, the app shell and the camera controls.
     static let shared = [
         "Sources/MonitorUI", "Sources/MonitorPresentation", "Sources/OpenCineAppKit", "Sources/OpenCineAppKitApple",
+        "Sources/OpenCineCameraControls",
     ]
 
     static func sources(_ directories: [String], extensions: Set<String>) throws -> [URL] {

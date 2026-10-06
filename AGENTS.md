@@ -95,12 +95,14 @@ package dependency.
   `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay` and `OpenCineRelayApple` only: never an
   integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the
   app shell; app differences arrive as host values and protocols.
-- Camera controls (`camera-controls`) hold the capture sheets, live chrome and gimbal views over the
-  camera vocabulary. App composition, next to the app shell: they build on the camera vocabulary,
-  UI, the app shell, Core, Media and Motion, never on DJI or another integration, an app or a
-  third-party package. App differences arrive as host values (label profile, state, theme), never
-  as brand branches. Their edge to the camera vocabulary is the one listed in atlas
-  `allowed_target_edges`; UI itself still never builds on an integration.
+- Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome
+  and gimbal views over the camera vocabulary. App composition, next to the app shell: they build on
+  the camera vocabulary, UI, the app shell, Core, Media and Motion, never on DJI or another
+  integration, an app or a third-party package. App differences arrive as host values (label
+  profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per
+  platform) is listed in atlas `allowed_target_edges`; UI itself still never builds on an
+  integration. Swift: `RulesTests` pins the imports and dependencies, `SharedUIRulesTests` the
+  no-brand and no-mutable-global rules.
 - The harness targets are developer-only and SIMULATED: never make them products.
 - Nothing depends on `atlas/` at build time.
 
