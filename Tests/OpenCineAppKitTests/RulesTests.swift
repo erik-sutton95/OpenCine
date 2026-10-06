@@ -81,8 +81,8 @@ struct AppKitRules {
             "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit", "Vision",
         ]
         let directory = root.appending(path: "Sources/OpenCineCameraControls")
-        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "swift" }
+        let files = (FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?
+            .allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
         #expect(!files.isEmpty)
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
