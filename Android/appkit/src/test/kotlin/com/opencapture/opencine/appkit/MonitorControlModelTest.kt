@@ -247,6 +247,22 @@ class MonitorControlModelTest {
     }
 
     @Test
+    fun aHostKeepsItsOwnNoteCopy() = runTest {
+        val model = model()
+        model.noteFor = { stage, label -> if (stage == CommandStage.Confirmed) null else "$label host" }
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        camera.refuseNextCommand()
+        model.set(iso(800), "ISO 800")
+        tick()
+        camera.refuseNextCommand()
+        model.record(true)
+        runCurrent()
+        assertEquals(listOf("ISO 800 host", "Record host"), notes)
+    }
+
+    @Test
     fun notesNameTheOutcome() {
         assertNull(MonitorControlModel.note(CommandStage.Confirmed, "ISO 800"))
         assertNull(MonitorControlModel.note(CommandStage.Failed(CommandFailure.SUPERSEDED), "ISO 800"))

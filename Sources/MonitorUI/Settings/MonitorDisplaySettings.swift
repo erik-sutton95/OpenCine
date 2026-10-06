@@ -80,7 +80,8 @@
         }
     }
 
-    /// Editor-led sections offer canvas editing; control-led sections keep visibility rows available.
+    /// Editor-led sections offer canvas editing; control-led sections keep visibility rows available
+    /// (switch rows and pins only: they draw no readouts or tool order).
     public enum MonitorDisplaySectionStyle: Equatable, Sendable { case editor, controls }
 
     /// Typed contents of a display mode. Only an eligible host supplies the live editor action.
@@ -185,7 +186,7 @@
             MonitorSnapshotRows(sections, id: \.id) { section in
                 if section.style == .controls {
                     // A card identifier propagates over IDs assigned inside native inline rows.
-                    sectionCard(section)
+                    controlsCard(section)
                 } else {
                     sectionCard(section)
                         .accessibilityIdentifier("monitor.settings.display.section.\(section.id)")
@@ -201,6 +202,39 @@
                 }
             ) { sectionContents(section) }
         }
+        /// A control-led section as the reference monitor drew it: caption, Edit view (or why not),
+        /// one switch row per visibility value, then the pins in an adaptive grid.
+        private func controlsCard(_ section: MonitorDisplaySection) -> some View {
+            MonitorSettingsRowCard(title: section.title, onReset: section.reset) {
+                Text(section.caption).font(MonitorTheme.font(10.5)).foregroundStyle(MonitorTheme.muted)
+                    .padding(.vertical, 5)
+                if let edit = section.edit {
+                    MonitorSettingsActionPill(title: section.editTitle, action: edit)
+                        .padding(.vertical, 8)
+                        .accessibilityHint(section.editHint ?? "")
+                        .accessibilityIdentifier("monitor.settings.display.edit.\(section.id)")
+                } else if let help = section.unavailableEditHelp {
+                    caption(help).padding(.vertical, 6)
+                }
+                MonitorSnapshotRows(section.visibility, id: \.id) { item in
+                    MonitorSettingsSwitchInlineRow(
+                        title: item.title, help: item.help, isOn: item.isOn,
+                        identifier: "monitor.settings.display.toggle.\(item.id)", action: item.action
+                    )
+                }.rows
+                if !section.pins.isEmpty {
+                    if let title = section.pinsTitle { caption(title).padding(.top, 8) }
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 7)], spacing: 7) {
+                        MonitorSnapshotRows(section.pins, id: \.id) { item in
+                            MonitorSettingsDisplayToggle(title: item.title, isOn: item.isOn, action: item.action)
+                                .accessibilityLabel(item.accessibilityLabel)
+                                .accessibilityValue(item.isOn ? "On" : "Off")
+                                .accessibilityIdentifier("monitor.settings.display.toggle.\(item.id)")
+                        }.rows
+                    }
+                }
+            }
+        }
         @ViewBuilder private func sectionContents(_ section: MonitorDisplaySection) -> some View {
             VStack(alignment: .leading, spacing: 10) {
                 if let edit = section.edit {
@@ -208,17 +242,10 @@
                         .accessibilityHint(section.editHint ?? "")
                         .accessibilityIdentifier("monitor.settings.display.edit.\(section.id)")
                 } else if let help = section.unavailableEditHelp { caption(help) }
-                if section.style == .controls {
-                    MonitorSnapshotRows(section.visibility, id: \.id) { item in
-                        MonitorSettingsSwitchInlineRow(
-                            title: item.title, help: item.help, isOn: item.isOn,
-                            identifier: "monitor.settings.display.toggle.\(item.id)", action: item.action
-                        )
-                    }.rows
-                } else if section.edit == nil {
+                if section.edit == nil {
                     MonitorDisplayToggleGrid(items: section.visibility)
                 }
-                if section.edit != nil || section.style == .controls {
+                if section.edit != nil {
                     if !section.readouts.isEmpty {
                         if let title = section.readoutsTitle { caption(title) }
                         MonitorDisplayToggleGrid(items: section.readouts)

@@ -202,7 +202,7 @@ Insta [differences tables](#differences-from-main-openpocketcine).
 | C10 | Exposure assists | Peaking, zebra, false color (each mode), EV meter, traffic lights, ND suggestions; open the palette in landscape. | Overlays line up with the picture; same result as `main` on the same scene; the open palette covers the values bar | Assist state, sampling and views (`OpenCineApple`, `OpenCineMedia`, `MonitorUI`) |
 | C11 | Scopes | Waveform, parade, histogram, vectorscope; drag and resize each. | Same traces as `main`; moving a scope never blacks out or reconnects the feed | Scope plots and sampling (`MonitorUI`, `OpenCineMedia`) |
 | C12 | Looks and framing | LUT Auto (also on a downloaded log clip in playback), a creative LUT and a custom `.cube`; guides, grid, crosshair, de-squeeze, mirror, level. | Same picture as `main`; custom LUT survives relaunch | Media math (`OpenCineMedia`), clip color profile reader (Android `media`), monitor UI |
-| C13 | Settings | Open every Settings tab; change one value per tab, relaunch; use Reset where offered. | Same tabs and rows as the app's `main` (Nikon: the shared layout); values persist | Settings page (`MonitorUI`), operator settings owners |
+| C13 | Settings | Open every Settings tab; change one value per tab, relaunch; use Reset where offered. | Same tabs and rows as the app's `main` (Nikon: the shared layout); values persist. Kept fixes: Insta Android App Information, screen-reader names, colour dots | Settings page (`MonitorUI`), operator settings owners |
 | C14 | Media browser | Open Media; switch storage, filter and sort, star, delete, cache a clip, then browse offline. | Same clips as the camera; delete removes the file on the camera; cached clips play without the camera | Library, cache and selection (`OpenCineAppKit`), catalog (`MonitorUI`), media producer (integration) |
 | C15 | Playback | Play, pause, scrub, loop; assists and LUT during playback; rotate; return to live. | Picture (not black), audio where the clip has it, live resumes after leaving | Playback model and page (`MonitorUI`), native playback owners |
 | C16 | Share and export | Share an original; Save to Photos. Export with the LUT baked in (iOS; Nikon also Android). | Saved file plays in Photos; baked export shows the look | Delivery panel and coordinator (`OpenCineAppKit`), exporter (`OpenCineApple`) |
@@ -237,7 +237,7 @@ iPad), Android 10+.
 
 | # | Check | Platforms | Steps | Expected | Changed |
 |---|---|---|---|---|---|
-| P1 | Per-body layout | both | Connect each body you have. | Tiles match `main`, except PD-5 | Layout from DJI capabilities (`OpenCineDJI`) |
+| P1 | Per-body layout | both | Connect each body you have. | Tiles match `main` (iPhone: except PD-5 until the iOS round) | Layout from DJI capabilities (`OpenCineDJI`) |
 | P2 | Wi-Fi and Hotspot setups | both | Add setup → Wi-Fi or Hotspot, connect; force a failure. | One Add setup, offered only while a setup kind is missing; 4-step progress (up to about 1 min); failure offers Edit setup, Try again, Camera Wi-Fi | `OpenCineDJIApple`, `dji` connection bootstrap |
 | P3 | Focus, zoom, tracking | both | Tap to focus, long-press AE-L, tap a face, double-tap for object tracking; zoom chip, pinch, disc; FOCUS tile; APERTURE on Action 6. Zoom while recording in D-Log2. | Same as `main`; zoom limited per FORMAT; in D-Log2 zoom stays locked while recording, with the note | Apple camera control owners (`OpenCineDJIApple`), Android `camera-controls` |
 | P4 | Gimbal | both | Joystick (size, invert, dead zone); Mode, Speed, Ramp; double-tap Recenter or Level; Motion Control A/B/C with Loop; game controller. Open the Motion editor and tap outside it; relaunch with a paused move. | Same motion as `main`; gimbal stops when you let go; the editor takes its touches; a paused move survives launch | Gimbal control owner (`OpenCineDJIApple`), `OpenCineMotion`, `camera-controls` |
@@ -263,7 +263,7 @@ behavior was a defect, see [Kept fixes](#kept-fixes-your-call)); or already matc
 | PD-2 | A malformed saved-camera record no longer wipes the readable ones | lines 65-66 | kept fix, your call |
 | PD-3 | Android Forget also drops the camera's saved Wi-Fi (iOS did on `main`) | lines 66-67 | kept fix, your call |
 | PD-4 | iOS HUD shows a pending ISO or WB value until the camera reports it | lines 71-73 | to be restored to main |
-| PD-5 | Nano shows no live timecode (it never reports one) | lines 74-77 | to be restored to main |
+| PD-5 | Nano shows no live timecode (it never reports one) | lines 74-77 | Android: restored to main (single view shows the timecode on every body, Nano included; Multi View hides it on a Nano, as on `main`). iPhone: to be restored to main |
 | PD-6 | Android: APERTURE sheet and drum only on Action 6; FOCUS from the body's declaration | lines 77-79 | already matched main (`main` also showed APERTURE only on Action 6 and FOCUS only on Pocket 3, 4 and 4 Pro) |
 | PD-7 | Record sends start or stop for the reported state; right after connecting it says "Waiting for the camera's record state" | lines 80-81 | kept fix, your call (`main` also sent start or stop, never a toggle, but assumed "not recording" before the first report) |
 | PD-8 | After a link change the watch says "Camera changed. Try again." instead of acting | lines 82-83 | kept fix, your call |
@@ -274,6 +274,14 @@ behavior was a defect, see [Kept fixes](#kept-fixes-your-call)); or already matc
 Test-fixture-only differences (simulator `UIReview` builds, never on a device): the review
 starts from the first-run palette order, its player controls work without the private test
 clip, and its saved-hotspot prompt runs through the review's own DJI port.
+
+Also restored (not a listed row): Android Settings View Assist and Display show `main`'s rows
+(the union had shown the newer shared sections), and the tab strip keeps `main`'s spacing.
+Android Settings with no camera connected offers the AUDIO clean-view pin, as on `main`. iPhone
+Settings: Display shows `main`'s rows (caption, Edit view, one switch per item, then the pins),
+the tab strip keeps `main`'s spacing, Sharing's "Show Wi-Fi code" link is blue again (the union
+drew it white), and landscape View Assist keeps the tools in one column with EV Meter and LUT
+beside them.
 
 ## 5. OpenInstaCine
 
@@ -305,9 +313,9 @@ call (see [Kept fixes](#kept-fixes-your-call)); or already matched main.
 
 | Row | Difference | Recorded in | Status |
 |---|---|---|---|
-| ID-1 | A write shows confirmed only after the camera reports it; a refused, unapplied or timed-out write says so | lines 162-164 | to be restored to main |
+| ID-1 | A write shows confirmed only after the camera reports it; a refused, unapplied or timed-out write says so | lines 162-164 | Android: restored to main (a refused or unsent write says "ISO was not applied by the camera."; one the camera does not take reverts silently). iPhone: to be restored to main |
 | ID-2 | Zoom readout reaches 15x (`main` clamped readouts to 12x) | lines 165-166 | already matched main (iPhone `main` set the ceiling to 15x; the Android chip stopped at 12x then and now) |
-| ID-3 | Clean view settings offer no AUDIO pin | lines 173-174 | to be restored to main |
+| ID-3 | Clean view settings offer no AUDIO pin | lines 173-174 | Android: already matched main (Android `main` hid it too: no audio on a Luna). iPhone: to be restored to main |
 | ID-4 | iPhone Settings with no camera connected shows no gimbal, joystick, head-tracking, zoom chip or timecode rows | lines 174-177 | restored to main (iPhone; Android already matched: Timecode listed, gimbal and zoom need a camera) |
 | ID-5 | Pair page rail "Find your camera" then four connect steps (`main`: four Luna pages); one instruction card per prompt, no Luna body text, check list or VPN banner during an attempt | lines 186-189 | restored to main |
 | ID-6 | Pair on a nearby card opens the pair page with it selected (Continue starts it) | lines 189-190 | restored to main |
@@ -323,6 +331,12 @@ Accepted, stays (coordinator decision): a saved camera that still carries a hots
 connects from that chip over the camera's own Wi-Fi, without `main`'s "Turn on Personal
 Hotspot" prompt. On `main` no Insta camera could add a hotspot setup and Luna joined its own
 Wi-Fi anyway; only simulator review data reached the prompt.
+
+Also restored (not a listed row): Android Settings View Assist and Display show `main`'s rows
+(the union had shown the newer shared sections). iPhone Settings: Display shows `main`'s rows
+(caption, Edit view, one switch per item, then the pins), Sharing's "Show Wi-Fi code" link is
+yellow again (the union drew it white), and landscape View Assist keeps the tools in one column
+with EV Meter and LUT beside them.
 
 Test-fixture-only differences (simulator `UIReview` builds, never on a device): the review's
 connecting card shows the Luna step "Joining camera Wi-Fi" (`main`'s review went through the
@@ -348,9 +362,12 @@ action, or a check that could never work), the parity lane kept the fix instead 
 | ID-7 (Android) | The nearby card said "Pocket · Luna Ultra · nearby" (the DJI fork's family name on a Luna) | Wrong camera named (coordinator) | iPhone `main`'s "Insta360 · nearby" with "Needs approval on the camera" |
 | ID-8 | The Android offline card read "Not found" + em dash + "power it on to reconnect" | Copy rule: no em dash in UI copy | iPhone `main`'s "Not found. Power it on to reconnect" |
 | ID-13 | iOS "on the camera network" tested Pocket's 192.168.2.x, never true on a Luna, so "Leave camera Wi-Fi?" never appeared before Frame.io and uploads ran on the camera Wi-Fi | A check that could never work | The check tests the Luna's 192.168.42.x |
+| Insta App Information (Android) | System > App Information showed the DJI fork's "DJI Black" theme and "DUML / BLE + Wi-Fi" protocol, with DJI help text | Wrong camera named (coordinator) | iPhone `main`'s "Charcoal" and "Insta360 / BLE + Wi-Fi" with their help |
+| Colour dots (zebra and peaking options) | A dot drew the app accent under another colour's name: Pocket iPhone "Cyan" and peaking "Blue" (the accent blue); Android, both apps, "Amber", "Cyan" and peaking "Blue" (Pocket blue, Insta yellow). Insta iPhone already drew each dot's paint | Wrong colour named (coordinator) | Each dot shows the colour its overlay paints |
+| Screen-reader names and touch targets (Android, both apps) | Clean view pins, System buttons and the zebra threshold sliders had no spoken name; the System buttons' touch area was the capsule itself | Accessibility (coordinator) | Each has a name (for example "Keep LUT in clean view", "Highlight threshold"); the System buttons take touches across 48 dp around the unchanged capsule (it sits 1 px lower) |
 
 Deliberate copy difference in both apps: every `main` string with an em dash (Pocket pair page
-body, hint and instruction lines; the offline card) uses the period or comma OpenInstaCine
+body, hint and instruction lines; the offline card; the Android Clean view caption in Settings) uses the period or comma OpenInstaCine
 iPhone `main` used for the same line.
 
 ## 6. OpenZCine
@@ -475,6 +492,10 @@ Test-only, no device impact: Pocket Motion `testZoomChipKeepsRecordingColorGateW
 Android `MotionProgramSessionTest` depends on test order; OpenCine
 `MonitorReaderWriterMediaExporterTests` and some Nikon Android instrumented tests are
 sensitive to machine load.
+
+Stale tests updated to `main`'s behavior (each failed on `main` the same way and passes there
+after the update, as strict as before): Pocket iOS `testSettingsTabsShareEdgesAndKeepSelection`,
+now `testSettingsTabsKeepBaselineSpacingAndSelection` (the tabs are 6 pt apart, as on `main`).
 
 ## 8. Fixed during the migration
 
