@@ -29,6 +29,8 @@ android {
 dependencies {
     api(project(":core"))
     api(project(":media"))
+    // Session recovery state and copy have one owner (D-NI1).
+    api(project(":camera-vocabulary"))
     api(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
