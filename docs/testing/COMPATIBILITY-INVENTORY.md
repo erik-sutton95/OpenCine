@@ -85,7 +85,7 @@ their registered refs.
 | `PlaybackVideoLayout`, `GimbalStickLuma`, `ExposureMeterReading`, `CameraWiFiQRCode`, `PlaybackAudio.AudioLevelTapBox`, `rememberPlaybackMonitorGlass`, `GlassChrome`, `CameraMedia.cacheEntries` | main parity |
 | Theme forwarders `BrandColors`, `OpcFonts`, `LiveType`, `LiveDesign` (brand tokens mixed with `MonitorPalette`/`MonitorTypography` pass-throughs) | app composition; the mixed tokens stay in the app. P-1 retired the identity aliases and left these |
 | Typealias bridges to shared types: 191 on the union (Swift and Kotlin) | see "Retired here"; the remaining heavy aliases were follow-up P-1 and are now retired |
-| Tooling copied between the apps (`scripts/android-stage-swift-core.sh`, `checkout-opencine.sh`, release-note and tester-note scripts) | app composition; follow-up X-2 (parameterized copies in OpenCine `scripts/`) |
+| Release and staging scripts | Done in X-2. OpenCine `scripts/` owns Swift Android staging, the checkout bootstrap, and the Pocket/Insta tester-note checks. Each app keeps a matching `checkout-opencine.sh` because that script runs before the pin exists, plus a thin wrapper for the scripts it calls. Nikon keeps its own TestFlight note contract. |
 | Source sync | none: Pocket was the donor and never carried sync tooling |
 
 Retired here (`2216acb5`, production about -1,500 lines net):
@@ -272,5 +272,5 @@ Kotlin `LiveAssistTool` and `OpcIcon`, and the assist type aliases beside them, 
 | Z-7 | Nikon | Android Operator Settings onto camera-controls `OperatorSetupScreen` | camera-controls moving its Assist and Display tabs onto the monitor-ui owners Nikon already uses (`MonitorViewAssistSettings`, `MonitorDisplaySettings`) |
 | Z-8 | Nikon (both platforms) | Edit view eyes for REC, the video clock and the lock button (configurable, but no eye on either platform) | a parity decision for both platforms; Android's shared `MonitorStatusChrome` already takes `recordingModifier` and `clockModifier` |
 | X-1 | Nikon, OpenCine | Done. `scripts/check-gles-shaders.sh` lives in OpenCine. The OpenZCine recipe calls it. | none |
-| X-2 | all apps | Shared release and staging scripts | new shared tooling |
+| X-2 | all apps | Done. Shared staging and Pocket/Insta tester-note scripts live in OpenCine `scripts/`. Each app's `checkout-opencine.sh` matches that copy because it runs before the pin exists. Nikon's TestFlight checker stays; its caps differ. | none |
 | X-3 | Pocket, Insta | Done. The probe calls `DjiNativeWire.statusJSON` in the sibling OpenCine package. Pocket audit links point at `LiveViewLink`, `Diagnostics`, `FeedWatchdog`, `CameraSoftAP`, and `DjiNativeWire`. Insta `architecture.md`, the UCD2 handbook page, and `luna-swift-protocol.md` name `../OpenCine` `Insta360Protocol`. | none |
