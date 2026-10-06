@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
+import com.opencapture.opencine.vocabulary.MediaFile
 
 /** Actual producer/parser plus manual clock. No Android Looper, native SDK or wall-clock sleep. */
 class DjiAndroidMediaServiceTest {
