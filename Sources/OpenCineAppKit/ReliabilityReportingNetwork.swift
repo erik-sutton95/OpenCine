@@ -8,9 +8,10 @@ import zlib
 
 /// Upload gate: no report leaves while a camera session is live or the camera's IPv4 path is up,
 /// including when cellular internet is also available. `cameraIPv4Prefix` is the camera
-/// network's address prefix, supplied by the app.
+/// network's address prefix, supplied by the app; nil when the camera's network shares its
+/// prefix with ordinary home networks, so only the live camera session holds reports back.
 public final class ReliabilityReportingGate: @unchecked Sendable {
-    public let cameraIPv4Prefix: String
+    public let cameraIPv4Prefix: String?
 
     private let lock = NSLock()
     private var cameraSessionActive = false
@@ -18,7 +19,7 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
     private var validInternet = true
     private var pending: [ReliabilityReportingCancellable] = []
 
-    public init(cameraIPv4Prefix: String) {
+    public init(cameraIPv4Prefix: String?) {
         self.cameraIPv4Prefix = cameraIPv4Prefix
     }
 
@@ -35,7 +36,7 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
         let session = cameraSessionActive
         let override = ipv4Override
         lock.unlock()
-        let ipv4 = override ?? Self.cameraIPv4PathReady(prefix: cameraIPv4Prefix)
+        let ipv4 = override ?? cameraIPv4Prefix.map { Self.cameraIPv4PathReady(prefix: $0) } ?? false
         return session || ipv4
     }
 
