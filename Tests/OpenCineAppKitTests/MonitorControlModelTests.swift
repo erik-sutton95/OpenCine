@@ -211,6 +211,23 @@ import Testing
         #expect(model.session?.id == b.id)
     }
 
+    @available(macOS 14, *)
+    @Test func aHostKeepsItsOwnNoteCopy() async {
+        let (model, notes) = model()
+        model.noteFor = { stage, label in stage == .confirmed ? nil : "\(label) host" }
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        #expect(await eventually { model.snapshot?.mode.isKnown == true })
+        await camera.refuseNextCommand()
+        model.set(.iso(.manual(800)), label: "ISO 800")
+        await clock.tick(.milliseconds(120))
+        #expect(await eventually { notes.list == ["ISO 800 host"] })
+        await camera.refuseNextCommand()
+        model.record(start: true)
+        #expect(await eventually { notes.list == ["ISO 800 host", "Record host"] })
+    }
+
     @Test func notesNameTheOutcome() {
         #expect(MonitorControlModel.note(for: .confirmed, "ISO 800") == nil)
         #expect(MonitorControlModel.note(for: .failed(.superseded), "ISO 800") == nil)
