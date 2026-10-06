@@ -228,4 +228,12 @@ class CaptureQuickControlTest {
             ),
         )
     }
+
+    @Test fun recordingCategoriesAnchorFromTheTopAndExposureAndFocusStayOnTheBottom() {
+        assertTrue(LiveSheet.FORMAT.isTopAnchored)
+        assertTrue(LiveSheet.COLOR.isTopAnchored)
+        assertTrue(LiveSheet.MODE.isTopAnchored)
+        assertTrue(!LiveSheet.EXPO.isTopAnchored)
+        assertTrue(!LiveSheet.FOCUS.isTopAnchored)
+    }
 }

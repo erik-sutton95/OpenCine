@@ -5,6 +5,8 @@ import com.opencapture.opencine.media.ExtraMirrorHold
 import com.opencapture.opencine.media.FeedPresentPolicy
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -326,5 +328,17 @@ class CameraControlTest {
         assertEquals(72.0, ControlHud.toastCenterY(50.0, 50.0))
         assertEquals(72.0, ControlHud.toastCenterY(50.0, 40.0))
         assertTrue(!ControlHud.RECORDING_COLOR_LOCK_NOTE.contains("0x"))
+    }
+
+    @Test fun dependentAngleHasABoundedConfirmationWindowAndDirectSpeedCancelsIt() {
+        val expected = VideoFormat(VideoResolution.P4K, VideoFrameRate.FPS60)
+        val previous = CameraStatus(resolutionCode = VideoResolution.P4K.rawValue,
+            fpsIndex = VideoFrameRate.FPS24.rawValue, fps = 24)
+        val pin = FormatPin(expected, deadlineElapsedRealtime = 2_000, shutterAngle = 180.0)
+        assertNotNull(VideoFormat.absorbStale(previous, pin, 2_100).second)
+        assertNotNull(VideoFormat.absorbStale(previous, pin, 7_999).second)
+        assertNull(VideoFormat.absorbStale(previous, pin, 8_000).second)
+        pin.shutterAngle = null
+        assertNull(VideoFormat.absorbStale(previous, pin, 2_100).second)
     }
 }
