@@ -14,7 +14,7 @@ opencapture-atlas, merged with their history (ADR 0010). One version for everyth
 | core | OpenCineCore, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineRelayApple, OpenCineApple, OpenCineCoreTestSupport | `:core`, `:media`, `:vulkan` | `docs/core/` |
 | ui | MonitorPresentation, MonitorUI, OpenCineAppKit (app shell), OpenCineAppKitApple (its Apple layer) | `:monitor-ui`, `:appkit` | `docs/ui/`, `docs/appkit/` |
 | multicam | OpenCineMulticam | `:multicam` | `docs/multicam/` |
-| vendor | OpenCineCameraVocabulary, OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport (CKcp target) | `:insta360-shell`, `:insta360-luna` | `docs/dji/`, `docs/nikon/`, `docs/insta360/` |
+| vendor | OpenCineCameraVocabulary, OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport (CKcp target) | `:camera-vocabulary`, `:insta360-shell`, `:insta360-luna` | `docs/dji/`, `docs/nikon/`, `docs/insta360/` |
 | harness | none (HarnessEngine, HarnessComposition, HarnessTests: dev-only, SIMULATED) | none | `docs/harness/` |
 
 Core depends on nothing above it; integrations never on UI; Multicam never on an integration or

@@ -228,6 +228,10 @@ card reads "Ready to pair"; iOS offers Open Settings when Bluetooth is off; Clea
 AUDIO pin (Luna reports no audio levels); with no camera connected, iPhone Settings shows no
 gimbal, joystick, head-tracking, zoom chip or timecode rows. Not on Luna at all: live audio, aperture,
 AE/AWB lock (main never offered them; ignore the opposite line in the app's checklist).
+A saved camera that still carries a hotspot setup connects from that chip over the camera's
+own Wi-Fi, without main's "Turn on Personal Hotspot" prompt. On main no Insta camera could add a
+hotspot setup, and the prompt (reached only from simulator review data) asked for a hotspot Luna
+then ignored.
 
 ## 6. OpenZCine
 

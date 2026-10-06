@@ -25,6 +25,11 @@ import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.MotionAxis
 
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.EvComp
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch

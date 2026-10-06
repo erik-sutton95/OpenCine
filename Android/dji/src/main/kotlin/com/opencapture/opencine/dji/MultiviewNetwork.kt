@@ -10,6 +10,7 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Handler
 import android.os.Looper
+import com.opencapture.opencine.vocabulary.FoundCamera
 import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetSocketAddress

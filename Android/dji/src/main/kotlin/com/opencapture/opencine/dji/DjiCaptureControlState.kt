@@ -12,6 +12,10 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.UnavailableReason
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.EvComp
 
 /** Actual decoded camera reports, before any pending UI value is applied. */
 data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraModel?) {

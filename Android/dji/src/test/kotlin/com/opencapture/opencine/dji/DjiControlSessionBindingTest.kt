@@ -9,6 +9,8 @@ import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.ConnectionPhase
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

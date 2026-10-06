@@ -65,7 +65,6 @@
                     .opacity(presentation.dimmed ? 0.16 : 1)
                     .animation(MonitorMotion.dim(reduceMotion), value: presentation.dimmed)
                     .monitorPresentationVisibility(presentation.visible)
-                    .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
                     .allowsHitTesting(presentation.visible && presentation.interactive && !presentation.transientControlsHidden)
                     .zIndex(presentation.capturePresented ? 11 : 0)
                 MonitorCameraRecordingBorder(control: control)
@@ -98,6 +97,7 @@
                         .frame(width: layout.gauges.width, height: layout.gauges.height,
                             alignment: layout.portrait && !layout.tablet ? .topTrailing : .topLeading)
                         .position(x: layout.gauges.midX, y: layout.gauges.midY)
+                        .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
                 }
                 if presentation.captureMounted {
                     MonitorScreenSlot(content: capture)
@@ -109,7 +109,9 @@
                 }
             }
             .allowsHitTesting(presentation.interactive && !presentation.transientControlsHidden && presentation.visible)
-            .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
+            // No AX attachment on the Group or the tools and system slots: while visible it would
+            // override a control that hides itself (Pocket's zoom chip under a picker). Their
+            // content hides per control; covered chrome is excluded by zero opacity.
         }
     }
 

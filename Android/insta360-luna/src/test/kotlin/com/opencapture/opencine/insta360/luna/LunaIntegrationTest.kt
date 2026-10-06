@@ -175,6 +175,26 @@ class LunaIntegrationTest {
         assertTrue(record.name == "A cam" && record.routes == listOf(ap) && record.extras == mapOf("lastSetup" to "wifi"))
     }
 
+    /** A legacy hotspot setup (main's records could carry one) is no dead chip: Luna dials the
+     *  camera over its own Wi-Fi, keeps the setup, and makes the camera Wi-Fi preferred again. */
+    @Test
+    fun aLegacyHotspotSetupConnectsOverCameraWiFi() = runTest {
+        val (port, luna) = setup()
+        val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "LUNA-1A2B", bluetooth = true)
+        val hotspot = SavedRoute(key = "hotspot", kind = RouteKind.PHONE_HOTSPOT, network = "Rig iPhone")
+        val saved = SavedCamera(
+            id = camera, integration = luna.id, advertisedName = "Luna 1A2B", model = "Insta360 Luna Ultra",
+            routes = listOf(ap, hotspot), preferredRoute = hotspot.id,
+        )
+        val events = collect(luna.connect(ConnectTarget.Saved(saved, hotspot.id)))
+        runCurrent()
+        assertEquals(listOf(camera), port.connects)
+        port.goLive()
+        runCurrent()
+        val record = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
+        assertTrue(record.routes == listOf(ap, hotspot) && record.preferredRoute == ap.id)
+    }
+
     @Test
     fun typedFailuresKeepTheirCopy() = runTest {
         // The backend's copy, now typed at the site that chooses it.

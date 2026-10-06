@@ -43,8 +43,8 @@ coordinates `com.opencapture.opencine:<module>`.
 | App shell | `OpenCineAppKitApple` (iOS composition both camera apps share: head tracking) | | `OpenCineAppKit`, UI, `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineRelayApple` (as needed) |
 | App shell | `OpenCineAppUITesting` (UI tests only: the XCUITest cases every app runs by subclassing) | | nothing (XCTest) |
 | Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
-| Camera vocabulary | `OpenCineCameraVocabulary` (settings, status, models and display values both camera apps share; no wire code) | | `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion` |
-| DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia`, `OpenCineCameraVocabulary` / `core`, `media`, `decoder`, `platform` |
+| Camera vocabulary | `OpenCineCameraVocabulary` (settings, status, models and display values both camera apps share; no wire code) | `camera-vocabulary` | `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion` / `core`, `media` |
+| DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia`, `OpenCineCameraVocabulary` / `core`, `media`, `camera-vocabulary`, `decoder`, `platform` |
 | Nikon | `OpenCineNikon`, `OpenCineNikonAndroid` (Swift side of `NikonNative`: Android session layer and JNI exports) | `nikon` (JNI facade `NikonNative`) | `OpenCineCore`, `OpenCineJNISupport` / `core` |
 | Insta360 | `Insta360Protocol`, `Insta360Apple` (+ C target `CKcp`), `Insta360AppleTestSupport` (tests only) | `insta360-shell`, `insta360-luna` | `OpenCineCore` / `core` |
 | Harness | none (targets `HarnessEngine`, `HarnessComposition`, `HarnessTests`; SIMULATED, never ships) | | everything above except UI |

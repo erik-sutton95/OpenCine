@@ -42,10 +42,10 @@ import Testing
                     status: "Joining CAM-1", actionTitle: "Connect", isPrimary: true, isBusy: true,
                     isAvailable: true,
                     setups: [
-                        CameraSetupChip(id: T.ap.id.description, title: "Camera Wi-Fi", isActive: true),
-                        CameraSetupChip(id: T.wifi.id.description, title: "Wi-Fi · studio", isActive: false, canForget: true),
+                        CameraSetupChip(id: T.ap.id.description, title: "Camera Wi-Fi", isActive: true, kind: "cameraWiFi"),
+                        CameraSetupChip(id: T.wifi.id.description, title: "Wi-Fi · studio", isActive: false, canForget: true, kind: "wifi"),
                     ],
-                    canAddSetup: true,
+                    canAddSetup: false,
                     steps: [
                         CameraConnectStep("Link", detail: "", state: .done),
                         CameraConnectStep("Approve", detail: "", state: .done),
@@ -58,10 +58,10 @@ import Testing
                     id: "camera-0", name: "B cam", subtitle: "Test Body · studio", badge: "NOT CONNECTED",
                     status: "Not found. Power it on to reconnect", actionTitle: "Reconnect", isAvailable: false,
                     setups: [
-                        CameraSetupChip(id: T.ap.id.description, title: "Camera Wi-Fi", isActive: false),
-                        CameraSetupChip(id: T.wifi.id.description, title: "Wi-Fi · studio", isActive: true, canForget: true),
+                        CameraSetupChip(id: T.ap.id.description, title: "Camera Wi-Fi", isActive: false, kind: "cameraWiFi"),
+                        CameraSetupChip(id: T.wifi.id.description, title: "Wi-Fi · studio", isActive: true, canForget: true, kind: "wifi"),
                     ],
-                    canAddSetup: true,
+                    canAddSetup: false,
                     failure: CameraConnectFailure(
                         title: "Bluetooth is off", message: "Turn on Bluetooth for this app.",
                         actions: [
@@ -85,6 +85,17 @@ import Testing
         fake.publish([NearbyCamera(id: "n9", name: "CAM-9", model: "", routes: [.infrastructureNetwork])])
         #expect(await eventually { !model.nearby.isEmpty })
         #expect(CamerasMapping.nearby(model).map(\.subtitle) == ["nearby"])
+    }
+
+    @available(macOS 14, *)
+    @Test func addIsOfferedOnlyWhileAnAddableKindIsMissing() {
+        let fake = FakeIntegration(id: IntegrationID("test.cameras"))
+        var camera = T.camera
+        camera.routes = [T.ap]
+        camera.preferredRoute = T.ap.id
+        #expect(CamerasMapping.paired(model(fake, saved: [camera]))[0].canAddSetup)
+        camera.routes = [T.ap, T.wifi]
+        #expect(!CamerasMapping.paired(model(fake, saved: [camera]))[0].canAddSetup)
     }
 
     @available(macOS 14, *)
