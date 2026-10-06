@@ -202,7 +202,7 @@ Insta [differences tables](#differences-from-main-openpocketcine).
 | C10 | Exposure assists | Peaking, zebra, false color (each mode), EV meter, traffic lights, ND suggestions; open the palette in landscape. | Overlays line up with the picture; same result as `main` on the same scene; the open palette covers the values bar | Assist state, sampling and views (`OpenCineApple`, `OpenCineMedia`, `MonitorUI`) |
 | C11 | Scopes | Waveform, parade, histogram, vectorscope; drag and resize each. | Same traces as `main`; moving a scope never blacks out or reconnects the feed | Scope plots and sampling (`MonitorUI`, `OpenCineMedia`) |
 | C12 | Looks and framing | LUT Auto (also on a downloaded log clip in playback), a creative LUT and a custom `.cube`; guides, grid, crosshair, de-squeeze, mirror, level. | Same picture as `main`; custom LUT survives relaunch | Media math (`OpenCineMedia`), clip color profile reader (Android `media`), monitor UI |
-| C13 | Settings | Open every Settings tab; change one value per tab, relaunch; use Reset where offered. | Same tabs and rows as the app's `main` (Nikon: the shared layout); values persist. Kept fixes: Insta Android App Information, screen-reader names | Settings page (`MonitorUI`), operator settings owners |
+| C13 | Settings | Open every Settings tab; change one value per tab, relaunch; use Reset where offered. | Same tabs and rows as the app's `main` (Nikon: the shared layout); values persist. Kept fixes: Insta Android App Information, screen-reader names, colour dots | Settings page (`MonitorUI`), operator settings owners |
 | C14 | Media browser | Open Media; switch storage, filter and sort, star, delete, cache a clip, then browse offline. | Same clips as the camera; delete removes the file on the camera; cached clips play without the camera | Library, cache and selection (`OpenCineAppKit`), catalog (`MonitorUI`), media producer (integration) |
 | C15 | Playback | Play, pause, scrub, loop; assists and LUT during playback; rotate; return to live. | Picture (not black), audio where the clip has it, live resumes after leaving | Playback model and page (`MonitorUI`), native playback owners |
 | C16 | Share and export | Share an original; Save to Photos. Export with the LUT baked in (iOS; Nikon also Android). | Saved file plays in Photos; baked export shows the look | Delivery panel and coordinator (`OpenCineAppKit`), exporter (`OpenCineApple`) |
@@ -277,7 +277,11 @@ clip, and its saved-hotspot prompt runs through the review's own DJI port.
 
 Also restored (not a listed row): Android Settings View Assist and Display show `main`'s rows
 (the union had shown the newer shared sections), and the tab strip keeps `main`'s spacing.
-Android Settings with no camera connected offers the AUDIO clean-view pin, as on `main`.
+Android Settings with no camera connected offers the AUDIO clean-view pin, as on `main`. iPhone
+Settings: Display shows `main`'s rows (caption, Edit view, one switch per item, then the pins),
+the tab strip keeps `main`'s spacing, Sharing's "Show Wi-Fi code" link is blue again (the union
+drew it white), and landscape View Assist keeps the tools in one column with EV Meter and LUT
+beside them.
 
 ## 5. OpenInstaCine
 
@@ -329,7 +333,10 @@ Hotspot" prompt. On `main` no Insta camera could add a hotspot setup and Luna jo
 Wi-Fi anyway; only simulator review data reached the prompt.
 
 Also restored (not a listed row): Android Settings View Assist and Display show `main`'s rows
-(the union had shown the newer shared sections).
+(the union had shown the newer shared sections). iPhone Settings: Display shows `main`'s rows
+(caption, Edit view, one switch per item, then the pins), Sharing's "Show Wi-Fi code" link is
+yellow again (the union drew it white), and landscape View Assist keeps the tools in one column
+with EV Meter and LUT beside them.
 
 Test-fixture-only differences (simulator `UIReview` builds, never on a device): the review's
 connecting card shows the Luna step "Joining camera Wi-Fi" (`main`'s review went through the
@@ -356,6 +363,7 @@ action, or a check that could never work), the parity lane kept the fix instead 
 | ID-8 | The Android offline card read "Not found" + em dash + "power it on to reconnect" | Copy rule: no em dash in UI copy | iPhone `main`'s "Not found. Power it on to reconnect" |
 | ID-13 | iOS "on the camera network" tested Pocket's 192.168.2.x, never true on a Luna, so "Leave camera Wi-Fi?" never appeared before Frame.io and uploads ran on the camera Wi-Fi | A check that could never work | The check tests the Luna's 192.168.42.x |
 | Insta App Information (Android) | System > App Information showed the DJI fork's "DJI Black" theme and "DUML / BLE + Wi-Fi" protocol, with DJI help text | Wrong camera named (coordinator) | iPhone `main`'s "Charcoal" and "Insta360 / BLE + Wi-Fi" with their help |
+| Colour dots (zebra and peaking options) | A dot drew the app accent under another colour's name: Pocket iPhone "Cyan" and peaking "Blue" (the accent blue); Android, both apps, "Amber", "Cyan" and peaking "Blue" (Pocket blue, Insta yellow). Insta iPhone already drew each dot's paint | Wrong colour named (coordinator) | Each dot shows the colour its overlay paints |
 | Screen-reader names and touch targets (Android, both apps) | Clean view pins, System buttons and the zebra threshold sliders had no spoken name; the System buttons' touch area was the capsule itself | Accessibility (coordinator) | Each has a name (for example "Keep LUT in clean view", "Highlight threshold"); the System buttons take touches across 48 dp around the unchanged capsule (it sits 1 px lower) |
 
 Deliberate copy difference in both apps: every `main` string with an em dash (Pocket pair page

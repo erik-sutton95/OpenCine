@@ -46,7 +46,10 @@ public struct MonitorFeedSharingSettings: View {
             // nil when watchers never join the camera's network (it would drop the monitor).
             if let showWiFiCode {
                 MonitorSettingsInlineRow(title: "Join camera Wi-Fi", help: help.join) {
+                    // Hosts set an explicit root foreground (ink or .primary), which would turn a
+                    // default button label white; the reference monitor drew this link in the tint.
                     Button("Show Wi-Fi code", action: showWiFiCode)
+                        .foregroundStyle(.tint)
                         .font(MonitorTheme.font(13, weight: .medium))
                 }
             }
