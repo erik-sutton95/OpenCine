@@ -25,6 +25,7 @@ class MonitorLinkHealthTest {
             MonitorLinkHealth.score(3) to MonitorLinkHealth.Band.WATCH,
             MonitorLinkHealth.score(4) to MonitorLinkHealth.Band.STABLE,
         )) assertEquals(band, MonitorLinkHealth.band(score), "band($score)")
+        assertEquals(listOf("Poor", "Watch", "Stable"), MonitorLinkHealth.Band.entries.map { it.label })
         for ((score, color) in listOf(
             49 to MonitorLinkHealth.poor,
             50 to MonitorLinkHealth.watch,

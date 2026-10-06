@@ -1,8 +1,18 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.monitorui.MonitorAssistTool
+import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorGuideAspect
+import com.opencapture.monitorui.MonitorParadeMode
+import com.opencapture.monitorui.MonitorScopeGuides
 import com.opencapture.monitorui.MonitorScopeStoredCenter
+import com.opencapture.monitorui.MonitorVectorscopeZoom
+import com.opencapture.monitorui.MonitorWaveformMode
+import com.opencapture.monitorui.MonitorZebraUnit
+import com.opencapture.opencine.media.MonitorCrushClipCompensation
+import com.opencapture.opencine.media.MonitorPeakingColor
+import com.opencapture.opencine.media.MonitorPeakingSense
+import com.opencapture.opencine.media.MonitorZebraPaint
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -317,5 +327,31 @@ class MonitorAssistStateBehaviorTest {
         assertTrue(restored.level)
         restored.togglePlayback(MonitorAssistTool.LEVEL)
         assertFalse(restored.isPlaybackVisible(MonitorAssistTool.LEVEL))
+    }
+
+    @Test
+    fun cardResetsRestoreTheDefaultsAndKeepPanelSizes() {
+        val state = MonitorAssistState()
+        state.setFalseColor(MonitorFalseColorSelection.LIMITS, reference = false)
+        state.setPeaking(MonitorPeakingColor.BLUE, MonitorPeakingSense.HIGH)
+        state.updateZebraUnit(MonitorZebraUnit.NATIVE)
+        state.setZebraHighlight(false, 42.0, MonitorZebraPaint.CYAN)
+        state.setZebraMidtone(false, 12.0, MonitorZebraPaint.GREEN)
+        state.setWaveform(MonitorWaveformMode.LUMA, 180, MonitorScopeGuides(false, false, false), 1.4)
+        state.setParade(MonitorParadeMode.YRGB, 170, MonitorScopeGuides(false, false, false), 1.3)
+        state.setVectorscope(MonitorVectorscopeZoom.X4, 160, 1.2)
+        state.setHistogram(false, MonitorCrushClipCompensation.ONE, 0.8)
+
+        MonitorAssistTool.entries.forEach(state::resetSettings)
+
+        // Resetting False Color's reference key also turns the tool on, as each card's Reset always has.
+        val expected = MonitorAssistState().apply {
+            setWaveform(scale = 1.4)
+            setParade(scale = 1.3)
+            setVectorscope(scale = 1.2)
+            setHistogram(scale = 0.8)
+            setFalseColor(reference = true)
+        }
+        assertEquals(expected.encoded(), state.encoded())
     }
 }
