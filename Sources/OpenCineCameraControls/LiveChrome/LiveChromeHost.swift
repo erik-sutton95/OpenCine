@@ -29,5 +29,16 @@
         func chrome(for mode: MonitorDisplayMode) -> MonitorDisplayChrome
         func toggleChrome(_ section: MonitorDisplayChrome.Section, for mode: MonitorDisplayMode)
         func endChromeEditing()
+
+        /// Returns to the multiview grid when this live view borrowed one of its cameras.
+        var multiviewExit: (() -> Void)? { get }
+        /// The camera is borrowed from multiview, so recording stays with the grid.
+        var multiviewBorrowed: Bool { get }
+        func openSettings()
+        func openMedia()
+        /// A held press on the focus box locks it against tap focus.
+        var focusBoxLocked: Bool { get set }
+        func resetFocusPoint()
+        func unlockAutoExposure()
     }
 #endif

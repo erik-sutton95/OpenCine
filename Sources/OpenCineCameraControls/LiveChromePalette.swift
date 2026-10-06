@@ -20,6 +20,8 @@
         /// Destructive actions and errors.
         static var destructive: Color { get }
         static var amber: Color { get }
+        /// AE lock yellow: the focus box, its `AE-L` tag and the unlock key.
+        static var aeLock: Color { get }
         static var good: Color { get }
         static var cornerRadius: CGFloat { get }
         /// A chrome colour at the display's current HDR gain, like the named ones.
