@@ -77,7 +77,6 @@ import com.opencapture.monitorui.settings.MonitorMotionIntegerSetting
 import com.opencapture.monitorui.settings.MonitorMotionToggleSetting
 import com.opencapture.monitorui.settings.MonitorOperatorSafetySettings
 import com.opencapture.monitorui.settings.MonitorProjectLegalSettings
-import com.opencapture.monitorui.settings.MonitorReportStatus
 import com.opencapture.monitorui.settings.MonitorSavedCameraSettings
 import com.opencapture.monitorui.settings.MonitorSavedCameraSummary
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
@@ -102,8 +101,8 @@ import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.diagnostics.FeedIncidentRuntime
 import com.opencapture.opencine.appkit.diagnostics.ManualProblemReport
-import com.opencapture.opencine.appkit.diagnostics.ManualProblemReportDelivery
 import com.opencapture.opencine.appkit.diagnostics.ManualProblemReportDialog
+import com.opencapture.opencine.appkit.diagnostics.settingsStatus
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReporting
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.core.RouteKind
@@ -464,7 +463,7 @@ fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help
 private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
     MonitorSettingsRowCard(
         title = "False Color",
-        onReset = { assist.setFalseColor(scale = MonitorFalseColorSelection.SCENE_STOPS, reference = true) },
+        onReset = { assist.resetSettings(MonitorAssistTool.FALSE) },
     ) {
         MonitorSettingsInlineRow("Scale", help.FALSE_COLOR_SCALE, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(
@@ -524,7 +523,7 @@ private fun FalseColorKey(scale: MonitorFalseColorSelection, transfer: MonitorTr
 private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost) {
     MonitorSettingsRowCard(
         title = "Peaking",
-        onReset = { assist.setPeaking(color = MonitorPeakingColor.RED, sense = MonitorPeakingSense.MED) },
+        onReset = { assist.resetSettings(MonitorAssistTool.PEAK) },
     ) {
         MonitorSettingsInlineRow("Sensitivity", help.PEAKING_SENSITIVITY, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(
@@ -544,11 +543,7 @@ private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy
 private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
     MonitorSettingsRowCard(
         title = "Zebra",
-        onReset = {
-            assist.updateZebraUnit(MonitorZebraUnit.IRE)
-            assist.setZebraHighlight(enabled = true, ire = LiveZebra.HIGHLIGHT_IRE, color = MonitorZebraPaint.WHITE)
-            assist.setZebraMidtone(enabled = true, ire = LiveZebra.MIDTONE_IRE, color = MonitorZebraPaint.AMBER)
-        },
+        onReset = { assist.resetSettings(MonitorAssistTool.ZEBRA) },
     ) {
         MonitorSettingsInlineRow("Units", help.ZEBRA_UNITS, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = listOf("0-255", "IRE"), selected = assist.zebraUnit.editorLabel) { label ->
@@ -618,7 +613,7 @@ private fun ZebraZoneRow(
 private fun WaveformAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
     MonitorSettingsRowCard(
         title = "Waveform",
-        onReset = { assist.setWaveform(mode = MonitorWaveformMode.RGB, brightness = 100, guides = MonitorScopeGuides()) },
+        onReset = { assist.resetSettings(MonitorAssistTool.WAVE) },
     ) {
         MonitorSettingsInlineRow("Mode", showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorWaveformMode.entries.map { it.label }, selected = assist.waveMode.label) { label ->
@@ -636,7 +631,7 @@ private fun WaveformAssistCard(assist: MonitorAssistState, help: OperatorHelpCop
 private fun ParadeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
     MonitorSettingsRowCard(
         title = "Parade",
-        onReset = { assist.setParade(mode = MonitorParadeMode.RGB, brightness = 100, guides = MonitorScopeGuides()) },
+        onReset = { assist.resetSettings(MonitorAssistTool.PARADE) },
     ) {
         MonitorSettingsInlineRow("Mode", showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorParadeMode.entries.map { it.label }, selected = assist.paradeMode.label) { label ->
@@ -654,7 +649,7 @@ private fun ParadeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy)
 private fun HistogramAssistCard(assist: MonitorAssistState) {
     MonitorSettingsRowCard(
         title = "Histogram",
-        onReset = { assist.setHistogram(traffic = true, compensation = MonitorCrushClipCompensation.ZERO) },
+        onReset = { assist.resetSettings(MonitorAssistTool.HISTO) },
     ) {
         MonitorSettingsSwitchInlineRow(
             title = HistogramAssist.TRAFFIC_LIGHTS_TITLE,
@@ -673,7 +668,7 @@ private fun HistogramAssistCard(assist: MonitorAssistState) {
 private fun VectorscopeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
     MonitorSettingsRowCard(
         title = "Vectorscope",
-        onReset = { assist.setVectorscope(zoom = MonitorVectorscopeZoom.X1, brightness = 100) },
+        onReset = { assist.resetSettings(MonitorAssistTool.VECTOR) },
     ) {
         MonitorSettingsInlineRow("Trace Zoom", help.VECTORSCOPE_ZOOM, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorVectorscopeZoom.entries.map { it.label }, selected = assist.vectorZoom.label) { label ->
@@ -688,7 +683,7 @@ private fun VectorscopeAssistCard(assist: MonitorAssistState, help: OperatorHelp
 
 @Composable
 private fun TrafficLightsAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
-    MonitorSettingsRowCard(title = "Traffic Lights", onReset = { assist.setCompensation(MonitorCrushClipCompensation.ZERO) }) {
+    MonitorSettingsRowCard(title = "Traffic Lights", onReset = { assist.resetSettings(MonitorAssistTool.LIGHTS) }) {
         MonitorSettingsInlineRow(
             title = HistogramAssist.COMPENSATION_TITLE,
             help = help.TRAFFIC_LIGHTS_COMPENSATION,
@@ -951,9 +946,7 @@ private fun SystemRows(model: OperatorSetupModel, app: OperatorSetupApp, onLegal
         unavailableHelp = app.help.RELIABILITY_UNAVAILABLE,
         onAutomaticReports = { reliabilityOptIn = it; diagnostics.reporting.setConsent(it) },
         report = { showReportForm = true }, privacy = { onLegal(OperatorLegalPage.PRIVACY) },
-        status = if (report.delivery == ManualProblemReportDelivery.IDLE) null else
-            MonitorReportStatus(report.statusLabel,
-                report.detail ?: "This phone keeps one report until Sentry accepts it or you discard it.", report.eventId),
+        status = report.settingsStatus,
         discard = if (report.allowsDiscard) ({ diagnostics.manualReport.discard() }) else null,
         feedback = { operatorHaptic(view, model.hapticsEnabled) },
     )

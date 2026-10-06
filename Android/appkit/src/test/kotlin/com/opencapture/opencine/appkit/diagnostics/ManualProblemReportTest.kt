@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit.diagnostics
 
+import com.opencapture.monitorui.settings.MonitorReportStatus
 import com.opencapture.opencine.media.PrivacyRedactor
 import java.io.File
 import java.io.IOException
@@ -63,6 +64,19 @@ class ManualProblemReportTest {
         gate.resetForTests()
         gate.hostPolicy.requireHttps = true
         root.deleteRecursively()
+    }
+
+    @Test
+    fun settingsStatusHidesIdleAndExplainsAHeldReport() {
+        assertNull(ManualProblemReportSnapshot(detail = "Saved").settingsStatus)
+        assertEquals(
+            MonitorReportStatus("Waiting to send", "This phone keeps one report until Sentry accepts it or you discard it.", "e1"),
+            ManualProblemReportSnapshot(ManualProblemReportDelivery.WAITING, eventId = "e1").settingsStatus,
+        )
+        assertEquals(
+            MonitorReportStatus("Failed", "Rejected by Sentry.", null),
+            ManualProblemReportSnapshot(ManualProblemReportDelivery.FAILED, detail = "Rejected by Sentry.").settingsStatus,
+        )
     }
 
     @Test

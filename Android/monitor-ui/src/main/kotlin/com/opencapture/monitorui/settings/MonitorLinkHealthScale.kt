@@ -106,9 +106,9 @@ fun MonitorLinkHealthScale(title: String, caption: String, score: Int) {
             }
         }
         Row(Modifier.fillMaxWidth()) {
-            DashLegend("Poor", "<50", Modifier.weight(1f), Alignment.Start)
-            DashLegend("Watch", "50-79", Modifier.weight(1f), Alignment.CenterHorizontally)
-            DashLegend("Stable", "80+", Modifier.weight(1f), Alignment.End)
+            DashLegend(MonitorLinkHealth.Band.POOR.label, "<50", Modifier.weight(1f), Alignment.Start)
+            DashLegend(MonitorLinkHealth.Band.WATCH.label, "50-79", Modifier.weight(1f), Alignment.CenterHorizontally)
+            DashLegend(MonitorLinkHealth.Band.STABLE.label, "80+", Modifier.weight(1f), Alignment.End)
         }
     }
 }
