@@ -247,6 +247,7 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 | Z-5 | Nikon | Relay and watch wire convergence | wire version decision |
 | Z-6 | Nikon | Discovery into an Apple Nikon integration target | hardware-qualified reason |
 | Z-7 | Nikon | Android Operator Settings onto camera-controls `OperatorSetupScreen` | camera-controls moving its Assist and Display tabs onto the monitor-ui owners Nikon already uses (`MonitorViewAssistSettings`, `MonitorDisplaySettings`) |
+| Z-8 | Nikon (both platforms) | Edit view eyes for REC, the video clock and the lock button (configurable, but no eye on either platform) | a parity decision for both platforms; Android's shared `MonitorStatusChrome` already takes `recordingModifier` and `clockModifier` |
 | X-1 | Nikon, OpenCine | `check-gles-shaders.sh` into OpenCine | none |
 | X-2 | all apps | Shared release and staging scripts | new shared tooling |
 | X-3 | Pocket, Insta | Stale references found while retiring: Pocket `tools/performance-status-probe.sh` calls `AndroidSessionWire.statusJSON`, which no longer exists; three links in Pocket `docs/audits/*.md` point at moved view-core files; Insta `docs/implementation/architecture.md` and the handbook `protocol/ucd2-frame.md` name the moved `Adapters/Insta360Protocol` | docs and tooling refresh |
