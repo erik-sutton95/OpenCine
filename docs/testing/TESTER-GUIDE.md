@@ -197,7 +197,7 @@ Insta [differences tables](#differences-from-main-openpocketcine).
 | C5 | Forget | Forget a saved camera, then pair it again. | Card gone; on iOS its saved Wi-Fi too. Android also drops the Wi-Fi (kept fix: PD-3, ID-12) | Saved cameras store |
 | C6 | Link loss and recovery | Toggle phone Wi-Fi briefly; background and foreground; open Media or Settings and come back. | Last picture stays, live returns without re-pairing, no black or frozen picture, no stuck "Waiting for live view" | Native live video runtime and recovery (`OpenCineApple`, `native-runtime`, `vulkan`) |
 | C7 | Live HUD | Battery, storage, format, timecode, REC row; DISP clean view; Fit/Fill where offered; Lock; portrait and landscape; iPad window resize (iOS). | Same readouts as `main`, nothing clipped or missing; Lock blocks every control | `AppShell`, `MonitorScreen` (`OpenCineAppKit`, `MonitorUI`); Android live chrome buttons (`camera-controls`) |
-| C8 | Camera controls | Change ISO, shutter (and angle), white balance, EV, format/fps and mode. | Lands on what the camera reports within about 3 s; refused or unapplied writes say so (PD-4, ID-1) | Common control seam (`OpenCineCore`), the integration; Android capture sheets (`camera-controls`) |
+| C8 | Camera controls | Change ISO, shutter (and angle), white balance, EV, format/fps and mode. | Lands on what the camera reports within about 3 s, as on `main`: Pocket says the camera's own message for a refused write, Insta "ISO was not applied by the camera."; a write the camera does not take reverts silently (PD-4, ID-1) | Common control seam (`OpenCineCore`), the integration; Android capture sheets (`camera-controls`) |
 | C9 | Record | Record and stop with the on-screen button, with and without Record Confirmation where offered; hardware or gamepad trigger where the app supports it. | Camera starts or stops exactly once; the lamp follows the camera; right after connecting, record waits for the camera's first record state (kept fix: PD-7) | Same |
 | C10 | Exposure assists | Peaking, zebra, false color (each mode), EV meter, traffic lights, ND suggestions; open the palette in landscape. | Overlays line up with the picture; same result as `main` on the same scene; the open palette covers the values bar | Assist state, sampling and views (`OpenCineApple`, `OpenCineMedia`, `MonitorUI`) |
 | C11 | Scopes | Waveform, parade, histogram, vectorscope; drag and resize each. | Same traces as `main`; moving a scope never blacks out or reconnects the feed | Scope plots and sampling (`MonitorUI`, `OpenCineMedia`) |
@@ -237,7 +237,7 @@ iPad), Android 10+.
 
 | # | Check | Platforms | Steps | Expected | Changed |
 |---|---|---|---|---|---|
-| P1 | Per-body layout | both | Connect each body you have. | Tiles match `main` (iPhone: except PD-5 until the iOS round) | Layout from DJI capabilities (`OpenCineDJI`) |
+| P1 | Per-body layout | both | Connect each body you have. | Tiles match `main` | Layout from DJI capabilities (`OpenCineDJI`) |
 | P2 | Wi-Fi and Hotspot setups | both | Add setup → Wi-Fi or Hotspot, connect; force a failure. | One Add setup, offered only while a setup kind is missing; 4-step progress (up to about 1 min); failure offers Edit setup, Try again, Camera Wi-Fi | `OpenCineDJIApple`, `dji` connection bootstrap |
 | P3 | Focus, zoom, tracking | both | Tap to focus, long-press AE-L, tap a face, double-tap for object tracking; zoom chip, pinch, disc; FOCUS tile; APERTURE on Action 6. Zoom while recording in D-Log2. | Same as `main`; zoom limited per FORMAT; in D-Log2 zoom stays locked while recording, with the note | Apple camera control owners (`OpenCineDJIApple`), Android `camera-controls` |
 | P4 | Gimbal | both | Joystick (size, invert, dead zone); Mode, Speed, Ramp; double-tap Recenter or Level; Motion Control A/B/C with Loop; game controller. Open the Motion editor and tap outside it; relaunch with a paused move. | Same motion as `main`; gimbal stops when you let go; the editor takes its touches; a paused move survives launch | Gimbal control owner (`OpenCineDJIApple`), `OpenCineMotion`, `camera-controls` |
@@ -262,8 +262,8 @@ behavior was a defect, see [Kept fixes](#kept-fixes-your-call)); or already matc
 | PD-1 | Cameras and pairing on the shared flow: Continue on a nearby camera; the saved card shows its own attempt and typed failure actions (Open Settings) | lines 58-62 | restored to main (also: Pair on a nearby card starts at once, nearby cards say "Needs approval on the camera", the Wi-Fi caption is the phase label, no Rename setup on setup chips, the iPhone hotspot ask names the camera) |
 | PD-2 | A malformed saved-camera record no longer wipes the readable ones | lines 65-66 | kept fix, your call |
 | PD-3 | Android Forget also drops the camera's saved Wi-Fi (iOS did on `main`) | lines 66-67 | kept fix, your call |
-| PD-4 | iOS HUD shows a pending ISO or WB value until the camera reports it | lines 71-73 | to be restored to main |
-| PD-5 | Nano shows no live timecode (it never reports one) | lines 74-77 | Android: restored to main (single view shows the timecode on every body, Nano included; Multi View hides it on a Nano, as on `main`). iPhone: to be restored to main |
+| PD-4 | iOS HUD shows a pending ISO or WB value until the camera reports it | lines 71-73 | restored to main (iPhone strip: ISO and shutter keep the camera's value until it answers; a custom white balance shows the request at once) |
+| PD-5 | Nano shows no live timecode (it never reports one) | lines 74-77 | restored to main (single view shows the timecode on every body, Nano included; Multi View hides it on a Nano, as on `main`) |
 | PD-6 | Android: APERTURE sheet and drum only on Action 6; FOCUS from the body's declaration | lines 77-79 | already matched main (`main` also showed APERTURE only on Action 6 and FOCUS only on Pocket 3, 4 and 4 Pro) |
 | PD-7 | Record sends start or stop for the reported state; right after connecting it says "Waiting for the camera's record state" | lines 80-81 | kept fix, your call (`main` also sent start or stop, never a toggle, but assumed "not recording" before the first report) |
 | PD-8 | After a link change the watch says "Camera changed. Try again." instead of acting | lines 82-83 | kept fix, your call |
@@ -273,7 +273,10 @@ behavior was a defect, see [Kept fixes](#kept-fixes-your-call)); or already matc
 
 Test-fixture-only differences (simulator `UIReview` builds, never on a device): the review
 starts from the first-run palette order, its player controls work without the private test
-clip, and its saved-hotspot prompt runs through the review's own DJI port.
+clip, and its saved-hotspot prompt runs through the review's own DJI port. The review camera never
+reports a record state, so its record button reads "Recording state unknown" (PD-7). The review
+Nano is a Nano body, so it shows no FOCUS tile, as a Nano on `main` (`main`'s review Nano kept
+the Pocket body's FOCUS tile).
 
 Also restored (not a listed row): Android Settings View Assist and Display show `main`'s rows
 (the union had shown the newer shared sections), and the tab strip keeps `main`'s spacing.
@@ -281,7 +284,11 @@ Android Settings with no camera connected offers the AUDIO clean-view pin, as on
 Settings: Display shows `main`'s rows (caption, Edit view, one switch per item, then the pins),
 the tab strip keeps `main`'s spacing, Sharing's "Show Wi-Fi code" link is blue again (the union
 drew it white), and landscape View Assist keeps the tools in one column with EV Meter and LUT
-beside them.
+beside them. ISO, shutter and white balance set from a picker sheet answer as `main` did, on
+both platforms: the camera's own message on a refusal, nothing on a timeout (the iPhone union
+said "The camera did not confirm ISO 800."). "Connect the camera to use its controls." and a
+write held back after the camera state changed keep the shared copy (Android had dropped even
+those).
 
 ## 5. OpenInstaCine
 
@@ -313,9 +320,9 @@ call (see [Kept fixes](#kept-fixes-your-call)); or already matched main.
 
 | Row | Difference | Recorded in | Status |
 |---|---|---|---|
-| ID-1 | A write shows confirmed only after the camera reports it; a refused, unapplied or timed-out write says so | lines 162-164 | Android: restored to main (a refused or unsent write says "ISO was not applied by the camera."; one the camera does not take reverts silently). iPhone: to be restored to main |
+| ID-1 | A write shows confirmed only after the camera reports it; a refused, unapplied or timed-out write says so | lines 162-164 | restored to main (a refused or unsent write says "ISO was not applied by the camera."; one the camera does not take reverts silently; iPhone counts only those toward Link Health again) |
 | ID-2 | Zoom readout reaches 15x (`main` clamped readouts to 12x) | lines 165-166 | already matched main (iPhone `main` set the ceiling to 15x; the Android chip stopped at 12x then and now) |
-| ID-3 | Clean view settings offer no AUDIO pin | lines 173-174 | Android: already matched main (Android `main` hid it too: no audio on a Luna). iPhone: to be restored to main |
+| ID-3 | Clean view settings offer no AUDIO pin | lines 173-174 | Android: already matched main (Android `main` hid it too: no audio on a Luna). iPhone: restored to main (portrait and landscape Display offer the AUDIO pin) |
 | ID-4 | iPhone Settings with no camera connected shows no gimbal, joystick, head-tracking, zoom chip or timecode rows | lines 174-177 | restored to main (iPhone; Android already matched: Timecode listed, gimbal and zoom need a camera) |
 | ID-5 | Pair page rail "Find your camera" then four connect steps (`main`: four Luna pages); one instruction card per prompt, no Luna body text, check list or VPN banner during an attempt | lines 186-189 | restored to main |
 | ID-6 | Pair on a nearby card opens the pair page with it selected (Continue starts it) | lines 189-190 | restored to main |
@@ -364,6 +371,7 @@ action, or a check that could never work), the parity lane kept the fix instead 
 | ID-13 | iOS "on the camera network" tested Pocket's 192.168.2.x, never true on a Luna, so "Leave camera Wi-Fi?" never appeared before Frame.io and uploads ran on the camera Wi-Fi | A check that could never work | The check tests the Luna's 192.168.42.x |
 | Insta App Information (Android) | System > App Information showed the DJI fork's "DJI Black" theme and "DUML / BLE + Wi-Fi" protocol, with DJI help text | Wrong camera named (coordinator) | iPhone `main`'s "Charcoal" and "Insta360 / BLE + Wi-Fi" with their help |
 | Colour dots (zebra and peaking options) | A dot drew the app accent under another colour's name: Pocket iPhone "Cyan" and peaking "Blue" (the accent blue); Android, both apps, "Amber", "Cyan" and peaking "Blue" (Pocket blue, Insta yellow). Insta iPhone already drew each dot's paint | Wrong colour named (coordinator) | Each dot shows the colour its overlay paints |
+| Timecode screen-reader name (iPhone, both apps) | With no timecode yet VoiceOver read the placeholder: "Timecode --:--:--", spoken as dashes | Accessibility (coordinator) | "Timecode not available"; with a timecode it reads "Timecode 01:02:03" as on `main` |
 | Screen-reader names and touch targets (Android, both apps) | Clean view pins, System buttons and the zebra threshold sliders had no spoken name; the System buttons' touch area was the capsule itself | Accessibility (coordinator) | Each has a name (for example "Keep LUT in clean view", "Highlight threshold"); the System buttons take touches across 48 dp around the unchanged capsule (it sits 1 px lower) |
 
 Deliberate copy difference in both apps: every `main` string with an em dash (Pocket pair page
@@ -482,7 +490,7 @@ decisions for you (section 9).
 | Playback "Back to media" is 48 pt and the portrait PEAK tool 48 pt tall (the UI tests expect 54 and 50) | Pocket, Insta iOS (iPhone 16 Pro, iOS 26.2) | likely device-dependent test values |
 | Scope panels have no TalkBack or VoiceOver move, resize or recenter action | Pocket, Insta (Nikon too, see its changes) | follow-up |
 | Sharing a cached clip the FileProvider cannot serve falls back to the public gallery | Pocket, Insta Android | security follow-up; callers pass only cached clips |
-| AUDIO appears only when the camera declares audio: never on Luna, not in the simulator review | Pocket, Insta | on a Pocket with a mic it must show (P5) |
+| AUDIO never appears on a Luna (it declares no audio), nor in the Insta simulator review, so two Insta AUDIO UI tests fail as on `main` | Insta | Pocket offers AUDIO on every body, as on `main` (P5) |
 | Android peaking is grainier than iOS | Nikon | |
 | The focus recenter button can sit under a scope panel placed on it | Nikon iOS | |
 

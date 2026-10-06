@@ -81,8 +81,8 @@ their registered refs.
 | Android SharedPreferences names `openpocketcine.*`, iOS keychain services `com.opencapture.openpocketcine.*` and `OpenPocketCine.frameio`, legacy value migrations (keep-screen-awake, clip shot colours, LUT selection, feed upscaler raw values, `SavedCamerasStore.Legacy`) | brand wire format |
 | iOS `CameraSession` composition and its projections (`sessionRecovery`, `legacyConnectionRunError`, `DjiAppleTransportHost.pocket`, `LiveAssistEngine`, `LiveLUTResolver`, inspector renderer init) | app composition or main parity |
 | `AppRoot.liveOperatorPanel` (projects `shell.cover` for native panels) | app composition; follow-up P-6 when the panels read the shell cover directly |
-| `Sources/OpenPocketViewCore` DJI twins with no Swift owner: `LiveChromeThrottle`, `GamepadOperator`, `SavedCamera` (`CameraConnectionSetup`, `CameraWifiResolution`, `FoundCameraIdentity`), `ConnectionPhase`, `SessionRecoveryCopy` | main parity; follow-up P-2 (Swift owners in OpenCineDJI; Insta carries the same files) |
-| `PlaybackVideoLayout`, `CameraLinkHealth` (`LiveViewLink`, `LiveFeedWarmup`), `GimbalStickLuma`, `ExposureMeterReading`, `CameraWiFiQRCode`, `PlaybackAudio.AudioLevelTapBox`, `rememberPlaybackMonitorGlass`, `GlassChrome`, `CameraMedia.cacheEntries` | main parity |
+| `Sources/OpenPocketViewCore` DJI twins with no Swift owner: `LiveChromeThrottle`, `GamepadOperator`, `SavedCamera` (`CameraConnectionSetup`, `CameraWifiResolution`, `FoundCameraIdentity`), `SessionRecoveryCopy` | main parity; follow-up P-2 (`ConnectionPhase` is now OpenCineCameraVocabulary's `CameraConnectionPhase`) |
+| `PlaybackVideoLayout`, `GimbalStickLuma`, `ExposureMeterReading`, `CameraWiFiQRCode`, `PlaybackAudio.AudioLevelTapBox`, `rememberPlaybackMonitorGlass`, `GlassChrome`, `CameraMedia.cacheEntries` | main parity |
 | Theme forwarders `BrandColors`, `OpcFonts`, `LiveType`, `LiveDesign` (brand tokens mixed with `MonitorPalette`/`MonitorTypography` pass-throughs) | app composition; pass-through members are follow-up P-1 |
 | Typealias bridges to shared types: 191 on the union (Swift and Kotlin) | see "Retired here"; the remaining heavy aliases are follow-up P-1 |
 | Tooling copied between the apps (`scripts/android-stage-swift-core.sh`, `checkout-opencine.sh`, release-note and tester-note scripts) | app composition; follow-up X-2 (parameterized copies in OpenCine `scripts/`) |
@@ -123,7 +123,7 @@ Retired here (`2216acb5`, production about -1,500 lines net):
 | Reached but inert DJI behavior: convert-log (`LogColorTransform`), `ClipColorProfile`, D-Log live calibrations, Kotlin `ApertureStrategy`, the debug Pocket 4 Pro reconnect | main parity until a visible-behavior decision; follow-up I-7 |
 | iOS `CameraSession` quartet and `CameraMedia`, Android `PocketCameraSession` | app composition and main parity; follow-up I-1 (ownership move into OpenCineAppKit / LunaCameraSession) |
 | Pocket-derived code with no OpenCine owner (reliability reporting and Sentry sinks, live chrome and capture sheets, assists views, Frame.io and delivery views, gimbal and head-track UI, watcher views, pairing permissions) | main parity; Sentry sinks are SDK adapters; follow-up I-4 (move area by area into MonitorUI/monitor-ui, OpenCineAppKit/appkit, OpenCineApple, OpenCineRelayApple) |
-| Multiview stubs and constant-false branches, the inert gimbal-limit pulse | retire (follow-up I-8): dead, but spread through live UI files |
+| Multiview stubs and constant-false branches | retired in follow-up I-8 (Insta `24ff364`); the gimbal-limit pulse is live (Luna gimbal status field 92 and notification 8302 drive it) and stays |
 
 Retired here (`32caba6`, production -1,905 lines net; the eight `SwiftCore` JNI exports are
 unchanged and match their `external fun`s):
@@ -227,7 +227,7 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 | O-2 | OpenCine | `MonitorMediaLibraryModel` original constructor | apps calling it positionally |
 | O-3 | OpenCine | Atlas Insta `source-copy` edges, products and docs | the authorized merge of `integration/thin-app` |
 | P-1 | Pocket | Heavy alias and theme pass-through renames (`LiveAssistTool` 213 sites, `OpcIcon` 158, `ChromeRect` 80, `PocketDispSection` 72, iOS `LiveImageEffects`, `FalseColorScaleKind`, `FoundCamera`) and the 62 lighter alias renames | churn across files other lanes edit |
-| P-2 | Pocket, Insta | Swift owners in OpenCineDJI for the view-core DJI twins | new shared owner |
+| P-2 | Pocket, Insta | Swift owners in OpenCineCameraVocabulary for the view-core twins (`CameraConnectionPhase`, `LiveViewLink`, `LiveFeedWarmup` moved; each view core keeps `ConnectionPhase` as a typealias); `WatchRelayState.snapshot` stays per app (the vocabulary takes no relay edge; only its wrist copy differs) | new shared owner |
 | P-3 | Pocket, Insta, Nikon | Portable false-colour lattice in OpenCineMedia | new shared owner |
 | P-4 | Pocket | Tracking-bracket geometry, number-pad input, playback pan, media path helpers, Kotlin `ClipColorProfile`, iOS reliability reporting, `FeedIncidentQueue` glue, `MediaSessionLink` | expose or extend shared owners |
 | P-5 | Pocket | `InspectorPreviewRenderer.kt` factory (used by an instrumented test) | an instrumented run |
@@ -239,7 +239,6 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 | I-5 | Insta | Dead JNI exports `cameraSoftAPDecision`, `conformPreviewJSON` | an instrumented run |
 | I-6 | Insta | Brand renames (`openpocketcine.version*`, `PocketCameraSession`, module and package names) | release tooling, JNI names in step |
 | I-7 | Insta | Inert DJI behavior on reached paths | visible-behavior decision |
-| I-8 | Insta | Multiview stubs, inert gimbal-limit pulse | edits in live UI files |
 | Z-2 | Nikon | Kept app copies of shared owners | the reason named per item in the OpenZCine table |
 | Z-3 | Nikon | Android media owners | a hardware run for one cache instance; shared share API; census tests on the codec |
 | Z-4 | Nikon | `feedEffectsScalars`, ignored policy parameters | JNI export gate |

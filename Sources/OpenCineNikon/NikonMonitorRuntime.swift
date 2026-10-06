@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCameraVocabulary
 import OpenCineCore
 
 /// The established Nikon link the monitor pumps. Production uses NativeCameraSession;
