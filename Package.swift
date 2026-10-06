@@ -19,6 +19,10 @@ import PackageDescription
 // - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
 //   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMotion, OpenCineRelay and
 //   OpenCineRelayApple only: never an integration, an app or a third-party package.
+// - OpenCineCameraControls (the camera apps' controls over the camera vocabulary: face AF,
+//   capture sheets, live chrome, gimbal views) builds on OpenCineCameraVocabulary, MonitorUI,
+//   MonitorPresentation, OpenCineAppKit, OpenCineAppKitApple, Core, Media and Motion only: never
+//   OpenCineDJI or another integration, an app or a third-party package.
 //
 // Platforms: one list for the whole package. macOS is the host for `swift test` only; no macOS
 // app ships (former packages: Core/Multicam/DJI/Insta360 macOS 13, UI 12, Nikon and the harness
@@ -46,6 +50,7 @@ let package = Package(
         // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
         .library(name: "OpenCineAppKitApple", targets: ["OpenCineAppKitApple"]),
+        .library(name: "OpenCineCameraControls", targets: ["OpenCineCameraControls"]),
         // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
         // it into an app.
         .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
@@ -159,6 +164,14 @@ let package = Package(
         // elsewhere.
         .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineMotion"]),
         .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion"]),
+        // The camera apps' controls over the camera vocabulary (app composition next to the app
+        // shell). App differences arrive as host values, never as brand branches.
+        .target(
+            name: "OpenCineCameraControls",
+            dependencies: [
+                "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineMotion",
+            ]),
+        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
         // XCUITest cases that drive an app only by accessibility identifiers and launch
         // environment; iOS only, empty elsewhere. Depends on nothing in this package.
         // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6

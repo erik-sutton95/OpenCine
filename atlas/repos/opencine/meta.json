@@ -98,6 +98,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineCameraControls",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineCameraVocabulary",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -270,6 +275,8 @@
       "OpenCineAppKitApple",
       "OpenCineAppKitAppleTests",
       "OpenCineAppUITesting",
+      "OpenCineCameraControls",
+      "OpenCineCameraControlsTests",
       ":appkit",
       ":camera-controls"
     ],
@@ -316,6 +323,11 @@
       "from": ":camera-controls",
       "to": ":camera-vocabulary",
       "reason": "Camera control views (app composition, next to appkit) read the camera vocabulary; ui -> vendor stays forbidden everywhere else (AGENTS.md, camera controls)."
+    },
+    {
+      "from": "OpenCineCameraControls",
+      "to": "OpenCineCameraVocabulary",
+      "reason": "The Swift twin of :camera-controls (app composition, next to OpenCineAppKit) reads the camera vocabulary; ui -> vendor stays forbidden everywhere else (AGENTS.md, camera controls)."
     }
   ],
   "instructions": [
