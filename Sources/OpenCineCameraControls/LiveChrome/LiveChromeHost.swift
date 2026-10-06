@@ -8,9 +8,11 @@
     /// What the live chrome (status row, telemetry gauges, assist palette, chrome editing) needs from
     /// an app on top of the capture sheets: the operator's display chrome per DISP mode, the assist
     /// state, which overlays are open and the live link telemetry, plus the recovery card's
-    /// `SessionRecoveryHost`. App differences arrive as values.
+    /// `SessionRecoveryHost` and the chrome editor's `ChromeEditHost` over the shared DISP
+    /// sections. App differences arrive as values.
     @MainActor
-    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost {
+    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost, ChromeEditHost
+    where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
         /// The status row's recording state and clock, as this app projects it.
         var liveStatus: MonitorStatusPresentation { get }
         /// Whether the body reports a timecode the status row can show.
@@ -30,8 +32,6 @@
         /// Whether a chrome section is mounted in the current DISP mode (or shown for editing).
         func chromeSectionMounts(_ section: MonitorDisplayChrome.Section) -> Bool
         func chrome(for mode: MonitorDisplayMode) -> MonitorDisplayChrome
-        func toggleChrome(_ section: MonitorDisplayChrome.Section, for mode: MonitorDisplayMode)
-        func endChromeEditing()
 
         /// Returns to the multiview grid when this live view borrowed one of its cameras.
         var multiviewExit: (() -> Void)? { get }
@@ -73,5 +73,33 @@
         func handleFeedTap(at point: CGPoint)
         func startTracking(_ box: TrackingBox)
 
+    }
+
+    extension LiveChromeHost {
+        public var chromeEditSections: [MonitorDisplayChrome.Section] {
+            MonitorDisplayChrome.Section.allCases
+        }
+
+        public func chromeSectionTitle(_ section: MonitorDisplayChrome.Section) -> String {
+            section.title
+        }
+
+        public func chromeSectionID(_ section: MonitorDisplayChrome.Section) -> String {
+            section.rawValue
+        }
+
+        public func chromeModeTitle(_ mode: MonitorDisplayMode) -> String { mode.title }
+
+        public func isChromeConfigurable(
+            _ section: MonitorDisplayChrome.Section, in mode: MonitorDisplayMode
+        ) -> Bool {
+            MonitorDisplayChrome.isConfigurable(section, in: mode)
+        }
+
+        public func isChromeVisible(
+            _ section: MonitorDisplayChrome.Section, in mode: MonitorDisplayMode
+        ) -> Bool {
+            chrome(for: mode).isVisible(section)
+        }
     }
 #endif

@@ -6,29 +6,53 @@
 
     // MARK: - Edit view (per-DISP chrome)
 
+    /// What the chrome editor needs from an app: its own sections and DISP modes, their names,
+    /// which sections a mode offers, and the operator's per-mode choice. `LiveChromeHost` apps get
+    /// it from `MonitorDisplayChrome`; an app with its own sections and modes supplies them.
+    @MainActor
+    public protocol ChromeEditHost: AnyObject, Observable {
+        associatedtype Palette: LiveChromePalette
+        associatedtype ChromeSection: Hashable
+        associatedtype ChromeMode
+
+        var hapticsEnabled: Bool { get }
+        /// Every section, in badge placement priority (containers before what nests in them).
+        var chromeEditSections: [ChromeSection] { get }
+        func chromeSectionTitle(_ section: ChromeSection) -> String
+        /// The stable name in the badge's accessibility identifier.
+        func chromeSectionID(_ section: ChromeSection) -> String
+        func chromeModeTitle(_ mode: ChromeMode) -> String
+        func isChromeConfigurable(_ section: ChromeSection, in mode: ChromeMode) -> Bool
+        func isChromeVisible(_ section: ChromeSection, in mode: ChromeMode) -> Bool
+        func toggleChrome(_ section: ChromeSection, for mode: ChromeMode)
+        func endChromeEditing()
+    }
+
     /// Measured bounds of every badgeable monitor element, in canvas space.
     ///
     /// Boxes are measured, never derived from the zone map: a zone frame is a layout
     /// budget, and several elements draw inset within theirs.
-    public struct ChromeEditBoundsKey: PreferenceKey {
-        public static var defaultValue: [MonitorDisplayChrome.Section: CGRect] { [:] }
+    public struct ChromeEditSectionBoundsKey<Section: Hashable>: PreferenceKey {
+        public static var defaultValue: [Section: CGRect] { [:] }
 
         public static func reduce(
-            value: inout [MonitorDisplayChrome.Section: CGRect],
-            nextValue: () -> [MonitorDisplayChrome.Section: CGRect]
+            value: inout [Section: CGRect],
+            nextValue: () -> [Section: CGRect]
         ) {
             value.merge(nextValue()) { existing, next in existing.union(next) }
         }
     }
+
+    public typealias ChromeEditBoundsKey = ChromeEditSectionBoundsKey<MonitorDisplayChrome.Section>
 
     public enum ChromeEditSpace {
         public static var name: String { LiveCanvasSpace.name }
     }
 
     extension View {
-        func chromeEditable<Host: LiveChromeHost>(
-            _ section: MonitorDisplayChrome.Section,
-            editing mode: MonitorDisplayMode?,
+        func chromeEditable<Host: ChromeEditHost>(
+            _ section: Host.ChromeSection,
+            editing mode: Host.ChromeMode?,
             in host: Host.Type
         ) -> some View {
             modifier(ChromeEditableModifier<Host>(section: section, mode: mode))
@@ -37,25 +61,25 @@
 
     /// Dims a hidden element and outlines every configurable one while its DISP mode is edited,
     /// and reports its bounds for the eye badges.
-    public struct ChromeEditableModifier<Host: LiveChromeHost>: ViewModifier {
+    public struct ChromeEditableModifier<Host: ChromeEditHost>: ViewModifier {
         @Environment(Host.self) private var host
-        let section: MonitorDisplayChrome.Section
-        let mode: MonitorDisplayMode?
+        let section: Host.ChromeSection
+        let mode: Host.ChromeMode?
 
-        public init(section: MonitorDisplayChrome.Section, mode: MonitorDisplayMode?) {
+        public init(section: Host.ChromeSection, mode: Host.ChromeMode?) {
             self.section = section
             self.mode = mode
         }
 
         public func body(content: Content) -> some View {
-            if let mode, MonitorDisplayChrome.isConfigurable(section, in: mode) {
-                let on = host.chrome(for: mode).isVisible(section)
+            if let mode, host.isChromeConfigurable(section, in: mode) {
+                let on = host.isChromeVisible(section, in: mode)
                 content
                     .opacity(on ? 1 : 0.3)
                     .background {
                         GeometryReader { proxy in
                             Color.clear.preference(
-                                key: ChromeEditBoundsKey.self,
+                                key: ChromeEditSectionBoundsKey<Host.ChromeSection>.self,
                                 value: [section: proxy.frame(in: .named(ChromeEditSpace.name))]
                             )
                         }
@@ -77,13 +101,13 @@
     }
 
     /// One eye badge. Tapping it shows or hides that element for the DISP mode being edited.
-    struct ChromeEditBadge<Host: LiveChromeHost>: View {
+    struct ChromeEditBadge<Host: ChromeEditHost>: View {
         @Environment(Host.self) private var host
-        let section: MonitorDisplayChrome.Section
-        let mode: MonitorDisplayMode
+        let section: Host.ChromeSection
+        let mode: Host.ChromeMode
 
         var body: some View {
-            let on = host.chrome(for: mode).isVisible(section)
+            let on = host.isChromeVisible(section, in: mode)
             Button {
                 OperatorSettingsHaptics.selection(enabled: host.hapticsEnabled)
                 host.toggleChrome(section, for: mode)
@@ -100,22 +124,22 @@
             }
             .buttonStyle(.monitorTapTarget)
             .minTapTarget()
-            .accessibilityLabel(section.title)
+            .accessibilityLabel(host.chromeSectionTitle(section))
             .accessibilityValue(on ? "Shown" : "Hidden")
-            .accessibilityHint("Shows or hides this on \(mode.title)")
-            .accessibilityIdentifier("monitor.chromeEdit.\(section.rawValue)")
+            .accessibilityHint("Shows or hides this on \(host.chromeModeTitle(mode))")
+            .accessibilityIdentifier("monitor.chromeEdit.\(host.chromeSectionID(section))")
         }
     }
 
     /// The eye badges over every measured element of the DISP mode being edited.
-    public struct ChromeEditBadges<Host: LiveChromeHost>: View {
+    public struct ChromeEditBadges<Host: ChromeEditHost>: View {
         @Environment(Host.self) private var host
-        let mode: MonitorDisplayMode
-        let boxes: [MonitorDisplayChrome.Section: CGRect]
+        let mode: Host.ChromeMode
+        let boxes: [Host.ChromeSection: CGRect]
         let viewport: CGSize
 
         public init(
-            mode: MonitorDisplayMode, boxes: [MonitorDisplayChrome.Section: CGRect],
+            mode: Host.ChromeMode, boxes: [Host.ChromeSection: CGRect],
             viewport: CGSize
         ) {
             self.mode = mode
@@ -124,16 +148,15 @@
         }
 
         public var body: some View {
+            // Section order is the placement priority.
             let frames = MonitorChromeEditBadgeLayout.badgeFrames(
-                MonitorDisplayChrome.Section.allCases.compactMap { section in
-                    boxes[section].map {
-                        MonitorChromeEditBadgeLayout.Box(section: section, frame: $0)
-                    }
+                keyed: host.chromeEditSections.compactMap { section in
+                    boxes[section].map { (key: section, frame: $0) }
                 },
                 viewport: viewport
             )
             ZStack(alignment: .topLeading) {
-                ForEach(MonitorDisplayChrome.Section.allCases) { section in
+                ForEach(host.chromeEditSections, id: \.self) { section in
                     if let frame = frames[section] {
                         ChromeEditBadge<Host>(section: section, mode: mode)
                             .environment(host)
@@ -146,11 +169,11 @@
     }
 
     /// Names the mode being edited and gets the operator back to Display settings.
-    public struct ChromeEditDoneBanner<Host: LiveChromeHost>: View {
+    public struct ChromeEditDoneBanner<Host: ChromeEditHost>: View {
         @Environment(Host.self) private var host
-        let mode: MonitorDisplayMode
+        let mode: Host.ChromeMode
 
-        public init(mode: MonitorDisplayMode) {
+        public init(mode: Host.ChromeMode) {
             self.mode = mode
         }
 
@@ -160,7 +183,7 @@
                     .frame(width: 11, height: 11)
                     .foregroundStyle(Host.Palette.accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Editing \(mode.title)")
+                    Text("Editing \(host.chromeModeTitle(mode))")
                         .font(MonitorTheme.font(11.5, weight: .semibold))
                         .foregroundStyle(Host.Palette.text)
                     Text("Tap an eye to show or hide it")
