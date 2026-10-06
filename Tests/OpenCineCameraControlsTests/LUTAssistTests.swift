@@ -34,10 +34,12 @@
             folders.append(folder)
             let preferences = LUTPreferences(storage: UserDefaults(suiteName: domain)!, namespace: "App")
             return MonitorLUTLooks(
-                official: OfficialLUTs { source in
-                    calls.sources.append(source)
-                    return Self.cube
-                },
+                official: OfficialLUTs(
+                    catalog: { _ in [.officialAuto] },
+                    cube: { source in
+                        calls.sources.append(source)
+                        return Self.cube
+                    }),
                 preferences: preferences,
                 customLUTs: CustomLUTStore(root: folder, preferences: preferences),
                 preparationReady: preparationReady)

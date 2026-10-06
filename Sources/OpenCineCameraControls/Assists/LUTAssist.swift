@@ -6,12 +6,19 @@
     import OpenCineCameraVocabulary
     import OpenCineMedia
 
-    /// The app's official cubes: the bundled Rec.709 conversion an official source resolves to.
+    /// The app's official looks: the rows its official tab lists and the bundled Rec.709
+    /// conversion an official source resolves to.
     public struct OfficialLUTs: Sendable {
+        /// The official rows; live Photo (`isPhotoLive`) lists only what applies to Rec.709.
+        public let catalog: @Sendable (_ isPhotoLive: Bool) -> [LUTSelection]
         /// The bundled cube for an official source; nil when the app ships none for it.
         public let cube: @MainActor @Sendable (LUTSource) -> CubeLUT?
 
-        public init(cube: @escaping @MainActor @Sendable (LUTSource) -> CubeLUT?) {
+        public init(
+            catalog: @escaping @Sendable (_ isPhotoLive: Bool) -> [LUTSelection],
+            cube: @escaping @MainActor @Sendable (LUTSource) -> CubeLUT?
+        ) {
+            self.catalog = catalog
             self.cube = cube
         }
     }

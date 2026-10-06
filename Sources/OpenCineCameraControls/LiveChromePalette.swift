@@ -8,14 +8,20 @@
         static var background: Color { get }
         static var glassBright: Color { get }
         static var hairline: Color { get }
+        static var hairlineStrong: Color { get }
         static var text: Color { get }
         static var muted: Color { get }
         static var accent: Color { get }
+        /// The accent's faint fill behind a selected row.
+        static var accentDim: Color { get }
         /// Ink on a solid accent fill.
         static var onAccent: Color { get }
         static var rec: Color { get }
+        /// Destructive actions and errors.
+        static var destructive: Color { get }
         static var amber: Color { get }
         static var good: Color { get }
+        static var cornerRadius: CGFloat { get }
         /// A chrome colour at the display's current HDR gain, like the named ones.
         static func chromeColor(red: CGFloat, green: CGFloat, blue: CGFloat) -> Color
     }
