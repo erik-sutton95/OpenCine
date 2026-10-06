@@ -1,5 +1,7 @@
 #if os(iOS)
+    import MonitorPresentation
     import MonitorUI
+    import OpenCineAppKit
     import OpenCineMedia
     import XCTest
 
@@ -52,5 +54,43 @@
             XCTAssertEqual(fx.peakingOptions.overlay, overlay)
         }
 
+        // Moved from both iOS apps' PeakingAssistTests (they ran it on the app's assist state).
+        @MainActor
+        func testSelectAndResetMatchOpenZCineRows() {
+            let domain = "PeakingAssistTests.\(UUID().uuidString)"
+            defer { UserDefaults().removePersistentDomain(forName: domain) }
+            let assist = MonitorAssistState(
+                looks: PeakingTestLooks(), storage: UserDefaults(suiteName: domain)!,
+                keys: .init(assist: "A", cleanPins: "C", playback: "P"),
+                cleanPinCases: MonitorAssistTool.allCases.map(MonitorAssistSelection.init))
+            XCTAssertEqual(assist.peakingOptions, .default)
+
+            PeakingAssist.selectSensitivity("High", assist: assist)
+            XCTAssertEqual(assist.peakingSensitivity, .high)
+            PeakingAssist.selectSensitivity("High", assist: assist)
+            XCTAssertEqual(assist.peakingSensitivity, .high)
+            PeakingAssist.selectSensitivity("nope", assist: assist)
+            XCTAssertEqual(assist.peakingSensitivity, .high)
+
+            PeakingAssist.selectColor("Blue", assist: assist)
+            XCTAssertEqual(assist.peakingColor, .blue)
+            PeakingAssist.selectColor("Blue", assist: assist)
+            XCTAssertEqual(assist.peakingColor, .blue)
+            PeakingAssist.selectColor("nope", assist: assist)
+            XCTAssertEqual(assist.peakingColor, .blue)
+
+            PeakingAssist.reset(assist)
+            XCTAssertEqual(assist.peakingColor, .red)
+            XCTAssertEqual(assist.peakingSensitivity, .medium)
+            XCTAssertEqual(assist.peakingOptions, .default)
+        }
+    }
+
+    @MainActor private final class PeakingTestLooks: MonitorLookProvider {
+        var selection = 0
+        var cube: CubeLUT? { nil }
+        var transfer = MonitorTransfer.rec709
+        var referenceClipByte = 255
+        func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
     }
 #endif
