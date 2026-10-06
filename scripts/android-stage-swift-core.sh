@@ -21,6 +21,7 @@ Environment overrides:
   SWIFT_ANDROID_TARGET   Swift target triple (default: aarch64-unknown-linux-android29).
 
 The target is intentionally arm64-only: Android ABI name arm64-v8a.
+Run this from the app root, the directory that contains Package.swift.
 EOF
 }
 
@@ -59,6 +60,12 @@ done
 }
 [[ "$product_name" =~ ^[A-Za-z][A-Za-z0-9]+$ ]] || fail "--product must be a Swift product name"
 PRODUCT="$product_name"
+
+# The app wrapper and Gradle start this in the app root. Do not change into
+# the OpenCine checkout: that package does not contain the app product.
+if [[ ! -f Package.swift ]]; then
+    fail "run this from the app root that contains Package.swift"
+fi
 
 if [[ -n "${SWIFT_EXECUTABLE:-}" ]]; then
     swift="$SWIFT_EXECUTABLE"
@@ -104,9 +111,6 @@ swift_resources="$(printf '%s\n' "$sdk_configuration" | awk -F': ' '/^swiftResou
 runtime="$swift_resources/android"
 ndk_libraries="$sdk_root/usr/lib/aarch64-linux-android"
 [[ -d "$ndk_libraries" ]] || fail "Android NDK libraries are missing: $ndk_libraries"
-
-repo_root="$(cd "$(dirname "$0")/.." && pwd -P)"
-cd "$repo_root"
 
 "$swift" build --swift-sdk "$target" -c release --product "$PRODUCT"
 build_directory="$($swift build --swift-sdk "$target" -c release --show-bin-path)"
