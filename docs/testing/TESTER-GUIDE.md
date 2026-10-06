@@ -42,8 +42,8 @@ Contents: [Revisions](#revisions-under-test) ·
 | OpenInstaCine | `FILL` | `35b6f33b` | `400962e1` (`FILL` commits behind) |
 | OpenZCine | `FILL` | `9ac41387` (origin/main) | `400962e1` (`FILL` commits behind) |
 
-This revision of the guide was written against OpenCine `cdf0d305`, OpenPocketCine `e9801f41`,
-OpenInstaCine `18b206b8` and OpenZCine `4d242db3` (2026-10-06). Still landing then: the
+This revision of the guide was written against OpenCine `a7589fcf`, OpenPocketCine `f64d26a8`,
+OpenInstaCine `fc5e13b6` and OpenZCine `4d242db3` (2026-10-06). Still landing then: the
 insta-ios and insta-android lanes (Insta and Pocket code moving into OpenCine). Their final
 state: `FILL`. Nikon's baseline is `origin/main`: the local `main` (`f1ccfcfd`) is 9 commits
 behind and lacks the Android upright-picture fix (#382). Write down the four
@@ -253,7 +253,7 @@ The app's own detailed list: the "Physical device checklist" in OpenPocketCine
 ### Differences from `main` (OpenPocketCine)
 
 Recorded in the app's own doc, OpenPocketCine `docs/OPENCINE-INTEGRATION.md`, "What changes for
-users" (line numbers at `e9801f41`). Pocket must match `main` 1:1, so none is accepted: a parity
+users" (line numbers at `f64d26a8`). Pocket must match `main` 1:1, so none is accepted: a parity
 lane restores them after the insta lanes.
 
 | Row | Difference | Recorded in | Status |
@@ -298,7 +298,7 @@ OpenInstaCine `docs/implementation/opencine-integration.md`.
 ### Differences from `main` (OpenInstaCine)
 
 Recorded in the app's own doc, OpenInstaCine `docs/implementation/opencine-integration.md`,
-"What changes for users" (line numbers at `18b206b8`). Insta must match `main` 1:1, so none is
+"What changes for users" (line numbers at `fc5e13b6`). Insta must match `main` 1:1, so none is
 accepted: a parity lane restores them after the insta lanes.
 
 | Row | Difference | Recorded in | Status |
