@@ -3,18 +3,6 @@
     import MonitorUI
     import OpenCineCameraVocabulary
     import SwiftUI
-    import UIKit
-
-    /// The light tap on an operator setting change, when haptics are on.
-    public enum OperatorSettingsHaptics {
-        @MainActor
-        public static func selection(enabled: Bool) {
-            guard enabled else { return }
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.prepare()
-            generator.impactOccurred()
-        }
-    }
 
     private enum GimbalSettingsTab: String, CaseIterable {
         case mode = "Mode"
