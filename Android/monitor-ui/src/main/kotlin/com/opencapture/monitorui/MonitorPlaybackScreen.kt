@@ -860,6 +860,8 @@ fun MonitorConfirmPopup(
     onConfirm: () -> Unit,
     destructive: Boolean = true,
     onClickFeedback: () -> Unit = LocalMonitorPlaybackSelectionFeedback.current,
+    /** A line under the title that explains the consequence. */
+    message: String? = null,
 ) {
     Box(
         Modifier
@@ -888,6 +890,7 @@ fun MonitorConfirmPopup(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(title, color = MonitorPalette.text, style = MonitorTypography.text(15f, FontWeight.SemiBold))
+            message?.let { Text(it, color = MonitorPalette.muted, style = MonitorTypography.text(13f)) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     Modifier
