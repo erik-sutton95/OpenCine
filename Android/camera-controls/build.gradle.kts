@@ -26,5 +26,6 @@ dependencies {
     api(project(":camera-vocabulary"))
     api(project(":monitor-ui"))
     api(project(":appkit"))
+    implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.kotlin.test.junit)
 }
