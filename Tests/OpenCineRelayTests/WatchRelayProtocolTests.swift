@@ -123,6 +123,47 @@ struct WatchRelayProtocolTests {
                 == "\u{2014}")
     }
 
+    /// What an app's snapshot gives while the phone is not live (pinned per app).
+    private func noCameraState() -> WatchRelayState {
+        WatchRelayState(
+            isRecording: false,
+            timecode: "--:--:--",
+            media: "--",
+            cameraBatteryPercent: 0,
+            cameraName: "",
+            connection: .noCamera,
+            feedLive: false)
+    }
+
+    // Moved from both iOS apps' WatchRelaySnapshotTests; their snapshot cases stay with each app.
+    @Test("Wrist-down does not cover a live tally with open-on-iPhone")
+    func placeholderKeepsLastTallyWhenUnreachable() {
+        let live = sampleState()
+        #expect(
+            WatchMonitorPlaceholder.resolve(
+                isReachable: false, state: live, hasFeed: true) == .none)
+        #expect(
+            WatchMonitorPlaceholder.resolve(
+                isReachable: false, state: nil, hasFeed: false) == .openOnIPhone)
+        #expect(
+            WatchMonitorPlaceholder.resolve(
+                isReachable: true, state: nil, hasFeed: false) == .none)
+        let noCamera = noCameraState()
+        #expect(
+            WatchMonitorPlaceholder.resolve(
+                isReachable: true, state: noCamera, hasFeed: false) == .noCamera)
+    }
+
+    @Test("Disconnect labels a retained picture, even while the wrist is down")
+    func disconnectedSnapshotOverlaysOldFrame() {
+        let noCamera = noCameraState()
+        for reachable in [true, false] {
+            #expect(
+                WatchMonitorPlaceholder.resolve(
+                    isReachable: reachable, state: noCamera, hasFeed: true) == .noCamera)
+        }
+    }
+
     @Test("Operator copy never names a sister app")
     func operatorCopyIsPocketFacing() {
         let facing = [

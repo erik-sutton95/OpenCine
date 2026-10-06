@@ -224,5 +224,17 @@
             }
             XCTAssertEqual(MonitorHistogramOptions(scale: 0.01).scale, 0.6)
         }
+
+        // Moved from both iOS apps' VectorscopeAssistTests (their copies of these helpers had no
+        // other caller and are gone).
+        func testPlotSquareCentresInsideScopePlotRect() {
+            let size = CGSize(width: 190, height: 190)
+            let plot = MonitorScopeGeometry.plotRect(size, top: 26)
+            let square = MonitorScopeGeometry.vectorscopeSquare(in: size)
+            XCTAssertEqual(square.width, square.height, accuracy: 0.01)
+            XCTAssertEqual(square.midX, plot.midX, accuracy: 0.01)
+            XCTAssertEqual(square.midY, plot.midY, accuracy: 0.01)
+            XCTAssertEqual(square.width, min(plot.width, plot.height), accuracy: 0.01)
+        }
     }
 #endif
