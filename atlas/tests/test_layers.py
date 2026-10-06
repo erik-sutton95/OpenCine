@@ -54,6 +54,16 @@ class TargetLayers(unittest.TestCase):
         errs = atlas.target_layer_errors({"layers": layers}, files())
         self.assertTrue(any("Android/multicam/build.gradle.kts: :multicam (multicam) -> :core (ui)" in e for e in errs), errs)
 
+    def test_allowed_target_edge_lets_one_edge_through(self):
+        pkg = PACKAGE.replace('.target(name: "UI", dependencies: ["Core"])', '.target(name: "UI", dependencies: ["Core", "Vendor"])')
+        allow = {"from": "UI", "to": "Vendor", "reason": "test"}
+        self.assertEqual(atlas.target_layer_errors({"layers": LAYERS, "allowed_target_edges": [allow]}, files(pkg)), [])
+        bad = pkg.replace('.target(name: "Multi", dependencies: [.target(name: "Core")])', '.target(name: "Multi", dependencies: ["UI"])')
+        errs = atlas.target_layer_errors({"layers": LAYERS, "allowed_target_edges": [allow]}, files(bad))
+        self.assertEqual(errs, ["Package.swift: Multi (multicam) -> UI (ui): forbidden: multicam must not depend on ui (library)"])
+        stale = atlas.target_layer_errors({"layers": LAYERS, "allowed_target_edges": [allow]}, files())
+        self.assertEqual(stale, ["meta.json allowed_target_edges: UI -> Vendor is not a dependency; remove the exception"])
+
     def test_unassigned_unknown_external_and_atlas(self):
         pkg = PACKAGE.replace('.target(name: "CShim", exclude: ["LICENSE"]),',
                               '.target(name: "CShim", exclude: ["LICENSE"]),\n        .target(name: "New", path: "atlas/tools", dependencies: [.product(name: "X", package: "x"), "Ghost"]),')
@@ -104,6 +114,15 @@ class CheckReadsEnclosingPlatform(AtlasCase):
         code, out = self.run_atlas("check")
         self.assertEqual(code, 1, out)
         self.assertIn("layers maps a product layer", out)
+
+    def test_allowed_target_edge_needs_known_names_and_a_reason(self):
+        m = json.loads((self.root / "repos/platform/meta.json").read_text())
+        m["allowed_target_edges"] = [{"from": "UI", "to": "Ghost", "reason": "x"}, {"from": "UI", "to": "Vendor"}]
+        (self.root / "repos/platform/meta.json").write_text(json.dumps(m))
+        code, out = self.run_atlas("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("allowed_target_edges[0] needs from and to", out)
+        self.assertIn("allowed_target_edges[1] needs from and to", out)
 
 
 if __name__ == "__main__":

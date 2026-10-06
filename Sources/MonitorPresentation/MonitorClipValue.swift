@@ -51,6 +51,8 @@ public struct MonitorClipValue: Identifiable, Equatable, Sendable {
             id: item.id, title: item.filename, detail: item.metadata,
             duration: item.duration.isEmpty ? nil : item.duration,
             source: item.stateLabel, favorite: item.favorite, progress: item.progress,
+            burstCount: item.burstCount, mediaBadge: item.mediaBadge,
+            completionBadge: item.completionBadge, transferCaption: item.transferCaption,
             format: item.format.isEmpty ? nil : item.format,
             color: item.color.isEmpty ? nil : item.color)
     }

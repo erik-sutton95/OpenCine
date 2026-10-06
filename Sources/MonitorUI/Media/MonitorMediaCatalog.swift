@@ -3,8 +3,12 @@
     import SwiftUI
 
     /// The complete shared gallery. The thumbnail slot is the sole image-loading seam;
-    /// actions remain intents so another camera storefront supplies its own I/O.
-    public struct MonitorMediaCatalog<Thumbnail: View, Empty: View, Filters: View>: View {
+    /// actions remain intents so another camera storefront supplies its own I/O. The sidebar
+    /// (landscape navigation, under the library status) and the accessory (under the header)
+    /// are optional camera slots.
+    public struct MonitorMediaCatalog<
+        Thumbnail: View, Empty: View, Filters: View, Sidebar: View, Accessory: View
+    >: View {
         private let brand: String
         private let safeArea: EdgeInsets
         private let items: [MonitorMediaItem]
@@ -22,6 +26,8 @@
         private let thumbnail: (MonitorMediaItem) -> Thumbnail
         private let empty: Empty
         private let filters: Filters
+        private let sidebar: Sidebar
+        private let accessory: Accessory
         private let tablet: Bool
         @State private var selectionInteraction = MonitorMediaSelectionInteraction()
         @Environment(\.scenePhase) private var scenePhase
@@ -33,7 +39,8 @@
             selectedIDs: Set<String>, selecting: Bool, refreshing: Bool, canRefresh: Bool,
             tablet: Bool, action: @escaping (MonitorMediaAction) -> Void,
             @ViewBuilder thumbnail: @escaping (MonitorMediaItem) -> Thumbnail,
-            @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters
+            @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters,
+            @ViewBuilder sidebar: () -> Sidebar, @ViewBuilder accessory: () -> Accessory
         ) {
             self.brand = brand
             self.safeArea = safeArea
@@ -53,6 +60,8 @@
             self.thumbnail = thumbnail
             self.empty = empty()
             self.filters = filters()
+            self.sidebar = sidebar()
+            self.accessory = accessory()
         }
 
         public var body: some View {
@@ -65,6 +74,7 @@
             } detail: { portrait in
                 VStack(alignment: .leading, spacing: 8) {
                     header(portrait: portrait)
+                    accessory
                     gallery
                     if selecting { selectionTray }
                     if portrait { displayControls }
@@ -99,6 +109,7 @@
                     }
                     .padding(9).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                    sidebar
                 }
                 if !portrait { displayControls }
             }
@@ -303,5 +314,25 @@
             .buttonStyle(MonitorButtonStyle()).accessibilityLabel(label)
         }
 
+    }
+
+    extension MonitorMediaCatalog where Sidebar == EmptyView, Accessory == EmptyView {
+        public init(
+            brand: String, safeArea: EdgeInsets, items: [MonitorMediaItem],
+            categories: [MonitorMediaCategory], category: String, layout: MonitorMediaLayout,
+            thumbnailSize: MonitorThumbnailSize, sortTitle: String, status: String,
+            selectedIDs: Set<String>, selecting: Bool, refreshing: Bool, canRefresh: Bool,
+            tablet: Bool, action: @escaping (MonitorMediaAction) -> Void,
+            @ViewBuilder thumbnail: @escaping (MonitorMediaItem) -> Thumbnail,
+            @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters
+        ) {
+            self.init(
+                brand: brand, safeArea: safeArea, items: items, categories: categories,
+                category: category, layout: layout, thumbnailSize: thumbnailSize,
+                sortTitle: sortTitle, status: status, selectedIDs: selectedIDs,
+                selecting: selecting, refreshing: refreshing, canRefresh: canRefresh,
+                tablet: tablet, action: action, thumbnail: thumbnail, empty: empty,
+                filters: filters, sidebar: { EmptyView() }, accessory: { EmptyView() })
+        }
     }
 #endif

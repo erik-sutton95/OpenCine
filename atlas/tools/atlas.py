@@ -107,6 +107,9 @@ def validate_registry(reg):
                 errors.append(f"{where}: layers maps a product layer ({', '.join(sorted(LAYERS - {'app', 'platform'}))}) to a list of target and module names")
             elif len(names) != len(set(names)):
                 errors.append(f"{where}: a target or module is listed in more than one layer")
+            for i, a in enumerate(m.get("allowed_target_edges", [])):
+                if not (isinstance(a, dict) and a.get("from") in names and a.get("to") in names and a.get("reason")):
+                    errors.append(f"{where}: allowed_target_edges[{i}] needs from and to (names in layers) and a reason")
         ref_names = {r.get("name") for r in m["refs"]}
         for i, e in enumerate(m["edges"]):
             errors += [f"{where}: edges[{i}]: {msg}" for msg in _edge_errors(rid, m, e, reg, ref_names)]
@@ -194,9 +197,12 @@ def target_layer_errors(m, files):
 
     Every Swift target and included Gradle module must be assigned a layer in meta.json
     `layers`; each target dependency and `project(":x")` dependency is checked like a repo edge.
-    The platform declares no package dependencies, and no target lives under atlas/.
+    meta.json `allowed_target_edges` names single edges that may cross a layer rule (each with its
+    reason); one that matches no dependency is reported. The platform declares no package
+    dependencies, and no target lives under atlas/.
     """
     layer_of = {n: layer for layer, names in m["layers"].items() for n in names}
+    allowed = {(a["from"], a["to"]) for a in m.get("allowed_target_edges", [])}
     errors, edges, names = [], [], set()
     if "Package.swift" not in files or "Android/settings.gradle.kts" not in files:
         return ["Package.swift or Android/settings.gradle.kts missing"]
@@ -229,9 +235,11 @@ def target_layer_errors(m, files):
     for where, a, b in edges:
         if b not in names:
             errors.append(f"{where}: {a} depends on unknown {b}")
-        elif a in layer_of and b in layer_of:
+        elif a in layer_of and b in layer_of and (a, b) not in allowed:
             errors += [f"{where}: {a} ({layer_of[a]}) -> {b} ({layer_of[b]}): {msg}"
                        for msg in _direction_errors(layer_of[a], layer_of[b], "library")]
+    errors += [f"meta.json allowed_target_edges: {a} -> {b} is not a dependency; remove the exception"
+               for a, b in sorted(allowed - {(a, b) for _, a, b in edges})]
     return errors
 
 
