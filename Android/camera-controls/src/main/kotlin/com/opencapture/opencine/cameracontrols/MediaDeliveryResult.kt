@@ -22,3 +22,40 @@ fun admittedDeliveryToast(
         }
     }
 }
+
+enum class MediaDeliveryDestination(
+    val title: String,
+    val subtitle: String,
+    val actionTitle: String,
+) {
+    NATIVE_SHARE(
+        title = "Share",
+        subtitle = "Nearby Share, Files, and other apps",
+        actionTitle = "Share",
+    ),
+}
+
+/** Listed on the Share sheet; never selectable and never starts auth or upload. */
+object MediaDeliveryUpcoming {
+    val titles = listOf(
+        "Google Drive",
+        "Dropbox",
+        "NAS (SMB)",
+        "LucidLink",
+        "Backblaze B2",
+        "Vimeo Review",
+    )
+}
+
+enum class MediaDeliveryPostExportAction {
+    SYSTEM_SHARE,
+    SAVE_TO_PHOTOS,
+}
+
+data class MediaDeliveryOverlayState(
+    val statusLine: String,
+    val batchLine: String? = null,
+    val overallFraction: Double = 0.0,
+    val isPreparing: Boolean = true,
+    val filename: String? = null,
+)
