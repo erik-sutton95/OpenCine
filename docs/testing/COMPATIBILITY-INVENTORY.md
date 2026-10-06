@@ -123,7 +123,7 @@ Retired here (`2216acb5`, production about -1,500 lines net):
 | Reached but inert DJI behavior: convert-log (`LogColorTransform`), `ClipColorProfile`, D-Log live calibrations, Kotlin `ApertureStrategy`, the debug Pocket 4 Pro reconnect | main parity until a visible-behavior decision; follow-up I-7 |
 | iOS `CameraSession` quartet and `CameraMedia`, Android `PocketCameraSession` | app composition and main parity; follow-up I-1 (ownership move into OpenCineAppKit / LunaCameraSession) |
 | Pocket-derived code with no OpenCine owner (reliability reporting and Sentry sinks, live chrome and capture sheets, assists views, Frame.io and delivery views, gimbal and head-track UI, watcher views, pairing permissions) | main parity; Sentry sinks are SDK adapters; follow-up I-4 (move area by area into MonitorUI/monitor-ui, OpenCineAppKit/appkit, OpenCineApple, OpenCineRelayApple) |
-| Multiview stubs and constant-false branches, the inert gimbal-limit pulse | retire (follow-up I-8): dead, but spread through live UI files |
+| Multiview stubs and constant-false branches | retired in follow-up I-8 (Insta `24ff364`); the gimbal-limit pulse is live (Luna gimbal status field 92 and notification 8302 drive it) and stays |
 
 Retired here (`32caba6`, production -1,905 lines net; the eight `SwiftCore` JNI exports are
 unchanged and match their `external fun`s):
@@ -238,7 +238,6 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 | I-5 | Insta | Dead JNI exports `cameraSoftAPDecision`, `conformPreviewJSON` | an instrumented run |
 | I-6 | Insta | Brand renames (`openpocketcine.version*`, `PocketCameraSession`, module and package names) | release tooling, JNI names in step |
 | I-7 | Insta | Inert DJI behavior on reached paths | visible-behavior decision |
-| I-8 | Insta | Multiview stubs, inert gimbal-limit pulse | edits in live UI files |
 | Z-2 | Nikon | Kept app copies of shared owners | the reason named per item in the OpenZCine table |
 | Z-3 | Nikon | Android media owners | a hardware run for one cache instance; shared share API; census tests on the codec |
 | Z-4 | Nikon | `feedEffectsScalars`, ignored policy parameters | JNI export gate |
