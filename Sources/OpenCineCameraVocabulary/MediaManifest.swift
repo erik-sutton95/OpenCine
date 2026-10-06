@@ -74,9 +74,14 @@ public struct MediaFile: Equatable, Sendable, Identifiable, Hashable, Codable {
         handle != 0 ? handle : cmdHandle
     }
 
-    /// `YYYYMMDDHHmmss` baked into `DJI_20260814125250_0034_D.MP4`.
+    /// `YYYYMMDDHHmmss` baked into `DJI_20260814125250_0034_D.MP4`, or split as
+    /// `_YYYYMMDD_HHMMSS_` (`VID_20260916_123456_00_001.mp4`).
     public var filenameTimestamp: String? {
-        MediaFile.group(MediaFile.timestampRegex, in: filename, at: 1)
+        if let stamp = MediaFile.group(MediaFile.timestampRegex, in: filename, at: 1) { return stamp }
+        guard let day = MediaFile.group(MediaFile.dateTimeRegex, in: filename, at: 1),
+            let time = MediaFile.group(MediaFile.dateTimeRegex, in: filename, at: 2)
+        else { return nil }
+        return day + time
     }
 
     public var captureDate: Date? {
@@ -102,6 +107,7 @@ public struct MediaFile: Equatable, Sendable, Identifiable, Hashable, Codable {
     public var isBurstLead: Bool { burstGroupKey != nil }
 
     private static let timestampRegex = try! NSRegularExpression(pattern: #"_(\d{14})_"#)
+    private static let dateTimeRegex = try! NSRegularExpression(pattern: #"_(\d{8})_(\d{6})_"#)
     private static let sequenceRegex = try! NSRegularExpression(pattern: #"_(\d{4})_D"#)
     private static let burstRegex = try! NSRegularExpression(pattern: #"^(.+)_(\d{3})\.\w+$"#)
 
@@ -158,10 +164,31 @@ public enum MediaHTTP {
     public static let host = CameraSoftAP.host
     public static let port = 80
 
-    public static func pathURL(storage: Int, path: String) -> URL? {
+    /// `/v2?storage=&path=` query addressing, or each file at its own path.
+    public enum Addressing: Sendable { case storageQuery, directPath }
+
+    /// Where one camera serves its media. Per session, never process-wide.
+    public struct Route: Sendable, Equatable {
+        public var host: String
+        public var addressing: Addressing
+
+        public init(host: String, addressing: Addressing) {
+            self.host = host
+            self.addressing = addressing
+        }
+
+        /// The camera SoftAP `/v2` route.
+        public static let cameraSoftAP = Route(host: CameraSoftAP.host, addressing: .storageQuery)
+    }
+
+    public static func pathURL(storage: Int, path: String, route: Route = .cameraSoftAP) -> URL? {
         var components = URLComponents()
         components.scheme = "http"
-        components.host = host
+        components.host = route.host
+        if route.addressing == .directPath {
+            components.path = path.hasPrefix("/") ? path : "/" + path
+            return components.url
+        }
         components.path = "/v2"
         components.queryItems = [
             URLQueryItem(name: "storage", value: String(storage)),
@@ -222,6 +249,7 @@ public enum MediaHTTP {
     }
 
     public static func derivedProxyExtension(filename: String) -> String? {
+        if filename.hasPrefix("VID_"), filename.lowercased().hasSuffix(".mp4") { return "lrv" }
         if filename.hasPrefix("CAM_") { return "XRF" }
         if filename.hasPrefix("DJI_") { return "LRF" }
         return nil
