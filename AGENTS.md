@@ -95,8 +95,8 @@ package dependency.
   `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay` and `OpenCineRelayApple` only: never an
   integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the
   app shell; app differences arrive as host values and protocols.
-- Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome
-  and gimbal views over the camera vocabulary. App composition, next to the app shell: they build on
+- Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome,
+  gimbal, LUT and assist views and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
   the camera vocabulary, UI, the app shell, Core, Media and Motion, never on DJI or another
   integration, an app or a third-party package. App differences arrive as host values (label
   profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per

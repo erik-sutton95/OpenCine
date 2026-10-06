@@ -11,6 +11,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.UUID
+import com.opencapture.opencine.vocabulary.MediaHTTP
+import com.opencapture.opencine.vocabulary.MediaFile
 
 /** Actual immutable connection facts; the camera identity survives a same-session repair gap. */
 data class DjiAndroidMediaIdentity(val session: DJICameraSessionID, val epoch: DJIControlEpoch, val cameraID: String) {

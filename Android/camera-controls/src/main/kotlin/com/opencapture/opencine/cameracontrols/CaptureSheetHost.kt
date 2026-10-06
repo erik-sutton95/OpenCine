@@ -1,0 +1,49 @@
+package com.opencapture.opencine.cameracontrols
+
+import androidx.compose.runtime.Composable
+import com.opencapture.opencine.appkit.MonitorCaptureField
+import com.opencapture.opencine.appkit.MonitorCapturePreferences
+import com.opencapture.opencine.vocabulary.CameraLabelProfile
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.CaptureSessionState
+import com.opencapture.opencine.vocabulary.CaptureSetting
+
+/**
+ * What the capture sheets need from an app: mostly values, one commit entry and one refresh entry,
+ * plus the drum an app draws for settings it edits through Core. App differences arrive here as
+ * values, never as brand branches.
+ */
+interface CaptureSheetHost {
+    /** The connected body, or null before one is known. */
+    val camera: CameraModel?
+    val labelProfile: CameraLabelProfile
+
+    /** The common Core field a sheet edits, opened (and its editor captured) when the sheet opens. */
+    fun captureField(sheet: LiveSheet, expoMode: Int): MonitorCaptureField?
+
+    /** Locks, format pin and session capabilities, observed for this composition. */
+    @Composable fun captureSessionState(status: CameraStatus): CaptureSessionState
+
+    val capturePreferences: MonitorCapturePreferences
+    fun updateCapturePreferences(value: MonitorCapturePreferences)
+
+    /**
+     * Sends [setting] to the camera along the app's own path. [field] is the Core field the sheet
+     * opened (stale editors are refused), [status] the report the sheet showed.
+     */
+    fun commit(setting: CaptureSetting, field: MonitorCaptureField?, status: CameraStatus)
+
+    /** The camera GET a sheet asks for on open; ISO limit returns once the reply arrived. */
+    suspend fun refresh(what: CaptureRefresh)
+
+    /**
+     * The drum for a setting edited through Core (ISO, shutter, white balance Kelvin) and for EV,
+     * where an app may draw its own wheel from [wheel] instead.
+     */
+    @Composable fun CommonDrum(sheet: LiveSheet, status: CameraStatus, field: MonitorCaptureField?,
+        enabled: Boolean, wheel: CaptureWheelState)
+}
+
+/** A sheet drum's shown value and its settled-value callback, for a host that draws its own wheel. */
+class CaptureWheelState(val selection: String, val onSelect: (String) -> Unit)

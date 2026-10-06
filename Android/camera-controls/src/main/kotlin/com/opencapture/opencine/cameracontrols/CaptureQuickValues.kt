@@ -155,18 +155,20 @@ class CaptureQuickLifetime {
 }
 
 /** Mount/reseat work has no authority to write while showing a held preview. */
+/** A camera GET a capture sheet asks for when it opens. */
+enum class CaptureRefresh { AUDIO, FOCUS_TRACK, ISO_LIMIT }
+
 class CapturePanelEffects(private val preview: Boolean) {
     fun run(action: () -> Unit) { if (!preview) action() }
 
     suspend fun mount(sheet: LiveSheet, status: CameraStatus, supportsFocus: Boolean,
-        refreshAudio: () -> Unit, refreshFocus: () -> Unit, refreshIso: suspend () -> Unit,
-        seed: () -> Unit, reseatIso: () -> Unit) {
+        refresh: suspend (CaptureRefresh) -> Unit, seed: () -> Unit, reseatIso: () -> Unit) {
         if (preview) return
-        if (CaptureLists.shouldRefreshAudio(sheet)) refreshAudio()
-        if (sheet == LiveSheet.FOCUS && CaptureLists.shouldRefreshFocusTrack(status, supportsFocus)) refreshFocus()
+        if (CaptureLists.shouldRefreshAudio(sheet)) refresh(CaptureRefresh.AUDIO)
+        if (sheet == LiveSheet.FOCUS && CaptureLists.shouldRefreshFocusTrack(status, supportsFocus)) refresh(CaptureRefresh.FOCUS_TRACK)
         seed()
         if (sheet == LiveSheet.ISO && CaptureLists.shouldGetIsoLimit(status)) {
-            refreshIso()
+            refresh(CaptureRefresh.ISO_LIMIT)
             reseatIso()
         }
     }

@@ -35,6 +35,8 @@ internal object LiveDesign {
     val accentDim get() = accent.copy(alpha = 0.16f)
     val glassBright = Color(94 / 255f, 98 / 255f, 98 / 255f, 0.18f)
     val aeLock = Color(0xFFF5D052)
+    /** Clear and delete actions (the apps' `StartupColors.destructive`). */
+    val destructive = Color(0.930f, 0.267f, 0.267f)
 
     const val CORNER_RADIUS_DP = 12f
 }
@@ -44,6 +46,9 @@ internal object LiveType {
     fun ui(size: Float, weight: FontWeight = FontWeight.Normal) = MonitorTypography.text(size, weight)
 
     fun text(size: Float, weight: FontWeight = FontWeight.Normal) = MonitorTypography.text(size, weight)
+
+    fun mono(size: Float, weight: FontWeight = FontWeight.Medium) =
+        MonitorTypography.text(size, weight).copy(fontFeatureSettings = "tnum")
 }
 
 internal val ChromeShape = RoundedCornerShape(LiveDesign.CORNER_RADIUS_DP.dp)

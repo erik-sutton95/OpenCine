@@ -3,6 +3,8 @@ package com.opencapture.opencine.dji
 import java.nio.charset.Charset
 import java.util.Locale
 import kotlin.math.roundToInt
+import com.opencapture.opencine.vocabulary.MediaHTTP
+import com.opencapture.opencine.vocabulary.MediaFile
 
 /** Strip `0x00/0x27` 10-byte sub-headers and concat data chunks in arrival order. */
 class MediaChunkAssembler {

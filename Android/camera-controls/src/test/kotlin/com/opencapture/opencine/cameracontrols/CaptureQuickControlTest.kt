@@ -42,7 +42,7 @@ class CaptureQuickControlTest {
         repeat(3) { // Repeated open/close and tool changes must not become camera demand.
             for (sheet in LiveSheet.entries) {
                 effects.mount(sheet, status, true,
-                    { traffic += "audio GET" }, { traffic += "focus GET" }, { traffic += "ISO GET" },
+                    { traffic += when (it) { CaptureRefresh.AUDIO -> "audio GET"; CaptureRefresh.FOCUS_TRACK -> "focus GET"; CaptureRefresh.ISO_LIMIT -> "ISO GET" } },
                     { traffic += "seed/pref write" }, { traffic += "reseat/pref write" })
                 effects.run { traffic += "shutter angle preference" }
             }
@@ -59,8 +59,9 @@ class CaptureQuickControlTest {
             LiveSheet.ISO to listOf("seed", "iso", "reseat"),
         )) {
             val calls = mutableListOf<String>()
-            effects.mount(sheet, status, true, { calls += "audio" }, { calls += "focus" },
-                { calls += "iso" }, { calls += "seed" }, { calls += "reseat" })
+            effects.mount(sheet, status, true,
+                { calls += when (it) { CaptureRefresh.AUDIO -> "audio"; CaptureRefresh.FOCUS_TRACK -> "focus"; CaptureRefresh.ISO_LIMIT -> "iso" } },
+                { calls += "seed" }, { calls += "reseat" })
             assertEquals(expected, calls)
         }
     }
