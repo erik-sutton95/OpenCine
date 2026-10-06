@@ -23,6 +23,7 @@ ICON_NAMES = [
     "audio-lines",
     "audio-waveform",
     "blend",
+    "cable",
     "camera",
     "card-sim",
     "chart-column",

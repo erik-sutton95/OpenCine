@@ -18,6 +18,7 @@ enum class MonitorIcon(
     AUDIO_LINES("audio-lines", R.drawable.opc_lucide_audio_lines),
     AUDIO_WAVEFORM("audio-waveform", R.drawable.opc_lucide_audio_waveform),
     BLEND("blend", R.drawable.opc_lucide_blend),
+    CABLE("cable", R.drawable.opc_lucide_cable),
     CAMERA("camera", R.drawable.opc_lucide_camera),
     CARD_SIM("card-sim", R.drawable.opc_lucide_card_sim),
     CHART_COLUMN("chart-column", R.drawable.opc_lucide_chart_column),
