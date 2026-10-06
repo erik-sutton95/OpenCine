@@ -11,6 +11,8 @@ val MonitorTransfer.colorMode: Int
         MonitorTransfer.DLOG2 -> CameraCommands.COLOR_DLOG2
         MonitorTransfer.DLOGM -> MonitorTransfer.COLOR_DLOG_M
         MonitorTransfer.ILOG -> MonitorTransfer.ILOG_BRIDGE_ID
+        // No DJI colour code: the unknown mode a status carries before the camera reports one.
+        MonitorTransfer.SRGB, MonitorTransfer.NLOG, MonitorTransfer.LOG3G10 -> -1
     }
 
 val MonitorTransfer.Companion.COLOR_DLOG_M: Int get() = CameraCommands.COLOR_DLOG_M
