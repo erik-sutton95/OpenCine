@@ -46,4 +46,15 @@ struct MonitorClipValueTests {
         #expect(cell.completionBadge == "EXPORTED" && cell.transferCaption == "CACHING 0%")
         #expect(cell.source == nil)
     }
+
+    @Test func catalogItemCarriesSuppliedCameraBadgesToTheCell() {
+        let item = MonitorMediaItem(
+            id: "SIMULATED/01", filename: "01.JPG", metadata: "", availability: .camera,
+            progress: 0.5, favorite: false, photo: true, burstCount: 4, mediaBadge: "RAW+J",
+            completionBadge: "EXPORTED", transferCaption: "CACHING 50%")
+        let cell = MonitorClipValue(item: item)
+        #expect(cell.burstCount == 4 && cell.mediaBadge == "RAW+J")
+        #expect(cell.completionBadge == "EXPORTED" && cell.transferCaption == "CACHING 50%")
+        #expect(cell.progress == 0.5 && cell.source == "CACHING")
+    }
 }
