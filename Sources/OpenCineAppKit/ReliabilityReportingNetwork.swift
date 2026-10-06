@@ -3,8 +3,8 @@ import zlib
 
 // The network policy of an app's opt-in crash and incident reporting, without the reporting SDK:
 // the camera-path upload gate, the DSN host policy, the forward decision, the envelope event ID
-// and the retry backoff. The app keeps the SDK and the URLProtocol that applies this policy to
-// the SDK's own URLSession. Kotlin mirror: `appkit/diagnostics/ReliabilityReportingNetwork.kt`.
+// and the retry backoff. The app keeps the SDK; `ReliabilityReportingURLProtocol` applies this
+// policy to the SDK's own URLSession. Kotlin mirror: `appkit/diagnostics/ReliabilityReportingNetwork.kt`.
 
 /// Upload gate: no report leaves while a camera session is live or the camera's IPv4 path is up,
 /// including when cellular internet is also available. `cameraIPv4Prefix` is the camera
