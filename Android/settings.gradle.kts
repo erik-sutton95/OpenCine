@@ -28,6 +28,8 @@ include(
     ":monitor-ui",
     // Multicam engine (Kotlin/JVM).
     ":multicam",
+    // Camera vocabulary (Kotlin/JVM): wire-free control values, status, model, zoom, tracking.
+    ":camera-vocabulary",
     // DJI: BLE link, datalink, wire models, gimbal programs, CameraSession adapter (JNI facade DjiNative).
     ":dji",
     // Nikon: session contract, PTP-IP / USB PTP session over the Swift layer (JNI facade

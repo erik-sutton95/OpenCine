@@ -2,6 +2,14 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.decoder.HevcDecoder
 
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.SessionDropStormGuard
+import com.opencapture.opencine.vocabulary.SessionRecoveryCopy
+import com.opencapture.opencine.vocabulary.SessionRecoveryDecision
+import com.opencapture.opencine.vocabulary.SessionRecoveryPolicy
+import com.opencapture.opencine.vocabulary.SessionRecoveryUi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

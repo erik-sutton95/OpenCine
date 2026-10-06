@@ -2,6 +2,7 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.core.MulticamQualification
 import com.opencapture.opencine.core.MulticamQualificationRefusal
+import com.opencapture.opencine.vocabulary.FoundCamera
 import org.json.JSONObject
 
 /** Model support from the shared core (`MulticamSupport`). Cached per model identity. */

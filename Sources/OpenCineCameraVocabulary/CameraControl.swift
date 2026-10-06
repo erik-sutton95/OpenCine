@@ -33,6 +33,11 @@ public enum ShootingMode: UInt8, CaseIterable, Sendable {
     /// Pocket 3 / Nano Photo `0x02/0xE1` byte. Pocket 3 survey + Nano capture.
     public static let photoRawPocket3AndNano: UInt8 = 0x05
 
+    /// The camera's own name for the mode from the session's label profile, else the vocabulary's.
+    public func label(in profile: CameraLabelProfile) -> String {
+        profile.shootingModeLabels[self] ?? label
+    }
+
     public var label: String {
         switch self {
         case .slowMo: "SlowMo"
@@ -45,8 +50,8 @@ public enum ShootingMode: UInt8, CaseIterable, Sendable {
         }
     }
 
-    public func label(for model: CameraModel?) -> String {
-        self == .superNight && model?.isPocket3 == true ? "Low-Light" : label
+    public func label(for model: CameraModel?, in profile: CameraLabelProfile = .standard) -> String {
+        self == .superNight && model?.isPocket3 == true ? "Low-Light" : label(in: profile)
     }
 
     /// Stills only. SuperNight / Low-Light is video (`0x28`).
@@ -105,6 +110,11 @@ public enum IsoLimit: UInt8, CaseIterable, Sendable {
 
     public func label(base: Int) -> String { "\(base)–\(ceiling)" }
 
+    /// Read the Auto ISO ceiling only when Auto ISO exists (DJI: GET `0x8E` pid `0x000F`).
+    /// D-Log2 has no ceiling and Pocket often leaves that read unanswered. Unknown color = Normal.
+    public static func shouldGet(colorMode: ColorMode?) -> Bool {
+        (colorMode ?? .normal).offersIsoAuto
+    }
 }
 
 /// Operator HUD copy for control replies. Probe GET names stay in the journal.
@@ -234,6 +244,8 @@ public enum IsoIndex: UInt8, CaseIterable, Sendable {
     case iso6400 = 0x09
     case iso12800 = 0x0A
     case iso25600 = 0x0B
+    /// Third stop 160. Not a DJI index byte; DJI decode never yields it.
+    case iso160 = 0xE0
 
     /// nil for Auto.
     public var isoValue: Int? {
@@ -248,6 +260,7 @@ public enum IsoIndex: UInt8, CaseIterable, Sendable {
         case .iso6400: 6400
         case .iso12800: 12800
         case .iso25600: 25600
+        case .iso160: 160
         }
     }
 
@@ -260,7 +273,12 @@ public enum IsoIndex: UInt8, CaseIterable, Sendable {
     public static func stepped(
         from current: IsoIndex, stops: Int, available: [IsoIndex]
     ) -> IsoIndex? {
-        let list = available.filter { $0 != .auto }
+        // Full stops. The third stop 160 (declared after 25600) is only a start point; a list with it
+        // steps by value, every other list keeps the camera's order.
+        let stops160 = available.filter { $0 != .auto && ($0 != .iso160 || current == .iso160) }
+        let list =
+            stops160.contains(.iso160)
+            ? stops160.sorted { ($0.isoValue ?? 0) < ($1.isoValue ?? 0) } : stops160
         guard current != .auto, let index = list.firstIndex(of: current) else { return nil }
         let next = index + stops
         guard list.indices.contains(next), next != index else { return nil }
@@ -298,6 +316,15 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
     case dLog2 = 0x41
     case normal10 = 0x3D
     case dLogM = 0x00
+    /// I-Log curve. Not a DJI SET byte; DJI decode never yields it.
+    case iLog = 0xE2
+    /// Dolby Vision format. Not a DJI SET byte; DJI decode never yields it.
+    case dolbyVision = 0xE5
+
+    /// The camera's own name for the mode from the session's label profile, else the vocabulary's.
+    public func label(in profile: CameraLabelProfile) -> String {
+        profile.colorModeLabels[self] ?? label
+    }
 
     public var label: String {
         switch self {
@@ -307,29 +334,33 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         case .dLog2: "D-Log2"
         case .normal10: "Normal 10-bit"
         case .dLogM: "D-Log M 10-bit"
+        case .iLog: "I-Log"
+        case .dolbyVision: "Dolby Vision"
         }
     }
 
     /// Log encodings Auto can bind a Rec.709 cube to.
     public var bindsAutoLUT: Bool {
         switch self {
-        case .dLog, .dLog2, .dLogM: true
+        case .dLog, .dLog2, .dLogM, .iLog: true
         default: false
         }
     }
 
-    public func label(for family: CameraBodyFamily) -> String {
+    public func label(for family: CameraBodyFamily, in profile: CameraLabelProfile = .standard) -> String {
         if family == .nano, self == .normal { return "Normal 8-bit" }
         if family == .pocket, self == .dLogM { return "D-Log M" }
-        return label
+        return label(in: profile)
     }
 
-    public init?(label: String) {
+    public init?(label: String, in profile: CameraLabelProfile = .standard) {
         switch label {
         case "Normal 8-bit": self = .normal
         case "D-Log M": self = .dLogM
         default:
-            guard let match = Self.allCases.first(where: { $0.label == label }) else { return nil }
+            guard let match = Self.allCases.first(where: { $0.label(in: profile) == label }) else {
+                return nil
+            }
             self = match
         }
     }
@@ -368,6 +399,8 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         switch self {
         case .dLog2: [.iso100, .iso200, .iso400, .iso800, .iso1600, .iso3200]
         case .dLog: [.auto, .iso400, .iso800, .iso1600, .iso3200, .iso6400]
+        case .iLog, .dolbyVision:
+            [.auto, .iso100, .iso160, .iso200, .iso400, .iso800, .iso1600, .iso3200, .iso6400]
         case .normal, .hdr, .normal10, .dLogM:
             [
                 .auto, .iso100, .iso200, .iso400, .iso800, .iso1600, .iso3200, .iso6400, .iso12800,
@@ -388,7 +421,8 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         switch self {
         case .dLog2: nil
         case .dLog: 400
-        case .normal, .hdr, .normal10, .dLogM: model?.isoAutoRangeFloor ?? 100
+        case .normal, .hdr, .normal10, .dLogM, .iLog, .dolbyVision:
+            model?.isoAutoRangeFloor ?? 100
         }
     }
 
@@ -397,7 +431,7 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         switch self {
         case .dLog2: []
         case .dLog: [.max800, .max1600, .max3200, .max6400]
-        case .normal, .hdr, .normal10, .dLogM:
+        case .normal, .hdr, .normal10, .dLogM, .iLog, .dolbyVision:
             [
                 .max200, .max400, .max800, .max1600, .max3200, .max6400, .max12800, .max25600,
             ]
@@ -743,13 +777,20 @@ public struct VideoResolution: Equatable, Hashable, Sendable {
     public static let p3K_1x1 = Self(rawValue: 0x6B)
     public static let p3K_9x16 = Self(rawValue: 0x6C)
     public static let p4K_1x1 = Self(rawValue: 0x7D)
+    /// Sizes with no DJI byte (0xD0...0xD6). Not DJI wire values; DJI bodies never send them.
+    public static let p8K = Self(rawValue: 0xD0)
+    public static let p6K = Self(rawValue: 0xD1)
+    public static let p4K_9x16 = Self(rawValue: 0xD3)
+    public static let p3K = Self(rawValue: 0xD4)
+    public static let p8K_235 = Self(rawValue: 0xD5)
+    public static let p4K_235 = Self(rawValue: 0xD6)
 
     public var aspect: VideoAspect? {
         switch rawValue {
-        case 0x0A, 0x10, 0x2D: .sixteenNine
+        case 0x0A, 0x10, 0x2D, 0xD0, 0xD1, 0xD4: .sixteenNine
         case 0x0C, 0x5F, 0x67: .fourThree
         case 0x69, 0x6A, 0x6B, 0x7D: .oneOne
-        case 0x42, 0x43, 0x6C: .nineSixteen
+        case 0x42, 0x43, 0x6C, 0xD3: .nineSixteen
         default: nil
         }
     }
@@ -792,7 +833,10 @@ public struct VideoResolution: Equatable, Hashable, Sendable {
         case 0x2D, 0x43, 0x5F: "2.7K"
         case 0x10, 0x67, 0x7D: "4K"
         case 0x6A: "2160"
-        case 0x6B, 0x6C: "3K"
+        case 0x6B, 0x6C, 0xD4: "3K"
+        case 0xD0, 0xD5: "8K"
+        case 0xD1: "6K"
+        case 0xD3, 0xD6: "4K"
         default: String(format: "%02X", rawValue)
         }
     }
@@ -803,7 +847,12 @@ public struct VideoResolution: Equatable, Hashable, Sendable {
         case 0x2D, 0x43, 0x5F: "2.7K"
         case 0x10, 0x67, 0x7D: "4K"
         case 0x6A: "2160p"
-        case 0x6B, 0x6C: "3K"
+        case 0x6B, 0x6C, 0xD4: "3K"
+        case 0xD0: "8K"
+        case 0xD1: "6K"
+        case 0xD3: "4K"
+        case 0xD5: "8K 2.35:1"
+        case 0xD6: "4K 2.35:1"
         default: String(format: "0x%02X", rawValue)
         }
     }
@@ -929,6 +978,11 @@ public enum GimbalMode: String, CaseIterable, Sendable, Hashable {
     case tiltLocked
     case fpv
     case directionLock
+
+    /// The camera's own name for the mode from the session's label profile, else the vocabulary's.
+    public func label(in profile: CameraLabelProfile) -> String {
+        profile.gimbalModeLabels[self] ?? label
+    }
 
     public var label: String {
         switch self {
@@ -1794,9 +1848,10 @@ public enum CamFov {
         displayLabel(factor: factor(raw: raw))
     }
 
-    public static func displayLabel(factor: Double) -> String {
-        let shown = displayTenths(factor)
-        if abs(shown - maxFactor) < 0.05 { return "12×" }
+    /// `ceiling` is the body's longest zoom (default the 12× lens).
+    public static func displayLabel(factor: Double, ceiling: Double = maxFactor) -> String {
+        let shown = displayTenths(factor, ceiling: ceiling)
+        if abs(shown - ceiling) < 0.05 { return "\(Int(ceiling.rounded()))×" }
         let nearest = shown.rounded()
         if abs(shown - nearest) < 0.05, (1...12).contains(Int(nearest)) {
             return "\(Int(nearest))×"
@@ -1845,8 +1900,8 @@ public enum CamFov {
     public static let teleEngage = 3.0
 
     /// Mimo-style 0.1× steps (1.0, 1.1, … 3.0, 3.1, … 12.0).
-    public static func displayTenths(_ factor: Double) -> Double {
-        (clamp(factor) * 10).rounded() / 10
+    public static func displayTenths(_ factor: Double, ceiling: Double = maxFactor) -> Double {
+        (clamp(factor, max: ceiling) * 10).rounded() / 10
     }
 
     /// Unquantized pinch target. The chip still shows `displayTenths`.
@@ -1885,21 +1940,22 @@ public enum CamFov {
     /// Chip number: pinch preview while fingers are down, else live hybrid,
     /// else the last 1× / 3× / 6× / 12× stop.
     public static func readout(
-        live: Double?, preview: Double?, fallback: Double, optimistic: Double? = nil
+        live: Double?, preview: Double?, fallback: Double, optimistic: Double? = nil,
+        ceiling: Double = maxFactor
     ) -> Double {
         displayTenths(
             continuousReadout(
-                live: live, preview: preview, fallback: fallback, optimistic: optimistic))
+                live: live, preview: preview, fallback: fallback, optimistic: optimistic,
+                ceiling: ceiling),
+            ceiling: ceiling)
     }
 
     /// Unrounded lens factor for the zoom disc. The chip still uses `readout`.
     public static func continuousReadout(
-        live: Double?, preview: Double?, fallback: Double, optimistic: Double? = nil
+        live: Double?, preview: Double?, fallback: Double, optimistic: Double? = nil,
+        ceiling: Double = maxFactor
     ) -> Double {
-        if let preview { return clamp(preview) }
-        if let optimistic { return clamp(optimistic) }
-        if let live { return clamp(live) }
-        return clamp(fallback)
+        clamp(preview ?? optimistic ?? live ?? fallback, max: ceiling)
     }
 
     /// Lens is monotonic with the 1× → 12× pinch. `cam_fov` jumps at the 3× hop.

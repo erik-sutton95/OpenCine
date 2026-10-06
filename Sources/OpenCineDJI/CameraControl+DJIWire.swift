@@ -145,14 +145,6 @@ public enum GlamourEffect {
     }
 }
 
-extension IsoLimit {
-    /// GET `0x8E` pid `0x000F` only when Auto ISO exists. D-Log2 has no ceiling
-    /// and Pocket often leaves that GET unanswered. Unknown color = Normal.
-    public static func shouldGet(colorMode: ColorMode?) -> Bool {
-        (colorMode ?? .normal).offersIsoAuto
-    }
-}
-
 /// Reply oracle from Osmosis camera-control (payload first byte).
 public enum CameraReply: Equatable, Sendable {
     case ok
@@ -211,7 +203,7 @@ public enum ExpoParam {
     /// `@5` = 1-byte index (`00` Auto, `03`=100 … `0B`=25600).
     public static func isoIndex(_ value: [UInt8]) -> IsoIndex? {
         guard value.count > 5 else { return nil }
-        return IsoIndex(rawValue: value[5])
+        return IsoIndex(djiWire: value[5])
     }
 
     /// `@6` = EV raw. mimo-settings-1 `0x02/0x2E` SET echoes here (not WB).
@@ -272,7 +264,13 @@ extension ColorMode {
             default: break
             }
         }
-        return ColorMode(rawValue: byte)
+        return ColorMode(djiWire: byte)
+    }
+
+    /// DJI byte to color mode. I-Log and Dolby Vision have no DJI byte, so they never decode.
+    init?(djiWire byte: UInt8) {
+        guard let mode = ColorMode(rawValue: byte), mode != .iLog, mode != .dolbyVision else { return nil }
+        self = mode
     }
 
     public static func parseImageEffect(_ value: [UInt8], model: CameraModel? = nil) -> ColorMode? {
@@ -857,5 +855,13 @@ extension CamFov {
 
     public static func factor(_ value: [UInt8]) -> Double? {
         rawAt0(value).map { factor(raw: $0) }
+    }
+}
+
+extension IsoIndex {
+    /// DJI byte to index. ISO 160 has no DJI byte, so it never decodes from the wire.
+    init?(djiWire byte: UInt8) {
+        guard let index = IsoIndex(rawValue: byte), index != .iso160 else { return nil }
+        self = index
     }
 }

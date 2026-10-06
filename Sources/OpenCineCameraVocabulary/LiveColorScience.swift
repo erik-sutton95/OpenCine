@@ -1,11 +1,12 @@
 import Foundation
 import OpenCineMedia
 
-// DJI integration side of the color science. Curve math, the scope axis, traffic lights
-// and the false-colour scales live in OpenCineMedia (re-exported by this module). This file
-// keeps what only the DJI integration knows: raw `ColorMode` → curve, the live-tap
-// fingerprint, the measured live-tap ceilings (one ``ScopeExposureCeiling`` per picture
-// source), the D-Gamut matrices and the official Rec.709 look curves (`DJILook`).
+// Camera side of the color science. Curve math, the scope axis, traffic lights and the
+// false-colour scales live in OpenCineMedia. This file keeps what the camera vocabulary knows:
+// `ColorMode` → curve, the live-tap fingerprint, the measured live-tap ceilings (one
+// ``ScopeExposureCeiling`` per picture source), the D-Gamut matrices and DJI's official
+// Rec.709 look curves (`DJILook`). The app that bundles another official cube hands its own
+// curve to the `lookCurve:` overloads.
 
 /// Transfer the Pocket live HEVC *picture* is carrying.
 ///
@@ -28,6 +29,8 @@ extension MonitorTransfer {
         case .dLog: self = .dlog
         case .dLogM: self = .dlogm
         case .dLog2: self = .dlog2
+        case .iLog: self = .ilog
+        case .dolbyVision: self = .rec709
         }
     }
 

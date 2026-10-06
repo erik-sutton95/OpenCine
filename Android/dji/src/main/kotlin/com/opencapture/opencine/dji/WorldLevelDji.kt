@@ -4,6 +4,7 @@ import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.motion.WorldLevel
 import com.opencapture.opencine.motion.WorldLevelSnap
+import com.opencapture.opencine.vocabulary.CameraCommands
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.sqrt

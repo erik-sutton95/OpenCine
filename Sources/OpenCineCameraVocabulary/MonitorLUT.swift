@@ -11,6 +11,8 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
     case djiDLog
     case djiDLog2
     case djiDLogM
+    /// Official I-Log to Rec.709 cube. Stored raw value predates the capability name.
+    case iLogRec709 = "lunaILog"
     case creativeMono
     case creativeContrast
     case creativeWarm
@@ -28,6 +30,7 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
         case .djiDLog: OfficialDJILUT.pocketDLog.title
         case .djiDLog2: OfficialDJILUT.pocketDLog2.title
         case .djiDLogM: OfficialDJILUT.nanoDLogM.title
+        case .iLogRec709: LUTSource.iLogRec709.title
         case .creativeMono: BuiltInLook.mono.rawValue
         case .creativeContrast: BuiltInLook.contrast.rawValue
         case .creativeWarm: BuiltInLook.warm.rawValue
@@ -43,8 +46,10 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
         self == .auto || self == .officialDLog || self == .officialDLog2
     }
 
+    /// Camera catalog: the official camera cubes (each app lists its own via `djiCatalog`).
     public var isDJI: Bool {
         self == .djiAuto || self == .djiDLog || self == .djiDLog2 || self == .djiDLogM
+            || self == .iLogRec709
     }
 
     public var isCreative: Bool { creativeLook != nil }
@@ -206,6 +211,8 @@ public enum CustomLUTSlot: String, CaseIterable, Sendable {
 public enum LUTSource: Equatable, Sendable {
     case official(OfficialPocketLUT)
     case dji(OfficialDJILUT)
+    /// Official I-Log to Rec.709 cube.
+    case iLogRec709
     case creative(BuiltInLook)
     case custom(CustomLUTSlot)
     case file(String)
@@ -215,6 +222,7 @@ public enum LUTSource: Equatable, Sendable {
         switch self {
         case .official(let lut): lut.title
         case .dji(let lut): lut.title
+        case .iLogRec709: "I-Log → Rec.709"
         case .creative(let look): look.rawValue
         case .custom(let slot): slot.title
         case .file(let name): CustomLUTIndex.displayName(fileName: name)
@@ -237,9 +245,9 @@ public enum LUTResolver {
     ) -> LUTSource {
         switch selection {
         case .auto, .djiAuto:
-            return OfficialDJILUT.auto(
-                colorMode: colorMode, family: family, cameraName: cameraName
-            ).map(LUTSource.dji) ?? .off
+            return builtInAutoSource(colorMode: colorMode, family: family, cameraName: cameraName)
+        case .iLogRec709:
+            return .iLogRec709
         case .officialDLog:
             return .dji(.pocketDLog)
         case .officialDLog2:
@@ -266,11 +274,12 @@ public enum LUTResolver {
         }
     }
 
-    /// DJI Auto: official Rec.709 cube for this body + color. Rec.709 / HDR stay off.
+    /// Auto: official Rec.709 cube for this body + color (log or I-Log). Rec.709 / HDR stay off.
     public static func builtInAutoSource(
         colorMode: ColorMode?, family: CameraBodyFamily, cameraName: String? = nil
     ) -> LUTSource {
-        OfficialDJILUT.auto(colorMode: colorMode, family: family, cameraName: cameraName)
+        if colorMode == .iLog { return .iLogRec709 }
+        return OfficialDJILUT.auto(colorMode: colorMode, family: family, cameraName: cameraName)
             .map(LUTSource.dji) ?? .off
     }
 
@@ -300,6 +309,8 @@ public enum LUTResolver {
             return "Applying \(lut.title)"
         case .dji(let lut):
             return "Applying official \(lut.title)"
+        case .iLogRec709:
+            return "Applying official \(LUTSource.iLogRec709.title)"
         case .creative(let look):
             return "Applying \(look.rawValue)"
         case .custom(let slot):

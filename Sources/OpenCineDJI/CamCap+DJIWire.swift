@@ -94,7 +94,7 @@ extension CamCapIso {
         let body = Array(value[3..<(3 + inner)])
         let count = Int(body[1])
         guard body[0] == 0, count >= 1, body.count >= 2 + count else { return [] }
-        return body[2..<(2 + count)].compactMap { IsoIndex(rawValue: $0) }
+        return body[2..<(2 + count)].compactMap { IsoIndex(djiWire: $0) }
     }
 }
 

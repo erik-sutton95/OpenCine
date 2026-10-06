@@ -1,5 +1,20 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.FaceAFPolicy
+import com.opencapture.opencine.vocabulary.FaceStructurePolicy
+import com.opencapture.opencine.vocabulary.FaceTrackHold
+import com.opencapture.opencine.vocabulary.FaceTrackTap
+import com.opencapture.opencine.vocabulary.FeedDoubleTapTrack
+import com.opencapture.opencine.vocabulary.FocusOverlay
+import com.opencapture.opencine.vocabulary.FocusOverlayPolicy
+import com.opencapture.opencine.vocabulary.FocusResetPolicy
+import com.opencapture.opencine.vocabulary.GamepadFaceTrack
+import com.opencapture.opencine.vocabulary.LiveFeedFocusGesture
+import com.opencapture.opencine.vocabulary.LiveFeedTapPolicy
+import com.opencapture.opencine.vocabulary.LiveTrackingChrome
+import com.opencapture.opencine.vocabulary.TrackingBox
+import com.opencapture.opencine.vocabulary.TrackingStartPolicy
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

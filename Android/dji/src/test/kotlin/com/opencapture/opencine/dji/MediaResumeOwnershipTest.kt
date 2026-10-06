@@ -121,7 +121,7 @@ class MediaResumeOwnershipTest {
         val startedAt = now
         val result = MediaLiveResumeRunner.run(16_000, { now }, { true }, { false },
             pictureFresh = {
-                com.opencapture.opencine.dji.RecoveryPictureProof.isFresh(
+                com.opencapture.opencine.vocabulary.RecoveryPictureProof.isFresh(
                     startedAt, now, presentedAt = now, accessUnitAt = startedAt - 1)
             }, exitPlayback = { true }, enableLiveView = { enables += 1; true }, sleep = { now += it })
         assertEquals(MediaLiveResumeRunner.Result.EXHAUSTED, result)
