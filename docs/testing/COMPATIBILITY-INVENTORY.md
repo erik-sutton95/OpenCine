@@ -221,6 +221,29 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 - Tests: Nikon's `AudioLevelMeterTests.swift` (its three missing cases moved into
   `MonitorAudioMeterBallisticsTests`) and two LUT tests duplicated by OpenCine `CubeLUTTests`.
 
+## Kept copies (dupes-final)
+
+Pocket and Insta still each hold these copies. The reason is the owner boundary.
+
+| Copy | Reason |
+|---|---|
+| Kotlin and Swift `SentryReliabilitySink`, Kotlin `OkHttpManualReportUpload`, and their reliability tests (`ReliabilityReportingTest`, `ReliabilityTransportRetryTest`, the Sentry cases in `ReliabilityReportingTests.swift`) | SDK adapters. OpenCine takes no third-party dependency |
+| Android `MonitorBackdropFeed` | App composition: binds native-runtime, monitor-ui and the app Media3 backend. No OpenCine module may see both native-runtime and Compose UI |
+| Android `Media3GlBackend` | SDK adapter (Media3) |
+| Android `DiscoveryPermissions` | App composition: the saved-denials preferences file and the app log |
+| Android `BackdropRenderActivity` | Debug host for the apps' instrumented tests. monitor-ui keeps `MonitorBackdropRenderActivity` for the shared material tests |
+| Android `GpuOverlayBus` (`onSlotsMoved`, `LocalGpuLive`) | App composition. The unread slot rects and plate map were deleted. The callback stays with the app's `LiveVulkanSession` |
+| Android `MonitorMotionInputTest` | The instrumented setup launches the app activity and `AppModel`, which is more than a fake gimbal host |
+| Android `LiveLevelOverlayTest` | Pocket draws its own level overlay and Insta delegates to monitor-ui. The test pins each app's label and mapping |
+| Android `SettingsPaletteTest` | App settings palette, no shared owner |
+| Android `AppVulkanCrashGuardTest` | Pins the app's guard preferences name. The guard itself is tested in native-runtime |
+| iOS `AppModel+Watcher`, `AudioMeterOverlay`, `ZebraAssist`, `WatcherWiFiCodeView`, `ControlLiveLog` | App composition over the app model, session and log |
+| iOS `AndroidSessionWire`, `WatcherRelayKeychain` | Brand wire format (JNI core version, keychain service name) |
+| iOS watcher connection, navigation and presentation tests; virtual joystick preference tests; media review tests; system chrome tests | Each pins an app value: relay client, preference keys, cache paths, or Info.plist |
+| iOS `EncoderFormatChangeTests` other than present timing, the delivery staging-lease test, the readout status-chrome test, Pocket `MonitorLUTTests` and `HevcTestFixtures` | App decoder, coordinator wrapper, status chrome, or a bundled resource the other app does not ship |
+
+Kotlin `LiveAssistTool` and `OpcIcon`, and the assist type aliases beside them, now call the shared monitor-ui and media names. P-4 and I-4 stay open.
+
 ## Follow-ups
 
 | Id | Repository | Item | Blocked by |
@@ -228,7 +251,7 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 | O-1 | OpenCine, Pocket | Rename the Pocket-named DJI session types | add, migrate, remove across a release |
 | O-2 | OpenCine | `MonitorMediaLibraryModel` original constructor | apps calling it positionally |
 | O-3 | OpenCine | Atlas Insta `source-copy` edges, products and docs | the authorized merge of `integration/thin-app` |
-| P-1 | Pocket | Heavy alias and theme pass-through renames (`LiveAssistTool` 213 sites, `OpcIcon` 158, `ChromeRect` 80, `PocketDispSection` 72, iOS `LiveImageEffects`, `FalseColorScaleKind`, `FoundCamera`) and the 62 lighter alias renames | churn across files other lanes edit |
+| P-1 | Pocket | Heavy alias and theme pass-through renames still open: `ChromeRect` 80, `PocketDispSection` 72, iOS `LiveImageEffects`, `FalseColorScaleKind`, `FoundCamera`, and the 62 lighter alias renames. Kotlin `LiveAssistTool` and `OpcIcon` now use the shared names | churn across files other lanes edit |
 | P-2 | Pocket, Insta | Swift owners in OpenCineCameraVocabulary for the view-core twins (`CameraConnectionPhase`, `LiveViewLink`, `LiveFeedWarmup` moved; each view core keeps `ConnectionPhase` as a typealias); `WatchRelayState.snapshot` stays per app (the vocabulary takes no relay edge; only its wrist copy differs) | new shared owner |
 | P-3 | Pocket, Insta, Nikon | Portable false-colour lattice in OpenCineMedia | new shared owner |
 | P-4 | Pocket | Tracking-bracket geometry, number-pad input, playback pan, media path helpers, Kotlin `ClipColorProfile`, iOS reliability reporting, `FeedIncidentQueue` glue, `MediaSessionLink` | expose or extend shared owners |

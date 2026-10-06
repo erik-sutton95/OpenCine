@@ -14,6 +14,7 @@ import com.opencapture.opencine.vocabulary.VideoFrameRate
 import com.opencapture.opencine.vocabulary.VideoResolution
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -1232,6 +1233,21 @@ class CaptureSheetTest {
                 ),
                 case.why,
             )
+        }
+    }
+
+    @Test fun fpsTelemetryAndPickerReseatingCannotReplaceTheChosenAngle() {
+        var preferred = 180.0
+        for ((fps, shutter) in listOf(24 to 48, 60 to 48, 60 to 120, 30 to 120, 30 to 60)) {
+            val status = CameraStatus(
+                fps = fps, shutterDenom = shutter, expoMode = CameraCommands.EXPO_MANUAL,
+                availableShutterDenoms = listOf(24, 48, 50, 60, 120),
+            )
+            val seat = CaptureLists.reseatShutterAngle(status, preferred)
+            // This is the same assignment performed by LiveControlSheet.applySeat.
+            preferred = seat.preferredAngle
+            assertEquals(180.0, preferred, "FPS=$fps with delayed shutter=1/$shutter")
+            assertFalse(seat.persistAngle, "Telemetry is not an operator preference edit")
         }
     }
 }
