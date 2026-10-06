@@ -27,10 +27,15 @@
         public var commonExposureCompensation: Bool
         /// The FOCUS sheet opens the common focus field (the app routes its rows through it).
         public var commonFocusMode: Bool
+        /// The body records audio the AUDIO tile and sheet can set.
+        public var audio: Bool
+        /// The body meters on faces, so the strip gives the host's metering tile a column.
+        public var faceMetering: Bool
 
         public init(
             focusMode: Bool, aperture: Bool, nativeIsoHop: Bool, isoLimit: Bool,
-            commonExposureCompensation: Bool, commonFocusMode: Bool
+            commonExposureCompensation: Bool, commonFocusMode: Bool, audio: Bool,
+            faceMetering: Bool
         ) {
             self.focusMode = focusMode
             self.aperture = aperture
@@ -38,6 +43,8 @@
             self.isoLimit = isoLimit
             self.commonExposureCompensation = commonExposureCompensation
             self.commonFocusMode = commonFocusMode
+            self.audio = audio
+            self.faceMetering = faceMetering
         }
     }
 
@@ -82,6 +89,8 @@
         var captureDrum: CaptureDrumPresentation? { get set }
         /// An operator panel covers the live view, so readouts do not begin a drag.
         var operatorPanelOpen: Bool { get }
+        /// A full-screen cover (settings, media) is up, so readouts do not open a drum.
+        var coverOpen: Bool { get }
 
         /// The readout drum's primary choices for `sheet`, or nil when it has none.
         func quickSnapshot(_ sheet: CaptureSheet) -> CaptureQuickSnapshot?
