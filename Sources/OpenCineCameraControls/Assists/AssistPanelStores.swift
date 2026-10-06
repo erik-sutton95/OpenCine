@@ -5,8 +5,8 @@
     import OpenCineMedia
 
     /// The assist panels' saved presentation: scope options, sizes and places, the audio, ND and
-    /// traffic-lights meters, and the false-colour reference. The app builds one set, under its
-    /// own key namespace, and hands it to the panels and menus.
+    /// traffic-lights meters, the false-colour reference and the zebra editor's unit. The app
+    /// builds one set, under its own key namespace, and hands it to the panels and menus.
     @MainActor
     public final class AssistPanelStores {
         public let waveform: MonitorScopePanelStore<MonitorWaveformOptions>
@@ -17,10 +17,21 @@
         public let reference: MonitorFalseColorReferencePositionStore
         public let nd: MonitorNDPreferenceStore
         public let trafficLights: MonitorTrafficLightsPreferenceStore
+        /// `<namespace>.zebraUnit`: editor-only, saved beside the assist snapshot.
+        public let zebraUnitKey: String
+        private let storage: UserDefaults
+
+        /// The zebra editor's unit; thresholds themselves stay on the 0-100 monitoring axis.
+        public var zebraUnit: ZebraAssist.Unit {
+            get { ZebraAssist.Unit(rawValue: storage.string(forKey: zebraUnitKey) ?? "") ?? .ire }
+            set { storage.set(newValue.rawValue, forKey: zebraUnitKey) }
+        }
 
         /// Keys are `<namespace>.WaveformAssist.v1`, `<namespace>.Assist.audio.v1` and so on.
         public init(storage: UserDefaults, namespace: String) {
             precondition(!namespace.isEmpty)
+            self.storage = storage
+            zebraUnitKey = "\(namespace).zebraUnit"
             waveform = MonitorScopePanelStore(
                 storage: storage, key: "\(namespace).WaveformAssist.v1")
             parade = MonitorScopePanelStore(storage: storage, key: "\(namespace).ParadeAssist.v1")

@@ -14,6 +14,10 @@
         /// Ink on a solid accent fill.
         static var onAccent: Color { get }
         static var rec: Color { get }
+        static var amber: Color { get }
+        static var good: Color { get }
+        /// A chrome colour at the display's current HDR gain, like the named ones.
+        static func chromeColor(red: CGFloat, green: CGFloat, blue: CGFloat) -> Color
     }
 
     extension View {
