@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -423,5 +427,181 @@ fun MediaCircleIconButton(
             modifier = Modifier.size(iconSize),
             filled = filled,
         )
+    }
+}
+
+/** What the library page shows, read from the app's library owner. */
+class MediaLibraryPageState(
+    /** Heading subtitle: the connected camera, or the app name. */
+    val cameraName: String,
+    val category: MediaLibraryTab,
+    val layout: MediaBrowserLayout,
+    val thumbnailSize: MediaThumbnailSize,
+    val sortOrder: MediaLibrarySort,
+    val headerCount: String,
+    val fetchInProgress: Boolean,
+    val isLive: Boolean,
+    val isSelecting: Boolean,
+    val filterOpen: Boolean,
+    val activeFilterCount: Int,
+    val selectedCount: Int,
+    val cacheEnabled: Boolean,
+    val deleteEnabled: Boolean,
+    /** The clip being cached (file name, progress), read where the cache bar draws. */
+    val caching: () -> Pair<String, Double>?,
+)
+
+/** The filter popup's choices and selection. */
+class MediaLibraryFilterState(
+    val formatOptions: List<String>,
+    val resolutionOptions: List<String>,
+    val colorOptions: List<Pair<Int, String>>,
+    val hasDates: Boolean,
+    val formatFilters: Set<String>,
+    val resolutionFilters: Set<String>,
+    val colorFilters: Set<Int>,
+    val dateStartKey: String?,
+    val dateEndKey: String?,
+)
+
+/** The page's commands, routed to the app's library owner. */
+interface MediaLibraryPageActions {
+    fun selectCategory(tab: MediaLibraryTab)
+    fun showList(list: Boolean)
+    fun selectThumbnailSize(size: MediaThumbnailSize)
+    fun cycleSort()
+    fun toggleFilter()
+    fun selectAll()
+    fun clearSelection()
+    fun cacheSelected()
+    fun favoriteSelected()
+    fun deleteSelected()
+    fun shareSelected()
+    fun toggleFormat(format: String)
+    fun toggleResolution(resolution: String)
+    fun toggleColor(color: Int)
+    /** Both date bounds at once; the page keeps start on or before end. */
+    fun filterDates(start: String?, end: String?)
+    fun resetFilters()
+    fun closeFilter()
+}
+
+/**
+ * The media library page: heading, category rail or strip, display controls, header, cache bar, the app's
+ * [gallery], the selection tray and the filter popup; [overlays] (player, photo viewer, delivery, confirms)
+ * draw above it.
+ */
+@Composable
+fun MediaLibraryPage(
+    state: MediaLibraryPageState,
+    filter: MediaLibraryFilterState,
+    actions: MediaLibraryPageActions,
+    gallery: @Composable () -> Unit,
+    overlays: @Composable BoxScope.() -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(LiveDesign.background)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            ),
+    ) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val portrait = maxHeight > maxWidth
+            com.opencapture.monitorui.MonitorPageScaffold(
+                modifier = Modifier.statusBarsPadding().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp),
+                navigationWidth = 206f,
+                heading = {
+                    com.opencapture.monitorui.MonitorPageHeading("Media", state.cameraName)
+                },
+                navigation = { compact ->
+                    Column(
+                        if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (compact) {
+                            MediaCategoryStrip(state.category) { actions.selectCategory(it) }
+                        } else {
+                            val railScroll = rememberScrollState()
+                            Column(Modifier.weight(1f).monitorScrollFade(railScroll).verticalScroll(railScroll)) {
+                                Column(Modifier.fillMaxWidth().monitorTabStrip()) {
+                                    MediaLibraryTab.entries.forEach { tab ->
+                                        MediaCategoryTab(tab, active = tab == state.category, fill = true) { actions.selectCategory(tab) }
+                                    }
+                                }
+                            }
+                            MediaCatalogDisplayControls(
+                                list = state.layout == MediaBrowserLayout.LIST,
+                                thumbnailSize = state.thumbnailSize,
+                                onList = actions::showList,
+                                onThumbnailSize = actions::selectThumbnailSize,
+                            )
+                        }
+                    }
+                },
+            ) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MediaCatalogHeaderRow(
+                        headerTitle = MediaLibraryCopy.headerTitle(state.category), headerCount = state.headerCount,
+                        fetchInProgress = state.fetchInProgress, isLive = state.isLive,
+                        isSelecting = state.isSelecting,
+                        sortOrder = state.sortOrder, filterOpen = state.filterOpen, activeFilterCount = state.activeFilterCount,
+                        compact = portrait,
+                        onFilter = actions::toggleFilter, onSort = actions::cycleSort,
+                    )
+                    state.caching()?.let { (name, progress) -> MediaCacheBar(name, progress) }
+                    Box(Modifier.weight(1f).fillMaxWidth()) { gallery() }
+                    if (state.isSelecting) MediaSelectionTray(state.selectedCount,
+                        cacheEnabled = state.cacheEnabled,
+                        deleteEnabled = state.deleteEnabled,
+                        onAll = actions::selectAll, onClear = actions::clearSelection,
+                        onCache = actions::cacheSelected,
+                        onStar = actions::favoriteSelected,
+                        onDelete = actions::deleteSelected,
+                        onShare = actions::shareSelected,
+                    )
+                    if (portrait) {
+                        MediaCatalogDisplayControls(
+                            list = state.layout == MediaBrowserLayout.LIST,
+                            thumbnailSize = state.thumbnailSize,
+                            onList = actions::showList,
+                            onThumbnailSize = actions::selectThumbnailSize,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (state.filterOpen) {
+            MediaFilterPopup(
+                formatOptions = filter.formatOptions,
+                resolutionOptions = filter.resolutionOptions,
+                colorOptions = filter.colorOptions,
+                hasDates = filter.hasDates,
+                formatFilters = filter.formatFilters,
+                resolutionFilters = filter.resolutionFilters,
+                colorFilters = filter.colorFilters,
+                dateStartKey = filter.dateStartKey,
+                dateEndKey = filter.dateEndKey,
+                onToggleFormat = actions::toggleFormat,
+                onToggleResolution = actions::toggleResolution,
+                onToggleColor = actions::toggleColor,
+                onDateStart = { next ->
+                    val end = filter.dateEndKey
+                    actions.filterDates(next, if (next != null && end != null && next > end) next else end)
+                },
+                onDateEnd = { next ->
+                    val start = filter.dateStartKey
+                    actions.filterDates(if (next != null && start != null && next < start) next else start, next)
+                },
+                onClear = actions::resetFilters,
+                onClose = actions::closeFilter,
+            )
+        }
+
+        overlays()
     }
 }
