@@ -132,6 +132,12 @@ class SessionRecoveryPolicy(
     }
 }
 
+/** A likely cause the host can name when a session keeps dropping. Any camera can report it. */
+enum class SessionDropSuspect {
+    /** Another phone or tablet may be scanning for or connecting to the same camera. */
+    OTHER_DEVICE_SCANNING,
+}
+
 /** Operator-facing recovery copy. Never names a sister app or another brand. */
 object SessionRecoveryCopy {
     const val RETRY_CONNECTION = "Retry connection"
@@ -146,7 +152,8 @@ object SessionRecoveryCopy {
             is SessionRecoveryUi.PausedAfterDrops -> "Connection keeps dropping"
         }
 
-    fun detail(state: SessionRecoveryUi, deviceName: String): String {
+    /** [dropSuspect] names a likely cause for repeated drops; only the paused case reads it. */
+    fun detail(state: SessionRecoveryUi, deviceName: String, dropSuspect: SessionDropSuspect? = null): String {
         val name = deviceName.trim()
         val camera = if (name.isEmpty()) "The camera" else name
         return when (state) {
@@ -158,7 +165,12 @@ object SessionRecoveryCopy {
                 "$camera didn't come back after $tries. The frame below is held, not live."
             }
             is SessionRecoveryUi.PausedAfterDrops ->
-                "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera. The frame below is held, not live."
+                when (dropSuspect) {
+                    null ->
+                        "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera. The frame below is held, not live."
+                    SessionDropSuspect.OTHER_DEVICE_SCANNING ->
+                        "$camera reconnected but dropped ${state.drops} times in quick succession. Automatic retries are paused to protect the camera \u2014 another device may be scanning for cameras. The frame below is held, not live."
+                }
         }
     }
 }
