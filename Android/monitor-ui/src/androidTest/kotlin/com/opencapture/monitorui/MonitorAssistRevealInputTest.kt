@@ -270,9 +270,17 @@ class MonitorAssistRevealInputTest {
         return point
     }
 
+    private var moves = 0
+
+    // A finger never repeats a position to the sub-pixel; these exact 10 px steps can. When the popup
+    // has just moved up by the same step, the pointer's position inside it is unchanged and the
+    // palette receives no Move for that sample, so the plate stopped one or two samples short of the
+    // finger (Pocket main's copy of this test too). Alternating x by a quarter pixel keeps every
+    // sample a move: the portrait drag reads only y, and the landscape steps are 12 px.
     private fun inject(action: Int, point: Offset, down: Long) {
+        val x = if (action == MotionEvent.ACTION_MOVE) point.x + if (moves++ % 2 == 0) 0.25f else -0.25f else point.x
         val event = MotionEvent.obtain(
-            down, SystemClock.uptimeMillis(), action, point.x, point.y, 0,
+            down, SystemClock.uptimeMillis(), action, x, point.y, 0,
         ).apply { source = InputDevice.SOURCE_TOUCHSCREEN }
         instrumentation.uiAutomation.injectInputEvent(event, true)
         event.recycle()
