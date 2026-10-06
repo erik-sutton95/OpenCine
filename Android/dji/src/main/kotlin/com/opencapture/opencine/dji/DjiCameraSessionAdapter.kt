@@ -40,7 +40,12 @@ import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
 import com.opencapture.opencine.motion.MonitorLayoutCapabilities
-import com.opencapture.opencine.dji.ConnectionPhase as PocketPhase
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.ConnectionPhase as PocketPhase
+import com.opencapture.opencine.vocabulary.EvComp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -652,12 +657,14 @@ class DjiCameraSessionAdapter(
                 )
             }
 
-        fun iso(index: Int): ISOValue = CameraCommands.isoValue(index)?.let { ISOValue.Manual(it) } ?: ISOValue.Auto
+        fun iso(index: Int): ISOValue =
+            CameraCommands.isoValue(CameraCommands.djiIsoIndex(index))?.let { ISOValue.Manual(it) } ?: ISOValue.Auto
 
         fun isoIndex(value: ISOValue): Int? =
             when (value) {
                 ISOValue.Auto -> 0
-                is ISOValue.Manual -> CameraCommands.isoIndexFromValue(value.iso)
+                // The DJI ladder only: ISO 160 has no DJI byte (I-2).
+                is ISOValue.Manual -> CameraCommands.isoIndexFromValue(value.iso)?.takeIf { it in CameraCommands.ISO_INDEX_ALL }
                 is ISOValue.AutoLimited -> null
             }
 

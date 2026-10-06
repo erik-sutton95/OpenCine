@@ -6,6 +6,10 @@ import android.os.SystemClock
 import android.util.Log
 
 import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.vocabulary.ApertureStrategy
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket

@@ -4,6 +4,9 @@ import com.opencapture.opencine.motion.GimbalProgram
 import com.opencapture.opencine.motion.GimbalProgramCurve
 import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.GimbalWaypointSlot
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.GimbalMode
+import com.opencapture.opencine.vocabulary.GimbalSpeed
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.tan

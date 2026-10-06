@@ -131,6 +131,10 @@ Never grow the common command interface into an enum of vendor features.
 - Multicam: Swift and Kotlin change together (same public types and scenario names). No automatic
   compensation: only an operator-approved plan starts or stops a camera; closing never sends a
   command. App limits are parameters, not engine constants.
+- Camera vocabulary Android (`Android/camera-vocabulary`, package
+  `com.opencapture.opencine.vocabulary`): the Kotlin twin of `OpenCineCameraVocabulary`, same type
+  names. Core, Media and the motion package only, no byte code (`CameraVocabularyImportRuleTest`);
+  `dji` depends on it and keeps the wire members as extensions in its `*Wire.kt` files.
 - DJI Android (`Android/dji`): keep the JNI class `com.opencapture.opencine.dji.DjiNative` and its
   member names; `Sources/OpenCineDJIAndroid` exports `Java_com_opencapture_opencine_dji_DjiNative_*`,
   so change both sides in step and compare `llvm-nm -D` of an app's `.so` with the `external fun`s.

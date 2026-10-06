@@ -1,5 +1,8 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
 import kotlin.math.abs
 
 /**
