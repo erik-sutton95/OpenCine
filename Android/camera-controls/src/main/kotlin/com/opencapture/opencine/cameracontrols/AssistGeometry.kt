@@ -14,7 +14,6 @@ import com.opencapture.opencine.media.ScopeDisplayScale
 import com.opencapture.opencine.media.WaveformIre
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.ScopeExposureCeiling
-import com.opencapture.opencine.vocabulary.fromColorMode
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.round
@@ -62,7 +61,6 @@ object WaveformAxis {
     const val TITLE_HEIGHT = 26f
     const val BOTTOM_PAD = 2f
     const val SIDE_PAD = 6f
-    const val BUFFER_IRE = 5.0
     val crushClipDash = floatArrayOf(3f, 3f)
 
     /**
@@ -95,27 +93,7 @@ object WaveformAxis {
     }
 
     /** Paper IRE of 18% grey. Rec.709 ≈ 40.9, D-Log 39.88, D-Log2 30.50, HLG ≈ 37.8. */
-    fun middleGrayIRE(colorMode: Int): Double =
-        WaveformIre.middleGrayIRE(MonitorTransfer.fromColorMode(colorMode))
-
-    data class GuideStroke(val ire: Double, val dashed: Boolean, val crushClip: Boolean)
-
-    fun guideStrokes(
-        clip: Boolean,
-        crush: Boolean,
-        middle: Boolean,
-        colorMode: Int,
-    ): List<GuideStroke> {
-        val strokes = ArrayList<GuideStroke>(5)
-        strokes += GuideStroke(0.0, dashed = false, crushClip = false)
-        strokes += GuideStroke(100.0, dashed = false, crushClip = false)
-        if (crush) strokes += GuideStroke(BUFFER_IRE, dashed = true, crushClip = true)
-        if (clip) strokes += GuideStroke(100.0 - BUFFER_IRE, dashed = true, crushClip = true)
-        if (middle) {
-            strokes += GuideStroke(middleGrayIRE(colorMode), dashed = false, crushClip = false)
-        }
-        return strokes
-    }
+    fun middleGrayIRE(transfer: MonitorTransfer): Double = WaveformIre.middleGrayIRE(transfer)
 }
 
 object HistogramAssist {
@@ -338,14 +316,18 @@ object FalseColorReference {
         ceiling: ScopeClipSource,
     ): ClosedRange<Double> = -8.5..(maxOf(2.5, FalseColorBands.clipStops(transfer, rec709, ceiling)) + 1)
 
-    fun curveKeyLabel(colorMode: Int, rec709: Boolean = false): String =
-        if (FalseColorBands.readsThroughLook(MonitorTransfer.fromColorMode(colorMode), rec709)) "709"
-        else when (colorMode) {
-            com.opencapture.opencine.vocabulary.CameraCommands.COLOR_HDR -> "HLG"
-            com.opencapture.opencine.vocabulary.CameraCommands.COLOR_DLOG -> "D-Log"
-            com.opencapture.opencine.vocabulary.CameraCommands.COLOR_DLOG_M -> "DLM ≈"
-            com.opencapture.opencine.vocabulary.CameraCommands.COLOR_DLOG2 -> "D-Log2"
-            else -> if (MonitorTransfer.fromColorMode(colorMode) == MonitorTransfer.ILOG) "I-Log" else "709"
+    fun curveKeyLabel(transfer: MonitorTransfer, rec709: Boolean = false): String =
+        if (FalseColorBands.readsThroughLook(transfer, rec709)) "709"
+        else when (transfer) {
+            MonitorTransfer.REC709 -> "709"
+            MonitorTransfer.HDR -> "HLG"
+            MonitorTransfer.DLOG -> "D-Log"
+            MonitorTransfer.DLOGM -> "DLM ≈"
+            MonitorTransfer.DLOG2 -> "D-Log2"
+            MonitorTransfer.ILOG -> "I-Log"
+            MonitorTransfer.SRGB -> "sRGB"
+            MonitorTransfer.NLOG -> "N-Log"
+            MonitorTransfer.LOG3G10 -> "L3G10"
         }
 
     fun axisLabels(scale: MonitorFalseColorSelection): List<String> =
