@@ -1,5 +1,6 @@
 #if os(iOS)
     import MonitorPresentation
+    import MonitorUI
     import OpenCineCameraVocabulary
     import SwiftUI
     import XCTest
@@ -75,6 +76,24 @@
             XCTAssertEqual(fallback.midX, 800, accuracy: 0.5)
             XCTAssertEqual(fallback.midY, 450, accuracy: 0.5)
             XCTAssertEqual(fallback.width, fallback.height, accuracy: 0.5)
+        }
+
+        // Moved from both iOS apps' LiveMonitorLayoutTests.
+        func testTrackingCancelSitsOnTheSubjectCorner() {
+            let feed = CGRect(x: 59, y: 0, width: 402 * 16 / 9, height: 402)
+            let box = TrackingBox(x: 0.20, y: 0.20, width: 0.40, height: 0.40)
+            let cancel = MonitorTrackingGeometry.cancelRect(box: box, feed: feed, mirrored: false)
+            XCTAssertEqual(cancel.width, MonitorTrackingGeometry.cancelHitSize, accuracy: 0.05)
+            XCTAssertEqual(cancel.height, MonitorTrackingGeometry.cancelHitSize, accuracy: 0.05)
+            XCTAssertGreaterThanOrEqual(cancel.width, 44)
+            let subject = CGRect(
+                x: feed.minX + 0.20 * feed.width,
+                y: feed.minY + 0.20 * feed.height,
+                width: 0.40 * feed.width,
+                height: 0.40 * feed.height
+            )
+            XCTAssertEqual(cancel.midX, subject.maxX, accuracy: 0.5)
+            XCTAssertEqual(cancel.midY, subject.minY, accuracy: 0.5)
         }
     }
 #endif

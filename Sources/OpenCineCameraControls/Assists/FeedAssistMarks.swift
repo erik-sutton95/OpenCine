@@ -163,4 +163,18 @@
         return DesqueezeAssist.presentationRect(
             sourceSize: CGSize(width: pictureAspect, height: 1), in: raster, effects: effects)
     }
+
+    extension MonitorTrackingGeometry {
+        /// The tracking cancel target on the subject's corner of the drawn (mirrored or flipped)
+        /// picture.
+        public static func cancelRect(
+            box: TrackingBox, feed: CGRect, mirrored: Bool, flippedVertically: Bool = false
+        ) -> CGRect {
+            let drawn = box.flipped(horizontal: mirrored, vertical: flippedVertically)
+            return cancelRect(
+                for: feedRect(
+                    normalized: CGRect(x: drawn.x, y: drawn.y, width: drawn.width, height: drawn.height),
+                    in: feed))
+        }
+    }
 #endif

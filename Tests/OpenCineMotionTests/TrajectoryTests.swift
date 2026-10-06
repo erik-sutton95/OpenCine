@@ -247,6 +247,12 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
             abs(HeadTrack.bodyLookRightDeg(liveYawDeg: -170, originYawDeg: 170) - 20) < 0.001,
             "gimbal pan wraps the same as head yaw")
         #expect(HeadTrack.bodyLookUpDeg(livePitchDeg: 25, originPitchDeg: 5) == 20)
+        #expect(
+            HeadTrack.yawDialDeg(
+                lookRightDeg: HeadTrack.bodyLookRightDeg(liveYawDeg: 90, originYawDeg: 0)) == 90)
+        #expect(
+            HeadTrack.pitchDialDeg(
+                lookUpDeg: HeadTrack.bodyLookUpDeg(livePitchDeg: 30, originPitchDeg: 0)) == 60)
     }
 
     @Test func projectClampsToControllableBox() {
@@ -272,8 +278,24 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         let look = HeadTrack.Quat.look(from: nod, origin: origin)
         #expect(abs(look.right) < 0.01, "a pure nod must not invent look-right")
         #expect(abs(look.up - 25) < 0.01)
+        let pan = HeadTrack.Quat.axisAngle(x: 0, y: 0, z: -1, deg: 25)
+        let side = HeadTrack.Quat.look(from: pan, origin: origin)
+        #expect(abs(side.up) < 0.01)
+        #expect(abs(side.right - 25) < 0.01)
         let pan90 = HeadTrack.Quat.axisAngle(x: 0, y: 0, z: -1, deg: 90)
-        #expect(abs(HeadTrack.Quat.look(from: pan90, origin: origin).right - 90) < 0.01)
+        #expect(
+            abs(HeadTrack.Quat.look(from: pan90, origin: origin).right - 90) < 0.01,
+            "a 90° head turn is 90° on the sphere")
+        let still = HeadTrack.Quat.look(from: origin, origin: origin)
+        #expect(abs(still.right) < 0.001 && abs(still.up) < 0.001)
+        let roll = HeadTrack.Quat.axisAngle(x: 0, y: 1, z: 0, deg: 40)
+        let rolled = HeadTrack.Quat.look(from: roll, origin: origin)
+        #expect(abs(rolled.right) < 1, "yaw is not roll")
+        #expect(abs(rolled.up) < 1)
+        let nodDown = HeadTrack.Quat.axisAngle(x: -1, y: 0, z: 0, deg: 25)
+        let down = HeadTrack.Quat.look(from: nodDown, origin: origin)
+        #expect(abs(down.right) < 0.01, "a nod down must not invent look-right")
+        #expect(abs(down.up + 25) < 0.01, "nod down is negative look-up")
         let yawed = HeadTrack.Quat.axisAngle(x: 0, y: 0, z: -1, deg: 30)
         let nodAfter = yawed.multiply(HeadTrack.Quat.axisAngle(x: 1, y: 0, z: 0, deg: 40))
         let kept = HeadTrack.look(current: nodAfter, origin: origin)
