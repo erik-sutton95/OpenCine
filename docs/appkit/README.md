@@ -394,7 +394,8 @@ Native adapter and physical presentation checks remain separate consumer verific
 
 The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
 (Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera session
-is live or the camera's IPv4 path is up; the app supplies `cameraIPv4Prefix` and keeps one shared
+is live or the camera's IPv4 path is up; the app supplies `cameraIPv4Prefix` (nil when the camera's
+network shares its prefix with home networks, so only the session blocks) and keeps one shared
 gate. `ReliabilityReportingHostPolicy` and `ReliabilityReportingNetwork.decision` forward only
 HTTPS to the DSN host and fail a refused request without an HTTP response, so the SDK keeps the
 envelope cached. `ReliabilityReportingRedirectGuard` drops redirects off the DSN host,
@@ -418,3 +419,9 @@ rules for what may leave the phone. The app implements `ReliabilityReportingSink
 (options, start, close, flush, breadcrumbs, tags, capture of a `ReliabilityEvent`) and applies the
 privacy rules to the SDK's own events; it also keeps the URLProtocol that applies the network
 policy to the SDK's session. Nothing here links the SDK.
+
+`ProblemReportSheet` is the operator's report form over `ProblemReporting` (message, optional
+technical details, photos or screenshots, reply email, and the pending report's ID, status and
+removal) and `ReliabilityConsentSheet` the first-launch ask for automatic reports. The app supplies
+its product name, support email, accent, technical details and privacy page; a missing `onAccent`
+keeps the system's text on the accent button.
