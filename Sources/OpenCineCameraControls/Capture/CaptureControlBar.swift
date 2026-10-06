@@ -73,7 +73,7 @@
             MonitorControlGrid(
                 columns: gridColumns, spacing: columns == 3 ? 8 : 12, equalColumns: columns == 3
             ) {
-                if status.isoIndex == .auto, capabilities.isoLimit {
+                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && capabilities.isoLimit) {
                     tile(.iso, label: "ISO", value: isoValue, widest: "25600")
                 } else {
                     commonTile(.iso, key: .iso)
@@ -86,7 +86,7 @@
                         value: evValue, widest: "+3.0",
                         badgeIcon: host.facePriorityExposureEnabled
                             ? CaptureLists.facePriorityBadgeIcon : nil)
-                } else if host.shutterUsesAngle && !status.isPhoto {
+                } else if (host.shutterUsesAngle && !status.isPhoto) || !host.captureStripShowsPendingEdits {
                     tile(
                         .shutter, label: "SHUTTER", value: shutterValue,
                         widest: host.shutterUsesAngle && !status.isPhoto ? "346°" : "1/16000")
@@ -95,7 +95,9 @@
                 }
                 tile(.exposure, label: "EXPOSURE", value: expoValue, widest: "Manual")
                 meteringTile
-                if status.whiteBalance?.mode == .custom, !host.autoWhiteBalanceLocked {
+                if host.captureStripShowsPendingEdits, status.whiteBalance?.mode == .custom,
+                    !host.autoWhiteBalanceLocked
+                {
                     commonTile(.wb, key: .whiteBalance)
                 } else {
                     tile(.wb, label: "WB", value: wbValue, widest: "10000K", valueIcon: wbIcon)
