@@ -4,19 +4,25 @@ import Testing
 @testable import OpenCineCameraVocabulary
 
 @Suite struct MonitorLUTTests {
+    /// Saved selections from before the neutral name still load as the official Auto row.
+    @Test func officialAutoKeepsItsStoredRawValue() {
+        #expect(LUTSelection.officialAuto.rawValue == "djiAuto")
+        #expect(LUTSelection(rawValue: "djiAuto") == .officialAuto)
+    }
+
     @Test func creativeLooksResolveToGeneratedLooks() {
         #expect(
             LUTResolver.resolve(
                 selection: .creativeMono, colorMode: .dLog2, hasCustomDLog: false,
                 hasCustomDLog2: false)
                 == .creative(.mono))
-        #expect(LUTSelection.auto.migratedToDJICatalog == .djiAuto)
+        #expect(LUTSelection.auto.migratedToDJICatalog == .officialAuto)
         #expect(LUTSelection.officialDLog2.migratedToDJICatalog == .djiDLog2)
     }
 
     /// I-Log has its own official cube; its stored raw value predates the capability name.
     @Test func autoAppliesTheILogCubeForILog() {
-        for selection in [LUTSelection.auto, .djiAuto, .iLogRec709] {
+        for selection in [LUTSelection.auto, .officialAuto, .iLogRec709] {
             #expect(
                 LUTResolver.resolve(
                     selection: selection, colorMode: .iLog, hasCustomDLog: false,
@@ -24,10 +30,10 @@ import Testing
         }
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .normal, hasCustomDLog: false,
+                selection: .officialAuto, colorMode: .normal, hasCustomDLog: false,
                 hasCustomDLog2: false) == .off)
         #expect(LUTSelection.iLogRec709.title == "I-Log → Rec.709")
-        #expect(LUTSelection.iLogRec709.isDJI)
+        #expect(LUTSelection.iLogRec709.isOfficial)
         #expect(LUTSelection(rawValue: "lunaILog") == .iLogRec709)
         #expect(
             LUTResolver.autoCaption(source: .iLogRec709) == "Applying official I-Log → Rec.709")
@@ -44,7 +50,7 @@ import Testing
         #expect(PlaybackLUTColor.resolve(live: nil, last: nil) == nil)
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto,
+                selection: .officialAuto,
                 colorMode: PlaybackLUTColor.resolve(live: .normal, last: .dLog2),
                 hasCustomDLog: false, hasCustomDLog2: false)
                 == .dji(.pocketDLog2))
@@ -83,27 +89,27 @@ import Testing
     @Test func djiAutoFollowsColorAndBody() {
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .dLog2, family: .pocket, hasCustomDLog: false,
+                selection: .officialAuto, colorMode: .dLog2, family: .pocket, hasCustomDLog: false,
                 hasCustomDLog2: false)
                 == .dji(.pocketDLog2))
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .dLog, family: .pocket, hasCustomDLog: false,
+                selection: .officialAuto, colorMode: .dLog, family: .pocket, hasCustomDLog: false,
                 hasCustomDLog2: false)
                 == .dji(.pocketDLog))
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .dLogM, family: .nano,
+                selection: .officialAuto, colorMode: .dLogM, family: .nano,
                 cameraName: "Osmo Nano", hasCustomDLog: false, hasCustomDLog2: false)
                 == .dji(.nanoDLogM))
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .dLogM, family: .pocket,
+                selection: .officialAuto, colorMode: .dLogM, family: .pocket,
                 cameraName: "Osmo Pocket 3", hasCustomDLog: false, hasCustomDLog2: false)
                 == .dji(.nanoDLogM))
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .dLogM, family: .other,
+                selection: .officialAuto, colorMode: .dLogM, family: .other,
                 cameraName: "Osmo Action 6", hasCustomDLog: false, hasCustomDLog2: false)
                 == .dji(.action6DLogM))
         #expect(
@@ -113,7 +119,7 @@ import Testing
                 == .dji(.action6DLogM))
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: .normal, family: .pocket, hasCustomDLog: false,
+                selection: .officialAuto, colorMode: .normal, family: .pocket, hasCustomDLog: false,
                 hasCustomDLog2: false)
                 == .off)
         #expect(
@@ -123,7 +129,7 @@ import Testing
                 == .dji(.nanoDLogM))
         #expect(
             LUTResolver.statusLabel(
-                enabled: true, selection: .djiAuto, source: .dji(.pocketDLog2))
+                enabled: true, selection: .officialAuto, source: .dji(.pocketDLog2))
                 == "Auto · D-Log2 → Rec.709")
     }
 
@@ -171,7 +177,7 @@ import Testing
                 == .dji(.pocketDLog))
         #expect(
             LUTResolver.resolve(
-                selection: .djiAuto, colorMode: tele, family: .pocket, hasCustomDLog: true,
+                selection: .officialAuto, colorMode: tele, family: .pocket, hasCustomDLog: true,
                 hasCustomDLog2: true)
                 == .dji(.pocketDLog))
         #expect(CamFov.colorMode(forZoom: 1, current: current) == nil)

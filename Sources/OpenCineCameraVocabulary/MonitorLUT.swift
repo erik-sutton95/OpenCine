@@ -1,13 +1,15 @@
 import Foundation
 import OpenCineMedia
 
-/// Operator LUT choice. DJI Auto follows color + body; Creative looks are
+/// Operator LUT choice. Auto follows color + body; Creative looks are
 /// generated; locked rows stay put until the operator picks something else.
 public enum LUTSelection: String, CaseIterable, Sendable, Codable {
     case auto
     case officialDLog
     case officialDLog2
-    case djiAuto
+    /// The camera's official look, following colour and body. Stored raw value predates the
+    /// neutral name.
+    case officialAuto = "djiAuto"
     case djiDLog
     case djiDLog2
     case djiDLogM
@@ -24,7 +26,7 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
 
     public var title: String {
         switch self {
-        case .auto, .djiAuto: "Auto"
+        case .auto, .officialAuto: "Auto"
         case .officialDLog: OfficialPocketLUT.dLogToRec709.title
         case .officialDLog2: OfficialPocketLUT.dLog2ToRec709.title
         case .djiDLog: OfficialDJILUT.pocketDLog.title
@@ -47,8 +49,8 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
     }
 
     /// Camera catalog: the official camera cubes (each app lists its own via `djiCatalog`).
-    public var isDJI: Bool {
-        self == .djiAuto || self == .djiDLog || self == .djiDLog2 || self == .djiDLogM
+    public var isOfficial: Bool {
+        self == .officialAuto || self == .djiDLog || self == .djiDLog2 || self == .djiDLogM
             || self == .iLogRec709
     }
 
@@ -71,7 +73,7 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
     /// Built-in Rec.709 conversions are gone; Auto lives on the DJI tab.
     public var migratedToDJICatalog: LUTSelection {
         switch self {
-        case .auto: .djiAuto
+        case .auto: .officialAuto
         case .officialDLog: .djiDLog
         case .officialDLog2: .djiDLog2
         default: self
@@ -87,7 +89,7 @@ public enum LUTSelection: String, CaseIterable, Sendable, Codable {
         }
     }
 
-    public static let djiCases: [LUTSelection] = [.djiAuto, .djiDLog, .djiDLog2, .djiDLogM]
+    public static let djiCases: [LUTSelection] = [.officialAuto, .djiDLog, .djiDLog2, .djiDLogM]
     public static let creativeCases: [LUTSelection] = [
         .creativeMono, .creativeContrast, .creativeWarm, .creativeCool,
     ]
@@ -244,7 +246,7 @@ public enum LUTResolver {
         customFileName: String? = nil
     ) -> LUTSource {
         switch selection {
-        case .auto, .djiAuto:
+        case .auto, .officialAuto:
             return builtInAutoSource(colorMode: colorMode, family: family, cameraName: cameraName)
         case .iLogRec709:
             return .iLogRec709
@@ -299,7 +301,7 @@ public enum LUTResolver {
         source: LUTSource
     ) -> String {
         if !enabled { return "Off · \(selection.title)" }
-        if selection == .auto || selection == .djiAuto { return "Auto · \(source.title)" }
+        if selection == .auto || selection == .officialAuto { return "Auto · \(source.title)" }
         return selection.title
     }
 

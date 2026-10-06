@@ -207,6 +207,9 @@ public enum CameraBodyFamily: Equatable, Sendable {
     case nano
     case other
 
+    /// The family assumed before a body reports one.
+    public static let fallback: CameraBodyFamily = .pocket
+
     public static func resolve(modelId: Int?, name: String?) -> CameraBodyFamily {
         if let id = modelId {
             switch id {

@@ -78,7 +78,8 @@ struct AppKitRules {
             "OpenCineAppKitApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion",
         ]
         let system: Set<String> = [
-            "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit", "Vision",
+            "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",
+            "UniformTypeIdentifiers", "Vision",
         ]
         let directory = root.appending(path: "Sources/OpenCineCameraControls")
         let files = (FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?
