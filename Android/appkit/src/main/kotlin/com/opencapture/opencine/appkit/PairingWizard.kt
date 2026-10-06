@@ -165,7 +165,8 @@ public fun CamerasMapping.wizard(model: CamerasModel, wizard: PairingWizard): Mo
         body = wizard.bodies[page],
         target = name ?: "Nothing selected yet",
         hint = hint,
-        progress = wizard.label.takeIf { failure == null && (busy || state.scanning) },
+        // A blocker means discovery is not running (main's scan never started).
+        progress = wizard.label.takeIf { failure == null && (busy || state.scanning && wizard.blocker == null) },
         error = failure?.message,
         devices = if (choosing) {
             state.nearby.map {

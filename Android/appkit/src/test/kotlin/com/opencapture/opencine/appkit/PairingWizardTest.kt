@@ -80,7 +80,7 @@ class PairingWizardTest {
         assertEquals(null, chosen.backAction)
 
         val blocked = CamerasMapping.wizard(model, wizard.copy(blocker = "Turn Bluetooth on"))
-        assertTrue(blocked.primaryAction == "Turn Bluetooth on" && blocked.primaryActionEnabled)
+        assertTrue(blocked.primaryAction == "Turn Bluetooth on" && blocked.primaryActionEnabled && blocked.progress == null)
     }
 
     @Test
