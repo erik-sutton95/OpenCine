@@ -1,0 +1,776 @@
+import Foundation
+import OpenCineAppKit
+import OpenCineCameraVocabulary
+
+/// One write the sheet asks the host to make: the host's own key and a camera label.
+public struct LadderWrite<Key: Equatable & Sendable>: Equatable, Sendable {
+    public let key: Key
+    public let value: String
+
+    public init(key: Key, value: String) {
+        self.key = key
+        self.value = value
+    }
+}
+
+/// A button beside the drum's selected value (Kelvin -10/+10, a codec's two bit depths).
+/// `value` nil disables the button. `lands` true means the written value becomes the drum's value.
+public struct LadderStep: Equatable, Sendable {
+    public let label: String
+    public let value: String?
+    public let description: String
+    public let selected: Bool
+    public let lands: Bool
+
+    public init(
+        label: String, value: String?, description: String, selected: Bool = false,
+        lands: Bool = false
+    ) {
+        self.label = label
+        self.value = value
+        self.description = description
+        self.selected = selected
+        self.lands = lands
+    }
+}
+
+/// One tab: a typed core field (drawn by `MonitorCaptureDrum`) or a label ladder (`MonitorValueDrum`).
+@available(macOS 14, *)
+public struct LadderTab<Key: Equatable & Sendable>: Sendable {
+    public let label: String
+    public let key: Key
+    public let ladder: CaptureLadder
+    public let detail: String?
+    public let activate: LadderWrite<Key>?
+    public let applyOnActivate: Bool
+    public let disabled: Bool
+    public let field: MonitorCaptureField?
+    public let tint: CaptureTint?
+    public let values: (@Sendable (String) -> [String])?
+    public let steps: (@Sendable (String) -> (LadderStep, LadderStep)?)?
+
+    public init(
+        label: String, key: Key, ladder: CaptureLadder, detail: String? = nil,
+        activate: LadderWrite<Key>? = nil, applyOnActivate: Bool = true, disabled: Bool = false,
+        field: MonitorCaptureField? = nil, tint: CaptureTint? = nil,
+        values: (@Sendable (String) -> [String])? = nil,
+        steps: (@Sendable (String) -> (LadderStep, LadderStep)?)? = nil
+    ) {
+        self.label = label
+        self.key = key
+        self.ladder = ladder
+        self.detail = detail
+        self.activate = activate
+        self.applyOnActivate = applyOnActivate
+        self.disabled = disabled
+        self.field = field
+        self.tint = tint
+        self.values = values
+        self.steps = steps
+    }
+}
+
+@available(macOS 14, *)
+public struct LadderSheetPresentation<Key: Equatable & Sendable>: Sendable {
+    public let title: String
+    public let subtitle: String
+    public let tabs: [LadderTab<Key>]
+    public let initialTab: Int
+    public let lock: CaptureLock?
+    public let lockBanner: String?
+
+    public init(
+        title: String, subtitle: String, tabs: [LadderTab<Key>], initialTab: Int = 0,
+        lock: CaptureLock? = nil, lockBanner: String? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.tabs = tabs
+        self.initialTab = initialTab
+        self.lock = lock
+        self.lockBanner = lockBanner
+    }
+}
+
+/// Whether the tabs and the drum accept input, and whether the lock line is showing.
+struct LadderGates: Equatable, Sendable {
+    let tabsEnabled: Bool
+    let drumEnabled: Bool
+    let showBanner: Bool
+}
+
+/// Recording and camera control freeze the whole sheet. Auto and exposure program freeze the drum.
+func ladderGates(sheetLock: CaptureLock?, tabLock: CaptureLock?, enabled: Bool) -> LadderGates {
+    let sheetFrozen = sheetLock?.freezesSheet == true || tabLock?.freezesSheet == true
+    let drumFrozen = sheetFrozen || sheetLock != nil || tabLock != nil
+    return LadderGates(
+        tabsEnabled: enabled && !sheetFrozen,
+        drumEnabled: enabled && !drumFrozen,
+        showBanner: sheetLock != nil || tabLock != nil)
+}
+
+/// Writes fired when `tab` becomes the active tab. A blank landed value is not written.
+@available(macOS 14, *)
+func ladderActivationWrites<Key: Equatable & Sendable>(
+    _ tab: LadderTab<Key>, landed: String
+) -> [LadderWrite<Key>] {
+    var writes: [LadderWrite<Key>] = []
+    if let activate = tab.activate { writes.append(activate) }
+    if tab.applyOnActivate, !landed.isBlank { writes.append(LadderWrite(key: tab.key, value: landed)) }
+    return writes
+}
+
+/// Labels on the drum: a host-grown ladder when the tab has one, otherwise the camera's list.
+@available(macOS 14, *)
+func ladderOptions<Key: Equatable & Sendable>(_ tab: LadderTab<Key>, landed: String) -> [String] {
+    tab.values?(landed) ?? tab.ladder.values
+}
+
+private extension String {
+    var isBlank: Bool {
+        trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+#if os(iOS)
+    import MonitorPresentation
+    import MonitorUI
+    import OpenCineCore
+    import SwiftUI
+
+    private struct LadderOperatorHapticsKey: EnvironmentKey {
+        static let defaultValue = true
+    }
+
+    extension EnvironmentValues {
+        /// Selection haptics for ladder tabs, steps and the tint pad. On unless the host turns them off.
+        public var ladderOperatorHaptics: Bool {
+            get { self[LadderOperatorHapticsKey.self] }
+            set { self[LadderOperatorHapticsKey.self] = newValue }
+        }
+    }
+
+    /// Joined capture tabs. `details` and `disabled` default, so a caller that only selects a tab
+    /// draws the same strip it did before those lines existed.
+    public struct ModeBar: View {
+        private let tabs: [String]
+        private let selected: Int
+        private let enabled: Bool
+        private let uppercase: Bool
+        private let details: [String?]
+        private let disabled: Set<Int>
+        private let onSelect: (Int) -> Void
+        @Environment(\.ladderOperatorHaptics) private var hapticsEnabled
+        @Environment(\.monitorHDRChromeGain) private var hdrGain
+
+        public init(
+            tabs: [String], selected: Int, enabled: Bool, uppercase: Bool = true,
+            details: [String?] = [], disabled: Set<Int> = [], onSelect: @escaping (Int) -> Void
+        ) {
+            self.tabs = tabs
+            self.selected = selected
+            self.enabled = enabled
+            self.uppercase = uppercase
+            self.details = details
+            self.disabled = disabled
+            self.onSelect = onSelect
+        }
+
+        public var body: some View {
+            MonitorTabStrip {
+                ForEach(Array(tabs.enumerated()), id: \.offset) { index, title in
+                    let active = index == selected
+                    let off = disabled.contains(index)
+                    Button {
+                        OperatorSettingsHaptics.selection(enabled: hapticsEnabled)
+                        onSelect(index)
+                    } label: {
+                        tabLabel(title, detail: detail(at: index), active: active)
+                            .padding(.horizontal, 0)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .monitorTabSurface(selected: active, separator: index > 0)
+                    }
+                    .buttonStyle(MonitorTabButtonStyle())
+                    .disabled(!enabled || off)
+                    .opacity(off ? 0.35 : 1)
+                    .accessibilityLabel(title)
+                    .accessibilityAddTraits(active ? .isSelected : [])
+                }
+            }
+        }
+
+        private func detail(at index: Int) -> String? {
+            details.indices.contains(index) ? details[index] : nil
+        }
+
+        @ViewBuilder private func tabLabel(_ title: String, detail: String?, active: Bool) -> some View {
+            let label =
+                Text(uppercase ? title.uppercased() : title)
+                .font(MonitorTheme.font(11, weight: .semibold))
+                .tracking(0.44)
+                .foregroundStyle(active ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.edrMuted(gain: hdrGain))
+                .lineLimit(1)
+            if let detail {
+                VStack(spacing: 0) {
+                    label
+                    Text(detail)
+                        .font(MonitorTheme.font(9.5).monospacedDigit())
+                        .foregroundStyle(
+                            active ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.edrFaint(gain: hdrGain)
+                        )
+                        .lineLimit(1)
+                }
+            } else {
+                label
+            }
+        }
+    }
+
+    /// Label-ladder sheet. Typed tabs draw `MonitorCaptureDrum` and commit through `control`.
+    /// Label tabs draw the shared horizontal drum and report writes through `onWrite`.
+    /// Apps that already have a typed sheet do not construct this.
+    @available(macOS 14, *)
+    public struct LadderSheet<Key: Equatable & Sendable, Footer: View>: View {
+        private let presentation: LadderSheetPresentation<Key>
+        private let enabled: Bool
+        private let onWrite: (LadderWrite<Key>) -> Void
+        private let onClose: () -> Void
+        private let control: MonitorControlModel?
+        private let fromTop: Bool
+        private let error: String?
+        private let unavailable: String?
+        private let onHold: (() -> Void)?
+        private let tintLabel: (CaptureTint) -> String
+        private let tintHelp: String?
+        private let footer: (LadderTab<Key>) -> Footer
+        @State private var selected: Int
+        @State private var landed: [String]
+        @State private var applied: [String]
+        @Environment(\.monitorWindowGeometry) private var windowGeometry
+        @Environment(\.monitorHDRChromeGain) private var hdrGain
+        @Environment(\.ladderOperatorHaptics) private var hapticsEnabled
+
+        public init(
+            presentation: LadderSheetPresentation<Key>, enabled: Bool,
+            onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
+            control: MonitorControlModel? = nil, fromTop: Bool = false, error: String? = nil,
+            unavailable: String? = nil, onHold: (() -> Void)? = nil,
+            tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
+            @ViewBuilder footer: @escaping (LadderTab<Key>) -> Footer
+        ) {
+            self.presentation = presentation
+            self.enabled = enabled
+            self.onWrite = onWrite
+            self.onClose = onClose
+            self.control = control
+            self.fromTop = fromTop
+            self.error = error
+            self.unavailable = unavailable
+            self.onHold = onHold
+            self.tintLabel = tintLabel
+            self.tintHelp = tintHelp
+            self.footer = footer
+            let last = max(presentation.tabs.count - 1, 0)
+            let initial = min(max(presentation.initialTab, 0), last)
+            _selected = State(initialValue: initial)
+            let currents = presentation.tabs.map { $0.ladder.current ?? "" }
+            _landed = State(initialValue: currents)
+            _applied = State(initialValue: currents)
+        }
+
+        public var body: some View {
+            if presentation.tabs.isEmpty {
+                EmptyView()
+            } else {
+                sheet
+            }
+        }
+
+        private var portrait: Bool {
+            let size = windowGeometry.size
+            if size.width <= 0 || size.height <= 0 { return true }
+            return size.height >= size.width
+        }
+
+        private var index: Int {
+            min(max(selected, 0), presentation.tabs.count - 1)
+        }
+
+        private var tab: LadderTab<Key> { presentation.tabs[index] }
+
+        private var gates: LadderGates {
+            ladderGates(sheetLock: presentation.lock, tabLock: tab.ladder.lock, enabled: enabled)
+        }
+
+        private var shown: String {
+            if tab.ladder.lock != nil { return tab.ladder.current ?? "" }
+            return landed.indices.contains(index) ? landed[index] : (tab.ladder.current ?? "")
+        }
+
+        private var sheet: some View {
+            let top = captureTopPadding(fromTop: fromTop, portrait: portrait)
+            let shape = panelShape(fromTop: fromTop, portrait: portrait)
+            return VStack(alignment: .leading, spacing: 8) {
+                header
+                if let error, !error.isBlank {
+                    Text(error)
+                        .font(MonitorTheme.font(11, weight: .medium))
+                        .foregroundStyle(destructive)
+                        .lineLimit(2)
+                }
+                if let unavailable, !unavailable.isBlank {
+                    Text(unavailable)
+                        .font(MonitorTheme.font(11, weight: .medium))
+                        .foregroundStyle(MonitorTheme.edrMuted(gain: hdrGain))
+                        .lineLimit(2)
+                }
+                if gates.showBanner, let banner = presentation.lockBanner, !banner.isBlank {
+                    lockBanner(banner)
+                }
+                drum
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if presentation.tabs.count > 1 {
+                    ModeBar(
+                        tabs: presentation.tabs.map(\.label), selected: index,
+                        enabled: gates.tabsEnabled, details: presentation.tabs.map(\.detail),
+                        disabled: disabledTabs
+                    ) { next in
+                        select(next)
+                    }
+                }
+                footer(tab)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, top)
+            .padding(.bottom, fromTop ? 14 : 11)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .monitorGlass(in: shape, density: .expanded)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("\(presentation.title). \(presentation.subtitle)")
+            .accessibilityIdentifier("ladder_sheet")
+            .contentShape(Rectangle())
+            .onTapGesture {}
+            .modifier(LadderHoldGesture(minimumDuration: 0.45, action: onHold))
+        }
+
+        private var disabledTabs: Set<Int> {
+            Set(presentation.tabs.enumerated().compactMap { $0.element.disabled ? $0.offset : nil })
+        }
+
+        private var header: some View {
+            HStack(alignment: .center, spacing: 9) {
+                Text(presentation.title)
+                    .font(MonitorTheme.font(9, weight: .semibold))
+                    .tracking(1.8)
+                    .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
+                    .lineLimit(1)
+                Text(presentation.subtitle.uppercased())
+                    .font(MonitorTheme.font(8.5))
+                    .tracking(1.19)
+                    .foregroundStyle(MonitorTheme.edrFaint(gain: hdrGain))
+                    .lineLimit(1)
+                    .padding(.bottom, 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(action: onClose) {
+                    MonitorIcon.x.frame(width: 13, height: 13)
+                        .foregroundStyle(MonitorTheme.edrMuted(gain: hdrGain))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(MonitorButtonStyle())
+                .accessibilityLabel("Close camera control")
+            }
+        }
+
+        private func lockBanner(_ text: String) -> some View {
+            HStack(spacing: 8) {
+                MonitorIcon.lock.frame(width: 14, height: 14)
+                    .foregroundStyle(MonitorTheme.edrAccent(gain: hdrGain).opacity(0.9))
+                Text(text)
+                    .font(MonitorTheme.font(11.5, weight: .medium))
+                    .foregroundStyle(MonitorTheme.edrAccent(gain: hdrGain).opacity(0.9))
+                    .lineLimit(2)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(MonitorTheme.edrAccent(gain: hdrGain).opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
+        }
+
+        @ViewBuilder private var drum: some View {
+            if let tint = tab.tint {
+                TintPad(tint: tint, enabled: gates.drumEnabled, labelOf: tintLabel, help: tintHelp) { next in
+                    let text = tintLabel(next)
+                    if gates.drumEnabled, !text.isBlank {
+                        onWrite(LadderWrite(key: tab.key, value: text))
+                    }
+                }
+            } else if let field = tab.field, let control {
+                coreDrum(field, control: control)
+            } else {
+                LabelDrum(
+                    options: ladderOptions(tab, landed: shown),
+                    selection: shown.isBlank ? (ladderOptions(tab, landed: shown).first ?? "") : shown,
+                    marked: tab.ladder.marked, enabled: gates.drumEnabled, haptics: hapticsEnabled,
+                    steps: tab.steps?(shown),
+                    onSelect: { value in
+                        guard gates.drumEnabled, !value.isBlank else { return }
+                        if landed.indices.contains(index) { landed[index] = value }
+                        guard !applied.indices.contains(index) || applied[index] != value else { return }
+                        if applied.indices.contains(index) { applied[index] = value }
+                        onWrite(LadderWrite(key: tab.key, value: value))
+                    },
+                    onStep: { step in
+                        guard let value = step.value, gates.drumEnabled else { return }
+                        if step.lands, landed.indices.contains(index) {
+                            landed[index] = value
+                            if applied.indices.contains(index) { applied[index] = value }
+                        }
+                        onWrite(LadderWrite(key: tab.key, value: value))
+                    }
+                )
+            }
+        }
+
+        private func coreDrum(_ field: MonitorCaptureField, control: MonitorControlModel) -> some View {
+            let options = Set(ladderOptions(tab, landed: shown))
+            let filtered = field.choices.filter { options.contains($0.label) }
+            let choices = filtered.isEmpty ? field.choices : filtered
+            return MonitorCaptureDrum(
+                control: control, field: field, enabled: gates.drumEnabled, haptics: hapticsEnabled,
+                choices: choices, marked: tab.ladder.marked
+            ) { value in
+                guard let label = choices.first(where: { $0.value == value })?.label else { return }
+                if landed.indices.contains(index) { landed[index] = label }
+            }
+        }
+
+        private func select(_ next: Int) {
+            guard presentation.tabs.indices.contains(next) else { return }
+            let candidate = presentation.tabs[next]
+            guard next != index, !candidate.disabled, gates.tabsEnabled else { return }
+            selected = next
+            let landedValue =
+                candidate.ladder.lock != nil
+                ? (candidate.ladder.current ?? "")
+                : (landed.indices.contains(next) ? landed[next] : (candidate.ladder.current ?? ""))
+            for write in ladderActivationWrites(candidate, landed: landedValue) {
+                if write.key == candidate.key, applied.indices.contains(next) {
+                    applied[next] = write.value
+                }
+                onWrite(write)
+            }
+        }
+
+        private var destructive: Color {
+            MonitorTheme.edrSRGB(red: 0.930, green: 0.267, blue: 0.267, gain: hdrGain)
+        }
+    }
+
+    @available(macOS 14, *)
+    extension LadderSheet where Footer == EmptyView {
+        public init(
+            presentation: LadderSheetPresentation<Key>, enabled: Bool,
+            onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
+            control: MonitorControlModel? = nil, fromTop: Bool = false, error: String? = nil,
+            unavailable: String? = nil, onHold: (() -> Void)? = nil,
+            tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil
+        ) {
+            self.init(
+                presentation: presentation, enabled: enabled, onWrite: onWrite, onClose: onClose,
+                control: control, fromTop: fromTop, error: error, unavailable: unavailable,
+                onHold: onHold, tintLabel: tintLabel, tintHelp: tintHelp, footer: { _ in EmptyView() }
+            )
+        }
+    }
+
+    private struct LadderHoldGesture: ViewModifier {
+        let minimumDuration: Double
+        let action: (() -> Void)?
+
+        func body(content: Content) -> some View {
+            if let action {
+                content.onLongPressGesture(minimumDuration: minimumDuration, perform: action)
+            } else {
+                content
+            }
+        }
+    }
+
+    private struct LabelDrum: View {
+        let options: [String]
+        let selection: String
+        let marked: Set<String>
+        let enabled: Bool
+        let haptics: Bool
+        let steps: (LadderStep, LadderStep)?
+        let onSelect: (String) -> Void
+        let onStep: (LadderStep) -> Void
+
+        var body: some View {
+            HStack(spacing: 8) {
+                if let steps {
+                    StepButton(step: steps.0, enabled: enabled, onStep: onStep)
+                }
+                MonitorValueDrum(
+                    options: options,
+                    selection: Binding(get: { selection }, set: onSelect),
+                    markedValues: marked, isInteractive: enabled, haptics: haptics
+                )
+                if let steps {
+                    StepButton(step: steps.1, enabled: enabled, onStep: onStep)
+                }
+            }
+        }
+    }
+
+    private struct StepButton: View {
+        let step: LadderStep
+        let enabled: Bool
+        let onStep: (LadderStep) -> Void
+        @Environment(\.monitorHDRChromeGain) private var hdrGain
+
+        private var live: Bool { enabled && step.value != nil }
+
+        var body: some View {
+            Button {
+                if live { onStep(step) }
+            } label: {
+                Text(step.label)
+                    .font(MonitorTheme.font(11, weight: .semibold))
+                    .foregroundStyle(
+                        step.selected
+                            ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.edrText(gain: hdrGain)
+                    )
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .frame(minWidth: 52, minHeight: 44)
+                    .background(
+                        step.selected
+                            ? MonitorTheme.edrAccent(gain: hdrGain).opacity(0.16) : MonitorTheme.surface,
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                step.selected
+                                    ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.border,
+                                lineWidth: 1
+                            )
+                    }
+            }
+            .buttonStyle(MonitorButtonStyle())
+            .disabled(!live)
+            .opacity(live ? 1 : 0.35)
+            .accessibilityLabel(step.description)
+        }
+    }
+
+    /// Two-axis fine tune. `CaptureTint.amberBlue` nil is a green/magenta-only pad.
+    private struct TintPad: View {
+        let tint: CaptureTint
+        let enabled: Bool
+        let labelOf: (CaptureTint) -> String
+        let help: String?
+        let onChange: (CaptureTint) -> Void
+        @State private var ab: Int
+        @State private var gm: Int
+        @Environment(\.monitorHDRChromeGain) private var hdrGain
+
+        private var horizontal: Bool { tint.amberBlue != nil }
+        private var side: CGFloat { 108 }
+
+        init(
+            tint: CaptureTint, enabled: Bool, labelOf: @escaping (CaptureTint) -> String,
+            help: String?, onChange: @escaping (CaptureTint) -> Void
+        ) {
+            self.tint = tint
+            self.enabled = enabled
+            self.labelOf = labelOf
+            self.help = help
+            self.onChange = onChange
+            _ab = State(initialValue: tint.amberBlue ?? 0)
+            _gm = State(initialValue: tint.greenMagenta)
+        }
+
+        var body: some View {
+            let shown = displayLabel
+            HStack(alignment: .center, spacing: 20) {
+                HStack(spacing: 8) {
+                    if horizontal {
+                        TintArrow(icon: .chevronLeft, enabled: enabled, description: "Shift toward blue") {
+                            emit(ab - 1, gm)
+                        }
+                    }
+                    VStack(spacing: 8) {
+                        TintArrow(icon: .chevronUp, enabled: enabled, description: "Shift toward green") {
+                            emit(ab, gm + 1)
+                        }
+                        pad
+                        TintArrow(icon: .chevronDown, enabled: enabled, description: "Shift toward magenta") {
+                            emit(ab, gm - 1)
+                        }
+                    }
+                    if horizontal {
+                        TintArrow(icon: .chevronRight, enabled: enabled, description: "Shift toward amber") {
+                            emit(ab + 1, gm)
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(shown)
+                        .font(MonitorTheme.font(17, weight: .semibold))
+                        .foregroundStyle(
+                            shown == "Neutral"
+                                ? MonitorTheme.edrMuted(gain: hdrGain) : MonitorTheme.edrAccent(gain: hdrGain)
+                        )
+                        .lineLimit(1)
+                    if let help, !help.isBlank {
+                        Text(help)
+                            .font(MonitorTheme.font(11))
+                            .foregroundStyle(MonitorTheme.edrMuted(gain: hdrGain))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .opacity(enabled ? 1 : 0.45)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Tint \(shown)")
+            .onChange(of: tint.amberBlue) { _, _ in reseed() }
+            .onChange(of: tint.greenMagenta) { _, _ in reseed() }
+        }
+
+        private var displayLabel: String {
+            let text = labelOf(CaptureTint(greenMagenta: gm, amberBlue: horizontal ? ab : nil, range: tint.range))
+            return text.isBlank ? " " : text
+        }
+
+        private var pad: some View {
+            let range = tint.range
+            let thumbX = horizontal ? thumbOffset(ab, range: range, side: side) : side / 2
+            let thumbY = side - thumbOffset(gm, range: range, side: side)
+            return ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(MonitorTheme.surface)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12).stroke(MonitorTheme.border, lineWidth: 1)
+                    }
+                Canvas { context, size in
+                    drawCrosshair(context: context, size: size)
+                }
+                .allowsHitTesting(false)
+                Circle()
+                    .fill(MonitorTheme.edrAccent(gain: hdrGain))
+                    .frame(width: 13, height: 13)
+                    .shadow(radius: 3)
+                    .offset(x: thumbX - 6.5, y: thumbY - 6.5)
+                    .allowsHitTesting(false)
+            }
+            .frame(width: side, height: side)
+            .contentShape(Rectangle())
+            .gesture(drag)
+            .onTapGesture(count: 2) {
+                guard enabled else { return }
+                emit(0, 0)
+            }
+        }
+
+        private var drag: some Gesture {
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    guard enabled else { return }
+                    let x = min(1, max(0, value.location.x / side))
+                    let y = min(1, max(0, value.location.y / side))
+                    if horizontal { ab = cellFromNormalized(x, range: tint.range) }
+                    gm = cellFromNormalized(1 - y, range: tint.range)
+                }
+                .onEnded { _ in
+                    guard enabled else { return }
+                    emit(ab, gm)
+                }
+        }
+
+        private func emit(_ nextAb: Int, _ nextGm: Int) {
+            let range = tint.range
+            let clampedAb = min(range.upperBound, max(range.lowerBound, nextAb))
+            let clampedGm = min(range.upperBound, max(range.lowerBound, nextGm))
+            ab = clampedAb
+            gm = clampedGm
+            onChange(
+                CaptureTint(
+                    greenMagenta: clampedGm, amberBlue: horizontal ? clampedAb : nil, range: range)
+            )
+        }
+
+        private func reseed() {
+            ab = tint.amberBlue ?? 0
+            gm = tint.greenMagenta
+        }
+
+        private func drawCrosshair(context: GraphicsContext, size: CGSize) {
+            let stroke: CGFloat = 1
+            let inset: CGFloat = 18
+            var vertical = Path()
+            vertical.move(to: CGPoint(x: size.width / 2, y: inset))
+            vertical.addLine(to: CGPoint(x: size.width / 2, y: size.height - inset))
+            var horizontal = Path()
+            horizontal.move(to: CGPoint(x: inset, y: size.height / 2))
+            horizontal.addLine(to: CGPoint(x: size.width - inset, y: size.height / 2))
+            context.stroke(vertical, with: .color(MonitorTheme.border), lineWidth: stroke)
+            context.stroke(horizontal, with: .color(MonitorTheme.border), lineWidth: stroke)
+        }
+    }
+
+    private struct TintArrow: View {
+        let icon: MonitorIcon
+        let enabled: Bool
+        let description: String
+        let onClick: () -> Void
+        @Environment(\.monitorHDRChromeGain) private var hdrGain
+
+        var body: some View {
+            Button(action: { if enabled { onClick() } }) {
+                icon.frame(width: 18, height: 18)
+                    .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
+                    .frame(width: 28, height: 28)
+                    .background(glassBright, in: Circle())
+            }
+            .buttonStyle(MonitorButtonStyle())
+            .disabled(!enabled)
+            .accessibilityLabel(description)
+        }
+
+        private var glassBright: Color {
+            MonitorTheme.edrSRGB(red: 94 / 255, green: 98 / 255, blue: 98 / 255, gain: hdrGain, alpha: 0.18)
+        }
+    }
+
+    private func captureTopPadding(fromTop: Bool, portrait: Bool) -> CGFloat {
+        if !fromTop { return 11 }
+        return portrait ? 12 : 16
+    }
+
+    private func panelShape(fromTop: Bool, portrait: Bool) -> UnevenRoundedRectangle {
+        let corner: CGFloat = 16
+        let top: CGFloat = !fromTop || portrait ? corner : 0
+        let bottom: CGFloat = fromTop || portrait ? corner : 0
+        return UnevenRoundedRectangle(
+            topLeadingRadius: top, bottomLeadingRadius: bottom,
+            bottomTrailingRadius: bottom, topTrailingRadius: top)
+    }
+
+    /// Half towards positive infinity, matching the pad's cell rounding.
+    private func cellFromNormalized(_ t: CGFloat, range: ClosedRange<Int>) -> Int {
+        let clamped = min(1, max(0, Double(t)))
+        let value = Double(range.lowerBound) + clamped * Double(range.upperBound - range.lowerBound)
+        let rounded = Int(floor(value + 0.5))
+        return min(range.upperBound, max(range.lowerBound, rounded))
+    }
+
+    private func thumbOffset(_ value: Int, range: ClosedRange<Int>, side: CGFloat) -> CGFloat {
+        let span = CGFloat(max(range.upperBound - range.lowerBound, 1))
+        let clamped = min(range.upperBound, max(range.lowerBound, value))
+        return CGFloat(clamped - range.lowerBound) / span * side
+    }
+#endif
