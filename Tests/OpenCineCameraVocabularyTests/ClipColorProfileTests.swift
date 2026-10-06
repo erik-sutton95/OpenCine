@@ -48,6 +48,20 @@ import Testing
         #expect(ClipColorProfile.colorMode(fromMP4: Data(tail)) == .dLog2)
     }
 
+    /// Moved from both apps' LUTAssistTests (was `ClipColorProfileIO`).
+    @Test func readsColorGammaFromFileTail() throws {
+        let mp4 = Self.mp4(gamma: "D-Log2", padMdat: 4096)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("opc-clip-color-\(UUID().uuidString).mp4")
+        try mp4.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(ClipColorProfile.colorMode(at: url) == .dLog2)
+        #expect(
+            ClipColorProfile.shotColor(at: url, path: "DCIM/DJI_001/clip.LRF") == nil,
+            "LRF Rec.709 must not drive Auto")
+        #expect(ClipColorProfile.shotColor(at: url, path: "DCIM/DJI_001/clip.MP4") == .dLog2)
+    }
+
     @Test func missingKeysIsNotAColor() {
         let empty = Self.box("ftyp", Data("isomisom".utf8))
         #expect(ClipColorProfile.colorMode(fromMP4: empty) == nil)

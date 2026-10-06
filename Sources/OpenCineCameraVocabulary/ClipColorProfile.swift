@@ -33,6 +33,38 @@ public enum ClipColorProfile: Sendable {
         return colorMode(fromMP4: data)
     }
 
+    /// Shot color of a downloaded file: reads the `moov` tail, not the 4K `mdat`.
+    public static func colorMode(at url: URL) -> ColorMode? {
+        guard let data = fileTail(at: url) else { return nil }
+        return colorMode(fromMP4: data)
+    }
+
+    public static func shotColor(at url: URL, path: String) -> ColorMode? {
+        guard !MediaHTTP.isProxyPath(path) else { return nil }
+        return colorMode(at: url)
+    }
+
+    /// The last ``fileTailBytes`` of a local file.
+    public static func fileTail(at url: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        let size: UInt64
+        do {
+            size = try handle.seekToEnd()
+        } catch {
+            return nil
+        }
+        guard size > 0 else { return nil }
+        let window = UInt64(fileTailBytes)
+        let start = size > window ? size - window : 0
+        do {
+            try handle.seek(toOffset: start)
+            return try handle.readToEnd()
+        } catch {
+            return nil
+        }
+    }
+
     /// HTTP Range for the `moov` tail. Camera `/v2` already answers Range.
     public static func httpRange(fileSize: UInt64) -> String {
         let window = UInt64(fileTailBytes)
