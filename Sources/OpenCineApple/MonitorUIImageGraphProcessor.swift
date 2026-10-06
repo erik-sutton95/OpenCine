@@ -129,11 +129,13 @@ public final class MonitorUIImageGraphProcessor<Settings: Equatable> {
         return filter.outputImage ?? input
     }
 
+    /// The graded half: the right half side by side, the bottom half top over bottom (Core Image y
+    /// points up, so the bottom half is the low-y half), as `MonitorImageCompositor` splits.
     private func splitting(_ graded: CIImage, over source: CIImage, extent: CGRect, vertical: Bool?) -> CIImage {
         guard let vertical, extent.width > 0, extent.height > 0 else { return graded }
         let half = vertical
             ? CGRect(x: extent.midX, y: extent.minY, width: extent.width / 2, height: extent.height)
-            : CGRect(x: extent.minX, y: extent.midY, width: extent.width, height: extent.height / 2)
+            : CGRect(x: extent.minX, y: extent.minY, width: extent.width, height: extent.height / 2)
         return graded.cropped(to: half).composited(over: source.cropped(to: extent))
     }
 }
