@@ -8,10 +8,13 @@
         public var name: String
         /// How nearby cameras are found, under NEARBY ("announcing over Bluetooth").
         public var nearbyNote: String
+        /// A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped.
+        public var renamesSetups: Bool
 
-        public init(name: String, nearbyNote: String = "announcing over Bluetooth") {
+        public init(name: String, nearbyNote: String = "announcing over Bluetooth", renamesSetups: Bool = true) {
             self.name = name
             self.nearbyNote = nearbyNote
+            self.renamesSetups = renamesSetups
         }
     }
 
@@ -129,7 +132,7 @@
                     onMultiview: actions.multiview, onWatchFeed: actions.watchFeed,
                     onIntegrationAction: actions.integrationAction,
                     extraNearby: extraNearby, onExtraNearby: actions.extraNearby ?? { _ in },
-                    onPrivacy: actions.privacy, onTerms: actions.terms)
+                    onPrivacy: actions.privacy, onTerms: actions.terms, renamesSetups: brand.renamesSetups)
             }
         }
     }

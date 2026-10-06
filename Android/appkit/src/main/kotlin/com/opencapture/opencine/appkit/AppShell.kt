@@ -14,6 +14,8 @@ public data class ShellBrand(
     public val name: String,
     /** How nearby cameras are found, under NEARBY ("announcing over Bluetooth"). */
     public val nearbyNote: String = "announcing over Bluetooth",
+    /** A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped. */
+    public val renamesSetups: Boolean = true,
 )
 
 /** The app's own actions the shared pages offer (Swift `ShellActions`). `null` hides an entry. */
@@ -96,7 +98,7 @@ public fun AppShell(
                             nearbyNote = brand.nearbyNote, onMultiview = actions.multiview,
                             onIntegrationAction = actions.integrationAction,
                             extraNearby = extraNearby, onExtraNearby = actions.extraNearby ?: {},
-                            onPrivacy = actions.privacy, onTerms = actions.terms,
+                            onPrivacy = actions.privacy, onTerms = actions.terms, renamesSetups = brand.renamesSetups,
                         )
                     }
                 }
