@@ -60,6 +60,9 @@
         /// The reported status as the sheets show it (a pending white balance request over the
         /// reported one, where the session keeps one).
         var displayStatus: CameraStatus { get }
+        /// The capture strip shows an ISO, shutter speed or custom white balance request at once,
+        /// through the common readout. False: it shows what the camera reported until it answers.
+        var captureStripShowsPendingEdits: Bool { get }
         var connectedCameraID: UUID? { get }
         /// The connected body, or nil before one is known.
         var connectedBody: CameraModel? { get }

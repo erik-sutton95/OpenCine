@@ -61,6 +61,9 @@ public final class MonitorControlModel {
 
     /// Operator copy for an outcome that is not a confirmation (and for refusing to send).
     @ObservationIgnored public var onNote: (String) -> Void = { _ in }
+    /// The copy for a finished write or record (`note(for:_:)` by default); `nil` stays silent.
+    /// A host may keep its own.
+    @ObservationIgnored public var noteFor: (CommandStage, String) -> String? = { MonitorControlModel.note(for: $0, $1) }
     /// A record operation finished (any stage), for the app's follow-up (refresh media).
     @ObservationIgnored public var onRecordFinished: (CommandReceipt) -> Void = { _ in }
     /// The reported state or a pending target changed: for projections that still copy it.
@@ -244,7 +247,8 @@ public final class MonitorControlModel {
         let current = binding
         Task { [weak self] in
             let receipt = await Self.finished(command, on: session)
-            self?.finish(key, operation, current, note: Self.note(for: receipt.stage, label))
+            guard let self else { return }
+            self.finish(key, operation, current, note: self.noteFor(receipt.stage, label))
         }
     }
 
@@ -368,7 +372,7 @@ public final class MonitorControlModel {
             guard self.binding == current, self.recordOperation == operation else { return nil }
             self.finishRecord(
                 operation, current,
-                note: Self.note(for: receipt.stage, intent == .startRecording ? "Record" : "Stop"),
+                note: self.noteFor(receipt.stage, intent == .startRecording ? "Record" : "Stop"),
                 receipt: receipt)
             return receipt
         }
