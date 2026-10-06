@@ -493,6 +493,10 @@ Android `MotionProgramSessionTest` depends on test order; OpenCine
 `MonitorReaderWriterMediaExporterTests` and some Nikon Android instrumented tests are
 sensitive to machine load.
 
+Stale tests updated to `main`'s behavior (each failed on `main` the same way and passes there
+after the update, as strict as before): Pocket iOS `testSettingsTabsShareEdgesAndKeepSelection`,
+now `testSettingsTabsKeepBaselineSpacingAndSelection` (the tabs are 6 pt apart, as on `main`).
+
 ## 8. Fixed during the migration
 
 Regressions the lanes found against `main` and fixed (automated tests pin each one). Re-check
