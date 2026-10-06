@@ -21,6 +21,7 @@
             stores.audio.persist()
             stores.nd.persist()
             stores.trafficLights.persist()
+            stores.zebraUnit = .native
             stores.reference.setCenter(
                 CGPoint(x: 10, y: 10), in: CGRect(x: 0, y: 0, width: 100, height: 100))
             let keys = Set(storage.dictionaryRepresentation().keys.filter { $0.hasPrefix("App.") })
@@ -29,6 +30,7 @@
                     "App.WaveformAssist.v1", "App.ParadeAssist.v1", "App.VectorscopeAssist.v1",
                     "App.HistogramAssist.v1", "App.Assist.audio.v1", "App.Assist.ndMeter.v1",
                     "App.Assist.trafficLights.v1", "App.Assist.falseColorReference.positions.v1",
+                    "App.zebraUnit",
                 ])
         }
     }
