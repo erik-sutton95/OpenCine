@@ -39,4 +39,6 @@ include(
     ":insta360-shell", ":insta360-luna",
     // Shared app shell: saved cameras, connection model, cameras and pair screens.
     ":appkit",
+    // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
+    ":camera-controls",
 )
