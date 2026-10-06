@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorPalette
@@ -27,6 +29,7 @@ import com.opencapture.monitorui.monitorChromeClickable
 /**
  * The card over the monitor while a camera connection recovers: a spinner while [retrying], else
  * the unplugged glyph, the host's [title] and [detail], and the retry and operator menu actions.
+ * [actionMinHeight] lets a host hold the actions to a minimum touch target; unspecified keeps the pill height.
  */
 @Composable
 public fun MonitorRecoveryOverlay(
@@ -38,6 +41,7 @@ public fun MonitorRecoveryOverlay(
     onRetry: () -> Unit,
     onOperatorMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    actionMinHeight: Dp = Dp.Unspecified,
 ) {
     Box(
         modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.34f)),
@@ -79,8 +83,9 @@ public fun MonitorRecoveryOverlay(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                RecoveryAction(retryTitle, MonitorIcon.REFRESH_CW, accent = true, modifier = Modifier.weight(1f), onClick = onRetry)
-                RecoveryAction(operatorMenuTitle, MonitorIcon.CHEVRON_LEFT, accent = false, modifier = Modifier.weight(1f), onClick = onOperatorMenu)
+                val action = Modifier.defaultMinSize(minHeight = actionMinHeight)
+                RecoveryAction(retryTitle, MonitorIcon.REFRESH_CW, accent = true, modifier = action.weight(1f), onClick = onRetry)
+                RecoveryAction(operatorMenuTitle, MonitorIcon.CHEVRON_LEFT, accent = false, modifier = action.weight(1f), onClick = onOperatorMenu)
             }
         }
     }
