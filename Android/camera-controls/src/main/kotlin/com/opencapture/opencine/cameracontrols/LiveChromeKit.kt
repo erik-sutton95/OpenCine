@@ -46,6 +46,9 @@ internal object LiveType {
     fun ui(size: Float, weight: FontWeight = FontWeight.Normal) = MonitorTypography.text(size, weight)
 
     fun text(size: Float, weight: FontWeight = FontWeight.Normal) = MonitorTypography.text(size, weight)
+
+    fun mono(size: Float, weight: FontWeight = FontWeight.Medium) =
+        MonitorTypography.text(size, weight).copy(fontFeatureSettings = "tnum")
 }
 
 internal val ChromeShape = RoundedCornerShape(LiveDesign.CORNER_RADIUS_DP.dp)
