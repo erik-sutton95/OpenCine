@@ -102,18 +102,32 @@ fun ModeBar(
     selected: Int,
     enabled: Boolean,
     uppercase: Boolean = true,
+    /** A second line under a tab's title (a base ISO's range); null for none. */
+    details: List<String?> = emptyList(),
+    /** Tabs the camera refuses now: dimmed and inert. */
+    disabled: Set<Int> = emptySet(),
     onSelect: (Int) -> Unit,
 ) {
     val haptics = LocalOperatorHaptics.current
     Row(Modifier.fillMaxWidth().monitorTabStrip()) {
         tabs.forEachIndexed { index, title ->
             val active = index == selected
-            MonitorTab(active, { haptics.selection(); onSelect(index) }, Modifier.weight(1f), enabled = enabled,
+            val off = index in disabled
+            MonitorTab(active, { haptics.selection(); onSelect(index) },
+                Modifier.weight(1f).then(if (off) Modifier.alpha(0.35f) else Modifier), enabled = enabled && !off,
                 separator = index > 0, accessibilityLabel = title, horizontalPadding = 0.dp) {
-                Text(if (uppercase) title.uppercase() else title,
-                    style = LiveType.ui(11f, FontWeight.SemiBold).copy(letterSpacing = .44.sp),
-                    color = if (active) LiveDesign.accent else LiveDesign.muted, maxLines = 1,
-                    textAlign = TextAlign.Center)
+                val label = @Composable {
+                    Text(if (uppercase) title.uppercase() else title,
+                        style = LiveType.ui(11f, FontWeight.SemiBold).copy(letterSpacing = .44.sp),
+                        color = if (active) LiveDesign.accent else LiveDesign.muted, maxLines = 1,
+                        textAlign = TextAlign.Center)
+                }
+                val detail = details.getOrNull(index)
+                if (detail == null) label() else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    label()
+                    Text(detail, style = LiveType.mono(9.5f), color = if (active) LiveDesign.accent else LiveDesign.faint,
+                        maxLines = 1)
+                }
             }
         }
     }
