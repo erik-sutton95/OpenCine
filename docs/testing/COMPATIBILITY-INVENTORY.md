@@ -83,8 +83,8 @@ their registered refs.
 | `AppRoot.liveOperatorPanel` (projects `shell.cover` for native panels) | app composition; follow-up P-6 when the panels read the shell cover directly |
 | `Sources/OpenPocketViewCore` DJI twins with no Swift owner: `LiveChromeThrottle`, `GamepadOperator`, `SavedCamera` (`CameraConnectionSetup`, `CameraWifiResolution`, `FoundCameraIdentity`), `SessionRecoveryCopy` | main parity; follow-up P-2 (`ConnectionPhase` is now OpenCineCameraVocabulary's `CameraConnectionPhase`) |
 | `PlaybackVideoLayout`, `GimbalStickLuma`, `ExposureMeterReading`, `CameraWiFiQRCode`, `PlaybackAudio.AudioLevelTapBox`, `rememberPlaybackMonitorGlass`, `GlassChrome`, `CameraMedia.cacheEntries` | main parity |
-| Theme forwarders `BrandColors`, `OpcFonts`, `LiveType`, `LiveDesign` (brand tokens mixed with `MonitorPalette`/`MonitorTypography` pass-throughs) | app composition; pass-through members are follow-up P-1 |
-| Typealias bridges to shared types: 191 on the union (Swift and Kotlin) | see "Retired here"; the remaining heavy aliases are follow-up P-1 |
+| Theme forwarders `BrandColors`, `OpcFonts`, `LiveType`, `LiveDesign` (brand tokens mixed with `MonitorPalette`/`MonitorTypography` pass-throughs) | app composition; the mixed tokens stay in the app. P-1 retired the identity aliases and left these |
+| Typealias bridges to shared types: 191 on the union (Swift and Kotlin) | see "Retired here"; the remaining heavy aliases were follow-up P-1 and are now retired |
 | Tooling copied between the apps (`scripts/android-stage-swift-core.sh`, `checkout-opencine.sh`, release-note and tester-note scripts) | app composition; follow-up X-2 (parameterized copies in OpenCine `scripts/`) |
 | Source sync | none: Pocket was the donor and never carried sync tooling |
 
@@ -251,7 +251,7 @@ Kotlin `LiveAssistTool` and `OpcIcon`, and the assist type aliases beside them, 
 | O-1 | OpenCine, Pocket | Rename the Pocket-named DJI session types | add, migrate, remove across a release |
 | O-2 | OpenCine | `MonitorMediaLibraryModel` original constructor | apps calling it positionally |
 | O-3 | OpenCine | Atlas Insta `source-copy` edges, products and docs | the authorized merge of `integration/thin-app` |
-| P-1 | Pocket | Heavy alias and theme pass-through renames still open: `ChromeRect` 80, `PocketDispSection` 72, iOS `LiveImageEffects`, `FalseColorScaleKind`, `FoundCamera`, and the 62 lighter alias renames. Kotlin `LiveAssistTool` and `OpcIcon` now use the shared names | churn across files other lanes edit |
+| P-1 | Pocket | Done: file-level identity aliases now use the shared names (`ChromeRect`, `PocketDispSection`, iOS `LiveImageEffects`, `FalseColorScaleKind`, `FoundCamera` as `DjiAppleSighting`, and the lighter bridges). Generic `AppModel` bindings, each view core's `ConnectionPhase`, and the mixed theme tokens stay | none |
 | P-2 | Pocket, Insta | Swift owners in OpenCineCameraVocabulary for the view-core twins (`CameraConnectionPhase`, `LiveViewLink`, `LiveFeedWarmup` moved; each view core keeps `ConnectionPhase` as a typealias); `WatchRelayState.snapshot` stays per app (the vocabulary takes no relay edge; only its wrist copy differs) | new shared owner |
 | P-3 | Pocket, Insta, Nikon | Portable false-colour lattice in OpenCineMedia | new shared owner |
 | P-4 | Pocket | Tracking-bracket geometry, number-pad input, playback pan, media path helpers, Kotlin `ClipColorProfile`, iOS reliability reporting, `FeedIncidentQueue` glue, `MediaSessionLink` | expose or extend shared owners |
