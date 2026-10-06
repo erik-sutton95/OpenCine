@@ -215,6 +215,12 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:appkit"
+    },
+    {
+      "name": ":camera-controls",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:camera-controls"
     }
   ],
   "layers": {
@@ -252,7 +258,8 @@
       "OpenCineAppKit",
       "OpenCineAppKitTests",
       "OpenCineAppUITesting",
-      ":appkit"
+      ":appkit",
+      ":camera-controls"
     ],
     "multicam": [
       "OpenCineMulticam",
@@ -290,6 +297,13 @@
       "HarnessTests"
     ]
   },
+  "allowed_target_edges": [
+    {
+      "from": ":camera-controls",
+      "to": ":camera-vocabulary",
+      "reason": "Camera control views (app composition, next to appkit) read the camera vocabulary; ui -> vendor stays forbidden everywhere else (AGENTS.md, camera controls)."
+    }
+  ],
   "instructions": [
     "AGENTS.md",
     "README.md"

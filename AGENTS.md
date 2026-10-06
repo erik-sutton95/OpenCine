@@ -90,6 +90,12 @@ package dependency.
   a native sample bus or runtime owner. Views take values and actions; brand variation is a theme value.
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Media, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
+- Camera controls (`camera-controls`) hold the capture sheets, live chrome and gimbal views over the
+  camera vocabulary. App composition, next to the app shell: they build on the camera vocabulary,
+  UI, the app shell, Core, Media and Motion, never on DJI or another integration, an app or a
+  third-party package. App differences arrive as host values (label profile, state, theme), never
+  as brand branches. Their edge to the camera vocabulary is the one listed in atlas
+  `allowed_target_edges`; UI itself still never builds on an integration.
 - The harness targets are developer-only and SIMULATED: never make them products.
 - Nothing depends on `atlas/` at build time.
 
@@ -130,6 +136,11 @@ Never grow the common command interface into an enum of vendor features.
   `com.opencapture.opencine.vocabulary`): the Kotlin twin of `OpenCineCameraVocabulary`, same type
   names. Core, Media and the motion package only, no byte code (`CameraVocabularyImportRuleTest`);
   `dji` depends on it and keeps the wire members as extensions in its `*Wire.kt` files.
+- Camera controls Android (`Android/camera-controls`, package
+  `com.opencapture.opencine.cameracontrols`): imports and dependencies are pinned by
+  `CameraControlsRulesTest`, which also rejects manufacturer and app names. A sheet list, cycle or
+  exhaustive `when` that moves here keeps each app's main list; every app keeps a `PickerListsTest`
+  that pins them.
 - DJI Android (`Android/dji`): keep the JNI class `com.opencapture.opencine.dji.DjiNative` and its
   member names; `Sources/OpenCineDJIAndroid` exports `Java_com_opencapture_opencine_dji_DjiNative_*`,
   so change both sides in step and compare `llvm-nm -D` of an app's `.so` with the `external fun`s.

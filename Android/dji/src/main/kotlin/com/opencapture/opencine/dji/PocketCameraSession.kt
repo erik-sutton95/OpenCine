@@ -34,6 +34,7 @@ import com.opencapture.opencine.platform.LocalVPNProbe
 import com.opencapture.opencine.vocabulary.AudioPin
 import com.opencapture.opencine.vocabulary.AutoExposureLock
 import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CaptureWheels
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraFocusPolicy
 import com.opencapture.opencine.vocabulary.CameraModel
