@@ -72,7 +72,8 @@ still owns the rail, layout, diagnostics and help controls. This replaces the or
 and its extra content for that render; passing `nil` (Kotlin `null`) resumes the connection
 model's progress and recovery presentation. Discovery keeps the same pairing lifecycle.
 
-Setup chips offer Rename setup even for a camera's only route. The cameras and pair pages accept
+Setup chips offer Rename setup even for a camera's only route, unless the app passes
+`ShellBrand.renamesSetups` false (Pocket and Insta, whose setup menus had Forget only). The cameras and pair pages accept
 optional `onPrivacy` and `onTerms` actions; `ShellActions.privacy` and `.terms` forward them through
 `AppShell`. Apps keep their existing URLs or in-app legal documents. These actions do not alter
 connection state or own discovery.

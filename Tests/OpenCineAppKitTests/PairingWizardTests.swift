@@ -42,6 +42,9 @@ import Testing
                     hint: "Choose the camera that matches your screen", progress: "Live label",
                     instructions: [.init(title: "Check first", icon: .phone, lines: ["Quit the other app."])],
                     emptyTitle: "Looking for cameras", primaryAction: "Continue"))
+        var blocked = Self.wizard
+        blocked.discoveryFailure = T.failure
+        #expect(CamerasMapping.wizard(model, blocked).emptyTitle == "No cameras yet")
 
         fake.publish([T.sighting])
         #expect(await eventually { !model.nearby.isEmpty })

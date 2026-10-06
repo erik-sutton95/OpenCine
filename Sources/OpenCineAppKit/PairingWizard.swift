@@ -108,7 +108,9 @@ extension CamerasMapping {
             error: failure?.message,
             devices: choosing ? model.nearby.map { device($0, in: model, busy: busy) } : [],
             instructions: instructions, checks: checks,
-            emptyTitle: choosing && model.nearby.isEmpty ? model.scanning ? "Looking for cameras" : "No cameras yet" : nil,
+            // A failure stops the scan, as main's session phase did.
+            emptyTitle: choosing && model.nearby.isEmpty
+                ? model.scanning && failure == nil ? "Looking for cameras" : "No cameras yet" : nil,
             primaryAction: failure.map { $0.actions.contains(.openSettings) ? "Open Settings" : "Try again" }
                 ?? (choosing ? "Continue" : nil),
             primaryActionEnabled: failure != nil || (selected != nil && !busy),
