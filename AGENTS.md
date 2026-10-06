@@ -147,7 +147,8 @@ Never grow the common command interface into an enum of vendor features.
   `com.opencapture.opencine.cameracontrols`): imports and dependencies are pinned by
   `CameraControlsRulesTest`, which also rejects manufacturer and app names. A sheet list, cycle or
   exhaustive `when` that moves here keeps each app's main list; every app keeps a `PickerListsTest`
-  that pins them.
+  that pins them. Engines it may not import (ML Kit, the native-runtime scope bus and GPU previews,
+  Media3) stay in the apps and arrive as a backend (`FaceDetectionBackend`), a value or a slot.
 - DJI Android (`Android/dji`): keep the JNI class `com.opencapture.opencine.dji.DjiNative` and its
   member names; `Sources/OpenCineDJIAndroid` exports `Java_com_opencapture_opencine_dji_DjiNative_*`,
   so change both sides in step and compare `llvm-nm -D` of an app's `.so` with the `external fun`s.

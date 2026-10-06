@@ -73,6 +73,8 @@ public fun CamerasScreen(
     onExtraNearby: (String) -> Unit = {},
     onPrivacy: (() -> Unit)? = null,
     onTerms: (() -> Unit)? = null,
+    /** A setup chip's menu offers Rename setup. */
+    renamesSetups: Boolean = true,
 ) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
@@ -153,8 +155,10 @@ public fun CamerasScreen(
                 onForgetSetup = { chip ->
                     camera?.routes?.firstOrNull { it.id.text == chip.id }?.let { model.forgetRoute(it.id, camera.id) }
                 },
-                onRenameSetup = { chip ->
+                onRenameSetup = if (renamesSetups) { chip ->
                     camera?.routes?.firstOrNull { it.id.text == chip.id }?.let { renamingSetup = camera.id to it }
+                } else {
+                    null
                 },
                 steps = item.steps,
                 failure = item.failure,

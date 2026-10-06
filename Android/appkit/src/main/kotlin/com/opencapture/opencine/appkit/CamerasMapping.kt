@@ -98,7 +98,7 @@ public object CamerasMapping {
     /** Sightings that are not saved cameras. */
     public fun nearby(model: CamerasModel): List<CameraItem> {
         val state = model.state.value
-        return state.nearby.filter { sighting -> state.saved.none { matches(sighting, it) } }.map { device(it, state) }
+        return state.nearby.filter { sighting -> state.saved.none { matches(sighting, it) } }.map { device(it, state, model) }
     }
 
     /** The chip title: the operator's setup name, else the shell's name for the kind. */
@@ -227,15 +227,16 @@ public object CamerasMapping {
         )
     }
 
-    internal fun device(sighting: CamerasModel.Sighting, state: CamerasModel.State): CameraItem {
+    internal fun device(sighting: CamerasModel.Sighting, state: CamerasModel.State, model: CamerasModel): CameraItem {
         val camera = sighting.camera
         val held = camera.availability != Availability.Available
+        val copy = model.entries.firstOrNull { it.integration.id == sighting.integration }?.slots?.nearbyCard?.invoke(camera)
         return CameraItem(
             id = camera.id,
-            name = camera.name,
-            subtitle = if (camera.model.isEmpty()) "nearby" else "${camera.model} · nearby",
+            name = copy?.name ?: camera.name,
+            subtitle = copy?.subtitle ?: if (camera.model.isEmpty()) "nearby" else "${camera.model} · nearby",
             badge = if (held) "IN USE" else "NEW",
-            status = if (held) "In use by another device" else "Ready to pair",
+            status = if (held) "In use by another device" else copy?.status ?: "Ready to pair",
             actionTitle = "Pair",
             isPrimary = state.selection == camera.id,
             isBusy = ConnectTarget.Nearby(camera).cameraID in state.attempts,

@@ -8,10 +8,13 @@
         public var name: String
         /// How nearby cameras are found, under NEARBY ("announcing over Bluetooth").
         public var nearbyNote: String
+        /// A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped.
+        public var renamesSetups: Bool
 
-        public init(name: String, nearbyNote: String = "announcing over Bluetooth") {
+        public init(name: String, nearbyNote: String = "announcing over Bluetooth", renamesSetups: Bool = true) {
             self.name = name
             self.nearbyNote = nearbyNote
+            self.renamesSetups = renamesSetups
         }
     }
 
@@ -67,18 +70,20 @@
         let actions: ShellActions
         let safeArea: (GeometryProxy) -> EdgeInsets
         let extraNearby: [CameraListItem]
+        let pairingFlow: IntegrationPairingFlow?
         let prePage: (EdgeInsets) -> PrePage?
         let monitor: (ShellModel.Monitor) -> Monitor
         let page: (ShellModel.Cover) -> Page
 
         /// `safeArea` turns the pages' geometry into the insets they lay out in. `extraNearby`:
-        /// the app's own NEARBY rows on the cameras page. `prePage`: the app's own page before
+        /// the app's own NEARBY rows on the cameras page. `pairingFlow`: the app's own rail and
+        /// actions on the pair page (`PairScreen.pairingFlow`). `prePage`: the app's own page before
         /// the shared ones (a first-pair wizard, a connect in progress), shown instead of the
         /// cameras or pair page while it returns one.
         public init(
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
             safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
-            extraNearby: [CameraListItem] = [],
+            extraNearby: [CameraListItem] = [], pairingFlow: IntegrationPairingFlow? = nil,
             prePage: @escaping (EdgeInsets) -> PrePage?,
             @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
             @ViewBuilder page: @escaping (ShellModel.Cover) -> Page
@@ -88,6 +93,7 @@
             self.actions = actions
             self.safeArea = safeArea
             self.extraNearby = extraNearby
+            self.pairingFlow = pairingFlow
             self.prePage = prePage
             self.monitor = monitor
             self.page = page
@@ -115,7 +121,7 @@
                 PairScreen(
                     model: model.cameras, safeArea: insets, onDone: { model.endPairing() },
                     onDiagnostics: actions.diagnostics, onReportProblem: actions.reportProblem,
-                    onWatchFeed: actions.watchFeed, onPrivacy: actions.privacy,
+                    onWatchFeed: actions.watchFeed, pairingFlow: pairingFlow, onPrivacy: actions.privacy,
                     onTerms: actions.terms)
             } else {
                 CamerasScreen(
@@ -126,7 +132,7 @@
                     onMultiview: actions.multiview, onWatchFeed: actions.watchFeed,
                     onIntegrationAction: actions.integrationAction,
                     extraNearby: extraNearby, onExtraNearby: actions.extraNearby ?? { _ in },
-                    onPrivacy: actions.privacy, onTerms: actions.terms)
+                    onPrivacy: actions.privacy, onTerms: actions.terms, renamesSetups: brand.renamesSetups)
             }
         }
     }
@@ -136,11 +142,12 @@
         public init(
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
             safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
+            pairingFlow: IntegrationPairingFlow? = nil,
             @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
             @ViewBuilder page: @escaping (ShellModel.Cover) -> Page
         ) {
             self.init(
-                model: model, brand: brand, actions: actions, safeArea: safeArea,
+                model: model, brand: brand, actions: actions, safeArea: safeArea, pairingFlow: pairingFlow,
                 prePage: { _ in nil }, monitor: monitor, page: page)
         }
     }

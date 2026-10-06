@@ -191,14 +191,14 @@ Insta [differences tables](#differences-from-main-openpocketcine).
 | # | Check | Steps | Expected | Changed |
 |---|---|---|---|---|
 | C1 | Upgrade keeps your data | Install `main`, pair a camera, rename it, star a clip, change a few assists and settings. Install the integration build over it. | Same cameras, names, saved Wi-Fi, favorites and preferences; no new pairing or camera approval | Saved cameras and settings stores (`OpenCineAppKit`) |
-| C2 | Permissions | Deny Bluetooth or Local Network (iOS), Nearby devices (Android 12+) or Location (Android 10-11), then pair. | Error names the fix and offers Open Settings (Insta iOS Bluetooth: ID-10) | Cameras and pair pages (`OpenCineAppKit`); Android permission gate (`appkit`) |
-| C3 | First pair | Cameras → pair a new camera → Continue → approve on the camera → accept the Wi-Fi join. | Live picture once; the card keeps its name after relaunch | Pair page, connection flow, integration session |
+| C2 | Permissions | Deny Bluetooth or Local Network (iOS), Nearby devices (Android 12+) or Location (Android 10-11), then pair. | Error names the fix, in `main`'s words. iOS: Open Settings where only Settings fixes it (a denied permission), Try again when Bluetooth is off (ID-10). Android: the pair page's primary action asks for the permission or turns Bluetooth on | Cameras and pair pages (`OpenCineAppKit`); Android permission gate (`appkit`) |
+| C3 | First pair | Cameras → pair a new camera → Continue → approve on the camera → accept the Wi-Fi join. Also Pair on a nearby card. | The four pair pages as on `main` (find, approve, join camera Wi-Fi, open the video link); Pair on a nearby card starts at once; live picture once; the card keeps its name after relaunch (PD-1, ID-5, ID-6) | Pair page, connection flow, integration session |
 | C4 | Reconnect | Relaunch, Connect on the saved card. Cancel once during scan, approval or join. | No password or approval prompt; Cancel stops the attempt cleanly | Same |
-| C5 | Forget | Forget a saved camera, then pair it again. | Card gone; on iOS its saved Wi-Fi too. Android also drops the Wi-Fi today (PD-3, ID-12) | Saved cameras store |
+| C5 | Forget | Forget a saved camera, then pair it again. | Card gone; on iOS its saved Wi-Fi too. Android also drops the Wi-Fi (kept fix: PD-3, ID-12) | Saved cameras store |
 | C6 | Link loss and recovery | Toggle phone Wi-Fi briefly; background and foreground; open Media or Settings and come back. | Last picture stays, live returns without re-pairing, no black or frozen picture, no stuck "Waiting for live view" | Native live video runtime and recovery (`OpenCineApple`, `native-runtime`, `vulkan`) |
 | C7 | Live HUD | Battery, storage, format, timecode, REC row; DISP clean view; Fit/Fill where offered; Lock; portrait and landscape; iPad window resize (iOS). | Same readouts as `main`, nothing clipped or missing; Lock blocks every control | `AppShell`, `MonitorScreen` (`OpenCineAppKit`, `MonitorUI`); Android live chrome buttons (`camera-controls`) |
 | C8 | Camera controls | Change ISO, shutter (and angle), white balance, EV, format/fps and mode. | Lands on what the camera reports within about 3 s; refused or unapplied writes say so (PD-4, ID-1) | Common control seam (`OpenCineCore`), the integration; Android capture sheets (`camera-controls`) |
-| C9 | Record | Record and stop with the on-screen button, with and without Record Confirmation where offered; hardware or gamepad trigger where the app supports it. | Camera starts or stops exactly once; the lamp follows the camera (PD-7) | Same |
+| C9 | Record | Record and stop with the on-screen button, with and without Record Confirmation where offered; hardware or gamepad trigger where the app supports it. | Camera starts or stops exactly once; the lamp follows the camera; right after connecting, record waits for the camera's first record state (kept fix: PD-7) | Same |
 | C10 | Exposure assists | Peaking, zebra, false color (each mode), EV meter, traffic lights, ND suggestions; open the palette in landscape. | Overlays line up with the picture; same result as `main` on the same scene; the open palette covers the values bar | Assist state, sampling and views (`OpenCineApple`, `OpenCineMedia`, `MonitorUI`) |
 | C11 | Scopes | Waveform, parade, histogram, vectorscope; drag and resize each. | Same traces as `main`; moving a scope never blacks out or reconnects the feed | Scope plots and sampling (`MonitorUI`, `OpenCineMedia`) |
 | C12 | Looks and framing | LUT Auto (also on a downloaded log clip in playback), a creative LUT and a custom `.cube`; guides, grid, crosshair, de-squeeze, mirror, level. | Same picture as `main`; custom LUT survives relaunch | Media math (`OpenCineMedia`), clip color profile reader (Android `media`), monitor UI |
@@ -237,7 +237,7 @@ iPad), Android 10+.
 
 | # | Check | Platforms | Steps | Expected | Changed |
 |---|---|---|---|---|---|
-| P1 | Per-body layout | both | Connect each body you have. | Tiles match `main`, except PD-5 and PD-6 | Layout from DJI capabilities (`OpenCineDJI`) |
+| P1 | Per-body layout | both | Connect each body you have. | Tiles match `main`, except PD-5 | Layout from DJI capabilities (`OpenCineDJI`) |
 | P2 | Wi-Fi and Hotspot setups | both | Add setup → Wi-Fi or Hotspot, connect; force a failure. | One Add setup, offered only while a setup kind is missing; 4-step progress (up to about 1 min); failure offers Edit setup, Try again, Camera Wi-Fi | `OpenCineDJIApple`, `dji` connection bootstrap |
 | P3 | Focus, zoom, tracking | both | Tap to focus, long-press AE-L, tap a face, double-tap for object tracking; zoom chip, pinch, disc; FOCUS tile; APERTURE on Action 6. Zoom while recording in D-Log2. | Same as `main`; zoom limited per FORMAT; in D-Log2 zoom stays locked while recording, with the note | Apple camera control owners (`OpenCineDJIApple`), Android `camera-controls` |
 | P4 | Gimbal | both | Joystick (size, invert, dead zone); Mode, Speed, Ramp; double-tap Recenter or Level; Motion Control A/B/C with Loop; game controller. Open the Motion editor and tap outside it; relaunch with a paused move. | Same motion as `main`; gimbal stops when you let go; the editor takes its touches; a paused move survives launch | Gimbal control owner (`OpenCineDJIApple`), `OpenCineMotion`, `camera-controls` |
@@ -253,22 +253,23 @@ The app's own detailed list: the "Physical device checklist" in OpenPocketCine
 ### Differences from `main` (OpenPocketCine)
 
 Recorded in the app's own doc, OpenPocketCine `docs/OPENCINE-INTEGRATION.md`, "What changes for
-users" (line numbers at `f64d26a8`). Pocket must match `main` 1:1, so none is accepted: a parity
-lane restores them after the insta lanes.
+users" (line numbers at `f64d26a8`). Pocket must match `main` 1:1. The parity lane (2026-10-06)
+checked each row against `main` (27b15028): restored to main; kept fix, your call (`main`'s
+behavior was a defect, see [Kept fixes](#kept-fixes-your-call)); or already matched main.
 
 | Row | Difference | Recorded in | Status |
 |---|---|---|---|
-| PD-1 | Cameras and pairing on the shared flow: Continue on a nearby camera; the saved card shows its own attempt and typed failure actions (Open Settings) | lines 58-62 | to be restored to main |
-| PD-2 | A malformed saved-camera record no longer wipes the readable ones | lines 65-66 | to be restored to main |
-| PD-3 | Android Forget also drops the camera's saved Wi-Fi (iOS did on `main`) | lines 66-67 | to be restored to main |
+| PD-1 | Cameras and pairing on the shared flow: Continue on a nearby camera; the saved card shows its own attempt and typed failure actions (Open Settings) | lines 58-62 | restored to main (also: Pair on a nearby card starts at once, nearby cards say "Needs approval on the camera", the Wi-Fi caption is the phase label, no Rename setup on setup chips, the iPhone hotspot ask names the camera) |
+| PD-2 | A malformed saved-camera record no longer wipes the readable ones | lines 65-66 | kept fix, your call |
+| PD-3 | Android Forget also drops the camera's saved Wi-Fi (iOS did on `main`) | lines 66-67 | kept fix, your call |
 | PD-4 | iOS HUD shows a pending ISO or WB value until the camera reports it | lines 71-73 | to be restored to main |
 | PD-5 | Nano shows no live timecode (it never reports one) | lines 74-77 | to be restored to main |
-| PD-6 | Android: APERTURE sheet and drum only on Action 6; FOCUS from the body's declaration | lines 77-79 | to be restored to main |
-| PD-7 | Record sends start or stop for the reported state; right after connecting it says "Waiting for the camera's record state" | lines 80-81 | to be restored to main |
-| PD-8 | After a link change the watch says "Camera changed. Try again." instead of acting | lines 82-83 | to be restored to main |
-| PD-9 | Android scopes, zebra and false color use the clip ceiling of the feed they show (Multiview tile, playback) | lines 84-85 | to be restored to main |
-| PD-10 | Multiview: start or stop per camera after a re-check, per-tile results, Photo mode disables Record all and its tile record, the confirmation closes on a replaced link (Android as iPhone) | lines 86-91 | to be restored to main |
-| PD-11 | Frame.io (iPhone): ids with `/ ? # \`, spaces or control characters refused; a refresh without a refresh token keeps the old one; a cancelled batch says "Cancelled." | lines 92-95 | to be restored to main |
+| PD-6 | Android: APERTURE sheet and drum only on Action 6; FOCUS from the body's declaration | lines 77-79 | already matched main (`main` also showed APERTURE only on Action 6 and FOCUS only on Pocket 3, 4 and 4 Pro) |
+| PD-7 | Record sends start or stop for the reported state; right after connecting it says "Waiting for the camera's record state" | lines 80-81 | kept fix, your call (`main` also sent start or stop, never a toggle, but assumed "not recording" before the first report) |
+| PD-8 | After a link change the watch says "Camera changed. Try again." instead of acting | lines 82-83 | kept fix, your call |
+| PD-9 | Android scopes, zebra and false color use the clip ceiling of the feed they show (Multiview tile, playback) | lines 84-85 | kept fix, your call |
+| PD-10 | Multiview: start or stop per camera after a re-check, per-tile results, Photo mode disables Record all and its tile record, the confirmation closes on a replaced link (Android as iPhone) | lines 86-91 | start or stop per camera, re-check and per-tile results: already matched main. Photo mode and the Android confirmation closing on a mode change: kept fix, your call |
+| PD-11 | Frame.io (iPhone): ids with `/ ? # \`, spaces or control characters refused; a refresh without a refresh token keeps the old one; a cancelled batch says "Cancelled." | lines 92-95 | ids and refresh token: kept fix, your call. A cancelled batch: already matched main (no failed count on either) |
 
 Test-fixture-only differences (simulator `UIReview` builds, never on a device): the review
 starts from the first-run palette order, its player controls work without the private test
@@ -285,7 +286,7 @@ Insta360 app on every nearby phone before pairing. No Multiview (as on `main`).
 | I2 | Reconnect timings | both | Wi-Fi off mid-live, back on; Bluetooth off. | "Reconnecting", then "Connection keeps dropping" at about 45 s with Retry. Android: live again in about 30 s with no tap; Bluetooth off keeps live over saved Wi-Fi (about 8 s) | Same |
 | I3 | Modes and capture | both | Record in Video, Timelapse, TimeShift, Slow Motion, PureVideo; take a Photo. | Lamp waits for the camera, timer runs, stop saves a file | Common control seam (`OpenCineCore`) |
 | I4 | Camera settings | both | ISO Auto/100-6400 (incl. 160); shutter 1/8000-1/5 and angle; WB Auto/2000-10000 K (applies 3.5-5 s later, dial holds); EV in thirds; FORMAT drum; Standard, I-Log, Dolby Vision; METER Matrix/Face. | Values and lists match `main` and what the camera reports | Same, camera vocabulary |
-| I5 | Focus, zoom, Deep Track | both | FOCUS AF-S, AF-C, Product Showcase; tap focus; long-press locks the box; zoom 1/2/3/6/15x and pinch; Deep Track by double-tap, drag or face. | Search box turns green on lock; zoom to 15x (readout: ID-2) | Zoom and focus with common receipts, `camera-controls` |
+| I5 | Focus, zoom, Deep Track | both | FOCUS AF-S, AF-C, Product Showcase; tap focus; long-press locks the box; zoom 1/2/3/6/15x and pinch; Deep Track by double-tap, drag or face. | Search box turns green on lock; zoom to 15x on iPhone, the Android chip stops at 12x, as on `main` (ID-2) | Zoom and focus with common receipts, `camera-controls` |
 | I6 | I-Log look | both | LUT → Auto on I-Log. iOS: flat I-Log preview preference. | Official I-Log to Rec.709 look ("Auto · I-Log → Rec.709" on Android) | `OpenCineMedia` (golden I-Log anchors) |
 | I7 | Gimbal | both | Stick and game controller; Roll Lock, Roll & Tilt, FPV, FPV-V; speed; Recenter; Flip; Double-tap Level; Motion Control A/B/C; open the Motion editor and tap outside it. iOS: AirPods head tracking (C22). | Level within 0.4° in about 2 s; Motion Control counts down, loops, pauses, stops; the editor takes its touches | `OpenCineMotion`, shared motion settings, `camera-controls` |
 | I8 | `.lrv` media | both | Album thumbnails (proxies hidden), download an original, play a `.lrv` with scopes and LUT, delete. | Delete also removes the `.lrv`; cached clips play offline | Luna media producer, shared library and playback |
@@ -298,24 +299,25 @@ OpenInstaCine `docs/implementation/opencine-integration.md`.
 ### Differences from `main` (OpenInstaCine)
 
 Recorded in the app's own doc, OpenInstaCine `docs/implementation/opencine-integration.md`,
-"What changes for users" (line numbers at `fc5e13b6`). Insta must match `main` 1:1, so none is
-accepted: a parity lane restores them after the insta lanes.
+"What changes for users" (line numbers at `fc5e13b6`). Insta must match `main` 1:1. The parity
+lane (2026-10-06) checked each row against `main` (35b6f33b): restored to main; kept fix, your
+call (see [Kept fixes](#kept-fixes-your-call)); or already matched main.
 
 | Row | Difference | Recorded in | Status |
 |---|---|---|---|
 | ID-1 | A write shows confirmed only after the camera reports it; a refused, unapplied or timed-out write says so | lines 162-164 | to be restored to main |
-| ID-2 | Zoom readout reaches 15x (`main` clamped readouts to 12x) | lines 165-166 | to be restored to main |
+| ID-2 | Zoom readout reaches 15x (`main` clamped readouts to 12x) | lines 165-166 | already matched main (iPhone `main` set the ceiling to 15x; the Android chip stopped at 12x then and now) |
 | ID-3 | Clean view settings offer no AUDIO pin | lines 173-174 | to be restored to main |
-| ID-4 | iPhone Settings with no camera connected shows no gimbal, joystick, head-tracking, zoom chip or timecode rows | lines 174-177 | to be restored to main |
-| ID-5 | Pair page rail "Find your camera" then four connect steps (`main`: four Luna pages); one instruction card per prompt, no Luna body text, check list or VPN banner during an attempt | lines 186-189 | to be restored to main |
-| ID-6 | Pair on a nearby card opens the pair page with it selected (Continue starts it) | lines 189-190 | to be restored to main |
-| ID-7 | Nearby card reads "Ready to pair", "Luna Ultra · nearby" (iOS; `main` "Insta360 · nearby"), "Insta360 Luna Ultra · nearby" (Android; `main` "Pocket · ...") | lines 190-192 | to be restored to main |
-| ID-8 | Android offline card says "Not found. Power it on to reconnect" | lines 192-193 | to be restored to main |
-| ID-9 | Connecting card caption is the prompt ("Tap Join when iOS asks...") instead of the phase | lines 193-194 | to be restored to main |
-| ID-10 | iOS offers Open Settings when Bluetooth is off or not allowed | line 195 | to be restored to main |
-| ID-11 | One undecodable saved record no longer empties the list on the next save | lines 195-196 | to be restored to main |
-| ID-12 | Android Forget also drops the camera's saved Wi-Fi (iOS did on `main`) | lines 196-197 | to be restored to main |
-| ID-13 | iOS "on the camera network" tests the Luna's 192.168.42.x (`main` tested Pocket's 192.168.2.x, never true) | lines 197-198 | to be restored to main |
+| ID-4 | iPhone Settings with no camera connected shows no gimbal, joystick, head-tracking, zoom chip or timecode rows | lines 174-177 | restored to main (iPhone; Android already matched: Timecode listed, gimbal and zoom need a camera) |
+| ID-5 | Pair page rail "Find your camera" then four connect steps (`main`: four Luna pages); one instruction card per prompt, no Luna body text, check list or VPN banner during an attempt | lines 186-189 | restored to main |
+| ID-6 | Pair on a nearby card opens the pair page with it selected (Continue starts it) | lines 189-190 | restored to main |
+| ID-7 | Nearby card reads "Ready to pair", "Luna Ultra · nearby" (iOS; `main` "Insta360 · nearby"), "Insta360 Luna Ultra · nearby" (Android; `main` "Pocket · ...") | lines 190-192 | restored to main ("Insta360 · nearby", "Needs approval on the camera"); Android uses iPhone `main`'s words instead of its "Pocket · ...": kept fix, your call |
+| ID-8 | Android offline card says "Not found. Power it on to reconnect" | lines 192-193 | kept fix, your call (no em dash: iPhone `main`'s "Not found. Power it on to reconnect"; Android `main` used an em dash) |
+| ID-9 | Connecting card caption is the prompt ("Tap Join when iOS asks...") instead of the phase | lines 193-194 | restored to main |
+| ID-10 | iOS offers Open Settings when Bluetooth is off or not allowed | line 195 | restored to main (Bluetooth off or not ready: `main`'s words with Try again; not allowed: Open Settings) |
+| ID-11 | One undecodable saved record no longer empties the list on the next save | lines 195-196 | kept fix, your call |
+| ID-12 | Android Forget also drops the camera's saved Wi-Fi (iOS did on `main`) | lines 196-197 | kept fix, your call |
+| ID-13 | iOS "on the camera network" tests the Luna's 192.168.42.x (`main` tested Pocket's 192.168.2.x, never true) | lines 197-198 | kept fix, your call |
 
 Accepted, stays (coordinator decision): a saved camera that still carries a hotspot setup
 connects from that chip over the camera's own Wi-Fi, without `main`'s "Turn on Personal
@@ -327,6 +329,29 @@ connecting card shows the Luna step "Joining camera Wi-Fi" (`main`'s review went
 DJI adapter: "Moving the camera to Studio-5G"), the review camera gets a zoom range so the zoom
 chip shows, the review starts from the first-run palette order and its player controls work
 without the private test clip.
+
+### Kept fixes (your call)
+
+Where `main`'s behavior was a defect (data loss, security or privacy, a wrong-camera or blind
+action, or a check that could never work), the parity lane kept the fix instead of restoring
+`main`. Each is your call: say which to restore and it goes back.
+
+| Row | What `main` did | Why it is a defect | What you see now |
+|---|---|---|---|
+| PD-2, ID-11 | iOS decoded the saved list in one piece; one bad record returned an empty list and the next save overwrote every camera | Data loss | Unreadable records are kept; the readable ones load |
+| PD-3, ID-12 | Android Forget removed the card but left the camera's Wi-Fi name and password stored | Privacy | Forget also drops the stored Wi-Fi (as iOS always did) |
+| PD-7 | Record sent start or stop, but before the camera's first report it assumed "not recording", so a camera already recording got Start | Blind action | Right after connecting, record waits for the camera's first record state ("Waiting for the camera's record state") |
+| PD-8 | Watch and watcher-relay commands carried no camera id and ran on whichever camera was live | Wrong camera | After a link change the watch says "Camera changed. Try again." |
+| PD-9 | Android kept one clip ceiling for every feed: after an ISO 1600 clip, live ISO 800 clipping (231-247) went unflagged in false colour, the legend and the waveform until the next scope tap; Multiview tiles overwrote each other | Measurement correctness (coordinator) | Each feed (live, Multiview tile, playback) has its own ceiling |
+| PD-10 | A camera in Photo mode got the video record frame from Record all or its tile; on Android the confirmation stayed open across a mode change | Blind action, stale plan (coordinator) | Photo mode disables Record all and that tile's record; the Android confirmation closes on a mode or capability change, as on iPhone |
+| PD-11 | Frame.io ids from the server went into authenticated request paths unchecked; a refresh without a refresh token stored none, so every later request failed until Disconnect and Connect | Security, token handling | Bad ids are refused before any request; the previous refresh token is kept |
+| ID-7 (Android) | The nearby card said "Pocket · Luna Ultra · nearby" (the DJI fork's family name on a Luna) | Wrong camera named (coordinator) | iPhone `main`'s "Insta360 · nearby" with "Needs approval on the camera" |
+| ID-8 | The Android offline card read "Not found" + em dash + "power it on to reconnect" | Copy rule: no em dash in UI copy | iPhone `main`'s "Not found. Power it on to reconnect" |
+| ID-13 | iOS "on the camera network" tested Pocket's 192.168.2.x, never true on a Luna, so "Leave camera Wi-Fi?" never appeared before Frame.io and uploads ran on the camera Wi-Fi | A check that could never work | The check tests the Luna's 192.168.42.x |
+
+Deliberate copy difference in both apps: every `main` string with an em dash (Pocket pair page
+body, hint and instruction lines; the offline card) uses the period or comma OpenInstaCine
+iPhone `main` used for the same line.
 
 ## 6. OpenZCine
 

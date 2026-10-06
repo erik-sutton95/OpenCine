@@ -27,6 +27,8 @@
         /// calls `onExtraNearby` with the row id.
         public var extraNearby: [CameraListItem]
         public var onExtraNearby: (String) -> Void
+        /// A setup chip's menu offers Rename setup.
+        public var renamesSetups: Bool
 
         @State private var adding: SavedCamera?
 
@@ -37,10 +39,11 @@
             onMultiview: (() -> Void)? = nil, onWatchFeed: (() -> Void)? = nil,
             onIntegrationAction: ((String, String) -> Void)? = nil,
             extraNearby: [CameraListItem] = [], onExtraNearby: @escaping (String) -> Void = { _ in },
-            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil
+            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil, renamesSetups: Bool = true
         ) {
             self.model = model
             self.brandName = brandName
+            self.renamesSetups = renamesSetups
             self.nearbyNote = nearbyNote
             self.safeArea = safeArea
             self.onPair = onPair
@@ -85,11 +88,12 @@
                     guard let action = CamerasMapping.action(action, of: id, in: model) else { return }
                     handle(model.perform(action, for: id))
                 },
-                onRenameSetup: { id, route, name in
-                    if let camera = camera(id), let route = routeID(route, of: camera) {
-                        model.renameRoute(route, of: id, to: name)
-                    }
-                },
+                onRenameSetup: renamesSetups
+                    ? { id, route, name in
+                        if let camera = camera(id), let route = routeID(route, of: camera) {
+                            model.renameRoute(route, of: id, to: name)
+                        }
+                    } : nil,
                 onPrivacy: onPrivacy, onTerms: onTerms
             )
             .sheet(item: $adding) { camera in
@@ -235,7 +239,7 @@
     }
 
     @MainActor
-    private func openSettings() {
+    func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
     }
 

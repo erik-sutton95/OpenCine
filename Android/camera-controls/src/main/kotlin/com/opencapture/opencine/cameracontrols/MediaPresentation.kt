@@ -3,6 +3,7 @@ package com.opencapture.opencine.cameracontrols
 import com.opencapture.opencine.vocabulary.MediaClipFormatting
 import com.opencapture.opencine.vocabulary.MediaFile
 import com.opencapture.opencine.vocabulary.MediaKind
+import com.opencapture.opencine.vocabulary.MediaLibraryTab
 
 enum class MediaBrowserLayout {
     GRID,
@@ -91,6 +92,27 @@ object MediaLibraryCopy {
         "Nothing cached on this phone. Connect the camera to list clips on the body."
     const val PROXY_TAG = "Proxy"
     const val PROXY_HELP = "720p preview. Connect the camera to share the original."
+
+    fun headerTitle(category: MediaLibraryTab): String =
+        when (category) {
+            MediaLibraryTab.ALL -> "All clips"
+            MediaLibraryTab.VIDEOS -> "Videos"
+            MediaLibraryTab.PHOTOS -> "Photos"
+            MediaLibraryTab.FAVORITES -> "Favorites"
+        }
+
+    /** The empty gallery's line: offline (with or without listed clips), filtered, or the tab's own. */
+    fun emptySubtitle(isLive: Boolean, hasListedClips: Boolean, activeFilterCount: Int, category: MediaLibraryTab): String =
+        when {
+            !isLive ->
+                if (!hasListedClips) DISCONNECTED
+                else DISCONNECTED_EMPTY_CACHE
+            activeFilterCount > 0 -> FILTER_EMPTY
+            category == MediaLibraryTab.FAVORITES -> EMPTY_FAVORITES
+            category == MediaLibraryTab.VIDEOS -> EMPTY_VIDEOS
+            category == MediaLibraryTab.PHOTOS -> EMPTY_PHOTOS
+            else -> EMPTY_ALL
+        }
 }
 
 object MediaOperatorCopy {

@@ -166,6 +166,11 @@ public final class CamerasModel {
         for cameraID in Array(attempts.keys) { cancel(cameraID) }
     }
 
+    /// Clears a camera's last failure without connecting (a pair page back to choosing).
+    public func dismissFailure(_ cameraID: String) {
+        failures[cameraID] = nil
+    }
+
     /// The app closed the live session, or it ended: discovery resumes.
     public func sessionEnded() {
         connected = nil

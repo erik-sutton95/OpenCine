@@ -38,7 +38,12 @@ public class IntegrationSlots(
     public val addRoute: (@Composable (camera: SavedCamera, done: (RouteDraft?) -> Unit) -> Unit)? = null,
     /** Renders an integration prompt; without it the prompt's text shows. */
     public val prompt: (@Composable (IntegrationPrompt) -> Unit)? = null,
+    /** The app's words for a nearby camera's card and pair-page row; null keeps the shell's. */
+    public val nearbyCard: ((NearbyCamera) -> NearbyCardCopy)? = null,
 )
+
+/** A nearby camera's name, subtitle and status as the app words them (a camera held by another device keeps the shell's status). */
+public data class NearbyCardCopy(val name: String, val subtitle: String, val status: String)
 
 /**
  * The shared connection flow over the app's integrations (Swift `CamerasModel`): saved cameras,
@@ -208,6 +213,11 @@ public class CamerasModel(
 
     public fun cancelAll() {
         for (cameraID in mutable.value.attempts.keys.toList()) cancel(cameraID)
+    }
+
+    /** Clears a camera's last failure without connecting (a pair page back to choosing). */
+    public fun dismissFailure(cameraID: String) {
+        update { it.copy(failures = it.failures - cameraID) }
     }
 
     /** The app closed the live session, or it ended: discovery resumes. */

@@ -146,10 +146,11 @@ class LunaIntegrationTest {
         runCurrent()
         val progress = events.filterIsInstance<ConnectionEvent.Progress>()
         assertTrue(progress.all { it.progress.steps == LunaIntegration.STEPS })
+        // The Wi-Fi step reads its phase (main's caption).
         assertEquals(
-            listOf("NEGOTIATING 0 -", "AWAITING_APPROVAL 0 approve: Approve on the camera",
-                "JOINING_NETWORK 1 join LUNA-1A2B: Tap Join when Android asks to join the camera network", "LINK 2 -"),
-            progress.map { "${it.progress.phase} ${it.progress.current} ${it.prompt?.let(::describe) ?: "-"}" },
+            listOf("NEGOTIATING 0 - -", "AWAITING_APPROVAL 0 approve: Approve on the camera -",
+                "JOINING_NETWORK 1 - Joining camera Wi-Fi…", "LINK 2 - -"),
+            progress.map { "${it.progress.phase} ${it.progress.current} ${it.prompt?.let(::describe) ?: "-"} ${it.progress.note ?: "-"}" },
         )
         val saved = assertIs<ConnectionEvent.Connected>(events.last()).camera.saved
         assertTrue(saved.id == camera && saved.integration == luna.id && saved.lastConnected == 1_759_307_200_000)
