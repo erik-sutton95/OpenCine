@@ -157,7 +157,7 @@ Still to do from the same sweep: 12 Kotlin aliases that instrumented tests use a
 |---|---|
 | Monitor slots | no whole-screen slot remains: iOS `NikonMonitorShell` and Android `MonitorScreen` mount the shared monitor through bounded slots; the Android `MonitorShell` placeholder is retired (Pocket mounts its monitor with no core gate) |
 | Compatibility projection | none: the panels read the shared control model's pending targets at read time (iOS) and the shared `MonitorFieldLayout` directly (Android); retired by the nikon-z1 lane |
-| Native runtime | no duplicate: the app ships no shader, SPIR-V or native code and loads OpenCine's assets; `scripts/check-gles-shaders.sh` lints the OpenCine copy (follow-up X-1: move it into OpenCine `scripts/`) |
+| Native runtime | no duplicate: the app ships no shader, SPIR-V or native code and loads OpenCine's assets; `scripts/check-gles-shaders.sh` lints those shaders and the OpenZCine recipe calls it |
 | Test-only frozen donors (`:frozen-vulkan-donor`, `FrozenNikon*`, parity tests, about 4,700 lines) | stay until the Z-3 parity checkpoint closes |
 | `Sources/OpenZCineAndroidFacade` (25 exports `Java_com_opencapture_openzcine_bridge_SwiftCore_*`, Frame.io, LUT, scope, playback-audio and feed-effects wires), `AndroidLiveViewPolicyWire` | brand wire format; the dead export `feedEffectsScalars` and the ignored policy parameters are follow-up Z-4 (both sides in step) |
 | Monitor relay (`_openzcine-mon._tcp`, version 2, JPEG and HEVC), watch wire (`WatchRelayProtocolV1.json` with the Wear twin), Kotlin `core-api` relay types | brand wire format; converging on OpenCineRelay/OpenCineWatch is follow-up Z-5 |
@@ -271,6 +271,6 @@ Kotlin `LiveAssistTool` and `OpcIcon`, and the assist type aliases beside them, 
 | Z-6 | Nikon | Discovery into an Apple Nikon integration target | hardware-qualified reason |
 | Z-7 | Nikon | Android Operator Settings onto camera-controls `OperatorSetupScreen` | camera-controls moving its Assist and Display tabs onto the monitor-ui owners Nikon already uses (`MonitorViewAssistSettings`, `MonitorDisplaySettings`) |
 | Z-8 | Nikon (both platforms) | Edit view eyes for REC, the video clock and the lock button (configurable, but no eye on either platform) | a parity decision for both platforms; Android's shared `MonitorStatusChrome` already takes `recordingModifier` and `clockModifier` |
-| X-1 | Nikon, OpenCine | `check-gles-shaders.sh` into OpenCine | none |
+| X-1 | Nikon, OpenCine | Done. `scripts/check-gles-shaders.sh` lives in OpenCine. The OpenZCine recipe calls it. | none |
 | X-2 | all apps | Shared release and staging scripts | new shared tooling |
 | X-3 | Pocket, Insta | Stale references found while retiring: Pocket `tools/performance-status-probe.sh` calls `AndroidSessionWire.statusJSON`, which no longer exists; three links in Pocket `docs/audits/*.md` point at moved view-core files; Insta `docs/implementation/architecture.md` and the handbook `protocol/ucd2-frame.md` name the moved `Adapters/Insta360Protocol` | docs and tooling refresh |
