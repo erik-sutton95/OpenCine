@@ -28,7 +28,8 @@
         }
 
         /// Live Photo / Photo is Rec.709; do not label a stale D-Log conversion.
-        public static let photoRec709Caption = "Photo live view is Rec.709 \u{2014} log conversions are off"
+        public static let photoRec709Caption =
+            "Photo live view is Rec.709 \u{2014} log conversions are off"
     }
 
     /// The camera session the LUT picker binds Auto to, read by the app from its model.
@@ -403,15 +404,30 @@
         }
     }
 
-    /// Reference monitor `AccentDrumWheel` subset used by the LUT picker.
-    private struct LUTDrumWheel<Palette: LiveChromePalette>: View {
+    /// The vertical LUT wheel: the snapped row is the selection.
+    public struct LUTDrumWheel<Palette: LiveChromePalette>: View {
         let options: [String]
         @Binding var selection: String
+        /// Options flagged with a small star (a recommended look); empty draws none.
+        var markedValues: Set<String> = []
         var wheelHeight: CGFloat = 146
+        /// A long-press delete for removable options; nil keeps the wheel read-only.
+        var onDeleteOption: ((String) -> Void)? = nil
 
         private let rowHeight: CGFloat = 52
 
-        var body: some View {
+        public init(
+            options: [String], selection: Binding<String>, markedValues: Set<String> = [],
+            wheelHeight: CGFloat = 146, onDeleteOption: ((String) -> Void)? = nil
+        ) {
+            self.options = options
+            _selection = selection
+            self.markedValues = markedValues
+            self.wheelHeight = wheelHeight
+            self.onDeleteOption = onDeleteOption
+        }
+
+        public var body: some View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -423,9 +439,12 @@
                 }
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(
-                    id: Binding(get: { selection }, set: { if let value = $0 { selection = value } })
+                    id: Binding(
+                        get: { selection }, set: { if let value = $0 { selection = value } })
                 )
-                .contentMargins(.vertical, max(0, (wheelHeight - rowHeight) / 2), for: .scrollContent)
+                .contentMargins(
+                    .vertical, max(0, (wheelHeight - rowHeight) / 2), for: .scrollContent
+                )
                 .frame(height: wheelHeight)
                 .sensoryFeedback(.selection, trigger: selection)
                 .mask {
@@ -452,21 +471,51 @@
             }
         }
 
-        private func optionRow(_ option: String, isCentered: Bool) -> some View {
-            Text(option)
+        @ViewBuilder private func optionRow(_ option: String, isCentered: Bool) -> some View {
+            let row = label(option, isCentered: isCentered)
+                .foregroundStyle(isCentered ? Palette.accent : Palette.muted.opacity(0.7))
+                .frame(maxWidth: .infinity)
+                .frame(height: rowHeight)
+                .contentShape(Rectangle())
+                .id(option)
+            if let onDeleteOption {
+                row
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            onDeleteOption(option)
+                        } label: {
+                            Label("Delete LUT", systemImage: "trash")
+                        }
+                    }
+                    .accessibilityAction(named: Text("Delete \(option)")) {
+                        onDeleteOption(option)
+                    }
+            } else {
+                row
+            }
+        }
+
+        @ViewBuilder private func label(_ option: String, isCentered: Bool) -> some View {
+            let text = Text(option)
                 .font(
                     .system(
                         size: isCentered ? 30 : 23,
                         weight: isCentered ? .semibold : .regular,
                         design: .monospaced)
                 )
+                // Long values shrink to fit the row rather than truncating.
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
-                .foregroundStyle(isCentered ? Palette.accent : Palette.muted.opacity(0.7))
-                .frame(maxWidth: .infinity)
-                .frame(height: rowHeight)
-                .contentShape(Rectangle())
-                .id(option)
+            if markedValues.contains(option) {
+                HStack(spacing: 6) {
+                    text
+                    Image(systemName: "star.fill")
+                        .font(.system(size: isCentered ? 13 : 10))
+                        .opacity(0.85)
+                }
+            } else {
+                text
+            }
         }
     }
 #endif
