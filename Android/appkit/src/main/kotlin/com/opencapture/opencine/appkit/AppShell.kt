@@ -14,6 +14,8 @@ public data class ShellBrand(
     public val name: String,
     /** How nearby cameras are found, under NEARBY ("announcing over Bluetooth"). */
     public val nearbyNote: String = "announcing over Bluetooth",
+    /** A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped. */
+    public val renamesSetups: Boolean = true,
 )
 
 /** The app's own actions the shared pages offer (Swift `ShellActions`). `null` hides an entry. */
@@ -44,7 +46,8 @@ public class ShellActions(
  * cameras and pair pages. [pageFrame] wraps those two pages in the app's insets. [extraNearby]:
  * the app's own NEARBY rows on the cameras page. [prePage]: the app's own page before the shared
  * ones (a first-pair wizard, a connect in progress), shown instead of the cameras or pair page
- * while it is set.
+ * while it is set. [pairingFlow]: the app's own rail and actions on the pair page
+ * ([PairScreen]'s `pairingFlow`).
  */
 @Composable
 public fun AppShell(
@@ -57,6 +60,7 @@ public fun AppShell(
     pageFrame: @Composable (route: ShellModel.Route, content: @Composable () -> Unit) -> Unit = { _, content -> content() },
     extraNearby: List<CameraItem> = emptyList(),
     prePage: (@Composable () -> Unit)? = null,
+    pairingFlow: IntegrationPairingFlow? = null,
 ) {
     val shell by model.state.collectAsState()
     val cameras by model.cameras.state.collectAsState()
@@ -84,7 +88,7 @@ public fun AppShell(
                         PairScreen(
                             model.cameras, onDone = model::endPairing, onDiagnostics = actions.diagnostics,
                             onReportProblem = actions.reportProblem, onWatchFeed = actions.watchFeed,
-                            onPrivacy = actions.privacy, onTerms = actions.terms,
+                            pairingFlow = pairingFlow, onPrivacy = actions.privacy, onTerms = actions.terms,
                         )
                     } else {
                         CamerasScreen(
@@ -94,7 +98,7 @@ public fun AppShell(
                             nearbyNote = brand.nearbyNote, onMultiview = actions.multiview,
                             onIntegrationAction = actions.integrationAction,
                             extraNearby = extraNearby, onExtraNearby = actions.extraNearby ?: {},
-                            onPrivacy = actions.privacy, onTerms = actions.terms,
+                            onPrivacy = actions.privacy, onTerms = actions.terms, renamesSetups = brand.renamesSetups,
                         )
                     }
                 }

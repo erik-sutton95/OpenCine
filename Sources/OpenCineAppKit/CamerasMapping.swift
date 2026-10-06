@@ -168,10 +168,12 @@ public enum CamerasMapping {
     static func device(_ sighting: CamerasModel.Sighting, in model: CamerasModel, busy: Bool? = nil) -> CameraListItem {
         let camera = sighting.camera
         let held = camera.availability != .available
+        let copy = model.entries.first { $0.integration.id == sighting.integration }?.slots.nearbyCard?(camera)
         return CameraListItem(
-            id: camera.id, name: camera.name, subtitle: camera.model.isEmpty ? "nearby" : "\(camera.model) · nearby",
+            id: camera.id, name: copy?.name ?? camera.name,
+            subtitle: copy?.subtitle ?? (camera.model.isEmpty ? "nearby" : "\(camera.model) · nearby"),
             badge: held ? "IN USE" : "NEW",
-            status: held ? "In use by another device" : "Ready to pair", actionTitle: "Pair",
+            status: held ? "In use by another device" : copy?.status ?? "Ready to pair", actionTitle: "Pair",
             isPrimary: model.selection == camera.id,
             isBusy: busy ?? (model.attempts[ConnectTarget.nearby(camera).cameraID] != nil), isAvailable: !held,
             signalBars: camera.signalBars)

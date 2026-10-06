@@ -152,7 +152,7 @@ class DjiIntegrationTest {
         val events = collect(integration(port).connect(ConnectTarget.Nearby(NearbyCamera("cam-1", name = "OsmoPocket3-AAAA", model = "Osmo Pocket 3", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
         runCurrent()
         assertEquals(CameraConnectionSetup.CAMERA_WIFI, port.setups.single().first)
-        for (phase in listOf(ConnectionPhase.PAIRING, ConnectionPhase.AWAITING_APPROVAL, ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK)) {
+        for (phase in listOf(ConnectionPhase.PAIRING, ConnectionPhase.AWAITING_APPROVAL, ConnectionPhase.READING_WIFI_CREDS, ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK)) {
             port.phaseFlow.value = phase
             runCurrent()
         }
@@ -160,9 +160,13 @@ class DjiIntegrationTest {
         port.phaseFlow.value = ConnectionPhase.LIVE
         runCurrent()
         val progress = events.filterIsInstance<ConnectionEvent.Progress>()
+        // The Wi-Fi step's caption is the phase label main showed when the session reports no progress.
         assertEquals(
-            listOf("LINK 0 -", "AWAITING_APPROVAL 0 Approve on the camera", "JOINING_NETWORK 1 -", "NEGOTIATING 2 -"),
-            progress.map { "${it.progress.phase} ${it.progress.current} ${it.prompt?.text ?: "-"}" },
+            listOf(
+                "LINK 0 - -", "AWAITING_APPROVAL 0 Approve on the camera -", "LINK 1 - Reading Wi-Fi credentials…",
+                "JOINING_NETWORK 1 - Joining camera Wi-Fi…", "NEGOTIATING 2 - -",
+            ),
+            progress.map { "${it.progress.phase} ${it.progress.current} ${it.prompt?.text ?: "-"} ${it.progress.note ?: "-"}" },
         )
         assertEquals(
             listOf("Connecting over Bluetooth", "Joining camera Wi-Fi", "Opening the video link", "Starting the picture"),
@@ -220,7 +224,8 @@ class DjiIntegrationTest {
         assertEquals("The camera ended the link.", DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "the camera ended the link").message)
         assertEquals(DjiFailures.HOTSPOT_OFF, DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "no hotspot", hotspotOff = true).message)
         val denied = DjiFailures.classify(SecurityException("no"), ConnectionPhase.SCANNING, "no")
-        assertEquals(listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry), denied.actions)
+        // Android main's cards offered Try again only (SavedCameraSetupPresentation.failure).
+        assertEquals(listOf(RecoveryAction.Retry), denied.actions)
         assertEquals("org.opencapture.openpocketcine.dji.datalink.silent", silent.code)
 
         val port = FakeDjiPort()

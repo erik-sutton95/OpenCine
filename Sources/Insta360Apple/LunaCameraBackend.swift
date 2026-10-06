@@ -45,7 +45,7 @@ public final class LunaCameraBackend: CameraBackend {
     /// App-supplied names (keychain service, operator-facing app name, log prefix).
     public let configuration: LunaIntegrationConfiguration
     private let store: LunaSecureStore
-    private let bluetooth = LunaBluetooth()
+    private let bluetooth: LunaBluetooth
     private let tcp = LunaTCPTransport()
     private let existingNetwork: Bool
     private var identity: UUID?
@@ -92,6 +92,7 @@ public final class LunaCameraBackend: CameraBackend {
         self.configuration = configuration
         self.mediaIO = mediaIO
         store = LunaSecureStore(service: configuration.keychainService)
+        bluetooth = LunaBluetooth(appName: configuration.appName)
         bluetooth.onCamera = { [weak self] camera in
             guard let self else { return }
             self.eventHandler?(

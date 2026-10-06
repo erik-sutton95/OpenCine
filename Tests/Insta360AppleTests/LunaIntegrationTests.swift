@@ -89,17 +89,16 @@ import Testing
             switch event {
             case .progress(let progress, let prompt):
                 #expect(progress.steps == LunaIntegration.steps)
-                seen.append("\(progress.phase) \(progress.current) \(prompt.map(describe) ?? "-")")
+                seen.append("\(progress.phase) \(progress.current) \(prompt.map(describe) ?? "-") \(progress.note ?? "-")")
             case .connected(let camera): connected = camera
             case .failed(let failure): Issue.record("failed: \(failure.code)")
             }
         }
         #expect(
             seen == [
-                "link 0 -", "negotiating 0 -", "awaitingApproval 0 approve: Approve on the camera",
-                "joiningNetwork 1 join LUNA-1A2B: Tap Join when iOS asks to join the camera network",
-                "joiningNetwork 1 join LUNA-1A2B: If this takes long, open Settings › Wi-Fi and join “LUNA-1A2B”.",
-                "link 2 -", "link 3 -",
+                // The Wi-Fi step reads its phase; a backend note never replaces it (main's caption).
+                "link 0 - -", "negotiating 0 - -", "awaitingApproval 0 approve: Approve on the camera -",
+                "joiningNetwork 1 - Reading Wi-Fi credentials…", "link 2 - -", "link 3 - -",
             ])
         let saved = try #require(connected?.saved)
         #expect(saved.id == camera.uuidString && saved.integration == luna.id)

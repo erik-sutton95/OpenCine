@@ -173,18 +173,20 @@ private struct UnregisteredDJIService: Sendable {}
         #expect(await eventually { port.connects.count == 1 })
         #expect(port.connects[0].1 == .cameraWiFi && !port.connects[0].2)
         for stage in [
-            DJIConnectionStage.connectingBluetooth, .pairing, .awaitingApproval, .joiningWiFi,
+            DJIConnectionStage.connectingBluetooth, .pairing, .awaitingApproval, .readingWiFi, .joiningWiFi,
             .openingDatalink,
         ] {
             port.onStage?(stage, nil)
         }
         port.finish(live())
         let (progress, prompts, end) = await outcome(events)
+        // The Wi-Fi step's caption is the phase label main showed when the app reports no progress.
         #expect(
-            progress.map { "\($0.phase) \($0.current)" } == [
-                "link 0", "awaitingApproval 0", "joiningNetwork 1", "negotiating 2",
+            progress.map { "\($0.phase) \($0.current) \($0.note ?? "-")" } == [
+                "link 0 -", "awaitingApproval 0 -", "link 1 Reading Wi-Fi credentials…",
+                "joiningNetwork 1 Joining camera Wi-Fi…", "negotiating 2 -",
             ])
-        #expect(prompts == [nil, "Approve on the camera", nil, nil])
+        #expect(prompts == [nil, "Approve on the camera", nil, nil, nil])
         #expect(
             progress[0].steps.map(\.title) == [
                 "Connecting over Bluetooth", "Joining camera Wi-Fi", "Opening the video link",

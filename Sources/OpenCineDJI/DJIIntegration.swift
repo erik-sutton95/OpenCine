@@ -119,6 +119,9 @@ public final class DJIIntegration: CameraIntegration {
 
     static let approve = "Approve on the camera"
     static let looking = "Looking for the camera"
+    /// The Wi-Fi step's caption while the app reports no setup progress (the apps' phase labels).
+    static let reading = "Reading Wi-Fi credentials…"
+    static let joining = "Joining camera Wi-Fi…"
 
     private let port: any DJIConnectPort
     private let now: () -> Date
@@ -331,10 +334,10 @@ public final class DJIIntegration: CameraIntegration {
         let (phase, step, prompt, note): (ConnectionPhase, Int, ConnectionPrompt?, String?) =
             switch stage {
             case .scanning: (.link, 0, nil, Self.looking)
-            case .connectingBluetooth, .pairing, .readingWiFi:
-                (.link, stage == .readingWiFi ? 1 : 0, nil, nil)
+            case .connectingBluetooth, .pairing: (.link, 0, nil, nil)
+            case .readingWiFi: (.link, 1, nil, text ?? Self.reading)
             case .awaitingApproval: (.awaitingApproval, 0, .approveOnCamera(Self.approve), nil)
-            case .joiningWiFi: (.joiningNetwork, 1, nil, text)
+            case .joiningWiFi: (.joiningNetwork, 1, nil, text ?? Self.joining)
             case .findingCamera: (.joiningNetwork, 2, nil, text)
             case .openingDatalink: (.negotiating, 2, nil, nil)
             }

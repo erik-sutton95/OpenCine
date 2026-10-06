@@ -136,7 +136,6 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
             ConnectionStep("Opening the video link"), ConnectionStep("Starting the picture"),
         )
         const val APPROVE = "Approve on the camera"
-        const val JOIN = "Tap Join when Android asks to join the camera network"
     }
 
     override fun discover(mode: DiscoveryMode): Flow<List<NearbyCamera>> {
@@ -211,8 +210,9 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
         val (step, prompt, note) = when (phase) {
             ConnectionPhase.SCANNING -> Triple(0, null, "Looking for the camera")
             ConnectionPhase.AWAITING_APPROVAL -> Triple(0, ConnectionPrompt.ApproveOnCamera(APPROVE), null)
-            ConnectionPhase.READING_WIFI_CREDS, ConnectionPhase.JOINING_WIFI ->
-                Triple(1, ConnectionPrompt.AcceptNetworkJoin(port.joinedSSID.value ?: "", JOIN), null)
+            // The Wi-Fi step's caption is its phase, as the app has always shown it.
+            ConnectionPhase.READING_WIFI_CREDS -> Triple(1, null, "Reading Wi-Fi credentials…")
+            ConnectionPhase.JOINING_WIFI -> Triple(1, null, "Joining camera Wi-Fi…")
             ConnectionPhase.OPENING_DATALINK -> Triple(2, null, null)
             ConnectionPhase.LIVE -> Triple(3, null, null)
             else -> Triple(0, null, null)

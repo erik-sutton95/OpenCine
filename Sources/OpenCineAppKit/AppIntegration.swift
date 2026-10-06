@@ -21,14 +21,32 @@ public struct IntegrationSlots {
     public var addRoute: ((SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AnyView)?
     /// Renders an integration prompt; `nil` falls back to its text.
     public var prompt: ((any IntegrationPrompt) -> AnyView?)?
+    /// The app's words for a nearby camera's card and pair-page row; `nil` keeps the shell's.
+    public var nearbyCard: ((NearbyCamera) -> NearbyCardCopy)?
 
     public init(
         pairing: (() -> AnyView)? = nil,
         addRoute: ((SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AnyView)? = nil,
-        prompt: ((any IntegrationPrompt) -> AnyView?)? = nil
+        prompt: ((any IntegrationPrompt) -> AnyView?)? = nil,
+        nearbyCard: ((NearbyCamera) -> NearbyCardCopy)? = nil
     ) {
         self.pairing = pairing
         self.addRoute = addRoute
         self.prompt = prompt
+        self.nearbyCard = nearbyCard
+    }
+}
+
+/// A nearby camera's name, subtitle and status as the app words them (a camera held by another
+/// device keeps the shell's status).
+public struct NearbyCardCopy: Equatable, Sendable {
+    public var name: String
+    public var subtitle: String
+    public var status: String
+
+    public init(name: String, subtitle: String, status: String) {
+        self.name = name
+        self.subtitle = subtitle
+        self.status = status
     }
 }

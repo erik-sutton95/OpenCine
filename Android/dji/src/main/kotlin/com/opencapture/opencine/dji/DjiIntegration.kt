@@ -103,9 +103,11 @@ object DjiFailures {
             error is StationJoin.Failure.UnsupportedRole || error is StationJoin.Failure.RoleRefused ->
                 failure(ConnectionFailure.Reason.Unsupported, "station.role-refused", message, core)
             error is StationJoin.Failure -> failure(ConnectionFailure.Reason.TimedOut, "station.silent", message, core)
+            // Try again only, as the Android cards have always offered: the pair page's
+            // Nearby devices action is the way to the permission.
             error is SecurityException -> failure(
                 ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.NEARBY_DEVICES), "bluetooth.denied", message, core,
-            ).copy(actions = listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry))
+            )
             phase == ConnectionPhase.AWAITING_APPROVAL || "pairing timed out" in lower ->
                 failure(ConnectionFailure.Reason.NotApproved, "approval.timeout", message, CorePhase.AWAITING_APPROVAL)
             "password is missing" in lower -> failure(ConnectionFailure.Reason.CredentialsRejected, "station.password-missing", message, core)
@@ -172,6 +174,9 @@ class DjiIntegration(
         val MOVING_ROUTES = setOf(RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)
         const val APPROVE = "Approve on the camera"
         const val LOOKING = "Looking for the camera"
+        /** The Wi-Fi step's caption while the session reports no setup progress (the apps' phase labels). */
+        const val READING = "Reading Wi-Fi credentials…"
+        const val JOINING = "Joining camera Wi-Fi…"
 
         /** The connect card's plan: camera Wi-Fi, or moving the camera to a Wi-Fi or hotspot setup. */
         fun steps(route: SavedRoute?): List<ConnectionStep> {
@@ -325,7 +330,7 @@ class DjiIntegration(
         }
         val note = when {
             phase == ConnectionPhase.SCANNING -> LOOKING
-            step == 1 -> port.setupProgress.value
+            step == 1 -> port.setupProgress.value ?: if (phase == ConnectionPhase.READING_WIFI_CREDS) READING else JOINING
             else -> null
         }
         return ConnectionEvent.Progress(ConnectionProgress(attempt, corePhase, steps, step, note), prompt)
