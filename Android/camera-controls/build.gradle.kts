@@ -27,5 +27,6 @@ dependencies {
     api(project(":monitor-ui"))
     api(project(":appkit"))
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.activity.compose)
     testImplementation(libs.kotlin.test.junit)
 }
