@@ -208,7 +208,7 @@ let package = Package(
         // MARK: Nikon
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and
         // NikonCameraSession (OpenCineCore.CameraSession over the app's NikonControlDriver).
-        .target(name: "OpenCineNikon", dependencies: ["OpenCineCore", "OpenCineMedia"]),
+        .target(name: "OpenCineNikon", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineCameraVocabulary"]),
         // OpenCineMulticam is a test-only dependency: the multi-body tests run real
         // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
         .testTarget(
@@ -219,7 +219,7 @@ let package = Package(
         // media browse and the JNI exports of the Kotlin class
         // com.opencapture.opencine.nikon.NikonNative (Android `:nikon`). Everything but the JNI
         // exports also builds and tests on Darwin against scripted fake cameras.
-        .target(name: "OpenCineNikonAndroid", dependencies: ["OpenCineNikon", "OpenCineMedia", "OpenCineJNISupport"]),
+        .target(name: "OpenCineNikonAndroid", dependencies: ["OpenCineNikon", "OpenCineMedia", "OpenCineCameraVocabulary", "OpenCineJNISupport"]),
         .testTarget(
             name: "OpenCineNikonAndroidTests",
             dependencies: ["OpenCineNikonAndroid", "OpenCineNikon"]),

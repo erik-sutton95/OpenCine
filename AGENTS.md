@@ -75,7 +75,8 @@ package dependency.
   Before changing effects, sampling or native frame ownership, read
   [the runtime guide](docs/native-runtime/README.md).
 - Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app. Their
-  neutral dependencies are Core, Media and Motion as declared in the manifests.
+  neutral dependencies are Core, Media, Motion and the camera vocabulary, as declared in the
+  manifests.
   `OpenCineDJIApple` adds iOS Bluetooth and network adapters above DJI, Media and Motion;
   it never imports UI, an app or the neutral Apple monitor runtime. App policy and secure
   storage arrive through explicit host values and callbacks.

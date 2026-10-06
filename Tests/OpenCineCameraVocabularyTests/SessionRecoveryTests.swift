@@ -130,4 +130,42 @@ struct SessionRecoveryCopyTests {
         #expect(!detail.localizedCaseInsensitiveContains("Nikon"))
         #expect(!detail.localizedCaseInsensitiveContains("OpenZCine"))
     }
+
+    @Test func onlyIdleShowsALiveFeed() {
+        #expect(SessionRecoveryState.idle.isRecovering == false)
+        #expect(SessionRecoveryState.retrying(attempt: 1, maxAttempts: 8).isRecovering)
+        #expect(SessionRecoveryState.waitingForOperator(attemptsMade: 8).isRecovering)
+        #expect(SessionRecoveryState.pausedAfterRepeatedDrops(drops: 3).isRecovering)
+    }
+
+    @Test func blankDeviceNameDegradesToAGenericSubject() {
+        let detail = SessionRecoveryCopy.detail(
+            .retrying(attempt: 1, maxAttempts: 8), deviceName: "   ")
+        #expect(detail.hasPrefix("The camera"))
+    }
+
+    @Test func idleProducesNoCopy() {
+        #expect(SessionRecoveryCopy.title(.idle).isEmpty)
+        #expect(SessionRecoveryCopy.detail(.idle, deviceName: "Studio A").isEmpty)
+    }
+
+    /// A drop suspect names a likely cause on the paused state only; without one the copy is
+    /// exactly as before.
+    @Test func dropSuspectNamesTheLikelyCauseWhenPaused() {
+        let paused = SessionRecoveryState.pausedAfterRepeatedDrops(drops: 3)
+        #expect(
+            SessionRecoveryCopy.detail(paused, deviceName: "Studio A")
+                == "Studio A reconnected but dropped 3 times in quick succession. Automatic retries are paused to protect the camera. The frame below is held, not live."
+        )
+        #expect(
+            SessionRecoveryCopy.detail(
+                paused, deviceName: "Studio A", dropSuspect: .otherDeviceScanning)
+                == "Studio A reconnected but dropped 3 times in quick succession. Automatic retries are paused to protect the camera \u{2014} another device may be scanning for cameras. The frame below is held, not live."
+        )
+        let retrying = SessionRecoveryState.retrying(attempt: 2, maxAttempts: 8)
+        #expect(
+            SessionRecoveryCopy.detail(
+                retrying, deviceName: "Studio A", dropSuspect: .otherDeviceScanning)
+                == SessionRecoveryCopy.detail(retrying, deviceName: "Studio A"))
+    }
 }

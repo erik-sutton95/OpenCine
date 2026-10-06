@@ -18,6 +18,12 @@ public enum SessionRecoveryState: Equatable, Sendable {
 }
 
 /// Cross-run damping for sessions that reconnect cleanly but keep dying.
+///
+/// A recovery run that succeeds resets its budget, so a periodic external killer (another device
+/// probing the camera, an unanswered body-side liveness probe) becomes an unbounded storm of
+/// instant reconnects, and some bodies stop accepting connections under that churn. The guard
+/// counts drops across runs; when they cluster, automatic recovery pauses. Reset it on operator
+/// action, never on reconnect success.
 public struct SessionDropStormGuard: Sendable, Equatable {
     private var dropTimesSeconds: [Double] = []
 
@@ -118,6 +124,12 @@ public struct SessionRecoveryPolicy: Sendable, Equatable {
     }
 }
 
+/// A likely cause the operator can act on when a session keeps dropping.
+public enum SessionDropSuspect: String, CaseIterable, Equatable, Sendable {
+    /// Another device scanning for cameras can knock the session over each time it probes.
+    case otherDeviceScanning
+}
+
 /// Operator-facing recovery copy. Never names a sister app or another brand.
 public enum SessionRecoveryCopy {
     public static func title(_ state: SessionRecoveryState) -> String {
@@ -129,7 +141,11 @@ public enum SessionRecoveryCopy {
         }
     }
 
-    public static func detail(_ state: SessionRecoveryState, deviceName: String) -> String {
+    /// The supporting line. `dropSuspect` names a likely cause on the paused state.
+    public static func detail(
+        _ state: SessionRecoveryState, deviceName: String,
+        dropSuspect: SessionDropSuspect? = nil
+    ) -> String {
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
         let camera = name.isEmpty ? "The camera" : name
         switch state {
@@ -142,8 +158,14 @@ public enum SessionRecoveryCopy {
             let tries = attemptsMade == 1 ? "1 try" : "\(attemptsMade) tries"
             return "\(camera) didn't come back after \(tries). The frame below is held, not live."
         case .pausedAfterRepeatedDrops(let drops):
+            let paused =
+                switch dropSuspect {
+                case nil: "paused to protect the camera."
+                case .otherDeviceScanning:
+                    "paused to protect the camera \u{2014} another device may be scanning for cameras."
+                }
             return
-                "\(camera) reconnected but dropped \(drops) times in quick succession. Automatic retries are paused to protect the camera. The frame below is held, not live."
+                "\(camera) reconnected but dropped \(drops) times in quick succession. Automatic retries are \(paused) The frame below is held, not live."
         }
     }
 
