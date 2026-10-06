@@ -169,7 +169,8 @@ let package = Package(
         .target(
             name: "OpenCineCameraControls",
             dependencies: [
-                "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineMotion",
+                "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
+                "OpenCineMedia", "OpenCineMotion",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
         // XCUITest cases that drive an app only by accessibility identifiers and launch
