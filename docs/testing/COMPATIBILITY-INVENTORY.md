@@ -117,11 +117,11 @@ Retired here (`2216acb5`, production about -1,500 lines net):
 | `docs/implementation/baseline-provenance.json`, attribution in NOTICE, THIRD-PARTY-NOTICES and `LegalScreens` ("adapted from OpenPocketCine") | stay (licence provenance and history) |
 | `Package.swift` products `OpenPocketViewCore` and `OpenPocketCineAndroid`, Android package `com.opencapture.openpocketcine`, Gradle `openpocketcine.versionCode`/`versionName` | brand wire format and app composition; renaming is follow-up I-6 (release tooling, JNI names in step) |
 | `Sources/OpenPocketCineAndroidFacade` live exports (`coreVersion`, LUT packing, false-colour paint and weight, feed assist scalars) | brand wire format |
-| JNI exports `cameraSoftAPDecision` and `conformPreviewJSON` (no Kotlin production caller; an instrumented test uses them) | retire (follow-up I-5): remove both sides in step with the instrumented test |
-| `Sources/OpenPocketViewCore`: forks of `OpenCineDJI` reached by the Luna build (`CameraControl` vocabulary, `CamCap` dial lists, `CameraStatus`, `MediaManifest`, `MonitorLUT`, `TrackingBox`, `SessionRecovery`, `ReconnectBackoff`, `FeedWatchdog.stallThreshold`, `CameraSoftAP` freshness helpers) | main parity; follow-up I-2 (a neutral camera vocabulary; drop the DJI wire parsers with it) |
-| Byte copies of DJI owners that Luna reaches: `ExposureLock`, `FacePriorityExposure`, `GamepadOperator` (both platforms), `FaceDetectFlight`, `VirtualJoystickMapping`, `GimbalStickTouchMapping`, `CamFov` zoom stops, `PrivacyRedactor`, `CameraWifiCredentialStore` | main parity (redactor and credential store also brand wire format); follow-up I-3 (a neutral OpenCine owner used by both `dji` and Insta) |
+| JNI exports `cameraSoftAPDecision` and `conformPreviewJSON` | follow-up I-5 done on Insta: the app no longer names either symbol. The DJI Android owner still exports `cameraSoftAPDecision` for Pocket and is not this lane's deletion. |
+| `Sources/OpenPocketViewCore` | follow-up I-2 done: 172 lines, re-exports of the shared vocabulary, media, motion and relay, plus the `ConnectionPhase` typealias and the bundled I-Log curve. No DJI wire parsers remain. The module name is follow-up I-6. |
+| Byte copies of DJI owners that Luna reaches: `ExposureLock`, `FacePriorityExposure`, `GamepadOperator` (both platforms), `FaceDetectFlight`, `VirtualJoystickMapping`, `GimbalStickTouchMapping`, `CamFov` zoom stops, `PrivacyRedactor`, `CameraWifiCredentialStore` | follow-up I-3 done. Vocabulary or media owns the named types. `CameraWifiCredentialStore` behavior is on `Android/platform`. The Insta app and `Android/dji` keep thin facades that pin `preferencesName` and `keyAlias` to `openpocketcine.camera-wifi`. Those saved names stay out of platform. |
 | Reached but inert DJI behavior: convert-log (`LogColorTransform`), `ClipColorProfile`, D-Log live calibrations, Kotlin `ApertureStrategy`, the debug Pocket 4 Pro reconnect | main parity until a visible-behavior decision; follow-up I-7 |
-| iOS `CameraSession` quartet and `CameraMedia`, Android `PocketCameraSession` | app composition and main parity; follow-up I-1 (ownership move into OpenCineAppKit / LunaCameraSession) |
+| iOS `CameraSession` quartet and `CameraMedia`, Android `PocketCameraSession` | app composition. Follow-up I-1, this slice: `SessionRecoveryDrive` in `OpenCineCameraVocabulary` and `camera-vocabulary` records the Insta iOS recovery decisions (admit, storm, generation, 2.5s card grace, attempts, budget). Insta iOS `CameraSession` calls it. Pocket stays on `DjiAppleRecoveryEpisode`. Android Insta's loop is unchanged. `LunaCameraSession` stays the brand command path. The rest of the shell stays in the app. |
 | Pocket-derived code with no OpenCine owner (reliability reporting and Sentry sinks, live chrome and capture sheets, assists views, Frame.io and delivery views, gimbal and head-track UI, watcher views, pairing permissions) | main parity; Sentry sinks are SDK adapters; follow-up I-4 (move area by area into MonitorUI/monitor-ui, OpenCineAppKit/appkit, OpenCineApple, OpenCineRelayApple) |
 | Multiview stubs and constant-false branches | retired in follow-up I-8 (Insta `24ff364`); the gimbal-limit pulse is live (Luna gimbal status field 92 and notification 8302 drive it) and stays |
 
@@ -234,11 +234,11 @@ Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381
 | P-4 | Pocket | Tracking-bracket geometry, number-pad input, playback pan, media path helpers, Kotlin `ClipColorProfile`, iOS reliability reporting, `FeedIncidentQueue` glue, `MediaSessionLink` | expose or extend shared owners |
 | P-5 | Pocket | `InspectorPreviewRenderer.kt` factory (used by an instrumented test) | an instrumented run |
 | P-6 | Pocket | `AppRoot.liveOperatorPanel` projection | shell cover API |
-| I-1 | Insta | `CameraSession` ownership into OpenCineAppKit / LunaCameraSession | I-6 session work |
-| I-2 | Insta | Neutral camera vocabulary; drop DJI wire parsers | new shared owner |
-| I-3 | Insta, OpenCine | Neutral owner for the reached DJI copies | new shared owner |
+| I-1 | Insta | Session shell stays in the app. `SessionRecoveryDrive` now owns the Insta iOS recovery decisions. Pocket's episode and the Android loop stay. | none for the drive; the rest of the shell waits on a host that can take it without changing a card |
+| I-2 | Insta | Done: view core re-exports `OpenCineCameraVocabulary` and defines none of the listed DJI types | none |
+| I-3 | Insta, OpenCine | Done. Store behavior is on `Android/platform`. Insta and `dji` facades pin the saved `openpocketcine.camera-wifi` alias and stay as the host values. | none |
 | I-4 | Insta | Pocket-derived areas into OpenCine | per-area moves |
-| I-5 | Insta | Dead JNI exports `cameraSoftAPDecision`, `conformPreviewJSON` | an instrumented run |
+| I-5 | Insta | Done on Insta: no remaining `cameraSoftAPDecision` or `conformPreviewJSON` references. DJI Android still exports the first for Pocket. | none |
 | I-6 | Insta | Brand renames (`openpocketcine.version*`, `PocketCameraSession`, module and package names) | release tooling, JNI names in step |
 | I-7 | Insta | Inert DJI behavior on reached paths | visible-behavior decision |
 | Z-2 | Nikon | Kept app copies of shared owners | the reason named per item in the OpenZCine table |
