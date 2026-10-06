@@ -9,6 +9,8 @@ import Insta360Protocol
 final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     @preconcurrency CBPeripheralDelegate
 {
+    /// The operator-facing app name in the Bluetooth permission copy.
+    private let appName: String
     var onCamera: ((MonitorCamera) -> Void)?
     var onData: ((Data) -> Void)?
     var onDisconnect: ((String) -> Void)?
@@ -32,6 +34,10 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     private let service = CBUUID(string: LunaProtocol.bluetoothServiceUUID)
     private let writeID = CBUUID(string: LunaProtocol.bluetoothWriteUUID)
     private let notifyID = CBUUID(string: LunaProtocol.bluetoothNotifyUUID)
+
+    init(appName: String) {
+        self.appName = appName
+    }
 
     func startScan() async throws {
         try await waitForPower()
@@ -60,8 +66,7 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                     seconds: 15,
                     failure: .luna(
                         .radioOff(.bluetooth), "bluetooth.unavailable",
-                        "Bluetooth did not become available. Enable Bluetooth in Settings.",
-                        actions: [.openSettings, .retry]))
+                        "Bluetooth is not ready yet. Try again in a moment."))
             }
         } onCancel: {
             Task { @MainActor [weak self] in
@@ -207,14 +212,15 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     }
     private func powerFailure(_ state: CBManagerState) -> ConnectionFailure? {
         switch state {
+        // Only the permission needs Settings; off and not ready ask to try again.
         case .poweredOff:
             .luna(
-                .radioOff(.bluetooth), "bluetooth.off", "Bluetooth is off. Turn it on in Settings to find your camera.",
-                actions: [.openSettings, .retry])
+                .radioOff(.bluetooth), "bluetooth.off",
+                "Bluetooth is off. Turn it on in Control Center or Settings, then try again.")
         case .unauthorized:
             .luna(
                 .permission(.bluetooth), "bluetooth.denied",
-                "Bluetooth access is disabled for this app. Enable it in Settings → Privacy & Security → Bluetooth.",
+                "\(appName) needs Bluetooth access to find the camera. Open Settings, turn on Bluetooth for \(appName), then try again.",
                 actions: [.openSettings, .retry])
         case .unsupported:
             .luna(.unsupported, "bluetooth.unsupported", "Bluetooth camera discovery is unavailable on this device.")
