@@ -7,9 +7,10 @@
 
     /// What the live chrome (status row, telemetry gauges, assist palette, chrome editing) needs from
     /// an app on top of the capture sheets: the operator's display chrome per DISP mode, the assist
-    /// state, which overlays are open and the live link telemetry. App differences arrive as values.
+    /// state, which overlays are open and the live link telemetry, plus the recovery card's
+    /// `SessionRecoveryHost`. App differences arrive as values.
     @MainActor
-    public protocol LiveChromeHost: CaptureSheetHost {
+    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost {
         /// The status row's recording state and clock, as this app projects it.
         var liveStatus: MonitorStatusPresentation { get }
         /// Whether the body reports a timecode the status row can show.
@@ -72,15 +73,5 @@
         func handleFeedTap(at point: CGPoint)
         func startTracking(_ box: TrackingBox)
 
-        /// The interrupted session's recovery, for the recovery card.
-        var sessionRecovery: SessionRecoveryState { get }
-        /// The first retry's card waits out a short grace so a quick reconnect stays quiet.
-        var sessionRecoveryCardGraceElapsed: Bool { get }
-        /// The dropped camera's name, captured at the drop.
-        var recoveryDeviceName: String { get }
-        /// What the card says while a retry runs, from the camera's connection phase.
-        var recoveryProgressDetail: String { get }
-        func retrySessionRecovery()
-        func exitMonitorToOperatorMenu()
     }
 #endif

@@ -3,9 +3,33 @@
     import OpenCineCameraVocabulary
     import SwiftUI
 
+    /// What the recovery card needs from an app. `LiveChromeHost` refines it; an app whose live
+    /// chrome is its own conforms to this alone.
+    @MainActor
+    public protocol SessionRecoveryHost: AnyObject, Observable {
+        associatedtype Palette: LiveChromePalette
+
+        /// The interrupted session's recovery, for the recovery card.
+        var sessionRecovery: SessionRecoveryState { get }
+        /// The first retry's card waits out a short grace so a quick reconnect stays quiet.
+        var sessionRecoveryCardGraceElapsed: Bool { get }
+        /// The dropped camera's name, captured at the drop.
+        var recoveryDeviceName: String { get }
+        /// What the card says while a retry runs, from the camera's connection phase.
+        var recoveryProgressDetail: String { get }
+        /// The likely cause the paused card names, when the app can tell; nil names none.
+        var recoveryDropSuspect: SessionDropSuspect? { get }
+        func retrySessionRecovery()
+        func exitMonitorToOperatorMenu()
+    }
+
+    extension SessionRecoveryHost {
+        public var recoveryDropSuspect: SessionDropSuspect? { nil }
+    }
+
     /// Recovery card over a held live-view frame after an established session dropped. A camera
     /// power cycle must not throw the operator back to the connect screen.
-    public struct SessionRecoveryOverlay<Host: LiveChromeHost>: View {
+    public struct SessionRecoveryOverlay<Host: SessionRecoveryHost>: View {
         @Environment(Host.self) private var host
 
         public init() {}
@@ -48,7 +72,8 @@
                             .foregroundStyle(Host.Palette.text)
                         Text(
                             SessionRecoveryCopy.detail(
-                                state, deviceName: host.recoveryDeviceName)
+                                state, deviceName: host.recoveryDeviceName,
+                                dropSuspect: host.recoveryDropSuspect)
                         )
                         .font(MonitorTheme.font(12, weight: .medium))
                         .foregroundStyle(Host.Palette.muted)

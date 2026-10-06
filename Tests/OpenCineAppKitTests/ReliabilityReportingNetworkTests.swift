@@ -182,6 +182,18 @@ final class ReliabilityReportingNetworkTests: XCTestCase {
         XCTAssertTrue(manual.cancelled)
     }
 
+    /// An app whose camera network shares its prefix with home networks reads no address path:
+    /// only the live camera session holds reports back.
+    func testGateWithoutCameraPrefixBlocksOnlyOnTheSession() {
+        let gate = ReliabilityReportingGate(cameraIPv4Prefix: nil)
+        XCTAssertNil(gate.cameraIPv4Prefix)
+        XCTAssertFalse(gate.shouldBlockUpload)
+        gate.setCameraSessionActive(true)
+        XCTAssertTrue(gate.shouldBlockUpload)
+        gate.setCameraSessionActive(false)
+        XCTAssertFalse(gate.shouldBlockUpload)
+    }
+
     func testReceiptsRefuseIDsThatLeaveTheReceiptsDirectory() throws {
         let cacheRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("opc-receipts-\(UUID().uuidString)", isDirectory: true)

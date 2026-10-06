@@ -20,6 +20,8 @@ struct AppKitRules {
             // Reporting watches for a usable internet path (system Network); the problem report
             // normalizes attached images (system ImageIO, UniformTypeIdentifiers, CoreTransferable).
             "Network", "ImageIO", "UniformTypeIdentifiers", "CoreTransferable",
+            // The problem report form attaches photos and screenshots (system PhotosUI).
+            "PhotosUI",
             // The diagnostic journal writes the unified log (system os).
             "os",
         ]
