@@ -235,7 +235,7 @@
     }
 
     @MainActor
-    private func openSettings() {
+    func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
     }
 
