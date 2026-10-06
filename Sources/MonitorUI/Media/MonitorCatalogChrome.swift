@@ -128,107 +128,40 @@
         }
     }
 
-    /// Source facts and finite actions matching the common Compose catalog header.
-    public struct MonitorCatalogHeader: View {
-        private let title: String
-        private let subtitle: String
-        private let compact: Bool
-        private let sort: String
-        private let filterCount: Int
-        private let onSort: () -> Void
-        private let onFilter: () -> Void
-        private let onFilterFrameChange: ((CGRect) -> Void)?
+    /// The catalog toolbar's filter toggle; `open` keeps it lit while the host's popup shows.
+    public struct MonitorCatalogFilterButton: View {
+        private let activeCount: Int
+        private let open: Bool
+        private let action: () -> Void
 
-        public init(
-            title: String, subtitle: String, compact: Bool, sort: String,
-            filterCount: Int, onSort: @escaping () -> Void, onFilter: @escaping () -> Void,
-            onFilterFrameChange: ((CGRect) -> Void)? = nil
-        ) {
-            self.title = title
-            self.subtitle = subtitle
-            self.compact = compact
-            self.sort = sort
-            self.filterCount = filterCount
-            self.onSort = onSort
-            self.onFilter = onFilter
-            self.onFilterFrameChange = onFilterFrameChange
+        public init(activeCount: Int, open: Bool, action: @escaping () -> Void) {
+            self.activeCount = activeCount
+            self.open = open
+            self.action = action
         }
 
         public var body: some View {
-            if compact {
-                stacked
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) {
-                        identity
-                        Spacer(minLength: 0)
-                        controls.fixedSize()
-                    }
-                    stacked
-                }
-            }
-        }
-
-        private var stacked: some View {
-            VStack(alignment: .leading, spacing: 8) {
-                identity
-                ScrollView(.horizontal, showsIndicators: false) { controls }
-                    .monitorScrollFade(.horizontal)
-            }
-        }
-
-        private var identity: some View {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(MonitorTheme.font(10.5, weight: .semibold))
-                    .foregroundStyle(MonitorTheme.text)
-                Text(subtitle).font(MonitorTheme.font(9)).foregroundStyle(MonitorTheme.faint)
-            }
-            .lineLimit(1)
-        }
-
-        private var controls: some View {
-            HStack(spacing: 6) {
-                Button(action: onSort) {
-                    HStack(spacing: 5) {
-                        MonitorIcon.arrowUpDown.frame(width: 12, height: 12)
-                        Text(sort).font(MonitorTheme.font(10.5, weight: .medium))
-                    }
-                    .padding(.horizontal, 9).frame(minHeight: 34)
-                    .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(MonitorButtonStyle())
-                .accessibilityLabel("Sort clips")
-                .accessibilityValue(sort)
-                .accessibilityIdentifier("monitor.media.sort")
-                Button(action: onFilter) {
-                    HStack(spacing: 5) {
-                        MonitorIcon.listFilter.frame(width: 12, height: 12)
-                        Text("Filter").font(MonitorTheme.font(10.5, weight: .medium))
-                        if filterCount > 0 { Text(String(filterCount)).font(MonitorTheme.font(9)) }
-                    }
-                    .padding(.horizontal, 9).frame(minHeight: 34)
-                    .background(
-                        filterCount > 0
-                            ? MonitorTheme.accent.opacity(0.18) : Color.white.opacity(0.04),
-                        in: RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(MonitorButtonStyle())
-                .accessibilityLabel("Filter library")
-                .accessibilityValue(String(filterCount))
-                .accessibilityIdentifier("monitor.media.filter")
-                .background {
-                    if let onFilterFrameChange {
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onAppear { onFilterFrameChange(proxy.frame(in: .global)) }
-                                .onChange(of: proxy.frame(in: .global)) { _, frame in
-                                    onFilterFrameChange(frame)
-                                }
-                        }
+            let on = open || activeCount > 0
+            Button(action: action) {
+                HStack(spacing: 7) {
+                    MonitorIcon.listFilter.view().frame(width: 13, height: 13)
+                    Text("Filter").font(MonitorTheme.font(10.5, weight: .semibold)).lineLimit(1)
+                    if activeCount > 0 {
+                        Text("\(activeCount)")
+                            .font(MonitorTheme.font(10.5, weight: .semibold))
                     }
                 }
+                .foregroundStyle(on ? MonitorTheme.text : MonitorTheme.secondary)
+                .padding(.horizontal, 11).frame(minWidth: 44, minHeight: 44)
+                .background(
+                    on ? MonitorTheme.accent.opacity(0.18) : Color.white.opacity(0.04),
+                    in: RoundedRectangle(cornerRadius: 9))
             }
-            .foregroundStyle(MonitorTheme.muted)
+            .buttonStyle(MonitorButtonStyle())
+            .accessibilityLabel("Filter library")
+            .accessibilityValue(activeCount == 0 ? "Off" : "\(activeCount) active")
+            .accessibilityAddTraits(on ? .isSelected : [])
+            .accessibilityIdentifier("monitor.media.filter")
         }
     }
 #endif

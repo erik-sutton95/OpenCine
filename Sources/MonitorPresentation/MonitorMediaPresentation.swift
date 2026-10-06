@@ -19,12 +19,19 @@ public struct MonitorMediaItem: Identifiable, Equatable, Sendable {
     public let favorite: Bool
     public let photo: Bool
     public let permissions: MonitorMediaPermissions
+    /// Camera-specific cell badges; nil renders nothing.
+    public let burstCount: Int?
+    public let mediaBadge: String?
+    public let completionBadge: String?
+    public let transferCaption: String?
 
     public init(
         id: String, filename: String, metadata: String, format: String = "",
         color: String = "", duration: String = "", date: String = "",
         availability: Availability, progress: Double? = nil,
-        favorite: Bool, photo: Bool, permissions: MonitorMediaPermissions = []
+        favorite: Bool, photo: Bool, permissions: MonitorMediaPermissions = [],
+        burstCount: Int? = nil, mediaBadge: String? = nil, completionBadge: String? = nil,
+        transferCaption: String? = nil
     ) {
         self.id = id
         self.filename = filename
@@ -38,6 +45,10 @@ public struct MonitorMediaItem: Identifiable, Equatable, Sendable {
         self.favorite = favorite
         self.photo = photo
         self.permissions = permissions
+        self.burstCount = burstCount
+        self.mediaBadge = mediaBadge
+        self.completionBadge = completionBadge
+        self.transferCaption = transferCaption
     }
 
     public var stateLabel: String {
