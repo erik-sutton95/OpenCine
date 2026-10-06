@@ -325,6 +325,9 @@
             case .dlogm: "DLM ≈"
             case .dlog2: "D-Log2"
             case .ilog: "I-Log"
+            case .srgb: "sRGB"
+            case .nlog: "N-Log"
+            case .log3G10: "L3G10"
             }
         }
 

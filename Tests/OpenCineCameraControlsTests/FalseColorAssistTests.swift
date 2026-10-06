@@ -120,6 +120,9 @@
             XCTAssertEqual(FalseColorReference.curveKeyLabel(.dlog), "D-Log")
             XCTAssertEqual(FalseColorReference.curveKeyLabel(.rec709), "709")
             XCTAssertEqual(FalseColorReference.curveKeyLabel(.hdr), "HLG")
+            XCTAssertEqual(FalseColorReference.curveKeyLabel(.srgb), "sRGB")
+            XCTAssertEqual(FalseColorReference.curveKeyLabel(.nlog), "N-Log")
+            XCTAssertEqual(FalseColorReference.curveKeyLabel(.log3G10), "L3G10")
 
             let limits = FalseColorReference.segments(
                 scale: .limits, transfer: .dlog2, rec709: false,

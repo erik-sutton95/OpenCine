@@ -91,7 +91,7 @@ public enum CamCapIso {
         switch transfer {
         case .dlog: 400
         case .dlog2: 1600
-        case .rec709, .hdr, .dlogm, .ilog, nil: nil
+        case .rec709, .hdr, .dlogm, .ilog, .srgb, .nlog, .log3G10, nil: nil
         }
     }
 
