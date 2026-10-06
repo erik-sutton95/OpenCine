@@ -45,3 +45,27 @@ import Testing
         }
     }
 }
+
+#if os(iOS) || os(macOS)
+    @Suite struct LocalVPNNoticeTests {
+        @Test func notesAnActiveTunnelOncePerInstance() {
+            let lines = Lines()
+            let active = Lines()
+            let notice = LocalVPNNotice(isActive: { active.count > 0 }, note: { lines.append($0) })
+            notice.noteIfActive()
+            #expect(lines.count == 0)
+            active.append("utun0")
+            notice.noteIfActive()
+            notice.noteIfActive()
+            #expect(lines.all == [LocalVPNNotice.message])
+        }
+
+        final class Lines: @unchecked Sendable {
+            private let lock = NSLock()
+            private var values: [String] = []
+            func append(_ value: String) { lock.withLock { values.append(value) } }
+            var all: [String] { lock.withLock { values } }
+            var count: Int { all.count }
+        }
+    }
+#endif
