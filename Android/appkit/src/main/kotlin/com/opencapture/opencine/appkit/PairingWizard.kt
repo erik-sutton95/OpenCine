@@ -39,8 +39,8 @@ public data class PairingWizard(
         internal val rail = listOf("Bluetooth scan", "Camera prompt", "Camera network", "Video link")
 
         /**
-         * The apps' live label for a connection phase (Swift `ConnectionPhase.label`). Reads the
-         * DJI and Insta360 phase enums by their constant names, which match by design.
+         * The apps' live label for a connection phase (Swift `ConnectionPhase.label`). Reads each
+         * integration's phase enum by its constant names, which match by design.
          */
         public fun phaseLabel(phase: Enum<*>): String = when (phase.name) {
             "SCANNING" -> "Scanning for camera…"
