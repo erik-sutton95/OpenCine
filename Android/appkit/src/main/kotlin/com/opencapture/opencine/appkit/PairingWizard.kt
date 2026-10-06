@@ -34,12 +34,28 @@ public data class PairingWizard(
     val vpnActive: Boolean = false,
     val blocker: String? = null,
 ) {
-    internal companion object {
-        val titles = listOf("Find your camera", "Approve on the camera", "Join camera Wi-Fi", "Open video link")
-        val rail = listOf("Bluetooth scan", "Camera prompt", "Camera network", "Video link")
+    public companion object {
+        internal val titles = listOf("Find your camera", "Approve on the camera", "Join camera Wi-Fi", "Open video link")
+        internal val rail = listOf("Bluetooth scan", "Camera prompt", "Camera network", "Video link")
+
+        /**
+         * The apps' live label for a connection phase (Swift `ConnectionPhase.label`). Reads the
+         * DJI and Insta360 phase enums by their constant names, which match by design.
+         */
+        public fun phaseLabel(phase: Enum<*>): String = when (phase.name) {
+            "SCANNING" -> "Scanning for camera…"
+            "CONNECTING_GATT" -> "Connecting (Bluetooth)…"
+            "PAIRING" -> "Pairing…"
+            "AWAITING_APPROVAL" -> "Approve on the camera screen"
+            "READING_WIFI_CREDS" -> "Reading Wi-Fi credentials…"
+            "JOINING_WIFI" -> "Joining camera Wi-Fi…"
+            "OPENING_DATALINK" -> "Opening datalink…"
+            "LIVE" -> "Connected"
+            else -> "Idle"
+        }
 
         /** A connect's scan (a first step with a live note, as both integrations report it) is still page 0. */
-        fun page(attempt: CamerasModel.Attempt?): Int {
+        internal fun page(attempt: CamerasModel.Attempt?): Int {
             attempt ?: return 0
             val progress = attempt.progress ?: return 1
             return when (progress.current) {
