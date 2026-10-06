@@ -261,6 +261,9 @@
                         compact: compact, full: full, visibleWidth: visibleWidth,
                         visibleHeight: visibleHeight)
                 )
+                // Its own element: the glyph hides itself, so without this the handle reaches
+                // VoiceOver only when an ancestor forces the chrome visible.
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
                     open ? "Show all \(accessibilityName)" : "Collapse \(accessibilityName)"
                 )

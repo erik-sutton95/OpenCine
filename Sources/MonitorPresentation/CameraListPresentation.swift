@@ -54,12 +54,16 @@ public struct CameraSetupChip: Equatable, Identifiable, Sendable {
     /// The setup the row's main Connect uses.
     public var isActive: Bool
     public var canForget: Bool
+    /// The setup kind that names the chip for accessibility (`cameraWiFi`, `wifi`,
+    /// `phoneHotspot`); `nil` names it by `id`.
+    public var kind: String?
 
-    public init(id: String, title: String, isActive: Bool, canForget: Bool = false) {
+    public init(id: String, title: String, isActive: Bool, canForget: Bool = false, kind: String? = nil) {
         self.id = id
         self.title = title
         self.isActive = isActive
         self.canForget = canForget
+        self.kind = kind
     }
 }
 

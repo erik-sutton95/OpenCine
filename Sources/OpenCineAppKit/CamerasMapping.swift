@@ -40,9 +40,10 @@ public enum CamerasMapping {
                 setups: camera.routes.map {
                     CameraSetupChip(
                         id: $0.id.description, title: title(of: $0), isActive: $0.id == active,
-                        canForget: addable.contains($0.kind) && camera.routes.count > 1)
+                        canForget: addable.contains($0.kind) && camera.routes.count > 1, kind: setupKind($0.kind))
                 },
-                canAddSetup: !addable.isEmpty,
+                // As on main: Add only while an addable kind is still missing.
+                canAddSetup: !addable.subtracting(camera.routes.map(\.kind)).isEmpty,
                 steps: attempt.map(steps) ?? [],
                 failure: failure.map { self.failure($0.failure, camera: camera) })
         }
@@ -62,6 +63,15 @@ public enum CamerasMapping {
         case .phoneHotspot: return "Hotspot"
         case .usb: return "USB-C"
         case .captureDevice: return "HDMI"
+        }
+    }
+
+    /// The chip's accessibility name: the setup names the apps' tests have always used.
+    static func setupKind(_ kind: RouteKind) -> String {
+        switch kind {
+        case .cameraAccessPoint: "cameraWiFi"
+        case .infrastructureNetwork: "wifi"
+        case .phoneHotspot, .usb, .captureDevice: kind.rawValue
         }
     }
 
