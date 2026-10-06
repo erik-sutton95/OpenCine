@@ -31,7 +31,6 @@
         }
 
         @MainActor
-
         public static func longPressMenu<Looks: MonitorLookProvider>(
             assist: MonitorAssistState<Looks>, haptics: OperatorHaptics
         ) -> MirrorLongPressMenu<Looks> {
