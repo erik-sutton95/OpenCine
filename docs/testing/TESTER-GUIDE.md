@@ -284,10 +284,11 @@ Android Settings with no camera connected offers the AUDIO clean-view pin, as on
 Settings: Display shows `main`'s rows (caption, Edit view, one switch per item, then the pins),
 the tab strip keeps `main`'s spacing, Sharing's "Show Wi-Fi code" link is blue again (the union
 drew it white), and landscape View Assist keeps the tools in one column with EV Meter and LUT
-beside them. ISO, shutter and white balance set from a picker sheet answer as `main`'s strip
-did: the camera's own message on a refusal, nothing on a timeout (the union said "The camera
-did not confirm ISO 800."); "Connect the camera to use its controls." and a write held back
-after the camera state changed keep the shared copy.
+beside them. ISO, shutter and white balance set from a picker sheet answer as `main` did, on
+both platforms: the camera's own message on a refusal, nothing on a timeout (the iPhone union
+said "The camera did not confirm ISO 800."). "Connect the camera to use its controls." and a
+write held back after the camera state changed keep the shared copy (Android had dropped even
+those).
 
 ## 5. OpenInstaCine
 
@@ -370,7 +371,7 @@ action, or a check that could never work), the parity lane kept the fix instead 
 | ID-13 | iOS "on the camera network" tested Pocket's 192.168.2.x, never true on a Luna, so "Leave camera Wi-Fi?" never appeared before Frame.io and uploads ran on the camera Wi-Fi | A check that could never work | The check tests the Luna's 192.168.42.x |
 | Insta App Information (Android) | System > App Information showed the DJI fork's "DJI Black" theme and "DUML / BLE + Wi-Fi" protocol, with DJI help text | Wrong camera named (coordinator) | iPhone `main`'s "Charcoal" and "Insta360 / BLE + Wi-Fi" with their help |
 | Colour dots (zebra and peaking options) | A dot drew the app accent under another colour's name: Pocket iPhone "Cyan" and peaking "Blue" (the accent blue); Android, both apps, "Amber", "Cyan" and peaking "Blue" (Pocket blue, Insta yellow). Insta iPhone already drew each dot's paint | Wrong colour named (coordinator) | Each dot shows the colour its overlay paints |
-| Timecode screen-reader name (iPhone, both apps) | With no timecode yet VoiceOver read the placeholder: "Timecode --:--:--", spoken as dashes | Accessibility (as the Android row below) | "Timecode not available"; with a timecode it reads "Timecode 01:02:03" as on `main` |
+| Timecode screen-reader name (iPhone, both apps) | With no timecode yet VoiceOver read the placeholder: "Timecode --:--:--", spoken as dashes | Accessibility (coordinator) | "Timecode not available"; with a timecode it reads "Timecode 01:02:03" as on `main` |
 | Screen-reader names and touch targets (Android, both apps) | Clean view pins, System buttons and the zebra threshold sliders had no spoken name; the System buttons' touch area was the capsule itself | Accessibility (coordinator) | Each has a name (for example "Keep LUT in clean view", "Highlight threshold"); the System buttons take touches across 48 dp around the unchanged capsule (it sits 1 px lower) |
 
 Deliberate copy difference in both apps: every `main` string with an em dash (Pocket pair page
@@ -489,7 +490,7 @@ decisions for you (section 9).
 | Playback "Back to media" is 48 pt and the portrait PEAK tool 48 pt tall (the UI tests expect 54 and 50) | Pocket, Insta iOS (iPhone 16 Pro, iOS 26.2) | likely device-dependent test values |
 | Scope panels have no TalkBack or VoiceOver move, resize or recenter action | Pocket, Insta (Nikon too, see its changes) | follow-up |
 | Sharing a cached clip the FileProvider cannot serve falls back to the public gallery | Pocket, Insta Android | security follow-up; callers pass only cached clips |
-| AUDIO appears only when the camera declares audio: never on Luna, not in the simulator review | Pocket, Insta | on a Pocket with a mic it must show (P5) |
+| AUDIO never appears on a Luna (it declares no audio), nor in the Insta simulator review, so two Insta AUDIO UI tests fail as on `main` | Insta | Pocket offers AUDIO on every body, as on `main` (P5) |
 | Android peaking is grainier than iOS | Nikon | |
 | The focus recenter button can sit under a scope panel placed on it | Nikon iOS | |
 
