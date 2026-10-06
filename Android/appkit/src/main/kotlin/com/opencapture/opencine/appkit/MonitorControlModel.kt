@@ -98,6 +98,9 @@ public class MonitorControlModel(
     /** Operator copy for an outcome that is not a confirmation (and for refusing to send). */
     public var onNote: (String) -> Unit = {}
 
+    /** The copy for a finished write or record ([note] by default); `null` stays silent. A host may keep its own. */
+    public var noteFor: (CommandStage, String) -> String? = { stage, label -> note(stage, label) }
+
     /** A record operation finished (any stage), for the app's follow-up (refresh media). */
     public var onRecordFinished: (CommandReceipt) -> Unit = {}
 
@@ -249,7 +252,7 @@ public class MonitorControlModel(
         if (session == null || snapshot == null) return finish(key, operation, binding, CONNECT_FIRST)
         val command = CameraCommand(CameraCommandIntent.Set(value), CommandPreconditions(snapshot), operation)
         val current = binding
-        scope.launch { finish(key, operation, current, note(finished(session, command).stage, label)) }
+        scope.launch { finish(key, operation, current, noteFor(finished(session, command).stage, label)) }
     }
 
     private fun finish(key: SettingKey, operation: OperationID, from: Int, note: String?) {
@@ -339,7 +342,7 @@ public class MonitorControlModel(
             val receipt = finished(session, CameraCommand(intent, CommandPreconditions(fresh), operation))
             val label = if (intent == CameraCommandIntent.StartRecording) "Record" else "Stop"
             if (binding != current || recordOperation != operation) return@async null
-            finishRecord(operation, current, note(receipt.stage, label), receipt)
+            finishRecord(operation, current, noteFor(receipt.stage, label), receipt)
             receipt
         }
     }
