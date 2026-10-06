@@ -30,9 +30,20 @@ public enum MonitorChromeEditBadgeLayout {
         viewport: CGSize,
         badgeSize: CGFloat = badgeSize
     ) -> [MonitorDisplayChrome.Section: CGRect] {
+        badgeFrames(
+            keyed: boxes.map { ($0.section, $0.frame) }, viewport: viewport, badgeSize: badgeSize)
+    }
+
+    /// The same placement for an app's own chrome sections. `boxes` order is the placement
+    /// priority; unmeasured (zero-sized) boxes get no badge.
+    public static func badgeFrames<Key: Hashable>(
+        keyed boxes: [(key: Key, frame: CGRect)],
+        viewport: CGSize,
+        badgeSize: CGFloat = badgeSize
+    ) -> [Key: CGRect] {
         let playable = playableRect(in: viewport, badgeSize: badgeSize)
         var placed: [CGRect] = []
-        var result: [MonitorDisplayChrome.Section: CGRect] = [:]
+        var result: [Key: CGRect] = [:]
 
         for box in boxes where box.frame.width > 1 && box.frame.height > 1 {
             let candidates = anchors(on: box.frame, viewport: viewport, badgeSize: badgeSize)
@@ -42,7 +53,7 @@ public enum MonitorChromeEditBadgeLayout {
                     !placed.contains { overlaps($0, candidate) }
                 } ?? candidates[0]
             placed.append(choice)
-            result[box.section] = choice
+            result[box.key] = choice
         }
         return result
     }
