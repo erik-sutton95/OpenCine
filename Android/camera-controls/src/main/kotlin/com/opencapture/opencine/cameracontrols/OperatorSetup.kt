@@ -389,7 +389,8 @@ private fun SharingRows() {
 private fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, onOpenLut: () -> Unit) {
     val assist = model.assist
     val colorMode = state.colorMode
-    @Composable fun card(tool: MonitorAssistTool) = OperatorAssistCard(tool, assist, app.help, app.assistHost, colorMode)
+    val transfer = MonitorTransfer.fromColorMode(colorMode)
+    @Composable fun card(tool: MonitorAssistTool) = OperatorAssistCard(tool, assist, app.help, app.assistHost, transfer)
     if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.WAVE, MonitorAssistTool.PARADE,
@@ -443,11 +444,11 @@ private fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, app
 
 /** One of main's eight View Assist cards, tagged `settings.assist.<name>`. */
 @Composable
-fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, colorMode: Int) {
+fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer) {
     val ceiling = host.scopeCeiling(assist)
     val (tag, card) = when (tool) {
-        MonitorAssistTool.FALSE -> "falseColor" to @Composable { FalseColorAssistCard(assist, help, colorMode, ceiling) }
-        MonitorAssistTool.ZEBRA -> "zebra" to @Composable { ZebraAssistCard(assist, help, host, colorMode, ceiling) }
+        MonitorAssistTool.FALSE -> "falseColor" to @Composable { FalseColorAssistCard(assist, help, transfer, ceiling) }
+        MonitorAssistTool.ZEBRA -> "zebra" to @Composable { ZebraAssistCard(assist, help, host, transfer, ceiling) }
         MonitorAssistTool.WAVE -> "waveform" to @Composable { WaveformAssistCard(assist, help) }
         MonitorAssistTool.PARADE -> "parade" to @Composable { ParadeAssistCard(assist, help) }
         MonitorAssistTool.HISTO -> "histogram" to @Composable { HistogramAssistCard(assist) }
@@ -460,7 +461,7 @@ fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help
 }
 
 @Composable
-private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, colorMode: Int, ceiling: ScopeClipSource) {
+private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
     MonitorSettingsRowCard(
         title = "False Color",
         onReset = { assist.setFalseColor(scale = MonitorFalseColorSelection.SCENE_STOPS, reference = true) },
@@ -472,7 +473,7 @@ private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpC
             ) { label -> assist.setFalseColor(scale = MonitorFalseColorSelection.fromMenuLabel(label)) }
         }
         MonitorSettingsInlineRow(title = "Reference key", stacked = true) {
-            FalseColorKey(assist.falseColorScale, colorMode, ceiling)
+            FalseColorKey(assist.falseColorScale, transfer, ceiling)
         }
         MonitorSettingsSwitchInlineRow(
             title = "Reference Display",
@@ -485,8 +486,7 @@ private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpC
 
 /** The false color bands with their stop or signal ruler (main's settings key). */
 @Composable
-private fun FalseColorKey(scale: MonitorFalseColorSelection, colorMode: Int, ceiling: ScopeClipSource) {
-    val transfer = MonitorTransfer.fromColorMode(colorMode)
+private fun FalseColorKey(scale: MonitorFalseColorSelection, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
     val segments = FalseColorReference.segments(scale, transfer, ceiling = ceiling)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Canvas(Modifier.fillMaxWidth().height(11.dp)) {
@@ -541,7 +541,7 @@ private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy
 }
 
 @Composable
-private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, colorMode: Int, ceiling: ScopeClipSource) {
+private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
     MonitorSettingsRowCard(
         title = "Zebra",
         onReset = {
@@ -555,7 +555,6 @@ private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, 
                 assist.updateZebraUnit(MonitorZebraUnit.fromEditorLabel(label))
             }
         }
-        val transfer = MonitorTransfer.fromColorMode(colorMode)
         val maximum = ZebraEditor.editorMaximum(assist.zebraUnit)
         ZebraZoneRow(
             title = "Highlight",

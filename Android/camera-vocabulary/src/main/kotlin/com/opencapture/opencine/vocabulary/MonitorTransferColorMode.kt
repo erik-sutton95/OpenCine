@@ -35,3 +35,7 @@ fun MonitorTransfer.Companion.inferred(minByte: Int, maxByte: Int, fallback: Mon
     if (minByte in 20..30 && maxByte in 160..240) return MonitorTransfer.DLOG
     return fallback
 }
+
+/** The curve the monitor reads this status through: its [CameraStatus.monitorColorMode], decoded. */
+val CameraStatus.monitorTransfer: MonitorTransfer
+    get() = MonitorTransfer.fromColorMode(monitorColorMode)

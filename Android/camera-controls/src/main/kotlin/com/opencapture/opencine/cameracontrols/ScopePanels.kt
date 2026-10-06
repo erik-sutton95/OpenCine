@@ -24,7 +24,6 @@ import com.opencapture.opencine.media.MonitorNDFilterRecommendation
 import com.opencapture.opencine.media.MonitorTransfer
 import com.opencapture.opencine.media.ScopeAssistBundle
 import com.opencapture.opencine.media.WaveformIre
-import com.opencapture.opencine.vocabulary.fromColorMode
 
 @Composable
 fun MovableAssistPanel(
@@ -46,23 +45,23 @@ fun MovableAssistPanel(
     )
 }
 @Composable
-fun WaveformPanel(state: MonitorAssistState, colorMode: Int, modifier: Modifier = Modifier,
+fun WaveformPanel(state: MonitorAssistState, transfer: MonitorTransfer, modifier: Modifier = Modifier,
     previewBundle: ScopeAssistBundle? = null) {
     val bundle = previewBundle ?: state.scopeBundle
-    val transfer = bundle.resolvedTransfer(colorMode)
-    val table = remember(transfer, bundle.iso, bundle.ceiling) { WaveformIre.levelTable(transfer, bundle.iso, bundle.ceiling) }
-    MonitorWaveformScopePlot(bundle, transfer, table, state.waveMode,
+    val shown = bundle.resolvedTransfer(transfer)
+    val table = remember(shown, bundle.iso, bundle.ceiling) { WaveformIre.levelTable(shown, bundle.iso, bundle.ceiling) }
+    MonitorWaveformScopePlot(bundle, shown, table, state.waveMode,
         WaveformAssist.intensity(state.waveBrightness),
         MonitorScopeGuides(state.waveGuides.clip, state.waveGuides.crush, state.waveGuides.middle), modifier)
 }
 
 @Composable
-fun ParadePanel(state: MonitorAssistState, colorMode: Int, modifier: Modifier = Modifier,
+fun ParadePanel(state: MonitorAssistState, transfer: MonitorTransfer, modifier: Modifier = Modifier,
     previewBundle: ScopeAssistBundle? = null) {
     val bundle = previewBundle ?: state.scopeBundle
-    val transfer = bundle.resolvedTransfer(colorMode)
-    val table = remember(transfer, bundle.iso, bundle.ceiling) { WaveformIre.levelTable(transfer, bundle.iso, bundle.ceiling) }
-    MonitorParadeScopePlot(bundle, transfer, table, state.paradeMode,
+    val shown = bundle.resolvedTransfer(transfer)
+    val table = remember(shown, bundle.iso, bundle.ceiling) { WaveformIre.levelTable(shown, bundle.iso, bundle.ceiling) }
+    MonitorParadeScopePlot(bundle, shown, table, state.paradeMode,
         ParadeAssist.intensity(state.paradeBrightness),
         MonitorScopeGuides(state.paradeGuides.clip, state.paradeGuides.crush, state.paradeGuides.middle), modifier)
 }
@@ -105,5 +104,5 @@ fun NDMeterPanel(state: MonitorAssistState, modifier: Modifier = Modifier) {
         emptyLabel = "\u2014")
 }
 
-private fun ScopeAssistBundle.resolvedTransfer(colorMode: Int): MonitorTransfer =
-    if (revision > 0L) transfer else MonitorTransfer.fromColorMode(colorMode)
+private fun ScopeAssistBundle.resolvedTransfer(fallback: MonitorTransfer): MonitorTransfer =
+    if (revision > 0L) transfer else fallback
