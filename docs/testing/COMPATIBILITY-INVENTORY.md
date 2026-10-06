@@ -164,9 +164,9 @@ Still to do from the same sweep: 12 Kotlin aliases that instrumented tests use a
 | Saved keys and credentials (`NativeCameraConnectionStore` rebrand migration, `CameraWiFiCredentialStore`, assist and scope storage keys) | brand wire format |
 | Discovery: `NativeCameraDiscovery`, `InfrastructureCameraFinder` (iOS), Kotlin discovery adapters | SDK adapter and Nikon feature (passive discovery); follow-up Z-6 (an Apple Nikon integration target) |
 | Nikon calibration and policy (`ExposureScale`, `FalseColor`, `FocusAssist`, `TrafficLightsMeter`, `MonitorLUT`, RED LUTs, `ThermalLoadPolicy`, `MonitorChrome` DISP modes, MF drive, photography) | Nikon feature |
-| App copies of shared owners: `FeedUpscaler`, `OpenZCineCore.MonitorAssistTool`, `StoredLUT`, `RelayBitrateAdaptation`, `RelayControlLease`, `SettingsDashScale`, `MovablePanel`, level gauge, `MonitorChromeEditLayout`, `MonitorFrameRateSampler`, recovery card, audio meters, framing assists, glass chrome | retire (follow-up Z-2): renames of more than ten sites, or a visible change toward the shared UI that the Nikon parity rule allows with screenshots |
-| Media residue (`MediaBrowser`, `MediaLibrary`, `MonitorPanels` media blocks; Android media cache, share, gallery, delivery and library owners) | follow-up Z-3 (Z-2 media owners, adopter by adopter) |
-| Aliases over shared types with more than ten sites or a stored shape: media filter names (`MediaResolutionBucket`, `MediaPhotoSizeClass`, `MediaDateWindow`, `MediaFilterOptions`, 18 sites), `StreamPreset`/`QualityBias` (about 20), audio meter aliases (about 18, incl. the facade wire), `StoredLUT` (Codable index) | retire (follow-up Z-2) |
+| Kept app copies of shared owners: `OpenZCineCore.MonitorAssistTool` (the shared enum lacks PLAY and MAG, titles differ, not `Codable`), level gauge and horizon (Nikon feature, no shared equivalent), `MonitorChromeEditLayout` (persisted section enums differ), `MovablePanel` for the audio and false-colour panels (the shared panel always draws a resize grip), iOS recovery card (no shared SwiftUI owner), Android audio meters (the shared meter drops the mic sensitivity readout), Android `FrameRateSampler` (reads READY where the shared one reads 0.00), Android framing geometry and `SelectionHeader` (small gain), glass chrome (different rendering technology) | Nikon feature or follow-up Z-2, reason per item |
+| `RelayBitrateAdaptation`, `RelayControlLease` | follow-up Z-5 (iOS has no OpenCineRelay link, Kotlin no shared owner) |
+| Android media owners: two `MediaCacheStore` instances, the share intent, the listing checkpoint | follow-up Z-3: one cache instance changes transfer reader/writer wake-up (needs a hardware run); the shared share API would grow; the checkpoint's census tests are its only unit coverage, so they move to the shared codec first |
 | Source sync | none |
 
 Retired here (`fbbbd705`, `4f11941d`, `5c8bda63`, production -364 lines net):
@@ -199,6 +199,25 @@ Retired by the nikon-z1 lane (OpenZCine `8bef53c3`, `9010d9d2`, `5e175fa8`, `82a
   `MonitorUIImageScopeSampler`, and Android `AndroidBatteryReadout` (appkit's `rememberPhoneBatteryReadout`;
   its mapping test moved to `PhoneBatteryReadoutTest`).
 
+Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381b7`, `f6135ef1`, `9b0afd04`,
+`b6a60447`, `47ce0974`, `e63a37d4`; OpenCine `b874e0b`, `75217b2`; OpenPocketCine `9325d8b3`; OpenInstaCine `cee4769`):
+
+- Z-2, aliases: every app alias over a shared type (Swift media filter names, `StreamPreset` and
+  `QualityBias`, the audio meter aliases, `StoredLUT`; Kotlin settings, effects, Frame.io and media
+  aliases). The meter and stored-LUT types are re-exported from OpenZCineCore (`@_exported import`), so
+  the Watch app and the JNI facade keep one import; raw values, `Codable` keys and wire bytes are unchanged.
+- Z-2, owners: `FeedUpscaler` (`MonitorUpscaler`), `StoredLUT` and the folder index (`StoredCustomLUT`,
+  `CustomLUTIndex`), `SettingsDashScale` (`MonitorLinkHealthScale`), `GlassChoice`, the Android
+  `MonitorPickerAnchor` and the gallery album path (`MediaStoreInsertPolicy`).
+- Z-3, iOS: `MediaBrowserView` renders the shared `MonitorMediaCatalog`. Nikon keeps its media features
+  through additive slots with empty defaults (card-slot cards in the landscape sidebar, the caching bar
+  under the header, burst count, RAW+J, EXPORTED and caching badges on `MonitorMediaItem`); opening,
+  sharing, caching and deleting stay Nikon's. Pocket and Insta use the shared `MonitorCatalogFilterButton`
+  (their identical copies are gone) and render pixel-identically. `MonitorCatalogHeader` and the
+  app-hosted `MonitorMediaSelectionHost` lost their only caller and are removed from OpenCine.
+- Tests: Nikon's `AudioLevelMeterTests.swift` (its three missing cases moved into
+  `MonitorAudioMeterBallisticsTests`) and two LUT tests duplicated by OpenCine `CubeLUTTests`.
+
 ## Follow-ups
 
 | Id | Repository | Item | Blocked by |
@@ -220,8 +239,8 @@ Retired by the nikon-z1 lane (OpenZCine `8bef53c3`, `9010d9d2`, `5e175fa8`, `82a
 | I-6 | Insta | Brand renames (`openpocketcine.version*`, `PocketCameraSession`, module and package names) | release tooling, JNI names in step |
 | I-7 | Insta | Inert DJI behavior on reached paths | visible-behavior decision |
 | I-8 | Insta | Multiview stubs, inert gimbal-limit pulse | edits in live UI files |
-| Z-2 | Nikon | Larger app copies of shared owners | renames, screenshots; `FeedUpscaler` and `StoredLUT` are drop-in swaps that also edit `ios/RunnerTests/RunnerTests.swift` |
-| Z-3 | Nikon | Z-2 media owners | owner-by-owner adoption |
+| Z-2 | Nikon | Kept app copies of shared owners | the reason named per item in the OpenZCine table |
+| Z-3 | Nikon | Android media owners | a hardware run for one cache instance; shared share API; census tests on the codec |
 | Z-4 | Nikon | `feedEffectsScalars`, ignored policy parameters | JNI export gate |
 | Z-5 | Nikon | Relay and watch wire convergence | wire version decision |
 | Z-6 | Nikon | Discovery into an Apple Nikon integration target | hardware-qualified reason |
