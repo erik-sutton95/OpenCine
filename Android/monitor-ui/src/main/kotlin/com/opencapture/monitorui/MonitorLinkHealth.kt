@@ -8,7 +8,7 @@ object MonitorLinkHealth {
     val watch = Color(0.96f, 0.52f, 0.12f)
     val poor = MonitorPalette.recording
 
-    enum class Band { POOR, WATCH, STABLE }
+    enum class Band(val label: String) { POOR("Poor"), WATCH("Watch"), STABLE("Stable") }
 
     fun score(bars: Int): Int = bars.coerceIn(0, 4) * 25
 

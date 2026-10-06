@@ -58,12 +58,18 @@ import kotlinx.coroutines.withContext
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorScrollFade
+import com.opencapture.monitorui.settings.MonitorReportStatus
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsSwitchGraphic
 
 private val ChromeShape = RoundedCornerShape(12.dp)
 
 /** Ripple-free click carrying a semantics [role], like the settings rows. */
+/** The Settings support card's report status, or null while this phone holds no report. */
+public val ManualProblemReportSnapshot.settingsStatus: MonitorReportStatus?
+    get() = if (delivery == ManualProblemReportDelivery.IDLE) null else
+        MonitorReportStatus(statusLabel, detail ?: "This phone keeps one report until Sentry accepts it or you discard it.", eventId)
+
 @Composable
 private fun Modifier.settingsClickable(role: Role, onClick: () -> Unit): Modifier =
     clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = role, onClick = onClick)

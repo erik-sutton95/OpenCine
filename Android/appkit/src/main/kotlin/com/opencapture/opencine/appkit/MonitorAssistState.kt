@@ -464,6 +464,25 @@ public class MonitorAssistState(
         persist()
     }
 
+    /** One settings card's Reset: the shared defaults, leaving panel sizes and positions where the operator put them. */
+    public fun resetSettings(tool: MonitorAssistTool): Unit {
+        when (tool) {
+            MonitorAssistTool.PEAK -> setPeaking(MonitorPeakingColor.RED, MonitorPeakingSense.MED)
+            MonitorAssistTool.FALSE -> setFalseColor(MonitorFalseColorSelection.SCENE_STOPS, reference = true)
+            MonitorAssistTool.ZEBRA -> {
+                updateZebraUnit(MonitorZebraUnit.IRE)
+                setZebraHighlight(enabled = true, ire = 99.0, color = MonitorZebraPaint.WHITE)
+                setZebraMidtone(enabled = true, ire = 55.0, color = MonitorZebraPaint.AMBER)
+            }
+            MonitorAssistTool.WAVE -> setWaveform(MonitorWaveformMode.RGB, brightness = 100, guides = MonitorScopeGuides())
+            MonitorAssistTool.PARADE -> setParade(MonitorParadeMode.RGB, brightness = 100, guides = MonitorScopeGuides())
+            MonitorAssistTool.HISTO -> setHistogram(traffic = true, compensation = MonitorCrushClipCompensation.ZERO)
+            MonitorAssistTool.VECTOR -> setVectorscope(MonitorVectorscopeZoom.X1, brightness = 100)
+            MonitorAssistTool.LIGHTS -> setCompensation(MonitorCrushClipCompensation.ZERO)
+            else -> Unit
+        }
+    }
+
     public fun updateAudioShowDB(value: Boolean): Unit { audioShowDB = value; persist() }
 
     public fun updateAudioOrientation(value: com.opencapture.monitorui.MonitorAudioOrientation): Unit {
