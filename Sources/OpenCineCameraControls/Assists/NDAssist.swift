@@ -157,4 +157,51 @@
                 onResizeEnded: { store.persist() }, content: content)
         }
     }
+
+    /// The ND chip in its movable panel over the live or playback picture. `reading` runs in the
+    /// chip's own body, so the panel around it does not re-evaluate on every scope bundle (up to
+    /// 25 Hz).
+    public struct NDMeterOverlay: View {
+        public var stores: AssistPanelStores
+        public var bounds: CGRect
+        public var feed: CGRect
+        public var chromeClearance: EdgeInsets
+        public var reading: () -> MonitorNDFilterSuggestion?
+
+        public init(
+            stores: AssistPanelStores, bounds: CGRect, feed: CGRect, chromeClearance: EdgeInsets,
+            reading: @escaping () -> MonitorNDFilterSuggestion?
+        ) {
+            self.stores = stores
+            self.bounds = bounds
+            self.feed = feed
+            self.chromeClearance = chromeClearance
+            self.reading = reading
+        }
+
+        public var body: some View {
+            let store = stores.nd
+            let size = MonitorScopePanelPlacement.size(
+                NDAssist.panelSize(scale: store.scale),
+                canvas: bounds, clearance: chromeClearance)
+            NDMovablePanel(
+                store: store,
+                size: size,
+                defaultCenter: MonitorScopePanelCentering.defaultCenter(size: size, bounds: bounds),
+                bounds: bounds,
+                placementBounds: MonitorScopePanelPlacement.bounds(in: bounds, clearance: chromeClearance)
+            ) {
+                NDMeterLiveChip(reading: reading, notation: store.notation)
+            }
+        }
+    }
+
+    private struct NDMeterLiveChip: View {
+        var reading: () -> MonitorNDFilterSuggestion?
+        var notation: MonitorNDFilterNotation
+
+        var body: some View {
+            NDMeterChip(reading: reading(), notation: notation)
+        }
+    }
 #endif
