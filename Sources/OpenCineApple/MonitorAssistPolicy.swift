@@ -57,8 +57,8 @@ public struct MonitorAssistPolicy: Equatable, Sendable {
         image.transfer = transfer
         image.clipByte = ceiling.clipByte(transfer: transfer)
         switch transfer {
-        case .rec709, .hdr: image.peakingGateScale = 1.57 * 1.57
-        case .dlog, .dlog2, .dlogm, .ilog: image.peakingGateScale = 1
+        case .rec709, .hdr, .srgb: image.peakingGateScale = 1.57 * 1.57
+        case .dlog, .dlog2, .dlogm, .ilog, .nlog, .log3G10: image.peakingGateScale = 1
         }
     }
 }

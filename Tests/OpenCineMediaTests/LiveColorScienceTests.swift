@@ -13,7 +13,7 @@ import Testing
         switch transfer {
         case .dlog2: 247
         case .dlog: 223
-        case .rec709, .hdr, .dlogm, .ilog: 255
+        case .rec709, .hdr, .dlogm, .ilog, .srgb, .nlog, .log3G10: 255
         }
     }
 

@@ -19,6 +19,12 @@ public enum MonitorTransfer: String, CaseIterable, Sendable, Identifiable {
     case dlogm
     /// Insta360 I-Log (June 2026 white paper). Scene-referred BT.2020.
     case ilog
+    /// IEC 61966-2-1 sRGB. Display-referred: linear 1.0 is display white and anything above clips.
+    case srgb
+    /// Nikon N-Log (specification 1.0.0). BT.2020.
+    case nlog
+    /// RED Log3G10 (white paper 915-0187 Rev C). REDWideGamutRGB.
+    case log3G10
 
     public var id: String { rawValue }
 
@@ -30,6 +36,9 @@ public enum MonitorTransfer: String, CaseIterable, Sendable, Identifiable {
         case .dlog2: "D-Log2"
         case .dlogm: "D-Log M"
         case .ilog: "I-Log"
+        case .srgb: "sRGB"
+        case .nlog: "N-Log"
+        case .log3G10: "Log3G10"
         }
     }
 
@@ -42,6 +51,9 @@ public enum MonitorTransfer: String, CaseIterable, Sendable, Identifiable {
         case .dlog2: DLog2.peakLinear
         case .ilog: ILog.decode(1)
         case .dlogm: DLogM.decode(1)
+        case .srgb: 1
+        case .nlog: NLog.decode(1)
+        case .log3G10: Log3G10.decode(1)
         }
     }
 
@@ -113,10 +125,13 @@ public enum LiveColorScience {
         red: Double, green: Double, blue: Double
     ) {
         switch transfer {
-        case .rec709, .dlog, .dlogm:
+        case .rec709, .dlog, .dlogm, .srgb:
             (0.2126, 0.7152, 0.0722)
-        case .hdr, .dlog2, .ilog:
+        case .hdr, .dlog2, .ilog, .nlog:
             (0.2627, 0.6780, 0.0593)
+        case .log3G10:
+            // REDWideGamutRGB luminance row.
+            (0.286694, 0.842979, -0.129673)
         }
     }
 
@@ -147,6 +162,9 @@ public enum LiveColorScience {
         case .dlog2: DLog2.decode(encoded)
         case .ilog: ILog.decode(encoded)
         case .dlogm: DLogM.decode(encoded)
+        case .srgb: SRGB.decode(encoded)
+        case .nlog: NLog.decode(encoded)
+        case .log3G10: Log3G10.decode(encoded)
         }
     }
 
@@ -158,6 +176,9 @@ public enum LiveColorScience {
         case .dlog2: DLog2.encode(linear)
         case .ilog: ILog.encode(linear)
         case .dlogm: DLogM.encode(linear)
+        case .srgb: SRGB.encode(linear)
+        case .nlog: NLog.encode(linear)
+        case .log3G10: Log3G10.encode(linear)
         }
     }
 
@@ -318,6 +339,54 @@ private enum DLog2 {
             return k1 * (log2(max(linear, 1e-15)) - log2(inLimit1)) + b1
         }
         return k2 * (linear - inLimit2) + b2
+    }
+}
+
+// MARK: - sRGB (IEC 61966-2-1)
+
+/// Display-referred: linear 1.0 is display white and anything above clips.
+public enum SRGB {
+    public static func decode(_ encoded: Double) -> Double {
+        let e = min(1, max(0, encoded))
+        return e <= 0.04045 ? e / 12.92 : pow((e + 0.055) / 1.055, 2.4)
+    }
+
+    public static func encode(_ linear: Double) -> Double {
+        let l = min(1, max(0, linear))
+        return l <= 0.003_130_8 ? 12.92 * l : 1.055 * pow(l, 1 / 2.4) - 0.055
+    }
+}
+
+// MARK: - N-Log (Nikon N-Log specification 1.0.0)
+
+/// On the 10-bit code divided by 1023. Gamut is BT.2020.
+public enum NLog {
+    public static func decode(_ encoded: Double) -> Double {
+        let code = encoded * 1023
+        return code < 452 ? pow(code / 650, 3) - 0.0075 : exp((code - 619) / 150)
+    }
+
+    public static func encode(_ linear: Double) -> Double {
+        if linear < 0.328 { return 650 * pow(max(0, linear + 0.0075), 1 / 3) / 1023 }
+        return (150 * log(linear) + 619) / 1023
+    }
+}
+
+// MARK: - Log3G10 (RED white paper 915-0187 Rev C)
+
+/// Gamut is REDWideGamutRGB.
+public enum Log3G10 {
+    private static let a = 0.224282
+    private static let b = 155.975327
+    private static let c = 0.01
+    private static let g = 15.1927
+
+    public static func decode(_ encoded: Double) -> Double {
+        encoded < 0 ? encoded / g - c : (pow(10, encoded / a) - 1) / b - c
+    }
+
+    public static func encode(_ linear: Double) -> Double {
+        linear <= -c ? (linear + c) * g : a * log10((linear + c) * b + 1)
     }
 }
 
