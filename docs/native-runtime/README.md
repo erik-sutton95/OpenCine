@@ -83,6 +83,13 @@ identity without replacing the picture host; VT rebuilds also fence queued decod
 source calls `preparePixelBufferSource` and submits through the same owner, preserving its token
 through asynchronous delivery. Apps keep simulator footage selection and raw wire color mapping.
 
+Native consumer callbacks may synchronously reset, rebuild or close their source. Decoded and
+compressed presentation retain the admitted source token and decoder generation through source,
+mirror, preview and diagnostic callbacks and recheck them before continuing. A retired completion
+cannot commit its orientation, enqueue its pixels or refill source freshness after that callback.
+Native consumer fixtures cover reset and terminal close during source delivery and mirror commit,
+plus current-source acceptance and the existing cached-repaint and picture-owner cases.
+
 Known live ISO reports use `updateSourceCalibration(iso:source:)` with a token captured before
 queuing the report. Attach the sample bus before seeding a known ISO. This operation targets the
 runtime's current live publication lease; the bus's display ceiling may belong to playback.

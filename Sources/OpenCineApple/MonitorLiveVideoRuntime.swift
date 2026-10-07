@@ -321,6 +321,12 @@ open class MonitorLiveVideoRuntime {
         return current && publication?.isActive != false
     }
 
+    nonisolated private func accepts(
+        _ source: MonitorVideoSourceToken?, generation: StreamGeneration
+    ) -> Bool {
+        accepts(source) && vt.fence.isCurrent(generation)
+    }
+
     /// Applies a known camera report to this live source, even when playback owns the display.
     /// Capture the token before queuing a report. Unknown or retired reports preserve calibration.
     @discardableResult public func updateSourceCalibration(
@@ -556,7 +562,9 @@ open class MonitorLiveVideoRuntime {
         }
         // A compressed frame skipped during the mirror hold left later P-frames
         // without their reference. Decode it, just do not show it.
-        let mirrorHold = !commitPictureFlipIfNeeded()
+        let generation = vt.fence.generation
+        let mirrorHold = !commitPictureFlipIfNeeded(source: source, generation: generation)
+        guard accepts(source, generation: generation) else { return false }
         if mirrorHold { VideoToolboxDecoder.markDoNotDisplay(sample) }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -628,6 +636,10 @@ open class MonitorLiveVideoRuntime {
         let publicationSource = samplePublication.withLock { $0 }
         guard publicationSource?.isActive != false else { lease.release(); return }
         if isNewSourceFrame { onIdentityFrame?(imageBuffer) }
+        guard accepts(source, generation: generation), publicationSource?.isActive != false else {
+            lease.release()
+            return
+        }
         let assistSubmittedAt = ProcessInfo.processInfo.systemUptime
         if isNewSourceFrame { pipelineMetrics.assistInput() }
         // One MainActor hop per engine callback  -  a second per-frame Task for the frame
@@ -652,7 +664,10 @@ open class MonitorLiveVideoRuntime {
                         at: ProcessInfo.processInfo.systemUptime, completedAt: completedAt)
                 }
                 let presented = self.applyAssistResult(
-                    result, generation: generation, publicationSource: publicationSource, isNewSourceFrame: isNewSourceFrame)
+                    result, source: source, generation: generation,
+                    publicationSource: publicationSource, isNewSourceFrame: isNewSourceFrame)
+                guard self.accepts(source, generation: generation),
+                    publicationSource?.isActive != false else { return }
                 // Cached repaints cannot refresh source liveness.
                 if result.shouldPresent && isNewSourceFrame {
                     self.lastSourceFrameAt = sourceTime
@@ -660,6 +675,8 @@ open class MonitorLiveVideoRuntime {
                 }
                 if presented && isNewSourceFrame {
                     self.publishPreview(result)
+                    guard self.accepts(source, generation: generation),
+                        publicationSource?.isActive != false else { return }
                     self.notePresentedFrame(sampleRate: true)
                 }
             }
@@ -1004,10 +1021,15 @@ open class MonitorLiveVideoRuntime {
     }
 
     private func applyAssistResult(
-        _ result: MonitorAssistEngine.Result, generation: StreamGeneration,
+        _ result: MonitorAssistEngine.Result, source: MonitorVideoSourceToken?,
+        generation: StreamGeneration,
         publicationSource: LiveFrameSampleBus.Source?,
         isNewSourceFrame: Bool = true
     ) -> Bool {
+        func isCurrent() -> Bool {
+            accepts(source, generation: generation) && publicationSource?.isActive != false
+        }
+        guard isCurrent() else { return false }
         // The inspector borrows raw main-feed pixels even when no scope is
         // enabled. Retaining the buffer performs no copy or scope calculation;
         // only an actual scope bundle advances the bus's observable generation.
@@ -1018,6 +1040,7 @@ open class MonitorLiveVideoRuntime {
             reportedTransfer: result.transfer,
             bundle: result.bundle) else { return false }
         }
+        guard isCurrent() else { return false }
         if result.shouldPresent {
             lastDecodedBuffer = result.source
             lastDecodedTimeNs = result.timeNs ?? 0
@@ -1027,7 +1050,9 @@ open class MonitorLiveVideoRuntime {
                 vt.fence.publish(lease, to: onSourceFrame)
                 lease.release()
             }
+            guard isCurrent() else { return false }
             onSourceAdvanced?()
+            guard isCurrent() else { return false }
         }
         if !result.shouldPresent { return false }
         var presentedIdentity = false
@@ -1045,10 +1070,12 @@ open class MonitorLiveVideoRuntime {
         if usesPixelBufferDisplay, !metalOwnsPicture {
             displayLayer.isHidden = false
             presentedIdentity = enqueueDecodedFrame(
-                result.source, recoverOnFailure: false, isNewSourceFrame: isNewSourceFrame)
+                result.source, recoverOnFailure: false, isNewSourceFrame: isNewSourceFrame,
+                source: source, generation: generation)
         } else if !replaceIdentity {
             displayLayer.isHidden = false
         }
+        guard isCurrent() else { return false }
 
         if !result.needsGPU || !effects.needsGPUFeed {
             if hdrDisplayEnabled, let feed = ownedProcessedFeed {
@@ -1065,7 +1092,7 @@ open class MonitorLiveVideoRuntime {
             return presentedIdentity
         }
         guard let feed = ownedProcessedFeed else { return presentedIdentity }
-        if metalOwnsPicture, !commitPictureFlipIfNeeded() {
+        if metalOwnsPicture, !commitPictureFlipIfNeeded(source: source, generation: generation) {
             return presentedIdentity
         }
 
@@ -1226,20 +1253,26 @@ open class MonitorLiveVideoRuntime {
 
     /// Extra-mirror the host view with the next present. `false` keeps the last picture.
     @discardableResult
-    private func commitPictureFlipIfNeeded() -> Bool {
+    private func commitPictureFlipIfNeeded(
+        source: MonitorVideoSourceToken?, generation: StreamGeneration
+    ) -> Bool {
+        guard accepts(source, generation: generation) else { return false }
         switch extraMirrorHold.step(want: pictureFlip, now: CFAbsoluteTimeGetCurrent()) {
         case .unchanged:
             if presentedPictureFlip != pictureFlip, let apply = applyPictureMirror {
-                apply(pictureFlip)
-                presentedPictureFlip = pictureFlip
+                let mirrored = pictureFlip
+                apply(mirrored)
+                guard accepts(source, generation: generation) else { return false }
+                presentedPictureFlip = mirrored
             }
-            return true
+            return accepts(source, generation: generation)
         case .hold:
             return false
         case .commit(let mirrored):
             applyPictureMirror?(mirrored)
+            guard accepts(source, generation: generation) else { return false }
             presentedPictureFlip = mirrored
-            return true
+            return accepts(source, generation: generation)
         }
     }
 
@@ -1248,7 +1281,17 @@ open class MonitorLiveVideoRuntime {
     public func enqueueDecodedFrame(
         _ imageBuffer: CVPixelBuffer, recoverOnFailure: Bool = true, isNewSourceFrame: Bool = true
     ) -> Bool {
-        guard accepts(sourceToken), commitPictureFlipIfNeeded() else { return false }
+        enqueueDecodedFrame(
+            imageBuffer, recoverOnFailure: recoverOnFailure, isNewSourceFrame: isNewSourceFrame,
+            source: sourceToken, generation: vt.fence.generation)
+    }
+
+    private func enqueueDecodedFrame(
+        _ imageBuffer: CVPixelBuffer, recoverOnFailure: Bool, isNewSourceFrame: Bool,
+        source: MonitorVideoSourceToken?, generation: StreamGeneration
+    ) -> Bool {
+        guard accepts(source, generation: generation),
+            commitPictureFlipIfNeeded(source: source, generation: generation) else { return false }
         guard VideoToolboxDecoder.isPresentable(imageBuffer) else { return false }
         // VT output keeps one size and color tagging per session; the runtime reuses its description.
         guard let sample = vt.makeDecodedSample(imageBuffer) else { return false }
@@ -1270,6 +1313,7 @@ open class MonitorLiveVideoRuntime {
         finishLayerHandoffIfNeeded()
         if isNewSourceFrame {
             configuration.decodeEvent(.presented)
+            guard accepts(source, generation: generation) else { return false }
             notePresentedFrame()
         } else {
             displayedImageRemoved = false
