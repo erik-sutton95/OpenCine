@@ -4,9 +4,12 @@ Which actual app implementations now use shared OpenCine owners, what remains in
 how much source each repository carries. Companion of [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md)
 and [TESTER-GUIDE.md](TESTER-GUIDE.md).
 
-Updated 2026-10-08. Status: candidate implementation in task-owned worktrees. Source retirement,
-automated checks, actual-consumer checks and physical qualification are separate states. No final
-candidate revision, pin move, integration, release or checkpoint closure is asserted here.
+Updated 2026-10-08. Status: locally committed candidate. Qualified product source is SDK
+`e5a804d3` with Pocket `524facae`, Insta `f2a830e3` and Nikon `8cfe6983`; docs-only baseline
+`ecf912c4` changes no product code. First-pass matrix `7004c896` records exact inputs and finite
+later deltas. Source retirement, automated scopes and physical qualification remain distinct;
+no pin move, integration or release is claimed. All dated count/history sections below remain
+unchanged; their historical pending wording is superseded by the concrete binding below.
 
 ## Current source ownership
 
@@ -96,34 +99,51 @@ call sites. The documentation lane ran no compiler, build, Git operation or devi
 | Actual Nikon native/Android | Android v5: 897 cases/114 raw XML, zero failures/errors/skips. Original real-service AX/action/pixel six v2: six passed, zero failure/skip. Native v15: 390 cases, 388 passed, zero failures, two known skips; arm64/x86_64 products. Full native14 reserve interruption is retained separately, not a test pass |
 | Original Pocket installed Android/GPU | Original native matrix v1: 21 passed (two-control/four-owner, four synthetic Surface picture/identity, chrome geometry/actions, native metadata/prepare). Original GPU v1: one test/27 comparisons passed. SIMULATED observations/pixels; real GPU/camera/HEVC/peer performance untested |
 | Original installed/template flows | Original Pocket iOS MultiviewUIFlowTests passed five/zero failure/skip on existing default3/explicit4/one-capability inputs. Focused original AX v1/v2 each retain 0 passed/0 failed/1 no-tree skip; v2 scene registration/restoration changes only two setup fragments, with original fourteen XCTest sites/body/walker/waits/skip preserved and VoiceOver assertions untested. No product fix or VoiceOver pass is inferred; generated full v3 passed all original eight contracts plus three installed cases on each platform, zero failure/skip: Android summary `b803fe6b`/log `ed85bea0`, iOS summary `ed42ab03`/log `bb0f0a99`, combined receipt `b9843798`. Both retained all 1,356 source guards; iOS built camera/SIMULATED Debug/Release products and restored private077 Shutdown with no other device state changes. Camera data remains SIMULATED; native decoding and installed operator/lifetime/persistence/isolation checks passed. No new two-decoded-picture selector required |
-| Final exact source/artifact binding | Current Nikon APK/AAB/staging/DEX/JNI v5 passed, packet `5a13191a`: debug99/release81 production native DEX methods, 18 unused Vulkan declarations pruned by unchanged R8, all99 production exports retained. Original native fixture exports remain separate and exact. Latest shared iOS palette is qualified in Nikon native v15; final four-repository content/commit and exact combined matrix/dupes binding [PENDING: FINAL_CANDIDATE_BINDING] |
-| Physical qualification | Untested for the current combined migration on all three brands/platforms. Latest iPhone lock-state v4 at 2026-10-08 10:09 CEST reports `passcodeRequired=false`; Android phone detached. Original opt-in driver is prepared; earlier standby/navigation scopes and unlocked readiness do not establish a current combined physical pass |
+| Final exact source/artifact binding | Current Nikon APK/AAB/staging/DEX/JNI v5 passed, packet `5a13191a`: debug99/release81 production native DEX methods, 18 unused Vulkan declarations pruned by unchanged R8, all99 production exports retained. Original native fixture exports remain separate and exact. Latest shared iOS palette is qualified in Nikon native v15; final four-repository content/commit and exact combined matrix/dupes binding recorded in first-pass candidate `f6f1ed71` and matrix `7004c896`; final status-only documentation is rebound separately |
+| Physical qualification | Untested for the current combined migration on all three brands/platforms. Xcode reports the iPhone locked again and the original selected test awaits unlock; Android remains detached. Earlier unlocked readiness and standby/navigation results do not establish a current combined pass |
 | Pins/integration/release | Unchanged by this documentation checkpoint; no final closure claimed |
 
-The table below keeps the earlier Working HEAD enumeration as provenance. The coordinator
-recorded the three local app-adopter commits below; Pocket/Insta exploratory UI working hashes
-remain preserved. The SDK candidate/content manifest and exact combined checks remain pending.
-A local app commit does not qualify the final SDK combination or a physical installation.
+The table keeps earlier Working HEADs as provenance and binds the local commits through product
+source receipt `78c7b5e0`, index/content manifest `db39cbd8`, docs-only receipt `61d94052` and
+first-pass matrix `7004c896`. All runs retain their original input scopes. Later delivery/source
+corrections and the docs-only head remain explicit; no old app guard map is restamped.
+Pocket/Insta exploratory UI files remain preserved outside their registration-only committed
+candidates (`9ed86a6c`/`70bff1f8` working; `f1ec6039`/`b4f4c22b` committed).
 
 | Repository | Working HEAD at enumeration (provenance only) | Final candidate revision/content manifest | Actual consumer/native gates | Physical result |
 |---|---|---|---|---|
-| OpenCine | `7a0d073150c181cad702ca1b3b749e6bb5ed37bd` | [PENDING: FINAL_OPENCINE_CANDIDATE] | Recorded shared gates above; latest palette in Nikon native v15; exact combined binding pending | Untested |
-| OpenPocketCine | `55465f8a9b3a68a7663eb35fbb44869cfd4c5694` | Local adopter `524facaefc70a413180ca9d516f681fe36f51d2c`; exact final combination [PENDING: FINAL_POCKET_CANDIDATE] | Portable76, native580/one skip, Android233, repository/linkage, original Android21/GPU27 and iOS Multiview5 passed; original AX remains a known no-tree skip with VoiceOver assertions untested; final binding pending | Untested |
-| OpenInstaCine | `e5e6e5e5897b7254459d2aa666d4ca0b2071dbb7` | Local adopter `f2a830e3cd921c72e1deb94a9dcf06442c8b38fe`; exact final combination [PENDING: FINAL_INSTA_CANDIDATE] | Portable60, native403/one skip, Android207, original whole movie/metadata/cancel and linkage passed; exact combined binding pending | Untested |
-| OpenZCine | `61fc7109f9a3fc699d5f97f0f174bef17de1b55a` | Local adopter `8cfe698378cc7673a5fca8c8383f868d4d995d42`; exact final combination [PENDING: FINAL_NIKON_CANDIDATE] | Portable404, native390/two skips, Android897 and original six native action/pixel cases passed; APK/AAB/JNI v5 passed; final binding pending | Untested |
+| OpenCine | `7a0d073150c181cad702ca1b3b749e6bb5ed37bd` | Product `e5a804d37fa70e97228954988a4c8cd0d06a3c81`; docs-only first-pass candidate `ecf912c442039c64d54301fb9977f47a7a77463e`; matrix `7004c896` | Recorded shared gates above; latest palette in Nikon native v15; exact combined binding pending | Untested |
+| OpenPocketCine | `55465f8a9b3a68a7663eb35fbb44869cfd4c5694` | Local adopter `524facaefc70a413180ca9d516f681fe36f51d2c`; exact final combination matrix `7004c896` and candidate `f6f1ed71`, with recorded input scopes and finite later deltas retained | Portable76, native580/one skip, Android233, repository/linkage, original Android21/GPU27 and iOS Multiview5 passed; original AX remains a known no-tree skip with VoiceOver assertions untested; final binding pending | Untested |
+| OpenInstaCine | `e5e6e5e5897b7254459d2aa666d4ca0b2071dbb7` | Local adopter `f2a830e3cd921c72e1deb94a9dcf06442c8b38fe`; exact final combination matrix `7004c896` and candidate `f6f1ed71`, with recorded input scopes and finite later deltas retained | Portable60, native403/one skip, Android207, original whole movie/metadata/cancel and linkage passed; exact combined binding pending | Untested |
+| OpenZCine | `61fc7109f9a3fc699d5f97f0f174bef17de1b55a` | Local adopter `8cfe698378cc7673a5fca8c8383f868d4d995d42`; exact final combination matrix `7004c896` and candidate `f6f1ed71`, with recorded input scopes and finite later deltas retained | Portable404, native390/two skips, Android897 and original six native action/pixel cases passed; APK/AAB/JNI v5 passed; final binding pending | Untested |
+
+Candidate first-pass receipt `f6f1ed71` binds all four local repositories and six pairs,
+`missing={}`, no growth against unchanged baseline `3ee29c52`; SDK measured text equals its
+committed inputs under the existing newline handling. These duplicate-block lines are distinct
+from the dated WIP all-text production-line census, which has not been recounted.
+
+| Pair | Existing baseline | Local candidate first pass | Change |
+|---|---:|---:|---:|
+| OpenCine / OpenInstaCine | 19,214 | 706 | -18,508 |
+| OpenCine / OpenPocketCine | 2,505 | 256 | -2,249 |
+| OpenCine / OpenZCine | 672 | 434 | -238 |
+| OpenInstaCine / OpenPocketCine | 55,295 | 9,934 | -45,361 |
+| OpenInstaCine / OpenZCine | 716 | 584 | -132 |
+| OpenPocketCine / OpenZCine | 1,687 | 621 | -1,066 |
+
+Final Atlas unit v1 passed 102 cases with zero failures/skips (`6d015007`), and plain check passed.
+The separate registered-ref `atlas check --sources` failed with 32 old authored-ref errors;
+that failure is not the successful local candidate result. Authored refs, pins and baseline
+were unchanged. Root records a fresh v2 candidate after the final status-only docs commit.
 
 ## Remaining completion criteria
 
-The fixed original ledger is 42/46 (91%) at this draft fence. Its 47 registered IDs,
-46 eligible IDs and excluded unsupported Insta multicam row are unchanged. The coordinator
-closed `finish.template` against both original full eleven-case platform passes, combined
-receipt `b9843798`. The remaining four original gates are `insta.compat`, `pocket.compat`,
-`finish.matrix` and `finish.guide`; this documentation proposal closes none of them.
-The compatibility rows still require audited retained copies and qualified actual adopters;
-`finish.matrix` requires one exact combined source, all three consumers, current simulated
-2/4-camera checks, duplication exit and independent reviews; `finish.guide` requires exact
-build/install revisions and truthful supported/untested states. This inventory completes none
-of those gates by itself. `insta.multicam` remains not applicable and excluded from the denominator.
+The fixed original ledger has 47 registered IDs and 46 eligible IDs, with unsupported Insta
+multicam still excluded. Root closed `finish.template` against both original eleven-case
+platform passes (`b9843798`) and the original Pocket/Insta compatibility exits against
+`2415a4b7`. Final matrix and documentation-head closure is recorded in the coordinator handoffs
+and `CODEX-RESUME-20261007/final-current-head-matrix-v2/receipt.json`. Physical qualification,
+pins, integration and publication remain separate; no denominator or acceptance criterion changed.
 
 The earlier Insta Android black-picture blocker remains resolved within its recorded emulator
 scope (two media-owner input, ten movie rendering and three backdrop cases on each of two runs).

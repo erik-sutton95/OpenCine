@@ -5,15 +5,27 @@ How to build OpenPocketCine, OpenInstaCine and OpenZCine against OpenCine on
 on a real camera. Which app code moved where: [RETIRED-OWNERS.md](RETIRED-OWNERS.md); what the
 apps still keep and why: [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md).
 
-Status at the 2026-10-08 verification checkpoint: local candidate preparation. Recorded shared
+Status at the 2026-10-08 verification checkpoint: locally committed candidate. Recorded shared
 checks, all three apps' native/Android gates and original full template acceptance on both
-platforms pass within their recorded input scopes, with the known native skips listed below.
-The original coding ledger is 42/46 (91%). Final combined-source and installed-build binding
-and the remaining original UI/device matrix are pending. Earlier physical standby/navigation
-checks remain historical; the current combined migration is not yet hardware-qualified.
+platforms pass within their recorded scopes, with the known skips below. Root closed the original
+Pocket/Insta compatibility exits (`2415a4b7`). The fixed 46-checkpoint coding ledger and latest
+final matrix/documentation-head closure are recorded in the coordinator handoffs and
+`CODEX-RESUME-20261007/final-current-head-matrix-v2/receipt.json`. Physical qualification remains untested: the
+iPhone is locked again and awaits unlock; Android remains detached. No integration, pin move or
+publication is claimed.
 
-The coordinator binds final candidate commits and install results after the combined run
-(finish.matrix). Working HEADs below identify provenance, not the uncommitted source bytes.
+Qualified local product source is OpenCine `e5a804d37fa70e97228954988a4c8cd0d06a3c81`, Pocket
+`524facaefc70a413180ca9d516f681fe36f51d2c`, Insta `f2a830e3cd921c72e1deb94a9dcf06442c8b38fe`
+and Nikon `8cfe698378cc7673a5fca8c8383f868d4d995d42`. Docs-only baseline `ecf912c4` changes no
+product code. First-pass matrix `7004c896` binds these inputs, candidate receipt `f6f1ed71`,
+current SDK/consumer scopes and finite later deltas. Root records the final status-only doc head
+through a fresh candidate v2 and current-head matrix sidecar; no future result is asserted here.
+
+The earlier revision/setup/checklist blocks and dated WIP counts below are retained unchanged;
+their historical pending wording is superseded by this current binding. No final production-line
+recensus was performed. Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved
+and excluded from the committed candidates. Only original HEAD plus physical registration was
+committed (`f1ec6039`/`b4f4c22b`); preserved working hashes are `9ed86a6c`/`70bff1f8`.
 
 What counts as a regression:
 
@@ -534,17 +546,21 @@ Current combined physical qualification remains untested.
 
 | Area | Recorded checks and remaining qualification | Physical |
 |---|---|---|
-| OpenCine shared code | Final SDK Swift v2: 3,132 Swift Testing cases in 372 suites + 176 XCTest passed; final strict v2 passed. Both retained all 1,290 source guards after the current private immutable progress callback capture. Optimized shipping Release v3 passed for both simulator architectures; this is compile-only. Android v24: 2,221 cases, zero failures/errors, two known Core skips; test/lint/release passed, 343 raw XML files frozen. Vulkan sync passed. Atlas unit v3: 102 cases, one known skip; plain check passed. Latest shared iOS palette correction passed in Nikon native v15; final combined-source binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined operator flows |
-| OpenPocketCine | Portable v3: 76 cases and strict passed. Native v4: 580 cases, 579 passed, one original no-tree accessibility skip, zero failures; arm64/x86_64 products. Android v6: 233 cases, 44 raw XML files, zero failures/errors/skips; test/lint/debug/release/instrumentation compilation and Swift staging passed. Repository v2 and APK/JNI linkage passed. Original installed Android native matrix: 21 passed; original iOS MultiviewUIFlowTests: five passed, zero failure/skip. Focused original AX v1/v2 each reached the original no-tree skip (0 passed/0 failed/1 skipped); its VoiceOver assertions remain untested; final source/install binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined candidate |
-| OpenInstaCine | Portable v2: 60 cases and strict passed; repository v2 passed. Native v13: 403 cases, 402 passed, one original accessibility-service skip, zero failures; arm64/x86_64 products. Android v8: 207 cases, 40 raw XML files, zero failures/errors/skips; test/lint/debug/release/instrumentation compilation and Swift staging passed. Whole original decoded-movie v4, metadata v2 and pointer-cancel v1 passed on the emulator; current APK/JNI/assets linkage passed. Final source/install binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined candidate |
-| OpenZCine | Portable v1: 404 tests in 23 suites and strict passed. Android v5: 897 cases, 114 raw XML files, zero failures/errors/skips; test/lint/debug/release/Wear/instrumentation compilation and Swift staging passed. Original real-accessibility-service six v2 passed 6/0/0. Full native v15: 390 cases, 388 passed, two known skips, zero failures; arm64/x86_64 products. Current APK/AAB/staging/DEX/JNI linkage v5 passed (`5a13191a`): 99 debug/81 release production native DEX methods, 18 unused Vulkan methods pruned by existing R8 rules, all 99 production native exports retained; final source/install binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined candidate |
+| OpenCine shared code | Final SDK Swift v2: 3,132 Swift Testing cases in 372 suites + 176 XCTest passed; final strict v2 passed. Both retained all 1,290 source guards after the current private immutable progress callback capture. Optimized shipping Release v3 passed for both simulator architectures; this is compile-only. Android v24: 2,221 cases, zero failures/errors, two known Core skips; test/lint/release passed, 343 raw XML files frozen. Vulkan sync passed. Final Atlas unit v1: 102 cases, zero failures/skips, log `6d015007`; plain check passed. Earlier unit v3 retains its historical skip. Registered-ref `check --sources` failed with 32 historical-ref errors; local candidate duplication passed separately. Latest shared iOS palette correction passed in Nikon native v15; final combined-source binding recorded in first-pass matrix `7004c896`, with finite later deltas explicit and final current-doc-head supplement coordinator-owned | untested for current combined operator flows |
+| OpenPocketCine | Portable v3: 76 cases and strict passed. Native v4: 580 cases, 579 passed, one original no-tree accessibility skip, zero failures; arm64/x86_64 products. Android v6: 233 cases, 44 raw XML files, zero failures/errors/skips; test/lint/debug/release/instrumentation compilation and Swift staging passed. Repository v2 and APK/JNI linkage passed. Original installed Android native matrix: 21 passed; original iOS MultiviewUIFlowTests: five passed, zero failure/skip. Focused original AX v1/v2 each reached the original no-tree skip (0 passed/0 failed/1 skipped); its VoiceOver assertions remain untested; final source/install binding recorded in first-pass matrix `7004c896`, with finite later deltas explicit and final current-doc-head supplement coordinator-owned | untested for current combined candidate |
+| OpenInstaCine | Portable v2: 60 cases and strict passed; repository v2 passed. Native v13: 403 cases, 402 passed, one original accessibility-service skip, zero failures; arm64/x86_64 products. Android v8: 207 cases, 40 raw XML files, zero failures/errors/skips; test/lint/debug/release/instrumentation compilation and Swift staging passed. Whole original decoded-movie v4, metadata v2 and pointer-cancel v1 passed on the emulator; current APK/JNI/assets linkage passed. Final source/install binding recorded in first-pass matrix `7004c896`, with finite later deltas explicit and final current-doc-head supplement coordinator-owned | untested for current combined candidate |
+| OpenZCine | Portable v1: 404 tests in 23 suites and strict passed. Android v5: 897 cases, 114 raw XML files, zero failures/errors/skips; test/lint/debug/release/Wear/instrumentation compilation and Swift staging passed. Original real-accessibility-service six v2 passed 6/0/0. Full native v15: 390 cases, 388 passed, two known skips, zero failures; arm64/x86_64 products. Current APK/AAB/staging/DEX/JNI linkage v5 passed (`5a13191a`): 99 debug/81 release production native DEX methods, 18 unused Vulkan methods pruned by existing R8 rules, all 99 production native exports retained; final source/install binding recorded in first-pass matrix `7004c896`, with finite later deltas explicit and final current-doc-head supplement coordinator-owned | untested for current combined candidate |
 | Live picture, Metal and Vulkan | Simulator Metal and emulator EGL only. Original Pocket GPU oracle passed one test with 27 pixel comparisons (nine plans by three odd sizes) | untested on real GPUs |
 | Bluetooth, Wi-Fi join, hotspot, USB, PTP, UVC | Unit tests with fakes; not possible on simulators | untested |
 | Multiview and Multicam with 2 to 4 cameras | Existing shared control/lease/admission scenarios are SIMULATED. Original Pocket installed Android 21-case matrix passed, including four synthetic native Surface pictures. Original iOS MultiviewUIFlowTests passed five/zero failure/skip with existing default3/explicit4/one-capability inputs | real peer performance and hardware untested |
 | AirPods head tracking, Apple Watch, Wear OS | Unit tests and watch builds | untested |
 | VoiceOver, TalkBack | Original Nikon native accessibility/action/pixel six passed with the real simulator accessibility service; full native v15 passed. Insta's full native receipt retains its original accessibility-service skip. Pocket focused AX v1/v2 both retain the original no-tree skip with the real service enabled; v2 includes the two-fragment scene registration/restoration setup correction. Pocket's original picker/zoom/cover VoiceOver assertions did not execute. TalkBack not run | untested on a device |
 
-Each result qualifies its recorded input and platform scope. Nikon's two native skips are the
+Each result qualifies its recorded input and platform scope. Later Swift delivery actor and
+immutable progress corrections (`19c4` to `532b` to `50758`) are separately qualified by the
+current SDK suite/strict and both full original template eleven-case suites; they do not restamp
+older app guard maps as exact current reruns. Nikon's final MediaBrowser comment-only delta
+preserves executable bytes. Matrix `7004c896` retains those source exceptions. Nikon's two native skips are the
 absent reference-proxy sample and the simulator VideoToolbox refusal of a real ZR JPEG frame.
 Insta's whole movie checks actual Media3/GLES decoding of the original cached moving MP4s with a
 SIMULATED catalogue; its eventual B-pixel assertion does not inject transient old-A buffers.
@@ -553,12 +569,12 @@ retained Surface hosts use synthetic pixels, and native metadata/prepare tests u
 observations. No existing exact two-decoded-picture installed selector is claimed or newly
 required. These results do not qualify camera decoding, real two/four-peer performance or hardware.
 
-Latest recorded physical readiness, 2026-10-08 10:09 CEST: the paired iPhone is unlocked
-(`passcodeRequired=false`, lock-state v4); the Android phone remains detached. No current combined
-physical result exists. Keep-unlocked and powered/lit Osmo Pocket, Luna Ultra and Nikon ZR
-readiness and the original device flows remain to qualify. Historical standby/navigation
-results remain scoped to their original assertions. The opt-in real-camera driver is prepared;
-it has no current passing device receipt.
+Current physical readiness: Xcode reports the paired iPhone locked again and the original
+selected physical test awaits unlock. The earlier 10:09 CEST unlocked state is historical
+readiness, not a passed test. Android remains detached; no current combined physical result
+exists. The opt-in driver keeps its original connection, raw ISO/recording, native pixels,
+playback/reopen/recovery/saved relaunch and restoration requirements. Earlier standby/navigation
+results retain their original scope.
 
 Decisions for you after the device run:
 
@@ -578,14 +594,14 @@ Known open items at this revision:
 - App pins are stale (see [Revisions](#revisions-under-test)); a CI checkout of an app at
   `integration/thin-app` would fetch the old pin and fail to compile.
 - All three recorded native/Android consumer gates now pass at their own inputs with the
-  known native skips above. Final combined-source qualification [PENDING: FINAL_SOURCE_MATRIX].
+  known native skips above. Final combined-source qualification recorded in first-pass matrix `7004c896`, with finite later deltas explicit and final current-doc-head supplement coordinator-owned.
 - Full generated template v3 passed all original eight contracts plus three installed cases
   on each platform, with zero failures/skips (combined receipt `b9843798`). Camera data is
   SIMULATED; native decoding and installed operator/lifetime/persistence/isolation checks passed.
   The original Pocket iOS AX case retains its known no-tree skip; its VoiceOver assertions and
   current physical-device qualification remain untested.
 - Final local candidate commits/content manifests, source counts, normalized duplication exit
-  and installed-build binding [PENDING: FINAL_CANDIDATE_BINDING]. The existing PD/ID parity rows
+  and installed-build binding recorded in first-pass candidate `f6f1ed71` and matrix `7004c896`; final status-only documentation is rebound separately. The existing PD/ID parity rows
   retain their dated, scoped status; the common and camera checklists are unchanged.
 
 ## 10. Report a regression

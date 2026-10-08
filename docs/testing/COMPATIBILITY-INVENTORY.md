@@ -3,20 +3,24 @@
 Retained facades, aliases, stored/wire contracts, SDK adapters and copied bodies in the current
 thin-app candidate. Companion of [RETIRED-OWNERS.md](RETIRED-OWNERS.md) and
 [TESTER-GUIDE.md](TESTER-GUIDE.md). Updated 2026-10-08 from task-owned source, actual call sites and
-frozen coordinator consumer/source captures. Status: candidate WIP. Source adoption is not final
-consumer, physical, integrated or released status.
+frozen coordinator consumer/source captures. Status: locally committed candidate. Qualified
+product source is SDK `e5a804d3` with Pocket `524facae`, Insta `f2a830e3` and Nikon `8cfe6983`;
+`ecf912c4` is a docs-only baseline. Current physical flows remain untested; no integration or
+release is claimed.
 
 This refresh audits the retained groups in the earlier inventory; it does not certify every
 semantic line. Source-byte and call-site evidence is preserved in the documentation lane. Final
-revision and qualification binding remains the coordinator's table in the retired-owner ledger.
+revision and qualification binding is recorded in first-pass matrix `7004c896` and the retired-owner
+ledger. Candidate `f6f1ed71` passed all four source sets/six pairs, no missing/no baseline growth.
+Root records the final status-only docs head separately; first-pass evidence stays immutable.
 Recorded Pocket/Insta/Nikon native and Android consumer gates now pass at their own inputs with
 the known native skips. Pocket focused real-service AX v1/v2 still reach the original no-tree skip;
 its original VoiceOver assertions remain untested after the two-fragment scene setup correction.
 Current SDK tests/strict and optimized shipping Release passed; generated iOS and Android full
 v3 each passed all original eleven cases with zero failures/skips (combined receipt `b9843798`).
-The fixed original coding ledger is 42/46 (91%). Nikon APK/AAB/DEX/JNI v5 passed with original
-release pruning. Current native/input/GPU/linkage scopes, local adopter commits and pending final/
-installed/physical bindings are stated in [RETIRED-OWNERS.md](RETIRED-OWNERS.md#qualification-and-final-revision-binding)
+The fixed original coding ledger retains 46 eligible checkpoints. Pocket/Insta compatibility is closed in `2415a4b7`; final matrix/documentation-head closure is recorded in the coordinator handoffs and `CODEX-RESUME-20261007/final-current-head-matrix-v2/receipt.json`. Nikon APK/AAB/DEX/JNI v5 passed with original
+release pruning. Current native/input/GPU/linkage scopes, local committed source/delta binding,
+preserved P/I exploratory UI residue and untested physical installation are stated in [RETIRED-OWNERS.md](RETIRED-OWNERS.md#qualification-and-final-revision-binding)
 and [TESTER-GUIDE.md](TESTER-GUIDE.md#9-what-is-verified-and-what-is-not). The original retention,
 historical measurements and follow-up criteria below remain unchanged except for the finite
 qualification status notes; source retirement does not imply final closure.
@@ -43,7 +47,7 @@ qualification status notes; source retirement does not imply final closure.
 | Kotlin Library original constructor with positional/trailing sleep compatibility | Original API delegates the same Library owner with immediate scanning. Existing tests/clients retain it; current app adapters may select the explicit scanning constructor. Positional syntax alone is not evidence that the legacy overload is still the shipping path |
 | Kotlin Media return scheduler | Recorded boundary exception `e67c7460` admits only six existing Core-exported coroutine primitives in `MonitorMediaReturnSession`; Swift uses language concurrency. No new dependency, upward edge, Main/global dispatcher or broad import exemption |
 | `LegacySavedCameraCodec`, `BodyRecordsV0`, `SavedCamerasStore.Legacy`, `legacyKeepScreenAwake`, `LEGACY_COMBINED` favorite authority | Real saved-data migrations. P/I saved-camera stores and Pocket/Nikon media codecs still read these; removing them would discard prior installs' state |
-| Atlas Insta `source-copy` edges, products and dated docs | Registry facts still describe their registered main/integration refs, not this uncommitted union. Product-source retirement does not authorize a registry/ref/pin move; no build depends on atlas |
+| Atlas Insta `source-copy` edges, products and dated docs | Registry facts still describe their registered main/integration refs, not this locally committed candidate. Product-source retirement does not authorize a registry/ref/pin move; no build depends on atlas |
 
 ## OpenPocketCine retained surfaces
 
@@ -134,18 +138,19 @@ Account/Cache owners are exercised by actual adopters. Unsupported features stay
 | P-6 | `liveOperatorPanel` is absent; cover state comes from AppShell |
 | I-1 | Shared recovery decisions and programmed-motion lifecycle adopted; bounded Luna reconnect runner still remains and is not claimed retired |
 | I-7 | Legacy converted-file metadata remains. DJI live calibration/profile branching is retired; Luna uses actual I-Log values. Aperture compatibility cases do not advertise a service |
-| Z-2 | Common tool/scope/panel/account/player/live owner adoption is implemented; stored/native facts and legacy helper APIs remain. FPS rolling calculation delegates the existing shared sampler; recorded Android v5 consumer passed, and final combined-source/physical qualification remains pending |
+| Z-2 | Common tool/scope/panel/account/player/live owner adoption is implemented; stored/native facts and legacy helper APIs remain. FPS rolling calculation delegates the existing shared sampler; recorded Android v5 consumer passed; committed source/deltas are bound and physical qualification remains untested |
 | Z-3 | Canonical shared progressive/cache/library/catalog/photo/player owners and typed access/rating/staging adapters are implemented; actual native/hardware qualification and original donors remain |
 | Z-4 | Declared ABI/dead-entry cleanup remains a both-platform qualified removal; no silent JNI change |
 | Z-5 | Runtime/reader/control/framing/watch composition is shared; deployed schemas remain distinct |
 | Z-6 | Passive discovery remains integration/OS hardware behavior; no unqualified discovery rewrite |
-| Z-7 | Actual borrowed-display settings/cache/account/root adoption is implemented; recorded Android v5 and native v15 gates passed, with two known native skips; final combined-source/installed/physical binding remains pending |
+| Z-7 | Actual borrowed-display settings/cache/account/root adoption is implemented; recorded Android v5 and native v15 gates passed, with two known native skips; local source/deltas are bound and physical installation remains untested |
 | Z-8 | Shared descriptor uses captured fields and editable sections. The exact REC/clock/lock eye UX criterion is not credited closed by this source audit; bind actual two-platform UI evidence |
 | X-1, X-2, X-3 | Shared shader/staging/bootstrap/tester checks and protocol probe owner references are implemented. Each app keeps pre-pin bootstrap/thin wrappers; Nikon's different TestFlight contract remains |
 
-No follow-up row here awards central checkpoint credit. The final source, normalized duplication
-exit, generated-template/consumer matrix and physical supported-or-untested results must be bound
-by the coordinator before the remaining original criteria close.
+Root closed the original Pocket/Insta compatibility exits in `2415a4b7`; this table grants no
+additional checkpoint credit. First-pass candidate/matrix evidence is bound above and final
+status-only current-head binding remains root-owned. Physical flows remain untested. The
+historical pending prose below is retained as dated provenance, not current status.
 
 ## Historical compatibility snapshot and measurements
 
