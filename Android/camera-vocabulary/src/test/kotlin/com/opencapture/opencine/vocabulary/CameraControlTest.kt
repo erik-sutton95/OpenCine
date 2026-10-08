@@ -37,32 +37,6 @@ class CameraControlTest {
     }
 
     @Test
-    fun pocket3PickerFallbackIncludesNormalVideoSizesOnly() {
-        val model = CameraModel(name = "Osmo Pocket 3")
-        val formats = VideoFormat.pickerFormats(emptyList(), model, CameraCommands.SHOOT_VIDEO)
-        assertTrue(VideoFormat.resolutions(formats, VideoResolution.P4K, VideoAspect.SIXTEEN_NINE).contains(VideoResolution.P2_7K))
-        assertTrue(VideoFormat.resolutions(formats, null, VideoAspect.ONE_ONE).contains(VideoResolution.P3K_1X1))
-        assertTrue(formats.none { it.resolution.aspect == VideoAspect.NINE_SIXTEEN })
-        assertTrue(
-            !VideoFormat.allowsOperatorSet(
-                VideoFormat(VideoResolution.P3K_9X16, VideoFrameRate.FPS25),
-                emptyList(),
-                model,
-                CameraCommands.SHOOT_VIDEO,
-            ),
-        )
-        assertTrue(!VideoFormat.aspects(formats, null).contains(VideoAspect.FOUR_THREE))
-        val reported = listOf(VideoFormat(VideoResolution.P4K, VideoFrameRate.FPS25))
-        assertEquals(reported, VideoFormat.pickerFormats(reported, model, 1))
-        for (mode in listOf(-1, 2, 26)) {
-            assertTrue(VideoFormat.pickerFormats(emptyList(), model, mode).isEmpty())
-        }
-        for (name in listOf("Osmo Pocket 4 Pro", "Osmo Nano", "Unknown")) {
-            assertTrue(VideoFormat.pickerFormats(emptyList(), CameraModel(name), 1).isEmpty())
-        }
-    }
-
-    @Test
     fun isoStepsSkipAutoAndStopAtEnds() {
         assertEquals(0x04, CameraCommands.isoStepped(0x03, 1, CameraCommands.ISO_INDEX_ALL))
         assertNull(CameraCommands.isoStepped(0x0B, 1, CameraCommands.ISO_INDEX_ALL))

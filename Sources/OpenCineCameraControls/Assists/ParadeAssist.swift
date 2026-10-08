@@ -67,6 +67,10 @@
             Double(Options.clampedBrightness(brightness)) / 100
         }
 
+        public static func intensity(_ brightness: Int, scale: Double) -> Double {
+            intensity(brightness) * scale
+        }
+
         public static func panelSize(scale: Double) -> CGSize {
             MonitorScopePanelCentering.panelSize(baseSize, scale: Options.clampedScale(scale))
         }

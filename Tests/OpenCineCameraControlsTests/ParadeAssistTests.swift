@@ -9,7 +9,7 @@
 
     final class ParadeAssistTests: XCTestCase {
         /// This test's monitored source (XCTest makes a fresh one per test).
-        private let ceiling = OpenCineCameraVocabulary.ScopeExposureCeiling()
+        private let ceiling = DeclaredMonitorColorFacts.makeCeiling()
 
         func testLaneXMatchesOpenZCineSplit() {
             let plot = MonitorWaveformAxis.plotRect(in: CGSize(width: 250, height: 153))

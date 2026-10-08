@@ -39,7 +39,7 @@ fun CameraModel.Companion.fromJson(raw: String?): CameraModel {
                 !obj.optBoolean("usesNanoLiveViewGate", false) && !CameraModel.looksLikeAction6(name),
             ),
             supportsAperture = obj.optBoolean("supportsAperture", CameraModel.looksLikeAction6(name)),
-        )
+        ).let { model -> model.copy(captureProfile = DjiCaptureCapabilityProfile.make(model)) }
     }.getOrElse { CameraModel.default }
 }
 

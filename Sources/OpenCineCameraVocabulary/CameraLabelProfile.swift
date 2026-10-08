@@ -8,15 +8,21 @@ public struct CameraLabelProfile: Sendable, Equatable {
     public var colorModeLabels: [ColorMode: String]
     public var gimbalModeLabels: [GimbalMode: String]
     public var media: MediaHTTP.Route
+    /// Legal ordered choices supplied by the integration; nil means undeclared.
+    public var colorModes: [ColorMode]?
+    public var shootingModes: [ShootingMode]?
 
     public init(
         shootingModeLabels: [ShootingMode: String] = [:], colorModeLabels: [ColorMode: String] = [:],
-        gimbalModeLabels: [GimbalMode: String] = [:], media: MediaHTTP.Route = .cameraSoftAP
+        gimbalModeLabels: [GimbalMode: String] = [:], media: MediaHTTP.Route = .cameraSoftAP,
+        colorModes: [ColorMode]? = nil, shootingModes: [ShootingMode]? = nil
     ) {
         self.shootingModeLabels = shootingModeLabels
         self.colorModeLabels = colorModeLabels
         self.gimbalModeLabels = gimbalModeLabels
         self.media = media
+        self.colorModes = colorModes
+        self.shootingModes = shootingModes
     }
 
     /// The vocabulary's own names and the camera SoftAP `/v2` media route.

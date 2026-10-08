@@ -40,10 +40,11 @@
         public var family: CameraBodyFamily
         public var cameraName: String?
         public var isWatching: Bool
+        public var lookProfile: CameraLUTProfile?
 
         public init(
             colorMode: ColorMode?, isPhoto: Bool, inPlayback: Bool, family: CameraBodyFamily,
-            cameraName: String?, isWatching: Bool
+            cameraName: String?, isWatching: Bool, lookProfile: CameraLUTProfile? = nil
         ) {
             self.colorMode = colorMode
             self.isPhoto = isPhoto
@@ -51,6 +52,7 @@
             self.family = family
             self.cameraName = cameraName
             self.isWatching = isWatching
+            self.lookProfile = lookProfile
         }
     }
 
@@ -277,6 +279,7 @@
                 inPlayback: context.inPlayback,
                 family: context.family,
                 cameraName: context.cameraName,
+                lookProfile: context.lookProfile,
                 isPhoto: context.isPhoto,
                 isWatching: context.isWatching)
         }

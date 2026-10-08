@@ -1,5 +1,6 @@
 #if os(iOS)
 import MonitorPresentation
+import OpenCineMedia
 import SwiftUI
 
 public typealias MonitorWaveformMode = MonitorPresentation.MonitorWaveformMode
@@ -8,6 +9,17 @@ public typealias MonitorVectorscopeZoom = MonitorPresentation.MonitorVectorscope
 public typealias MonitorScopeGuides = MonitorPresentation.MonitorScopeGuides
 
 public enum MonitorScopeGeometry {
+    /// Legacy meter axis retained for existing plot geometry goldens.
+    public static func legacyLevelY(_ level: Double, _ rect: CGRect) -> CGFloat {
+        let fraction = (level - ScopeDisplayScale.crushLevel) / (ScopeDisplayScale.clipLevel - ScopeDisplayScale.crushLevel)
+        return rect.maxY - CGFloat(0.04 + fraction * 0.92) * rect.height
+    }
+    public static func legacyScaleLineY(_ ire: Double, _ rect: CGRect) -> CGFloat {
+        legacyLevelY(ScopeDisplayScale.level(scaleIRE: ire), rect)
+    }
+    public static func legacyTraceLevelY(_ byte: UInt8, transfer: MonitorTransfer = .rec709, clipByte: Int, _ rect: CGRect) -> CGFloat {
+        legacyLevelY(Double(ScopeDisplayScale.levelTable(for: transfer, clipByte: clipByte)[Int(byte)]), rect)
+    }
     public static func laneX(xRatio: Double, lane: Int, mode: MonitorParadeMode, plot: CGRect) -> CGFloat {
         let width = plot.width / CGFloat(mode.laneCount)
         return plot.minX + CGFloat(lane) * width + CGFloat(xRatio) * (width - 1)

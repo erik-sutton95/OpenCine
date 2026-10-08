@@ -1,5 +1,14 @@
 package com.opencapture.opencine.cameracontrols
 
+import com.opencapture.opencine.appkit.signalScale
+import com.opencapture.opencine.media.LiveFalseColorBand
+import com.opencapture.opencine.media.LiveFalseColorScale
+import com.opencapture.opencine.media.falseColorBands
+import com.opencapture.opencine.media.falseColorClip
+import com.opencapture.opencine.media.falseColorLimitBands
+import com.opencapture.opencine.media.falseColorSceneStopBands
+import com.opencapture.opencine.media.readsThroughLook
+
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorParadeMode
 import com.opencapture.monitorui.MonitorScopePanelMath
@@ -13,7 +22,7 @@ import com.opencapture.opencine.media.ScopeClipSource
 import com.opencapture.opencine.media.ScopeDisplayScale
 import com.opencapture.opencine.media.WaveformIre
 import com.opencapture.opencine.vocabulary.CameraStatus
-import com.opencapture.opencine.vocabulary.ScopeExposureCeiling
+import com.opencapture.opencine.media.ScopeExposureCeiling
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.round
@@ -138,7 +147,12 @@ object WaveformAssist {
 }
 
 object ParadeAssist {
-    fun intensity(brightness: Int): Double = brightness.coerceIn(0, 200) / 100.0
+    fun intensity(brightness: Int): Double = intensity(brightness, 1.0)
+
+    fun intensity(brightness: Int, scale: Double): Double {
+        require(scale.isFinite() && scale >= 0)
+        return brightness.coerceIn(0, 200) / 100.0 * scale
+    }
 
     fun laneWidth(mode: MonitorParadeMode, plot: MonitorScopeRect): Float = plot.width / mode.laneCount
 
@@ -152,132 +166,51 @@ object ParadeAssist {
 }
 
 object FalseColorBands {
-    data class Band(
-        val lowerBound: Double,
-        val upperBound: Double,
-        val red: Double,
-        val green: Double,
-        val blue: Double,
-        val label: String,
-    ) {
+    data class Band(val lowerBound: Double, val upperBound: Double, val red: Double,
+        val green: Double, val blue: Double, val label: String) {
         fun contains(value: Double): Boolean = value >= lowerBound && value < upperBound
     }
 
-    fun bands(
-        scale: MonitorFalseColorSelection,
-        transfer: MonitorTransfer,
-        rec709: Boolean = false,
-        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
-    ): List<Band> =
-        when (scale) {
-            MonitorFalseColorSelection.SCENE_STOPS -> sceneStopBands(clipStops(transfer, rec709, ceiling))
-            MonitorFalseColorSelection.STOPS -> cineStopBands()
-            MonitorFalseColorSelection.IRE -> ireBands()
-            MonitorFalseColorSelection.LIMITS -> limitBands(limitShelfIRE(transfer, rec709, ceiling))
-        }
-
-    /** iOS `LiveColorScience.cineStopBands`: the Video scale, Video Mode IRE with grayscale gaps. */
-    fun cineStopBands(): List<Band> =
-        listOf(
-            Band(0.0, 5.0, 0.44, 0.22, 0.76, "0–4"),
-            Band(5.0, 6.0, 0.28, 0.37, 0.85, "5"),
-            Band(10.0, 13.0, 0.18, 0.58, 0.64, "10–12"),
-            Band(41.0, 49.0, 0.38, 0.63, 0.35, "41–48"),
-            Band(61.0, 71.0, 0.83, 0.53, 0.71, "61–70"),
-            Band(92.0, 94.0, 0.83, 0.77, 0.45, "92–93"),
-            Band(94.0, 96.0, 0.89, 0.72, 0.29, "94–95"),
-            Band(96.0, 99.0, 0.85, 0.55, 0.22, "96–98"),
-            Band(99.0, Double.POSITIVE_INFINITY, 0.78, 0.28, 0.18, "99–100"),
-        )
-
-    fun ireBands(): List<Band> =
-        listOf(
-            Band(0.0, 2.5, 115 / 255.0, 33 / 255.0, 120 / 255.0, "BDL"),
-            Band(2.5, 10.0, 29 / 255.0, 2 / 255.0, 221 / 255.0, "NBDL"),
-            Band(38.0, 42.0, 123 / 255.0, 207 / 255.0, 87 / 255.0, "18%MG"),
-            Band(52.0, 56.0, 241 / 255.0, 190 / 255.0, 198 / 255.0, "MG+1"),
-            Band(80.0, 95.0, 255 / 255.0, 255 / 255.0, 88 / 255.0, "80%WC"),
-            Band(95.0, Double.POSITIVE_INFINITY, 220 / 255.0, 51 / 255.0, 33 / 255.0, "95%WC"),
-        )
-
-    /** iOS `LiveColorScience.limitBands(shelfIRE:)`: clip starts on the clip shelf, never above 99 IRE. */
-    fun limitBands(shelfIRE: Double? = null): List<Band> {
-        val bands =
-            listOf(
-                Band(0.0, 5.0, 0.44, 0.22, 0.76, "0–4"),
-                Band(5.0, 10.0, 0.28, 0.37, 0.85, "5–9"),
-                Band(94.0, 99.0, 0.89, 0.72, 0.29, "94–98"),
-                Band(99.0, Double.POSITIVE_INFINITY, 0.78, 0.28, 0.18, "99–100"),
-            )
-        if (shelfIRE == null || shelfIRE >= 99 || shelfIRE <= bands[2].lowerBound) return bands
-        return bands.mapIndexed { index, band ->
-            when (index) {
-                2 -> band.copy(upperBound = shelfIRE)
-                3 -> band.copy(lowerBound = shelfIRE)
-                else -> band
-            }
-        }
+    fun bands(scale: MonitorFalseColorSelection, transfer: MonitorTransfer,
+        rec709: Boolean = false, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
+        lookCurve: List<Double>? = null): List<Band> {
+        val clip = LiveColorScience.falseColorClip(scale.signalScale, transfer, rec709,
+            lookCurve, ceiling.clipEncoded(transfer))
+        return LiveColorScience.falseColorBands(scale.signalScale, clip.transfer, clip.ceiling).map(::band)
     }
 
-    /** iOS `falseColorClip` for Limits: the clip shelf in WAVE IRE, on Rec.709 when 709 reads the look. */
-    fun limitShelfIRE(transfer: MonitorTransfer, rec709: Boolean = false, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): Double {
-        val t = if (readsThroughLook(transfer, rec709)) MonitorTransfer.REC709 else transfer
+    fun cineStopBands(): List<Band> =
+        LiveColorScience.falseColorBands(LiveFalseColorScale.STOPS, MonitorTransfer.REC709).map(::band)
+    fun ireBands(): List<Band> =
+        LiveColorScience.falseColorBands(LiveFalseColorScale.IRE, MonitorTransfer.REC709).map(::band)
+    fun limitBands(shelfIRE: Double? = null): List<Band> = LiveColorScience.falseColorLimitBands(shelfIRE).map(::band)
+    fun sceneStopBands(clipStops: Double = SCENE_STOP_DEFAULT_CLIP): List<Band> =
+        LiveColorScience.falseColorSceneStopBands(clipStops).map(::band)
+
+    fun limitShelfIRE(transfer: MonitorTransfer, rec709: Boolean = false,
+        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED, lookCurve: List<Double>? = null): Double {
+        val t = if (readsThroughLook(transfer, rec709, lookCurve)) MonitorTransfer.REC709 else transfer
         val shelf = maxOf(0.0, ceiling.clipEncoded(t) - ScopeExposureCeiling.CLIP_SHELF_CODES / 255.0)
         return ScopeDisplayScale.monitorPercent(shelf, t, ceiling = ceiling)
     }
 
-    /** iOS `LiveColorScience.sceneStopDefaultClip`: clip starts at +11 when the ceiling is unknown. */
-    const val SCENE_STOP_DEFAULT_CLIP = 10.5
+    const val SCENE_STOP_DEFAULT_CLIP = LiveColorScience.SCENE_STOP_DEFAULT_CLIP
 
-    /**
-     * iOS `LiveColorScience.falseColorClip(.sceneStops, rec709: true)`: encoded code where each
-     * official Rec.709 look first saturates (33-point gray axis). Pinned by the Swift test
-     * `cineStopAt709ClipMatchesTheAndroidMirror`.
-     */
-    private val LOOK_SATURATION =
-        mapOf(MonitorTransfer.DLOG2 to 30 / 32.0, MonitorTransfer.DLOG to 1.0, MonitorTransfer.DLOGM to 1.0)
+    @Suppress("UNUSED_PARAMETER")
+    fun readsThroughLook(transfer: MonitorTransfer, rec709: Boolean, lookCurve: List<Double>? = null): Boolean =
+        LiveColorScience.readsThroughLook(lookCurve, rec709)
 
-    /** True when 709 applies: the operator picked 709 and this curve has an official look. */
-    fun readsThroughLook(transfer: MonitorTransfer, rec709: Boolean): Boolean =
-        rec709 && transfer in LOOK_SATURATION
-
-    /** Scene stops at this curve's clip shelf; the CineStop clip band starts here. At 709 the look's clip. */
-    fun clipStops(transfer: MonitorTransfer, rec709: Boolean = false, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): Double {
-        val ceiling =
-            if (readsThroughLook(transfer, rec709)) LOOK_SATURATION.getValue(transfer)
-            else ceiling.clipEncoded(transfer)
-        val shelf = ceiling - ScopeExposureCeiling.CLIP_SHELF_CODES / 255.0
-        val stops = LiveColorScience.stops(maxOf(0.0, shelf), transfer)
+    fun clipStops(transfer: MonitorTransfer, rec709: Boolean = false,
+        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED, lookCurve: List<Double>? = null): Double {
+        val clip = LiveColorScience.falseColorClip(LiveFalseColorScale.SCENE_STOPS, transfer,
+            rec709, lookCurve, ceiling.clipEncoded(transfer))
+        val shelf = maxOf(0.0, clip.ceiling - ScopeExposureCeiling.CLIP_SHELF_CODES / 255.0)
+        val stops = LiveColorScience.stops(shelf, transfer)
         return if (stops.isFinite()) stops else SCENE_STOP_DEFAULT_CLIP
     }
 
-    /**
-     * iOS `LiveColorScience.sceneStopBands`: CineStop, five whole-stop zones around 18% gray,
-     * violet crush, red clip at the camera's ceiling, flat dark gray below and light gray above.
-     */
-    fun sceneStopBands(clipStops: Double = SCENE_STOP_DEFAULT_CLIP): List<Band> {
-        val clip = if (clipStops.isFinite()) clipStops else SCENE_STOP_DEFAULT_CLIP
-        return buildList {
-            add(rgb(Double.NEGATIVE_INFINITY, -6.5, 75, 8, 165, "crush"))
-            add(rgb(-6.5, -2.5, 102, 102, 102, "shadows"))
-            SCENE_STOP_ZONES.filter { it.lowerBound < clip }
-                .forEach { add(it.copy(upperBound = minOf(it.upperBound, clip))) }
-            if (clip > 2.5) add(rgb(2.5, clip, 179, 178, 178, "highlights"))
-            add(rgb(clip, Double.POSITIVE_INFINITY, 245, 39, 0, "clip"))
-        }
-    }
-
-    private val SCENE_STOP_ZONES =
-        listOf(
-            rgb(-2.5, -1.5, 39, 76, 0, "−2"),
-            rgb(-1.5, -0.5, 155, 196, 56, "−1"),
-            rgb(-0.5, 0.5, 127, 127, 127, "18%"),
-            rgb(0.5, 1.5, 221, 174, 180, "+1"),
-            rgb(1.5, 2.5, 252, 232, 96, "+2"),
-        )
-
-    private fun rgb(lo: Double, hi: Double, r: Int, g: Int, b: Int, label: String) =
-        Band(lo, hi, r / 255.0, g / 255.0, b / 255.0, label)
+    private fun band(value: LiveFalseColorBand): Band = Band(value.lowerBound, value.upperBound,
+        value.red, value.green, value.blue, value.label)
 }
 
 /** iOS `ZebraAssist.Options.displayValue` / `ire(fromDisplay:)`. Thresholds stay 0–100 IRE. */
@@ -314,10 +247,11 @@ object FalseColorReference {
         transfer: MonitorTransfer,
         rec709: Boolean,
         ceiling: ScopeClipSource,
-    ): ClosedRange<Double> = -8.5..(maxOf(2.5, FalseColorBands.clipStops(transfer, rec709, ceiling)) + 1)
+        lookCurve: List<Double>?,
+    ): ClosedRange<Double> = -8.5..(maxOf(2.5, FalseColorBands.clipStops(transfer, rec709, ceiling, lookCurve)) + 1)
 
-    fun curveKeyLabel(transfer: MonitorTransfer, rec709: Boolean = false): String =
-        if (FalseColorBands.readsThroughLook(transfer, rec709)) "709"
+    fun curveKeyLabel(transfer: MonitorTransfer, rec709: Boolean = false, lookCurve: List<Double>? = null): String =
+        if (FalseColorBands.readsThroughLook(transfer, rec709, lookCurve)) "709"
         else when (transfer) {
             MonitorTransfer.REC709 -> "709"
             MonitorTransfer.HDR -> "HLG"
@@ -342,11 +276,12 @@ object FalseColorReference {
         transfer: MonitorTransfer,
         rec709: Boolean = false,
         ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
+        lookCurve: List<Double>? = null,
     ): List<Segment> =
-        FalseColorBands.bands(scale, transfer, rec709, ceiling).map { band ->
+        FalseColorBands.bands(scale, transfer, rec709, ceiling, lookCurve).map { band ->
             Segment(
-                lowerFraction = fraction(band.lowerBound, scale, transfer, rec709, ceiling, infiniteFallback = 0.0),
-                upperFraction = fraction(band.upperBound, scale, transfer, rec709, ceiling, infiniteFallback = 1.0),
+                lowerFraction = fraction(band.lowerBound, scale, transfer, rec709, ceiling, lookCurve, infiniteFallback = 0.0),
+                upperFraction = fraction(band.upperBound, scale, transfer, rec709, ceiling, lookCurve, infiniteFallback = 1.0),
                 band = band,
             )
         }
@@ -356,8 +291,9 @@ object FalseColorReference {
         transfer: MonitorTransfer,
         rec709: Boolean = false,
         ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
+        lookCurve: List<Double>? = null,
     ): List<AxisMarker> {
-        val clip = FalseColorBands.clipStops(transfer, rec709, ceiling)
+        val clip = FalseColorBands.clipStops(transfer, rec709, ceiling, lookCurve)
         val marks =
             generateSequence(-6) { it + 2 }.takeWhile { it < clip - 1.5 }
                 .map { stop ->
@@ -365,7 +301,7 @@ object FalseColorReference {
                     label to stop.toDouble()
                 }.toList() + ("clip" to clip)
         return marks.map { (label, stop) ->
-            AxisMarker(label, fraction(stop, MonitorFalseColorSelection.SCENE_STOPS, transfer, rec709, ceiling, infiniteFallback = 1.0))
+            AxisMarker(label, fraction(stop, MonitorFalseColorSelection.SCENE_STOPS, transfer, rec709, ceiling, lookCurve, infiniteFallback = 1.0))
         }
     }
 
@@ -375,11 +311,12 @@ object FalseColorReference {
         transfer: MonitorTransfer,
         rec709: Boolean,
         ceiling: ScopeClipSource,
+        lookCurve: List<Double>?,
         infiniteFallback: Double,
     ): Double {
         if (!value.isFinite()) return infiniteFallback
         if (!scale.usesSceneStops) return (value / 100.0).coerceIn(0.0, 1.0)
-        val domain = sceneStopDomain(transfer, rec709, ceiling)
+        val domain = sceneStopDomain(transfer, rec709, ceiling, lookCurve)
         return ((value - domain.start) / (domain.endInclusive - domain.start)).coerceIn(0.0, 1.0)
     }
 }

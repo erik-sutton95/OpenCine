@@ -47,5 +47,20 @@
             trafficLights = MonitorTrafficLightsPreferenceStore(
                 storage: storage, key: "\(namespace).Assist.trafficLights.v1", histogram: histogram)
         }
+
+        /// Borrow the application's already-restored stores and exact deployed keys.
+        public init(storage: UserDefaults, zebraUnitKey: String,
+            waveform: MonitorScopePanelStore<MonitorWaveformOptions>,
+            parade: MonitorScopePanelStore<MonitorParadeOptions>,
+            vectorscope: MonitorScopePanelStore<MonitorVectorscopeOptions>,
+            histogram: MonitorScopePanelStore<MonitorHistogramOptions>,
+            audio: MonitorAudioPreferenceStore, reference: MonitorFalseColorReferencePositionStore,
+            nd: MonitorNDPreferenceStore, trafficLights: MonitorTrafficLightsPreferenceStore) {
+            precondition(!zebraUnitKey.isEmpty)
+            self.storage = storage; self.zebraUnitKey = zebraUnitKey
+            self.waveform = waveform; self.parade = parade; self.vectorscope = vectorscope
+            self.histogram = histogram; self.audio = audio; self.reference = reference
+            self.nd = nd; self.trafficLights = trafficLights
+        }
     }
 #endif

@@ -39,3 +39,8 @@ dependencies {
     testImplementation(libs.json)
     testImplementation(testFixtures(project(":core")))
 }
+
+// Same unchanged model/zoom vectors as the Swift integration tests.
+tasks.withType<Test>().configureEach {
+    systemProperty("opencine.fixtures", rootProject.projectDir.resolve("../Fixtures").absolutePath)
+}

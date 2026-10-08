@@ -392,6 +392,7 @@ class SwiftCoreCameraSession internal constructor(
     private val connectionStrategy: PtpIpConnectionStrategy =
         PtpIpConnectionStrategy.RESTORE_PROFILE_THEN_PAIRING,
     initiatorGuid: ByteArray = defaultPtpIpInitiatorGuid,
+    private val cameraCommandDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : CameraSession {
     private val initiatorGuid: ByteArray = initiatorGuid.copyOf()
     private var usbTransport: UsbPtpTransport? = usbTransport
@@ -750,7 +751,18 @@ class SwiftCoreCameraSession internal constructor(
      * already reached the body.
      */
     override suspend fun setRecording(recording: Boolean) {
+        setRecordingAdmitted(recording, null)
+    }
+
+    override suspend fun setRecording(recording: Boolean, admission: CameraCommandAdmission) {
+        setRecordingAdmitted(recording, admission)
+    }
+
+    private suspend fun setRecordingAdmitted(
+        recording: Boolean, admission: CameraCommandAdmission?,
+    ) {
         cameraCommandMutex.withLock {
+            if (!admits(admission)) throw CameraRecordingException.CommandRejected
             if (_state.value !is CameraSessionState.Connected) {
                 throw CameraRecordingException.NotConnected
             }
@@ -771,7 +783,8 @@ class SwiftCoreCameraSession internal constructor(
 
             try {
                 val nativeResult =
-                    withContext(Dispatchers.IO + NonCancellable) {
+                    withContext(cameraCommandDispatcher + NonCancellable) {
+                        if (!admits(admission)) throw CameraRecordingException.CommandRejected
                         connectionOwner?.let { core.setRecording(it, recording) }
                             ?: NikonNative.RECORDING_COMMAND_NO_SESSION
                     }
@@ -817,7 +830,20 @@ class SwiftCoreCameraSession internal constructor(
      * selects the Nikon property write(s), and serializes them with live view.
      */
     override suspend fun applyControl(control: CameraControl, label: String) {
+        applyControlAdmitted(control, label, null)
+    }
+
+    override suspend fun applyControl(
+        control: CameraControl, label: String, admission: CameraCommandAdmission,
+    ) {
+        applyControlAdmitted(control, label, admission)
+    }
+
+    private suspend fun applyControlAdmitted(
+        control: CameraControl, label: String, admission: CameraCommandAdmission?,
+    ) {
         cameraCommandMutex.withLock {
+            if (!admits(admission)) throw CameraControlException.CommandRejected
             if (_state.value !is CameraSessionState.Connected) {
                 throw CameraControlException.NotConnected
             }
@@ -842,7 +868,8 @@ class SwiftCoreCameraSession internal constructor(
             try {
                 val writeStartedNanos = System.nanoTime()
                 val nativeResult =
-                    withContext(Dispatchers.IO + NonCancellable) {
+                    withContext(cameraCommandDispatcher + NonCancellable) {
+                        if (!admits(admission)) throw CameraControlException.CommandRejected
                         connectionOwner?.let { core.applyControl(it, control, label) }
                             ?: NikonNative.CONTROL_COMMAND_NO_SESSION
                     }
@@ -1008,8 +1035,23 @@ class SwiftCoreCameraSession internal constructor(
      * no-op instead of replaying stale taps afterward.
      */
     override suspend fun changeAfArea(point: CameraFocusPoint): Boolean {
+        return changeAfAreaAdmitted(point, null)
+    }
+
+    override suspend fun changeAfArea(
+        point: CameraFocusPoint, admission: CameraCommandAdmission,
+    ): Boolean = changeAfAreaAdmitted(point, admission)
+
+    private fun admits(admission: CameraCommandAdmission?): Boolean =
+        admission == null || admission.admits(this)
+
+    private suspend fun changeAfAreaAdmitted(
+        point: CameraFocusPoint, admission: CameraCommandAdmission?,
+    ): Boolean {
+        if (!admits(admission)) throw CameraFocusException.CommandRejected
         val requestVersion = focusRequestVersion.incrementAndGet()
         return cameraCommandMutex.withLock {
+            if (!admits(admission)) throw CameraFocusException.CommandRejected
             if (_state.value !is CameraSessionState.Connected) {
                 throw CameraFocusException.NotConnected
             }
@@ -1020,7 +1062,8 @@ class SwiftCoreCameraSession internal constructor(
 
             try {
                 val nativeResult =
-                    withContext(Dispatchers.IO + NonCancellable) {
+                    withContext(cameraCommandDispatcher + NonCancellable) {
+                        if (!admits(admission)) throw CameraFocusException.CommandRejected
                         connectionOwner?.let { core.changeAfArea(it, point) }
                             ?: NikonNative.FOCUS_COMMAND_NO_SESSION
                     }

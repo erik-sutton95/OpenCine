@@ -12,8 +12,9 @@ data class CameraLabelProfile(
     val gimbalModeLabels: Map<GimbalMode, String> = emptyMap(),
     /** The FOCUS drum and chip list, in drum order. */
     val focusLabels: List<String> = FocusOption.entries.map { it.chip },
-    /** The color wheel in drum order; null reads the body's own list ([CameraModel.colorModesFor]). */
+    /** The color wheel in drum order; null preserves the observed list. */
     val colorModes: List<Int>? = null,
+    val shootingModes: List<Int>? = null,
 ) {
     companion object {
         /** The vocabulary's own names and each body's own color wheel. */

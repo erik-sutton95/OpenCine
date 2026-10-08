@@ -422,11 +422,34 @@
             dataOut: Data?,
             deadline: Duration?
         ) async throws -> PTPIPTransactionResult {
+            try await executeTransactionAdmitted(
+                operationCode: operationCode, transactionID: explicitTransactionID,
+                parameters: parameters, dataPhase: dataPhase, dataOut: dataOut,
+                deadline: deadline, admission: nil)
+        }
+
+        public func executeTransaction(
+            operationCode: PTPOperationCode, transactionID: UInt32?, parameters: [UInt32],
+            dataPhase: PTPDataPhase, dataOut: Data?, deadline: Duration?,
+            admission: NikonCommandAdmission
+        ) async throws -> PTPIPTransactionResult {
+            try await executeTransactionAdmitted(
+                operationCode: operationCode, transactionID: transactionID,
+                parameters: parameters, dataPhase: dataPhase, dataOut: dataOut,
+                deadline: deadline, admission: admission)
+        }
+
+        private func executeTransactionAdmitted(
+            operationCode: PTPOperationCode, transactionID explicitTransactionID: UInt32?,
+            parameters: [UInt32], dataPhase: PTPDataPhase, dataOut: Data?, deadline: Duration?,
+            admission: NikonCommandAdmission?
+        ) async throws -> PTPIPTransactionResult {
             // Throws `CancellationError` if this task is cancelled while queued; the gate was never
             // acquired, so no `signal()` (the defer below is only registered after acquisition).
             try await transactionGate.wait()
             defer { transactionGate.signal() }
             try Task.checkCancellation()
+            try admission?.requireCurrent()
 
             let (closed, transactionID) = claimTransactionID(explicit: explicitTransactionID)
             guard !closed else { throw NativeCameraSessionError.connectionClosed }
@@ -447,6 +470,12 @@
             defer { lock.withLock { if inFlightTransaction === box { inFlightTransaction = nil } } }
             return try await withCheckedThrowingContinuation { continuation in
                 box.store(continuation)
+                do {
+                    try admission?.requireCurrent()
+                } catch {
+                    box.resume(throwing: error)
+                    return
+                }
                 let deadlineTask: Task<Void, Never>? = deadline.map { limit in
                     Task {
                         try? await Task.sleep(for: limit)

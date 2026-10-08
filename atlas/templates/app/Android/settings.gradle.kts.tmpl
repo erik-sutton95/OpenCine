@@ -23,6 +23,9 @@ includeBuild("../../OpenCine/Android") {
     name = "opencine"
     dependencySubstitution {
         substitute(module("com.opencapture.opencine:appkit")).using(project(":appkit"))
+        substitute(module("com.opencapture.opencine:camera-controls")).using(project(":camera-controls"))
         substitute(module("com.opencapture.opencine:core")).using(project(":core"))
+        substitute(module("com.opencapture.opencine:media")).using(project(":media"))
+        substitute(module("com.opencapture.opencine:native-runtime")).using(project(":native-runtime"))
     }
 }

@@ -25,6 +25,8 @@
         public var enabled = true
         public var commonField: MonitorCaptureField? = nil
         public var nativeEditor: MonitorControlModel.Editor? = nil
+        public var audioControl: CaptureAudioControl? = nil
+        public var audioSourceID: CaptureAudioSourceID? = nil
 
         public static func common(_ field: MonitorCaptureField) -> Self {
             Self(
@@ -107,12 +109,14 @@
 
         public static func primary(
             _ sheet: CaptureSheet, status: CameraStatus, cameraModel: CameraModel? = nil,
-            supportsFocusMode: Bool = false, facePriorityExposureEnabled: Bool = false,
+            supportsFocusMode: Bool = false, supportsAperture: Bool? = nil,
+            facePriorityExposureEnabled: Bool = false,
             shutterUsesAngle: Bool = false, shutterAngleDegrees: Double = 180,
             aeLocked: Bool = false,
             awbLocked: Bool = false, offersAwbLock: Bool = false,
             focusOptions: [FocusOption] = FocusOption.allCases,
-            profile: CameraLabelProfile = .standard
+            profile: CameraLabelProfile = .standard, audioField: CaptureAudioField? = nil,
+            audioSourceID: CaptureAudioSourceID? = nil
         ) -> Self? {
             switch sheet {
             case .iso:
@@ -176,7 +180,8 @@
                     selection: CaptureLists.focusOption(from: status)?.chip ?? "",
                     context: String(describing: status.focusTrack))
             case .aperture:
-                guard cameraModel?.supportsAperture == true else { return nil }
+                guard supportsAperture ?? (cameraModel?.captureProfile?.supportsAperture == true)
+                else { return nil }
                 return Self(
                     kind: .aperture, title: "APERTURE",
                     options: CaptureLists.apertureStrategies(from: status).map(\.label),
@@ -188,10 +193,12 @@
                     selection: CaptureLists.exposureSelection(status.expoMode, aeLocked: aeLocked)
                         ?? "")
             case .audio:
-                guard !status.isPhoto else { return nil }
+                guard !status.isPhoto, let audioField else { return nil }
                 return Self(
-                    kind: .audio, title: "AUDIO", options: AudioChannel.allCases.map(\.label),
-                    selection: status.audioChannel?.label ?? "")
+                    kind: .audio, title: "AUDIO", options: audioField.choices.map(\.label),
+                    selection: audioField.observed?.label ?? "",
+                    context: audioField.id.rawValue + (audioSourceID.map { "\($0.session):\($0.epoch)" } ?? ""), enabled: audioField.isEditable,
+                    audioControl: audioField.id, audioSourceID: audioSourceID)
             case .resolution:
                 if status.isPhoto {
                     return Self(
@@ -213,21 +220,19 @@
             let formats = CamCapVideoFormat.pickerFormats(
                 available: status.availableVideoFormats, model: cameraModel,
                 shootingMode: status.shootingMode)
-            let current =
-                status.videoFormat
-                ?? VideoFormat(
-                    resolution: status.videoResolution ?? .p1080,
-                    frameRate: VideoFrameRate.fromFps(status.fps) ?? .fps24)
+            guard let resolution = status.videoFormat?.resolution ?? status.videoResolution
+            else { return nil }
+            let currentRate = status.videoFormat?.frameRate ?? VideoFrameRate.fromFps(status.fps)
             let rates = CamCapVideoFormat.frameRates(
-                available: formats, resolution: current.resolution, current: current.frameRate)
+                available: formats, resolution: resolution, current: currentRate)
             let options = rates.map(\.drumLabel)
             guard !options.isEmpty else { return nil }
-            let live = current.frameRate.drumLabel
+            let live = currentRate?.drumLabel ?? ""
             return Self(
                 kind: .format, title: "FORMAT", options: options,
                 selection: options.contains(live) ? live : "",
                 context:
-                    "\(current.resolution.rawValue):\(status.shootingMode):\(options.joined(separator: ","))",
+                    "\(resolution.rawValue):\(status.shootingMode):\(options.joined(separator: ","))",
                 enabled: !formats.isEmpty
             )
         }
@@ -236,11 +241,9 @@
             status: CameraStatus, cameraModel: CameraModel?, profile: CameraLabelProfile
         ) -> Self? {
             let family = cameraModel?.family ?? .other
-            let modes =
-                cameraModel.map {
-                    CamCapColorMode.wheel(available: status.availableColorModes, model: $0)
-                }
-                ?? CamCapColorMode.wheel(available: status.availableColorModes, family: family)
+            let modes = CamCapColorMode.wheel(
+                available: status.availableColorModes,
+                order: profile.colorModes ?? cameraModel?.captureProfile?.labels.colorModes ?? [])
             let options = modes.map { $0.label(for: family, in: profile) }
             guard !options.isEmpty else { return nil }
             let live = status.colorMode?.label(for: family, in: profile) ?? ""
@@ -344,24 +347,25 @@
                     host.commit(.expoMode(mode), from: origin)
                 }
             case .audio:
-                if let channel = AudioChannel.allCases.first(where: { $0.label == value }) {
-                    host.commit(.audioChannel(channel), from: origin)
-                }
+                guard let service = host.audioService, service.sourceID == audioSourceID,
+                    let field = service.fields.first(where: { $0.id == audioControl }),
+                    field.isEditable,
+                    let choice = field.choices.first(where: { $0.label == value })
+                else { return }
+                _ = service.commit(choice)
             case .format:
                 let formats = CamCapVideoFormat.pickerFormats(
                     available: status.availableVideoFormats,
                     model: host.connectedBody,
                     shootingMode: status.shootingMode)
-                let current =
-                    status.videoFormat
-                    ?? VideoFormat(
-                        resolution: status.videoResolution ?? .p1080,
-                        frameRate: VideoFrameRate.fromFps(status.fps) ?? .fps24)
+                guard let resolution = status.videoFormat?.resolution ?? status.videoResolution
+                else { return }
+                let currentRate = status.videoFormat?.frameRate ?? VideoFrameRate.fromFps(status.fps)
                 let rates = CamCapVideoFormat.frameRates(
-                    available: formats, resolution: current.resolution, current: current.frameRate)
+                    available: formats, resolution: resolution, current: currentRate)
                 if let rate = VideoFrameRate(drumLabel: value), rates.contains(rate) {
                     host.commit(
-                        .videoFormat(VideoFormat(resolution: current.resolution, frameRate: rate)),
+                        .videoFormat(VideoFormat(resolution: resolution, frameRate: rate)),
                         from: origin)
                 }
             case .color:

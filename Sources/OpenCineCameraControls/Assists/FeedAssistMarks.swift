@@ -5,6 +5,47 @@
     import OpenCineCameraVocabulary
     import SwiftUI
 
+    public struct MonitorOperatorFramingComparison {
+        public let vertical: Bool
+        public let originalLabel: String
+        public let processedLabel: String
+        public init(vertical: Bool, originalLabel: String = "LOG", processedLabel: String = "LUT") {
+            self.vertical = vertical; self.originalLabel = originalLabel; self.processedLabel = processedLabel
+        }
+    }
+
+    /// Framing and comparison marks share one value composition for live, still and playback.
+    /// Native AF boxes, calibrated level and camera-fed exposure observations compose beside it.
+    public struct MonitorOperatorFramingMarks<Looks: MonitorLookProvider>: View {
+        private let assist: MonitorAssistState<Looks>
+        private let feed: CGRect
+        private let visible: Set<MonitorAssistSelection>
+        private let guideFallback: MonitorGuideAspect?
+        private let comparison: MonitorOperatorFramingComparison?
+        public init(assist: MonitorAssistState<Looks>, feed: CGRect,
+            visible: Set<MonitorAssistSelection>, guideFallback: MonitorGuideAspect? = nil,
+            comparison: MonitorOperatorFramingComparison? = nil) {
+            self.assist = assist; self.feed = feed; self.visible = visible
+            self.guideFallback = guideFallback; self.comparison = comparison
+        }
+        public var body: some View {
+            ZStack {
+                if visible.contains(.guides) {
+                    if let guideFallback { GuidesAssist.overlay(feed: feed, assist: assist, fallback: guideFallback) }
+                    else { MonitorAspectGuideFrames(selectedRatios: assist.selectedGuides, maskEnabled: assist.guideMask, feed: feed) }
+                }
+                if visible.contains(.grid) {
+                    MonitorFeedGrid(feed: feed, thirds: assist.gridThirds, phi: assist.gridPhi, diagonal: assist.gridDiagonal)
+                }
+                if visible.contains(.crosshair) { MonitorFeedCrosshair(feed: feed) }
+                if let comparison {
+                    MonitorFeedComparisonMarks(vertical: comparison.vertical, feed: feed,
+                        originalLabel: comparison.originalLabel, processedLabel: comparison.processedLabel)
+                }
+            }.allowsHitTesting(false)
+        }
+    }
+
     /// The marks drawn on the feed itself: framing guides, grid, crosshair, the LUT split marks,
     /// scene faces, the tracking box and the focus box. Playback passes the letterboxed clip rect as
     /// `feed`; live derives it from the de-squeezed picture.
@@ -87,21 +128,12 @@
                         in: CGRect(origin: .zero, size: proxy.size), effects: assist.effects)
                 let marks = trackingMarks(shown: shown, focus: shownFocus)
                 ZStack {
-                    if guides {
-                        GuidesAssist.overlay(feed: feed, assist: assist, fallback: guideAspect)
-                    }
-                    if grid {
-                        MonitorFeedGrid(
-                            feed: feed,
-                            thirds: assist.gridThirds,
-                            phi: assist.gridPhi,
-                            diagonal: assist.gridDiagonal
-                        )
-                    }
-                    if crosshair { MonitorFeedCrosshair(feed: feed) }
-                    if assist.splitComparison, assist.isVisible(.lut) {
-                        MonitorFeedComparisonMarks(vertical: assist.splitVertical, feed: feed)
-                    }
+                    MonitorOperatorFramingMarks(assist: assist, feed: feed,
+                        visible: Set([MonitorAssistSelection.guides, .grid, .crosshair].filter {
+                            $0 == .guides ? guides : $0 == .grid ? grid : crosshair
+                        }), guideFallback: guideAspect,
+                        comparison: assist.splitComparison && assist.isVisible(.lut)
+                            ? .init(vertical: assist.splitVertical) : nil)
                     MonitorTrackingLayer(
                         brackets: marks.brackets, focus: marks.focus, feed: focusFeed)
                 }

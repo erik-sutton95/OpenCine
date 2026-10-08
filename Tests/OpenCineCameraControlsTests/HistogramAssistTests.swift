@@ -10,7 +10,7 @@
     /// Pins OpenZCine histogram rows + `MovablePanel` ("histo") onto the shared assists.
     final class HistogramAssistTests: XCTestCase {
         /// This test's monitored source (XCTest makes a fresh one per test).
-        private let ceiling = OpenCineCameraVocabulary.ScopeExposureCeiling()
+        private let ceiling = DeclaredMonitorColorFacts.makeCeiling()
 
 
         func testTrafficLightsSitOutsideMinMaxLines() {

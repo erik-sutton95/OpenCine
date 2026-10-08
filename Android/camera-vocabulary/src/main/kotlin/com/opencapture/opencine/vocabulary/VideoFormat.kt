@@ -31,28 +31,6 @@ data class VideoResolution(val rawValue: Int) {
                 null -> null
             }
 
-    /**
-     * Pocket 3 digital-zoom ceiling for this FORMAT, or `null` for a byte the
-     * catalog does not name.
-     *
-     * The limit tracks the capture size class, not the aspect; a bigger frame
-     * leaves less crop headroom. Measured on a body by asking past the ceiling
-     * and reading `cam_fov` `zoomLens` back: the camera clamps to its own max
-     * rather than refusing, so an over-ask reports the true limit. `0x0A`,
-     * `0x69` (4x), `0x2D`, `0x6A` (3x), `0x10`, `0x6B` (2x) are measured; the
-     * rest inherit from a measured sibling in the same size class.
-     */
-    val pocket3ZoomMax: Double?
-        get() =
-            when (rawValue) {
-                0x0A, 0x0C, 0x42, 0x69 -> 4.0 // 1080; 0x0A, 0x69 measured
-                0x2D, 0x43, 0x5F -> 3.0 // 2.7K; 0x2D measured
-                0x6A -> 3.0 // 2160; measured
-                0x10, 0x67, 0x7D -> 2.0 // 4K; 0x10 measured
-                0x6B, 0x6C -> 2.0 // 3K; 0x6B measured
-                else -> null
-            }
-
     val sizeTitle: String
         get() =
             when (rawValue) {
@@ -240,10 +218,10 @@ data class VideoFormat(val resolution: VideoResolution, val frameRate: VideoFram
         }
 
         /** iOS `CapturePickerPanel.currentVideoFormat`. */
-        fun current(status: CameraStatus): VideoFormat {
+        fun current(status: CameraStatus): VideoFormat? {
             parse(status.resolutionCode, status.fpsIndex)?.let { return it }
-            val res = VideoResolution.fromRaw(status.resolutionCode) ?: VideoResolution.P1080
-            val rate = VideoFrameRate.fromFps(status.fps) ?: VideoFrameRate.FPS24
+            val res = VideoResolution.fromRaw(status.resolutionCode) ?: return null
+            val rate = VideoFrameRate.fromFps(status.fps) ?: return null
             return VideoFormat(res, rate)
         }
 
@@ -256,13 +234,7 @@ data class VideoFormat(val resolution: VideoResolution, val frameRate: VideoFram
          */
         fun pickerFormats(available: List<VideoFormat>, model: CameraModel?, shootingMode: Int): List<VideoFormat> {
             if (available.isNotEmpty()) return available
-            if (model == null || !CameraModel.looksLikePocket3(model.name)) return available
-            return when (shootingMode) {
-                CameraCommands.SHOOT_VIDEO -> pocket3VideoFormats
-                CameraCommands.SHOOT_SLOWMO -> pocket3SlowMoFormats
-                CameraCommands.SHOOT_SUPER_NIGHT -> pocket3LowLightFormats
-                else -> available
-            }
+            return model?.captureProfile?.videoFormatFallbacks?.get(shootingMode).orEmpty()
         }
 
         /** Operator FORMAT SET. Empty picker tables are read-only, including Video. */
@@ -275,28 +247,6 @@ data class VideoFormat(val resolution: VideoResolution, val frameRate: VideoFram
             val legal = pickerFormats(available, model, shootingMode)
             return legal.isNotEmpty() && format in legal
         }
-
-        /** Accepted Pocket 3 Video `0x02/0x18` pairs. 9:16 was body Lock Portrait only. */
-        private val pocket3VideoFormats = listOf(
-            VideoResolution.P1080, VideoResolution.P2_7K, VideoResolution.P4K,
-            VideoResolution.P1080_1X1, VideoResolution.P2160_1X1, VideoResolution.P3K_1X1,
-        ).flatMap { res -> VideoFrameRate.labeledVideo.map { rate -> VideoFormat(res, rate) } }
-
-        /** Documented Pocket 3 SlowMo menu. 4K240 is not in this fallback. */
-        private val pocket3SlowMoFormats = listOf(
-            VideoFormat(VideoResolution.P4K, VideoFrameRate.FPS100),
-            VideoFormat(VideoResolution.P4K, VideoFrameRate.FPS120),
-            VideoFormat(VideoResolution.P2_7K, VideoFrameRate.FPS120),
-            VideoFormat(VideoResolution.P1080, VideoFrameRate.FPS120),
-            VideoFormat(VideoResolution.P1080, VideoFrameRate.FPS240),
-        )
-
-        /** Pocket 3 Low-Light (`0x28`): 1080/4K at 24/25/30. No 2.7K or square. */
-        private val pocket3LowLightFormats =
-            listOf(VideoResolution.P1080, VideoResolution.P4K).flatMap { res ->
-                listOf(VideoFrameRate.FPS24, VideoFrameRate.FPS25, VideoFrameRate.FPS30)
-                    .map { rate -> VideoFormat(res, rate) }
-            }
 
         /** iOS `CamCapVideoFormat.resolutions`. Preserve a reported size when camcap is empty. */
         fun resolutions(

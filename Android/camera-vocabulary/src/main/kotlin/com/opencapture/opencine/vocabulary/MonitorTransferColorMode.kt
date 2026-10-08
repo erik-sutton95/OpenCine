@@ -29,13 +29,6 @@ fun MonitorTransfer.Companion.fromColorMode(code: Int): MonitorTransfer = when (
     else -> MonitorTransfer.REC709
 }
 
-fun MonitorTransfer.Companion.inferred(minByte: Int, maxByte: Int, fallback: MonitorTransfer): MonitorTransfer {
-    if (fallback != MonitorTransfer.REC709) return fallback
-    if (minByte in 12..22 && maxByte in 180..252) return MonitorTransfer.DLOG2
-    if (minByte in 20..30 && maxByte in 160..240) return MonitorTransfer.DLOG
-    return fallback
-}
-
 /** The curve the monitor reads this status through: its [CameraStatus.monitorColorMode], decoded. */
 val CameraStatus.monitorTransfer: MonitorTransfer
     get() = MonitorTransfer.fromColorMode(monitorColorMode)

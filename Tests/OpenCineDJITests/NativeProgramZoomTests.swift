@@ -104,7 +104,7 @@ import OpenCineMotion
         status.zoomLens = CamFov.pinchLens(for: from)
         status.shootingMode = 1
         var controller = GimbalProgramZoom(program: program(from: from, to: to),
-            model: .init(name: "Osmo Pocket 4 Pro"), status: status)
+            model: .resolve(modelId: nil, name: "Osmo Pocket 4 Pro"), status: status)
         controller.observe(lens(CamFov.pinchLens(for: from)), at: 0)
         return controller
     }

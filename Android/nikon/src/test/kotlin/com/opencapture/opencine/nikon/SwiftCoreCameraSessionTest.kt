@@ -6,6 +6,8 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -14,6 +16,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1442,6 +1446,162 @@ class SwiftCoreCameraSessionTest {
         assertEquals(CameraPropertyRefreshStatus.Idle, session.propertyRefreshStatus.value)
         assertEquals(null, session.cameraProperties.value.iso)
         assertEquals(emptyList(), bridge.refreshRequests())
+    }
+
+    @Test
+    fun `explicit admission cannot be borrowed by a replacement session`() = runTest {
+        val bridge = FakeBridge()
+        val source = quietSession(bridge)
+        val replacement = quietSession(bridge)
+        val connecting = async { replacement.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+        connecting.await()
+        val admission = CameraCommandAdmission(source) { true }
+        assertEquals(CameraRecordingException.CommandRejected,
+            assertFailsWith<CameraRecordingException> { replacement.setRecording(true, admission) })
+        assertEquals(CameraControlException.CommandRejected,
+            assertFailsWith<CameraControlException> {
+                replacement.applyControl(CameraControl.ISO, "1600", admission)
+            })
+        assertEquals(CameraFocusException.CommandRejected,
+            assertFailsWith<CameraFocusException> {
+                replacement.changeAfArea(CameraFocusPoint(10, 20), admission)
+            })
+        assertTrue(bridge.recordingRequests.isEmpty())
+        assertTrue(bridge.controlRequests.isEmpty())
+        assertTrue(bridge.focusRequests.isEmpty())
+        assertEquals(CameraRecordingState.STANDBY, replacement.recordingState.value)
+        replacement.setRecording(true)
+        assertEquals(1, bridge.recordingRequests.size)
+    }
+
+    @Test
+    fun `revoked mutex waiters never mutate optimistic state or reach native dispatch`() = runTest {
+        val bridge = FakeBridge()
+        val session = quietSession(bridge)
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+        connecting.await()
+        session.refreshProperties()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        bridge.controlHandler = { _, _ ->
+            entered.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+            NikonNative.CONTROL_COMMAND_ACCEPTED
+        }
+        val direct = async(Dispatchers.Default) { session.applyControl(CameraControl.ISO, "1600") }
+        val current = AtomicBoolean(true)
+        val admission = CameraCommandAdmission(session, current::get)
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            val record = async { runCatching { session.setRecording(true, admission) }.exceptionOrNull() }
+            val write = async {
+                runCatching { session.applyControl(CameraControl.ISO, "3200", admission) }.exceptionOrNull()
+            }
+            val focus = async {
+                runCatching { session.changeAfArea(CameraFocusPoint(10, 20), admission) }.exceptionOrNull()
+            }
+            runCurrent()
+            assertFalse(record.isCompleted)
+            assertFalse(write.isCompleted)
+            assertFalse(focus.isCompleted)
+            current.set(false)
+            release.countDown()
+            direct.await()
+            assertEquals(CameraRecordingException.CommandRejected, record.await())
+            assertEquals(CameraControlException.CommandRejected, write.await())
+            assertEquals(CameraFocusException.CommandRejected, focus.await())
+            assertEquals(listOf(CameraControl.ISO to "1600"), bridge.controlRequests)
+            assertTrue(bridge.recordingRequests.isEmpty())
+            assertTrue(bridge.focusRequests.isEmpty())
+            assertEquals(1600L, session.cameraProperties.value.iso)
+            assertEquals(CameraRecordingState.STANDBY, session.recordingState.value)
+        } finally {
+            release.countDown()
+        }
+    }
+
+    @Test
+    fun `revocation inside the IO queue refuses all three native entry points and restores state`() = runTest {
+        val bridge = FakeBridge()
+        val native = PausedCommandDispatcher()
+        val session = SwiftCoreCameraSession(
+            host = "192.168.1.1", phaseLogger = { _, _ -> }, core = bridge,
+            propertyRefreshScope = backgroundScope, automaticallyRefreshProperties = false,
+            cameraCommandDispatcher = native,
+        )
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+        connecting.await()
+        session.refreshProperties()
+        val current = AtomicBoolean(true)
+        val admission = CameraCommandAdmission(session, current::get)
+        val operations: List<suspend () -> Unit> = listOf(
+            { session.setRecording(true, admission) },
+            { session.applyControl(CameraControl.ISO, "1600", admission) },
+            { session.changeAfArea(CameraFocusPoint(10, 20), admission); Unit },
+        )
+        val refusals = listOf(
+            CameraRecordingException.CommandRejected,
+            CameraControlException.CommandRejected,
+            CameraFocusException.CommandRejected,
+        )
+        for ((index, operation) in operations.withIndex()) {
+            current.set(true)
+            val result = async(start = CoroutineStart.UNDISPATCHED) { runCatching { operation() }.exceptionOrNull() }
+            assertEquals(1, native.pendingCount)
+            assertFalse(result.isCompleted)
+            if (index == 0) assertEquals(CameraRecordingState.STARTING, session.recordingState.value)
+            if (index == 1) assertEquals(1600L, session.cameraProperties.value.iso)
+            current.set(false)
+            native.runNext()
+            runCurrent()
+            assertEquals(refusals[index], result.await())
+            assertEquals(CameraRecordingState.STANDBY, session.recordingState.value)
+            assertEquals(800L, session.cameraProperties.value.iso)
+        }
+        assertTrue(bridge.recordingRequests.isEmpty())
+        assertTrue(bridge.controlRequests.isEmpty())
+        assertTrue(bridge.focusRequests.isEmpty())
+    }
+
+    @Test
+    fun `accepted native operations retain their completion and rejection rollback after revocation`() = runTest {
+        for (accepted in listOf(true, false)) {
+            val bridge = FakeBridge()
+            val session = quietSession(bridge)
+            val connecting = async { session.connect() }
+            runCurrent()
+            bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+            connecting.await()
+            session.refreshProperties()
+            val current = AtomicBoolean(true)
+            val admission = CameraCommandAdmission(session, current::get)
+            bridge.controlHandler = { _, _ ->
+                // This is already inside the real bridge call, beyond the admission boundary.
+                current.set(false)
+                if (accepted) NikonNative.CONTROL_COMMAND_ACCEPTED else NikonNative.CONTROL_COMMAND_REJECTED
+            }
+            val error = runCatching { session.applyControl(CameraControl.ISO, "1600", admission) }.exceptionOrNull()
+            assertEquals(if (accepted) null else CameraControlException.CommandRejected, error)
+            assertEquals(if (accepted) 1600L else 800L, session.cameraProperties.value.iso)
+            assertEquals(listOf(CameraControl.ISO to "1600"), bridge.controlRequests)
+            bridge.controlHandler = null
+            // An unrelated direct operator command still works while that receipt is revoked.
+            session.applyControl(CameraControl.ISO, "3200")
+            assertEquals(3200L, session.cameraProperties.value.iso)
+        }
+    }
+
+    private class PausedCommandDispatcher : CoroutineDispatcher() {
+        private val work = ArrayDeque<Runnable>()
+        val pendingCount: Int get() = work.size
+        override fun dispatch(context: CoroutineContext, block: Runnable) { work.addLast(block) }
+        fun runNext() { work.removeFirst().run() }
     }
 
     private class FakeBridge : SwiftCoreSessionBridge {

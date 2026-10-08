@@ -140,9 +140,9 @@ class CameraControlWireTest {
 
     @Test
     fun zoomPinAndColorModesFollowTheBody() {
-        val pro = CameraModel(name = "Osmo Pocket 4 Pro", family = "pocket")
-        val pocket4 = CameraModel(name = "Osmo Pocket 4", family = "pocket")
-        val pocket3 = CameraModel(name = "Osmo Pocket 3", family = "pocket")
+        val pro = djiBodyProfile("Osmo Pocket 4 Pro", family = "pocket")
+        val pocket4 = djiBodyProfile("Osmo Pocket 4", family = "pocket")
+        val pocket3 = djiBodyProfile("Osmo Pocket 3", family = "pocket")
         // activeZoomStops, ceilingNote, stopWithinCycle and pocket3ZoomMax are
         // covered row by row in camfov-vectors.tsv (CamFovVectorTest).
         // The chip rides the same pin as every other control, with

@@ -24,6 +24,11 @@ include(
     // Core: Kotlin/JVM contracts (+ test fixtures), media policy, live-view MediaCodec decoder,
     // native Vulkan renderer and effects runtime.
     ":core", ":media", ":platform", ":decoder", ":vulkan", ":native-runtime",
+    // Wire-free relay framing, admission, control lease and stream policy.
+    ":relay",
+    ":relay-runtime", ":watch-runtime",
+    // Deployed Nikon relay/watch schemas, isolated from camera sessions and JNI.
+    ":nikon-wire",
     // UI: Compose monitor UI.
     ":monitor-ui",
     // Multicam engine (Kotlin/JVM).

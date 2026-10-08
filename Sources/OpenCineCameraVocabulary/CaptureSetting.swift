@@ -28,8 +28,4 @@ public enum CaptureSetting: Equatable, Sendable {
     case expoMode(ExpoMode)
     /// A focus row, with the label the operator chose (AF-S, AF-C or a track).
     case focus(FocusOption, label: String)
-    case audioChannel(AudioChannel)
-    case windNoiseReduction(WindNoiseReduction)
-    case directionalAudio(DirectionalAudio)
-    case vocalBoost(VocalBoost)
 }

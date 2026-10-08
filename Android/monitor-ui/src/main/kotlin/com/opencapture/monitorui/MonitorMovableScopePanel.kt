@@ -61,17 +61,20 @@ fun MonitorMovableScopePanel(
 ) {
     val density = LocalDensity.current
     val preferred = MonitorScopePanelMath.panelSize(base, scale)
-    val gripPx = with(density) { MonitorScopePanelMath.gripPadDp.dp.toPx() }
+    val resizable = onScale != null
+    val gripPx = if (resizable) with(density) { MonitorScopePanelMath.gripPadDp.dp.toPx() } else 0f
     val minimumHit = with(density) { MonitorScopePanelMath.MIN_GRIP_HIT_DP.dp.toPx() }
     val usable = placementBounds.width >= minimumHit && placementBounds.height >= minimumHit
     val sizePx = MonitorScopePanelMath.fittedSize(
         with(density) { MonitorScopeSize(preferred.width.dp.toPx(), preferred.height.dp.toPx()) },
         placementBounds, gripPx)
     val sizeDp = MonitorScopeSize(sizePx.width / density.density, sizePx.height / density.density)
-    val gripPadDp = MonitorScopePanelMath.gripPadDp
+    val gripPadDp = if (resizable) MonitorScopePanelMath.gripPadDp else 0f
     val gripHit = MonitorScopePanelMath.gripHitSize(sizeDp.width, sizeDp.height)
     val gripOrigin = MonitorScopePanelMath.gripHitOrigin(sizeDp.width, sizeDp.height)
-    val gripOverhang = MonitorScopePanelMath.gripOverhang(sizeDp.width, sizeDp.height)
+    val gripOverhang = if (resizable) MonitorScopePanelMath.gripOverhang(sizeDp.width, sizeDp.height)
+        else MonitorScopePoint(0f, 0f)
+    val gripBottomDp = if (resizable) MonitorScopePanelMath.GRIP_BOTTOM_EXTERIOR_DP else 0f
     var session by remember(identity) { mutableStateOf<MonitorScopePoint?>(null) }
     var origin by remember { mutableStateOf<MonitorScopePoint?>(null) }
     var resizeOrigin by remember { mutableStateOf<Double?>(null) }
@@ -108,7 +111,7 @@ fun MonitorMovableScopePanel(
                 )
             }
             .size((sizeDp.width + gripPadDp + gripOverhang.x).dp,
-                (sizeDp.height + MonitorScopePanelMath.GRIP_BOTTOM_EXTERIOR_DP + gripOverhang.y).dp),
+                (sizeDp.height + gripBottomDp + gripOverhang.y).dp),
     ) {
         Box(
             Modifier

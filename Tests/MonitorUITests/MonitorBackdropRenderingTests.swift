@@ -1,5 +1,6 @@
 #if os(iOS)
 import CoreImage
+import OpenCineAppKitApple
 import MonitorPresentation
 import SwiftUI
 import XCTest

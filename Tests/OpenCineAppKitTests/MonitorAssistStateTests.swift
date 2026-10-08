@@ -247,7 +247,7 @@ import Testing
     }
 }
 
-@MainActor private final class StateTestLooks: MonitorLookProvider {
+@MainActor final class StateTestLooks: MonitorLookProvider {
     var selection = 0
     var transfer = MonitorTransfer.rec709
     var bakeTransfer: MonitorTransfer?

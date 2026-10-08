@@ -106,8 +106,8 @@
         }
 
         func testApertureTakesTheFocusSlotOnlyOnAction6() throws {
-            let action6 = CameraModel.resolve(modelId: 0x0018, name: "Osmo Action 6")
-            let pocket4 = CameraModel.resolve(modelId: 0x0021, name: "Osmo Pocket 4")
+            let action6 = CameraModel(name: "Iris body", captureProfile: CameraCaptureProfile(supportsAperture: true))
+            let pocket4 = CameraModel(name: "Fixed iris body", captureProfile: CameraCaptureProfile(supportsAperture: false))
             var status = CameraStatus()
             status.expoMode = .manual
             let fallback = try XCTUnwrap(
@@ -222,6 +222,28 @@
             XCTAssertNil(unknown.changedValue(translation: 0, current: unknown))
         }
 
+        func testUnknownFormatCannotOfferAnInventedResolutionOrRate() {
+            var status = CameraStatus()
+            XCTAssertNil(CaptureQuickSnapshot.primary(.resolution, status: status))
+            status.availableVideoFormats = [VideoFormat(resolution: .p4K, frameRate: .fps30)]
+            XCTAssertNil(CaptureQuickSnapshot.primary(.resolution, status: status))
+            status.videoResolution = .p4K
+            let partial = CaptureQuickSnapshot.primary(.resolution, status: status)
+            XCTAssertEqual(partial?.options, ["30p"])
+            XCTAssertEqual(partial?.selection, "")
+            XCTAssertEqual(partial?.chipValue, "\u{2014}")
+        }
+
+        func testOptionalAudioOffersOnlyDeclaredFields() {
+            let status = CameraStatus()
+            XCTAssertNil(CaptureQuickSnapshot.primary(.audio, status: status))
+            let field = CaptureAudioField(id: .channel, title: "Channel",
+                choices: [.channel(.stereo), .channel(.mono)])
+            let audio = CaptureQuickSnapshot.primary(.audio, status: status, audioField: field)
+            XCTAssertEqual(audio?.options, ["Stereo", "Mono"])
+            XCTAssertEqual(audio?.selection, "")
+        }
+
         func testPhotoHidesVideoFormatAndShutterAngle() throws {
             var status = CameraStatus()
             status.shootingMode = Int(ShootingMode.photoRawPocket3AndNano)
@@ -287,7 +309,7 @@
             let tele200 = VideoFormat(resolution: .p4K, frameRate: .fps200)
             status.videoFormat = tele200
             status.availableVideoFormats = [tele200]
-            let pro = CameraModel.resolve(modelId: 0x0022, name: "Osmo Pocket 4 Pro")
+            let pro = CameraModel(name: "Reported format body", captureProfile: CameraCaptureProfile(isoAutoRangeFloor: 100))
             let snapshot = try XCTUnwrap(
                 CaptureQuickSnapshot.primary(.resolution, status: status, cameraModel: pro))
             XCTAssertEqual(snapshot.options, ["200p"])
@@ -311,7 +333,7 @@
             status.shootingMode = Int(ShootingMode.slowMo.rawValue)
             status.videoFormat = VideoFormat(resolution: .p1080, frameRate: .fps240)
             status.availableVideoFormats = []
-            let pro = CameraModel.resolve(modelId: 0x0022, name: "Osmo Pocket 4 Pro")
+            let pro = CameraModel(name: "Reported format body", captureProfile: CameraCaptureProfile(isoAutoRangeFloor: 100))
             let snapshot = try XCTUnwrap(
                 CaptureQuickSnapshot.primary(.resolution, status: status, cameraModel: pro))
             XCTAssertFalse(snapshot.enabled)

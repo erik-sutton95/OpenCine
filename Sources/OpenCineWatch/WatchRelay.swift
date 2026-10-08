@@ -8,248 +8,95 @@ import UIKit
 import VideoToolbox
 import os
 
-/// Reservations cover encoding and transport together. Invalidating a preview
-/// generation drops its results, but its work keeps a slot until completion.
-public struct WatchPreviewPump {
-    public struct Ticket: Hashable, Sendable {
-        fileprivate let generation: UInt64
-        fileprivate let sequence: UInt64
-    }
-
-    private var generation: UInt64 = 0
-    private var sequence: UInt64 = 0
-    private var outstanding: Set<Ticket> = []
-    public var inFlightCount: Int { outstanding.count }
-
-    public init() {}
-
-    public mutating func reserve() -> Ticket? {
-        guard outstanding.count < 3 else { return nil }
-        sequence &+= 1
-        let ticket = Ticket(generation: generation, sequence: sequence)
-        outstanding.insert(ticket)
-        return ticket
-    }
-
-    public func isCurrent(_ ticket: Ticket) -> Bool {
-        ticket.generation == generation && outstanding.contains(ticket)
-    }
-
-    public mutating func complete(_ ticket: Ticket) -> Bool {
-        outstanding.remove(ticket) != nil
-    }
-
-    public mutating func invalidate() {
-        generation &+= 1
-    }
-}
+public typealias WatchPreviewPump = RelayPreviewReservations
 
 #if canImport(WatchConnectivity)
-    import WatchConnectivity
+private struct WatchNativePreview: @unchecked Sendable {
+    let image: CIImage
+    let source: CVPixelBuffer?
+    let unmanaged: Bool
+    let mirrored: Bool
+    let flippedVertically: Bool
+    let timecode: String
+    let isRecording: Bool
+}
 
-    /// Carries a non-Sendable `WCSession` reply handler onto the main actor.
-    private struct RelaySendableBox<Value>: @unchecked Sendable {
-        let value: Value
+@MainActor public final class WatchRelay {
+    public var onToggleRecord: (@MainActor () -> WatchCommandResult)?
+    public var onCapture: (@MainActor () -> WatchCommandResult)?
+    public var onAdmittedToggleRecord:
+        (@MainActor (RelayWatchCommandAdmission) -> WatchCommandResult)?
+    public var onAdmittedCapture:
+        (@MainActor (RelayWatchCommandAdmission) -> WatchCommandResult)?
+    public var onReachabilityChanged: (@MainActor @Sendable () -> Void)? {
+        get { relay.onReachabilityChanged }
+        set { relay.onReachabilityChanged = newValue }
     }
-
-    /// iPhone-side WatchConnectivity relay for the app's watchOS companion.
-    ///
-    /// The iPhone owns the camera radio. This relay forwards a downscaled preview and a
-    /// small state snapshot to a paired Apple Watch, and relays Record / shutter back.
-    /// Foreground-only: no-ops when no watch is paired or reachable.
-    @MainActor
-    public final class WatchRelay: NSObject {
-        public var onToggleRecord: (@MainActor () -> WatchCommandResult)?
-        public var onCapture: (@MainActor () -> WatchCommandResult)?
-        public var onReachabilityChanged: (@MainActor () -> Void)?
-
-        private let session: WCSession?
-        private var lastSentState: WatchRelayState?
-        private var pendingPreview:
-            (
-                image: CIImage, source: CVPixelBuffer?, unmanaged: Bool, mirrored: Bool,
-                flippedVertically: Bool, timecode: String, isRecording: Bool
-            )?
-        /// Pipeline hides WatchConnectivity RTT (fps ≈ depth/RTT). One in flight
-        /// capped the wrist at ~1/RTT (~8–12 fps). Encode is detached so three
-        /// JPEGs actually overlap instead of serializing on MainActor.
-        private var framePump = WatchPreviewPump()
-        private var rttEMA: TimeInterval = 0.12
-        /// Rec.709 / HLG identity CI fallback. Prefer `VTCreateCGImageFromCVPixelBuffer`.
-        nonisolated private static let displayContext = CIContext(
-            options: MonitorWorkingSpace.displayContextOptions)
-        /// LUT cube product (NSNull working space). Do not sRGB-linearize it.
-        nonisolated private static let lutContext = CIContext(
-            options: MonitorWorkingSpace.contextOptions)
-
-        override public init() {
-            session = WCSession.isSupported() ? .default : nil
-            super.init()
-        }
-
-        public func activate() {
-            guard let session else { return }
-            session.delegate = self
-            session.activate()
-        }
-
-        public var isReady: Bool {
-            guard let session else { return false }
-            return session.activationState == .activated && session.isReachable
-        }
-
-        public var hasCompanion: Bool {
-            guard let session else { return false }
-            return session.isPaired && session.isWatchAppInstalled
-        }
-
-        public func ingestState(_ state: WatchRelayState) {
-            guard lastSentState.map({ !state.matchesIgnoringLiveReadouts($0) }) ?? true else {
-                return
-            }
-            guard let session, session.activationState == .activated,
-                let data = try? WatchRelayEnvelope.encode(kind: .state, payload: state)
-            else { return }
-            lastSentState = state
-            // Wrist-down / Always On drops `isReachable`. Application context still
-            // delivers rec, timecode, and storage without a live message session.
-            try? session.updateApplicationContext([WatchRelayContext.stateKey: data])
-            guard session.isReachable else { return }
-            session.sendMessageData(
-                data, replyHandler: nil,
-                errorHandler: { @Sendable [weak self] _ in
-                    Task { @MainActor in
-                        if self?.lastSentState == state { self?.lastSentState = nil }
-                    }
-                })
-        }
-
-        /// Drop-stale preview. `source` is the VT identity buffer (nil when a LUT
-        /// cube owns the picture). Pixel backing must live until encode returns.
-        public func ingestPreview(
-            _ image: CIImage, source: CVPixelBuffer? = nil, unmanaged: Bool = false,
-            mirrored: Bool = false, flippedVertically: Bool = false, timecode: String,
-            isRecording: Bool
-        ) {
-            guard isReady else { return }
-            pendingPreview = (
-                image: image, source: source, unmanaged: unmanaged, mirrored: mirrored,
-                flippedVertically: flippedVertically, timecode: timecode, isRecording: isRecording
-            )
-            pumpFrames()
-        }
-
-        private func pumpFrames() {
-            guard isReady, let pending = pendingPreview, let ticket = framePump.reserve()
-            else { return }
-            pendingPreview = nil
-            let params = adaptiveEncodingParams()
-            let boxed = RelaySendableBox(value: pending)
-            Task.detached(priority: .userInitiated) { [weak self] in
-                let data = Self.encodeFrame(
-                    image: boxed.value.image,
-                    source: boxed.value.source,
-                    unmanaged: boxed.value.unmanaged,
-                    mirrored: boxed.value.mirrored,
-                    flippedVertically: boxed.value.flippedVertically,
-                    timecode: boxed.value.timecode,
-                    isRecording: boxed.value.isRecording,
-                    width: params.width,
-                    quality: params.quality)
-                await MainActor.run { [weak self] in
-                    self?.dispatchFrame(data, ticket: ticket)
-                }
-            }
-        }
-
-        private func dispatchFrame(_ data: Data?, ticket: WatchPreviewPump.Ticket) {
-            guard framePump.isCurrent(ticket), let data, isReady, let session else {
-                frameAcked(ticket: ticket, sentAt: nil)
-                return
-            }
-            let sentAt = CFAbsoluteTimeGetCurrent()
-            let ack = RelaySendableBox(value: { [weak self] in
-                self?.frameAcked(ticket: ticket, sentAt: sentAt)
+    private let relay: WatchPhoneRelay<WatchRelayCodec, WatchNativePreview>
+    // Retain the exercised native contexts and identity conversion exactly.
+    nonisolated private static let displayContext = CIContext(
+        options: MonitorWorkingSpace.displayContextOptions)
+    nonisolated private static let lutContext = CIContext(
+        options: MonitorWorkingSpace.contextOptions)
+    public init() {
+        relay = WatchPhoneRelay(codec: WatchRelayCodec(), policy: .init(
+            pacing: .init(profiles: [
+                .init(maximumWidth: 512, qualityPercent: 48),
+                .init(maximumWidth: 416, qualityPercent: 42),
+                .init(maximumWidth: 320, qualityPercent: 38),
+            ], roundTripThresholds: [0.12, 0.22], initialIndex: 1,
+                initialRoundTripHint: 0.12, maximumSampleSeconds: 5),
+            stateDelivery: .contextAndMessage, releasesOutstandingOnRetirement: false),
+            encode: { preview, profile in
+                await Task.detached(priority: .userInitiated) {
+                    Self.encodePreview(preview, profile: profile)
+                }.value
             })
-            session.sendMessageData(
-                data,
-                replyHandler: { @Sendable _ in Task { @MainActor in ack.value() } },
-                errorHandler: { @Sendable _ in Task { @MainActor in ack.value() } })
-        }
-
-        private func frameAcked(ticket: WatchPreviewPump.Ticket, sentAt: CFAbsoluteTime?) {
-            let isCurrent = framePump.isCurrent(ticket)
-            guard framePump.complete(ticket) else { return }
-            if isCurrent, let sentAt {
-                let rtt = CFAbsoluteTimeGetCurrent() - sentAt
-                if rtt > 0, rtt < 5 { rttEMA = rttEMA * 0.8 + rtt * 0.2 }
-            }
-            pumpFrames()
-        }
-
-        private func adaptiveEncodingParams() -> (width: CGFloat, quality: CGFloat) {
-            switch rttEMA {
-            case 0.22...: (width: 320, quality: 0.38)
-            case 0.12..<0.22: (width: 416, quality: 0.42)
-            default: (width: 512, quality: 0.48)
-            }
-        }
-
-        nonisolated private static func encodeFrame(
-            image: CIImage, source: CVPixelBuffer?, unmanaged: Bool, mirrored: Bool,
-            flippedVertically: Bool, timecode: String, isRecording: Bool, width: CGFloat,
-            quality: CGFloat
-        ) -> Data? {
-            let jpeg: Data?
-            if unmanaged {
-                jpeg = thumbnailData(
-                    from: image, unmanaged: true, mirrored: mirrored,
-                    flippedVertically: flippedVertically, maxWidth: width, quality: quality)
-            } else if let source {
-                jpeg = thumbnailData(
-                    from: source, mirrored: mirrored, flippedVertically: flippedVertically,
-                    maxWidth: width, quality: quality)
-            } else {
-                jpeg = thumbnailData(
-                    from: image, unmanaged: false, mirrored: mirrored,
-                    flippedVertically: flippedVertically, maxWidth: width, quality: quality)
-            }
-            guard let jpeg else { return nil }
-            let frame = WatchRelayFrame(jpeg: jpeg, timecode: timecode, isRecording: isRecording)
-            return try? WatchRelayEnvelope.encode(kind: .frame, payload: frame)
-        }
-
-        private func handleReachabilityChanged() {
-            lastSentState = nil
-            framePump.invalidate()
-            pendingPreview = nil
-            onReachabilityChanged?()
-            pumpFrames()
-        }
-
-        private func handleCommand(_ data: Data) -> Data {
-            let fallback = WatchCommandResult(
-                accepted: false, isRecording: false, error: "unavailable")
-            guard let kind = try? WatchRelayEnvelope.kind(of: data), kind == .command else {
-                return (try? WatchRelayEnvelope.encode(kind: .result, payload: fallback)) ?? Data()
-            }
-            let result: WatchCommandResult
-            let command = try? WatchRelayEnvelope.decode(WatchRelayCommand.self, from: data)
-            switch command {
+        relay.onAdmittedCommand = { [weak self] action, admission in
+            let fallback = WatchCommandResult(accepted: false, isRecording: false, error: "unavailable")
+            switch action {
             case .toggleRecord:
-                result = onToggleRecord.map { $0() } ?? fallback
-            case .resume:
-                let wasRecording = lastSentState?.isRecording ?? false
-                handleReachabilityChanged()
-                result = WatchCommandResult(accepted: true, isRecording: wasRecording, error: nil)
+                return self?.onAdmittedToggleRecord?(admission) ?? self?.onToggleRecord?() ?? fallback
             case .capture:
-                result = onCapture.map { $0() } ?? fallback
-            case .none:
-                result = fallback
+                return self?.onAdmittedCapture?(admission) ?? self?.onCapture?() ?? fallback
+            case .resume: return fallback
             }
-            return (try? WatchRelayEnvelope.encode(kind: .result, payload: result)) ?? Data()
         }
-
+    }
+    public var isReady: Bool { relay.isReady }
+    public var hasCompanion: Bool { relay.hasCompanion }
+    public func activate() { relay.activate() }
+    public func ingestState(_ state: WatchRelayState) { relay.ingestState(state) }
+    public func retireSource() { relay.retireSource() }
+    public func close() { relay.close() }
+    public func ingestPreview(
+        _ image: CIImage, source: CVPixelBuffer? = nil, unmanaged: Bool = false,
+        mirrored: Bool = false, flippedVertically: Bool = false, timecode: String,
+        isRecording: Bool
+    ) {
+        relay.ingestPreview(WatchNativePreview(image: image, source: source,
+            unmanaged: unmanaged, mirrored: mirrored, flippedVertically: flippedVertically,
+            timecode: timecode, isRecording: isRecording))
+    }
+    nonisolated private static func encodePreview(
+        _ preview: WatchNativePreview, profile: RelayPreviewProfile
+    ) -> WatchRelayFrame? {
+        let width = CGFloat(profile.maximumWidth)
+        let quality = CGFloat(profile.qualityPercent) / 100
+        let bytes: Data?
+        if preview.unmanaged {
+            bytes = thumbnailData(from: preview.image, unmanaged: true, mirrored: preview.mirrored,
+                flippedVertically: preview.flippedVertically, maxWidth: width, quality: quality)
+        } else if let source = preview.source {
+            bytes = thumbnailData(from: source, mirrored: preview.mirrored,
+                flippedVertically: preview.flippedVertically, maxWidth: width, quality: quality)
+        } else {
+            bytes = thumbnailData(from: preview.image, unmanaged: false, mirrored: preview.mirrored,
+                flippedVertically: preview.flippedVertically, maxWidth: width, quality: quality)
+        }
+        guard let bytes else { return nil }
+        return WatchRelayFrame(jpeg: bytes, timecode: preview.timecode, isRecording: preview.isRecording)
+    }
         nonisolated public static func encodedFrameData(_ image: UIImage, quality: CGFloat) -> Data? {
             image.jpegData(compressionQuality: quality)
         }
@@ -367,78 +214,6 @@ public struct WatchPreviewPump {
                 UIImage(cgImage: cg).draw(in: CGRect(origin: .zero, size: size))
             }
         }
-    }
-
-    extension WatchRelay: WCSessionDelegate {
-        nonisolated public func session(
-            _ session: WCSession,
-            activationDidCompleteWith activationState: WCSessionActivationState,
-            error: Error?
-        ) {
-            Task { @MainActor [weak self] in self?.handleReachabilityChanged() }
-        }
-
-        nonisolated public func sessionDidBecomeInactive(_ session: WCSession) {}
-
-        nonisolated public func sessionDidDeactivate(_ session: WCSession) {
-            WCSession.default.activate()
-        }
-
-        nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
-            Task { @MainActor [weak self] in self?.handleReachabilityChanged() }
-        }
-
-        nonisolated public func sessionWatchStateDidChange(_ session: WCSession) {
-            Task { @MainActor [weak self] in self?.handleReachabilityChanged() }
-        }
-
-        nonisolated public func session(
-            _ session: WCSession,
-            didReceiveMessageData messageData: Data,
-            replyHandler: @escaping (Data) -> Void
-        ) {
-            let reply = RelaySendableBox(value: replyHandler)
-            Task { @MainActor [weak self] in
-                let response = self?.handleCommand(messageData) ?? Data()
-                reply.value(response)
-            }
-        }
-    }
-
-#else
-
-    @MainActor
-    public final class WatchRelay: NSObject {
-        public var onToggleRecord: (@MainActor () -> WatchCommandResult)?
-        public var onCapture: (@MainActor () -> WatchCommandResult)?
-        public var onReachabilityChanged: (@MainActor () -> Void)?
-        public var isReady: Bool { false }
-        public var hasCompanion: Bool { false }
-        public func activate() {}
-        public func ingestState(_ state: WatchRelayState) {}
-        public func ingestPreview(
-            _ image: CIImage, source: CVPixelBuffer? = nil, unmanaged: Bool = false,
-            mirrored: Bool = false, flippedVertically: Bool = false, timecode: String,
-            isRecording: Bool
-        ) {}
-        nonisolated public static func encodedFrameData(_ image: UIImage, quality: CGFloat) -> Data? {
-            image.jpegData(compressionQuality: quality)
-        }
-        nonisolated public static func thumbnailData(
-            from image: CIImage, unmanaged: Bool = false, maxWidth: CGFloat, quality: CGFloat
-        ) -> Data? {
-            let extent = image.extent
-            guard extent.width > 1, extent.height > 1 else { return nil }
-            let scale = min(1, maxWidth / extent.width)
-            let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-            let target = scaled.extent.integral
-            let context = CIContext(options: [.useSoftwareRenderer: false])
-            guard target.width > 1, target.height > 1,
-                let cg = context.createCGImage(scaled, from: target)
-            else { return nil }
-            return encodedFrameData(UIImage(cgImage: cg), quality: quality)
-        }
-    }
-
+}
 #endif
 #endif

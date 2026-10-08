@@ -38,20 +38,25 @@
         public var monitorColorMode: ColorMode?
         public var monitorFamily: CameraBodyFamily = .fallback
         public var monitorCameraName: String?
+        public var monitorLookProfile: CameraLUTProfile?
+        public let colorSourceProfile: MonitorColorSourceProfile
         public var liveIsPhoto = false
 
         public init(
             official: OfficialLUTs, preferences: LUTPreferences, customLUTs: CustomLUTStore,
-            preparationReady: Bool = true
+            preparationReady: Bool = true, lookProfile: CameraLUTProfile? = nil,
+            colorSourceProfile: MonitorColorSourceProfile = .init()
         ) {
             self.official = official
             self.preferences = preferences
             self.customLUTs = customLUTs
             self.preparationReady = preparationReady
+            self.monitorLookProfile = lookProfile
+            self.colorSourceProfile = colorSourceProfile
         }
 
         public var referenceClipByte: Int {
-            OpenCineCameraVocabulary.ScopeExposureCeiling.referenceClipByte(transfer: transfer)
+            OpenCineMedia.ScopeExposureCeiling(profile: colorSourceProfile.clip).clipByte(transfer: transfer)
         }
         public func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer {
             transfer.lutExposureTransfer
@@ -69,8 +74,7 @@
             LiveLUTResolver.resolve(
                 selection: lutSelection,
                 colorMode: monitorColorMode,
-                family: monitorFamily,
-                cameraName: monitorCameraName,
+                profile: monitorLookProfile,
                 hasCustomDLog: customLUTs.hasCube(.dLog),
                 hasCustomDLog2: customLUTs.hasCube(.dLog2),
                 hasCustomRec709: customLUTs.hasCube(.rec709),
@@ -125,6 +129,10 @@
             get { looks.monitorCameraName }
             set { looks.monitorCameraName = newValue }
         }
+        public var monitorLookProfile: CameraLUTProfile? {
+            get { looks.monitorLookProfile }
+            set { looks.monitorLookProfile = newValue }
+        }
         public var liveIsPhoto: Bool {
             get { looks.liveIsPhoto }
             set { looks.liveIsPhoto = newValue; allowsTransferInference = !newValue }
@@ -147,6 +155,7 @@
             to colorMode: ColorMode?,
             family: CameraBodyFamily = .fallback,
             cameraName: String? = nil,
+            lookProfile: CameraLUTProfile? = nil,
             isPhoto: Bool = false,
             persistLast: Bool = true
         ) {
@@ -155,6 +164,7 @@
                 isPhoto: liveIsPhoto, colorMode: colorMode)
             monitorFamily = family
             if let cameraName { monitorCameraName = cameraName }
+            if let lookProfile { monitorLookProfile = lookProfile }
             if persistLast, let colorMode, !liveIsPhoto {
                 looks.preferences.lastMonitorColorMode = colorMode
             }
@@ -166,12 +176,14 @@
         public func adoptPlaybackColor(
             _ colorMode: ColorMode,
             family: CameraBodyFamily = .fallback,
-            cameraName: String? = nil
+            cameraName: String? = nil,
+            lookProfile: CameraLUTProfile? = nil
         ) {
             liveIsPhoto = false
             monitorColorMode = colorMode
             monitorFamily = family
             if let cameraName { monitorCameraName = cameraName }
+            if let lookProfile { monitorLookProfile = lookProfile }
             refreshLUTCube()
         }
 
@@ -183,6 +195,7 @@
             inPlayback: Bool,
             family: CameraBodyFamily = .fallback,
             cameraName: String? = nil,
+            lookProfile: CameraLUTProfile? = nil,
             isPhoto: Bool = false,
             isWatching: Bool = false
         ) {
@@ -195,7 +208,7 @@
                 refreshLUTCube()
                 return
             }
-            syncLUT(to: live, family: family, cameraName: cameraName, isPhoto: isPhoto)
+            syncLUT(to: live, family: family, cameraName: cameraName, lookProfile: lookProfile, isPhoto: isPhoto)
         }
 
         /// Import adds a custom cube. Auto rows keep following color; otherwise this file arms.

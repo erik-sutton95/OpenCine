@@ -164,7 +164,7 @@ class DjiCameraSessionAdapterTest {
     fun captureUnknownsStayNilAndMechanicalIrisIsReadOnly() = runTest {
         val port = capturePort()
         val model = CameraModel(name = "Osmo Action 6", family = "other",
-            supportsFocusMode = false, supportsZoom = false, hasGimbal = false)
+            supportsFocusMode = false, supportsZoom = false, hasGimbal = false, supportsAperture = true)
         port.state = port.state.copy(model = model)
         port.capture = DjiCaptureControlState(CameraStatus(), model)
         val seam = adapter(port)
@@ -181,7 +181,7 @@ class DjiCameraSessionAdapterTest {
 
     private fun capturePort(): FakePort {
         val port = FakePort()
-        val model = CameraModel(name = "Osmo Pocket 3")
+        val model = djiBodyProfile("Osmo Pocket 3")
         port.state = port.state.copy(model = model)
         port.capture = DjiCaptureControlState(CameraStatus(
             expoMode = CameraCommands.EXPO_MANUAL, shutterDenom = 50,

@@ -27,10 +27,10 @@ public enum MonitorScopePanelPlacement {
         bounds.width >= gripExtent + gripInterior && bounds.height >= gripExtent + gripInterior
     }
 
-    public static func fittedSize(_ preferred: CGSize, in bounds: CGRect) -> CGSize {
+    public static func fittedSize(_ preferred: CGSize, in bounds: CGRect, resizable: Bool = true) -> CGSize {
         let scale = min(
             1, max(1, bounds.width) / max(1, preferred.width),
-            max(1, bounds.height - gripBottomExtent) / max(1, preferred.height))
+            max(1, bounds.height - (resizable ? gripBottomExtent : 0)) / max(1, preferred.height))
         return CGSize(
             width: max(1, floor(preferred.width * scale)),
             height: max(1, floor(preferred.height * scale)))
@@ -41,12 +41,15 @@ public enum MonitorScopePanelPlacement {
         return fittedSize(preferred, in: bounds(in: canvas, clearance: clearance))
     }
 
-    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect) -> CGPoint {
+    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect,
+        resizable: Bool = true) -> CGPoint {
         let minX = bounds.minX + size.width / 2
-        let minY = bounds.minY + max(size.height / 2, gripTopInterior - size.height / 2)
+        let minY = bounds.minY + max(size.height / 2,
+            (resizable ? gripTopInterior : 0) - size.height / 2)
         return CGPoint(
             x: min(max(minX, point.x), max(minX, bounds.maxX - size.width / 2)),
-            y: min(max(minY, point.y), max(minY, bounds.maxY - size.height / 2 - gripBottomExtent)))
+            y: min(max(minY, point.y), max(minY,
+                bounds.maxY - size.height / 2 - (resizable ? gripBottomExtent : 0))))
     }
 }
 
@@ -91,12 +94,15 @@ public struct MonitorScopePanelLayout: Equatable {
     public let scale: Double
     public let canvas: CGRect
     public let movementBounds: CGRect
+    public let resizable: Bool
     public init(baseSize: CGSize, preferredSize: CGSize, center: CGPoint, scale: Double,
-        canvas: CGRect, movementBounds: CGRect) {
+        canvas: CGRect, movementBounds: CGRect, resizable: Bool = true) {
         self.baseSize = baseSize; self.scale = scale; self.canvas = canvas
         self.movementBounds = movementBounds
-        size = MonitorScopePanelPlacement.fittedSize(preferredSize, in: movementBounds)
-        self.center = MonitorScopePanelPlacement.clamp(center, size: size, in: movementBounds)
+        self.resizable = resizable
+        size = MonitorScopePanelPlacement.fittedSize(preferredSize, in: movementBounds, resizable: resizable)
+        self.center = MonitorScopePanelPlacement.clamp(center, size: size, in: movementBounds,
+            resizable: resizable)
     }
 }
 

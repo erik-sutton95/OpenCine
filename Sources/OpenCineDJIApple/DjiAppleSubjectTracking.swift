@@ -66,6 +66,11 @@ public struct DjiAppleTrackingBinding: Equatable, Sendable {
     public var polling: Bool { pollTask != nil && pollingBinding == binding() }
     private let binding: () -> DjiAppleTrackingBinding
     private let send: (Duml.Frame, String, Bool, @escaping @MainActor (Bool) -> Void) -> Void
+    private let sendAdmitted:
+        (
+            (Duml.Frame, String, Bool, DJICommandAdmission, @escaping @MainActor (Bool) -> Void) ->
+                Void
+        )?
     private let event: (Event) -> Void
     private let timing: DjiAppleTrackingTiming
     private var nextID: UInt16 = 1
@@ -82,12 +87,18 @@ public struct DjiAppleTrackingBinding: Equatable, Sendable {
         binding: @escaping () -> DjiAppleTrackingBinding,
         send: @escaping (Duml.Frame, String, Bool, @escaping @MainActor (Bool) -> Void) -> Void,
         timing: DjiAppleTrackingTiming = .continuous,
-        event: @escaping (Event) -> Void = { _ in }
+        event: @escaping (Event) -> Void = { _ in },
+        sendAdmitted:
+            (
+                (Duml.Frame, String, Bool, DJICommandAdmission, @escaping @MainActor (Bool) -> Void)
+                    -> Void
+            )? = nil
     ) {
         self.binding = binding
         self.send = send
         self.timing = timing
         self.event = event
+        self.sendAdmitted = sendAdmitted
     }
 
     public func start(_ box: TrackingBox) {
@@ -130,6 +141,15 @@ public struct DjiAppleTrackingBinding: Equatable, Sendable {
 
     /// Preserve the donor's local-first overlay clear and short leftover-push hold.
     public func cancel(sendClear: Bool) {
+        cancel(sendClear: sendClear, suppliedAdmission: nil)
+    }
+
+    public func cancel(sendClear: Bool, admission: DJICommandAdmission) {
+        guard admission.isCurrent else { return }
+        cancel(sendClear: sendClear, suppliedAdmission: admission)
+    }
+
+    private func cancel(sendClear: Bool, suppliedAdmission admission: DJICommandAdmission?) {
         stopPolling()
         let token = generation
         let source = binding()
@@ -142,7 +162,12 @@ public struct DjiAppleTrackingBinding: Equatable, Sendable {
         let publication = commit(.init())
         let authority = Authority(generation: token, binding: source, revision: publication)
         guard admits(authority), sendClear, had, source.endpoint != nil else { return }
-        send(Commands.clearTrackingBox(), "Track clear", true) { _ in }
+        if let admission {
+            guard admission.isCurrent, let sendAdmitted else { return }
+            sendAdmitted(Commands.clearTrackingBox(), "Track clear", true, admission) { _ in }
+        } else {
+            send(Commands.clearTrackingBox(), "Track clear", true) { _ in }
+        }
     }
 
     /// Disconnect resets presentation/history, without resetting the donor request ID.

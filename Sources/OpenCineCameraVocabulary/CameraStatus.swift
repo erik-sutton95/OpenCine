@@ -104,7 +104,7 @@ public struct CameraStatus: Equatable, Sendable {
     /// Last `0xA0` GET blob (26 B). Patch `@2`, SET `0x9F` — do not invent the rest.
     public var audioDspBlob: [UInt8]?
     /// Interpreted audio-DSP blob `@2`.
-    public var audioDspAt2: AudioDspAt2?
+    public var audioAdjustment: CameraAudioAdjustment?
     /// Wind NR from DSP `@2`. Survives a directional byte (those include wind-on).
     public var windNR: WindNoiseReduction?
     /// Directional audio from DSP `@2`. Kept when `@2` is a wind-only byte.

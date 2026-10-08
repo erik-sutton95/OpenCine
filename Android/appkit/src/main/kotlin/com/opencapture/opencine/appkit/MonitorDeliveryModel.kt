@@ -14,8 +14,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+
+/** A handle to the existing captured job, never a successor run or an additional scheduler. */
+public class MonitorDeliveryRunHandle internal constructor(
+    private val work: Job, private val cancelCaptured: () -> Unit,
+) {
+    public suspend fun awaitEnteredCleanup(): Unit = withContext(NonCancellable) { work.join() }
+    public fun cancel() {
+        cancelCaptured()
+        work.cancel()
+    }
+    public suspend fun cancelAndJoin() {
+        cancel()
+        withContext(NonCancellable) { work.join() }
+    }
+}
 
 /** App-owned completion facts; destinations, files and storage namespaces are not inferred. */
 public data class MonitorDeliveryCompletion<O, S>(public val outcome: O,
@@ -58,20 +75,38 @@ public class MonitorDeliveryModel<P, O, S>(
         onComplete: ((O) -> String?)? = null,
         operation: suspend ((P) -> Unit) -> MonitorDeliveryCompletion<O, S>,
     ) {
-        if (closed) return
+        beginAdmitted(onCancel, onComplete) { progress, _ -> operation(progress) }
+    }
+
+    public fun beginAdmitted(
+        onCancel: (() -> Unit)? = null,
+        onComplete: ((O) -> String?)? = null,
+        operation: suspend ((P) -> Unit, MonitorDeliveryAdmission) -> MonitorDeliveryCompletion<O, S>,
+    ) {
+        beginCaptured(onCancel, onComplete, operation)
+    }
+
+    /** Returns only this run's job. Old callbacks and direct begin calls keep their signatures. */
+    public fun beginCaptured(
+        onCancel: (() -> Unit)? = null,
+        onComplete: ((O) -> String?)? = null,
+        operation: suspend ((P) -> Unit, MonitorDeliveryAdmission) -> MonitorDeliveryCompletion<O, S>,
+    ): MonitorDeliveryRunHandle? {
+        if (closed) return null
         val previous = work
         val token = UUID.randomUUID()
         run = token
         pendingShareAcknowledgement = null
         cancelHandler = onCancel
         previous?.cancel()
-        if (!current(token)) return
+        if (!current(token)) return null
         val next = owner.launch(start = CoroutineStart.LAZY) {
             if (!current(token)) return@launch
             val completion = try {
-                operation { progress ->
+                val operationJob = currentCoroutineContext()[Job]
+                operation({ progress ->
                     if (current(token) && state.value.running) publish(token) { it.copy(progress = progress) }
-                }
+                }, MonitorDeliveryAdmission { operationJob?.isActive == true && current(token) && state.value.running })
             } catch (_: CancellationException) {
                 if (current(token)) this@MonitorDeliveryModel.cancel()
                 return@launch
@@ -89,6 +124,7 @@ public class MonitorDeliveryModel<P, O, S>(
         work = next
         if (publish(token) { it.copy(running = true, progress = null, expanded = false) }) next.start()
         else next.cancel()
+        return MonitorDeliveryRunHandle(next) { if (current(token) && state.value.running) cancel() }
     }
 
     /** Retire first; a cancellation callback can begin another run without outgoing writes. */
@@ -149,6 +185,8 @@ public class MonitorDeliveryModel<P, O, S>(
     }
 
     private fun current(token: UUID): Boolean = !closed && run == token
+
+    public companion object {}
     private fun publish(token: UUID, change: (MonitorDeliveryState<P, S>) -> MonitorDeliveryState<P, S>): Boolean {
         if (run != token) return false
         mutable.value = change(state.value)

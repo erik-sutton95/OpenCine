@@ -188,6 +188,8 @@
         @State private var appeared = false
         @State private var drumInteractionRevision: UInt64 = 0
         @State private var commonField: MonitorCaptureField?
+        @State private var audioSourceID: CaptureAudioSourceID?
+        @State private var audioRefusal: String?
 
         private struct DrumContext: Hashable {
             let cameraID: UUID?
@@ -592,42 +594,26 @@
         }
 
         @ViewBuilder private var audioBody: some View {
-            switch selectedMode {
-            case 0:
-                choiceDrum(
-                    AudioChannel.allCases.map(\.label),
-                    selected: host.cameraStatus.audioChannel?.label
-                ) { label in
-                    if let ch = AudioChannel.allCases.first(where: { $0.label == label }) {
-                        host.commit(.audioChannel(ch), from: .sheet(commonField))
+            if let service = host.audioService, service.fields.indices.contains(selectedMode) {
+                let field = service.fields[selectedMode]
+                choiceDrum(field.choices.map(\.label), selected: field.observed?.label,
+                    isInteractive: field.isEditable && service.sourceID == audioSourceID) { label in
+                    guard let current = host.audioService, current.sourceID == audioSourceID,
+                        let currentField = current.fields.first(where: { $0.id == field.id }),
+                        currentField.isEditable,
+                        let value = currentField.choices.first(where: { $0.label == label })
+                    else { audioRefusal = "Audio control unavailable"; return }
+                    switch current.commit(value) {
+                    case .submitted: audioRefusal = nil
+                    case .unavailable: audioRefusal = "Audio control unavailable"
+                    case .refused: audioRefusal = "Audio control refused"
                     }
                 }
-            case 1:
-                choiceDrum(
-                    WindNoiseReduction.allCases.map(\.label),
-                    selected: host.cameraStatus.windNR?.label
-                ) { label in
-                    if let value = WindNoiseReduction.allCases.first(where: { $0.label == label }) {
-                        host.commit(.windNoiseReduction(value), from: .sheet(commonField))
-                    }
-                }
-            case 2:
-                choiceDrum(
-                    DirectionalAudio.allCases.map(\.label),
-                    selected: host.cameraStatus.directionalAudio?.label
-                ) { label in
-                    if let value = DirectionalAudio.allCases.first(where: { $0.label == label }) {
-                        host.commit(.directionalAudio(value), from: .sheet(commonField))
-                    }
-                }
-            default:
-                choiceDrum(
-                    VocalBoost.allCases.map(\.label), selected: host.cameraStatus.vocalBoost?.label
-                ) { label in
-                    if let value = VocalBoost.allCases.first(where: { $0.label == label }) {
-                        host.commit(.vocalBoost(value), from: .sheet(commonField))
-                    }
-                }
+            } else {
+                Text("Audio controls unavailable").foregroundStyle(MonitorTheme.faint)
+            }
+            if let audioRefusal {
+                Text(audioRefusal).font(MonitorTheme.font(10)).foregroundStyle(MonitorTheme.faint)
             }
         }
 
@@ -723,7 +709,7 @@
             case .iso where offersIsoAuto: ["Auto", "Manual"]
             case .shutter where !isEvSheet && !isPhoto: ["Speed", "Angle"]
             case .wb: ["Mode", "Kelvin", "Tint"]
-            case .audio: ["Channel", "Wind", "Direction", "Vocal"]
+            case .audio: host.audioService?.fields.map(\.title) ?? []
             case .resolution where !isPhoto: formatResolutions.map(\.tabTitle)
             default: []
             }
@@ -826,13 +812,15 @@
                 tintDraft = wb.whiteBalanceTint.map(Double.init)
             case .audio:
                 selectedMode = 0
-                if preview == nil { Task { await host.refreshAudioState() } }
+                audioRefusal = nil
+                let service = host.audioService
+                audioSourceID = service?.sourceID
+                if preview == nil, let service { Task { await service.refresh() } }
             case .resolution:
-                let format = currentVideoFormat
-                selectedAspect = format.resolution.aspect ?? .sixteenNine
+                selectedAspect = currentResolution?.aspect ?? formatAspects.first ?? .sixteenNine
                 let tabs = formatResolutions
-                selectedMode = tabs.firstIndex(of: format.resolution) ?? 0
-                drumSelection = format.frameRate.drumLabel
+                selectedMode = currentResolution.flatMap { tabs.firstIndex(of: $0) } ?? 0
+                drumSelection = currentVideoFormat?.frameRate.drumLabel ?? ""
                 lastApplied = drumSelection
             case .color:
                 selectedMode = 0
@@ -873,17 +861,18 @@
                     // Mode tab only; write happens on row tap.
                 }
             case .resolution:
-                let res = resolutionForTab(index)
+                guard let res = resolutionForTab(index) else { return }
                 let rates = CamCapVideoFormat.frameRates(
                     available: pickerVideoFormats,
                     resolution: res,
-                    current: currentVideoFormat.frameRate)
-                let rate =
-                    VideoFrameRate(drumLabel: drumSelection).flatMap {
+                    current: currentFrameRate)
+                guard let rate =
+                    VideoFrameRate(drumLabel: drumSelection).flatMap({
                         rates.contains($0) ? $0 : nil
-                    }
+                    })
                     ?? rates.first
-                    ?? currentVideoFormat.frameRate
+                    ?? currentFrameRate
+                else { return }
                 let next = VideoFormat(resolution: res, frameRate: rate)
                 guard next != currentVideoFormat else { return }
                 applyVideoFormat(resolution: next.resolution, frameRate: next.frameRate)
@@ -975,7 +964,8 @@
                 guard let rate = VideoFrameRate(drumLabel: value),
                     formatRates.contains(rate)
                 else { return }
-                applyVideoFormat(resolution: resolutionForTab(selectedMode), frameRate: rate)
+                guard let resolution = resolutionForTab(selectedMode) else { return }
+                applyVideoFormat(resolution: resolution, frameRate: rate)
             case .color:
                 guard let mode = ColorMode(label: value, in: host.labelProfile) else { return }
                 host.commit(.colorMode(mode), from: .sheet(commonField))
@@ -1023,11 +1013,18 @@
             }
         }
 
-        private var currentVideoFormat: VideoFormat {
-            if let format = host.cameraStatus.videoFormat { return format }
-            let res = host.cameraStatus.videoResolution ?? .p1080
-            let rate = VideoFrameRate.fromFps(host.cameraStatus.fps) ?? .fps24
-            return VideoFormat(resolution: res, frameRate: rate)
+        private var currentResolution: VideoResolution? {
+            host.cameraStatus.videoFormat?.resolution ?? host.cameraStatus.videoResolution
+        }
+
+        private var currentFrameRate: VideoFrameRate? {
+            host.cameraStatus.videoFormat?.frameRate ?? VideoFrameRate.fromFps(host.cameraStatus.fps)
+        }
+
+        private var currentVideoFormat: VideoFormat? {
+            guard let resolution = currentResolution, let frameRate = currentFrameRate
+            else { return nil }
+            return VideoFormat(resolution: resolution, frameRate: frameRate)
         }
 
         private var pickerVideoFormats: [VideoFormat] {
@@ -1039,7 +1036,7 @@
         private var formatAspects: [VideoAspect] {
             CamCapVideoFormat.aspects(
                 available: pickerVideoFormats,
-                current: currentVideoFormat.resolution.aspect)
+                current: currentResolution?.aspect)
         }
 
         private var formatResolutions: [VideoResolution] {
@@ -1047,26 +1044,28 @@
             return CamCapVideoFormat.resolutions(
                 available: pickerVideoFormats,
                 aspect: aspect,
-                current: currentVideoFormat.resolution)
+                current: currentResolution)
         }
 
         private var formatRates: [VideoFrameRate] {
-            CamCapVideoFormat.frameRates(
+            guard let resolution = resolutionForTab(selectedMode) else { return [] }
+            return CamCapVideoFormat.frameRates(
                 available: pickerVideoFormats,
-                resolution: resolutionForTab(selectedMode),
-                current: currentVideoFormat.frameRate)
+                resolution: resolution,
+                current: currentFrameRate)
         }
 
-        private func resolutionForTab(_ index: Int) -> VideoResolution {
+        private func resolutionForTab(_ index: Int) -> VideoResolution? {
             let tabs = formatResolutions
-            guard tabs.indices.contains(index) else { return currentVideoFormat.resolution }
+            guard tabs.indices.contains(index) else { return currentResolution }
             return tabs[index]
         }
 
         private func applyVideoFormat(resolution: VideoResolution, frameRate: VideoFrameRate) {
-            guard canApplyDrum, !pickerVideoFormats.isEmpty else { return }
+            let format = VideoFormat(resolution: resolution, frameRate: frameRate)
+            guard canApplyDrum, pickerVideoFormats.contains(format) else { return }
             host.commit(
-                .videoFormat(VideoFormat(resolution: resolution, frameRate: frameRate)),
+                .videoFormat(format),
                 from: .sheet(commonField))
         }
 
@@ -1074,18 +1073,17 @@
             guard canApplyDrum, aspect != selectedAspect else { return }
             selectedAspect = aspect
             let sizes = formatResolutions
-            let match =
-                sizes.first { $0.sizeTitle == currentVideoFormat.resolution.sizeTitle }
-                ?? sizes.first
-                ?? currentVideoFormat.resolution
+            guard let match =
+                sizes.first(where: { $0.sizeTitle == currentResolution?.sizeTitle })
+                ?? sizes.first ?? currentResolution
+            else { return }
             selectedMode = sizes.firstIndex(of: match) ?? 0
             let rates = CamCapVideoFormat.frameRates(
                 available: pickerVideoFormats,
                 resolution: match,
-                current: currentVideoFormat.frameRate)
-            let rate =
-                rates.contains(currentVideoFormat.frameRate)
-                ? currentVideoFormat.frameRate : (rates.first ?? currentVideoFormat.frameRate)
+                current: currentFrameRate)
+            guard let rate = currentFrameRate.flatMap({ rates.contains($0) ? $0 : nil })
+                ?? rates.first else { return }
             drumSelection = rate.drumLabel
             lastApplied = drumSelection
             applyVideoFormat(resolution: match, frameRate: rate)
@@ -1292,7 +1290,7 @@
         public static func operatorShootingModes(
             from status: CameraStatus = CameraStatus(), model: CameraModel? = nil
         ) -> [ShootingMode] {
-            ShootingMode.allCases.filter {
+            (model?.captureProfile?.labels.shootingModes ?? ShootingMode.allCases).filter {
                 $0 != .livePhoto || ShootingMode.fromStatus(status.shootingMode) == .livePhoto
             }
         }

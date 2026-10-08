@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "__ATLAS_ID__",
+  "display_name": "__NAME__",
+  "status": "active",
+  "layer": "app",
+  "repository": {
+    "url": "REPLACE_WITH_AUTHORIZED_REPOSITORY_URL",
+    "default_branch": "main"
+  },
+  "local_dir": "__NAME__",
+  "refs": [{"name": "main", "commit": "REPLACE_WITH_REVIEWED_APP_COMMIT", "role": "baseline"}],
+  "products": [
+    {"name": "__NAME__", "kind": "xcode-target", "manifest": "ios/project.yml"},
+    {"name": ":app", "kind": "gradle-module", "manifest": "Android/settings.gradle.kts"}
+  ],
+  "instructions": ["README.md"],
+  "edges": [{
+    "to": "opencine", "kind": "library", "status": "candidate", "confidence": "confirmed",
+    "ref": "REPLACE_WITH_REGISTERED_OPENCINE_REF_FOR___OPENCINE_SHA__",
+    "platforms": ["apple", "android"],
+    "products": ["OpenCineAppKit", "OpenCineCameraControls", "MonitorUI", "MonitorPresentation", "OpenCineMedia", ":appkit", ":camera-controls", ":media"],
+    "evidence": {"path": "opencine-pins.txt", "source_commit": "REPLACE_WITH_REVIEWED_APP_COMMIT"},
+    "note": "Optional unregistered example. Replace the authorized URL/commits/ref and add a SUMMARY.md before registration."
+  }]
+}

@@ -19,7 +19,7 @@
             return defaults
         }
 
-        private let ceiling = OpenCineCameraVocabulary.ScopeExposureCeiling()
+        private let ceiling = DeclaredMonitorColorFacts.makeCeiling()
 
         func testWaveAxisMatchesTrafficLightIRE() {
             let black = LiveColorScience.encode(0, transfer: .dlog2)

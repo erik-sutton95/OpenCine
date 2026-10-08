@@ -63,7 +63,7 @@ class CaptureSheetTest {
     fun dLog2HasNoIsoAuto() {
         val status = CameraStatus(colorMode = CameraCommands.COLOR_DLOG2)
         assertTrue(!CaptureLists.offersIsoAuto(status))
-        assertTrue(CaptureLists.isoAutoLabels(status).isEmpty())
+        assertTrue(CaptureLists.isoAutoLabels(status, isoAutoRangeFloor = 100).isEmpty())
         assertTrue(!CaptureLists.isoFallback(status.colorMode).contains(0))
     }
 
@@ -85,33 +85,33 @@ class CaptureSheetTest {
         )
         for ((why, case) in cases) {
             val (status, body, expected) = case
-            assertEquals(expected, CaptureLists.isoAutoLabels(status, body), why)
+            assertEquals(expected, CaptureLists.isoAutoLabels(status, body, isoAutoRangeFloor = if (body == p3) 50 else 100), why)
         }
 
         assertEquals(listOf(0x04, 0x05, 0x06, 0x07), CaptureLists.isoAutoLimits(dlog.colorMode).map { it.rawValue })
-        assertEquals(IsoLimit.Max1600, CaptureLists.isoLimit("400${dash}1600", dlog))
+        assertEquals(IsoLimit.Max1600, CaptureLists.isoLimit("400${dash}1600", dlog, isoAutoRangeFloor = 100))
         assertTrue(CaptureLists.offersIsoAuto(dlog))
 
-        assertEquals(IsoLimit.Max800, CaptureLists.isoLimit("100${dash}800", normal))
-        assertEquals(IsoLimit.Max25600, CaptureLists.isoLimit("100${dash}25600", hdr))
+        assertEquals(IsoLimit.Max800, CaptureLists.isoLimit("100${dash}800", normal, isoAutoRangeFloor = 100))
+        assertEquals(IsoLimit.Max25600, CaptureLists.isoLimit("100${dash}25600", hdr, isoAutoRangeFloor = 100))
         assertEquals(0x02, IsoLimit.Max200.rawValue)
         assertEquals(0x03, IsoLimit.Max400.rawValue)
         assertEquals(0x06, IsoLimit.Max3200.rawValue)
         assertEquals(0x08, IsoLimit.Max12800.rawValue)
 
-        assertEquals(IsoLimit.Max400, CaptureLists.isoLimit("50${dash}400", normal, p3))
+        assertEquals(IsoLimit.Max400, CaptureLists.isoLimit("50${dash}400", normal, p3, isoAutoRangeFloor = 50))
         assertEquals(
             "50${dash}400",
-            CaptureLists.isoAutoLabel(normal.copy(isoLimit = 0x03), p3),
+            CaptureLists.isoAutoLabel(normal.copy(isoLimit = 0x03), p3, isoAutoRangeFloor = 50),
         )
-        assertEquals("50${dash}200", CaptureLists.isoAutoLabels(normal, "Osmo Pocket 4").first())
+        assertEquals("50${dash}200", CaptureLists.isoAutoLabels(normal, "Osmo Pocket 4", isoAutoRangeFloor = 50).first())
         assertEquals(
             "100${dash}200",
-            CaptureLists.isoAutoLabels(normal, "Osmo Pocket 4 Pro").first(),
+            CaptureLists.isoAutoLabels(normal, "Osmo Pocket 4 Pro", isoAutoRangeFloor = 100).first(),
         )
         assertEquals(
             IsoSheetLogic.Command.SetLimit(0x03),
-            IsoSheetLogic.applyDrum("50${dash}400", normal, selectedMode = 0, bodyName = p3),
+            IsoSheetLogic.applyDrum("50${dash}400", normal, selectedMode = 0, bodyName = p3, isoAutoRangeFloor = 50),
         )
     }
 
@@ -501,14 +501,14 @@ class CaptureSheetTest {
         assertTrue(!CaptureLists.fpsDrumLabels.contains("120p"))
         assertEquals(
             listOf("Normal", "HDR", "D-Log"),
-            CaptureLists.colorWheelLabels(CameraStatus()),
+            CaptureLists.colorWheelLabels(CameraStatus(), profile = CaptureTestProfiles.base),
         )
         assertEquals(
             listOf("Normal", "HDR", "D-Log", "D-Log2"),
             CaptureLists.colorWheelLabels(
                 CameraStatus(),
                 family = "pocket",
-                name = "Osmo Pocket 4 Pro",
+                name = "Osmo Pocket 4 Pro", profile = CaptureTestProfiles.pro
             ),
         )
         assertEquals(
@@ -516,7 +516,7 @@ class CaptureSheetTest {
             CaptureLists.colorWheelLabels(
                 CameraStatus(),
                 family = "pocket",
-                name = "Osmo Pocket 3",
+                name = "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight
             ),
         )
         assertEquals(
@@ -524,7 +524,7 @@ class CaptureSheetTest {
             CaptureLists.colorWheelLabels(
                 CameraStatus(),
                 family = "pocket",
-                name = "Osmo Pocket 4",
+                name = "Osmo Pocket 4", profile = CaptureTestProfiles.base
             ),
         )
         assertEquals(CameraCommands.COLOR_DLOG2, CaptureLists.colorModeFromLabel("D-Log2"))
@@ -539,7 +539,7 @@ class CaptureSheetTest {
                     CameraCommands.COLOR_HDR,
                     CameraCommands.COLOR_NORMAL,
                 ),
-                "Osmo Pocket 4 Pro",
+                "Osmo Pocket 4 Pro", profile = CaptureTestProfiles.pro
             ).map { it.second },
         )
         assertTrue(
@@ -551,7 +551,7 @@ class CaptureSheetTest {
                     CameraCommands.COLOR_HDR,
                     CameraCommands.COLOR_NORMAL,
                 ),
-                "Osmo Pocket 3",
+                "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight
             ).none { it.first == CameraCommands.COLOR_DLOG2 },
         )
         assertTrue(
@@ -563,7 +563,7 @@ class CaptureSheetTest {
                     CameraCommands.COLOR_HDR,
                     CameraCommands.COLOR_NORMAL,
                 ),
-                "Osmo Pocket 4",
+                "Osmo Pocket 4", profile = CaptureTestProfiles.base
             ).none { it.first == CameraCommands.COLOR_DLOG2 },
         )
         assertNull(CaptureLists.colorModeFromLabel("N-Log"))
@@ -573,12 +573,12 @@ class CaptureSheetTest {
     fun nanoColorWheelUsesCamcapFamily() {
         assertEquals(
             listOf("Normal 8-bit", "Normal 10-bit", "D-Log M 10-bit"),
-            CaptureLists.colorWheelLabels(CameraStatus(), family = "nano"),
+            CaptureLists.colorWheelLabels(CameraStatus(), family = "nano", profile = CaptureTestProfiles.fixed),
         )
-        assertEquals(CameraCommands.COLOR_NORMAL, CaptureLists.colorModeFromLabel("Normal 8-bit", "nano"))
-        assertEquals(CameraCommands.COLOR_NORMAL10, CaptureLists.colorModeFromLabel("Normal 10-bit", "nano"))
-        assertEquals(CameraCommands.COLOR_DLOG_M, CaptureLists.colorModeFromLabel("D-Log M 10-bit", "nano"))
-        assertEquals("Normal 8-bit", CameraCommands.colorLabel(CameraCommands.COLOR_NORMAL, "nano"))
+        assertEquals(CameraCommands.COLOR_NORMAL, CaptureLists.colorModeFromLabel("Normal 8-bit", "nano", profile = CaptureTestProfiles.fixed))
+        assertEquals(CameraCommands.COLOR_NORMAL10, CaptureLists.colorModeFromLabel("Normal 10-bit", "nano", profile = CaptureTestProfiles.fixed))
+        assertEquals(CameraCommands.COLOR_DLOG_M, CaptureLists.colorModeFromLabel("D-Log M 10-bit", "nano", profile = CaptureTestProfiles.fixed))
+        assertEquals("Normal 8-bit", CameraCommands.colorLabel(CameraCommands.COLOR_NORMAL, "nano", CaptureTestProfiles.fixed))
         assertEquals("Normal", CameraCommands.colorLabel(CameraCommands.COLOR_NORMAL, "pocket"))
         assertEquals(
             listOf("Normal 8-bit", "Normal 10-bit", "D-Log M 10-bit"),
@@ -588,7 +588,7 @@ class CaptureSheetTest {
                     CameraCommands.COLOR_DLOG_M,
                     CameraCommands.COLOR_NORMAL,
                     CameraCommands.COLOR_NORMAL10,
-                ),
+                ), profile = CaptureTestProfiles.fixed
             ).map { it.second },
         )
         assertEquals(
@@ -602,11 +602,11 @@ class CaptureSheetTest {
                             CameraCommands.COLOR_NORMAL10,
                         ),
                 ),
-                family = "nano",
+                family = "nano", profile = CaptureTestProfiles.fixed
             ),
         )
         assertTrue(
-            CaptureLists.colorWheel("pocket", listOf(CameraCommands.COLOR_NORMAL, 0x99))
+            CaptureLists.colorWheel("pocket", listOf(CameraCommands.COLOR_NORMAL, 0x99), profile = CaptureTestProfiles.base)
                 .none { it.first == 0x99 },
         )
     }
@@ -771,12 +771,12 @@ class CaptureSheetTest {
             CameraStatus(colorMode = CameraCommands.COLOR_DLOG2, isoIndex = 0x07)
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_DLOG, 0x05),
-            CaptureLists.applyColorDrum("D-Log", "pocket", dlog2Native, hopEnabled = true, name = pro),
+            CaptureLists.applyColorDrum("D-Log", "pocket", dlog2Native, hopEnabled = true, name = pro, profile = CaptureTestProfiles.pro),
         )
         val dlogNative = CameraStatus(colorMode = CameraCommands.COLOR_DLOG, isoIndex = 0x05)
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_DLOG2, 0x07),
-            CaptureLists.applyColorDrum("D-Log2", "pocket", dlogNative, hopEnabled = true, name = pro),
+            CaptureLists.applyColorDrum("D-Log2", "pocket", dlogNative, hopEnabled = true, name = pro, profile = CaptureTestProfiles.pro),
         )
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_DLOG, null),
@@ -785,13 +785,13 @@ class CaptureSheetTest {
                 "pocket",
                 CameraStatus(colorMode = CameraCommands.COLOR_DLOG2, isoIndex = 0x06),
                 hopEnabled = true,
-                name = pro,
+                name = pro, profile = CaptureTestProfiles.pro
             ),
         )
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_DLOG2, null),
             CaptureLists.applyColorDrum(
-                "D-Log2", "pocket", dlogNative, hopEnabled = false, name = pro,
+                "D-Log2", "pocket", dlogNative, hopEnabled = false, name = pro, profile = CaptureTestProfiles.pro
             ),
         )
         assertEquals(
@@ -801,57 +801,57 @@ class CaptureSheetTest {
                 "pocket",
                 CameraStatus(colorMode = CameraCommands.COLOR_DLOG2, isoIndex = 0),
                 hopEnabled = true,
-                name = pro,
+                name = pro, profile = CaptureTestProfiles.pro
             ),
         )
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_NORMAL, null),
             CaptureLists.applyColorDrum(
-                "Normal", "pocket", dlog2Native, hopEnabled = true, name = pro,
+                "Normal", "pocket", dlog2Native, hopEnabled = true, name = pro, profile = CaptureTestProfiles.pro
             ),
         )
-        assertNull(CaptureLists.applyColorDrum("D-Log2", "nano", CameraStatus(), hopEnabled = true))
-        assertNull(CaptureLists.applyColorDrum("D-Log2", "pocket", CameraStatus(), hopEnabled = true))
+        assertNull(CaptureLists.applyColorDrum("D-Log2", "nano", CameraStatus(), hopEnabled = true, profile = CaptureTestProfiles.fixed))
+        assertNull(CaptureLists.applyColorDrum("D-Log2", "pocket", CameraStatus(), hopEnabled = true, profile = CaptureTestProfiles.base))
         assertNull(
             CaptureLists.applyColorDrum(
-                "D-Log2", "pocket", CameraStatus(), hopEnabled = true, name = "Osmo Pocket 4",
+                "D-Log2", "pocket", CameraStatus(), hopEnabled = true, name = "Osmo Pocket 4", profile = CaptureTestProfiles.base
             ),
         )
         assertNull(
             CaptureLists.applyColorDrum(
-                "D-Log2", "pocket", CameraStatus(), hopEnabled = true, name = "Osmo Pocket 3",
+                "D-Log2", "pocket", CameraStatus(), hopEnabled = true, name = "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight
             ),
         )
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_DLOG_M, null),
             CaptureLists.applyColorDrum(
-                "D-Log M", "pocket", CameraStatus(), hopEnabled = true, name = "Osmo Pocket 3",
+                "D-Log M", "pocket", CameraStatus(), hopEnabled = true, name = "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight
             ),
         )
-        assertNull(CaptureLists.applyColorDrum("N-Log", "pocket", CameraStatus(), hopEnabled = true))
+        assertNull(CaptureLists.applyColorDrum("N-Log", "pocket", CameraStatus(), hopEnabled = true, profile = CaptureTestProfiles.base))
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_NORMAL, null),
-            CaptureLists.applyColorDrum("Normal 8-bit", "nano", CameraStatus(), hopEnabled = true),
+            CaptureLists.applyColorDrum("Normal 8-bit", "nano", CameraStatus(), hopEnabled = true, profile = CaptureTestProfiles.fixed),
         )
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_DLOG_M, null),
-            CaptureLists.applyColorDrum("D-Log M 10-bit", "nano", CameraStatus(), hopEnabled = true),
+            CaptureLists.applyColorDrum("D-Log M 10-bit", "nano", CameraStatus(), hopEnabled = true, profile = CaptureTestProfiles.fixed),
         )
         val pocketCap =
             CameraStatus(
                 availableColorModes = listOf(CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_HDR),
             )
-        assertNull(CaptureLists.applyColorDrum("D-Log2", "pocket", pocketCap, hopEnabled = true))
+        assertNull(CaptureLists.applyColorDrum("D-Log2", "pocket", pocketCap, hopEnabled = true, profile = CaptureTestProfiles.base))
         assertEquals(
             ColorDrumCommand(CameraCommands.COLOR_HDR, null),
-            CaptureLists.applyColorDrum("HDR", "pocket", pocketCap, hopEnabled = true),
+            CaptureLists.applyColorDrum("HDR", "pocket", pocketCap, hopEnabled = true, profile = CaptureTestProfiles.base),
         )
         val nanoWithDLog =
             CameraStatus(
                 availableColorModes =
                     listOf(CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_DLOG),
             )
-        assertNull(CaptureLists.applyColorDrum("D-Log", "nano", nanoWithDLog, hopEnabled = true))
+        assertNull(CaptureLists.applyColorDrum("D-Log", "nano", nanoWithDLog, hopEnabled = true, profile = CaptureTestProfiles.fixed))
     }
 
     @Test
@@ -890,9 +890,9 @@ class CaptureSheetTest {
             )
         assertEquals(
             IsoSheetLogic.Command.SetIndex(0x07),
-            IsoSheetLogic.applyDrum("1600", dlog, selectedMode = 1),
+            IsoSheetLogic.applyDrum("1600", dlog, selectedMode = 1, isoAutoRangeFloor = 100),
         )
-        assertEquals(null, IsoSheetLogic.applyDrum("Auto", dlog, selectedMode = 1))
+        assertEquals(null, IsoSheetLogic.applyDrum("Auto", dlog, selectedMode = 1, isoAutoRangeFloor = 100))
         val auto =
             CameraStatus(
                 colorMode = CameraCommands.COLOR_DLOG,
@@ -901,17 +901,17 @@ class CaptureSheetTest {
             )
         assertEquals(
             IsoSheetLogic.Command.SetLimit(0x05),
-            IsoSheetLogic.applyDrum("400${dash}1600", auto, selectedMode = 0),
+            IsoSheetLogic.applyDrum("400${dash}1600", auto, selectedMode = 0, isoAutoRangeFloor = 100),
         )
-        val (autoTab, autoCmd) = IsoSheetLogic.handleModeChange(0, dlog)
+        val (autoTab, autoCmd) = IsoSheetLogic.handleModeChange(0, dlog, isoAutoRangeFloor = 100)
         assertEquals(0, autoTab.selectedMode)
         assertEquals(IsoSheetLogic.Command.SetIndex(0), autoCmd)
-        val (manualTab, manualCmd) = IsoSheetLogic.handleModeChange(1, auto.copy(iso = 400))
+        val (manualTab, manualCmd) = IsoSheetLogic.handleModeChange(1, auto.copy(iso = 400), isoAutoRangeFloor = 100)
         assertEquals(1, manualTab.selectedMode)
         assertEquals(IsoSheetLogic.Command.SetIndex(0x05), manualCmd)
         val dlog2 = CameraStatus(colorMode = CameraCommands.COLOR_DLOG2, isoIndex = 0x07, iso = 1600)
-        assertEquals(0, IsoSheetLogic.reseat(dlog2).selectedMode)
-        assertEquals("1600", IsoSheetLogic.reseat(dlog2).drumSelection)
+        assertEquals(0, IsoSheetLogic.reseat(dlog2, isoAutoRangeFloor = 100).selectedMode)
+        assertEquals("1600", IsoSheetLogic.reseat(dlog2, isoAutoRangeFloor = 100).drumSelection)
         assertTrue(!CaptureLists.offersIsoAuto(dlog2))
     }
 
@@ -935,7 +935,7 @@ class CaptureSheetTest {
                 base.copy(availableIsoIndices = listOf(0x03, 0x04, 0x05, 0x06, 0x07, 0x08)),
             ),
         )
-        val autoSeat = IsoSheetLogic.reseat(base.copy(isoIndex = 0, isoLimit = 0x05))
+        val autoSeat = IsoSheetLogic.reseat(base.copy(isoIndex = 0, isoLimit = 0x05), isoAutoRangeFloor = 100)
         assertEquals(0, autoSeat.selectedMode)
         val dash = "\u2013"
         assertEquals("400${dash}1600", autoSeat.drumSelection)
@@ -1040,7 +1040,7 @@ class CaptureSheetTest {
         assertEquals(VideoResolution.P1080, VideoResolution.fromTabIndex(0))
         assertEquals(
             listOf("1080"),
-            CaptureLists.modeTabs(LiveSheet.FORMAT, expoMode = -1, offersIsoAuto = false),
+            CaptureLists.modeTabs(LiveSheet.FORMAT, live.copy(expoMode = -1), offersIsoAuto = false),
             "empty FORMAT table is the current pair only, not invented 1080/4K tabs",
         )
         val fourKOnly =
@@ -1159,32 +1159,32 @@ class CaptureSheetTest {
     fun nanoHasNoFocusMode() {
         assertTrue(!CaptureLists.supportsFocusMode("Osmo Nano"))
         assertTrue(!CaptureLists.supportsFocusMode("OsmoNano-ABCD"))
-        assertTrue(CaptureLists.supportsFocusMode("Osmo Pocket 4 Pro"))
-        assertTrue(CaptureLists.supportsFocusMode(null))
+        assertTrue(CaptureLists.supportsFocusMode("Osmo Pocket 4 Pro", flag = true))
+        assertFalse(CaptureLists.supportsFocusMode(null))
         assertTrue(
             !CaptureLists.supportsFocusMode(
-                CameraModel(name = "Osmo Nano", family = "nano", supportsFocusMode = false),
+                CameraModel(name = "Osmo Nano", family = "nano", supportsFocusMode = false, captureProfile = com.opencapture.opencine.vocabulary.CameraCaptureProfile(supportsFocusMode = false)),
             ),
         )
         assertTrue(
             !CaptureLists.supportsFocusMode(
-                CameraModel(name = "Osmo", family = "nano", supportsFocusMode = true),
+                CameraModel(name = "Osmo", family = "nano", supportsFocusMode = true, captureProfile = com.opencapture.opencine.vocabulary.CameraCaptureProfile(supportsFocusMode = false)),
             ),
         )
         assertTrue(
             !CaptureLists.supportsFocusMode(
-                CameraModel(name = "Osmo Nano", family = "pocket", supportsFocusMode = true),
+                CameraModel(name = "Osmo Nano", family = "pocket", supportsFocusMode = true, captureProfile = com.opencapture.opencine.vocabulary.CameraCaptureProfile(supportsFocusMode = false)),
             ),
         )
         assertTrue(
             CaptureLists.supportsFocusMode(
-                CameraModel(name = "Osmo Pocket 4 Pro", family = "pocket", supportsFocusMode = true),
+                CameraModel(name = "Osmo Pocket 4 Pro", family = "pocket", supportsFocusMode = true, captureProfile = com.opencapture.opencine.vocabulary.CameraCaptureProfile(supportsFocusMode = true)),
             ),
         )
-        assertTrue(CaptureLists.supportsFocusModeOrDefault(null))
+        assertFalse(CaptureLists.supportsFocusModeOrDefault(null))
         assertTrue(
             !CaptureLists.supportsFocusModeOrDefault(
-                CameraModel(name = "Osmo Nano", family = "nano", supportsFocusMode = false),
+                CameraModel(name = "Osmo Nano", family = "nano", supportsFocusMode = false, captureProfile = com.opencapture.opencine.vocabulary.CameraCaptureProfile(supportsFocusMode = false)),
             ),
         )
         assertTrue(

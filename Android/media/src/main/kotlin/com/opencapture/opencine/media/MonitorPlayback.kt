@@ -29,6 +29,8 @@ public sealed interface MonitorPlaybackEvent {
 public enum class MonitorPlaybackFailure { RETIRED, UNAVAILABLE, NATIVE_FAILURE }
 public enum class MonitorPlaybackLookTiming { BEFORE_NATIVE_PREPARATION, AFTER_NATIVE_READINESS }
 public enum class MonitorPlaybackStartTiming { AFTER_NATIVE_ITEM_INSTALLATION, AFTER_NATIVE_READINESS }
+/** Whether returning from an inactive scene retains the operator's earlier play request. */
+public enum class MonitorPlaybackSceneLossPolicy { PRESERVE_REQUEST, CLEAR_REQUEST }
 public class MonitorPlaybackException(public val failure: MonitorPlaybackFailure) : IllegalStateException(failure.name)
 /** Confined to the caller's native owner dispatcher. Actual OS/SDK APIs remain in its adapter. */
 public interface MonitorPlaybackPort {

@@ -1,5 +1,6 @@
 #if os(iOS)
     import MonitorPresentation
+    import MonitorUI
     import OpenCineCore
     import SwiftUI
 
@@ -57,13 +58,14 @@
         }
     }
 
-    /// The shared root over `ShellModel`: the cameras or pair page, or the monitor, plus the
-    /// cover pages. The monitor slot is keyed by `ShellModel.Monitor.id`, so one host lives for one
-    /// monitor lifetime: covers, rotations and recomposition never create a second one.
-    ///
-    /// Temporary (SHELL-03 I-1): `monitor` is the app's existing native monitor, which presents
-    /// `model.cover` over itself while it still owns placement; `page` draws the cover pages
-    /// over the cameras and pair pages.
+    /// Existing hosts can keep presenting their own covers during migration. Complete shared
+    /// hosts select `shell`, which retains the monitor beneath one sibling cover page.
+    public enum ShellCoverPresentation: Equatable, Sendable {
+        case monitor
+        case shell
+    }
+
+    /// One keyed monitor beneath camera pages and covers. Layout changes preserve its owner.
     public struct AppShell<Monitor: View, Page: View, PrePage: View>: View {
         @Bindable var model: ShellModel
         let brand: ShellBrand
@@ -74,6 +76,7 @@
         let prePage: (EdgeInsets) -> PrePage?
         let monitor: (ShellModel.Monitor) -> Monitor
         let page: (ShellModel.Cover) -> Page
+        let coverPresentation: ShellCoverPresentation
 
         /// `safeArea` turns the pages' geometry into the insets they lay out in. `extraNearby`:
         /// the app's own NEARBY rows on the cameras page. `pairingFlow`: the app's own rail and
@@ -84,6 +87,7 @@
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
             safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
             extraNearby: [CameraListItem] = [], pairingFlow: IntegrationPairingFlow? = nil,
+            coverPresentation: ShellCoverPresentation = .monitor,
             prePage: @escaping (EdgeInsets) -> PrePage?,
             @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
             @ViewBuilder page: @escaping (ShellModel.Cover) -> Page
@@ -97,22 +101,31 @@
             self.prePage = prePage
             self.monitor = monitor
             self.page = page
+            self.coverPresentation = coverPresentation
         }
 
         public var body: some View {
-            if let live = model.monitor {
-                monitor(live)
-                    .id(live.id)
-                    .onAppear { model.noteHost(mounted: true) }
-                    .onDisappear { model.noteHost(mounted: false) }
-            } else {
-                GeometryReader { proxy in pages(safeArea(proxy)) }
-                    .ignoresSafeArea()
-                    .overlay {
-                        if let cover = model.cover { page(cover) }
-                    }
+            ZStack {
+                if let live = model.monitor {
+                    monitor(live)
+                        .id(live.id)
+                        .accessibilityElement(children: hidesMonitor ? .ignore : .contain)
+                        .accessibilityHidden(hidesMonitor)
+                        .onAppear { model.noteHost(mounted: true) }
+                        .onDisappear { model.noteHost(mounted: false) }
+                } else {
+                    GeometryReader { proxy in pages(safeArea(proxy)) }
+                        .ignoresSafeArea()
+                        .accessibilityElement(children: model.cover == nil ? .contain : .ignore)
+                        .accessibilityHidden(model.cover != nil)
+                }
+                if let cover = model.cover, model.monitor == nil || coverPresentation == .shell {
+                    page(cover)
+                }
             }
         }
+
+        private var hidesMonitor: Bool { coverPresentation == .shell && model.cover != nil }
 
         @ViewBuilder private func pages(_ insets: EdgeInsets) -> some View {
             if let lead = prePage(insets) {
@@ -143,12 +156,39 @@
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
             safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
             pairingFlow: IntegrationPairingFlow? = nil,
+            coverPresentation: ShellCoverPresentation = .monitor,
             @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
             @ViewBuilder page: @escaping (ShellModel.Cover) -> Page
         ) {
             self.init(
                 model: model, brand: brand, actions: actions, safeArea: safeArea, pairingFlow: pairingFlow,
+                coverPresentation: coverPresentation,
                 prePage: { _ in nil }, monitor: monitor, page: page)
+        }
+    }
+
+    /// Physical layout of an operator cover, independent of the source's native picture.
+    /// The same owner serves a live monitor and an offline camera page.
+    public struct MonitorCoverPage<Content: View>: View {
+        private let content: (EdgeInsets) -> Content
+        @Environment(\.monitorWindowGeometry) private var windowGeometry
+        @State private var orientation = InterfaceOrientationObserver()
+
+        public init(@ViewBuilder content: @escaping (EdgeInsets) -> Content) { self.content = content }
+
+        public var body: some View {
+            GeometryReader { proxy in
+                let raw = OperatorPanelMetrics.resolvedDeviceSafeArea(
+                    proxy.safeAreaInsets, window: windowGeometry.safeArea)
+                let safe = OperatorPanelMetrics.fullScreenPanelSafeArea(from: raw,
+                    isPortrait: proxy.size.height > proxy.size.width,
+                    mirrored: LiveMonitorLayout.shouldMirror(leading: raw.leading,
+                        trailing: raw.trailing, orientation: orientation.orientation))
+                content(safe).frame(width: proxy.size.width, height: proxy.size.height)
+            }
+            .ignoresSafeArea()
+            .onAppear { orientation.start() }
+            .onDisappear { orientation.stop() }
         }
     }
 #endif

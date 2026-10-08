@@ -5,3 +5,8 @@ import OpenCineMedia
 public typealias AudioMeterChannel = MonitorAudioMeterChannel
 public typealias AudioMeterLevels = MonitorAudioMeterLevels
 public typealias AudioMeterBallistics = MonitorAudioMeterBallistics
+
+// Preserve the former native adapter call surface after sharing the same meter value.
+extension MonitorAudioMeterLevels {
+    public init(_ levels: MonitorAudioMeterLevels) { self = levels }
+}

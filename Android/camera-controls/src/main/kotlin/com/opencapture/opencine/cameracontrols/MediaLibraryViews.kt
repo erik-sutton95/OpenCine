@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -77,7 +78,7 @@ val MediaCornerShape: RoundedCornerShape = ChromeShape
 val LocalMediaBackdropGlass = compositionLocalOf { false }
 
 @Composable
-private fun Modifier.mediaGlass(shape: Shape): Modifier =
+internal fun Modifier.mediaGlass(shape: Shape): Modifier =
     if (LocalMediaBackdropGlass.current) monitorMaterial(MonitorMaterial.Compact, shape) else mediaPanelGlass(shape)
 
 private fun Modifier.mediaPanelGlass(shape: Shape): Modifier =
@@ -153,14 +154,14 @@ fun MediaCatalogHeaderRow(
 @Composable
 fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean,
     onAll: () -> Unit, onClear: () -> Unit, onCache: () -> Unit, onStar: () -> Unit,
-    onDelete: () -> Unit, onShare: () -> Unit) {
+    onDelete: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
     com.opencapture.monitorui.MonitorSelectionTray(count) {
         TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", LiveDesign.accent, onAll)
         TrayTextChip(MonitorIcon.X, "Clear", LiveDesign.muted, onClear)
         MediaCircleIconButton(MonitorIcon.DOWNLOAD, "Cache selected clips", onCache, enabled = cacheEnabled, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.STAR, "Favorite selected clips", onStar, enabled = count > 0, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.TRASH, "Delete selected clips", onDelete, enabled = deleteEnabled, size = 34.dp)
-        MediaCircleIconButton(MonitorIcon.SHARE, "Share selected clips", onShare, enabled = count > 0, size = 34.dp)
+        if (shareEnabled) MediaCircleIconButton(MonitorIcon.SHARE, "Share selected clips", onShare, enabled = count > 0, size = 34.dp)
     }
 }
 
@@ -209,7 +210,7 @@ fun MediaScrollablePlaceholder(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun MediaEmptyState(listing: Boolean, subtitle: String) {
+fun MediaEmptyState(listing: Boolean, subtitle: String, title: String? = null, retry: (() -> Unit)? = null) {
     Column(
         Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.Center,
@@ -226,7 +227,7 @@ fun MediaEmptyState(listing: Boolean, subtitle: String) {
             )
         }
         Text(
-            if (listing) "Listing clips" else "No clips yet",
+            title ?: if (listing) "Listing clips" else "No clips yet",
             color = LiveDesign.muted,
             style = LiveType.ui(15f, FontWeight.Medium),
             modifier = Modifier.padding(top = 12.dp),
@@ -237,6 +238,8 @@ fun MediaEmptyState(listing: Boolean, subtitle: String) {
             style = LiveType.ui(12f),
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
         )
+        if (retry != null) Text("Retry", color = LiveDesign.accent, style = LiveType.ui(13f, FontWeight.SemiBold),
+            modifier = Modifier.chromeClickable(onClick = retry).padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }
 
@@ -277,8 +280,64 @@ fun MediaFilterPopup(
     onDateEnd: (String?) -> Unit,
     onClear: () -> Unit,
     onClose: () -> Unit,
+    dateEdit: ((Boolean) -> MediaDatePickerAction?)? = null,
+    photoSizes: com.opencapture.monitorui.MonitorMediaPhotoSizeChoices? = null,
+    dateWindows: com.opencapture.monitorui.MonitorMediaDateWindowChoices? = null,
+    storage: com.opencapture.monitorui.MonitorMediaStorageChoices? = null,
+    hasActiveFilters: Boolean = false,
+    dialog: Boolean = false,
 ) {
-    var pickingBound by remember { mutableStateOf<String?>(null) }
+    var pickingDate by remember { mutableStateOf<MediaDatePickerAction?>(null) }
+    fun pick(start: Boolean) {
+        pickingDate = if (dateEdit != null) dateEdit(start)
+            else MediaDatePickerAction(start, if (start) onDateStart else onDateEnd)
+    }
+    @Composable fun form() {
+            com.opencapture.monitorui.MonitorMediaFilterForm(
+                formats = formatOptions,
+                resolutions = resolutionOptions,
+                colors = colorOptions.map { com.opencapture.monitorui.MonitorMediaColorOption(it.first, it.second) },
+                formatSelection = formatFilters,
+                resolutionSelection = resolutionFilters,
+                colorSelection = colorFilters,
+                dateStartLabel = dateStartKey?.let { MediaClipPresentation.dateLabel(it) },
+                dateEndLabel = dateEndKey?.let { MediaClipPresentation.dateLabel(it) },
+                hasDates = hasDates,
+                onToggleFormat = onToggleFormat,
+                onToggleResolution = onToggleResolution,
+                onToggleColor = onToggleColor,
+                onPickStart = { pick(true) },
+                onPickEnd = { pick(false) },
+                onClear = onClear, photoSizes = photoSizes, dateWindows = dateWindows,
+                storage = storage, hasActiveFilters = hasActiveFilters,
+                chipLayout = if (dialog) com.opencapture.monitorui.MonitorMediaFilterChipLayout.HORIZONTAL_SCROLL
+                    else com.opencapture.monitorui.MonitorMediaFilterChipLayout.PLATFORM_DEFAULT,
+                showsInlineClear = !dialog,
+            )
+    }
+    if (dialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = onClose,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).chromeClickable(onClick = onClose),
+                contentAlignment = Alignment.TopCenter) {
+                Column(Modifier.padding(top = 72.dp, start = 20.dp, end = 20.dp).widthIn(max = 400.dp).fillMaxWidth()
+                    .mediaPanelGlass(MediaCornerShape).chromeClickable(onClick = {}).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Filters", style = LiveType.ui(16f, FontWeight.SemiBold), color = LiveDesign.text)
+                    val scroll = rememberScrollState()
+                    Column(Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 290.dp).verticalScroll(scroll)) { form() }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Clear all", style = LiveType.ui(13f, FontWeight.Medium),
+                            color = if (hasActiveFilters) LiveDesign.accent else LiveDesign.faint,
+                            modifier = Modifier.chromeClickable(enabled = hasActiveFilters, onClick = onClear))
+                        Text("Done", style = LiveType.ui(13f, FontWeight.SemiBold), color = LiveDesign.accent,
+                            modifier = Modifier.chromeClickable(onClick = onClose))
+                    }
+                }
+            }
+        }
+        return
+    }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     val insets = WindowInsets.safeDrawing
@@ -322,46 +381,29 @@ fun MediaFilterPopup(
                 MediaCloseButton(onClick = onClose, size = 26.dp)
             }
             Spacer(Modifier.height(10.dp))
-            com.opencapture.monitorui.MonitorMediaFilterForm(
-                formats = formatOptions,
-                resolutions = resolutionOptions,
-                colors = colorOptions.map { com.opencapture.monitorui.MonitorMediaColorOption(it.first, it.second) },
-                formatSelection = formatFilters,
-                resolutionSelection = resolutionFilters,
-                colorSelection = colorFilters,
-                dateStartLabel = dateStartKey?.let { MediaClipPresentation.dateLabel(it) },
-                dateEndLabel = dateEndKey?.let { MediaClipPresentation.dateLabel(it) },
-                hasDates = hasDates,
-                onToggleFormat = onToggleFormat,
-                onToggleResolution = onToggleResolution,
-                onToggleColor = onToggleColor,
-                onPickStart = { pickingBound = "start" },
-                onPickEnd = { pickingBound = "end" },
-                onClear = onClear,
-            )
+            form()
         }
-        pickingBound?.let { bound ->
-            key(bound) {
-                val isStart = bound == "start"
+        pickingDate?.let { edit ->
+            key(edit) {
+                val isStart = edit.start
                 val current = if (isStart) dateStartKey else dateEndKey
                 val pickerState = rememberDatePickerState(
                     initialSelectedDateMillis = current?.let { MediaLibraryQuery.millisFromDateKey(it) },
                 )
                 DatePickerDialog(
-                    onDismissRequest = { pickingBound = null },
+                    onDismissRequest = { edit.cancel(); pickingDate = null },
                     confirmButton = {
                         TextButton(onClick = {
                             pickerState.selectedDateMillis?.let { millis ->
                                 val key = MediaLibraryQuery.dateKeyFromMillis(millis)
-                                if (isStart) onDateStart(key) else onDateEnd(key)
+                                edit.commit(key)
                             }
-                            pickingBound = null
+                            edit.cancel(); pickingDate = null
                         }) { Text("Done") }
                     },
                     dismissButton = {
                         TextButton(onClick = {
-                            if (isStart) onDateStart(null) else onDateEnd(null)
-                            pickingBound = null
+                            edit.commit(null); edit.cancel(); pickingDate = null
                         }) { Text("Clear") }
                     },
                 ) {
@@ -371,6 +413,9 @@ fun MediaFilterPopup(
         }
     }
 }
+
+/** The picker retains the action captured when the editor opens. */
+class MediaDatePickerAction(val start: Boolean, val commit: (String?) -> Unit, val cancel: () -> Unit = {})
 
 @Composable
 fun MediaCloseButton(
@@ -449,6 +494,7 @@ class MediaLibraryPageState(
     val deleteEnabled: Boolean,
     /** The clip being cached (file name, progress), read where the cache bar draws. */
     val caching: () -> Pair<String, Double>?,
+    val shareEnabled: Boolean = true,
 )
 
 /** The filter popup's choices and selection. */
@@ -462,6 +508,11 @@ class MediaLibraryFilterState(
     val colorFilters: Set<Int>,
     val dateStartKey: String?,
     val dateEndKey: String?,
+    val photoSizes: com.opencapture.monitorui.MonitorMediaPhotoSizeChoices? = null,
+    val dateWindows: com.opencapture.monitorui.MonitorMediaDateWindowChoices? = null,
+    val storage: com.opencapture.monitorui.MonitorMediaStorageChoices? = null,
+    val hasActiveFilters: Boolean = false,
+    val dialog: Boolean = false,
 )
 
 /** The page's commands, routed to the app's library owner. */
@@ -482,6 +533,11 @@ interface MediaLibraryPageActions {
     fun toggleColor(color: Int)
     /** Both date bounds at once; the page keeps start on or before end. */
     fun filterDates(start: String?, end: String?)
+    fun dateEdit(start: Boolean, currentStart: String?, currentEnd: String?): MediaDatePickerAction? =
+        MediaDatePickerAction(start, commit = { next ->
+            if (start) filterDates(next, if (next != null && currentEnd != null && next > currentEnd) next else currentEnd)
+            else filterDates(if (next != null && currentStart != null && next < currentStart) next else currentStart, next)
+        })
     fun resetFilters()
     fun closeFilter()
 }
@@ -498,6 +554,8 @@ fun MediaLibraryPage(
     actions: MediaLibraryPageActions,
     gallery: @Composable () -> Unit,
     overlays: @Composable BoxScope.() -> Unit,
+    storageCards: List<MonitorMediaGalleryStorage> = emptyList(),
+    selectStorage: (String) -> Unit = {},
 ) {
     Box(
         Modifier
@@ -524,21 +582,15 @@ fun MediaLibraryPage(
                     ) {
                         if (compact) {
                             MediaCategoryStrip(state.category) { actions.selectCategory(it) }
+                            MonitorMediaGalleryStorageCards(storageCards, selectStorage, horizontal = true)
                         } else {
-                            val railScroll = rememberScrollState()
-                            Column(Modifier.weight(1f).monitorScrollFade(railScroll).verticalScroll(railScroll)) {
-                                Column(Modifier.fillMaxWidth().monitorTabStrip()) {
-                                    MediaLibraryTab.entries.forEach { tab ->
-                                        MediaCategoryTab(tab, active = tab == state.category, fill = true) { actions.selectCategory(tab) }
-                                    }
-                                }
-                            }
-                            MediaCatalogDisplayControls(
-                                list = state.layout == MediaBrowserLayout.LIST,
-                                thumbnailSize = state.thumbnailSize,
-                                onList = actions::showList,
-                                onThumbnailSize = actions::selectThumbnailSize,
-                            )
+                            MonitorMediaGalleryNavigationRail(state.category, storageCards,
+                                actions::selectCategory, selectStorage,
+                                com.opencapture.monitorui.MonitorMediaLayout.valueOf(state.layout.name),
+                                com.opencapture.monitorui.MonitorThumbnailSize.valueOf(state.thumbnailSize.name),
+                                { actions.showList(it == com.opencapture.monitorui.MonitorMediaLayout.LIST) },
+                                { actions.selectThumbnailSize(MediaThumbnailSize.valueOf(it.name)) },
+                                modifier = Modifier.fillMaxSize())
                         }
                     }
                 },
@@ -562,6 +614,7 @@ fun MediaLibraryPage(
                         onStar = actions::favoriteSelected,
                         onDelete = actions::deleteSelected,
                         onShare = actions::shareSelected,
+                        shareEnabled = state.shareEnabled,
                     )
                     if (portrait) {
                         MediaCatalogDisplayControls(
@@ -599,6 +652,9 @@ fun MediaLibraryPage(
                 },
                 onClear = actions::resetFilters,
                 onClose = actions::closeFilter,
+                dateEdit = { actions.dateEdit(it, filter.dateStartKey, filter.dateEndKey) },
+                photoSizes = filter.photoSizes, dateWindows = filter.dateWindows,
+                storage = filter.storage, hasActiveFilters = filter.hasActiveFilters, dialog = filter.dialog,
             )
         }
 

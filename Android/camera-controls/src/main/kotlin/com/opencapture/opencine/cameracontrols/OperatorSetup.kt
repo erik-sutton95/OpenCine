@@ -165,6 +165,7 @@ class OperatorSetupState(
     val cameraName: String?,
     val cameraFamily: String?,
     val layout: MonitorLayoutCapabilities,
+    val lookProfile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
 )
 
 /** The decoder and link counters the Link Health tile samples twice a second. */
@@ -212,6 +213,8 @@ class OperatorSetupApp(
     val diagnostics: OperatorDiagnostics,
     val legalPage: @Composable (OperatorLegalPage, () -> Unit) -> Unit,
     val lutPicker: @Composable (() -> Unit) -> Unit,
+    /** Captured existing cache IO; no page or storage policy is supplied by the app. */
+    val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
 )
 
 fun toggledCleanPins(prefs: OperatorPreferenceStore, current: Set<String>, toolKey: String): Set<String> {
@@ -262,7 +265,6 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
     val phaseLabel = connectionPhaseLabel(state.phase, state.failure)
     val view = LocalView.current
     var legalPage by remember { mutableStateOf<OperatorLegalPage?>(null) }
-    var confirmClearCache by remember { mutableStateOf(false) }
     var showLutPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(model.chromeEditorReturnMode) {
@@ -291,41 +293,12 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
                 MonitorSettingsTab.ASSIST -> AssistRows(model, state, app) { showLutPicker = true }
                 MonitorSettingsTab.CONTROLS -> ControlsRows(model, state, app)
                 MonitorSettingsTab.DISPLAY -> OperatorDisplayRows(model, state, app, isLive)
-                MonitorSettingsTab.STORAGE -> StorageRows(model, app) { confirmClearCache = true }
+                MonitorSettingsTab.STORAGE -> StorageRows(model, app)
                 MonitorSettingsTab.SYSTEM -> SystemRows(model, app) { legalPage = it }
             }
         }
         legalPage?.let { page -> app.legalPage(page) { legalPage = null } }
         if (showLutPicker) app.lutPicker { showLutPicker = false }
-        if (confirmClearCache) {
-            val context = LocalContext.current
-            AlertDialog(
-                onDismissRequest = { confirmClearCache = false },
-                title = { Text("Clear cache?", color = LiveDesign.text) },
-                text = {
-                    Text(
-                        "Removes downloaded clip files from this phone. The clip list is kept.",
-                        color = LiveDesign.muted,
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            app.clearMediaCache(context)
-                            confirmClearCache = false
-                        },
-                    ) {
-                        Text("Clear", color = MonitorPalette.recording)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmClearCache = false }) {
-                        Text("Cancel", color = LiveDesign.muted)
-                    }
-                },
-                containerColor = LiveDesign.surface,
-            )
-        }
     }
 }
 
@@ -430,8 +403,7 @@ private fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, app
                     selection = model.lutSelection,
                     enabled = assist.lutOn,
                     colorMode = colorMode,
-                    family = state.cameraFamily ?: "pocket",
-                    cameraName = state.cameraName,
+                    profile = state.lookProfile,
                 ),
             )
         }
@@ -800,133 +772,54 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
             model.updateHdrDisplay(!model.hdrDisplay)
         }
     }
-    MonitorDisplayMode.entries.forEach { mode ->
-        MonitorSettingsRowCard(
-            title = mode.settingsTitle,
-            onReset = {
-                operatorHaptic(view, model.hapticsEnabled)
-                resetDispChrome(model, mode)
-            },
-        ) {
-            Text(
-                mode.settingsCaption,
-                style = LiveType.ui(10.5f),
-                color = LiveDesign.muted,
-                modifier = Modifier.padding(vertical = 5.dp),
-            )
-            if (isLive) {
-                MonitorSettingsActionPill(
-                    title = "Edit view",
-                    modifier = Modifier.padding(vertical = 8.dp).testTag("monitor.settings.display.edit.${mode.name}"),
-                    minimumTouchTarget = false,
-                    onClick = {
-                        operatorHaptic(view, model.hapticsEnabled)
-                        model.beginChromeEditing(mode)
-                    },
-                )
-            } else {
-                Text(
-                    "Connect to arrange this on the monitor.",
-                    style = LiveType.ui(11f, FontWeight.SemiBold),
-                    color = LiveDesign.muted,
-                    modifier = Modifier.padding(vertical = 6.dp),
-                )
-            }
-            val chrome = model.chrome(mode)
-            dispToggleSpecs.filter {
-                when (it.section) {
-                    MonitorDisplaySection.GIMBAL_STICK -> state.layout.gimbal
-                    MonitorDisplaySection.ZOOM_CHIP -> state.layout.zoom
-                    else -> true
-                }
-            }.forEach { spec ->
-                MonitorSettingsSwitchInlineRow(title = spec.title, help = spec.help, isOn = chrome.isVisible(spec.section),
-                    testTag = "monitor.settings.display.toggle.${mode.name}.${spec.section.name}") {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.toggleChrome(spec.section, mode)
+    com.opencapture.opencine.appkit.MonitorOperatorDisplaySections(
+        live = model.chrome(MonitorDisplayMode.LIVE), clean = model.chrome(MonitorDisplayMode.CLEAN),
+        assist = model.assist,
+        onChange = { mode, desired ->
+            MonitorDisplaySection.entries.forEach { section ->
+                if (model.chrome(mode).isVisible(section) != desired.isVisible(section)) {
+                    model.toggleChrome(section, mode)
                 }
             }
-            if (mode == MonitorDisplayMode.CLEAN) {
-                Text(
-                    "View assists that stay on in clean view",
-                    style = LiveType.ui(11f, FontWeight.SemiBold),
-                    color = LiveDesign.muted,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
-                )
-                CleanViewPinStrip(model, state, app, view)
+        },
+        available = MonitorDisplaySection.entries.filter { section ->
+            when (section) {
+                MonitorDisplaySection.GIMBAL_STICK -> state.layout.gimbal
+                MonitorDisplaySection.ZOOM_CHIP -> state.layout.zoom
+                else -> true
             }
-        }
-    }
-}
-
-private class DispToggleSpec(val section: MonitorDisplaySection, val title: String, val help: String)
-
-private val dispToggleSpecs =
-    listOf(
-        DispToggleSpec(MonitorDisplaySection.STATUS_BAR, "Status Bar", "REC, timecode, format, and FPS along the top of the feed."),
-        DispToggleSpec(MonitorDisplaySection.TOOL_BAR, "Tool Bar", "The view-assist strip under the feed."),
-        DispToggleSpec(MonitorDisplaySection.CAMERA_VALUES, "Camera Values", "ISO, shutter, white balance, and the rest of the capture strip."),
-        DispToggleSpec(MonitorDisplaySection.LOCK_BUTTON, "Lock Button", "Side-rail lock. Remounts while the interface is locked."),
-        DispToggleSpec(MonitorDisplaySection.BATTERIES, "Batteries", "Phone and camera battery cluster."),
-        DispToggleSpec(MonitorDisplaySection.REC_READOUT, "REC", "Standby / recording chip on the status bar."),
-        DispToggleSpec(MonitorDisplaySection.TIMECODE, "Timecode", "Running timecode on the status bar."),
-        DispToggleSpec(MonitorDisplaySection.FORMAT, "Format", "Recording resolution and frame rate."),
-        DispToggleSpec(MonitorDisplaySection.COLOR, "Color", "Color mode chip on the status bar."),
-        DispToggleSpec(MonitorDisplaySection.STORAGE, "Storage", "Remaining media time on the status bar."),
-        DispToggleSpec(MonitorDisplaySection.FPS, "FPS", "Live-view rate and link bars."),
-        DispToggleSpec(MonitorDisplaySection.RAIL_RECORD, "Record", "Rail record lamp. Stays available while rolling."),
-        DispToggleSpec(MonitorDisplaySection.RAIL_MEDIA, "Media", "Rail media button."),
-        DispToggleSpec(MonitorDisplaySection.RAIL_SETTINGS, "Settings", "Rail settings button. Always an escape hatch."),
-        DispToggleSpec(MonitorDisplaySection.ZOOM_CHIP, "Zoom Chip", "Live zoom readout on the feed."),
-        DispToggleSpec(MonitorDisplaySection.GIMBAL_STICK, "Gimbal Stick", "On-screen gimbal stick."),
-        DispToggleSpec(MonitorDisplaySection.FOCUS_BOX, "AF Box", "Focus and face-tracking brackets on the feed."),
+        }.toSet(),
+        pinnable = MonitorAssistTool.cleanPinCases.filter { it != MonitorAssistTool.AUDIO || state.layout.audio }.toSet(),
+        onPinsChanged = { pins ->
+            val next = app.prefs.resolvedCleanPins(pins.map { it.name }.toSet())
+            model.assist.pinned = next.mapNotNull(MonitorAssistTool::fromPersisted).toSet()
+            model.updateCleanViewPinnedTools(next)
+        },
+        edit = if (!isLive) null else { mode -> model.beginChromeEditing(mode) },
+        feedback = { operatorHaptic(view, model.hapticsEnabled) },
     )
-
-/** Two pins a row; AUDIO only on a body with live audio levels. */
-@Composable
-private fun CleanViewPinStrip(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, view: View) {
-    val assist = model.assist
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        CleanPinTool.entries.filter { it != CleanPinTool.AUDIO || state.layout.audio }.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                row.forEach { tool ->
-                    val on = assist.pinned.any { it.name == tool.key }
-                    MonitorSettingsDisplayToggle(
-                        title = tool.title,
-                        isOn = on,
-                        modifier = Modifier.weight(1f).testTag("monitor.settings.display.toggle.clean.pin.${tool.key}").semantics {
-                            contentDescription = "Keep ${tool.title} in clean view"
-                            stateDescription = if (on) "On" else "Off"
-                        },
-                        onToggle = {
-                            operatorHaptic(view, model.hapticsEnabled)
-                            val next = toggledCleanPins(app.prefs, assist.pinned.map { it.name }.toSet(), tool.key)
-                            assist.pinned = next.mapNotNull(MonitorAssistTool::fromPersisted).toSet()
-                            model.updateCleanViewPinnedTools(next)
-                        },
-                    )
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
 }
 
 @Composable
-private fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp, onClearCache: () -> Unit) {
+private fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
     val context = LocalContext.current
     val view = LocalView.current
-    val bytes = app.mediaCache.byteCount(context)
-    val cacheLabel = if (app.mediaCache.existingDir(context) == null) "Empty" else formatCacheSize(bytes)
+    val source = app.cacheSource?.invoke(context) ?: com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
+        com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(app.mediaCache.candidates(context).first().absolutePath, null),
+        0L, isCurrent = { true },
+        count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.mediaCache.byteCount(context) } },
+        clear = { app.clearMediaCache(context) },
+    )
     MonitorAccountSettings(
         title = "Frame.io", help = app.help.FRAME_IO,
         state = MonitorAccountState.NOT_CONFIGURED,
     )
-    MonitorCacheSettings(
-        cacheOriginals = model.cacheFullResolution, sizeLabel = cacheLabel,
+    MonitorOperatorCacheSettings(
+        source = source, cacheOriginals = model.cacheFullResolution,
         cacheHelp = app.help.CACHE_FULL_RESOLUTION,
         scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
-        onCacheOriginals = model::updateCacheFullResolution, clear = onClearCache,
+        onCacheOriginals = model::updateCacheFullResolution,
+        formatBytes = { bytes -> if (bytes == 0L) "Empty" else formatCacheSize(bytes) },
         feedback = { operatorHaptic(view, model.hapticsEnabled) },
     )
 }

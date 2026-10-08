@@ -363,6 +363,7 @@ object ScopeTrafficLights {
 }
 
 object LiveColorScience {
+    const val SCENE_STOP_DEFAULT_CLIP = 10.5
     fun linearize(encoded: Double, transfer: MonitorTransfer): Double {
         val linear = decode(clamp01(encoded), transfer)
         if (!linear.isFinite()) return 0.0

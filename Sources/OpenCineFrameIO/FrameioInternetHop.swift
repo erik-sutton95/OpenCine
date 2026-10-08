@@ -10,6 +10,7 @@ public struct FrameioInternetHop: Sendable {
     }
 
     private let owner = UUID()
+    private var latestRevision: UUID?
     public private(set) var token: Token?
 
     public init() {}
@@ -17,6 +18,7 @@ public struct FrameioInternetHop: Sendable {
     /// A new handoff supersedes any previous completion authority.
     @discardableResult public mutating func begin() -> Token {
         let next = Token(owner: owner, revision: UUID())
+        latestRevision = next.revision
         token = next
         return next
     }
@@ -35,5 +37,11 @@ public struct FrameioInternetHop: Sendable {
         guard owns(candidate) else { return false }
         token = nil
         return true
+    }
+
+    /// Publication after end may finish only this revision. A begin/end ABA remains retired.
+    /// This observation never grants another end or another native cleanup operation.
+    public func ended(_ candidate: Token) -> Bool {
+        token == nil && candidate.owner == owner && latestRevision == candidate.revision
     }
 }

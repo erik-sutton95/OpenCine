@@ -77,6 +77,7 @@ public final class LunaCameraBackend: CameraBackend {
         let operation: UUID
         let continuation: CheckedContinuation<Data, Error>
         let encrypted: Bool
+        var dispatched = true
         var writeCompleted = false
         var responseBody: Data?
         let timeout: Task<Void, Never>
@@ -145,7 +146,8 @@ public final class LunaCameraBackend: CameraBackend {
         identity = try store.identity()
         guard let identity else {
             throw ConnectionFailure.luna(
-                .other, "identity.unavailable", "A camera authorization identity could not be created.")
+                .other, "identity.unavailable",
+                "A camera authorization identity could not be created.")
         }
         var expectedSerial: String?
         do {
@@ -154,7 +156,8 @@ public final class LunaCameraBackend: CameraBackend {
                 // Bluetooth first whenever the camera advertises: it is quick once
                 // approved, and it wakes the camera Wi-Fi, which Luna turns off when idle.
                 // Saved Wi-Fi is the fallback for a camera that is not advertising.
-                if !bluetooth.hasSeen(camera.id), let stored, await quickJoin(stored, token: token) {
+                if !bluetooth.hasSeen(camera.id), let stored, await quickJoin(stored, token: token)
+                {
                     credentials = stored
                 } else {
                     expectedSerial = try await bootstrapOverBluetooth(
@@ -187,7 +190,9 @@ public final class LunaCameraBackend: CameraBackend {
             eventHandler?(.joinedWiFi(ssid: stored.ssid))
             return true
         } catch {
-            onLog?("luna: saved Wi-Fi join failed, falling back to Bluetooth: \(error.localizedDescription)")
+            onLog?(
+                "luna: saved Wi-Fi join failed, falling back to Bluetooth: \(error.localizedDescription)"
+            )
             return false
         }
     }
@@ -214,7 +219,9 @@ public final class LunaCameraBackend: CameraBackend {
                 // (internal error 8) while a user-saved network of the same name exists.
                 let once = attempt % 2 == 0
                 let prefix = configuration.logPrefix
-                try await withJoinTimeout { try await LunaWiFi.join(wifi, joinOnce: once, logPrefix: prefix) }
+                try await withJoinTimeout {
+                    try await LunaWiFi.join(wifi, joinOnce: once, logPrefix: prefix)
+                }
                 return
             } catch {
                 try validate(token)
@@ -235,7 +242,8 @@ public final class LunaCameraBackend: CameraBackend {
     /// still waits for `apply` to return, which it only withholds while the system
     /// "Join Wi-Fi Network" alert is up (first join after install): waiting for the
     /// operator's tap there is the intended behaviour. The UI stays live; Cancel works.
-    private func withJoinTimeout(_ work: @escaping @MainActor () async throws -> Void) async throws {
+    private func withJoinTimeout(_ work: @escaping @MainActor () async throws -> Void) async throws
+    {
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { try await work() }
             group.addTask {
@@ -275,7 +283,8 @@ public final class LunaCameraBackend: CameraBackend {
         }
         guard let serial = info.serial, !serial.isEmpty else {
             throw ConnectionFailure.luna(
-                .other, "serial.missing", "The camera did not provide an identity to verify its Wi-Fi handoff.",
+                .other, "serial.missing",
+                "The camera did not provide an identity to verify its Wi-Fi handoff.",
                 phase: .negotiating)
         }
         deviceInformation = info
@@ -287,7 +296,8 @@ public final class LunaCameraBackend: CameraBackend {
         guard schemes.contains(3) else {
             throw ConnectionFailure.luna(
                 .unsupported, "encryption.unsupported",
-                "The camera does not support the verified encrypted connection handshake.", phase: .negotiating)
+                "The camera does not support the verified encrypted connection handshake.",
+                phase: .negotiating)
         }
         let privateKey = P256.KeyAgreement.PrivateKey()
         let exchange = try LunaProtocol.keyExchangeRequest(
@@ -302,7 +312,8 @@ public final class LunaCameraBackend: CameraBackend {
             response: await send(LunaProtocol.deviceInformationRequest(encrypted: true)))
         guard authenticated.model == info.model else {
             throw ConnectionFailure.luna(
-                .wrongCamera, "identity.mismatch", "The encrypted camera identity did not match the selected device.",
+                .wrongCamera, "identity.mismatch",
+                "The encrypted camera identity did not match the selected device.",
                 phase: .negotiating)
         }
         emit(.awaitingApproval)
@@ -344,7 +355,8 @@ public final class LunaCameraBackend: CameraBackend {
             response: await send(LunaProtocol.deviceInformationRequest(includeSerial: true)))
         guard info.model == LunaProtocol.model else {
             throw ConnectionFailure.luna(
-                .wrongCamera, "wifi.not-luna", "The Wi-Fi device is not a supported Luna camera.", phase: .negotiating)
+                .wrongCamera, "wifi.not-luna", "The Wi-Fi device is not a supported Luna camera.",
+                phase: .negotiating)
         }
         if let expectedSerial, info.serial != expectedSerial {
             throw ConnectionFailure.luna(
@@ -370,6 +382,7 @@ public final class LunaCameraBackend: CameraBackend {
     }
 
     public func disconnect() {
+        session?.retireCommandSource()
         connectedMedia?.retire()
         generation += 1
         handshakeComplete = false
@@ -420,7 +433,8 @@ public final class LunaCameraBackend: CameraBackend {
     public func restartLive() async throws {
         guard isControlReady else { return }
         _ = try? await send(LunaProtocol.stopLiveRequest)
-        _ = try? await send(LunaProtocol.setAccessCameraFileState(LunaProtocol.shootingViewAccessState))
+        _ = try? await send(
+            LunaProtocol.setAccessCameraFileState(LunaProtocol.shootingViewAccessState))
         _ = try await send(LunaProtocol.startLiveRequest)
     }
 
@@ -438,7 +452,8 @@ public final class LunaCameraBackend: CameraBackend {
 
     /// A new OpenCineCore session for the next connection. The previous one closes as replaced.
     public func openSession() -> LunaCameraSession {
-        connectedMedia?.retire(); connectedMedia = nil
+        connectedMedia?.retire()
+        connectedMedia = nil
         let previous = session
         let next = LunaCameraSession(
             send: { [weak self] request in
@@ -453,7 +468,18 @@ public final class LunaCameraBackend: CameraBackend {
                 self?.functionMode ?? LunaFunctionMode.normalVideo.rawValue
             },
             readSettings: { [weak self] in await self?.refreshSettings() },
-            readCapture: { [weak self] in await self?.refreshCapture() })
+            readCapture: { [weak self] in await self?.refreshCapture() },
+            sendAdmitted: { [weak self] build, admission, didDispatch in
+                guard let self else { throw LunaCommandAdmissionError.expired }
+                return try await self.sendAdmitted(
+                    build, admission: admission, didDispatch: didDispatch)
+            },
+            sendAdmittedWithin: { [weak self] build, admission, timeout, didDispatch in
+                guard let self else { throw LunaCommandAdmissionError.expired }
+                return try await self.sendAdmitted(
+                    build, admission: admission, timeout: timeout,
+                    didDispatch: didDispatch)
+            })
         next.configureLens(zoomDomain: 1...LunaProtocol.maximumZoomScale)
         session = next
         previous?.close(.replaced)
@@ -553,6 +579,48 @@ public final class LunaCameraBackend: CameraBackend {
     /// Send one request and return the camera's 200 body. Throws on 500 or timeout.
     @discardableResult
     public func send(_ request: LunaRequest, timeout: Duration = .seconds(8)) async throws -> Data {
+        try await send(
+            request, timeout: timeout, suppliedAdmission: nil, build: nil, didDispatch: nil)
+    }
+
+    private func sendAdmitted(
+        _ build: @escaping LunaCommandRequestBuilder,
+        admission: LunaCommandAdmission, timeout: Duration = .seconds(8),
+        didDispatch: @escaping LunaCommandDidDispatch
+    ) async throws -> Data {
+        try admission.require(owner: session?.commandOwner)
+        let request = try build()
+        return try await send(
+            request, timeout: timeout, suppliedAdmission: admission,
+            build: build, didDispatch: didDispatch)
+    }
+
+    private func encodeRequest(_ request: LunaRequest, identifier id: UInt32, sequence: UInt8)
+        throws -> UCD2Frame
+    {
+        if request.requiresEncryption {
+            guard let key = sessionKey else {
+                throw ConnectionFailure.luna(
+                    .linkLost, "session.not-encrypted",
+                    "The encrypted camera session is not established.")
+            }
+            let payload = try request.message(identifier: id).payload
+            let aad = try UCD2Frame.scheme3AssociatedData(
+                sequence: sequence, plaintextLength: payload.count)
+            let box = try AES.GCM.seal(payload, using: key, authenticating: aad)
+            return try UCD2Frame.scheme3(
+                sequence: sequence, ciphertext: box.ciphertext, nonce: Data(box.nonce), tag: box.tag
+            )
+        }
+        return try request.plainFrame(identifier: id, sequence: sequence)
+    }
+
+    private func send(
+        _ request: LunaRequest, timeout: Duration,
+        suppliedAdmission admission: LunaCommandAdmission?, build: LunaCommandRequestBuilder?,
+        didDispatch: LunaCommandDidDispatch?
+    ) async throws -> Data {
+        if let admission { try admission.require(owner: session?.commandOwner) }
         guard isTCP || !request.requiresEncryption || sessionKey != nil else {
             throw ConnectionFailure.lunaLinkClosed
         }
@@ -560,21 +628,12 @@ public final class LunaCameraBackend: CameraBackend {
         let operation = UUID()
         let id = counter.nextIdentifier()
         let sequence = counter.nextSequence()
-        let frame: UCD2Frame
-        if request.requiresEncryption {
-            guard let key = sessionKey else {
-                throw ConnectionFailure.luna(
-                    .linkLost, "session.not-encrypted", "The encrypted camera session is not established.")
-            }
-            let payload = try request.message(identifier: id).payload
-            let aad = try UCD2Frame.scheme3AssociatedData(
-                sequence: sequence, plaintextLength: payload.count)
-            let box = try AES.GCM.seal(payload, using: key, authenticating: aad)
-            frame = try UCD2Frame.scheme3(
-                sequence: sequence, ciphertext: box.ciphertext, nonce: Data(box.nonce), tag: box.tag)
-        } else {
-            frame = try request.plainFrame(identifier: id, sequence: sequence)
-        }
+        // Nil/direct framing still happens before scheduling, as it did before admission.
+        let directFrame =
+            admission == nil ? try encodeRequest(request, identifier: id, sequence: sequence) : nil
+        let useTCP = isTCP
+        let tcpSource = admission == nil ? nil : tcp.commandSource
+        let bluetoothSource = admission == nil ? nil : bluetooth.commandSource
         let code = request.wireCode
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation {
@@ -587,20 +646,54 @@ public final class LunaCameraBackend: CameraBackend {
                     else { return }
                     entry.continuation.resume(
                         throwing: ConnectionFailure.luna(
-                            .timedOut, "command.timeout", "The camera did not answer command \(code)."))
+                            .timedOut, "command.timeout",
+                            "The camera did not answer command \(code)."))
                 }
                 pending[id] = Pending(
                     generation: requestGeneration, operation: operation,
                     continuation: continuation, encrypted: request.requiresEncryption,
+                    dispatched: admission == nil,
                     timeout: timer)
                 Task { [weak self] in
                     guard let self, requestGeneration == self.generation, self.pending[id] != nil
                     else { return }
                     do {
-                        if self.isTCP {
-                            try await self.tcp.send(frame.raw)
+                        if let admission {
+                            try admission.require(owner: self.session?.commandOwner)
+                            guard self.isTCP == useTCP, let build, let didDispatch,
+                                let waiting = self.pending[id],
+                                waiting.generation == requestGeneration,
+                                waiting.operation == operation
+                            else { throw LunaCommandAdmissionError.expired }
+                            let currentRequest = try build()
+                            let frame = try self.encodeRequest(
+                                currentRequest, identifier: id, sequence: sequence)
+                            let entered: LunaCommandDidDispatch = { [weak self] in
+                                guard let self, self.generation == requestGeneration,
+                                    var entry = self.pending[id],
+                                    entry.generation == requestGeneration,
+                                    entry.operation == operation
+                                else { return }
+                                entry.dispatched = true
+                                self.pending[id] = entry
+                                didDispatch()
+                            }
+                            if useTCP, let tcpSource {
+                                try await self.tcp.send(
+                                    frame.raw, admission: admission,
+                                    source: tcpSource, didDispatch: entered)
+                            } else if !useTCP, let bluetoothSource {
+                                try await self.bluetooth.write(
+                                    frame.raw, admission: admission,
+                                    source: bluetoothSource, didDispatch: entered)
+                            } else {
+                                throw LunaCommandAdmissionError.expired
+                            }
+                        } else if self.isTCP, let directFrame {
+                            try await self.tcp.send(directFrame.raw)
                         } else {
-                            try await self.bluetooth.write(frame.raw)
+                            guard let directFrame else { throw ConnectionFailure.lunaLinkClosed }
+                            try await self.bluetooth.write(directFrame.raw)
                         }
                         if var entry = self.pending[id], entry.generation == requestGeneration,
                             entry.operation == operation
@@ -645,7 +738,7 @@ public final class LunaCameraBackend: CameraBackend {
 
     private func finishPendingIfComplete(_ id: UInt32, generation: Int, operation: UUID) {
         guard let candidate = pending[id], candidate.generation == generation,
-            candidate.operation == operation, candidate.writeCompleted,
+            candidate.operation == operation, candidate.dispatched, candidate.writeCompleted,
             let body = candidate.responseBody,
             let entry = takePending(id, generation: generation, operation: operation)
         else { return }
@@ -720,6 +813,7 @@ public final class LunaCameraBackend: CameraBackend {
                 }
                 guard message.code == 200 || message.code == 500,
                     var waiting = pending[message.identifier], waiting.generation == generation,
+                    waiting.dispatched,
                     waiting.responseBody == nil
                 else { continue }
                 do {
@@ -730,7 +824,9 @@ public final class LunaCameraBackend: CameraBackend {
                     finishPendingIfComplete(
                         message.identifier, generation: generation, operation: waiting.operation)
                 } catch {
-                    onLog?("luna: reply \(message.identifier) code=\(message.code) contentType=\(message.contentType) reserved=\(message.reserved) bytes=\(message.body.count) rejected: \(error)")
+                    onLog?(
+                        "luna: reply \(message.identifier) code=\(message.code) contentType=\(message.contentType) reserved=\(message.reserved) bytes=\(message.body.count) rejected: \(error)"
+                    )
                     if let entry = takePending(
                         message.identifier, generation: generation, operation: waiting.operation)
                     {
@@ -787,7 +883,8 @@ public final class LunaCameraBackend: CameraBackend {
                     waiter.resume(
                         throwing: ConnectionFailure.luna(
                             .timedOut, "video.greeting-timeout",
-                            "The camera did not complete the video connection greeting.", phase: .negotiating))
+                            "The camera did not complete the video connection greeting.",
+                            phase: .negotiating))
                 }
             }
         } onCancel: {
@@ -815,7 +912,8 @@ public final class LunaCameraBackend: CameraBackend {
             try await Task.sleep(for: .milliseconds(400))
         }
         throw ConnectionFailure.luna(
-            .notApproved, "approval.timeout", "Approval timed out. Connect again and tap Allow on the camera's screen.",
+            .notApproved, "approval.timeout",
+            "Approval timed out. Connect again and tap Allow on the camera's screen.",
             phase: .awaitingApproval)
     }
 
@@ -830,7 +928,8 @@ public final class LunaCameraBackend: CameraBackend {
                     try await self.tcp.send(frame.raw)
                 } catch {
                     if !Task.isCancelled {
-                        self?.transportDropped("The camera stopped responding to the live connection.")
+                        self?.transportDropped(
+                            "The camera stopped responding to the live connection.")
                     }
                     return
                 }
@@ -868,7 +967,8 @@ public final class LunaCameraBackend: CameraBackend {
             throw CameraBackendError.unavailable("Connect the camera to browse clips.")
         }
         _ = try? await send(LunaProtocol.setAccessCameraFileState(LunaProtocol.albumAccessState))
-        let listing = try LunaProtocol.fileList(response: await send(LunaProtocol.fileListRequest()))
+        let listing = try LunaProtocol.fileList(
+            response: await send(LunaProtocol.fileListRequest()))
         var files = listing.uris.map { LunaMediaFile(uri: $0) }
         if let body = try? await send(LunaProtocol.fileInfoListRequest()),
             let infos = try? LunaProtocol.fileInfoList(response: body)
@@ -894,7 +994,8 @@ public final class LunaCameraBackend: CameraBackend {
 extension LunaCameraBackend: LunaMediaSourcePort, LunaMediaCatalogRecordSource {
     var mediaSourceState: LunaMediaSourceState? {
         guard isControlReady, let session, session.current.connection == .ready,
-            session.current.authority == .owner else { return nil }
+            session.current.authority == .owner
+        else { return nil }
         return .init(session: session.id, epoch: session.current.epoch, connection: generation)
     }
 
@@ -906,7 +1007,9 @@ extension LunaCameraBackend: LunaMediaSourcePort, LunaMediaCatalogRecordSource {
         return media
     }
 
-    public func mediaCatalogRecord(_ asset: MediaAssetID, binding: MediaBrowseBinding) -> LunaMediaCatalogRecord? {
+    public func mediaCatalogRecord(_ asset: MediaAssetID, binding: MediaBrowseBinding)
+        -> LunaMediaCatalogRecord?
+    {
         connectedMedia?.catalogRecord(asset, binding: binding)
     }
 

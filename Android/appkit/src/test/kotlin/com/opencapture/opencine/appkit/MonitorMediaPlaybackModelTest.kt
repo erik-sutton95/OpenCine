@@ -102,6 +102,8 @@ class MonitorMediaPlaybackModelTest {
         lookTiming: MonitorPlaybackLookTiming = MonitorPlaybackLookTiming.AFTER_NATIVE_READINESS,
         startTiming: MonitorPlaybackStartTiming = MonitorPlaybackStartTiming.AFTER_NATIVE_READINESS,
         records: List<MonitorMediaRecord<String>> = emptyList(), service: CameraMediaService? = null,
+        seekEndClearance: Double = 0.05,
+        sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.PRESERVE_REQUEST,
         candidate: ((MonitorMediaRecord<String>) -> List<MonitorPlaybackCandidate>)? = null,
         resolveLook: suspend (MonitorMediaRecord<String>, MonitorPlaybackItem) -> MonitorPlaybackLook<String>? = { _, _ -> null }): Fixture {
         val root = Files.createTempDirectory("opencine-playback-").toFile()
@@ -112,7 +114,8 @@ class MonitorMediaPlaybackModelTest {
         val port = native ?: PlaybackTestPort()
         val model = MonitorMediaPlaybackModel<String, String>(library, port, scope, lookTiming = lookTiming, startTiming = startTiming,
             candidates = candidate ?: { listOf(MonitorPlaybackCandidate.Cached(MonitorPlaybackItem(URI("file:/${it.payload}.mov"), "video/mp4", it.payload))) },
-            resolveLook = resolveLook, now = { clock.instant })
+            resolveLook = resolveLook, now = { clock.instant }, seekEndClearance = seekEndClearance,
+            sceneLossPolicy = sceneLossPolicy)
         return Fixture(root, library, port, model)
     }
     @Test fun replacementRejectsLateReadyAndTimeFromPreviousItem() = runTest {
@@ -496,6 +499,109 @@ class MonitorMediaPlaybackModelTest {
             model.updateScrub(55.0, kept); runCurrent(); assertEquals(2, port.seeks.size); port.finishSeek(1)
             assertTrue(model.state.value.scrubbing); assertEquals(55.0, model.state.value.scrubPosition)
             model.commitScrub(kept); runCurrent(); assertEquals(3, port.seeks.size); port.finishSeek(2)
+        } finally { fixture.close() }
+    }
+    @Test fun sourceSeekClearancePreservesStrict250msTailAndDefault50msTail() = runTest {
+        for (clearance in listOf(0.25, 0.05)) {
+            val fixture = fixture(this, seekEndClearance = clearance)
+            try {
+                val model = fixture.model; val port = fixture.port; val row = record("tail")
+                model.load(row, listOf(row)); runCurrent(); port.release(0, MonitorPlaybackMetadata(duration = 10.0)); runCurrent()
+                assertTrue(model.state.value.ready); val token = model.state.value.token
+                val cases = if (clearance == 0.25) listOf(-0.1 to true, -0.2 to true, -0.25 to true, -0.251 to false)
+                    else listOf(-0.025 to true, -0.05 to true, -0.051 to false)
+                cases.forEachIndexed { index, (offset, expected) ->
+                    port.onEvent?.invoke(token, MonitorPlaybackEvent.Ended); assertTrue(model.state.value.reachedEnd)
+                    model.seekBy(offset); assertEquals(expected, model.state.value.reachedEnd)
+                    runCurrent(); assertEquals(index + 1, port.seeks.size); port.finishSeek(index); runCurrent()
+                }
+            } finally { fixture.close() }
+        }
+    }
+
+    @Test fun sourceScrubClearanceRetainsTailUntilStrictBoundaryAndRejectsRetiredEdit() = runTest {
+        val fixture = fixture(this, seekEndClearance = 0.25)
+        try {
+            val model = fixture.model; val port = fixture.port; val a = record("tail"); val b = record("next")
+            model.load(a, listOf(a, b)); runCurrent(); port.release(0, MonitorPlaybackMetadata(duration = 10.0)); runCurrent()
+            port.onEvent?.invoke(model.state.value.token, MonitorPlaybackEvent.Ended)
+            val edit = assertNotNull(model.beginScrub())
+            model.updateScrub(9.8, edit); assertTrue(model.state.value.reachedEnd)
+            model.updateScrub(9.75, edit); assertTrue(model.state.value.reachedEnd)
+            model.updateScrub(9.749, edit); assertFalse(model.state.value.reachedEnd)
+            runCurrent(); assertEquals(1, port.seeks.size); port.finishSeek(0); runCurrent()
+            model.load(b, listOf(a, b)); runCurrent(); port.release(1, MonitorPlaybackMetadata(duration = 10.0)); runCurrent()
+            port.onEvent?.invoke(model.state.value.token, MonitorPlaybackEvent.Ended)
+            model.updateScrub(0.0, edit)
+            assertTrue(model.state.value.reachedEnd); assertEquals(b.asset.id, model.state.value.active?.asset?.id)
+            assertFalse(model.state.value.scrubbing)
+        } finally { fixture.close() }
+    }
+
+    @Test fun clearingSceneRequestCancelsInterruptedScrubWithoutAutomaticResume() = runTest {
+        val fixture = fixture(backgroundScope, sceneLossPolicy = MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("scene")
+            model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            assertTrue(model.state.value.ready); assertEquals(1, port.played.size)
+            val item = model.state.value.token; val edit = assertNotNull(model.beginScrub())
+            model.updateScrub(30.0, edit); runCurrent(); assertEquals(1, port.seeks.size)
+            model.cancelScrub(true); model.setSceneActive(false); port.finishSeek(0); runCurrent()
+            model.setSceneActive(true)
+            assertTrue(model.state.value.ready); assertEquals(item, model.state.value.token)
+            assertFalse(model.state.value.scrubbing); assertFalse(model.state.value.playRequested)
+            assertEquals(listOf(item), port.played); assertEquals(0, port.closes)
+            assertTrue(fixture.library.state.value.browsing)
+            model.setPlaying(true)
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(item, item), port.played)
+        } finally { fixture.close() }
+    }
+
+    @Test fun clearingSceneRequestCannotClearReplacementFromStatePublication() = runTest {
+        val fixture = fixture(backgroundScope, sceneLossPolicy = MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val a = record("A"); val b = record("B")
+            model.load(a, listOf(a, b)); runCurrent(); port.release(0); runCurrent()
+            val old = model.state.value.token; var replaced = false
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                model.state.collect {
+                    if (!replaced && it.active?.payload == "A" && !it.playRequested) {
+                        replaced = true; model.load(b, listOf(a, b), play = true)
+                    }
+                }
+            }
+            model.setSceneActive(false)
+            assertEquals("B", model.state.value.active?.payload); assertTrue(model.state.value.playRequested)
+            assertNotEquals(old, model.state.value.token)
+            runCurrent(); assertEquals(2, port.preparations.size); port.release(1); runCurrent()
+            val current = model.state.value.token; assertEquals(listOf(old), port.played)
+            model.setSceneActive(true)
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(old, current), port.played)
+            assertFalse(model.state.value.closed)
+        } finally { fixture.close() }
+    }
+
+    @Test fun outgoingSceneLossCannotBorrowReplacementFromSourcePredicate() = runTest {
+        val fixture = fixture(backgroundScope, sceneLossPolicy = MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST)
+        val model = fixture.model; val port = fixture.port
+        try {
+            val a = record("A"); val b = record("B"); var replace = false
+            model.setItemAdmission { row -> MonitorPlaybackAdmission {
+                if (row.payload == "A" && replace) {
+                    replace = false; model.load(b, listOf(a, b), play = true)
+                }
+                true
+            } }
+            model.load(a, listOf(a, b)); runCurrent(); port.release(0); runCurrent()
+            val old = model.state.value.token
+            replace = true; model.setSceneActive(false)
+            assertEquals("B", model.state.value.active?.payload); assertTrue(model.state.value.playRequested)
+            assertNotEquals(old, model.state.value.token)
+            runCurrent(); assertEquals(2, port.preparations.size); port.release(1); runCurrent()
+            assertTrue(model.state.value.ready); assertEquals(listOf(old, model.state.value.token), port.played)
+            assertFalse(model.state.value.closed); assertTrue(fixture.library.state.value.browsing)
         } finally { fixture.close() }
     }
 }

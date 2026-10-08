@@ -85,10 +85,38 @@ import Insta360Protocol
     /// Clears locally first; the camera's cancel goes out only when tracking was active and the
     /// session admits control.
     public func cancel(finished: @escaping @MainActor (Error?) -> Void = { _ in }) {
-        let had = snapshot.active
-        clear()
-        guard had, admitsControl else { return }
-        send(LunaProtocol.cancelTrackingRequest, finished: finished)
+        cancel(suppliedAdmission: nil, finished: finished)
+    }
+
+    public func cancel(
+        admission: LunaCommandAdmission, finished: @escaping @MainActor (Error?) -> Void = { _ in }
+    ) {
+        cancel(suppliedAdmission: admission, finished: finished)
+    }
+
+    private func cancel(
+        suppliedAdmission admission: LunaCommandAdmission?,
+        finished: @escaping @MainActor (Error?) -> Void
+    ) {
+        if let admission {
+            guard let target = session(), admission.admits(target.commandOwner) else { return }
+            let epoch = target.current.epoch
+            let had = snapshot.active
+            clear()
+            // Publishing the local clear can synchronously replace the producer. Never send
+            // that operation on the replacement or clear its newly published tracking again.
+            guard had, session() === target, target.current.epoch == epoch,
+                admission.admits(target.commandOwner), target.admitsControl
+            else { return }
+            send(
+                LunaProtocol.cancelTrackingRequest, through: target, admission: admission,
+                finished: finished)
+        } else {
+            let had = snapshot.active
+            clear()
+            guard had, admitsControl else { return }
+            send(LunaProtocol.cancelTrackingRequest, finished: finished)
+        }
     }
 
     /// Tap focus at a preview point with the fw 1.1.15 official ROI for an upright camera:
@@ -99,14 +127,33 @@ import Insta360Protocol
     )
         throws
     {
+        try focus(x: x, y: y, suppliedAdmission: nil, finished: finished)
+    }
+
+    public func focus(
+        x: Double, y: Double, admission: LunaCommandAdmission,
+        finished: @escaping @MainActor (Error?) -> Void = { _ in }
+    ) throws {
+        try focus(x: x, y: y, suppliedAdmission: admission, finished: finished)
+    }
+
+    private func focus(
+        x: Double, y: Double, suppliedAdmission admission: LunaCommandAdmission?,
+        finished: @escaping @MainActor (Error?) -> Void
+    ) throws {
         let w = 0.1545
         let h = 0.2727
         let left = min(max(x - w / 2, 0), 1 - w)
         let top = min(max(y - h / 2, 0), 1 - h)
         guard let session = session() else { return finished(CancellationError()) }
+        if let admission { try admission.require(owner: session.commandOwner) }
         let request = try LunaProtocol.setTapFocus(
             x: left, y: top, width: w, height: h, functionMode: session.requestFunctionMode)
-        send(request, finished: finished)
+        if let admission {
+            send(request, through: session, admission: admission, finished: finished)
+        } else {
+            send(request, finished: finished)
+        }
     }
 
     /// Media 0x85: tracking moves the subject box with the camera's box; lost shows the last box
@@ -157,12 +204,19 @@ import Insta360Protocol
         changed(next)
     }
 
-    private func send(_ request: LunaRequest, finished: @escaping @MainActor (Error?) -> Void) {
-        let session = session()
+    private func send(
+        _ request: LunaRequest, through target: LunaCameraSession? = nil,
+        admission: LunaCommandAdmission? = nil, finished: @escaping @MainActor (Error?) -> Void
+    ) {
+        let session = target ?? session()
         Task { @MainActor in
             do {
                 guard let session else { throw CancellationError() }
-                _ = try await session.control(request)
+                if let admission {
+                    _ = try await session.control(request, admission: admission)
+                } else {
+                    _ = try await session.control(request)
+                }
                 finished(nil)
             } catch {
                 finished(error)

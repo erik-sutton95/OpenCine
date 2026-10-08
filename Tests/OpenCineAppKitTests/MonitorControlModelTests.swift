@@ -19,6 +19,152 @@ import Testing
     }
 
     @available(macOS 14, *)
+    @Test func coalescedReplacementCarriesItsOwnAdmission() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.snapshot != nil })
+        let snapshot = try #require(model.snapshot)
+        let first = AdmissionSpy()
+        let second = AdmissionSpy()
+        model.set(
+            .iso(.manual(400)), label: "First",
+            admission:
+                admission(camera, snapshot, AdmissionGate(false), first))
+        model.set(
+            .iso(.manual(800)), label: "Replacement",
+            admission:
+                admission(camera, snapshot, AdmissionGate(true), second))
+        await clock.tick(.milliseconds(120))
+        #expect(await eventuallyAsync { await camera.wire.count == 1 })
+        #expect(await first.commands.isEmpty)
+        #expect(await second.commands.count == 1)
+        #expect(await camera.wire == ["set \(SettingValue.iso(.manual(800)))"])
+        await camera.advance(by: .seconds(3))
+        try #require(await eventually { model.pending.isEmpty })
+        let obsolete = AdmissionSpy()
+        let revokedLatest = AdmissionSpy()
+        model.set(
+            .iso(.manual(1600)), label: "Old current",
+            admission:
+                admission(camera, snapshot, AdmissionGate(true), obsolete))
+        model.set(
+            .iso(.manual(400)), label: "Latest revoked",
+            admission:
+                admission(camera, snapshot, AdmissionGate(false), revokedLatest))
+        await clock.tick(.milliseconds(120))
+        #expect(await eventually { model.pending.isEmpty })
+        #expect(await obsolete.commands.isEmpty)
+        #expect(await revokedLatest.commands.isEmpty)
+        #expect(await camera.wire.count == 1)
+    }
+
+    @available(macOS 14, *)
+    @Test func revokedWhileCoalescingAndWrongBindingSendNothing() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.lunaLike()
+        let successor = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        await successor.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.snapshot != nil })
+        let snapshot = try #require(model.snapshot)
+        let gate = AdmissionGate(true)
+        let spy = AdmissionSpy()
+        let captured = admission(camera, snapshot, gate, spy)
+        model.set(.iso(.manual(800)), label: "Queued", admission: captured)
+        try #require(await eventually { clock.pendingSleeps == 1 })
+        clock.advance(by: .milliseconds(60))
+        gate.close()
+        clock.advance(by: .milliseconds(60))
+        #expect(await eventually { model.pending.isEmpty })
+        #expect(await camera.wire.isEmpty)
+        #expect(await spy.commands.isEmpty)
+        model.bind(successor)
+        try #require(await eventually { model.snapshot?.session == successor.id })
+        model.set(.iso(.manual(800)), label: "Wrong owner", admission: captured)
+        await clock.tick(.milliseconds(120))
+        #expect(await eventually { model.pending.isEmpty })
+        #expect(await successor.wire.isEmpty)
+        #expect(await spy.commands.isEmpty)
+        model.unbind()
+        #expect(await camera.wire.isEmpty)
+        #expect(await successor.wire.isEmpty)
+    }
+
+    @available(macOS 14, *)
+    @Test func enteredAdmissionCannotClearSuccessorPending() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.snapshot != nil })
+        let snapshot = try #require(model.snapshot)
+        let gate = AdmissionGate(true)
+        let first = AdmissionSpy()
+        let second = AdmissionSpy()
+        model.set(
+            .iso(.manual(800)), label: "Entered",
+            admission: admission(camera, snapshot, gate, first))
+        await clock.tick(.milliseconds(120))
+        try #require(await eventuallyAsync { await camera.wire.count == 1 })
+        gate.close()
+        model.set(
+            .iso(.manual(1600)), label: "Successor",
+            admission:
+                admission(camera, snapshot, AdmissionGate(true), second))
+        await clock.tick(.milliseconds(120))
+        try #require(await eventuallyAsync { await camera.wire.count == 2 })
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.pending[.iso] == .iso(.manual(1600)))
+        #expect(await first.commands.count == 1)
+        #expect(await second.commands.count == 1)
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { model.pending.isEmpty })
+        #expect(await camera.current.value(of: .iso).value == .iso(.manual(1600)))
+    }
+
+    @available(macOS 14, *)
+    @Test func recordConfirmationReusesAdmissionAndCloseSendsNoCommand() async throws {
+        let (model, _) = model()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.recordEditor() != nil })
+        let snapshot = try #require(model.snapshot)
+        let gate = AdmissionGate(true)
+        let spy = AdmissionSpy()
+        let captured = admission(camera, snapshot, gate, spy)
+        #expect(model.commitRecord(from: try #require(model.recordEditor()), admission: captured))
+        gate.close()
+        #expect(await eventually { !model.recordPending })
+        #expect(await camera.wire.isEmpty)
+        #expect(await spy.commands.isEmpty)
+        let current = admission(camera, snapshot, AdmissionGate(true), spy)
+        #expect(model.commitRecord(from: try #require(model.recordEditor()), admission: current))
+        try #require(await eventuallyAsync { await camera.wire.count == 1 })
+        #expect(await spy.commands.first?.intent == .startRecording)
+        model.unbind()
+        await camera.advance(by: .seconds(3))
+        await camera.close(.requested)
+        #expect(!model.recordPending && model.pending.isEmpty)
+        #expect(await camera.wire.count == 1)
+    }
+
+    private func admission(
+        _ camera: FakeCameraSession, _ snapshot: CameraSnapshot,
+        _ gate: AdmissionGate, _ spy: AdmissionSpy
+    ) -> CommandDispatchAdmission {
+        CommandDispatchAdmission(
+            session: snapshot.session, epoch: snapshot.epoch, isCurrent: { gate.read() },
+            submit: { command in
+                await spy.record(command)
+                return await camera.submit(command)
+            })
+    }
+
+    @available(macOS 14, *)
     @Test func canceledEditCannotWakeSuccessorEarlyOrRetireOtherSetting() async throws {
         let (model, _) = model()
         let camera = FakeCameraSession.djiLike()
@@ -39,12 +185,17 @@ import Testing
         #expect(model.commit(.zoom(3), from: successor, label: "Zoom 3"))
         #expect(await eventually { clock.pendingSleeps == 3 })
         clock.advance(by: .milliseconds(60))
-        #expect(await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] })
+        #expect(
+            await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] }
+        )
         #expect(model.pending[.zoom] == .zoom(3), "Old wake cannot send the younger successor")
         clock.advance(by: .milliseconds(60))
-        #expect(await eventuallyAsync { await camera.wire == [
-            "set \(SettingValue.iso(.manual(800)))", "set \(SettingValue.zoom(3))",
-        ] })
+        #expect(
+            await eventuallyAsync {
+                await camera.wire == [
+                    "set \(SettingValue.iso(.manual(800)))", "set \(SettingValue.zoom(3))",
+                ]
+            })
     }
 
     @available(macOS 14, *)
@@ -101,9 +252,13 @@ import Testing
         #expect(await eventually { model.shown(.iso) == .iso(.manual(200)) })
         model.set(.iso(.manual(800)), label: "ISO 800")
         #expect(model.shown(.iso) == .iso(.manual(800)))
-        #expect(await camera.current.value(of: .iso).value == .iso(.manual(200)), "never written into the snapshot")
+        #expect(
+            await camera.current.value(of: .iso).value == .iso(.manual(200)),
+            "never written into the snapshot")
         await clock.tick(.milliseconds(120))
-        #expect(await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] })
+        #expect(
+            await eventuallyAsync { await camera.wire == ["set \(SettingValue.iso(.manual(800)))"] }
+        )
         await camera.advance(by: .seconds(3))
         #expect(await eventually { model.pending.isEmpty })
         #expect(model.shown(.iso) == .iso(.manual(800)))
@@ -231,12 +386,37 @@ import Testing
     @Test func notesNameTheOutcome() {
         #expect(MonitorControlModel.note(for: .confirmed, "ISO 800") == nil)
         #expect(MonitorControlModel.note(for: .failed(.superseded), "ISO 800") == nil)
-        #expect(MonitorControlModel.note(for: .rejected(.cameraRefused), "ISO 800") == "ISO 800: the camera refused it.")
-        #expect(MonitorControlModel.note(for: .rejected(.noAuthority), "ISO 800") == MonitorControlModel.connectFirst)
+        #expect(
+            MonitorControlModel.note(for: .rejected(.cameraRefused), "ISO 800")
+                == "ISO 800: the camera refused it.")
+        #expect(
+            MonitorControlModel.note(for: .rejected(.noAuthority), "ISO 800")
+                == MonitorControlModel.connectFirst)
         #expect(
             MonitorControlModel.note(for: .outcomeUnknown, "Stop")
                 == "Stop: the camera link dropped before it confirmed.")
     }
+}
+
+private final class AdmissionGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: Bool
+    init(_ current: Bool) { self.current = current }
+    func read() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return current
+    }
+    func close() {
+        lock.lock()
+        current = false
+        lock.unlock()
+    }
+}
+
+private actor AdmissionSpy {
+    var commands: [CameraCommand] = []
+    func record(_ command: CameraCommand) { commands.append(command) }
 }
 
 /// Collected operator notes.

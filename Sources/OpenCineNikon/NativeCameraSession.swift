@@ -66,6 +66,8 @@
 
         /// Stable camera key: the IPv4 address over Wi-Fi, or a `usb:<device-id>` host key over USB-C.
         public let host: String
+        /// One actual established-link identity for supplied operation authority.
+        public let commandOwner: NikonCommandOwner? = NikonCommandOwner()
         /// Nikon session identity.
         public let identity: NativeCameraIdentity
         /// Op selection driven by the body's advertised DeviceInfo operations.
@@ -246,6 +248,8 @@
                 .pairingChallengeUnavailable, .savedProfileRequired,
                 .initFailed(.rejectedInitiator), .initFailed(.busy):
                 return false
+            case .commandAuthorityExpired:
+                return false
             case .connectionFailed, .connectionClosed, .timeout, .unexpectedPacket,
                 .invalidPacketLength, .operationRejected, .objectRatingRejected, .initFailed:
                 return true
@@ -261,6 +265,7 @@
 
         /// Nikon session close.
         public func close() {
+            commandOwner?.retire()
             transport.close()
         }
 
@@ -281,6 +286,7 @@
         /// [verify-on-HW: confirm CloseSession-then-close makes the ZR release the slot and accept the
         /// next Init without the timeout→retry dance the logs show today.]
         public func shutdown() async {
+            commandOwner?.retire()
             // Over USB, ImageCaptureCore owns the PTP session (it opened it - that's why OpenSession
             // tolerates Session_Already_Open). Closing it behind ICC's back leaves the parked warm
             // session pointing at a dead PTP session, and the next adopt fails its first command
@@ -352,13 +358,25 @@
         /// started - completion (including every frame of a burst, or a running bulb) is observed
         /// by polling ``pollStillReleaseReadiness()`` between live-view frames.
         public func initiateStillCapture(preserveFocus: Bool = false) async throws {
+            try await initiateStillCapture(preserveFocus: preserveFocus, suppliedAdmission: nil)
+        }
+        public func initiateStillCapture(
+            preserveFocus: Bool, admission: NikonCommandAdmission
+        ) async throws {
+            try await initiateStillCapture(
+                preserveFocus: preserveFocus, suppliedAdmission: admission)
+        }
+        private func initiateStillCapture(
+            preserveFocus: Bool, suppliedAdmission: NikonCommandAdmission?
+        ) async throws {
             let op = operationPolicy.stillCaptureOperation
             // p1 = CaptureSort (see StillCapturePolicy), p2 targets the card.
             let captureSort = StillCapturePolicy.captureSortParameter(preserveFocus: preserveFocus)
             let parameters: [UInt32] =
                 op == .initiateCaptureRecInMedia ? [captureSort, 0x0000] : []
             let result = try await transact(
-                operationCode: op, parameters: parameters, dataPhase: .noDataOrDataIn)
+                operationCode: op, parameters: parameters, dataPhase: .noDataOrDataIn,
+                admission: suppliedAdmission)
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
                     op, result.operationResponse.responseCode)
@@ -373,8 +391,15 @@
 
         /// Ends a bulb/time exposure or stops a running burst; frames captured so far are kept.
         public func terminateStillCapture() async throws {
+            try await terminateStillCapture(suppliedAdmission: nil)
+        }
+        public func terminateStillCapture(admission: NikonCommandAdmission) async throws {
+            try await terminateStillCapture(suppliedAdmission: admission)
+        }
+        private func terminateStillCapture(suppliedAdmission: NikonCommandAdmission?) async throws {
             let result = try await transact(
-                operationCode: .terminateCapture, parameters: [0, 0], dataPhase: .noDataOrDataIn)
+                operationCode: .terminateCapture, parameters: [0, 0], dataPhase: .noDataOrDataIn,
+                admission: suppliedAdmission)
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
                     .terminateCapture, result.operationResponse.responseCode)
@@ -383,7 +408,14 @@
 
         /// Nikon session start recording.
         public func startRecording() async throws {
-            let result = try await transact(operationCode: .startMovieRecInCard)
+            try await startRecording(suppliedAdmission: nil)
+        }
+        public func startRecording(admission: NikonCommandAdmission) async throws {
+            try await startRecording(suppliedAdmission: admission)
+        }
+        private func startRecording(suppliedAdmission: NikonCommandAdmission?) async throws {
+            let result = try await transact(
+                operationCode: .startMovieRecInCard, admission: suppliedAdmission)
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
                     .startMovieRecInCard, result.operationResponse.responseCode)
@@ -392,7 +424,14 @@
 
         /// Nikon session stop recording.
         public func stopRecording() async throws {
-            let result = try await transact(operationCode: .endMovieRec)
+            try await stopRecording(suppliedAdmission: nil)
+        }
+        public func stopRecording(admission: NikonCommandAdmission) async throws {
+            try await stopRecording(suppliedAdmission: admission)
+        }
+        private func stopRecording(suppliedAdmission: NikonCommandAdmission?) async throws {
+            let result = try await transact(
+                operationCode: .endMovieRec, admission: suppliedAdmission)
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
                     .endMovieRec, result.operationResponse.responseCode)
@@ -468,6 +507,16 @@
 
         /// Nikon session write camera property.
         public func writeCameraProperty(_ write: PTPCameraPropertyWrite) async throws {
+            try await writeCameraProperty(write, suppliedAdmission: nil)
+        }
+        public func writeCameraProperty(
+            _ write: PTPCameraPropertyWrite, admission: NikonCommandAdmission
+        ) async throws {
+            try await writeCameraProperty(write, suppliedAdmission: admission)
+        }
+        private func writeCameraProperty(
+            _ write: PTPCameraPropertyWrite, suppliedAdmission: NikonCommandAdmission?
+        ) async throws {
             // Observed interoperability behavior: 2-byte `0xDxxx` properties
             // use the standard PTP SetDevicePropValue (0x1016); only 4-byte extended `0x0001_Dxxx`
             // properties use the Nikon SetDevicePropValueEx (0x943C). Ex-writing a 2-byte
@@ -478,7 +527,7 @@
                 operationCode: op,
                 parameters: [write.property.rawValue],
                 dataPhase: .dataOut,
-                dataOut: write.data
+                dataOut: write.data, admission: suppliedAdmission
             )
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
@@ -494,11 +543,21 @@
         /// drag left tap-to-focus looking dead until a shutter release. Bounded retries, matching the
         /// Android facade's `changeAfArea`.
         public func changeAfArea(x: UInt32, y: UInt32) async throws {
+            try await changeAfArea(x: x, y: y, suppliedAdmission: nil)
+        }
+        public func changeAfArea(
+            x: UInt32, y: UInt32, admission: NikonCommandAdmission
+        ) async throws {
+            try await changeAfArea(x: x, y: y, suppliedAdmission: admission)
+        }
+        private func changeAfArea(
+            x: UInt32, y: UInt32, suppliedAdmission: NikonCommandAdmission?
+        ) async throws {
             for attempt in 0..<4 {
                 let result = try await transact(
                     operationCode: .changeAfArea,
                     parameters: [x, y],
-                    dataPhase: .noDataOrDataIn
+                    dataPhase: .noDataOrDataIn, admission: suppliedAdmission
                 )
                 if result.operationResponse.responseCode == .ok { return }
                 guard attempt < 3, result.operationResponse.responseCode == .deviceBusy else {
@@ -516,10 +575,19 @@
         /// lock during it, so callers bracket it as tightly as possible. Can be refused during
         /// a release/AF/cleaning - callers tolerate that.
         public func changeCameraMode(remote: Bool) async throws {
+            try await changeCameraMode(remote: remote, suppliedAdmission: nil)
+        }
+        public func changeCameraMode(remote: Bool, admission: NikonCommandAdmission) async throws {
+            try await changeCameraMode(remote: remote, suppliedAdmission: admission)
+        }
+        private func changeCameraMode(remote: Bool, suppliedAdmission: NikonCommandAdmission?)
+            async throws
+        {
             let result = try await transact(
                 operationCode: .changeCameraMode,
                 parameters: [remote ? 1 : 0],
-                dataPhase: .noDataOrDataIn
+                dataPhase: .noDataOrDataIn,
+                admission: suppliedAdmission
             )
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
@@ -533,10 +601,16 @@
         /// DeviceReady polling (busy while driving, an out-of-focus response on failure); MF and
         /// warning states return OK immediately without driving.
         public func afDrive() async throws {
+            try await afDrive(suppliedAdmission: nil)
+        }
+        public func afDrive(admission: NikonCommandAdmission) async throws {
+            try await afDrive(suppliedAdmission: admission)
+        }
+        private func afDrive(suppliedAdmission: NikonCommandAdmission?) async throws {
             let result = try await transact(
                 operationCode: .afDrive,
                 parameters: [],
-                dataPhase: .noDataOrDataIn
+                dataPhase: .noDataOrDataIn, admission: suppliedAdmission
             )
             guard result.operationResponse.responseCode == .ok else {
                 throw NativeCameraSessionError.operationRejected(
@@ -819,49 +893,60 @@
                 $0 != 0 && $0 != 0xFFFF_FFFF && seen.insert($0).inserted
             }
             var handles: [MediaObjectHandle] = []
-            var authoritative: Set<UInt32> = []; var failed: Set<UInt32> = []
+            var authoritative: Set<UInt32> = []
+            var failed: Set<UInt32> = []
             for storageID in ids {
                 try await admit()
                 let result: PTPIPTransactionResult
                 do {
-                    result = try await transact(operationCode: .getObjectHandles,
+                    result = try await transact(
+                        operationCode: .getObjectHandles,
                         parameters: [storageID, 0, 0], dataPhase: .dataIn)
                 } catch {
-                    try await admit(); try Task.checkCancellation()
-                    failed.insert(storageID); continue
+                    try await admit()
+                    try Task.checkCancellation()
+                    failed.insert(storageID)
+                    continue
                 }
                 try await admit()
                 guard result.operationResponse.responseCode == .ok, result.data.count >= 4,
                     UInt64(ByteCoding.readUInt32LE(Array(result.data), at: 0))
-                        <= UInt64((result.data.count - 4) / 4) else {
-                    failed.insert(storageID); continue
+                        <= UInt64((result.data.count - 4) / 4)
+                else {
+                    failed.insert(storageID)
+                    continue
                 }
                 authoritative.insert(storageID)
-                handles.append(contentsOf: PTPStorageIDs.parse(Array(result.data)).map {
-                    MediaObjectHandle(storageID: storageID, handle: $0)
-                })
+                handles.append(
+                    contentsOf: PTPStorageIDs.parse(Array(result.data)).map {
+                        MediaObjectHandle(storageID: storageID, handle: $0)
+                    })
             }
-            return .init(handles: handles, authoritativeStorages: authoritative,
-                failedStorages: failed, storageListAuthoritative:
-                    (vendor.accepted || standard.accepted) && !vendor.failed && !standard.failed)
+            return .init(
+                handles: handles, authoritativeStorages: authoritative,
+                failedStorages: failed,
+                storageListAuthoritative: (vendor.accepted || standard.accepted) && !vendor.failed
+                    && !standard.failed)
         }
 
         private func mediaStorageIDs(
             _ operation: PTPOperationCode, admit: @escaping @Sendable () async throws -> Void
         ) async throws
-            -> (ids: [UInt32], accepted: Bool, failed: Bool) {
+            -> (ids: [UInt32], accepted: Bool, failed: Bool)
+        {
             try await admit()
             let result: PTPIPTransactionResult
-            do { result = try await transact(operationCode: operation, dataPhase: .dataIn) }
-            catch {
-                try await admit(); try Task.checkCancellation()
+            do { result = try await transact(operationCode: operation, dataPhase: .dataIn) } catch {
+                try await admit()
+                try Task.checkCancellation()
                 return ([], false, true)
             }
             try await admit()
             guard result.operationResponse.responseCode == .ok else { return ([], false, false) }
             guard result.data.count >= 4,
                 UInt64(ByteCoding.readUInt32LE(Array(result.data), at: 0))
-                    <= UInt64((result.data.count - 4) / 4) else { return ([], false, true) }
+                    <= UInt64((result.data.count - 4) / 4)
+            else { return ([], false, true) }
             return (PTPStorageIDs.parse(Array(result.data)), true, false)
         }
 
@@ -870,7 +955,9 @@
         ) async throws -> [UInt32] {
             let vendor = try await mediaStorageIDs(.getVendorStorageIDs, admit: admit)
             let standard = try await mediaStorageIDs(.getStorageIDs, admit: admit)
-            if requireComplete && (vendor.failed || standard.failed || (!vendor.accepted && !standard.accepted)) {
+            if requireComplete
+                && (vendor.failed || standard.failed || (!vendor.accepted && !standard.accepted))
+            {
                 throw MediaServiceError.unavailable
             }
             var seen: Set<UInt32> = []
@@ -888,10 +975,18 @@
             for id in ids {
                 try await admit()
                 let result: PTPIPTransactionResult
-                do { result = try await transact(operationCode: .getStorageInfo, parameters: [id], dataPhase: .dataIn) }
-                catch { try await admit(); try Task.checkCancellation(); continue }
+                do {
+                    result = try await transact(
+                        operationCode: .getStorageInfo, parameters: [id], dataPhase: .dataIn)
+                } catch {
+                    try await admit()
+                    try Task.checkCancellation()
+                    continue
+                }
                 try await admit()
-                if result.operationResponse.responseCode == .ok, let info = PTPStorageInfo(Array(result.data)) {
+                if result.operationResponse.responseCode == .ok,
+                    let info = PTPStorageInfo(Array(result.data))
+                {
                     records.append(.init(id: id, info: info))
                 }
             }
@@ -1460,9 +1555,17 @@
             parameters: [UInt32] = [],
             dataPhase: PTPDataPhase = .noDataOrDataIn,
             dataOut: Data? = nil,
-            deadline: Duration? = commandTransactionTimeout
+            deadline: Duration? = commandTransactionTimeout,
+            admission: NikonCommandAdmission? = nil
         ) async throws -> PTPIPTransactionResult {
-            try await transport.executeTransaction(
+            if let admission {
+                try admission.require(owner: commandOwner)
+                return try await transport.executeTransaction(
+                    operationCode: operationCode, transactionID: explicitTransactionID,
+                    parameters: parameters, dataPhase: dataPhase, dataOut: dataOut,
+                    deadline: deadline, admission: admission)
+            }
+            return try await transport.executeTransaction(
                 operationCode: operationCode,
                 transactionID: explicitTransactionID,
                 parameters: parameters,

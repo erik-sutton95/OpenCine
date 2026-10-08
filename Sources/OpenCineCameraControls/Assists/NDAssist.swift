@@ -103,6 +103,7 @@
         @ViewBuilder public var content: () -> Content
         @State private var sessionCenter: CGPoint?
         @State private var sessionCenterPortrait: CGPoint?
+        @Environment(\.interfaceLocked) private var interfaceLocked
 
         public init(
             store: MonitorNDPreferenceStore, size: CGSize, defaultCenter: CGPoint,
@@ -130,7 +131,7 @@
                     baseSize: NDAssist.baseSize,
                     preferredSize: size, center: center, scale: store.scale, canvas: bounds,
                     movementBounds: movement),
-                resizeLabel: "Resize ND meter",
+                enabled: !interfaceLocked, resizeLabel: "Resize ND meter",
                 onMove: { event in
                     switch event {
                     case .began: break

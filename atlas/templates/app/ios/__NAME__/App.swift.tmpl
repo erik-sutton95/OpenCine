@@ -1,64 +1,54 @@
+import Foundation
+import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineCameraControls
+import OpenCineMedia
 import SwiftUI
 
 @main
 struct __NAME__App: App {
-    @State private var shell = makeShell()
+    @State private var shell: ShellModel
+    @State private var media: MonitorOperatorMediaModel<MediaAsset, String>?
+    @State private var assist: MonitorAssistState<IdentityLooks>
+    private let operatorPreferences: MonitorOperatorPreferences
+    private let displayPreferences: MonitorDisplayPreferences
+
+    init() {
+        let defaults = appDefaults()
+        _shell = State(initialValue: makeShell(defaults: defaults))
+        _assist = State(initialValue: MonitorAssistState(looks: IdentityLooks(), storage: defaults,
+            keys: .init(assist: "__NAME__.Assists", cleanPins: "__NAME__.CleanPins", playback: "__NAME__.PlaybackAssists"),
+            cleanPinCases: MonitorAssistSelection.allCases))
+        operatorPreferences = MonitorOperatorPreferences(storage: defaults,
+            keys: .init(keepScreenAwake: "__NAME__.KeepScreenAwake", hdrDisplay: "__NAME__.HDRDisplay",
+                recordConfirmation: "__NAME__.RecordConfirmation", haptics: "__NAME__.Haptics", cacheOriginals: "__NAME__.CacheOriginals"))
+        _media = State(initialValue: makeOperatorMedia(defaults: defaults, preferences: operatorPreferences))
+        displayPreferences = MonitorDisplayPreferences(storage: defaults,
+            keys: .init(live: "__NAME__.Display.Live", clean: "__NAME__.Display.Clean"))
+    }
 
     var body: some Scene {
         WindowGroup {
-            Root(shell: shell).observeMonitorWindowGeometry().preferredColorScheme(.dark)
+            MonitorOperatorScene(shell: shell, brand: brand,
+                actions: ShellActions(diagnostics: {}, reportProblem: {}),
+                operatorPreferences: operatorPreferences, displayPreferences: displayPreferences,
+                assist: assist, media: media,
+                availableAssistTools: [.peaking, .falseColor, .zebra, .guides, .grid, .crosshair, .desqueeze, .mirror],
+                picture: { _ in operatorPicture(effects: assist.effects, preferences: operatorPreferences) },
+                thumbnail: operatorThumbnail,
+                playbackPicture: { operatorPlaybackPicture($0, effects: assist.playbackEffects, preferences: operatorPreferences) })
+                .observeMonitorWindowGeometry().preferredColorScheme(.dark)
         }
     }
 }
 
-/// OpenCine's shared shell (`AppShell`): the cameras and pair pages over `makeShell()`, laid out
-/// in the window's physical insets, with this app's monitor and cover pages in its slots.
-private struct Root: View {
-    let shell: ShellModel
-    @Environment(\.monitorWindowGeometry) private var window
-
-    var body: some View {
-        AppShell(
-            model: shell, brand: brand,
-            // ponytail: no diagnostics share or problem report yet; the app wires its own here.
-            actions: ShellActions(diagnostics: {}, reportProblem: {}),
-            safeArea: { _ in window.safeArea }
-        ) { monitor in
-            MonitorSlot(name: monitor.camera.saved.displayName, close: shell.close)
-        } page: { cover in
-            CoverPage(title: cover == .settings ? "Settings" : "Media", done: shell.dismissCover)
-        }
-    }
-}
-
-/// The monitor slot. The shell already owns the camera's session and its common controls
-/// (`shell.control`); compose the monitor screen here, as the existing apps do.
-private struct MonitorSlot: View {
-    let name: String
-    let close: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text(name).font(.title2.bold())
-            Button("Close", action: close)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
-    }
-}
-
-/// A cover page (settings or media) over the current page; covering never disconnects.
-private struct CoverPage: View {
-    let title: String
-    let done: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            Color.black.ignoresSafeArea()
-                .navigationTitle(title)
-                .toolbar { Button("Done", action: done) }
-        }
-    }
+/// Initial source/catalog facts. A real integration composes its own typed look provider.
+/// The shared assist state owns LUT preparation and all operator options.
+@MainActor private final class IdentityLooks: MonitorLookProvider {
+    let selection = "Identity"
+    let cube: CubeLUT? = nil
+    let transfer = MonitorTransfer.rec709
+    let referenceClipByte = 235
+    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
 }

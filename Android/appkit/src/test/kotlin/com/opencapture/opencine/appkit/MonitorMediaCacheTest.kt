@@ -7,6 +7,24 @@ import java.util.UUID
 import kotlin.test.*
 
 class MonitorMediaCacheTest {
+    @Test fun retiringWritesPreservesResumableFilesAndFencesOldFinally() = runTest {
+        val (parent, directory) = directory()
+        try {
+            directory.root.mkdirs()
+            val partial = File(directory.root, "camera-object.part")
+            partial.writeBytes(byteArrayOf(8, 9))
+            val old = directory.beginWrite("take.mov"); old.write(byteArrayOf(1))
+            val generation = directory.generation
+            directory.retireWrites()
+            assertNotEquals(generation, directory.generation)
+            val current = directory.beginWrite("take.mov"); current.write(byteArrayOf(2, 3))
+            val committed = current.commit(MediaTransferReceipt(2))
+            assertEquals(MonitorMediaCacheFailure.RETIRED, assertFailsWith<MonitorMediaCacheException> { old.commit(MediaTransferReceipt(1)) }.failure)
+            old.abort()
+            assertContentEquals(byteArrayOf(2, 3), committed.readBytes())
+            assertContentEquals(byteArrayOf(8, 9), partial.readBytes())
+        } finally { parent.deleteRecursively() }
+    }
     private fun directory(): Pair<File, MonitorMediaCacheDirectory> {
         val parent = File(System.getProperty("java.io.tmpdir"), "opencine-cache-${UUID.randomUUID()}")
         return parent to MonitorMediaCacheDirectory(File(parent, "camera"))

@@ -158,30 +158,7 @@ public enum OfficialDJILUT: String, CaseIterable, Sendable, Hashable {
         }
     }
 
-    /// Shared D-Log M cube unless this body has its own official file.
-    public static func dLogM(cameraName: String?) -> OfficialDJILUT {
-        let n = (cameraName ?? "").lowercased().replacingOccurrences(of: " ", with: "")
-        if n.contains("action6") { return .action6DLogM }
-        return .nanoDLogM
-    }
 
-    /// Official look for this body + color. Rec.709 / HDR have none.
-    public static func auto(
-        colorMode: ColorMode?,
-        family: CameraBodyFamily,
-        cameraName: String? = nil
-    ) -> OfficialDJILUT? {
-        switch colorMode {
-        case .dLog2:
-            return family == .nano ? dLogM(cameraName: cameraName) : .pocketDLog2
-        case .dLog:
-            return family == .nano ? dLogM(cameraName: cameraName) : .pocketDLog
-        case .dLogM:
-            return dLogM(cameraName: cameraName)
-        default:
-            return nil
-        }
-    }
 }
 
 /// Independent on-device custom cubes: Normal/HDR, D-Log, and D-Log2.
@@ -238,8 +215,7 @@ public enum LUTResolver {
     public static func resolve(
         selection: LUTSelection,
         colorMode: ColorMode?,
-        family: CameraBodyFamily = .pocket,
-        cameraName: String? = nil,
+        profile: CameraLUTProfile? = nil,
         hasCustomDLog: Bool,
         hasCustomDLog2: Bool,
         hasCustomRec709: Bool = false,
@@ -247,7 +223,7 @@ public enum LUTResolver {
     ) -> LUTSource {
         switch selection {
         case .auto, .officialAuto:
-            return builtInAutoSource(colorMode: colorMode, family: family, cameraName: cameraName)
+            return builtInAutoSource(colorMode: colorMode, profile: profile)
         case .iLogRec709:
             return .iLogRec709
         case .officialDLog:
@@ -261,7 +237,7 @@ public enum LUTResolver {
         case .djiDLog2:
             return .dji(.pocketDLog2)
         case .djiDLogM:
-            return .dji(OfficialDJILUT.dLogM(cameraName: cameraName))
+            return profile?.selections[selection] ?? .off
         case .customRec709:
             return hasCustomRec709 ? .custom(.rec709) : .off
         case .customDLog:
@@ -276,23 +252,22 @@ public enum LUTResolver {
         }
     }
 
-    /// Auto: official Rec.709 cube for this body + color (log or I-Log). Rec.709 / HDR stay off.
+    /// Auto uses only the source's declared conversion for the observed color.
     public static func builtInAutoSource(
-        colorMode: ColorMode?, family: CameraBodyFamily, cameraName: String? = nil
+        colorMode: ColorMode?, profile: CameraLUTProfile? = nil
     ) -> LUTSource {
-        if colorMode == .iLog { return .iLogRec709 }
-        return OfficialDJILUT.auto(colorMode: colorMode, family: family, cameraName: cameraName)
-            .map(LUTSource.dji) ?? .off
+        guard let colorMode else { return .off }
+        return profile?.automatic[colorMode] ?? .off
     }
 
-    /// Legacy name — same as DJI Auto.
     public static func autoSource(
         colorMode: ColorMode?,
         hasCustomDLog: Bool,
         hasCustomDLog2: Bool,
-        hasCustomRec709: Bool = false
+        hasCustomRec709: Bool = false,
+        profile: CameraLUTProfile? = nil
     ) -> LUTSource {
-        builtInAutoSource(colorMode: colorMode, family: .pocket)
+        builtInAutoSource(colorMode: colorMode, profile: profile)
     }
 
     public static func statusLabel(

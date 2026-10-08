@@ -42,7 +42,9 @@
                     }),
                 preferences: preferences,
                 customLUTs: CustomLUTStore(root: folder, preferences: preferences),
-                preparationReady: preparationReady)
+                preparationReady: preparationReady,
+                lookProfile: CameraLUTProfile(automatic: [.dLog: .dji(.pocketDLog),
+                    .dLog2: .dji(.pocketDLog2)]))
         }
 
         private func state(_ looks: MonitorLUTLooks) -> MonitorAssistState<MonitorLUTLooks> {

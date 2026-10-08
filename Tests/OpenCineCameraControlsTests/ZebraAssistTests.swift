@@ -8,7 +8,7 @@
     /// Pins OpenZCine `AssistConfiguration.Zebra` units and thresholds (OperatorPreferences.swift).
     final class ZebraAssistTests: XCTestCase {
         /// This test's monitored source (XCTest makes a fresh one per test).
-        private let ceiling = OpenCineCameraVocabulary.ScopeExposureCeiling()
+        private let ceiling = DeclaredMonitorColorFacts.makeCeiling()
 
         func testUnitEditorLabelsRoundTrip() {
             XCTAssertEqual(ZebraAssist.unitOptions, ZebraAssist.Unit.allCases.map(\.editorLabel))

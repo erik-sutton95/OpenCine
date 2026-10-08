@@ -5,6 +5,15 @@
     import XCTest
 
     final class MonitorScopePanelPlacementTests: XCTestCase {
+        func testFixedPanelUsesItsWholeBodyWithoutAnInvisibleResizeWell() {
+            let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+            let panel = MonitorScopePanelLayout(baseSize: bounds.size, preferredSize: bounds.size,
+                center: CGPoint(x: 1000, y: 1000), scale: 1,
+                canvas: bounds, movementBounds: bounds, resizable: false)
+            XCTAssertEqual(panel.size, bounds.size)
+            XCTAssertEqual(panel.center, CGPoint(x: 50, y: 50))
+            XCTAssertFalse(panel.resizable)
+        }
         func testAllPanelBodiesAndVerticalResizeWellsStayBetweenControlsAtEveryScale() {
             let canvases = [
                 CGRect(x: 0, y: 0, width: 402, height: 874),

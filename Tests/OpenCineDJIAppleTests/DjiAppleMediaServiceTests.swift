@@ -35,7 +35,7 @@ import Testing
     }
 }
 
-@MainActor private final class MediaPeer: DjiAppleMediaPort {
+@MainActor private final class MediaPeer: DjiAppleMediaMutationPort {
     let session = CameraSessionID()
     var mediaFacts: DjiAppleMediaFacts?
     let ingress = DjiAppleMediaIngressSlot()
@@ -54,6 +54,9 @@ import Testing
     var wireHeld: [Bool] = []
     var ticket: DjiAppleMediaIngress?
     var retiredTicket: DjiAppleMediaIngress?
+    var mutationWrites: [(Duml.Frame, Duration)] = []
+    var mutationReply: [UInt8] = [0]
+    var mutationHook: (() async throws -> Void)?
 
     init(gallery: Bool = false) {
         mediaFacts = .init(
@@ -127,6 +130,15 @@ import Testing
                 },
                 completed: { self.completions.append($0) }))
     }
+    func requestMedia(_ frame: Duml.Frame, source: DjiAppleMediaIdentity, timeout: Duration)
+        async throws -> Duml.Frame {
+        #expect(mediaFacts?.identity == source)
+        mutationWrites.append((frame, timeout))
+        try await mutationHook?()
+        return .init(sender: frame.receiver, receiver: frame.sender, seq: frame.seq,
+            flags: Duml.flagResponse, cmdSet: frame.cmdSet, cmdId: frame.cmdId,
+            payload: mutationReply)
+    }
     func frame(_ payload: [UInt8]) -> Duml.Frame {
         .init(
             sender: 1, receiver: 0, seq: 0, flags: Duml.flagResponse,
@@ -141,6 +153,80 @@ import Testing
             timing: clock.timing, ingress: peer.ingress)
         peer.service = owner
         return owner
+    }
+
+    @Test func actualCatalogMutationKeepsWireBytesTimeoutsAndCameraAcknowledgement() async throws {
+        let peer = MediaPeer(), clock = MediaClock()
+        let service = owner(peer, clock)
+        let browse = try await service.openBrowse()
+        let cursor = try await browse.catalog()
+        let page = try #require(try await cursor.next())
+        let asset = try #require(page.upserts.first {
+            service.mediaCatalogRecord($0.id, binding: browse.binding)?.file.isDeletable == true
+        })
+        let file = try #require(service.mediaCatalogRecord(asset.id, binding: browse.binding)?.file)
+        try await service.setFavorite(asset.id, on: true, binding: browse.binding)
+        let deleted = try await service.deleteAsset(asset.id, binding: browse.binding)
+        #expect(deleted)
+        #expect(peer.mutationWrites.count == 2)
+        #expect(peer.mutationWrites[0].0 == Commands.setMediaFavorite(handle: file.favoriteHandle, on: true, counter: 1))
+        #expect(peer.mutationWrites[0].1 == .milliseconds(900))
+        #expect(peer.mutationWrites[1].0 == Commands.deleteMedia(handle: file.handle, counter: 2))
+        #expect(peer.mutationWrites[1].1 == .seconds(2))
+        #expect(service.mediaCatalogRecord(asset.id, binding: browse.binding) != nil)
+        service.retire()
+    }
+
+    @Test func failedCameraReplyDoesNotBecomeAcceptedDeletion() async throws {
+        let peer = MediaPeer(), clock = MediaClock()
+        let service = owner(peer, clock)
+        let browse = try await service.openBrowse()
+        let cursor = try await browse.catalog()
+        let page = try #require(try await cursor.next())
+        let asset = try #require(page.upserts.first {
+            service.mediaCatalogRecord($0.id, binding: browse.binding)?.file.isDeletable == true
+        })
+        peer.mutationReply = [0xe0]
+        #expect(try await service.deleteAsset(asset.id, binding: browse.binding) == false)
+        #expect(service.mediaCatalogRecord(asset.id, binding: browse.binding) != nil)
+        service.retire()
+    }
+
+    @Test func unknownAssetAndRetiredConnectionCannotWriteAMutation() async throws {
+        let peer = MediaPeer(), clock = MediaClock()
+        let service = owner(peer, clock)
+        let browse = try await service.openBrowse()
+        let cursor = try await browse.catalog()
+        let page = try #require(try await cursor.next())
+        await #expect(throws: MediaServiceError.unavailable) {
+            try await service.setFavorite(.init("unknown"), on: true, binding: browse.binding)
+        }
+        let facts = try #require(peer.mediaFacts)
+        peer.mediaFacts = .init(identity: .init(session: facts.identity.session,
+            epoch: .init(2), cameraID: facts.identity.cameraID), canQuery: true,
+            bodyGalleryOpen: false, inPlayback: true)
+        await #expect(throws: MediaServiceError.retired) {
+            try await service.deleteAsset(page.upserts[0].id, binding: browse.binding)
+        }
+        #expect(peer.mutationWrites.isEmpty)
+        service.retire()
+    }
+
+    @Test func replyAfterReentrantRetirementCannotAcceptTheOldMutation() async throws {
+        let peer = MediaPeer(), clock = MediaClock()
+        let service = owner(peer, clock)
+        let browse = try await service.openBrowse()
+        let cursor = try await browse.catalog()
+        let page = try #require(try await cursor.next())
+        let asset = try #require(page.upserts.first {
+            service.mediaCatalogRecord($0.id, binding: browse.binding)?.file.isDeletable == true
+        })
+        peer.mutationHook = { service.retire() }
+        await #expect(throws: MediaServiceError.retired) {
+            try await service.deleteAsset(asset.id, binding: browse.binding)
+        }
+        #expect(peer.mutationWrites.count == 1)
+        #expect(service.mediaCatalogRecord(asset.id, binding: browse.binding) == nil)
     }
 
     @Test func bodyGallerySendsNoEnterOrListAndKeepsSafeReturn() async throws {

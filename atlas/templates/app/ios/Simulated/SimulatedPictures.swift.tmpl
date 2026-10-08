@@ -1,0 +1,217 @@
+import AVFoundation
+import Foundation
+import OpenCineAppKit
+import OpenCineAppKitApple
+import OpenCineApple
+import OpenCineCore
+import OpenCineMedia
+import SwiftUI
+import UIKit
+
+/// SIMULATED per-install storage. Only an explicit test domain can be cleared by a UI test.
+@MainActor func appDefaults() -> UserDefaults {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let index = arguments.firstIndex(of: "--simulated-test-domain"),
+        arguments.indices.contains(index + 1),
+        let defaults = UserDefaults(suiteName: arguments[index + 1])
+    else {
+        if arguments.contains("--simulated-reset"), let domain = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: domain)
+        }
+        return .standard
+    }
+    if arguments.contains("--simulated-reset") {
+        defaults.removePersistentDomain(forName: arguments[index + 1])
+    }
+    return defaults
+}
+
+/// App-side values and OS adapter construction only. Binding, gallery, caching and player
+/// lifetime are owned by OpenCine's complete operator scene and its media model.
+@MainActor func makeOperatorMedia(defaults: UserDefaults, preferences: MonitorOperatorPreferences) -> MonitorOperatorMediaModel<MediaAsset, String>? {
+    let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("__APP_ID__.simulated/Media", isDirectory: true)
+    let library = makeSimulatedLibrary(root: root, defaults: defaults, storage: MonitorMediaCacheStorage())
+    return MonitorOperatorMediaModel(library: library) { library in
+        let feed = MonitorPlaybackFeedSession(configuration: .init(), hdrDisplay: { preferences.hdrDisplay })
+        let native = MonitorApplePlaybackOwner(feed: feed)
+        return MonitorMediaPlaybackModel(library: library, native: native, candidates: { record in
+            var candidates: [MonitorPlaybackCandidate] = []
+            if let file = library.entries[record.asset.id]?.originalURL {
+                candidates.append(.cached(.init(url: file, mimeType: "video/mp4", sourceKey: record.asset.id.rawValue)))
+            }
+            candidates.append(contentsOf: record.asset.representations.map {
+                .representation($0.id, mimeType: "video/mp4", sourceKey: record.asset.id.rawValue)
+            })
+            return candidates
+        })
+    }
+}
+
+@MainActor func operatorPicture(effects: MonitorFrameEffects, preferences: MonitorOperatorPreferences) -> some View {
+    SimulatedLivePicture(effects: effects, preferences: preferences)
+}
+@MainActor func operatorThumbnail(_ record: MonitorMediaRecord<MediaAsset>) -> some View {
+    Group {
+        if record.asset.id == SimulatedAssets.asset.id,
+            let url = try? SimulatedAssets.url("png"), let image = UIImage(contentsOfFile: url.path) {
+            Image(uiImage: image).resizable().scaledToFit()
+        }
+    }
+}
+@MainActor func operatorPlaybackPicture(_ model: MonitorMediaPlaybackModel<MediaAsset, String>, effects: MonitorFrameEffects,
+    preferences: MonitorOperatorPreferences) -> some View {
+    Group {
+        if let native = model.native as? MonitorApplePlaybackOwner {
+            SimulatedPlaybackPicture(native: native, identity: model.token.owner.uuidString,
+                effects: effects, preferences: preferences)
+        }
+    }
+}
+
+/// The synthetic live source is a looping OS player. It supplies pixels only; no control,
+/// readout, monitor/page layout, editor or cover implementation lives in the sample app.
+@MainActor private struct SimulatedLivePicture: UIViewRepresentable {
+    let effects: MonitorFrameEffects
+    let preferences: MonitorOperatorPreferences
+    func makeCoordinator() -> Coordinator { Coordinator(preferences: preferences) }
+    func makeUIView(context: Context) -> MonitorPlaybackFeedHost {
+        context.coordinator.attach()
+    }
+    func updateUIView(_ view: MonitorPlaybackFeedHost, context: Context) {
+        context.coordinator.update(effects)
+    }
+    static func dismantleUIView(_ view: MonitorPlaybackFeedHost, coordinator: Coordinator) { coordinator.close() }
+
+    @MainActor final class Coordinator {
+        let player = AVQueuePlayer()
+        let feed: MonitorPlaybackFeedSession
+        let display = LiveHDRDisplay()
+        let sampleBus = LiveFrameSampleBus()
+        let preferences: MonitorOperatorPreferences
+        private var looper: AVPlayerLooper?
+        private var itemObserver: NSKeyValueObservation?
+        private var pictureObserver: NSKeyValueObservation?
+        private var host: MonitorPlaybackFeedHost?
+        private let identity = UUID().uuidString
+        init(preferences: MonitorOperatorPreferences) {
+            self.preferences = preferences
+            feed = MonitorPlaybackFeedSession(configuration: .init(), hdrDisplay: { preferences.hdrDisplay })
+        }
+        func attach() -> MonitorPlaybackFeedHost {
+            let view = simulatedHost(display: display, preferences: preferences, identity: identity)
+            host = view
+            view.attachGeneration = feed.reserveHostGeneration()
+            view.isAccessibilityElement = true
+            view.accessibilityIdentifier = "simulated.live.picture"
+            view.accessibilityLabel = "SIMULATED live picture"
+            view.accessibilityValue = "Waiting \(identity)"
+            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak view, identity] _, _ in
+                Task { @MainActor in
+                    guard let view else { return }
+                    view.accessibilityValue = simulatedPictureValue(view, identity: identity)
+                }
+            }
+            feed.attach(host: view, player: player)
+            itemObserver = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] _, _ in
+                Task { @MainActor in
+                    guard let self, let item = self.player.currentItem else { return }
+                    self.feed.prepare(item)
+                }
+            }
+            if let url = try? SimulatedAssets.url("mp4") {
+                looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                player.play()
+            }
+            return view
+        }
+        func update(_ effects: MonitorFrameEffects) {
+            feed.setEffects(effects, transfer: effects.transfer, sampleBus: sampleBus)
+        }
+        func close() {
+            itemObserver = nil; pictureObserver = nil
+            looper?.disableLooping(); looper = nil
+            player.pause(); player.removeAllItems()
+            if let host { feed.detach(host: host) }
+            feed.shutdown(); host = nil
+        }
+    }
+}
+
+/// Bounded native host borrowing the actual shared AVPlayer owner. Shared media lifetime decides
+/// when the item closes; unmounting this view only detaches this host.
+@MainActor private struct SimulatedPlaybackPicture: UIViewRepresentable {
+    let native: MonitorApplePlaybackOwner
+    let identity: String
+    let effects: MonitorFrameEffects
+    let preferences: MonitorOperatorPreferences
+    func makeCoordinator() -> Coordinator { Coordinator(native, identity: identity, preferences: preferences) }
+    func makeUIView(context: Context) -> MonitorPlaybackFeedHost {
+        let view = simulatedHost(display: context.coordinator.display, preferences: preferences, identity: identity)
+        view.attachGeneration = native.feed.reserveHostGeneration()
+        view.isAccessibilityElement = true
+        view.accessibilityIdentifier = "simulated.playback.picture"
+        view.accessibilityLabel = "SIMULATED playback picture"
+        context.coordinator.attach(view)
+        return view
+    }
+    func updateUIView(_ view: MonitorPlaybackFeedHost, context: Context) {
+        context.coordinator.update(effects)
+        native.feed.attach(host: view, player: native.player)
+    }
+    static func dismantleUIView(_ view: MonitorPlaybackFeedHost, coordinator: Coordinator) { coordinator.detach(view) }
+
+    @MainActor final class Coordinator {
+        let native: MonitorApplePlaybackOwner
+        let identity: String
+        let display = LiveHDRDisplay()
+        let sampleBus = LiveFrameSampleBus()
+        private var pictureObserver: NSKeyValueObservation?
+        init(_ native: MonitorApplePlaybackOwner, identity: String, preferences: MonitorOperatorPreferences) {
+            self.native = native; self.identity = identity
+            display.setEnabled(preferences.hdrDisplay)
+        }
+        func attach(_ view: MonitorPlaybackFeedHost) {
+            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak view, identity] _, _ in
+                Task { @MainActor in
+                    guard let view else { return }
+                    view.accessibilityValue = simulatedPictureValue(view, identity: identity)
+                }
+            }
+            native.feed.attach(host: view, player: native.player)
+        }
+        func update(_ effects: MonitorFrameEffects) {
+            native.feed.setEffects(effects, transfer: effects.transfer, sampleBus: sampleBus)
+        }
+        func detach(_ view: MonitorPlaybackFeedHost) {
+            pictureObserver = nil
+            native.feed.detach(host: view)
+        }
+    }
+}
+
+/// SDK display facts go into existing HDR and Metal owners; no display policy is copied here.
+@MainActor private func simulatedHost(display: LiveHDRDisplay,
+    preferences: MonitorOperatorPreferences, identity: String) -> MonitorPlaybackFeedHost {
+    let picture = MonitorPictureHost(frame: .zero, options: { screen in
+        display.setEnabled(preferences.hdrDisplay, screen: screen)
+        display.setScreenCaptured(screen?.isCaptured ?? false, screen: screen)
+        return .init(hdr: display.isEnabled, hdrGain: display.presentGain)
+    })
+    let host = MonitorPlaybackFeedHost(picture: picture, configurePlayerLayer: { layer in
+        display.setEnabled(preferences.hdrDisplay)
+        display.setScreenCaptured(UIScreen.main.isCaptured)
+        display.configure(layer)
+    })
+    picture.onSuccessfulPresent = { [weak host] in
+        guard let host else { return }
+        host.accessibilityValue = simulatedPictureValue(host, identity: identity)
+    }
+    return host
+}
+
+@MainActor private func simulatedPictureValue(_ host: MonitorPlaybackFeedHost, identity: String) -> String {
+    let decoded = host.playerLayer.isReadyForDisplay || host.ciFeed.hasPresentedFrame
+    let processed = host.ciFeed.hasPresentedFrame ? " Processed" : ""
+    return "\(decoded ? "Decoded" : "Waiting")\(processed) \(identity)"
+}

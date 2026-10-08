@@ -236,6 +236,30 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:camera-controls"
+    },
+    {
+      "name": ":relay",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:relay"
+    },
+    {
+      "name": ":relay-runtime",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:relay-runtime"
+    },
+    {
+      "name": ":watch-runtime",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:watch-runtime"
+    },
+    {
+      "name": ":nikon-wire",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:nikon-wire"
     }
   ],
   "layers": {
@@ -262,7 +286,10 @@
       ":platform",
       ":decoder",
       ":vulkan",
-      ":native-runtime"
+      ":native-runtime",
+      ":relay",
+      ":relay-runtime",
+      ":watch-runtime"
     ],
     "ui": [
       "MonitorPresentation",
@@ -310,7 +337,8 @@
       ":dji",
       ":nikon",
       ":insta360-shell",
-      ":insta360-luna"
+      ":insta360-luna",
+      ":nikon-wire"
     ],
     "harness": [
       "HarnessEngine",

@@ -18,6 +18,7 @@ interface CaptureSheetHost {
     /** The connected body, or null before one is known. */
     val camera: CameraModel?
     val labelProfile: CameraLabelProfile
+    val audioService: CaptureAudioService? get() = null
 
     /** The common Core field a sheet edits, opened (and its editor captured) when the sheet opens. */
     fun captureField(sheet: LiveSheet, expoMode: Int): MonitorCaptureField?

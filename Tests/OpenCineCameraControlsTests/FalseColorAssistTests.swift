@@ -9,11 +9,11 @@
     @MainActor
     final class FalseColorAssistTests: XCTestCase {
         /// This test's monitored source (XCTest makes a fresh one per test).
-        private let ceiling = OpenCineCameraVocabulary.ScopeExposureCeiling()
+        private let ceiling = DeclaredMonitorColorFacts.makeCeiling()
         /// A camera with the D-Log family's official looks. These cases read the signal (LOG), where
         /// the look does not apply.
         private let looks = FalseColorLooks(
-            scaleHelp: "", rec709LookCurve: { DJILook.rec709LookCurve($0) })
+            scaleHelp: "", rec709LookCurve: { DeclaredMonitorColorFacts.lookCurves[$0] })
 
         func testScaleOptionsMatchOpenZCine() {
             XCTAssertEqual(FalseColorAssist.scaleOptions, ["CineStop", "Video", "IRE", "Limits"])

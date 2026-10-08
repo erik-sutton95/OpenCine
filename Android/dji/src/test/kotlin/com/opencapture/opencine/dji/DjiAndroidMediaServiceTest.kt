@@ -76,6 +76,62 @@ class DjiAndroidMediaServiceTest {
             }
     }
 
+    @Test fun catalogMutationUsesOnlyTheCapturedSourceHandlesAndOriginalWireBytes() = runTest {
+        val peer = Peer(this)
+        val browse = peer.service.openBrowse()
+        val delta = browse.catalog().next()!!
+        val asset = delta.upserts.first { peer.service.mediaCatalogRecord(it.id, browse.binding)?.file?.isDeletable == true }
+        val file = peer.service.mediaCatalogRecord(asset.id, browse.binding)!!.file
+        val start = peer.writes.size
+        val favorite = assertNotNull(peer.service.submitFavorite(asset.id, true, browse.binding))
+        val deletion = assertNotNull(peer.service.submitDeletion(asset.id, browse.binding))
+        assertContentEquals(MediaCommands.favoritePayload(file.favoriteHandle, true, 1), peer.writes[start].second)
+        assertEquals(MediaCommands.CMD_MEDIA_FAVORITE, peer.writes[start].first)
+        assertContentEquals(MediaCommands.deletePayload(file.handle, 2), peer.writes[start + 1].second)
+        assertEquals(MediaCommands.CMD_MEDIA_DELETE, peer.writes[start + 1].first)
+        assertTrue(peer.service.isCurrent(favorite)); assertTrue(peer.service.isCurrent(deletion))
+        assertNotNull(peer.service.mediaCatalogRecord(asset.id, browse.binding), "A write is not a camera deletion acknowledgement")
+        peer.service.retire()
+    }
+    @Test fun mutationsRejectUnknownAssetsRetiredBrowsesAndAReplacementConnectionBeforeWriting() = runTest {
+        val peer = Peer(this)
+        val browse = peer.service.openBrowse()
+        val asset = browse.catalog().next()!!.upserts.first()
+        val before = peer.writes.size
+        assertNull(peer.service.submitFavorite(MediaAssetID("unknown"), true, browse.binding))
+        assertNull(peer.service.submitDeletion(MediaAssetID("unknown"), browse.binding))
+        peer.identity = peer.identity.copy(epoch = ControlEpoch(2))
+        assertNull(peer.service.submitFavorite(asset.id, true, browse.binding))
+        assertNull(peer.service.submitDeletion(asset.id, browse.binding))
+        assertEquals(before, peer.writes.size)
+        peer.service.retire()
+        assertNull(peer.service.submitDeletion(asset.id, browse.binding))
+    }
+    @Test fun reentrantRetirementAfterAWriteCannotAuthorizeOptimisticLocalDeletion() = runTest {
+        val peer = Peer(this)
+        val browse = peer.service.openBrowse()
+        val asset = browse.catalog().next()!!.upserts.first { peer.service.mediaCatalogRecord(it.id, browse.binding)?.file?.isDeletable == true }
+        val before = peer.writes.size
+        peer.writeHook = { peer.service.retire() }
+        assertNull(peer.service.submitDeletion(asset.id, browse.binding))
+        assertEquals(before + 1, peer.writes.size)
+        assertNull(peer.service.submitFavorite(asset.id, false, browse.binding))
+        assertEquals(before + 1, peer.writes.size)
+    }
+    @Test fun submissionExpiresWhenTheSameCameraReconnectsOrBrowseCloses() = runTest {
+        val peer = Peer(this)
+        val browse = peer.service.openBrowse()
+        val asset = browse.catalog().next()!!.upserts.first { peer.service.mediaCatalogRecord(it.id, browse.binding)?.file?.favoriteHandle != 0L }
+        val submission = assertNotNull(peer.service.submitFavorite(asset.id, false, browse.binding))
+        assertTrue(peer.service.isCurrent(submission))
+        peer.identity = peer.identity.copy(epoch = ControlEpoch(2))
+        assertFalse(peer.service.isCurrent(submission))
+        peer.identity = submission.source
+        browse.close()
+        assertFalse(peer.service.isCurrent(submission))
+        peer.service.retire()
+    }
+
     @Test fun actualManifestCatalogRetainsSourceRecordsAndWireQueries() = runTest {
         val peer = Peer(this)
         val browse = peer.service.openBrowse()

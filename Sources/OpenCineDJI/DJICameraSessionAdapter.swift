@@ -34,6 +34,8 @@ public enum DJILinkState: Equatable, Sendable {
 /// twin is `PocketControlPort`). The app session conforms; tests and harnesses use a fake.
 @MainActor
 public protocol DJIControlPort: AnyObject {
+    /// The concrete native endpoint's thread-safe source identity, when an admitted port exists.
+    var commandOwner: DJICommandOwner? { get }
     /// Camera-reported status.
     var status: CameraStatus { get }
     /// `status` with the white balance request in flight applied. DJI sends white balance
@@ -58,7 +60,8 @@ public protocol DJIControlPort: AnyObject {
     func writeExposureCompensation(
         _ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeFocusMode(
-        _ value: OpenCineCameraVocabulary.FocusMode, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+        _ value: OpenCineCameraVocabulary.FocusMode,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeZoom(
         _ ratio: Double, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func takePhoto()
@@ -67,6 +70,70 @@ public protocol DJIControlPort: AnyObject {
     func setWhiteBalanceAuto(tint: Int?, onStage: (@MainActor (ControlWireEvent) -> Void)?)
     func setWhiteBalanceCustom(
         kelvin: Int, tint: Int, onStage: (@MainActor (ControlWireEvent) -> Void)?)
+    func writeShutter(
+        _ denominator: Int, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeExposureCompensation(
+        _ value: EvComp, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeFocusMode(
+        _ value: OpenCineCameraVocabulary.FocusMode, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeZoom(
+        _ ratio: Double, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func takePhoto(admission: DJICommandAdmission)
+    func setISO(
+        _ index: IsoIndex, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?)
+    func setRecording(
+        _ start: Bool, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?)
+    func setWhiteBalanceAuto(
+        tint: Int?, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?)
+    func setWhiteBalanceCustom(
+        kelvin: Int, tint: Int, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?)
+}
+
+/// Original ports/fakes stay compatible. A supplied receipt never falls through an unknown
+/// native implementation into a direct write.
+extension DJIControlPort {
+    public var commandOwner: DJICommandOwner? { nil }
+    public func writeShutter(
+        _ denominator: Int, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) { onStage(.notSent) }
+    public func writeExposureCompensation(
+        _ value: EvComp, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) { onStage(.notSent) }
+    public func writeFocusMode(
+        _ value: OpenCineCameraVocabulary.FocusMode, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) { onStage(.notSent) }
+    public func writeZoom(
+        _ ratio: Double, admission: DJICommandAdmission,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) { onStage(.notSent) }
+    public func takePhoto(admission: DJICommandAdmission) {}
+    public func setISO(
+        _ index: IsoIndex, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) { onStage?(.notSent) }
+    public func setRecording(
+        _ start: Bool, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) { onStage?(.notSent) }
+    public func setWhiteBalanceAuto(
+        tint: Int?, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) { onStage?(.notSent) }
+    public func setWhiteBalanceCustom(
+        kelvin: Int, tint: Int, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) { onStage?(.notSent) }
 }
 
 extension CameraStatus {
@@ -159,6 +226,14 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     public func request(_ intent: CameraCommandIntent) -> CommandReceipt {
         send(CameraCommand(intent, preconditions: CommandPreconditions(current)))
     }
+    @discardableResult
+    public func request(_ intent: CameraCommandIntent, admission: DJICommandAdmission)
+        -> CommandReceipt
+    {
+        send(
+            CameraCommand(intent, preconditions: CommandPreconditions(current)),
+            suppliedAdmission: admission)
+    }
 
     /// Record lamp, gamepad, Watch and watcher toggles. Photo fires a still; video resolves to
     /// an explicit start or stop from a fresh snapshot, never a blind toggle (plan 5.4).
@@ -170,6 +245,17 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         }
         return request(current.recording.value == .recording ? .stopRecording : .startRecording)
     }
+    @discardableResult
+    public func shutter(admission: DJICommandAdmission) -> CommandReceipt? {
+        guard admission.admits(session.commandOwner) else { return nil }
+        if session.currentShootingMode?.isPhoto == true {
+            session.takePhoto(admission: admission)
+            return nil
+        }
+        return request(
+            current.recording.value == .recording ? .stopRecording : .startRecording,
+            admission: admission)
+    }
 
     // MARK: Session hooks
 
@@ -180,9 +266,11 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         guard !open.isEmpty else { return }
         let status = session.status
         for (operation, expectation) in open
-        where (receipts[operation]?.stage == .awaitingObservation
+        where
+            (receipts[operation]?.stage == .awaitingObservation
             || (expectation.permitsReportBeforeAck && receipts[operation]?.stage == .sent))
-            && expectation.shows(status) {
+            && expectation.shows(status)
+        {
             finish(operation, .confirmed)
         }
     }
@@ -210,6 +298,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     }
 
     public func submit(_ command: CameraCommand) -> CommandReceipt { send(command) }
+    public func submit(_ command: CameraCommand, admission: DJICommandAdmission) -> CommandReceipt {
+        send(command, suppliedAdmission: admission)
+    }
 
     public func receipt(of operation: OperationID) -> CommandReceipt? { receipts[operation] }
 
@@ -247,6 +338,11 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
 
     @discardableResult
     func send(_ command: CameraCommand) -> CommandReceipt {
+        send(command, suppliedAdmission: nil)
+    }
+    private func send(_ command: CameraCommand, suppliedAdmission admission: DJICommandAdmission?)
+        -> CommandReceipt
+    {
         let operation = command.operation
         if let known = receipts[operation] { return known }
         let snapshot = current
@@ -254,6 +350,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             operation: operation, session: id, intent: command.intent,
             confirmation: snapshot.capabilities[command.intent.key]?.semantics.confirmation
                 ?? .readback)
+        if let admission, !admission.admits(session.commandOwner) {
+            return advance(operation, .rejected(.authorityExpired))
+        }
         if let rejection = snapshot.rejection(of: command, at: now())
             ?? Self.integrationRejection(command.intent, snapshot)
         {
@@ -264,7 +363,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         if Self.alreadyReported(command.intent, snapshot) {
             return advance(operation, .confirmed)
         }
-        guard let plan = wirePlan(command.intent) else {
+        guard let plan = wirePlan(command.intent, admission: admission) else {
             return advance(operation, .rejected(.unsupported))
         }
         open[operation] = Expectation(
@@ -288,7 +387,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     /// show afterwards. Admission already checked the value against the declared domain. DJI
     /// sends white balance and tint in one frame, so each write fills the other half from the
     /// current (or pending) white balance.
-    private func wirePlan(_ intent: CameraCommandIntent) -> WirePlan? {
+    private func wirePlan(_ intent: CameraCommandIntent, admission: DJICommandAdmission?)
+        -> WirePlan?
+    {
         let session = session
         let display = session.whiteBalanceDisplayStatus
         switch intent {
@@ -298,14 +399,28 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             else { return nil }
             return WirePlan(
                 shows: { _ in session.captureControlState?.reported.shutterDenom == denominator },
-                fire: { session.writeShutter(denominator, onStage: $0) }, requiresReport: true)
+                fire: {
+                    if let admission {
+                        session.writeShutter(denominator, admission: admission, onStage: $0)
+                    } else {
+                        session.writeShutter(denominator, onStage: $0)
+                    }
+                }, requiresReport: true)
         case .set(.exposureCompensation(let stops)):
-            guard let value = EvComp.allCases.first(where: {
-                Rational($0.thirds, 3) == stops
-            }) else { return nil }
+            guard
+                let value = EvComp.allCases.first(where: {
+                    Rational($0.thirds, 3) == stops
+                })
+            else { return nil }
             return WirePlan(
                 shows: { _ in session.captureControlState?.reported.evComp == value },
-                fire: { session.writeExposureCompensation(value, onStage: $0) },
+                fire: {
+                    if let admission {
+                        session.writeExposureCompensation(value, admission: admission, onStage: $0)
+                    } else {
+                        session.writeExposureCompensation(value, onStage: $0)
+                    }
+                },
                 requiresReport: true)
         case .set(.focusMode(let mode)):
             let value: OpenCineCameraVocabulary.FocusMode
@@ -316,7 +431,13 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             }
             return WirePlan(
                 shows: { _ in session.captureControlState?.reported.focusMode == value },
-                fire: { session.writeFocusMode(value, onStage: $0) }, requiresReport: true)
+                fire: {
+                    if let admission {
+                        session.writeFocusMode(value, admission: admission, onStage: $0)
+                    } else {
+                        session.writeFocusMode(value, onStage: $0)
+                    }
+                }, requiresReport: true)
         case .set(.zoom(let ratio)):
             return WirePlan(
                 shows: { _ in
@@ -324,28 +445,49 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                         CamFov.matches($0, ratio)
                     } ?? false
                 },
-                fire: { session.writeZoom(ratio, onStage: $0) }, requiresReport: true)
+                fire: {
+                    if let admission {
+                        session.writeZoom(ratio, admission: admission, onStage: $0)
+                    } else {
+                        session.writeZoom(ratio, onStage: $0)
+                    }
+                }, requiresReport: true)
         case .set(.iso(let value)):
             guard let index = Self.isoIndex(value) else { return nil }
             return WirePlan(
                 shows: { $0.isoIndex == index },
-                fire: { session.setISO(index, onStage: $0) })
+                fire: {
+                    if let admission {
+                        session.setISO(index, admission: admission, onStage: $0)
+                    } else {
+                        session.setISO(index, onStage: $0)
+                    }
+                })
         case .set(.whiteBalanceTint(let tint)):
             guard let wb = display.whiteBalance else { return nil }
-            return whiteBalancePlan(Self.whiteBalance(wb), tint: Int(tint))
+            return whiteBalancePlan(Self.whiteBalance(wb), tint: Int(tint), admission: admission)
         case .set(.whiteBalance(let value)):
-            return whiteBalancePlan(value, tint: display.whiteBalanceTint ?? 0)
+            return whiteBalancePlan(
+                value, tint: display.whiteBalanceTint ?? 0, admission: admission)
         case .startRecording, .stopRecording:
             let start = intent == .startRecording
             return WirePlan(
                 shows: { $0.recordingReported && $0.isRecording == start },
-                fire: { session.setRecording(start, onStage: $0) })
+                fire: {
+                    if let admission {
+                        session.setRecording(start, admission: admission, onStage: $0)
+                    } else {
+                        session.setRecording(start, onStage: $0)
+                    }
+                })
         case .set, .focusPoint:
             return nil
         }
     }
 
-    private func whiteBalancePlan(_ value: WhiteBalanceValue, tint: Int) -> WirePlan? {
+    private func whiteBalancePlan(
+        _ value: WhiteBalanceValue, tint: Int, admission: DJICommandAdmission?
+    ) -> WirePlan? {
         let session = session
         let t = min(max(tint, -100), 100)
         switch value {
@@ -353,12 +495,25 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             let wb = WhiteBalance.auto(tint: t)
             return WirePlan(
                 shows: { $0.whiteBalance == wb },
-                fire: { session.setWhiteBalanceAuto(tint: t, onStage: $0) })
+                fire: {
+                    if let admission {
+                        session.setWhiteBalanceAuto(tint: t, admission: admission, onStage: $0)
+                    } else {
+                        session.setWhiteBalanceAuto(tint: t, onStage: $0)
+                    }
+                })
         case .kelvin(let kelvin):
             let wb = WhiteBalance.custom(kelvin: min(max(kelvin, 2_000), 10_000), tint: t)
             return WirePlan(
                 shows: { $0.whiteBalance == wb },
-                fire: { session.setWhiteBalanceCustom(kelvin: wb.kelvin, tint: t, onStage: $0) }
+                fire: {
+                    if let admission {
+                        session.setWhiteBalanceCustom(
+                            kelvin: wb.kelvin, tint: t, admission: admission, onStage: $0)
+                    } else {
+                        session.setWhiteBalanceCustom(kelvin: wb.kelvin, tint: t, onStage: $0)
+                    }
+                }
             )
         case .preset:
             return nil
@@ -498,16 +653,19 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         }
         next.recording =
             status.recordingReported
-            ? ObservedValue(status.isRecording ? .recording : .idle, origin: .cameraReported, at: nil)
+            ? ObservedValue(
+                status.isRecording ? .recording : .idle, origin: .cameraReported, at: nil)
             : .unknown
         next.power = Self.power(status)
         next.storage = Self.storage(status)
-        next.timecode = Self.timecode(status.timecode).map {
-            ObservedValue($0, origin: .cameraReported, at: nil)
-        } ?? .unknown
-        next.audioLevels = status.audioMeters.map {
-            ObservedValue(Self.audioLevels($0), origin: .cameraReported, at: nil)
-        } ?? .unknown
+        next.timecode =
+            Self.timecode(status.timecode).map {
+                ObservedValue($0, origin: .cameraReported, at: nil)
+            } ?? .unknown
+        next.audioLevels =
+            status.audioMeters.map {
+                ObservedValue(Self.audioLevels($0), origin: .cameraReported, at: nil)
+            } ?? .unknown
         let model = session.connectedModel
         let declared = CapabilitySnapshot(
             revision: snapshot.capabilities.revision,
@@ -604,7 +762,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     static func timecode(_ raw: String?) -> CameraTimecode? {
         guard let parts = raw?.split(separator: ":").compactMap({ Int($0) }), parts.count == 4
         else { return nil }
-        return CameraTimecode(hours: parts[0], minutes: parts[1], seconds: parts[2], frames: parts[3])
+        return CameraTimecode(
+            hours: parts[0], minutes: parts[1], seconds: parts[2], frames: parts[3])
     }
 
     /// The camera-held meter in dBFS. `AudioMeterChannel.peakAge` is display ballistics, not a
@@ -641,8 +800,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         return ObservedValue(mode, origin: .cameraReported, at: nil)
     }
 
-    private static func settings(_ status: CameraStatus) -> [SettingKey: ObservedValue<SettingValue>]
-    {
+    private static func settings(_ status: CameraStatus) -> [SettingKey: ObservedValue<
+        SettingValue
+    >] {
         var settings: [SettingKey: ObservedValue<SettingValue>] = [:]
         if let index = status.isoIndex {
             settings[.iso] = ObservedValue(.iso(iso(index)), origin: .cameraReported, at: nil)
@@ -704,10 +864,22 @@ extension DJICameraSessionAdapter {
         request(.set(.iso(Self.iso(index))))
     }
 
+    @discardableResult
+    public func setISO(_ index: IsoIndex, admission: DJICommandAdmission) -> CommandReceipt {
+        request(.set(.iso(Self.iso(index))), admission: admission)
+    }
+
     /// `nil` keeps the current (or pending) tint, as the Auto row always has.
     @discardableResult
     public func setWhiteBalanceAuto(tint: Int? = nil) -> CommandReceipt {
         setWhiteBalance(.auto, tint: tint)
+    }
+
+    @discardableResult
+    public func setWhiteBalanceAuto(tint: Int? = nil, admission: DJICommandAdmission)
+        -> CommandReceipt
+    {
+        setWhiteBalance(.auto, tint: tint, suppliedAdmission: admission)
     }
 
     /// Kelvin snaps to the 100 K drum the camera stores (`K/100` on the wire).
@@ -717,15 +889,34 @@ extension DJICameraSessionAdapter {
             .kelvin(WhiteBalance.snappedKelvin(min(max(kelvin, 2_000), 10_000))), tint: tint)
     }
 
+    @discardableResult
+    public func setWhiteBalanceCustom(kelvin: Int, tint: Int, admission: DJICommandAdmission)
+        -> CommandReceipt
+    {
+        setWhiteBalance(
+            .kelvin(WhiteBalance.snappedKelvin(min(max(kelvin, 2_000), 10_000))), tint: tint,
+            suppliedAdmission: admission)
+    }
+
     /// One Core write per setting that changes: white balance (keeping the pending tint), then
     /// tint (on the pending white balance). Returns the last receipt.
     private func setWhiteBalance(_ value: WhiteBalanceValue, tint: Int?) -> CommandReceipt {
+        setWhiteBalance(value, tint: tint, suppliedAdmission: nil)
+    }
+
+    private func setWhiteBalance(
+        _ value: WhiteBalanceValue, tint: Int?, suppliedAdmission admission: DJICommandAdmission?
+    ) -> CommandReceipt {
+        func write(_ value: SettingValue) -> CommandReceipt {
+            if let admission { return request(.set(value), admission: admission) }
+            return request(.set(value))
+        }
         let pending = session.whiteBalanceDisplayStatus.whiteBalance
         guard let tint = tint.map({ min(max($0, -100), 100) }), tint != pending?.tint else {
-            return request(.set(.whiteBalance(value)))
+            return write(.whiteBalance(value))
         }
-        if pending.map(Self.whiteBalance) != value { request(.set(.whiteBalance(value))) }
-        return request(.set(.whiteBalanceTint(Double(tint))))
+        if pending.map(Self.whiteBalance) != value { _ = write(.whiteBalance(value)) }
+        return write(.whiteBalanceTint(Double(tint)))
     }
 
     /// A confirmed start or stop: the target the operator approved, not a recomputed toggle.
@@ -752,7 +943,23 @@ extension DJICameraSessionAdapter {
 
     /// `request` with the preconditions of what `target` showed, not of a fresh snapshot.
     @discardableResult
-    public func request(_ intent: CameraCommandIntent, aimedAt target: ControlTarget) -> CommandReceipt {
+    public func request(_ intent: CameraCommandIntent, aimedAt target: ControlTarget)
+        -> CommandReceipt
+    {
+        request(intent, aimedAt: target, suppliedAdmission: nil)
+    }
+
+    @discardableResult
+    public func request(
+        _ intent: CameraCommandIntent, aimedAt target: ControlTarget, admission: DJICommandAdmission
+    ) -> CommandReceipt {
+        request(intent, aimedAt: target, suppliedAdmission: admission)
+    }
+
+    private func request(
+        _ intent: CameraCommandIntent, aimedAt target: ControlTarget,
+        suppliedAdmission admission: DJICommandAdmission?
+    ) -> CommandReceipt {
         let snapshot = current
         return send(
             CameraCommand(
@@ -760,7 +967,7 @@ extension DJICameraSessionAdapter {
                 preconditions: CommandPreconditions(
                     session: target.session, epoch: target.epoch,
                     capabilityRevision: snapshot.capabilities.revision,
-                    lease: snapshot.authority.leaseID)))
+                    lease: snapshot.authority.leaseID)), suppliedAdmission: admission)
     }
 
     /// `shutter()` aimed at `target`. A still fires only while `target` holds; otherwise the
@@ -775,11 +982,35 @@ extension DJICameraSessionAdapter {
         return request(recording ? .stopRecording : .startRecording, aimedAt: target)
     }
 
+    @discardableResult
+    public func shutter(aimedAt target: ControlTarget, admission: DJICommandAdmission)
+        -> CommandReceipt?
+    {
+        if session.currentShootingMode?.isPhoto == true, self.target == target,
+            admission.admits(session.commandOwner)
+        {
+            session.takePhoto(admission: admission)
+            return nil
+        }
+        let recording = current.recording.value == .recording
+        return request(
+            recording ? .stopRecording : .startRecording, aimedAt: target, admission: admission)
+    }
+
     /// A confirmed start or stop, refused if the approval was given for another session or link.
     @discardableResult
     public func record(start: Bool, aimedAt target: ControlTarget?) -> CommandReceipt {
         guard let target else { return record(start: start) }
         return request(start ? .startRecording : .stopRecording, aimedAt: target)
+    }
+
+    @discardableResult
+    public func record(
+        start: Bool, aimedAt target: ControlTarget?, admission: DJICommandAdmission
+    ) -> CommandReceipt {
+        let intent: CameraCommandIntent = start ? .startRecording : .stopRecording
+        guard let target else { return request(intent, admission: admission) }
+        return request(intent, aimedAt: target, admission: admission)
     }
 }
 

@@ -14,8 +14,10 @@ class CameraLabelProfileTest {
 
     @Test fun standardProfileKeepsTheVocabularyNames() {
         assertEquals("HyperLapse", CameraCommands.shootingModeLabel(CameraCommands.SHOOT_HYPERLAPSE))
-        assertEquals("Low-Light", CameraCommands.shootingModeLabel(CameraCommands.SHOOT_SUPER_NIGHT, "Osmo Pocket 3"))
-        assertEquals("Normal 8-bit", CameraCommands.colorLabel(CameraCommands.COLOR_NORMAL, "nano"))
+        assertEquals("Low-Light", CameraCommands.shootingModeLabel(CameraCommands.SHOOT_SUPER_NIGHT, profile = CameraLabelProfile(
+            shootingModeLabels = mapOf(CameraCommands.SHOOT_SUPER_NIGHT to "Low-Light"))))
+        assertEquals("Normal 8-bit", CameraCommands.colorLabel(CameraCommands.COLOR_NORMAL, profile = CameraLabelProfile(
+            colorModeLabels = mapOf(CameraCommands.COLOR_NORMAL to "Normal 8-bit"))))
         assertEquals("Follow", GimbalMode.FOLLOW.label(CameraLabelProfile.standard))
         assertNull(CameraLabelProfile.standard.colorModes)
         assertEquals(FocusOption.entries.map { it.chip }, CameraLabelProfile.standard.focusLabels)

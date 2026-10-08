@@ -170,21 +170,21 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
         prefs(context).edit { putInt(GIMBAL_DOUBLE_TAP, value.raw) }
     }
 
-    private fun display(context: Context) = MonitorDisplayPreferences(
+    fun displayPreferences(context: Context) = MonitorDisplayPreferences(
         prefs(context), MonitorDisplayPreferences.Keys(DISP_LIVE, DISP_CLEAN),
     )
 
-    fun dispLive(context: Context): MonitorDisplayChrome = display(context).live
+    fun dispLive(context: Context): MonitorDisplayChrome = displayPreferences(context).live
 
     fun setDispLive(context: Context, value: MonitorDisplayChrome) {
-        display(context).live = value
+        displayPreferences(context).live = value
     }
 
     fun dispClean(context: Context): MonitorDisplayChrome =
-        display(context).clean
+        displayPreferences(context).clean
 
     fun setDispClean(context: Context, value: MonitorDisplayChrome) {
-        display(context).clean = value
+        displayPreferences(context).clean = value
     }
 
     fun cleanViewPinnedTools(context: Context): Set<String> {
@@ -288,6 +288,9 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
 
     private fun toolUsage(context: Context) =
         MonitorToolUsagePreferences(prefs(context), ASSIST_TOOL_USAGE)
+
+    /** Borrow the exact existing usage storage and deployed key. */
+    fun assistToolUsagePreferences(context: Context): MonitorToolUsagePreferences = toolUsage(context)
 
     fun assistToolUsage(context: Context): com.opencapture.monitorui.MonitorToolUsageState =
         toolUsage(context).value

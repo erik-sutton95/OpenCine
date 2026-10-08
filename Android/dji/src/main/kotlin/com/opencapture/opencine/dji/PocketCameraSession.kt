@@ -488,6 +488,7 @@ class PocketCameraSession(
 
     private var cachedMediaService: DjiAndroidMediaService? = null
     private var mediaReturnOwner: Long? = null
+    private val mediaReturnSession = com.opencapture.opencine.media.MonitorMediaReturnSession(scope)
     private val actualMediaPort = object : DjiAndroidMediaPort {
         override val mediaFacts: DjiAndroidMediaFacts?
             get() {
@@ -497,7 +498,8 @@ class PocketCameraSession(
                 val link = datalink
                 return DjiAndroidMediaFacts(identity,
                     _phase.value == ConnectionPhase.LIVE && controlLeaseAllows() && link != null && !link.isClosed && !link.isRebuilding,
-                    _cameraGalleryOpen.value, _status.value.inPlayback)
+                    _cameraGalleryOpen.value, _status.value.inPlayback,
+                    DJIMediaSourcePolicy.observed(connectedCamera?.model, _status.value.inPlayback, _status.value.internalTotalMb))
             }
         private fun current(source: DjiAndroidMediaIdentity, returning: Boolean = false): Boolean {
             val facts = mediaFacts ?: return false
@@ -525,8 +527,10 @@ class PocketCameraSession(
         override fun claimMediaReturn(source: DjiAndroidMediaIdentity, operation: suspend (DjiAndroidMediaReturnAuthority) -> Unit): kotlinx.coroutines.Deferred<Unit>? {
             val owner = mediaReturnOwner ?: return null
             if (!current(source, returning = true) || !ownsMediaReturnContext(owner)) return null
-            // This job belongs to the native session, not the gallery composition or collector.
-            return scope.async {
+            // The shared scheduler belongs to the native session, independent of gallery collectors.
+            mediaReturnSession.start(
+                ifCurrent = { current(source, returning = true) && ownsMediaReturnContext(owner) },
+                operation = {
                 withMediaLiveResumeOwner(owner) {
                     val startedAt = SystemClock.elapsedRealtime()
                     fun admitted(): Boolean = current(source, returning = true) && ownsMediaLiveResume(owner)
@@ -543,7 +547,8 @@ class PocketCameraSession(
                         })
                     operation(authority)
                 }
-            }
+            })
+            return mediaReturnSession.task
         }
     }
     /** Real connection identity remains available during a same-session driver-repair gap. */
@@ -972,6 +977,7 @@ class PocketCameraSession(
         isBrowsingMedia = false
         mediaPictureGeneration += 1
         mediaReturnPending = false
+        mediaReturnSession.cancel()
         _phase.value = ConnectionPhase.IDLE
         _status.value = CameraStatus()
         reportedIsoIndex = null
@@ -3895,6 +3901,7 @@ class PocketCameraSession(
         mediaPictureGeneration += 1
         isBrowsingMedia = browsing
         mediaReturnPending = resumePending && !browsing
+        mediaReturnSession.cancel()
         if (coreWatchdog != 0L && DjiNative.isAvailable) DjiNative.feedWatchdogReset(coreWatchdog)
         feedWatchdog.reset()
         return mediaPictureGeneration
@@ -3974,7 +3981,12 @@ class PocketCameraSession(
 
     fun endMediaBrowse() {
         val owner = markBrowsingMedia(false, resumePending = true)
-        scope.launch {
+        val source = mediaConnectionIdentity
+        mediaReturnSession.start(ifCurrent = {
+            val currentSource = mediaConnectionIdentity
+            ownsMediaReturnContext(owner) && if (source == null) currentSource == null
+                else currentSource?.sameConnection(source) == true
+        }, operation = {
             withMediaLiveResumeOwner(owner) {
                 val startedAt = SystemClock.elapsedRealtime()
                 val result = MediaLiveResumeRunner.run(
@@ -3992,7 +4004,7 @@ class PocketCameraSession(
                     mediaLiveResumeExhausted(owner)
                 }
             }
-        }
+        })
     }
 
     fun listMedia() {
@@ -4394,7 +4406,7 @@ class PocketCameraSession(
         fireKind(
             DjiNative.CMD_SET_COLOR_MODE,
             colorModeExtra(mode),
-            CameraCommands.colorLabel(mode, family),
+            CameraCommands.colorLabel(mode, family, connectedCamera?.model?.captureProfile?.labels ?: com.opencapture.opencine.vocabulary.CameraLabelProfile.standard),
             onFail = { colorPin = null },
         )
         hopNativeISO(from, mode, hopEnabled)

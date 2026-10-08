@@ -59,3 +59,32 @@ data class MediaDeliveryOverlayState(
     val isPreparing: Boolean = true,
     val filename: String? = null,
 )
+
+/** The original Android copy/cadence consumes the same ordered batch facts as Apple. */
+fun com.opencapture.opencine.appkit.MonitorDeliveryBatchProgress.androidOverlay(
+    action: com.opencapture.opencine.appkit.MonitorDeliveryPostExportAction,
+): MediaDeliveryOverlayState? {
+    if (!isCaching && !isSwitchingNetworks &&
+        stage != com.opencapture.opencine.appkit.MonitorDeliveryBatchProgress.Stage.SAVING &&
+        (isPreparingClip || action == com.opencapture.opencine.appkit.MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS)) return null
+    val saving = stage == com.opencapture.opencine.appkit.MonitorDeliveryBatchProgress.Stage.SAVING
+    val text = when {
+        isSwitchingNetworks -> "Switching networks…"
+        isCaching -> if (clipFraction > 0.0) "Caching from camera" else "Caching from camera…"
+        saving -> "Saving to Photos ${if (totalClips > 0) (clipIndex - 1) * 100 / totalClips else 0}%"
+        else -> "Preparing to share"
+    }
+    return MediaDeliveryOverlayState(text,
+        batchLine = if (totalClips > 1) "Clip $clipIndex of $totalClips" else null,
+        overallFraction = if (isCaching) clipFraction else overallFraction,
+        isPreparing = if (isCaching) isPreparingClip else isSwitchingNetworks,
+        filename = filename)
+}
+
+fun com.opencapture.opencine.appkit.MonitorDeliveryBatchOutcome<File>.androidResult(): MediaDeliveryResult = when (this) {
+    is com.opencapture.opencine.appkit.MonitorDeliveryBatchOutcome.Share -> MediaDeliveryResult.ShareReady(urls)
+    is com.opencapture.opencine.appkit.MonitorDeliveryBatchOutcome.SavedToPhotos -> MediaDeliveryResult.Message(
+        if (count == 0) "Couldn't save clips to Photos." else "Saved $count clip${if (count == 1) "" else "s"} to Photos")
+    is com.opencapture.opencine.appkit.MonitorDeliveryBatchOutcome.Failed -> MediaDeliveryResult.Message(message)
+    is com.opencapture.opencine.appkit.MonitorDeliveryBatchOutcome.Uploaded -> MediaDeliveryResult.Message(summary)
+}

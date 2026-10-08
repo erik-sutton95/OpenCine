@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -89,6 +90,7 @@ fun SheetHeader(title: String, subtitle: String, onClose: () -> Unit,
         }
         if (showsClose) {
             Box(Modifier.size(44.dp).chromeClickable(enabled = interactive, onClick = { if (interactive) onClose() })
+                .testTag("monitor.capture.close")
                 .semantics { contentDescription = "Close camera control" }, contentAlignment = Alignment.Center) {
                 MonitorIcon(MonitorIcon.X, null, Modifier.size(13.dp), LiveDesign.muted)
             }

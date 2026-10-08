@@ -808,6 +808,7 @@ def main(argv=None):
     p.add_argument("--integration", choices=["fake"], default="fake", help="what the app lists (default fake, SIMULATED)")
     p.add_argument("--id", help="bundle and application id (default com.opencapture.<name lowercased>)")
     p.add_argument("--dest", help="parent folder (default: the folder holding this OpenCine checkout)")
+    p.add_argument("--dry-run", action="store_true", help="validate and list every output; write nothing")
     gp = sub.add_parser("graph", help="Graphify navigation snapshots").add_subparsers(dest="gcmd", required=True)
     p = gp.add_parser("plan", help="read-only: what a build would read, exclude and write")
     p.add_argument("targets", nargs="*", help="repo or repo@ref; default every registered ref")

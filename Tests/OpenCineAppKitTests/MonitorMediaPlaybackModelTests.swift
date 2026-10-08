@@ -93,6 +93,8 @@ import Testing
         lookTiming: MonitorPlaybackLookTiming = .afterNativeReadiness,
         startTiming: MonitorPlaybackStartTiming = .afterNativeReadiness,
         records: [MonitorMediaRecord<String>] = [], service: (any CameraMediaService)? = nil,
+        seekEndClearance: Double = 0.05,
+        sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .preserveRequest,
         candidate: (@MainActor @Sendable (MonitorMediaRecord<String>) -> [MonitorPlaybackCandidate])? = nil,
         resolveLook: @escaping @MainActor @Sendable (MonitorMediaRecord<String>, MonitorPlaybackItem) async -> MonitorPlaybackLook<String>? = { _, _ in nil }) ->
         (URL, MonitorMediaLibraryModel<String>, PlaybackTestPort, MonitorMediaPlaybackModel<String, String>) {
@@ -106,7 +108,8 @@ import Testing
         let port = native ?? PlaybackTestPort()
         let model = MonitorMediaPlaybackModel<String, String>(library: library, native: port, lookTiming: lookTiming, startTiming: startTiming,
             candidates: candidate ?? { [.cached(.init(url: URL(fileURLWithPath: "/" + $0.payload + ".mov"), mimeType: "video/mp4", sourceKey: $0.payload))] },
-            resolveLook: resolveLook, now: { clock.instant })
+            resolveLook: resolveLook, now: { clock.instant }, seekEndClearance: seekEndClearance,
+            sceneLossPolicy: sceneLossPolicy)
         return (root, library, port, model)
     }
     private func eventually(_ predicate: () -> Bool) async -> Bool {
@@ -525,5 +528,113 @@ import Testing
         #expect(model.scrubbing && model.scrubPosition == 55)
         model.commitScrub(admitted: kept)
         #expect(await eventually { port.seeks.count == 3 }); port.finishSeek(2)
+    }
+    @Test func sourceSeekClearancePreservesStrict250msTailAndDefault50msTail() async {
+        guard #available(macOS 14, *) else { return }
+        for clearance in [0.25, 0.05] {
+            let (root, library, port, model) = fixture(seekEndClearance: clearance)
+            defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+            let row = record("tail")
+            model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+            port.release(0, facts: .init(duration: 10)); #expect(await eventually { model.ready })
+            let token = model.token
+            let cases: [(Double, Bool)] = clearance == 0.25
+                ? [(-0.1, true), (-0.2, true), (-0.25, true), (-0.251, false)]
+                : [(-0.025, true), (-0.05, true), (-0.051, false)]
+            for (index, value) in cases.enumerated() {
+                port.onEvent?(token, .ended); #expect(model.reachedEnd)
+                model.seek(by: value.0); #expect(model.reachedEnd == value.1)
+                #expect(await eventually { port.seeks.count == index + 1 }); port.finishSeek(index)
+                await Task.yield()
+            }
+        }
+    }
+
+    @Test func sourceScrubClearanceRetainsTailUntilStrictBoundaryAndRejectsRetiredEdit() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(seekEndClearance: 0.25)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("tail"), b = record("next")
+        model.load(a, playlist: [a, b]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0, facts: .init(duration: 10)); #expect(await eventually { model.ready })
+        port.onEvent?(model.token, .ended)
+        guard let edit = model.beginScrub() else { Issue.record("Missing ready scrub"); return }
+        model.updateScrub(seconds: 9.8, admitted: edit); #expect(model.reachedEnd)
+        model.updateScrub(seconds: 9.75, admitted: edit); #expect(model.reachedEnd)
+        model.updateScrub(seconds: 9.749, admitted: edit); #expect(!model.reachedEnd)
+        #expect(await eventually { port.seeks.count == 1 }); port.finishSeek(0)
+        model.load(b, playlist: [a, b]); #expect(await eventually { port.preparations.count == 2 })
+        port.release(1, facts: .init(duration: 10)); #expect(await eventually { model.ready })
+        port.onEvent?(model.token, .ended)
+        model.updateScrub(seconds: 0, admitted: edit)
+        #expect(model.reachedEnd && model.active?.asset.id == b.asset.id && !model.scrubbing)
+    }
+
+    @Test func clearingSceneRequestCancelsInterruptedScrubWithoutAutomaticResume() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        guard let edit = model.beginScrub() else { Issue.record("Missing ready scrub"); return }
+        model.updateScrub(seconds: 30, admitted: edit)
+        #expect(await eventually { port.seeks.count == 1 })
+        model.cancelScrub(interrupted: true)
+        model.setSceneActive(false)
+        port.finishSeek(0)
+        for _ in 0..<20 { await Task.yield() }
+        model.setSceneActive(true)
+        #expect(model.ready && model.token == item && !model.scrubbing && !model.playRequested)
+        #expect(port.played == [item] && port.closes == 0 && library.browsing)
+        model.setPlaying(true)
+        #expect(model.playRequested && port.played == [item, item])
+    }
+
+    @Test func clearingSceneRequestCannotClearReplacementFromStatePublication() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("A"), b = record("B")
+        model.load(a, playlist: [a, b]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let old = model.token
+        withObservationTracking { _ = model.playRequested } onChange: {
+            MainActor.assumeIsolated { model.load(b, playlist: [a, b], play: true) }
+        }
+        model.setSceneActive(false)
+        #expect(model.active?.payload == "B" && model.playRequested && model.token != old)
+        #expect(await eventually { port.preparations.count == 2 })
+        port.release(1); #expect(await eventually { model.ready })
+        let current = model.token
+        #expect(port.played == [old])
+        model.setSceneActive(true)
+        #expect(model.playRequested && port.played == [old, current] && !model.closed)
+    }
+
+    @Test func outgoingSceneLossCannotBorrowReplacementFromSourcePredicate() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("A"), b = record("B")
+        let replacement = PlaybackReplacement()
+        model.setItemAdmission { row in
+            MonitorPlaybackAdmission {
+                if row.payload == "A", replacement.fired {
+                    replacement.fired = false
+                    model.load(b, playlist: [a, b], play: true)
+                }
+                return true
+            }
+        }
+        model.load(a, playlist: [a, b]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let old = model.token
+        replacement.fired = true; model.setSceneActive(false)
+        #expect(model.active?.payload == "B" && model.playRequested && model.token != old)
+        #expect(await eventually { port.preparations.count == 2 })
+        port.release(1); #expect(await eventually { model.ready && port.played.count == 2 })
+        #expect(port.played == [old, model.token] && !model.closed && library.browsing)
     }
 }

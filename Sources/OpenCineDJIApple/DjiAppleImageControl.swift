@@ -199,6 +199,7 @@ import OpenCineDJI
             @escaping @MainActor (DjiAppleControlExchange.SetEvent) -> Void
         ) -> Void
     private let event: (Event) -> Void
+    private let admittedNativeISO: ((ColorMode?, ColorMode, DJICommandAdmission) -> Void)?
     private let now: () -> Date
     private var generation: UInt64 = 0
     private var gestureAdmission: (() -> Bool)?
@@ -206,6 +207,7 @@ import OpenCineDJI
     private var hopBinding: DjiAppleSettingsBinding?
     private var pendingBinding: DjiAppleSettingsBinding?
     private var pendingStage: (@MainActor (ControlWireEvent) -> Void)?
+    private var pendingAdmission: DJICommandAdmission?
 
     public init(
         binding: @escaping () -> DjiAppleSettingsBinding, facts: @escaping () -> Facts,
@@ -214,13 +216,15 @@ import OpenCineDJI
                 DjiAppleControlExchange.SetRequest,
                 @escaping @MainActor (DjiAppleControlExchange.SetEvent) -> Void
             ) -> Void,
-        now: @escaping () -> Date = { Date() }, event: @escaping (Event) -> Void = { _ in }
+        now: @escaping () -> Date = { Date() }, event: @escaping (Event) -> Void = { _ in },
+        admittedNativeISO: ((ColorMode?, ColorMode, DJICommandAdmission) -> Void)? = nil
     ) {
         self.binding = binding
         self.facts = facts
         self.send = send
         self.now = now
         self.event = event
+        self.admittedNativeISO = admittedNativeISO
     }
 
     /// Disconnect retirement is local. Its captured pending stage is released exactly once.
@@ -229,6 +233,7 @@ import OpenCineDJI
         deadline = nil
         hopBinding = nil
         pendingBinding = nil
+        pendingAdmission = nil
         let previous = pendingStage
         pendingStage = nil
         commit(.init())
@@ -236,6 +241,17 @@ import OpenCineDJI
     }
 
     @discardableResult public func dropForZoom(_ factor: Double) -> Bool {
+        dropForZoom(factor, suppliedAdmission: nil)
+    }
+    @discardableResult public func dropForZoom(_ factor: Double, admission: DJICommandAdmission)
+        -> Bool
+    {
+        dropForZoom(factor, suppliedAdmission: admission)
+    }
+    private func dropForZoom(_ factor: Double, suppliedAdmission admission: DJICommandAdmission?)
+        -> Bool
+    {
+        guard admission?.isCurrent ?? true else { return false }
         let token = generation
         let source = binding()
         let publication = commit(snapshot)
@@ -245,11 +261,11 @@ import OpenCineDJI
         guard let next = CamFov.colorMode(forZoom: factor, current: captured.status.colorMode)
         else {
             if !captured.previewing, snapshot.pendingFactor == nil, !snapshot.hopPending {
-                return restoreIfNeeded(afterZoom: factor)
+                return restoreIfNeeded(afterZoom: factor, suppliedAdmission: admission)
             }
             return true
         }
-        return sendColorOnce(next)
+        return sendColorOnce(next, admission: admission)
     }
 
     public func holding(_ factor: Double) -> Bool {
@@ -258,16 +274,28 @@ import OpenCineDJI
     }
 
     public func queue(_ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)?) {
-        _ = queuePublication(factor, onStage: onStage)
+        _ = queuePublication(factor, onStage: onStage, admission: nil)
+    }
+    public func queue(
+        _ factor: Double, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) {
+        _ = queuePublication(factor, onStage: onStage, admission: admission)
     }
 
     private func queuePublication(
-        _ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)?
+        _ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)?,
+        admission: DJICommandAdmission?
     ) -> UInt64? {
+        guard admission?.isCurrent ?? true else {
+            onStage?(.notSent)
+            return nil
+        }
         let token = generation
         let source = binding()
         let previous = pendingStage
         pendingStage = onStage
+        pendingAdmission = admission
         pendingBinding = source
         var next = snapshot
         next.pendingFactor = factor
@@ -284,6 +312,7 @@ import OpenCineDJI
         let previous = pendingStage
         pendingStage = nil
         pendingBinding = nil
+        pendingAdmission = nil
         var next = snapshot
         next.pendingFactor = nil
         let publication = commit(next)
@@ -297,6 +326,7 @@ import OpenCineDJI
         let previous = pendingStage
         pendingStage = nil
         pendingBinding = nil
+        pendingAdmission = nil
         var next = snapshot
         next.pendingFactor = nil
         next.restoreOnWide = false
@@ -338,12 +368,23 @@ import OpenCineDJI
     }
 
     public func slider(_ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)? = nil) {
-        _ = sliderPublication(factor, onStage: onStage)
+        _ = sliderPublication(factor, onStage: onStage, admission: nil)
+    }
+    public func slider(
+        _ factor: Double, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)? = nil
+    ) {
+        _ = sliderPublication(factor, onStage: onStage, admission: admission)
     }
 
     private func sliderPublication(
-        _ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)?
+        _ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)?,
+        admission: DJICommandAdmission?
     ) -> UInt64? {
+        guard admission?.isCurrent ?? true else {
+            onStage?(.notSent)
+            return nil
+        }
         let captured = facts()
         guard !captured.locked else {
             event(.locked)
@@ -354,14 +395,14 @@ import OpenCineDJI
             onStage?(.notSent)
             return nil
         }
-        guard dropForZoom(factor) else {
+        guard dropForZoom(factor, suppliedAdmission: admission) else {
             onStage?(.notSent)
             return nil
         }
         let token = generation
         let source = binding()
         if holding(factor) {
-            return queuePublication(factor, onStage: onStage)
+            return queuePublication(factor, onStage: onStage, admission: admission)
         }
         let publication = revision
         event(.slewCleared)
@@ -372,20 +413,32 @@ import OpenCineDJI
         return firePublication(
             .lens(CamFov.pinchLens(for: factor)), target: CamFov.displayTenths(factor),
             announce: false,
-            onStage: onStage)
+            onStage: onStage, admission: admission)
     }
 
     public func fire(
         _ write: CamFov.ChipWrite, target: Double?, announce: Bool,
         onStage: (@MainActor (ControlWireEvent) -> Void)? = nil
     ) {
-        _ = firePublication(write, target: target, announce: announce, onStage: onStage)
+        _ = firePublication(
+            write, target: target, announce: announce, onStage: onStage, admission: nil)
+    }
+    public func fire(
+        _ write: CamFov.ChipWrite, target: Double?, announce: Bool,
+        admission: DJICommandAdmission, onStage: (@MainActor (ControlWireEvent) -> Void)? = nil
+    ) {
+        _ = firePublication(
+            write, target: target, announce: announce, onStage: onStage, admission: admission)
     }
 
     private func firePublication(
         _ write: CamFov.ChipWrite, target: Double?, announce: Bool,
-        onStage: (@MainActor (ControlWireEvent) -> Void)?
+        onStage: (@MainActor (ControlWireEvent) -> Void)?, admission: DJICommandAdmission?
     ) -> UInt64? {
+        guard admission?.isCurrent ?? true else {
+            onStage?(.notSent)
+            return nil
+        }
         let captured = facts()
         guard captured.supportsZoom else {
             onStage?(.notSent)
@@ -419,7 +472,7 @@ import OpenCineDJI
         send(
             .init(
                 frame, name: name, expectation: announce ? target.map { .zoom($0) } : nil,
-                retransmits: announce, coalesce: !announce)
+                retransmits: announce, coalesce: !announce, admission: admission)
         ) { [weak self] callback in
             guard let self, self.current(token, source: source) else { return }
             switch callback {
@@ -435,6 +488,19 @@ import OpenCineDJI
     }
 
     @discardableResult public func restoreIfNeeded(afterZoom factor: Double) -> Bool {
+        restoreIfNeeded(afterZoom: factor, suppliedAdmission: nil)
+    }
+    @discardableResult public func restoreIfNeeded(
+        afterZoom factor: Double,
+        admission: DJICommandAdmission
+    ) -> Bool {
+        restoreIfNeeded(afterZoom: factor, suppliedAdmission: admission)
+    }
+    private func restoreIfNeeded(
+        afterZoom factor: Double,
+        suppliedAdmission admission: DJICommandAdmission?
+    ) -> Bool {
+        guard admission?.isCurrent ?? true else { return false }
         guard snapshot.restoreOnWide, CamFov.shouldRestoreDLog2(factor: factor) else { return true }
         let captured = facts()
         guard !captured.status.isRecording else { return true }
@@ -449,7 +515,7 @@ import OpenCineDJI
         send(
             .init(
                 Commands.setColorMode(.dLog2, model: captured.model), name: "D-Log2",
-                expectation: .color(.dLog2))
+                expectation: .color(.dLog2), admission: admission)
         ) {
             [weak self] callback in
             guard let self, self.current(token, source: source) else { return }
@@ -460,7 +526,7 @@ import OpenCineDJI
             }
         }
         guard current(token, source: source) else { return false }
-        event(.nativeISO(from: captured.status.colorMode, to: .dLog2))
+        publishNativeISO(from: captured.status.colorMode, to: .dLog2, admission: admission)
         return current(token, source: source) && revision == publication
     }
 
@@ -496,7 +562,8 @@ import OpenCineDJI
         event(.recordingBlocked)
         return true
     }
-    private func sendColorOnce(_ mode: ColorMode) -> Bool {
+    private func sendColorOnce(_ mode: ColorMode, admission: DJICommandAdmission?) -> Bool {
+        guard admission?.isCurrent ?? true else { return false }
         let captured = facts()
         guard !captured.status.isRecording else {
             event(.recordingBlocked)
@@ -526,7 +593,7 @@ import OpenCineDJI
         send(
             .init(
                 Commands.setColorMode(mode, model: captured.model), name: "D-Log (zoom)",
-                expectation: .color(mode))
+                expectation: .color(mode), admission: admission)
         ) {
             [weak self] callback in
             guard let self, self.current(token, source: source) else { return }
@@ -569,9 +636,19 @@ import OpenCineDJI
             }
         }
         guard current(token, source: source), revision == admittedPublication else { return false }
-        event(.nativeISO(from: captured.status.colorMode, to: mode))
+        publishNativeISO(from: captured.status.colorMode, to: mode, admission: admission)
         return current(token, source: source) && revision == admittedPublication
     }
+    private func publishNativeISO(from: ColorMode?, to: ColorMode, admission: DJICommandAdmission?)
+    {
+        if let admission {
+            guard admission.isCurrent else { return }
+            admittedNativeISO?(from, to, admission)
+        } else {
+            event(.nativeISO(from: from, to: to))
+        }
+    }
+
     private func flushPendingPublication() -> UInt64? {
         guard let factor = snapshot.pendingFactor, !holding(factor) else { return revision }
         guard pendingBinding == binding() else {
@@ -580,8 +657,10 @@ import OpenCineDJI
         let token = generation
         let source = binding()
         let onStage = pendingStage
+        let admission = pendingAdmission
         pendingStage = nil
         pendingBinding = nil
+        pendingAdmission = nil
         var next = snapshot
         next.pendingFactor = nil
         let publication = commit(next)
@@ -589,12 +668,16 @@ import OpenCineDJI
             onStage?(.notSent)
             return nil
         }
+        guard admission?.isCurrent ?? true else {
+            onStage?(.notSent)
+            return publication
+        }
         event(.flushed(factor))
         guard current(token, source: source), revision == publication else {
             onStage?(.notSent)
             return nil
         }
         // Use the same slider recipe directly, never an app-owned whole workflow callback.
-        return sliderPublication(factor, onStage: onStage)
+        return sliderPublication(factor, onStage: onStage, admission: admission)
     }
 }

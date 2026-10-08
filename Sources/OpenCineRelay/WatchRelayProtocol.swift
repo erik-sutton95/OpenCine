@@ -226,31 +226,40 @@ public enum WatchRelayEnvelopeError: Error, Equatable, Sendable {
 
 /// One-byte-tagged JSON framing over `WCSession.sendMessageData`.
 public enum WatchRelayEnvelope {
-    private static let encoder = JSONEncoder()
-    private static let decoder = JSONDecoder()
-
     public static func encode<Payload: Encodable>(
         kind: WatchRelayProtocol.Kind,
         payload: Payload
     ) throws -> Data {
-        var data = Data([kind.rawValue])
-        data.append(try encoder.encode(payload))
-        return data
+        try RelayEnvelopeFraming.encode(kind: kind.rawValue, payload: payload)
     }
 
     public static func kind(of envelope: Data) throws -> WatchRelayProtocol.Kind {
-        guard let first = envelope.first else { throw WatchRelayEnvelopeError.empty }
-        guard let kind = WatchRelayProtocol.Kind(rawValue: first) else {
-            throw WatchRelayEnvelopeError.unknownKind(first)
+        do {
+            let raw = try RelayEnvelopeFraming.kind(
+                of: envelope, admittedKinds: [0x01, 0x02, 0x10, 0x11])
+            guard let kind = WatchRelayProtocol.Kind(rawValue: raw) else {
+                throw WatchRelayEnvelopeError.unknownKind(raw)
+            }
+            return kind
+        } catch let error as RelayEnvelopeFraming.DecodeError {
+            switch error {
+            case .empty: throw WatchRelayEnvelopeError.empty
+            case .unknownKind(let raw): throw WatchRelayEnvelopeError.unknownKind(raw)
+            }
         }
-        return kind
     }
 
     public static func decode<Payload: Decodable>(
         _ type: Payload.Type,
         from envelope: Data
     ) throws -> Payload {
-        guard !envelope.isEmpty else { throw WatchRelayEnvelopeError.empty }
-        return try decoder.decode(type, from: envelope.dropFirst())
+        do { return try RelayEnvelopeFraming.decode(type, from: envelope) } catch let error
+            as RelayEnvelopeFraming.DecodeError
+        {
+            switch error {
+            case .empty: throw WatchRelayEnvelopeError.empty
+            case .unknownKind(let raw): throw WatchRelayEnvelopeError.unknownKind(raw)
+            }
+        }
     }
 }

@@ -105,6 +105,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
                     .frame(maxWidth: portrait ? nil : .infinity)
                 }
                 .buttonStyle(CameraPageButtonStyle(destructive: true))
+                .accessibilityIdentifier("monitor.system.disconnect")
             }
         }
     }

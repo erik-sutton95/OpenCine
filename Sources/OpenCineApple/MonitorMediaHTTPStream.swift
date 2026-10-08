@@ -27,8 +27,13 @@ public final class MonitorMediaHTTPStream: @unchecked Sendable {
             request.start(url: url, expected: expectedByteCount)
             defer { request.cancel() }
             var written: UInt64 = 0
+            var lengthObserved = false
             for try await chunk in request.stream {
                 try Task.checkCancellation()
+                if !lengthObserved, let progress = sink as? any MediaTransferProgressSink {
+                    try await progress.expectedByteCount(request.expected)
+                    lengthObserved = true
+                }
                 try await sink.write(chunk)
                 written += UInt64(chunk.count)
                 let expected = request.expected

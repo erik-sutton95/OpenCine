@@ -17,7 +17,7 @@ import PackageDescription
 // - OpenCineAppKit (the app shell) builds on Core, Multicam and UI; never an integration or an
 //   app.
 // - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
-//   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMotion, OpenCineRelay and
+//   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMedia, OpenCineMotion, OpenCineRelay and
 //   OpenCineRelayApple only: never an integration, an app or a third-party package.
 // - OpenCineCameraControls (the camera apps' controls over the camera vocabulary: face AF,
 //   capture sheets, live chrome, gimbal views) builds on OpenCineCameraVocabulary, MonitorUI,
@@ -137,7 +137,7 @@ let package = Package(
         ),
         .testTarget(name: "MonitorPresentationTests", dependencies: ["MonitorPresentation"]),
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
-        .testTarget(name: "MonitorUITests", dependencies: ["MonitorUI", "MonitorPresentation"]),
+        .testTarget(name: "MonitorUITests", dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -162,8 +162,8 @@ let package = Package(
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
         // protocols; iOS only, empty elsewhere.
-        .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineApple", "OpenCineMotion"]),
-        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion"]),
+        .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
         // The camera apps' controls over the camera vocabulary (app composition next to the app
         // shell). App differences arrive as host values, never as brand branches.
         .target(

@@ -1,0 +1,28 @@
+package com.opencapture.opencine.vocabulary
+
+/** Integration-supplied facts used by shared capture presentation. Null means unknown. */
+data class CameraCaptureProfile(
+    val labels: CameraLabelProfile = CameraLabelProfile.standard,
+    val supportsFocusMode: Boolean? = null,
+    val supportsTapFocus: Boolean? = null,
+    val supportsAperture: Boolean? = null,
+    val hasGimbal: Boolean? = null,
+    val supportsZoom: Boolean? = null,
+    val isoAutoRangeFloor: Int? = null,
+    val videoFormatFallbacks: Map<Int, List<VideoFormat>> = emptyMap(),
+    val zoom: CameraZoomProfile? = null,
+    val looks: CameraLUTProfile? = null,
+)
+
+data class CameraZoomProfile(
+    val stops: List<Double>,
+    val restrictedModes: Set<Int> = emptySet(),
+    val restrictedStops: List<Double> = listOf(1.0),
+    val resolutionCeilings: Map<VideoResolution, Double> = emptyMap(),
+) {
+    fun choices(resolution: VideoResolution?, shootingMode: Int): List<Double> {
+        if (shootingMode in restrictedModes) return restrictedStops
+        val ceiling = resolutionCeilings[resolution] ?: return stops
+        return (stops.filter { it <= ceiling } + ceiling).distinct().sorted()
+    }
+}

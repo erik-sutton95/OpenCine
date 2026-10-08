@@ -123,7 +123,7 @@ object CaptureLists {
     fun formatAspects(status: CameraStatus): List<VideoAspect> =
         VideoFormat.aspects(
             status.availableVideoFormats,
-            VideoFormat.current(status).resolution.aspect,
+            VideoResolution.fromRaw(status.resolutionCode)?.aspect,
         )
 
     fun formatResolutions(
@@ -131,10 +131,10 @@ object CaptureLists {
         selectedAspect: VideoAspect? = null,
     ): List<VideoResolution> {
         if (CameraCommands.isPhotoMode(status.shootingMode)) return emptyList()
-        val current = VideoFormat.current(status).resolution
+        val current = VideoResolution.fromRaw(status.resolutionCode)
         if (!formatPickerEditable(status)) {
             val aspect = selectedAspect
-            return listOf(current).filter { aspect == null || it.aspect == aspect }
+            return listOfNotNull(current).filter { aspect == null || it.aspect == aspect }
         }
         val aspect = if (formatAspects(status).size > 1) selectedAspect else null
         return VideoFormat.resolutions(
@@ -148,7 +148,7 @@ object CaptureLists {
         VideoFormat.frameRates(
             status.availableVideoFormats,
             resolution,
-            VideoFormat.current(status).frameRate,
+            (VideoFormat.parse(status.resolutionCode, status.fpsIndex)?.frameRate ?: VideoFrameRate.fromFps(status.fps)),
             status.shootingMode,
         )
 
@@ -178,7 +178,7 @@ object CaptureLists {
     fun fpsDrumLabels(status: CameraStatus, tab: Int, selectedAspect: VideoAspect? = null): List<String> {
         val res =
             formatResolutions(status, selectedAspect).getOrNull(tab)
-                ?: VideoFormat.current(status).resolution
+                ?: VideoResolution.fromRaw(status.resolutionCode) ?: return emptyList()
         return formatRates(status, res).map { it.drumLabel }
     }
 
@@ -276,30 +276,6 @@ object CaptureLists {
 
     val fpsDrumLabels: List<String> get() = VideoFrameRate.drumLabels
 
-    /** Family fallback — D-Log2 is 4 Pro only (`colorWheelOrder`). */
-    val colorWheelPocket: List<Pair<Int, String>> =
-        listOf(
-            CameraCommands.COLOR_NORMAL to "Normal",
-            CameraCommands.COLOR_HDR to "HDR",
-            CameraCommands.COLOR_DLOG to "D-Log",
-        )
-
-    val colorWheelPocket4Pro: List<Pair<Int, String>> =
-        colorWheelPocket + listOf(CameraCommands.COLOR_DLOG2 to "D-Log2")
-
-    val colorWheelPocket3: List<Pair<Int, String>> =
-        listOf(
-            CameraCommands.COLOR_NORMAL to "Normal",
-            CameraCommands.COLOR_HDR to "HDR",
-            CameraCommands.COLOR_DLOG_M to "D-Log M",
-        )
-
-    val colorWheelNano: List<Pair<Int, String>> =
-        listOf(
-            CameraCommands.COLOR_NORMAL to "Normal 8-bit",
-            CameraCommands.COLOR_NORMAL10 to "Normal 10-bit",
-            CameraCommands.COLOR_DLOG_M to "D-Log M 10-bit",
-        )
 
     fun shutterDenoms(status: CameraStatus): List<Int> =
         CameraCommands.shutterWheelDenoms(status.availableShutterDenoms, status.shutterDenom)
@@ -490,11 +466,11 @@ object CaptureLists {
     fun shouldGetIsoLimit(status: CameraStatus): Boolean =
         CameraCommands.shouldGetIsoLimit(isoPresentationColor(status))
 
-    fun isoAutoBase(colorMode: Int, bodyName: String = ""): Int? =
+    fun isoAutoBase(colorMode: Int, bodyName: String = "", isoAutoRangeFloor: Int? = null): Int? =
         when (colorMode) {
             CameraCommands.COLOR_DLOG2 -> null
             CameraCommands.COLOR_DLOG -> 400
-            else -> CameraModel.isoAutoRangeFloorFor(bodyName)
+            else -> isoAutoRangeFloor
         }
 
     fun isoAutoLimits(colorMode: Int): List<IsoLimit> =
@@ -515,22 +491,22 @@ object CaptureLists {
                 )
         }
 
-    fun isoAutoLabels(status: CameraStatus, bodyName: String = ""): List<String> {
+    fun isoAutoLabels(status: CameraStatus, bodyName: String = "", isoAutoRangeFloor: Int? = null): List<String> {
         val color = isoPresentationColor(status)
-        val base = isoAutoBase(color, bodyName) ?: return emptyList()
+        val base = isoAutoBase(color, bodyName, isoAutoRangeFloor) ?: return emptyList()
         return isoAutoLimits(color).map { it.label(base) }
     }
 
-    fun isoAutoLabel(status: CameraStatus, bodyName: String = ""): String {
+    fun isoAutoLabel(status: CameraStatus, bodyName: String = "", isoAutoRangeFloor: Int? = null): String {
         val color = isoPresentationColor(status)
-        val base = isoAutoBase(color, bodyName) ?: return ""
+        val base = isoAutoBase(color, bodyName, isoAutoRangeFloor) ?: return ""
         val limit = IsoLimit.entries.firstOrNull { it.rawValue == status.isoLimit } ?: return ""
         return limit.label(base)
     }
 
-    fun isoLimit(fromLabel: String, status: CameraStatus, bodyName: String = ""): IsoLimit? {
+    fun isoLimit(fromLabel: String, status: CameraStatus, bodyName: String = "", isoAutoRangeFloor: Int? = null): IsoLimit? {
         val color = isoPresentationColor(status)
-        val base = isoAutoBase(color, bodyName) ?: return null
+        val base = isoAutoBase(color, bodyName, isoAutoRangeFloor) ?: return null
         return isoAutoLimits(color).firstOrNull { it.label(base) == fromLabel }
     }
 
@@ -590,9 +566,9 @@ object CaptureLists {
     fun wbTintStaysAuto(status: CameraStatus): Boolean =
         status.wbMode != CameraCommands.WB_CUSTOM
 
-    fun fpsDrumLabel(status: CameraStatus): String = VideoFormat.current(status).frameRate.drumLabel
+    fun fpsDrumLabel(status: CameraStatus): String = (VideoFormat.parse(status.resolutionCode, status.fpsIndex)?.frameRate ?: VideoFrameRate.fromFps(status.fps))?.drumLabel.orEmpty()
 
-    fun currentFpsIndex(status: CameraStatus): Int = VideoFormat.current(status).frameRate.rawValue
+    fun currentFpsIndex(status: CameraStatus): Int? = (VideoFormat.parse(status.resolutionCode, status.fpsIndex)?.frameRate ?: VideoFrameRate.fromFps(status.fps))?.rawValue
 
     /**
      * Angle mode is ours: keep the chosen degrees and rewrite 1/N for the new fps.
@@ -626,7 +602,7 @@ object CaptureLists {
 
     fun shootingModeLabels(name: String?, shootingMode: Int = -1, profile: CameraLabelProfile = CameraLabelProfile.standard): List<String> {
         val labels =
-            CameraCommands.shootingModeCarousel(name).map {
+            CameraCommands.shootingModeCarousel(profile).map {
                 CameraCommands.shootingModeLabel(it, name, profile).orEmpty()
             }
         val live = CameraCommands.shootingModeLabel(shootingMode, name, profile) ?: return labels
@@ -641,7 +617,7 @@ object CaptureLists {
 
     fun shootingModeRaw(label: String, name: String?, profile: CameraLabelProfile = CameraLabelProfile.standard): Int? {
         if (label == "Live Photo") return null
-        val modes = CameraCommands.shootingModeCarousel(name)
+        val modes = CameraCommands.shootingModeCarousel(profile)
         val labels = modes.map { CameraCommands.shootingModeLabel(it, name, profile).orEmpty() }
         val index = labels.indexOf(label)
         if (index < 0) return null
@@ -656,13 +632,10 @@ object CaptureLists {
     ): List<String> = colorWheel(family, status.availableColorModes, name, profile).map { it.second }
 
     fun colorModeFromLabel(label: String, family: String = "pocket", name: String = "", profile: CameraLabelProfile = CameraLabelProfile.standard): Int? {
-        if (label == "Normal 8-bit") return CameraCommands.COLOR_NORMAL
-        if (label == "D-Log M") return CameraCommands.COLOR_DLOG_M
-        return colorWheel(family, name = name, profile = profile).firstOrNull { it.second == label }?.first
-            ?: colorWheelPocket.firstOrNull { it.second == label }?.first
-            ?: colorWheelPocket4Pro.firstOrNull { it.second == label }?.first
-            ?: colorWheelPocket3.firstOrNull { it.second == label }?.first
-            ?: colorWheelNano.firstOrNull { it.second == label }?.first
+        val codes = profile.colorModes ?: listOf(CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_HDR,
+            CameraCommands.COLOR_DLOG, CameraCommands.COLOR_DLOG2, CameraCommands.COLOR_NORMAL10,
+            CameraCommands.COLOR_DLOG_M, CameraCommands.COLOR_ILOG, CameraCommands.COLOR_DOLBY_VISION)
+        return codes.firstOrNull { CameraCommands.colorLabel(it, family, profile) == label }
     }
 
     /**
@@ -762,22 +735,11 @@ object CaptureLists {
     fun shouldRefreshFocusTrack(status: CameraStatus, supportsFocus: Boolean): Boolean =
         supportsFocus && status.focusTrack < 0
 
-    /**
-     * Nano / Atto have no AF-S / AF-C. Unknown camera defaults to Pocket (supported),
-     * matching iOS `CameraSession.supportsFocusMode`.
-     */
-    fun supportsFocusMode(modelName: String?, family: String? = null, flag: Boolean? = null): Boolean {
-        if (flag == false) return false
-        if (family.equals("nano", ignoreCase = true)) return false
-        val n = (modelName ?: "").lowercase().replace(" ", "")
-        if (n.isEmpty()) return true
-        return !n.contains("nano") && !n.contains("atto")
-    }
+    /** Unknown support is not an admission to send focus commands. */
+    fun supportsFocusMode(modelName: String?, family: String? = null, flag: Boolean? = null): Boolean =
+        flag == true
 
-    /** iOS `connectedCamera?.model.supportsFocusMode ?? true` when [model] is present. */
-    fun supportsFocusMode(model: CameraModel): Boolean =
-        supportsFocusMode(model.name, model.family, model.supportsFocusMode)
+    fun supportsFocusMode(model: CameraModel): Boolean = model.captureProfile?.supportsFocusMode == true
 
-    fun supportsFocusModeOrDefault(model: CameraModel?): Boolean =
-        supportsFocusMode(model?.name, model?.family, model?.supportsFocusMode)
+    fun supportsFocusModeOrDefault(model: CameraModel?): Boolean = model?.captureProfile?.supportsFocusMode == true
 }

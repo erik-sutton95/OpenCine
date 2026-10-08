@@ -12,6 +12,7 @@ android {
         targetSdk = libs.versions.androidCompileSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     // `camera` ships the app's integrations (src/camera). `simulated` lists OpenCine's fake
     // integration (src/simulated): SIMULATED, developer-only, and it has no release build.
@@ -41,11 +42,18 @@ androidComponents {
 
 dependencies {
     implementation("com.opencapture.opencine:appkit")
+    implementation("com.opencapture.opencine:camera-controls")
+    implementation("com.opencapture.opencine:core")
+    implementation("com.opencapture.opencine:media")
     implementation(libs.activity.compose)
-    // Fakes from OpenCine's core test fixtures, for the SIMULATED flavor and its tests only.
-    "simulatedImplementation"(testFixtures("com.opencapture.opencine:core"))
+    "simulatedImplementation"("com.opencapture.opencine:native-runtime")
+    // The SIMULATED flavor implements public contracts; it has no harness/fixture dependency.
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     // The saved-camera store reads JSON with org.json, which android.jar only stubs on the JVM.
     testImplementation(libs.json)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.kotlin.test.junit)
 }

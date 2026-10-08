@@ -82,6 +82,25 @@ public struct CameraSetMailbox: Equatable, Sendable {
         lastLaunch.removeAll()
     }
 
+    /// Restore an unsent, refused registration without changing another opcode. A queued
+    /// successor may change only this key's pending flag while the endpoint decides; its
+    /// flag is retained explicitly. A new launch, ACK, timeout or cancel refuses restoration.
+    @discardableResult
+    public mutating func restore(
+        key: UInt16, from previous: Self, ifUnchanged expected: Self,
+        preservingPending: Bool = false
+    ) -> Bool {
+        guard open[key] == expected.open[key], superseded[key] == expected.superseded[key],
+            lastLaunch[key] == expected.lastLaunch[key],
+            preservingPending || pending[key] == expected.pending[key]
+        else { return false }
+        open[key] = previous.open[key]
+        superseded[key] = previous.superseded[key]
+        lastLaunch[key] = previous.lastLaunch[key]
+        if !preservingPending { pending[key] = previous.pending[key] }
+        return true
+    }
+
     /// Retire one control when a programmed take takes ownership of it.
     public mutating func cancel(_ key: UInt16) {
         supersedeOpen(key)

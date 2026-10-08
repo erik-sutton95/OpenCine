@@ -18,8 +18,8 @@ import Testing
             "pocket A": AnalysisConfiguration(signal: dlog2, rec709Reading: false, lookCurve: look),
             "pocket B": AnalysisConfiguration(signal: dlog2, rec709Reading: true, lookCurve: look),
         ]
-        let ceilingA = ScopeExposureCeiling()
-        let ceilingB = ScopeExposureCeiling()
+        let ceilingA = DJIScopeExposureCeiling()
+        let ceilingB = DJIScopeExposureCeiling()
 
         // Source A's tap ratchets its own ceiling; B's stays at the measured reference.
         ceilingA.observeTapMax(248, transfer: .dlog2)

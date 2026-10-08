@@ -2,11 +2,16 @@ package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.LutCatalog
+import com.opencapture.opencine.vocabulary.CameraLUTProfile
+import com.opencapture.opencine.vocabulary.LutLookSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /** The picker captions with each shipping app's copy, as on its main. */
 class LutPickerCaptionTest {
+    private val sourceProfile = CameraLUTProfile(automatic = mapOf(
+        CameraCommands.COLOR_DLOG to LutLookSource.Asset("DJI_Official_Pocket4P_DLog_Rec709_33.cube")))
+
     private val official = LutPickerCopy(
         cameraTab = "DJI",
         autoId = LutCatalog.OFFICIAL_AUTO,
@@ -25,7 +30,7 @@ class LutPickerCaptionTest {
     )
 
     private fun camera(copy: LutPickerCopy, selection: String, colorMode: Int = CameraCommands.COLOR_NORMAL, isPhoto: Boolean = false) =
-        cameraCaption(copy, selection, colorMode, "pocket", null, isPhoto)
+        cameraCaption(copy, selection, colorMode, sourceProfile, isPhoto)
 
     @Test fun autoSaysWhatItApplies() {
         assertEquals("No matching look for this color / camera", camera(official, LutCatalog.OFFICIAL_AUTO))
@@ -46,8 +51,8 @@ class LutPickerCaptionTest {
     @Test fun photoLiveViewAndCreativeCaptionsAreShared() {
         for (copy in listOf(official, looks)) {
             assertEquals(LutCatalog.PHOTO_REC709_CAPTION, camera(copy, copy.autoId, CameraCommands.COLOR_DLOG, isPhoto = true))
-            assertEquals("Applying Mono", creativeCaption(copy, "creativeMono", CameraCommands.COLOR_NORMAL, "pocket", null, false))
-            assertEquals("Looks for the displayed picture", creativeCaption(copy, copy.autoId, CameraCommands.COLOR_NORMAL, "pocket", null, false))
+            assertEquals("Applying Mono", creativeCaption(copy, "creativeMono", CameraCommands.COLOR_NORMAL, null, false))
+            assertEquals("Looks for the displayed picture", creativeCaption(copy, copy.autoId, CameraCommands.COLOR_NORMAL, null, false))
         }
     }
 }

@@ -119,6 +119,17 @@ public data class MotionCapabilities(
         return MotionTarget(pose)
     }
 
+    /** Swift admits: every point is reachable, zoom needs its axis, and declared rates bound each leg. */
+    public fun admits(program: GimbalProgram): Boolean {
+        val a = program.a ?: return false
+        val b = program.b ?: return false
+        if (listOfNotNull(a, b, program.c).any { target(it) == null } ||
+            (program.changesZoom && MotionAxis.ZOOM !in axes)) return false
+        val rate = maxRateDegPerSec ?: return true
+        if (!(GimbalPath.angularDistance(a, b) <= rate * program.durationAB)) return false
+        return program.c?.let { GimbalPath.angularDistance(b, it) <= rate * program.durationBC } ?: true
+    }
+
     /**
      * The pose when the reading is usable feedback: known, valid, reported by the camera (an
      * image estimate never stands in) and no older than [feedbackMaxAge].

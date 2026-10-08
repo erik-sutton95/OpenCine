@@ -44,12 +44,12 @@ struct AppKitRules {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let package: Set<String> = [
-            "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineMotion",
+            "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
             "OpenCineRelay", "OpenCineRelayApple",
         ]
         let system: Set<String> = [
-            "Foundation", "Observation", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
-            "Metal", "MetalKit", "QuartzCore",
+            "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
+            "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
         ]
         let directory = root.appending(path: "Sources/OpenCineAppKitApple")
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
@@ -83,6 +83,8 @@ struct AppKitRules {
         let system: Set<String> = [
             "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",
             "UniformTypeIdentifiers", "Vision",
+            // Scope plots accept portable Media values and configure the system MTKView.
+            "MetalKit",
         ]
         let directory = root.appending(path: "Sources/OpenCineCameraControls")
         let files = (FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?

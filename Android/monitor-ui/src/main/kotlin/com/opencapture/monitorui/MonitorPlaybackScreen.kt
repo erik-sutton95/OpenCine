@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -377,7 +378,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     }
                 })
                 val latestOnPinchEnd by rememberUpdatedState({
-                    zoom = zoom.endGesture(
+                    zoom = zoom.endPinch(
                     if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
                     if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
                     value.horizontalPresentationScale, value.verticalPresentationScale)
@@ -390,7 +391,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     else zoom.panChanged(translation.x, translation.y)
                 })
                 val latestOnPanEnd by rememberUpdatedState({
-                    zoom = zoom.endGesture(
+                    zoom = zoom.endPan(
                     if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasWidth else fitted.width,
                     if (value.zoomBoundary == MonitorPlaybackZoomBoundary.CANVAS) geometry.canvasHeight else fitted.height,
                     value.horizontalPresentationScale, value.verticalPresentationScale)
@@ -547,6 +548,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     modifier = Modifier.align(Alignment.TopStart)
                         .offset(x = backX.dp, y = headerTop.dp)
                         .size(fieldLayout.lock.width.dp, fieldLayout.lock.height.dp)
+                        .testTag("monitor.playback.back")
                         .semantics { contentDescription = "Back to media" },
                     onClick = { currentActions.back() },
                 ) { tint ->

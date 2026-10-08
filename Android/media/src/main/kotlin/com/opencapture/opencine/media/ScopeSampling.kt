@@ -69,6 +69,8 @@ data class ScopeAssistBundle(
     val iso: Int? = null,
     /** The clip ceiling of the source that sampled this bundle. */
     val ceiling: ScopeClipSnapshot = ScopeClipSnapshot(),
+    /** Measured code placement from the actual source publication. */
+    val levelAxis: ScopeLevelAxis? = null,
 ) {
     val isEmpty: Boolean
         get() = revision == 0L && samples.points.isEmpty() && samples.histogramLuma.all { it == 0 }

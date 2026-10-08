@@ -1,0 +1,109 @@
+package __APP_ID__
+
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.ConnectionState
+import com.opencapture.opencine.media.CameraMediaBrowse
+import com.opencapture.opencine.media.CameraMediaDeleteService
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.CameraMediaThumbnailService
+import com.opencapture.opencine.media.CameraMediaTransferService
+import com.opencapture.opencine.media.MediaAsset
+import com.opencapture.opencine.media.MediaAssetID
+import com.opencapture.opencine.media.MediaAssetKind
+import com.opencapture.opencine.media.MediaBrowseBinding
+import com.opencapture.opencine.media.MediaByteSink
+import com.opencapture.opencine.media.MediaCatalogCursor
+import com.opencapture.opencine.media.MediaCatalogDelta
+import com.opencapture.opencine.media.MediaPixelSize
+import com.opencapture.opencine.media.MediaRepresentation
+import com.opencapture.opencine.media.MediaRepresentationID
+import com.opencapture.opencine.media.MediaRepresentationRole
+import com.opencapture.opencine.media.MediaServiceException
+import com.opencapture.opencine.media.MediaServiceFailure
+import com.opencapture.opencine.media.MediaTransferReceipt
+import java.io.InputStream
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+
+/** SIMULATED: synthetic moving colour bars, three seconds of video only, never camera media. */
+object SimulatedAssets {
+    fun open(extension: String): InputStream = SimulatedAssets::class.java.getResourceAsStream("/simulated/simulated.$extension")
+        ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+    val asset = MediaAsset(MediaAssetID("simulated-colour-bars-v1"), filename = "SIMULATED.mp4", kind = MediaAssetKind.VIDEO,
+        durationSeconds = 3.0, pixelSize = MediaPixelSize(320, 180), frameRate = 24.0,
+        representations = listOf(MediaRepresentation(MediaRepresentationID("simulated-colour-bars-v1.original"), MediaRepresentationRole.ORIGINAL, 86_527)), deletable = false)
+}
+
+class SimulatedMediaService(private val session: SimulatedCameraSession) : CameraMediaService {
+    override val sessionID: CameraSessionID get() = session.id
+    var opened = 0
+        private set
+    var closed = 0
+        private set
+    override suspend fun openBrowse(): CameraMediaBrowse {
+        if (session.current.connection != ConnectionState.Ready) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        opened += 1
+        return SimulatedBrowse(MediaBrowseBinding(session.id, session.current.epoch),
+            valid = { session.current.connection == ConnectionState.Ready }, didClose = { closed += 1 })
+    }
+}
+
+/** Catalog/source adapter only; the shared library/cache/playback owners handle workflow. */
+private class SimulatedBrowse(
+    override val binding: MediaBrowseBinding,
+    private val valid: () -> Boolean,
+    private val didClose: () -> Unit,
+) : CameraMediaBrowse, CameraMediaThumbnailService, CameraMediaTransferService {
+    override val thumbnails: CameraMediaThumbnailService get() = this
+    override val transfers: CameraMediaTransferService get() = this
+    override val deletion: CameraMediaDeleteService? get() = null
+    private var retired = false
+    private suspend fun check() {
+        currentCoroutineContext().ensureActive()
+        if (retired || !valid()) throw MediaServiceException(MediaServiceFailure.RETIRED)
+    }
+    override suspend fun catalog(): MediaCatalogCursor {
+        check()
+        return SimulatedCursor { !retired && valid() }
+    }
+    override suspend fun thumbnail(asset: MediaAssetID): ByteArray {
+        check()
+        if (asset != SimulatedAssets.asset.id) throw MediaServiceException(MediaServiceFailure.UNKNOWN_ASSET)
+        return SimulatedAssets.open("png").use { it.readBytes() }
+    }
+    override suspend fun transfer(representation: MediaRepresentationID, sink: MediaByteSink): MediaTransferReceipt {
+        check()
+        if (representation != SimulatedAssets.asset.representations[0].id) throw MediaServiceException(MediaServiceFailure.UNKNOWN_ASSET)
+        var count = 0L
+        SimulatedAssets.open("mp4").use { input ->
+            val buffer = ByteArray(8_192)
+            while (true) {
+                check()
+                val length = input.read(buffer)
+                if (length < 0) break
+                sink.write(buffer.copyOf(length))
+                count += length
+            }
+        }
+        check()
+        return MediaTransferReceipt(count, 86_527)
+    }
+    override suspend fun close() {
+        if (retired) return
+        retired = true
+        didClose()
+    }
+}
+
+private class SimulatedCursor(private val valid: () -> Boolean) : MediaCatalogCursor {
+    private var delivered = false
+    private var retired = false
+    override suspend fun next(): MediaCatalogDelta? {
+        currentCoroutineContext().ensureActive()
+        if (retired || !valid()) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        if (delivered) return null
+        delivered = true
+        return MediaCatalogDelta(reset = true, upserts = listOf(SimulatedAssets.asset), complete = true)
+    }
+    override fun close() { retired = true }
+}

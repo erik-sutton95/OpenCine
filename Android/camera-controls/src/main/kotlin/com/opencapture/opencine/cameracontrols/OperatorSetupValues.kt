@@ -261,16 +261,14 @@ fun lutLookLabel(
     selection: String,
     enabled: Boolean = true,
     colorMode: Int = -1,
-    family: String = "pocket",
-    cameraName: String? = null,
+    profile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
 ): String {
     val source =
         LutLookResolver.resolve(
             selection = selection,
             lutOn = true,
             colorMode = colorMode,
-            family = family,
-            cameraName = cameraName,
+            profile = profile,
         )
     return LutLookResolver.statusLabel(enabled, selection, source)
 }

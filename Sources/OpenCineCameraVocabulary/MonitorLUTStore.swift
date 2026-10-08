@@ -35,8 +35,7 @@ public enum LiveLUTResolver {
     public static func resolve(
         selection: LUTSelection,
         colorMode: ColorMode?,
-        family: CameraBodyFamily = .fallback,
-        cameraName: String? = nil,
+        profile: CameraLUTProfile? = nil,
         hasCustomDLog: Bool,
         hasCustomDLog2: Bool,
         hasCustomRec709: Bool = false,
@@ -47,8 +46,7 @@ public enum LiveLUTResolver {
         return LUTResolver.resolve(
             selection: selection,
             colorMode: colorMode,
-            family: family,
-            cameraName: cameraName,
+            profile: profile,
             hasCustomDLog: hasCustomDLog,
             hasCustomDLog2: hasCustomDLog2,
             hasCustomRec709: hasCustomRec709,

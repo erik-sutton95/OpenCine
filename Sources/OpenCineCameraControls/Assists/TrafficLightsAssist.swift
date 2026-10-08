@@ -173,6 +173,7 @@
         @ViewBuilder public var content: () -> Content
         @State private var sessionCenter: CGPoint?
         @State private var sessionCenterPortrait: CGPoint?
+        @Environment(\.interfaceLocked) private var interfaceLocked
 
         public init(
             store: MonitorTrafficLightsPreferenceStore, size: CGSize, defaultCenter: CGPoint,
@@ -200,7 +201,7 @@
                     baseSize: TrafficLightsAssist.baseSize,
                     preferredSize: size, center: center, scale: store.scale, canvas: bounds,
                     movementBounds: movement),
-                resizeLabel: "Resize traffic lights",
+                enabled: !interfaceLocked, resizeLabel: "Resize traffic lights",
                 onMove: { event in
                     switch event {
                     case .began: break

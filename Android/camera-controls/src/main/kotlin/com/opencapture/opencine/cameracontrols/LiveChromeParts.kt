@@ -148,8 +148,15 @@ fun MonitorChromeButton(
 
 @Composable
 fun LockButton(locked: Boolean, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    LockButton(locked, if (locked) "Unlock monitor controls" else "Lock monitor controls",
+        modifier, enabled, onClick)
+}
+
+@Composable
+fun LockButton(locked: Boolean, label: String, modifier: Modifier = Modifier,
+    enabled: Boolean = true, onClick: () -> Unit) {
     MonitorChromeButton(
-        MonitorIcon.LOCK, if (locked) "Unlock monitor controls" else "Lock monitor controls",
+        MonitorIcon.LOCK, label,
         modifier.semantics { toggleableState = ToggleableState(locked) },
         selected = locked, enabled = enabled, buttonRole = Role.Switch, onClick = onClick,
     )

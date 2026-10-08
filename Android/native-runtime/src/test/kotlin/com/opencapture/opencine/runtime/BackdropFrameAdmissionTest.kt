@@ -57,4 +57,51 @@ class BackdropFrameAdmissionTest {
         assertFalse(gate.isCurrent(frame))
         assertNull(gate.acquire(next, 1_000_000_000))
     }
+    @Test fun predicateReentryRejectsFalseAndTrueBeforeNativeWork() {
+        for (reply in listOf(false, true)) {
+            val gate = BackdropFrameAdmission(); val old = Any(); val next = Any()
+            gate.attach(old); gate.setActive(true)
+            val ticket = assertNotNull(gate.acquire(old, 0))
+            var nativeWork = false
+            if (gate.accepts(ticket) { gate.attach(next); reply }) nativeWork = true
+            assertFalse(nativeWork)
+            assertTrue(gate.owns(next)); assertTrue(gate.hasDemand(next))
+            assertNull(gate.acquire(next, 1_000_000_000))
+            gate.complete(ticket)
+            assertTrue(gate.isCurrent(assertNotNull(gate.acquire(next, 1_000_000_000))))
+        }
+    }
+    @Test fun predicateReentryRejectsFalseAndTrueAfterNativeWork() {
+        for (reply in listOf(false, true)) {
+            val gate = BackdropFrameAdmission(); val old = Any(); val next = Any()
+            gate.attach(old); gate.setActive(true)
+            val ticket = assertNotNull(gate.acquire(old, 0))
+            assertTrue(gate.accepts(ticket) { true })
+            val nativeBitmap = Any(); var published: Any? = null
+            if (gate.accepts(ticket) { gate.attach(next); reply }) published = nativeBitmap
+            assertNull(published)
+            assertTrue(gate.owns(next)); assertTrue(gate.hasDemand(next))
+            gate.complete(ticket)
+            val successor = assertNotNull(gate.acquire(next, 1_000_000_000))
+            gate.complete(ticket)
+            assertTrue(gate.isCurrent(successor))
+            assertNull(gate.acquire(next, 2_000_000_000))
+        }
+    }
+    @Test fun staleErrorAdmissionCannotDisableOrClearSuccessor() {
+        for (reply in listOf(false, true)) {
+            val gate = BackdropFrameAdmission(); val old = Any(); val next = Any()
+            gate.attach(old); gate.setActive(true)
+            val ticket = assertNotNull(gate.acquire(old, 0))
+            val successorBitmap = Any(); var visible: Any? = successorBitmap; var failed = false
+            if (gate.accepts(ticket) { gate.attach(next); reply }) {
+                failed = true; gate.setActive(false); visible = null
+            }
+            assertFalse(failed); assertTrue(visible === successorBitmap)
+            assertTrue(gate.owns(next)); assertTrue(gate.hasDemand(next))
+            gate.complete(ticket)
+            assertNotNull(gate.acquire(next, 1_000_000_000))
+        }
+    }
+
 }

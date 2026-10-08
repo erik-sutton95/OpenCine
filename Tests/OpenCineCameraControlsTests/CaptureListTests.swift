@@ -7,6 +7,9 @@
     @testable import OpenCineCameraControls
 
     final class CaptureListTests: XCTestCase {
+        private static let range100Body = CameraModel(name: "100 ISO body",
+            captureProfile: CameraCaptureProfile(isoAutoRangeFloor: 100))
+
         func testFocusDrumPreservesUnknownStateAndEveryExistingTrackingMode() {
             var status = CameraStatus()
             XCTAssertNil(CaptureLists.focusOption(from: status))
@@ -80,9 +83,9 @@
             leftover.isoLimit = .max1600
             XCTAssertTrue(CaptureLists.offersIsoAuto(from: leftover))
             XCTAssertEqual(
-                CaptureLists.isoAutoLabels(from: leftover).first, "100–200",
+                CaptureLists.isoAutoLabels(from: leftover, model: Self.range100Body).first, "100–200",
                 "Photo Auto ISO must not inherit leftover D-Log2")
-            XCTAssertEqual(CaptureLists.isoAutoLabel(from: leftover), "100–1600")
+            XCTAssertEqual(CaptureLists.isoAutoLabel(from: leftover, model: Self.range100Body), "100–1600")
             leftover.availableIsoIndices = []
             leftover.isoIndex = .iso400
             XCTAssertTrue(
@@ -92,7 +95,7 @@
             leftover.colorMode = .dLog
             leftover.availableIsoIndices = [.auto, .iso400]
             XCTAssertEqual(
-                CaptureLists.isoLimit(from: "100–800", status: leftover), .max800,
+                CaptureLists.isoLimit(from: "100–800", status: leftover, model: Self.range100Body), .max800,
                 "Photo ISO-limit labels ignore leftover D-Log 400-base")
         }
 
@@ -142,10 +145,10 @@
             normal.colorMode = .normal
             var hdr = CameraStatus()
             hdr.colorMode = .hdr
-            XCTAssertEqual(CaptureLists.isoAutoLabels(from: normal), expected)
-            XCTAssertEqual(CaptureLists.isoAutoLabels(from: hdr), expected)
-            XCTAssertEqual(CaptureLists.isoLimit(from: "100–800", status: normal), .max800)
-            XCTAssertEqual(CaptureLists.isoLimit(from: "100–25600", status: hdr), .max25600)
+            XCTAssertEqual(CaptureLists.isoAutoLabels(from: normal, model: Self.range100Body), expected)
+            XCTAssertEqual(CaptureLists.isoAutoLabels(from: hdr, model: Self.range100Body), expected)
+            XCTAssertEqual(CaptureLists.isoLimit(from: "100–800", status: normal, model: Self.range100Body), .max800)
+            XCTAssertEqual(CaptureLists.isoLimit(from: "100–25600", status: hdr, model: Self.range100Body), .max25600)
             XCTAssertEqual(IsoLimit.max200.rawValue, 0x02)
             XCTAssertEqual(IsoLimit.max400.rawValue, 0x03)
             XCTAssertEqual(IsoLimit.max3200.rawValue, 0x06)
@@ -153,7 +156,7 @@
         }
 
         func testPocket3IsoAutoRangesStartAt50() {
-            let p3 = CameraModel.resolve(modelId: 0x0020, name: nil)
+            let p3 = CameraModel(name: "50 ISO body", captureProfile: CameraCaptureProfile(isoAutoRangeFloor: 50))
             let expected = [
                 "50–200", "50–400", "50–800", "50–1600",
                 "50–3200", "50–6400", "50–12800", "50–25600",
@@ -167,9 +170,9 @@
             live.colorMode = .normal
             live.isoLimit = .max400
             XCTAssertEqual(CaptureLists.isoAutoLabel(from: live, model: p3), "50–400")
-            let p4 = CameraModel.resolve(modelId: 0x0021, name: nil)
+            let p4 = CameraModel(name: "50 ISO body", captureProfile: CameraCaptureProfile(isoAutoRangeFloor: 50))
             XCTAssertEqual(CaptureLists.isoAutoLabels(from: normal, model: p4).first, "50–200")
-            let p4p = CameraModel.resolve(modelId: 0x0022, name: nil)
+            let p4p = CameraModel(name: "100 ISO body", captureProfile: CameraCaptureProfile(isoAutoRangeFloor: 100))
             XCTAssertEqual(CaptureLists.isoAutoLabels(from: normal, model: p4p).first, "100–200")
         }
 

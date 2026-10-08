@@ -1,25 +1,4 @@
 package com.opencapture.opencine.vocabulary
 
-import com.opencapture.opencine.media.MonitorTransfer
-import com.opencapture.opencine.media.ScopeClipCalibration
-import com.opencapture.opencine.media.ScopeClipProfile
-
-/** The measured D-Log / D-Log2 live-tap calibration over Media's ceiling math (Swift: the vocabulary's `ScopeExposureCeiling`). */
-class ScopeExposureCeiling : com.opencapture.opencine.media.ScopeExposureCeiling(PROFILE) {
-    companion object {
-        const val REFERENCE_EI = 1600
-        const val DLOG_REFERENCE_EI = 400
-        const val DLOG2_LIVE_TAP_BYTE_AT_1600 = 247
-        const val DLOG2_LIVE_TAP_BYTE_AT_1600_HIGH = 248
-        const val DLOG_LIVE_TAP_BYTE_AT_NATIVE = 223
-        const val DLOG_LIVE_TAP_BYTE_AT_NATIVE_HIGH = 224
-        const val CLIP_SHELF_CODES = 7
-        val PROFILE = ScopeClipProfile(mapOf(
-            MonitorTransfer.DLOG2 to ScopeClipCalibration(REFERENCE_EI,
-                DLOG2_LIVE_TAP_BYTE_AT_1600, DLOG2_LIVE_TAP_BYTE_AT_1600_HIGH),
-            MonitorTransfer.DLOG to ScopeClipCalibration(DLOG_REFERENCE_EI,
-                DLOG_LIVE_TAP_BYTE_AT_NATIVE, DLOG_LIVE_TAP_BYTE_AT_NATIVE_HIGH, refinementAtOrAboveReference = true),
-        ), defaultIso = REFERENCE_EI)
-        val UNOBSERVED get() = ScopeExposureCeiling()
-    }
-}
+/** Compatibility name for a portable ceiling; measured calibration is supplied explicitly. */
+typealias ScopeExposureCeiling = com.opencapture.opencine.media.ScopeExposureCeiling

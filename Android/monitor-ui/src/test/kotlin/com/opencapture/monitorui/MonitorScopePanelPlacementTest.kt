@@ -5,6 +5,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MonitorScopePanelPlacementTest {
+    @Test fun fixedPanelHasNoInvisibleResizeWell() {
+        val bounds = MonitorScopeRect(0f, 0f, 100f, 100f)
+        val size = MonitorScopePanelMath.fittedSize(MonitorScopeSize(100f, 100f), bounds, 0f)
+        assertEquals(MonitorScopeSize(100f, 100f), size)
+        assertEquals(MonitorScopePoint(50f, 50f),
+            MonitorScopePanelMath.clampWithGrip(MonitorScopePoint(1000f, 1000f), size, bounds, 0f))
+    }
     @Test
     fun allPanelBodiesAndVerticalResizeWellsStayInsideControlsAcrossSizesAndDensities() {
         val bases = listOf(MonitorScopePanelSize.waveform, MonitorScopePanelSize.parade, MonitorScopePanelSize.histogram,

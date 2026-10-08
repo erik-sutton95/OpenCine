@@ -38,7 +38,7 @@ public enum LiveChromeThrottle: Sendable {
             || a.vocalBoost != b.vocalBoost
             || a.windNR != b.windNR
             || a.directionalAudio != b.directionalAudio
-            || a.audioDspAt2 != b.audioDspAt2
+            || a.audioAdjustment != b.audioAdjustment
             || a.selfieFlip != b.selfieFlip
             || a.availableShutterDenoms != b.availableShutterDenoms
             || a.availableIsoIndices != b.availableIsoIndices

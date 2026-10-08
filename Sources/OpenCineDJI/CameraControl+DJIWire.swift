@@ -865,3 +865,58 @@ extension IsoIndex {
         self = index
     }
 }
+
+/// Compatibility name for the DJI audio-DSP byte at offset two.
+public typealias AudioDspAt2 = CameraAudioAdjustment
+
+extension CameraAudioAdjustment {
+    public init(raw: UInt8) {
+        if let wind = WindNoiseReduction(rawValue: raw) {
+            self = .wind(wind)
+        } else if let dir = DirectionalAudio(rawValue: raw) {
+            self = .directional(dir)
+        } else {
+            self = .unknown(raw)
+        }
+    }
+
+    public var rawValue: UInt8 {
+        switch self {
+        case .wind(let w): w.rawValue
+        case .directional(let d): d.rawValue
+        case .unknown(let b): b
+        }
+    }
+
+}
+
+extension CameraStatus {
+    public var audioDspAt2: AudioDspAt2? {
+        get { audioAdjustment }
+        set { audioAdjustment = newValue }
+    }
+}
+
+extension VideoResolution {
+    /// Pocket 3 digital-zoom ceiling for this FORMAT, or `nil` for a byte the
+    /// catalog does not name.
+    ///
+    /// The limit tracks the capture size class, not the aspect — a bigger frame
+    /// leaves less crop headroom. Measured on a body by asking past the ceiling
+    /// and reading `cam_fov` `zoomLens` back: the camera clamps to its own max
+    /// rather than refusing, so an over-ask reports the true limit. `0x0A`,
+    /// `0x69` (4x), `0x2D`, `0x6A` (3x), `0x10`, `0x6B` (2x) are measured; the
+    /// rest inherit from a measured sibling in the same size class.
+    public var pocket3ZoomMax: Double? {
+        switch rawValue {
+        case 0x0A, 0x0C, 0x42, 0x69: 4  // 1080 — 0x0A, 0x69 measured
+        case 0x2D, 0x43, 0x5F: 3  // 2.7K — 0x2D measured
+        case 0x6A: 3  // 2160 — measured
+        case 0x10, 0x67, 0x7D: 2  // 4K — 0x10 measured
+        case 0x6B, 0x6C: 2  // 3K — 0x6B measured
+        default: nil
+        }
+    }
+
+
+}

@@ -50,6 +50,13 @@ public protocol CameraTransport: Sendable {
         deadline: Duration?
     ) async throws -> PTPIPTransactionResult
 
+    /// Supplied authority must be rechecked after serialization and before the first native send.
+    func executeTransaction(
+        operationCode: PTPOperationCode, transactionID: UInt32?, parameters: [UInt32],
+        dataPhase: PTPDataPhase, dataOut: Data?, deadline: Duration?,
+        admission: NikonCommandAdmission
+    ) async throws -> PTPIPTransactionResult
+
     /// Waits for the next camera-pushed PTP event.
     ///
     /// Transports may throw a timeout error while the channel is idle; callers treat that as
@@ -58,6 +65,19 @@ public protocol CameraTransport: Sendable {
 
     /// Tears the transport down. Safe to call more than once.
     func close()
+}
+
+extension CameraTransport {
+    public func executeTransaction(
+        operationCode: PTPOperationCode, transactionID: UInt32?, parameters: [UInt32],
+        dataPhase: PTPDataPhase, dataOut: Data?, deadline: Duration?,
+        admission: NikonCommandAdmission
+    ) async throws -> PTPIPTransactionResult {
+        try admission.requireCurrent()
+        return try await executeTransaction(
+            operationCode: operationCode, transactionID: transactionID, parameters: parameters,
+            dataPhase: dataPhase, dataOut: dataOut, deadline: deadline)
+    }
 }
 
 /// Next action for opening an ImageCaptureCore session on iOS USB.

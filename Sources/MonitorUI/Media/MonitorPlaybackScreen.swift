@@ -251,6 +251,7 @@
                                 MonitorIcon.chevronLeft.frame(
                                     width: corner.width * 29 / 54, height: corner.height * 29 / 54)
                             }
+                            .accessibilityIdentifier("monitor.playback.back")
                             .position(
                                 x: backX + CGFloat(corner.width) / 2,
                                 y: backY + CGFloat(corner.height) / 2)
@@ -744,7 +745,7 @@
                     pinchItem = nil
                     guard admitted != nil, admitted == value.item else { return }
                     withAnimation(.easeOut(duration: 0.2)) {
-                        zoom.endGesture(
+                        zoom.endPinch(
                             size: zoomContainerSize,
                             horizontalPresentationScale: value.horizontalPresentationScale,
                             verticalPresentationScale: value.verticalPresentationScale)
@@ -775,7 +776,7 @@
                     panItem = nil
                     guard admitted != nil, admitted == value.item, zoom.isZoomed else { return }
                     withAnimation(.easeOut(duration: 0.2)) {
-                        zoom.endGesture(
+                        zoom.endPan(
                             size: zoomContainerSize,
                             horizontalPresentationScale: value.horizontalPresentationScale,
                             verticalPresentationScale: value.verticalPresentationScale)

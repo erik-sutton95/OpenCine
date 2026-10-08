@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /** What the shared root shows of the app's brand (Swift `ShellBrand`). Values only. */
 public data class ShellBrand(
@@ -36,14 +37,17 @@ public class ShellActions(
     public val extraNearby: ((String) -> Unit)? = null,
 )
 
+/** Existing native hosts may retain their cover placement while their callers migrate. */
+public enum class ShellCoverPresentation { MONITOR, SHELL }
+
 /**
  * The shared root over [ShellModel] (Swift `AppShell`): the cameras or pair page, or the monitor,
  * plus the cover pages. The monitor slot is keyed by [ShellModel.Monitor.id], so one host lives for
  * one monitor lifetime: covers, rotations and recomposition never create a second one.
  *
- * Temporary (SHELL-03 I-1): [monitor] is the app's existing native monitor, which presents the
- * shell's cover over itself while it still owns placement; [page] draws the cover pages over the
- * cameras and pair pages. [pageFrame] wraps those two pages in the app's insets. [extraNearby]:
+ * [ShellCoverPresentation.SHELL] retains the keyed native monitor beneath one sibling cover;
+ * the covered monitor contributes no exposed controls. [pageFrame] wraps the camera and pair
+ * pages in the app's insets. [extraNearby]:
  * the app's own NEARBY rows on the cameras page. [prePage]: the app's own page before the shared
  * ones (a first-pair wizard, a connect in progress), shown instead of the cameras or pair page
  * while it is set. [pairingFlow]: the app's own rail and actions on the pair page
@@ -61,6 +65,7 @@ public fun AppShell(
     extraNearby: List<CameraItem> = emptyList(),
     prePage: (@Composable () -> Unit)? = null,
     pairingFlow: IntegrationPairingFlow? = null,
+    coverPresentation: ShellCoverPresentation = ShellCoverPresentation.MONITOR,
 ) {
     val shell by model.state.collectAsState()
     val cameras by model.cameras.state.collectAsState()
@@ -72,7 +77,8 @@ public fun AppShell(
                     model.noteHost(mounted = true)
                     onDispose { model.noteHost(mounted = false) }
                 }
-                monitor(live)
+                val hidden = coverPresentation == ShellCoverPresentation.SHELL && shell.cover != null
+                Box(if (hidden) Modifier.clearAndSetSemantics { } else Modifier) { monitor(live) }
             }
         } else {
             val route = if (shell.pairing || (cameras.saved.isEmpty() && !shell.camerasChosen)) {
@@ -103,7 +109,7 @@ public fun AppShell(
                     }
                 }
             }
-            shell.cover?.let { page(it) }
         }
+        if (live == null || coverPresentation == ShellCoverPresentation.SHELL) shell.cover?.let { page(it) }
     }
 }

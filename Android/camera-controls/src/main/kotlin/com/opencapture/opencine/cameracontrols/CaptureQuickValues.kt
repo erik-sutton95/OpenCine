@@ -63,6 +63,7 @@ fun recordingCategoryQuickControl(
     bodyName: String = "",
     family: String = "pocket",
     profile: CameraLabelProfile = CameraLabelProfile.standard,
+    cameraModel: CameraModel? = null,
 ): MonitorQuickControl? =
     when (sheet) {
         LiveSheet.FORMAT -> {
@@ -75,19 +76,19 @@ fun recordingCategoryQuickControl(
                 )
             } else {
                 val formatStatus = CaptureLists.withEffectiveVideoFormats(
-                    status, bodyName.takeIf { it.isNotEmpty() }?.let { CameraModel(it) },
+                    status, cameraModel,
                 )
-                val format = VideoFormat.current(formatStatus)
-                val aspect = format.resolution.aspect
-                val tab = CaptureLists.formatResolutions(formatStatus, aspect).indexOf(format.resolution).coerceAtLeast(0)
+                val resolution = com.opencapture.opencine.vocabulary.VideoResolution.fromRaw(formatStatus.resolutionCode)
+                val aspect = resolution?.aspect
+                val tab = CaptureLists.formatResolutions(formatStatus, aspect).indexOf(resolution).coerceAtLeast(0)
                 val options = CaptureLists.fpsDrumLabels(formatStatus, tab, aspect)
-                if (options.isEmpty()) null
+                if (resolution == null || options.isEmpty()) null
                 else {
-                    val live = format.frameRate.drumLabel
+                    val live = CaptureLists.fpsDrumLabel(formatStatus)
                     MonitorQuickControl(
                         options, if (live in options) live else "",
                         enabled = CaptureLists.formatPickerEditable(formatStatus),
-                        context = "${format.resolution.rawValue}:${status.shootingMode}:${options.joinToString()}",
+                        context = "${resolution.rawValue}:${status.shootingMode}:${options.joinToString()}",
                     )
                 }
             }

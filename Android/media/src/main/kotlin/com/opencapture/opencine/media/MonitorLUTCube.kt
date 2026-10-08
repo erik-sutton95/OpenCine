@@ -1,5 +1,7 @@
 package com.opencapture.opencine.media
 
+import kotlin.math.roundToInt
+
 /** One packed-2D RGBA8 cube (`width = size²`, `height = size`) from the Swift core. */
 class MonitorLUTCube(
     val size: Int,
@@ -45,6 +47,24 @@ class MonitorLUTCube(
     }
 
     companion object {
+        /** Red-fastest Float cube to grid pixels `(x = b * size + r, y = g)`, alpha 255. */
+        fun fromRGB(size: Int, rgb: FloatArray): MonitorLUTCube {
+            require(size in 2..64)
+            require(rgb.size == size * size * size * 3)
+            val rgba = ByteArray(size * size * size * 4) { 255.toByte() }
+            for (g in 0 until size) for (b in 0 until size) for (r in 0 until size) {
+                val src = (r + g * size + b * size * size) * 3
+                val dst = (g * size * size + b * size + r) * 4
+                rgba[dst] = quantizedRGBAChannel(rgb[src])
+                rgba[dst + 1] = quantizedRGBAChannel(rgb[src + 1])
+                rgba[dst + 2] = quantizedRGBAChannel(rgb[src + 2])
+            }
+            return MonitorLUTCube(size, rgba)
+        }
+
+        fun quantizedRGBAChannel(value: Float): Byte =
+            (value.coerceIn(0f, 1f) * 255f).roundToInt().toByte()
+
         fun fromPacked(rgba: ByteArray): MonitorLUTCube? {
             if (rgba.size % 4 != 0) return null
             val cells = rgba.size / 4

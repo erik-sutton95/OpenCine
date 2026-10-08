@@ -54,6 +54,10 @@ public data class MediaDeleteResult(public val asset: MediaAssetID, public val o
 
 /** Owned staging writer, never a whole movie in memory. Retirement makes further writes fail. */
 public interface MediaByteSink { public suspend fun write(chunk: ByteArray) }
+/** Optional response length observation; an absent length remains unknown. */
+public interface MediaTransferProgressSink : MediaByteSink {
+    public suspend fun expectedByteCount(count: Long?)
+}
 public interface CameraMediaThumbnailService { public suspend fun thumbnail(asset: MediaAssetID): ByteArray }
 public interface CameraMediaTransferService {
     public suspend fun transfer(representation: MediaRepresentationID, sink: MediaByteSink): MediaTransferReceipt

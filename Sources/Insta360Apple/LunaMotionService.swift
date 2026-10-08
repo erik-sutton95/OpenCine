@@ -5,9 +5,9 @@ import OpenCineMotion
 
 /// The Luna gimbal (cmd 226) on the session's control path: the held stick as a MOVE stream,
 /// single steering MOVEs, release, recenter, flip, SET_ANGLE and GET_ANGLE, with the shared
-/// `MotionService` over them. The app runs the steering loops (aim until arrival, head tracking,
-/// programmed moves) against its live state; their math is `hasReached`, `LunaHeadTrackSteering`,
-/// `HeadTrack.reference` and `GimbalProgram.pose(at:)`.
+/// `MotionService` over them. Shared `MotionProgramSession` runs programmed targets; the app's
+/// steering and head-tracking adapters use `hasReached`, `LunaHeadTrackSteering` and
+/// `HeadTrack.reference` against their live state.
 @MainActor public final class LunaMotionService: MotionService {
     /// Official app range: sint32 ±99 on each VirtualRC axis.
     public nonisolated static let stickFullScale = 99.0
@@ -15,6 +15,9 @@ import OpenCineMotion
     public nonisolated static let stickInterval: Duration = .milliseconds(50)
     /// `poses()` reads GET_ANGLE at this period.
     public nonisolated static let poseInterval: Duration = .milliseconds(100)
+    /// Existing approach countdown and SET_ANGLE cadence for the shared streamed take owner.
+    public nonisolated static let programTiming = MotionProgramTiming(
+        countdown: .seconds(3), targetInterval: .milliseconds(33))
     /// MOVE and SET_ANGLE wait at most this long for the camera's reply.
     nonisolated static let moveTimeout: Duration = .seconds(2)
 

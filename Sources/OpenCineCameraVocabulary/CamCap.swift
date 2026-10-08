@@ -134,19 +134,14 @@ public enum CamCapIso {
 /// `3D` D-Log M. Pocket 3 `@2` / SET bytes are `00`/`3C`/`3D` (#176).
 public enum CamCapColorMode {
 
-    public static func wheel(
-        available: [ColorMode], family: CameraBodyFamily
-    ) -> [ColorMode] {
-        wheel(available: available, order: ColorMode.available(for: family))
-    }
-
     public static func wheel(available: [ColorMode], model: CameraModel) -> [ColorMode] {
-        wheel(available: available, order: ColorMode.available(for: model))
+        wheel(available: available, order: model.captureProfile?.labels.colorModes ?? [])
     }
 
     /// Body order is the legal set. `camcap_color_mode` may subset it.
     /// It cannot add D-Log2 (or `0x17` D-Log) to a body that does not have them.
-    private static func wheel(available: [ColorMode], order: [ColorMode]) -> [ColorMode] {
+    public static func wheel(available: [ColorMode], order: [ColorMode]) -> [ColorMode] {
+        guard !order.isEmpty else { return available }
         guard !available.isEmpty else { return order }
         let have = Set(available)
         let ranked = order.filter { have.contains($0) }
@@ -172,13 +167,8 @@ public enum CamCapVideoFormat {
         available: [VideoFormat], model: CameraModel?, shootingMode: Int
     ) -> [VideoFormat] {
         if !available.isEmpty { return available }
-        guard model?.isPocket3 == true else { return available }
-        switch ShootingMode.fromStatus(shootingMode) {
-        case .video: return pocket3VideoFormats
-        case .slowMo: return pocket3SlowMoFormats
-        case .superNight: return pocket3LowLightFormats
-        default: return available
-        }
+        guard let mode = ShootingMode.fromStatus(shootingMode) else { return [] }
+        return model?.captureProfile?.videoFormatFallbacks[mode] ?? []
     }
 
     /// Operator FORMAT SET. Empty tables are read-only (current pair only).
@@ -192,33 +182,6 @@ public enum CamCapVideoFormat {
         let legal = pickerFormats(
             available: available, model: model, shootingMode: shootingMode)
         return !legal.isEmpty && legal.contains(format)
-    }
-
-    /// Accepted Pocket 3 Video `0x02/0x18` pairs: landscape 1080/2.7K/4K and
-    /// square 1080/2160/3K. Catalog 9:16 bytes were not an accepted SET.
-    private static let pocket3VideoFormats: [VideoFormat] = [
-        VideoResolution.p1080, .p2_7K, .p4K,
-        .p1080_1x1, .p2160_1x1, .p3K_1x1,
-    ].flatMap { resolution in
-        VideoFrameRate.labeledVideo.map { VideoFormat(resolution: resolution, frameRate: $0) }
-    }
-
-    /// Accepted Pocket 3 SlowMo `0x02/0x18` pairs (4K 100/120, 2.7K 120, 1080 120/240).
-    private static let pocket3SlowMoFormats: [VideoFormat] = [
-        VideoFormat(resolution: .p4K, frameRate: .fps100),
-        VideoFormat(resolution: .p4K, frameRate: .fps120),
-        VideoFormat(resolution: .p2_7K, frameRate: .fps120),
-        VideoFormat(resolution: .p1080, frameRate: .fps120),
-        VideoFormat(resolution: .p1080, frameRate: .fps240),
-    ]
-
-    /// Accepted Pocket 3 Low-Light pairs: 1080 / 4K at 24 / 25 / 30. No 2.7K or square.
-    private static let pocket3LowLightFormats: [VideoFormat] = [
-        VideoResolution.p1080, .p4K,
-    ].flatMap { resolution in
-        [VideoFrameRate.fps24, .fps25, .fps30].map {
-            VideoFormat(resolution: resolution, frameRate: $0)
-        }
     }
 
     public static func resolutions(

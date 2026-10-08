@@ -1,6 +1,7 @@
 package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.CamFov
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraModel
@@ -562,3 +563,57 @@ fun FocusTrackMode.Companion.parseReply(payload: ByteArray): FocusTrackMode? {
     if (len != 2 || payload.size < 8 || payload[6] != 0x01.toByte()) return null
     return fromRaw(payload[7].toInt() and 0xFF)
 }
+
+    /**
+     * Photo is the one mode whose `0x02/0xE1` value is body-dependent: Pocket 4 / 4 Pro take
+     * `0x17`, and a Nano rejects that and takes `0x05`.
+     */
+    fun CameraCommands.photoModeRaw(cameraName: String?): Int {
+        val n = cameraName.orEmpty().lowercase().replace(" ", "")
+        return if (n.contains("pocket4")) CameraCommands.SHOOT_PHOTO_POCKET4 else CameraCommands.SHOOT_PHOTO
+    }
+
+    /**
+     * The camera's own on-screen carousel order; Video, Photo, TimeLapse, HyperLapse,
+     * SuperNight (Low-Light on Pocket 3), SlowMo; which is not the numeric order. The
+     * wire enum is sparse and unordered, so this is tabled and never computed.
+     *
+     * Only ever send a value from this table. Sweeping the `0x02/0xE1` value space froze a Nano
+     * solid and needed a power cycle, so an unlisted mode must be refused rather than passed
+     * through (Osmosis `MEDIA_PROTOCOL.md` §13a, DJI-Remote `engine_media.c`).
+     *
+     * Panorama (`0x0c`) is documented but left out: no hardware here has confirmed it.
+     *
+     * Note this is `0x02/0xE1`, never `0x02/0x02`. That opcode is nominally DJI's four-value
+     * *work* mode, but on a Nano it **is** record control; a "Video" entry mapped to `[01]`
+     * would start a recording behind the operator's back.
+     */
+    fun CameraCommands.shootingModeCarousel(cameraName: String?): List<Int> =
+        listOf(
+            CameraCommands.SHOOT_VIDEO,
+            photoModeRaw(cameraName),
+            CameraCommands.SHOOT_TIMELAPSE,
+            CameraCommands.SHOOT_HYPERLAPSE,
+            CameraCommands.SHOOT_SUPER_NIGHT,
+            CameraCommands.SHOOT_SLOWMO,
+        )
+
+
+    /**
+     * Pocket 3 and Action 6 TimeLapse start/stop is `0x02/0x01` `01`/`00`, not Video `0x02/0x02`.
+     * Pocket 4 / 4 Pro TimeLapse stays Video record until a later survey.
+     */
+    fun CaptureShutterPolicy.usesShutterTriggerOnPocket3(shootingMode: Int, cameraName: String?): Boolean =
+        shootingMode == CameraCommands.SHOOT_TIMELAPSE &&
+            (CameraModel.looksLikePocket3(cameraName.orEmpty()) ||
+                CameraModel.looksLikeAction6(cameraName.orEmpty()))
+
+    /** JNI extra for command 36. Empty stays start `01` in the facade. */
+    fun CaptureShutterPolicy.shootPhotoExtra(start: Boolean): String = if (start) "1" else "0"
+
+    fun CaptureShutterPolicy.captureKind(shootingMode: Int, cameraName: String?): CaptureShutterPolicy.CaptureKind =
+        when {
+            isStillCapture(shootingMode) -> CaptureShutterPolicy.CaptureKind.PHOTO
+            usesShutterTriggerOnPocket3(shootingMode, cameraName) -> CaptureShutterPolicy.CaptureKind.SHUTTER_TRIGGER
+            else -> CaptureShutterPolicy.CaptureKind.VIDEO_RECORD
+        }

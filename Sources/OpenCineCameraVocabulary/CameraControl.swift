@@ -51,7 +51,7 @@ public enum ShootingMode: UInt8, CaseIterable, Sendable {
     }
 
     public func label(for model: CameraModel?, in profile: CameraLabelProfile = .standard) -> String {
-        self == .superNight && model?.isPocket3 == true ? "Low-Light" : label(in: profile)
+        profile.shootingModeLabels[self] ?? model?.captureProfile?.labels.shootingModeLabels[self] ?? label
     }
 
     /// Stills only. SuperNight / Low-Light is video (`0x28`).
@@ -347,9 +347,7 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         }
     }
 
-    public func label(for family: CameraBodyFamily, in profile: CameraLabelProfile = .standard) -> String {
-        if family == .nano, self == .normal { return "Normal 8-bit" }
-        if family == .pocket, self == .dLogM { return "D-Log M" }
+    public func label(for family: CameraBodyFamily, in profile: CameraLabelProfile) -> String {
         return label(in: profile)
     }
 
@@ -365,33 +363,8 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         }
     }
 
-    /// Action 6 `camcap_color_mode` is `3F` Normal 10-bit / `3D` D-Log M (survey
-    /// 2026-09-21): the Nano wire bytes, without Nano's 8-bit `00`.
-    public static let action6: [ColorMode] = [.normal10, .dLogM]
-
-    /// Family fallback. Pocket 4 Pro is the only body with D-Log2 — use
-    /// `available(for: CameraModel)` when the name is known.
-    public static func available(for family: CameraBodyFamily) -> [ColorMode] {
-        switch family {
-        case .nano: [.normal, .normal10, .dLogM]
-        case .pocket, .other: [.normal, .hdr, .dLog]
-        }
-    }
-
-    /// DJI comparison: 4 Pro D-Log2 / D-Log; Pocket 4 D-Log; Pocket 3 HLG / D-Log M.
-    /// Nano is the captured `camcap_color_mode` wheel. D-Log2 is 4 Pro only.
     public static func available(for model: CameraModel) -> [ColorMode] {
-        if model.family == .nano { return available(for: .nano) }
-        if model.isAction6 { return action6 }
-        let n = model.name.lowercased().replacingOccurrences(of: " ", with: "")
-        if n.contains("pocket4p") || n.contains("4pro") {
-            return [.normal, .hdr, .dLog, .dLog2]
-        }
-        if n.contains("pocket4") { return [.normal, .hdr, .dLog] }
-        if model.isPocket3 {
-            return [.normal, .hdr, .dLogM]
-        }
-        return available(for: model.family)
+        model.captureProfile?.labels.colorModes ?? []
     }
 
     /// Indices Mimo offered per color in the labeled take. Do not invent others.
@@ -422,7 +395,7 @@ public enum ColorMode: UInt8, CaseIterable, Sendable {
         case .dLog2: nil
         case .dLog: 400
         case .normal, .hdr, .normal10, .dLogM, .iLog, .dolbyVision:
-            model?.isoAutoRangeFloor ?? 100
+            model?.isoAutoRangeFloor
         }
     }
 
@@ -724,29 +697,11 @@ public enum DirectionalAudio: UInt8, CaseIterable, Sendable {
     }
 }
 
-/// Shared audio-DSP `@2`. Wind and directional overwrite each other — GET, patch, SET.
-public enum AudioDspAt2: Equatable, Sendable {
+/// One observed audio processing choice. Encoding and payload offsets belong to an integration.
+public enum CameraAudioAdjustment: Equatable, Sendable {
     case wind(WindNoiseReduction)
     case directional(DirectionalAudio)
     case unknown(UInt8)
-
-    public init(raw: UInt8) {
-        if let wind = WindNoiseReduction(rawValue: raw) {
-            self = .wind(wind)
-        } else if let dir = DirectionalAudio(rawValue: raw) {
-            self = .directional(dir)
-        } else {
-            self = .unknown(raw)
-        }
-    }
-
-    public var rawValue: UInt8 {
-        switch self {
-        case .wind(let w): w.rawValue
-        case .directional(let d): d.rawValue
-        case .unknown(let b): b
-        }
-    }
 }
 
 /// Recording aspect. Encoded in the `0x02/0x18` res byte — not a second SET.
@@ -804,26 +759,6 @@ public struct VideoResolution: Equatable, Hashable, Sendable {
         case .oneOne: 1
         case .nineSixteen: 9.0 / 16.0
         case nil: nil
-        }
-    }
-
-    /// Pocket 3 digital-zoom ceiling for this FORMAT, or `nil` for a byte the
-    /// catalog does not name.
-    ///
-    /// The limit tracks the capture size class, not the aspect — a bigger frame
-    /// leaves less crop headroom. Measured on a body by asking past the ceiling
-    /// and reading `cam_fov` `zoomLens` back: the camera clamps to its own max
-    /// rather than refusing, so an over-ask reports the true limit. `0x0A`,
-    /// `0x69` (4x), `0x2D`, `0x6A` (3x), `0x10`, `0x6B` (2x) are measured; the
-    /// rest inherit from a measured sibling in the same size class.
-    public var pocket3ZoomMax: Double? {
-        switch rawValue {
-        case 0x0A, 0x0C, 0x42, 0x69: 4  // 1080 — 0x0A, 0x69 measured
-        case 0x2D, 0x43, 0x5F: 3  // 2.7K — 0x2D measured
-        case 0x6A: 3  // 2160 — measured
-        case 0x10, 0x67, 0x7D: 2  // 4K — 0x10 measured
-        case 0x6B, 0x6C: 2  // 3K — 0x6B measured
-        default: nil
         }
     }
 

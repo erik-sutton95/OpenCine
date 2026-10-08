@@ -40,7 +40,7 @@ class NativeProgramZoomTest {
         val ready = CameraStatus(colorMode = CameraCommands.COLOR_NORMAL, zoomFactor = 1.0)
         for (zoom in listOf(1.001, 12.0)) {
             assertNull(nativeProgramZoomFailure(GimbalProgram(a, a.copy(zoom = zoom), durationAB = 0.5),
-                CameraModel("Osmo Pocket 4 Pro"), ready), "Position tracking has no native gear travel restriction")
+                djiBodyProfile("Osmo Pocket 4 Pro"), ready), "Position tracking has no native gear travel restriction")
         }
     }
 

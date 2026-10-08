@@ -1,6 +1,6 @@
 import Foundation
-import OpenCineCore
 import Network
+import OpenCineCore
 
 @MainActor
 final class LunaTCPTransport {
@@ -11,6 +11,9 @@ final class LunaTCPTransport {
     private var timeout: Task<Void, Never>?
     private var generation = 0
     private let queue = DispatchQueue(label: "org.opencine.insta360.tcp", qos: .userInitiated)
+    var commandSource: LunaNativeCommandSource {
+        .init(transport: self, epoch: generation, endpoint: connection)
+    }
 
     func connect(host: String, port: UInt16, localAddress: String?) async throws {
         try Task.checkCancellation()
@@ -65,20 +68,48 @@ final class LunaTCPTransport {
         receive(token: token)
     }
     func send(_ data: Data) async throws {
+        try await send(data, firstDispatch: nil, didDispatch: nil)
+    }
+    func send(
+        _ data: Data, admission: LunaCommandAdmission, source: LunaNativeCommandSource,
+        didDispatch: @escaping LunaCommandDidDispatch
+    ) async throws {
+        try admission.requireCurrent()
+        guard source.admits(commandSource) else { throw LunaCommandAdmissionError.expired }
+        try await send(
+            data, firstDispatch: .init(admission: admission, source: source),
+            didDispatch: didDispatch)
+    }
+    private func send(
+        _ data: Data, firstDispatch supplied: LunaCommandFirstDispatch?,
+        didDispatch: LunaCommandDidDispatch?
+    ) async throws {
         guard let connection else {
-            throw ConnectionFailure.luna(.linkLost, "video.closed", "The camera video connection is closed.")
+            throw ConnectionFailure.luna(
+                .linkLost, "video.closed", "The camera video connection is closed.")
         }
         try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(
-                content: data,
-                completion: .contentProcessed { error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
-                    }
-                })
+            let write = {
+                connection.send(
+                    content: data,
+                    completion: .contentProcessed { error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
+                    })
+            }
+            if var first = supplied {
+                do {
+                    guard let didDispatch else { throw LunaCommandAdmissionError.expired }
+                    try first.perform(
+                        current: { self.commandSource }, native: write, didDispatch: didDispatch)
+                } catch { continuation.resume(throwing: error) }
+            } else {
+                write()
+            }
         }
     }
     func sendBeforeClosing(_ data: Data) {
@@ -110,7 +141,9 @@ final class LunaTCPTransport {
         let waiter = ready
         ready = nil
         disconnect()
-        waiter?.resume(throwing: ConnectionFailure.luna(.linkLost, "video.failed", message, phase: .negotiating))
+        waiter?.resume(
+            throwing: ConnectionFailure.luna(
+                .linkLost, "video.failed", message, phase: .negotiating))
         if wasReady { onDisconnect?(message) }
     }
     private func receive(token: Int) {

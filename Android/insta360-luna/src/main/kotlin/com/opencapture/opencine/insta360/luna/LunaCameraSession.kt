@@ -91,6 +91,7 @@ class LunaCameraSession internal constructor(
     private val scope: CoroutineScope,
     private val timing: Timing = Timing.LUNA,
     private val now: () -> MonotonicInstant = { MonotonicInstant(System.nanoTime().nanoseconds) },
+    private val noteGimbalCommand: () -> Unit = {},
 ) : CameraSession {
     /**
      * How long an acknowledged write may take to show in readback, and how often to ask.
@@ -126,6 +127,25 @@ class LunaCameraSession internal constructor(
                 }
             }
         }
+        currentCoroutineContext().ensureActive(); checkOwner()
+        val reply = send(request)
+        currentCoroutineContext().ensureActive(); checkOwner()
+        return reply
+    }
+
+    /** One motion request on this exact session/epoch; callbacks cannot authorize a successor. */
+    internal suspend fun motionRequest(request: LunaControl.Request, epoch: ControlEpoch,
+        commanding: Boolean = false): ByteArray {
+        fun checkOwner() {
+            synchronized(lock) {
+                check(!closed && current.connection == ConnectionState.Ready &&
+                    current.authority == ControlAuthority.Owner && current.epoch == epoch) {
+                    "The motion source session retired."
+                }
+            }
+        }
+        currentCoroutineContext().ensureActive(); checkOwner()
+        if (commanding) noteGimbalCommand()
         currentCoroutineContext().ensureActive(); checkOwner()
         val reply = send(request)
         currentCoroutineContext().ensureActive(); checkOwner()

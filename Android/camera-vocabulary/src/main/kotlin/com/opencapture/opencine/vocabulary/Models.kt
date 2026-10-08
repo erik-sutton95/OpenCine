@@ -3,154 +3,32 @@ package com.opencapture.opencine.vocabulary
 data class CameraModel(
     val name: String,
     val datalinkPort: Int = 9004,
-    val tcpPoke: Boolean = true,
+    val tcpPoke: Boolean = false,
     val wpa3: Boolean = false,
     val verified: Boolean = false,
     val isDrone: Boolean = false,
-    val pairingToken: String = "osmo",
-    /** `"pocket"` / `"nano"` / `"other"`. Missing JSON defaults to Pocket. */
-    val family: String = "pocket",
-    /** `0x09/0xa8` receiver. Pocket `0x08`; Nano `0x41`. */
+    val pairingToken: String = "",
+    val family: String = "other",
     val liveViewEnableReceiver: Int = 0x08,
     val usesNanoLiveViewGate: Boolean = false,
-    val supportsTapFocus: Boolean = true,
-    val supportsFocusMode: Boolean = true,
-    val usesCapturedLiveEnable: Boolean = true,
-    /** Pocket 3 first picture: SET 1080 then boot 4K. Not Pocket 4. */
+    val supportsTapFocus: Boolean = false,
+    val supportsFocusMode: Boolean = false,
+    val usesCapturedLiveEnable: Boolean = false,
     val needsFirstPictureFormatPoke: Boolean = false,
-    /** Video-mode chip cycle. 4 Pro 1/3/6/12; Pocket 4/3 1/2/4; Nano 1. */
-    val zoomStops: List<Double> = listOf(1.0, 2.0, 4.0),
-    /** Portable `CameraModel.hasGimbal`. Pocket 3-axis gimbal; Nano has none. */
-    val hasGimbal: Boolean = family == "pocket",
-    /** Portable `CameraModel.supportsZoom`. Nano is a fixed 1× prime. */
-    val supportsZoom: Boolean = family == "pocket",
-    /** Pocket `0x02/0x68 08` before `0x09/0xa8`. Not Nano (own gate), not Action 6. */
-    val sendsLiveViewPrepare: Boolean = !usesNanoLiveViewGate && !looksLikeAction6(name),
-    /** Action 6 aperture strategy (`0x8E` pid `0x44`) and iris readback. */
-    val supportsAperture: Boolean = looksLikeAction6(name),
+    val zoomStops: List<Double> = listOf(1.0),
+    val hasGimbal: Boolean = false,
+    val supportsZoom: Boolean = false,
+    val sendsLiveViewPrepare: Boolean = false,
+    val supportsAperture: Boolean = false,
+    val captureProfile: CameraCaptureProfile? = null,
 ) {
     val zoomMax: Double get() = activeZoomStops().lastOrNull() ?: 1.0
+    val isoAutoRangeFloor: Int? get() = captureProfile?.isoAutoRangeFloor
 
-    val isoAutoRangeFloor: Int get() = Companion.isoAutoRangeFloorFor(name)
+    fun activeZoomStops(resolutionCode: Int = -1, shootingMode: Int = -1): List<Double> =
+        captureProfile?.zoom?.choices(VideoResolution.fromRaw(resolutionCode), shootingMode) ?: listOf(1.0)
 
-    /**
-     * Chip cycle for this body, current FORMAT, and shooting mode.
-     * SlowMo / TimeLapse / SuperNight lock digital zoom (Pro keeps 1×/3×).
-     *
-     * Pocket 3 is per-FORMAT: the ceiling follows the capture size class, so
-     * 1080 keeps 1×/2×/4× while 2.7K and 2160 1:1 stop at 3× and 4K and 3K 1:1
-     * stop at 2×; see [VideoResolution.pocket3ZoomMax]. With no FORMAT known
-     * yet, offer the body's absolute range.
-     */
-    fun activeZoomStops(resolutionCode: Int = -1, shootingMode: Int = -1): List<Double> {
-        val n = name.lowercase().replace(" ", "")
-        val isPro = n.contains("pocket4p") || n.contains("4pro")
-        val isPocket4 = n.contains("pocket4")
-        val isPocket3 = n.contains("pocket3") || n.contains("muse")
-        val digitalLocked =
-            shootingMode == CameraCommands.SHOOT_SLOWMO ||
-                shootingMode == CameraCommands.SHOOT_TIMELAPSE ||
-                shootingMode == CameraCommands.SHOOT_SUPER_NIGHT
-        if (isPro) return if (digitalLocked) listOf(1.0, 3.0) else listOf(1.0, 3.0, 6.0, 12.0)
-        if (digitalLocked) return listOf(1.0)
-        if (isPocket4) return listOf(1.0, 2.0, 4.0)
-        if (isPocket3) {
-            return when (VideoResolution.fromRaw(resolutionCode)?.pocket3ZoomMax) {
-                2.0 -> listOf(1.0, 2.0)
-                3.0 -> listOf(1.0, 2.0, 3.0)
-                else -> listOf(1.0, 2.0, 4.0)
-            }
-        }
-        if (family != "pocket") return listOf(1.0)
-        return zoomStops.ifEmpty { listOf(1.0, 2.0, 4.0) }
-    }
-
-    companion object {
-        val default = CameraModel(name = "DJI Osmo camera")
-
-        fun looksLikePocket3(name: String): Boolean {
-            val n = name.lowercase().replace(" ", "")
-            return n.contains("pocket3") || n.contains("muse")
-        }
-
-        fun looksLikePocket4Pro(name: String): Boolean {
-            val n = name.lowercase().replace(" ", "")
-            return n.contains("pocket4p")
-        }
-
-        /** SlowMo `0x02/0x18` trailer context. Regular Pocket 4 stays unqualified. */
-        fun supportsSlowMoFormatTrailer(name: String): Boolean =
-            looksLikePocket3(name) || looksLikePocket4Pro(name)
-
-        /** Osmo Action 6 (BLE `0x0018`). Handbook `devices/action-6/`. */
-        fun looksLikeAction6(name: String): Boolean =
-            name.lowercase().replace(" ", "").contains("action6")
-
-        fun looksLikeNano(name: String, family: String = ""): Boolean {
-            if (family == "nano") return true
-            return name.lowercase().contains("nano")
-        }
-
-        /**
-         * Rec.709 / HDR / D-Log M Auto ISO range floor. Pocket 3 and Pocket 4
-         * start at 50 (DJI spec; #180). Pocket 4 Pro wide is 100 (captured
-         * `camcap_iso_auto_max`). Unknown bodies keep 100.
-         */
-        fun isoAutoRangeFloorFor(name: String): Int {
-            val n = name.lowercase().replace(" ", "")
-            if (n.contains("pocket4p") || n.contains("4pro")) return 100
-            if (n.contains("pocket4") || n.contains("pocket3") || n.contains("muse")) return 50
-            return 100
-        }
-
-        /** DJI color wheel. D-Log2 is Pocket 4 Pro only. Pocket 3 is HLG / D-Log M. */
-        fun colorModesFor(name: String, family: String): List<Int> {
-            if (family == "nano") {
-                return listOf(CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_NORMAL10, CameraCommands.COLOR_DLOG_M)
-            }
-            if (looksLikeAction6(name)) {
-                return listOf(CameraCommands.COLOR_NORMAL10, CameraCommands.COLOR_DLOG_M)
-            }
-            val n = name.lowercase().replace(" ", "")
-            if (n.contains("pocket4p") || n.contains("4pro")) {
-                return listOf(
-                    CameraCommands.COLOR_NORMAL,
-                    CameraCommands.COLOR_HDR,
-                    CameraCommands.COLOR_DLOG,
-                    CameraCommands.COLOR_DLOG2,
-                )
-            }
-            if (n.contains("pocket4")) {
-                return listOf(
-                    CameraCommands.COLOR_NORMAL,
-                    CameraCommands.COLOR_HDR,
-                    CameraCommands.COLOR_DLOG,
-                )
-            }
-            if (n.contains("pocket3") || n.contains("muse")) {
-                return listOf(
-                    CameraCommands.COLOR_NORMAL,
-                    CameraCommands.COLOR_HDR,
-                    CameraCommands.COLOR_DLOG_M,
-                )
-            }
-            return listOf(
-                CameraCommands.COLOR_NORMAL,
-                CameraCommands.COLOR_HDR,
-                CameraCommands.COLOR_DLOG,
-            )
-        }
-
-        fun zoomStopsFor(name: String, family: String): List<Double> {
-            val n = name.lowercase().replace(" ", "")
-            if (n.contains("pocket4p") || n.contains("4pro")) return listOf(1.0, 3.0, 6.0, 12.0)
-            if (n.contains("pocket4") || n.contains("pocket3") || n.contains("muse")) {
-                return listOf(1.0, 2.0, 4.0)
-            }
-            return if (family == "pocket") listOf(1.0, 2.0, 4.0) else listOf(1.0)
-        }
-
-    }
+    companion object {}
 }
 
 data class FoundCamera(

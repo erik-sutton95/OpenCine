@@ -79,15 +79,18 @@ public struct ScopeAssistBundle: Equatable, Sendable {
     /// The source's live-tap clip byte for `transfer` once this tap was measured. WAVE /
     /// PARADE place the points on it, so a bundle carries its own ceiling (STATE-01).
     public var clipByte = 255
+    /// Optional measured code placement supplied by the source that produced these samples.
+    public var levelAxis: ScopeLevelAxis?
 
     public init(revision: UInt64 = 0, samples: ScopeSamples = .empty, vectorscopePoints: [ScopePoint] = [],
         trailSamples: ScopeSamples = .empty, trailVectorscopePoints: [ScopePoint] = [],
         traffic: ScopeTrafficLightsReading = .none, histogramDisplay: ScopeHistogramDisplay = .empty,
-        transfer: MonitorTransfer = .rec709, clipByte: Int = 255) {
+        transfer: MonitorTransfer = .rec709, clipByte: Int = 255, levelAxis: ScopeLevelAxis? = nil) {
         self.revision = revision; self.samples = samples; self.vectorscopePoints = vectorscopePoints
         self.trailSamples = trailSamples; self.trailVectorscopePoints = trailVectorscopePoints
         self.traffic = traffic; self.histogramDisplay = histogramDisplay
         self.transfer = transfer; self.clipByte = clipByte
+        self.levelAxis = levelAxis
     }
 
     public static let empty = ScopeAssistBundle()

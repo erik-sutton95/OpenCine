@@ -15,7 +15,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ShootingModePolishTest {
-    private val pocket3 = CameraModel(name = "Osmo Pocket 3")
+    private val pocket3 = CaptureTestProfiles.acceptedModel
     private val leftoverVideo = listOf(
         VideoFormat(VideoResolution.P4K, VideoFrameRate.FPS24),
         VideoFormat(VideoResolution.P4K, VideoFrameRate.FPS60),
@@ -29,7 +29,7 @@ class ShootingModePolishTest {
         assertEquals("SuperNight", CameraCommands.shootingModeLabel(CameraCommands.SHOOT_SUPER_NIGHT))
         assertEquals(
             "Low-Light",
-            CameraCommands.shootingModeLabel(CameraCommands.SHOOT_SUPER_NIGHT, "Osmo Pocket 3"),
+            CameraCommands.shootingModeLabel(CameraCommands.SHOOT_SUPER_NIGHT, "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight),
         )
         assertEquals(
             "SuperNight",
@@ -37,11 +37,11 @@ class ShootingModePolishTest {
         )
         assertEquals(
             CameraCommands.SHOOT_SUPER_NIGHT,
-            CaptureLists.shootingModeRaw("Low-Light", "Osmo Pocket 3"),
+            CaptureLists.shootingModeRaw("Low-Light", "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight),
         )
-        assertNull(CaptureLists.shootingModeRaw("SuperNight", "Osmo Pocket 3"))
-        assertTrue("Low-Light" in CaptureLists.shootingModeLabels("Osmo Pocket 3"))
-        assertTrue("SuperNight" !in CaptureLists.shootingModeLabels("Osmo Pocket 3"))
+        assertNull(CaptureLists.shootingModeRaw("SuperNight", "Osmo Pocket 3", profile = CaptureTestProfiles.lowLight))
+        assertTrue("Low-Light" in CaptureLists.shootingModeLabels("Osmo Pocket 3", profile = CaptureTestProfiles.lowLight))
+        assertTrue("SuperNight" !in CaptureLists.shootingModeLabels("Osmo Pocket 3", profile = CaptureTestProfiles.lowLight))
         assertTrue("SuperNight" in CaptureLists.shootingModeLabels("Osmo Pocket 4"))
     }
 
@@ -96,7 +96,7 @@ class ShootingModePolishTest {
         assertNull(CaptureLists.nextVideoFormat(photo, tab = 0, drum = "60p", fromDrum = true))
         assertEquals("FORMAT", CaptureLists.headerTitle(LiveSheet.FORMAT, -1, photo.shootingMode))
         assertEquals("Photo", CaptureLists.headerSubtitle(LiveSheet.FORMAT, -1, 0, false, photo.shootingMode))
-        val hold = recordingCategoryQuickControl(LiveSheet.FORMAT, photo, "Osmo Pocket 3")
+        val hold = recordingCategoryQuickControl(LiveSheet.FORMAT, photo, "Osmo Pocket 3", cameraModel = CaptureTestProfiles.acceptedModel)
         assertEquals(listOf("Photo"), hold?.options)
         assertFalse(hold!!.enabled)
     }
@@ -199,39 +199,7 @@ class ShootingModePolishTest {
             CaptureLists.nextVideoFormat(leftover240, tab = 0, drum = "240p", fromDrum = false),
             "empty SlowMo on a non-Pocket-3 body must not SET 4K240 from a leftover 1080/240",
         )
-        assertTrue(
-            CaptureShutterPolicy.usesShutterTriggerOnPocket3(
-                CameraCommands.SHOOT_TIMELAPSE, "Osmo Pocket 3",
-            ),
-        )
-        assertFalse(
-            CaptureShutterPolicy.usesShutterTriggerOnPocket3(
-                CameraCommands.SHOOT_TIMELAPSE, "Osmo Pocket 4 Pro",
-            ),
-        )
-        assertFalse(
-            CaptureShutterPolicy.usesShutterTriggerOnPocket3(
-                CameraCommands.SHOOT_HYPERLAPSE, "Osmo Pocket 3",
-            ),
-        )
-        assertEquals("1", CaptureShutterPolicy.shootPhotoExtra(start = true))
-        assertEquals("0", CaptureShutterPolicy.shootPhotoExtra(start = false))
-        assertEquals(
-            CaptureShutterPolicy.CaptureKind.SHUTTER_TRIGGER,
-            CaptureShutterPolicy.captureKind(CameraCommands.SHOOT_TIMELAPSE, "Osmo Pocket 3"),
-        )
-        assertEquals(
-            CaptureShutterPolicy.CaptureKind.VIDEO_RECORD,
-            CaptureShutterPolicy.captureKind(CameraCommands.SHOOT_TIMELAPSE, "Osmo Pocket 4 Pro"),
-        )
-        assertEquals(
-            CaptureShutterPolicy.CaptureKind.VIDEO_RECORD,
-            CaptureShutterPolicy.captureKind(CameraCommands.SHOOT_SUPER_NIGHT, "Osmo Pocket 3"),
-        )
-        assertEquals(
-            CaptureShutterPolicy.CaptureKind.PHOTO,
-            CaptureShutterPolicy.captureKind(CameraCommands.SHOOT_PHOTO, "Osmo Pocket 3"),
-        )
+
     }
 
     @Test
@@ -361,7 +329,7 @@ class ShootingModePolishTest {
         assertNull(CaptureLists.shootingModeRaw("Live Photo", "Osmo Pocket 4 Pro"))
         assertEquals(
             CaptureShutterPolicy.CaptureKind.PHOTO,
-            CaptureShutterPolicy.captureKind(CameraCommands.SHOOT_LIVE_PHOTO, "Osmo Pocket 4 Pro"),
+            CaptureShutterPolicy.captureKind(CameraCommands.SHOOT_LIVE_PHOTO),
         )
         assertFalse(
             CaptureShutterPolicy.requiresRecordConfirmation(true, CameraCommands.SHOOT_LIVE_PHOTO),
@@ -395,11 +363,11 @@ class ShootingModePolishTest {
             isoLimit = 0x05,
         )
         assertTrue(CaptureLists.offersIsoAuto(photoIso))
-        assertEquals("100\u2013200", CaptureLists.isoAutoLabels(photoIso).first())
-        assertEquals("100\u20131600", CaptureLists.isoAutoLabel(photoIso))
+        assertEquals("100\u2013200", CaptureLists.isoAutoLabels(photoIso, isoAutoRangeFloor = 100).first())
+        assertEquals("100\u20131600", CaptureLists.isoAutoLabel(photoIso, isoAutoRangeFloor = 100))
         assertEquals(
             IsoLimit.Max800,
-            CaptureLists.isoLimit("100\u2013800", photoIso),
+            CaptureLists.isoLimit("100\u2013800", photoIso, isoAutoRangeFloor = 100),
         )
         val emptyCaps = leftover.copy(colorMode = CameraCommands.COLOR_DLOG2, isoIndex = 0x05)
         assertTrue(CaptureLists.offersIsoAuto(emptyCaps))
@@ -449,11 +417,6 @@ class ShootingModePolishTest {
         assertEquals(listOf("200p"), hold?.options)
         assertEquals("200p", hold?.selection)
         assertTrue(hold!!.enabled)
-        assertTrue(CameraModel.looksLikePocket4Pro("Osmo Pocket 4 Pro"))
-        assertTrue(CameraModel.looksLikePocket4Pro("OsmoPocket4P-ABCD"))
-        assertFalse(CameraModel.looksLikePocket4Pro("Osmo Pocket 4"))
-        assertFalse(CameraModel.looksLikePocket4Pro("Hero4Pro"))
-        assertTrue(CameraModel.supportsSlowMoFormatTrailer("OsmoPocket4P-ABCD"))
-        assertFalse(CameraModel.supportsSlowMoFormatTrailer("Osmo Pocket 4"))
+
     }
 }

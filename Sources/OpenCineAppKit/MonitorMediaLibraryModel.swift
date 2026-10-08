@@ -14,9 +14,12 @@ public struct MonitorMediaFilterFacts: Equatable, Sendable {
     public let color: String?
     /// Optional host category policy; source asset.kind remains the actual observation.
     public let presentationKind: MediaAssetKind?
+    /// Observed source support for opening this record; nil keeps the caller's existing policy.
+    public let playbackEligible: Bool?
     public init(
         format: String? = nil, resolution: String? = nil, dateKey: String? = nil,
-        orderKey: String? = nil, color: String? = nil, presentationKind: MediaAssetKind? = nil
+        orderKey: String? = nil, color: String? = nil, presentationKind: MediaAssetKind? = nil,
+        playbackEligible: Bool? = nil
     ) {
         self.format = format
         self.resolution = resolution
@@ -24,6 +27,7 @@ public struct MonitorMediaFilterFacts: Equatable, Sendable {
         self.orderKey = orderKey
         self.color = color
         self.presentationKind = presentationKind
+        self.playbackEligible = playbackEligible
     }
 }
 
@@ -41,12 +45,15 @@ public struct MonitorMediaLibraryState<Payload: Sendable>: Sendable {
     public var records: [MonitorMediaRecord<Payload>] = []
     public var catalog = MediaCatalog()
     public var browsing = false
+    public var acquiringSource = false
     public var fetching = false
     public var fetchedCount = 0
     public var note: String?
     public var cacheRevision: UInt64 = 0
     public var entries: [MediaAssetID: MonitorMediaCacheEntry] = [:]
     public var progress: [MediaAssetID: Double] = [:]
+    public var hostProgress: [MonitorMediaLibraryIOKey: Double] = [:]
+    public var deletionProgress: MonitorMediaDeletionProgress?
     public var transferring: Set<MediaAssetID> = []
     public var category: MonitorMediaCategoryFilter = .all
     public var sort: MonitorMediaSort = .newest
@@ -281,12 +288,21 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     }
     @ObservationIgnored private var listing = UUID()
     @ObservationIgnored private var openTask: Task<Void, Never>?
+    @ObservationIgnored private var acquisitionTask: Task<Void, Never>?
+    @ObservationIgnored private var acquisition = UUID()
     @ObservationIgnored private var listTask: Task<Void, Never>?
     @ObservationIgnored private var reconciliationTask: Task<Void, Error>?
     @ObservationIgnored private var transfers: [MediaAssetID: Transfer] = [:]
     @ObservationIgnored private var thumbnails: [MediaAssetID: UUID] = [:]
     @ObservationIgnored private var thumbnailTasks: [MediaAssetID: Task<Void, Never>] = [:]
     @ObservationIgnored private var thumbnailWriters: [MediaAssetID: MonitorMediaCacheWrite] = [:]
+    @ObservationIgnored private var hostOperations: [UUID: HostOperation] = [:]
+    @ObservationIgnored private let hostOwner = UUID()
+    @ObservationIgnored private var hostClaims: [HostClaim: UUID] = [:]
+    @ObservationIgnored private var hostProgressOwners: [MonitorMediaLibraryIOKey: MonitorMediaLibraryIOAuthority] = [:]
+    @ObservationIgnored private var hostProgressDelays: [MonitorMediaLibraryIOKey: Task<Void, Never>] = [:]
+    @ObservationIgnored private var deletionProgressOwner: UUID?
+    @ObservationIgnored private var finishingDeletions: [UUID: DeletionFinish] = [:]
     @ObservationIgnored private var committed = MonitorMediaLibraryState<Payload>()
     @ObservationIgnored private var publicationRevision: UInt64 = 0
     @ObservationIgnored private var notifying = false
@@ -315,6 +331,16 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         _ = publication
         return committed
     }
+    public var acquiringSource: Bool { state.acquiringSource }
+    public var hostProgress: [MonitorMediaLibraryIOKey: Double] { state.hostProgress }
+    public var deletionProgress: MonitorMediaDeletionProgress? {
+        let value = state.deletionProgress
+        guard let id = deletionProgressOwner,
+            let operation = hostOperations.values.first(where: { $0.deletion?.id == id }),
+            operation.deletion?.isCurrent == true, deletionProgressOwner == id,
+            hostOperations[operation.authority.id] === operation else { return nil }
+        return value
+    }
 
     private func commit(_ change: (inout MonitorMediaLibraryState<Payload>) -> Void) {
         var next = committed
@@ -342,6 +368,33 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         let id: UUID
         let writer: MonitorMediaCacheWrite
         let task: Task<URL, Error>
+    }
+    private struct HostClaim: Hashable {
+        let key: MonitorMediaLibraryIOKey
+        let purpose: MonitorMediaLibraryIOPurpose
+    }
+    @MainActor private final class HostOperation {
+        let authority: MonitorMediaLibraryIOAuthority
+        let purpose: MonitorMediaLibraryIOPurpose
+        var writer: MonitorMediaCacheWrite?
+        var task: Task<MediaTransferReceipt, Error>?
+        var attempt = UUID()
+        var deletion: MonitorMediaLibraryDeletionAuthority?
+        init(authority: MonitorMediaLibraryIOAuthority, purpose: MonitorMediaLibraryIOPurpose,
+            writer: MonitorMediaCacheWrite?) {
+            self.authority = authority; self.purpose = purpose; self.writer = writer
+        }
+    }
+    @MainActor private final class DeletionFinish {
+        let claim: UUID
+        let sourceCurrent: @MainActor () -> Bool
+        var lifetime: UUID
+        var admission: MonitorMediaLibraryActionToken?
+        var relisted = false
+        var valid = true
+        init(claim: UUID, lifetime: UUID, sourceCurrent: @escaping @MainActor () -> Bool) {
+            self.claim = claim; self.lifetime = lifetime; self.sourceCurrent = sourceCurrent
+        }
     }
 
     public init(
@@ -506,17 +559,82 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
     }
     public func begin() {
         guard !disposed, !browsing else { return }
-        let generation = UUID()
+        begin(generation: UUID(), completingClaim: nil)
+    }
+    private func begin(generation: UUID, completingClaim: UUID?) {
+        guard !disposed, !browsing else { return }
+        invalidateFinishingDeletions(except: completingClaim)
+        let retired = extractRetiredOperations(completingClaim: completingClaim)
         commit {
             $0.lifetimeToken = generation
             $0.browsing = true
             $0.note = nil
             $0.catalogPageCount = 0
+            for key in retired.hostKeys { $0.hostProgress[key] = nil }
         }
+        retired.dispose()
         guard current(generation) else { return }
         if case .background = cacheScanning { reloadEntries() }
         guard current(generation) else { return }
         open()
+    }
+    /// A consumed deletion may reopen only its own captured source, once, during finish.
+    /// Await the existing open task so the returned action token contains that actual binding.
+    @discardableResult public func relist(after authority: MonitorMediaLibraryDeletionAuthority) async -> Bool {
+        guard authority.owner == hostOwner, authority.directory === cache.directory,
+            let finish = finishingDeletions[authority.id], !finish.relisted,
+            authority.isCompleting, finishingDeletions[authority.id] === finish else { return false }
+        finish.relisted = true
+        if browsing {
+            refresh()
+        } else {
+            let replacement = UUID()
+            finish.lifetime = replacement
+            begin(generation: replacement, completingClaim: authority.id)
+        }
+        guard authority.isCompleting, finishingDeletions[authority.id] === finish else { return false }
+        let opened = openTask
+        await opened?.value
+        return !Task.isCancelled && authority.isCompleting && finishingDeletions[authority.id] === finish
+    }
+    private func invalidateFinishingDeletions(except retained: UUID? = nil) {
+        for (id, finish) in finishingDeletions where id != retained { finish.valid = false }
+    }
+    private func finishingCurrent(_ finish: DeletionFinish) -> Bool {
+        guard finish.valid, !disposed, lifetimeToken == finish.lifetime,
+            finish.admission.map(isCurrent) ?? true else { return false }
+        let available = finish.sourceCurrent()
+        return available && finish.valid && !disposed && lifetimeToken == finish.lifetime
+            && (finish.admission.map(isCurrent) ?? true)
+    }
+    /// Open offline rows immediately, then adopt only this gallery's captured source result.
+    /// Replacement/close retires acquisition before cleanup or a late SDK reply can publish.
+    public func begin(acquiring source: @escaping @MainActor () async -> (any CameraMediaService)?,
+        unavailableNote: String? = nil) {
+        guard !disposed, !browsing else { return }
+        bind(nil)
+        guard !disposed, !browsing else { return }
+        begin()
+        guard !disposed, browsing else { return }
+        let generation = lifetimeToken, request = UUID()
+        acquisition = request
+        let task = Task { [weak self] in
+            guard let self, self.current(generation), self.acquisition == request,
+                !Task.isCancelled else { return }
+            let producer = await source()
+            guard self.current(generation), self.acquisition == request, !Task.isCancelled else { return }
+            self.acquisitionTask = nil
+            self.commit { $0.acquiringSource = false }
+            guard self.current(generation), self.acquisition == request, !Task.isCancelled else { return }
+            guard let producer else {
+                self.note = unavailableNote ?? self.copy.openFailed
+                return
+            }
+            self.bind(producer)
+        }
+        acquisitionTask = task
+        commit { $0.acquiringSource = true }
+        if !current(generation) || acquisition != request { task.cancel() }
     }
     private func open() {
         guard let service else { return }
@@ -560,11 +678,14 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         retirementTasks[id] = task
         return task
     }
-    @discardableResult private func retireGallery() -> UUID {
-        let token = UUID()
+    @discardableResult private func retireGallery(token: UUID = UUID(), retainingHost: UUID? = nil) -> UUID {
+        invalidateFinishingDeletions()
         listing = UUID()
         entryRequest = UUID()
         let oldOpen = openTask
+        let oldAcquisition = acquisitionTask
+        acquisition = UUID()
+        acquisitionTask = nil
         let oldList = listTask
         let oldReconciliation = reconciliationTask
         let oldCursor = cursor
@@ -576,17 +697,22 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         cursor = nil
         entryTask = nil
         browse = nil
-        let retired = extractRetiredOperations()
+        let retired = extractRetiredOperations(retainingHost: retainingHost)
+        if retainingHost == nil { deletionProgressOwner = nil }
         if let closed { retireBrowse(closed) }
         commit {
             $0.lifetimeToken = token
             $0.browsing = false
+            $0.acquiringSource = false
             $0.fetching = false
             $0.catalogPageCount = 0
             $0.transferring.subtract(retired.ids)
             for id in retired.ids { $0.progress[id] = nil }
+            for key in retired.hostKeys { $0.hostProgress[key] = nil }
+            if retainingHost == nil { $0.deletionProgress = nil }
         }
         oldOpen?.cancel()
+        oldAcquisition?.cancel()
         oldList?.cancel()
         oldReconciliation?.cancel()
         oldCursor?.close()
@@ -785,6 +911,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         let retired = extractRetiredOperations(except: retained)
         next.transferring.subtract(retired.ids)
         for id in retired.ids { next.progress[id] = nil }
+        for key in retired.hostKeys { next.hostProgress[key] = nil }
         next.fetchedCount = next.records.count
         next.selectedIDs.formIntersection(retained)
         next.entries = next.entries.filter { retained.contains($0.key) }
@@ -863,6 +990,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         let retired = extractRetiredOperations(except: Set(next.records.map(\.asset.id)))
         next.transferring.subtract(retired.ids)
         for id in retired.ids { next.progress[id] = nil }
+        for key in retired.hostKeys { next.hostProgress[key] = nil }
         commit { $0 = next }
         retired.dispose()
         guard isCurrent(token) else { throw MediaServiceError.retired }
@@ -950,17 +1078,426 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
 
     /// An app-owned playback/delivery adapter committed through this same cache root lifetime.
     public func refreshLocalCache() { reloadEntries() }
-    private func extractRetiredOperations(except retained: Set<MediaAssetID> = [])
-        -> (ids: Set<MediaAssetID>, dispose: @MainActor () -> Void)
+
+    /// Capture before SDK suspension. A missing indexed asset is an explicit host-only request,
+    /// not a ghost catalog row; known content additionally retires when its row is removed.
+    public func captureIO(key: MonitorMediaLibraryIOKey, asset: MediaAssetID?,
+        ifCurrent: @escaping @MainActor () -> Bool) -> MonitorMediaLibraryIOAuthority {
+        let token = actionToken
+        return .init(owner: hostOwner, key: key, asset: asset, directory: cache.directory) { [weak self] in
+            guard let self, !self.disposed, self.isCurrent(token),
+                asset.map({ self.record($0) != nil }) ?? true else { return false }
+            let allowed = ifCurrent()
+            return allowed && !self.disposed && self.isCurrent(token)
+                && (asset.map({ self.record($0) != nil }) ?? true)
+        }
+    }
+
+    /// Capture at confirmation, before SDK preparation or library retirement can reenter.
+    public func captureDeletion(key: MonitorMediaLibraryIOKey,
+        ifCurrent: @escaping @MainActor () -> Bool) -> MonitorMediaLibraryDeletionAuthority {
+        let capturedService = service
+        let sourceCurrent: @MainActor () -> Bool = { [weak self] in
+            guard let self, !self.disposed, self.service === capturedService else { return false }
+            let allowed = ifCurrent()
+            return allowed && !self.disposed && self.service === capturedService
+        }
+        return MonitorMediaLibraryDeletionAuthority(owner: hostOwner, key: key, directory: cache.directory,
+            token: actionToken, sourceCurrent: sourceCurrent) { [weak self] token in
+                guard let self, !self.disposed, self.isCurrent(token) else { return false }
+                let allowed = sourceCurrent()
+                return allowed && !self.disposed && self.isCurrent(token)
+            }
+    }
+
+    /// Uses the same operation scheduler as media IO. Retiring preparation keeps only this
+    /// consumed claim while canceling old listings, transfers, writers and progress callbacks.
+    public func deleteHostBatch<Value: Sendable, Location: Sendable>(
+        _ authority: MonitorMediaLibraryDeletionAuthority,
+        targets: [MonitorMediaDeletionTarget<Value, Location>], selectedCount: Int,
+        preparation: MonitorMediaDeletionPreparation = .preserveGallery,
+        prepare: @escaping @MainActor () -> Void = {},
+        progress: (@MainActor (MonitorMediaDeletionProgress) -> Void)? = nil,
+        port: MonitorMediaDeletionPort<Value, Location>
+    ) async -> Int {
+        guard authority.owner == hostOwner, authority.directory === cache.directory,
+            authority.consume(), !Task.isCancelled else { return 0 }
+        let io = MonitorMediaLibraryIOAuthority(owner: hostOwner, key: authority.key,
+            asset: nil, directory: authority.directory) { [weak authority] in authority?.isCurrent == true }
+        let operation: HostOperation
+        do {
+            guard let started = try startHost(io, purpose: .deletion, writer: nil) else { authority.retire(); return 0 }
+            operation = started; operation.deletion = authority
+        } catch { authority.retire(); return 0 }
+        var removed = 0
+        defer {
+            if deletionProgressOwner == authority.id {
+                deletionProgressOwner = nil
+                commit { $0.deletionProgress = nil }
+            }
+            finishingDeletions[authority.id] = nil
+            if authority.completion?.isCurrent == true { authority.expireIO() } else { authority.retire() }
+            finishHost(operation, clearingProgress: false)
+        }
+        do {
+            try requireHost(operation)
+            prepare()
+            try requireHost(operation)
+            if case .retireGallery = preparation {
+                let replacement = UUID()
+                authority.prepare(token: .init(lifetime: replacement, binding: nil))
+                retireGallery(token: replacement, retainingHost: io.id)
+                try requireHost(operation)
+            }
+            _ = try await performHost(operation) { [weak self] in
+                guard let self else { throw MediaServiceError.retired }
+                var finishedCount = 0
+                var scheduledPort = MonitorMediaDeletionPort(remove: port.remove, commit: port.commit,
+                    finish: {
+                        guard self.hostCurrent(operation) else { return }
+                        if authority.clearsSelection { self.clearSelection() }
+                        guard self.hostCurrent(operation) else { return }
+                        let finish = DeletionFinish(claim: authority.id, lifetime: self.lifetimeToken,
+                            sourceCurrent: authority.sourceCurrent)
+                        self.finishingDeletions[authority.id] = finish
+                        authority.beginCompletion { [weak self] in self?.finishingCurrent(finish) == true }
+                        guard authority.isCompleting, self.finishingDeletions[authority.id] === finish else { return }
+                        await port.finish()
+                        guard !Task.isCancelled, authority.isCompleting,
+                            self.finishingDeletions[authority.id] === finish else { return }
+                        let admission = self.actionToken
+                        finish.admission = admission
+                        authority.sealCompletion(removed: finishedCount, admission: admission)
+                    })
+                scheduledPort.completed = { finishedCount = $0; removed = $0 }
+                removed = await MonitorMediaOrderedDeletion.run(targets, selectedCount: selectedCount,
+                    ifCurrent: { self.hostCurrent(operation) }, port: scheduledPort,
+                    progress: { value in
+                        guard self.hostCurrent(operation) else { return }
+                        self.deletionProgressOwner = authority.id
+                        self.commit { $0.deletionProgress = value }
+                        if self.hostCurrent(operation) { progress?(value) }
+                    })
+                return .init(byteCount: 0)
+            }
+        } catch { /* The consumed claim has retired; committed earlier targets remain removed. */ }
+        return removed
+    }
+
+    private func requireAuthority(_ authority: MonitorMediaLibraryIOAuthority) throws {
+        guard authority.owner == hostOwner, authority.directory === cache.directory else {
+            throw MediaServiceError.retired
+        }
+        try authority.requireCurrent()
+    }
+
+    private func hostCurrent(_ operation: HostOperation) -> Bool {
+        guard hostOperations[operation.authority.id] === operation, operation.authority.isCurrent else { return false }
+        return hostOperations[operation.authority.id] === operation
+    }
+    private func requireHost(_ operation: HostOperation) throws {
+        try Task.checkCancellation()
+        guard hostCurrent(operation) else { throw MediaServiceError.retired }
+    }
+    private func startHost(_ authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, writer: MonitorMediaCacheWrite?) throws -> HostOperation? {
+        try requireAuthority(authority)
+        let claim = HostClaim(key: authority.key, purpose: purpose)
+        if purpose != .playback, hostClaims[claim] != nil { return nil }
+        guard hostOperations[authority.id] == nil else { throw MediaServiceError.unavailable }
+        let operation = HostOperation(authority: authority, purpose: purpose, writer: writer)
+        hostOperations[authority.id] = operation
+        if purpose != .playback { hostClaims[claim] = authority.id }
+        if purpose.tracksProgress {
+            let oldDelay = hostProgressDelays.removeValue(forKey: authority.key)
+            hostProgressOwners[authority.key] = authority
+            oldDelay?.cancel()
+            commit { $0.hostProgress[authority.key] = 0 }
+        }
+        guard hostCurrent(operation) else {
+            finishHost(operation, clearingProgress: true)
+            writer?.abort()
+            throw MediaServiceError.retired
+        }
+        return operation
+    }
+    private func finishHost(_ operation: HostOperation, clearingProgress: Bool) {
+        let authority = operation.authority
+        guard hostOperations[authority.id] === operation else { return }
+        hostOperations[authority.id] = nil
+        let claim = HostClaim(key: authority.key, purpose: operation.purpose)
+        if hostClaims[claim] == authority.id { hostClaims[claim] = nil }
+        if clearingProgress { clearHostProgress(authority) }
+    }
+    private func hostSink(_ operation: HostOperation, attempt: UUID, expected: UInt64?, into sink: any MediaByteSink)
+        -> any MediaByteSink {
+        LibraryHostProgressSink(sink: sink, expected: expected,
+            admitted: { [weak self] in self?.hostCurrent(operation) == true && operation.attempt == attempt },
+            publish: { [weak self] value in
+                guard let self, self.hostCurrent(operation), operation.attempt == attempt,
+                    self.hostProgressOwners[operation.authority.key]?.id == operation.authority.id,
+                    operation.purpose.tracksProgress else { return }
+                self.commit { $0.hostProgress[operation.authority.key] = value }
+            })
+    }
+    private func performHost(_ operation: HostOperation, expected: UInt64?, into sink: any MediaByteSink,
+        transfer: @escaping @MainActor (any MediaByteSink) async throws -> MediaTransferReceipt)
+        async throws -> MediaTransferReceipt {
+        let attempt = UUID(); operation.attempt = attempt
+        let progressSink = hostSink(operation, attempt: attempt, expected: expected, into: sink)
+        return try await performHost(operation) { try await transfer(progressSink) }
+    }
+    private func performHost(_ operation: HostOperation,
+        transfer: @escaping @MainActor () async throws -> MediaTransferReceipt)
+        async throws -> MediaTransferReceipt {
+        let task = Task { [weak self] in
+            guard let self else { throw MediaServiceError.retired }
+            try self.requireHost(operation)
+            let receipt = try await transfer()
+            try self.requireHost(operation)
+            return receipt
+        }
+        operation.task = task
+        if !hostCurrent(operation) { task.cancel() }
+        let logicalRetirement = operation.purpose == .deletion
+        return try await withTaskCancellationHandler { try await task.value } onCancel: {
+            if !logicalRetirement { task.cancel() }
+        }
+    }
+
+    /// A captured native thumbnail fallback, sharing thumbnail cancellation and deduplication.
+    /// It returns the original bytes without changing the disk cache or transfer progress.
+    public func readHostThumbnail(_ authority: MonitorMediaLibraryIOAuthority,
+        read: @escaping @MainActor () async throws -> Data) async throws -> Data? {
+        try await readHostBytes(authority, purpose: .thumbnail, read: read)
+    }
+
+    /// Uncached original image bytes for an actual captured catalog record. This has its own
+    /// claim, while source retirement and cancellation use the existing Library IO task.
+    public func readHostOriginalImage(_ authority: MonitorMediaLibraryIOAuthority,
+        read: @escaping @MainActor () async throws -> Data) async throws -> Data? {
+        guard authority.asset != nil else { throw MediaServiceError.unavailable }
+        return try await readHostBytes(authority, purpose: .originalImage, read: read)
+    }
+
+    private func readHostBytes(_ authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose,
+        read: @escaping @MainActor () async throws -> Data) async throws -> Data? {
+        guard let operation = try startHost(authority, purpose: purpose, writer: nil) else { return nil }
+        defer { finishHost(operation, clearingProgress: false) }
+        var bytes: Data?
+        _ = try await performHost(operation) {
+            let incoming = try await read()
+            bytes = incoming
+            return .init(byteCount: UInt64(incoming.count))
+        }
+        try requireHost(operation)
+        return bytes
+    }
+
+    public func ensureHostThumbnail(_ authority: MonitorMediaLibraryIOAuthority, at address: String,
+        read: @escaping @MainActor () async throws -> Data) async throws {
+        try requireAuthority(authority)
+        if hostClaims[.init(key: authority.key, purpose: .thumbnail)] != nil { return }
+        guard hostOperations[authority.id] == nil else { throw MediaServiceError.unavailable }
+        let writer = try cache.directory.beginWrite(at: address)
+        guard let operation = try startHost(authority, purpose: .thumbnail, writer: writer) else {
+            writer.abort(); return
+        }
+        defer { writer.abort(); finishHost(operation, clearingProgress: false) }
+        let receipt = try await performHost(operation, expected: nil, into: writer) { sink in
+            let bytes = try await read()
+            guard !bytes.isEmpty else { throw MonitorMediaCacheError.empty }
+            try await sink.write(bytes)
+            return .init(byteCount: UInt64(bytes.count))
+        }
+        try requireHost(operation)
+        _ = try writer.commit(receipt)
+        reloadEntries()
+    }
+
+    /// One captured host stream and canonical write. Download/thumbnail purposes deduplicate by
+    /// source key; playback attempts retain the original independent-source fallback behavior.
+    public func cacheHostFile(_ authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, at address: String, expectedByteCount: UInt64? = nil,
+        transfer: @escaping @MainActor (any MediaByteSink) async throws -> MediaTransferReceipt)
+        async throws -> URL? {
+        try await cacheHostFile(authority, purpose: purpose, at: address,
+            plan: .init(expectedByteCount: expectedByteCount, attempts: [transfer], retry: { _ in false }))
+    }
+    /// Each real source attempt gets a fresh writer. A failed partial body can never be appended
+    /// to the next storage candidate or mistaken for its receipt.
+    public func cacheHostFile(_ authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, at address: String, plan: MediaTransferPlan)
+        async throws -> URL? {
+        guard purpose != .deletion else { throw MediaServiceError.unsupported }
+        try requireAuthority(authority)
+        if purpose != .playback,
+            hostClaims[.init(key: authority.key, purpose: purpose)] != nil { return nil }
+        guard hostOperations[authority.id] == nil else { throw MediaServiceError.unavailable }
+        guard let operation = try startHost(authority, purpose: purpose, writer: nil) else { return nil }
+        var committed = false
+        defer { operation.writer?.abort(); finishHost(operation, clearingProgress: !committed) }
+        var lastError: any Error = MediaServiceError.unavailable
+        for (index, transfer) in plan.attempts.enumerated() {
+            try requireHost(operation)
+            let writer = try cache.directory.beginWrite(at: address)
+            operation.writer = writer
+            let receipt: MediaTransferReceipt
+            do {
+                receipt = try await performHost(operation, expected: plan.expectedByteCount, into: writer, transfer: transfer)
+            } catch {
+                writer.abort(); operation.writer = nil
+                try requireHost(operation)
+                guard plan.retry(error) else { throw error }
+                try requireHost(operation)
+                lastError = error
+                continue
+            }
+            try requireHost(operation)
+            plan.accepted?(index, receipt)
+            try requireHost(operation)
+            let location = try writer.commit(receipt)
+            reloadEntries()
+            try requireHost(operation)
+            committed = true
+            return location
+        }
+        throw lastError
+    }
+    /// Compatibility for a real SDK port that must first produce a local staging file. The shared
+    /// owner alone performs bounded copying and canonical commit, including unindexed requests.
+    public func cacheHostStagedFile(_ authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, at address: String, expectedByteCount: UInt64? = nil,
+        staging: @escaping @MainActor (URL) async throws -> Void) async throws -> URL? {
+        guard purpose != .deletion else { throw MediaServiceError.unsupported }
+        try requireAuthority(authority)
+        if purpose != .playback, hostClaims[.init(key: authority.key, purpose: purpose)] != nil { return nil }
+        guard hostOperations[authority.id] == nil else { throw MediaServiceError.unavailable }
+        let destination = try cache.directory.url(address)
+        let incoming = destination.deletingLastPathComponent().appendingPathComponent(".incoming-" + authority.id.uuidString)
+        defer { try? cache.directory.removeStagingFile(at: incoming) }
+        return try await cacheHostFile(authority, purpose: purpose, at: address,
+            expectedByteCount: expectedByteCount) { sink in
+            try await staging(incoming)
+            try authority.requireCurrent()
+            let count = try await MonitorMediaLibraryFileCopy.copy(incoming, into: sink)
+            return .init(byteCount: count, expectedByteCount: expectedByteCount)
+        }
+    }
+    /// Playback's existing owner supplies its writer. This library owns progress and retirement,
+    /// and a later did-commit action decides whether to keep the original completion indication.
+    public func transferHostFile(_ authority: MonitorMediaLibraryIOAuthority,
+        expectedByteCount: UInt64? = nil, into sink: any MediaByteSink,
+        transfer: @escaping @MainActor (any MediaByteSink) async throws -> MediaTransferReceipt)
+        async throws -> MediaTransferReceipt {
+        guard let operation = try startHost(authority, purpose: .playback, writer: nil) else {
+            throw MediaServiceError.unavailable
+        }
+        var complete = false
+        defer { finishHost(operation, clearingProgress: !complete) }
+        let receipt = try await performHost(operation, expected: expectedByteCount, into: sink, transfer: transfer)
+        try requireHost(operation)
+        complete = true
+        return receipt
+    }
+    /// A borrowed native writer cannot be rewound. Each attempt therefore streams to an owned
+    /// disk staging file; only one accepted body is copied into the caller's sink.
+    public func transferHostFile(_ authority: MonitorMediaLibraryIOAuthority,
+        into sink: any MediaByteSink, plan: MediaTransferPlan, stagingRoot: URL)
+        async throws -> MediaTransferReceipt {
+        guard let operation = try startHost(authority, purpose: .playback, writer: nil) else {
+            throw MediaServiceError.unavailable
+        }
+        var complete = false
+        defer { finishHost(operation, clearingProgress: !complete) }
+        var lastError: any Error = MediaServiceError.unavailable
+        for (index, transfer) in plan.attempts.enumerated() {
+            try requireHost(operation)
+            let incoming = stagingRoot.appendingPathComponent("opc-player-" + UUID().uuidString + ".incoming")
+            let staged = try LibraryHostFileSink(at: incoming)
+            defer { staged.close(); try? FileManager.default.removeItem(at: incoming) }
+            let receipt: MediaTransferReceipt
+            do {
+                receipt = try await performHost(operation, expected: plan.expectedByteCount, into: staged, transfer: transfer)
+            } catch {
+                try requireHost(operation)
+                guard plan.retry(error) else { throw error }
+                try requireHost(operation)
+                lastError = error
+                continue
+            }
+            staged.close()
+            try requireHost(operation)
+            plan.accepted?(index, receipt)
+            try requireHost(operation)
+            let admitted = LibraryHostAdmissionSink(sink: sink) { [weak self] in
+                self?.hostCurrent(operation) == true
+            }
+            let count = try await MonitorMediaLibraryFileCopy.copy(incoming, into: admitted)
+            try requireHost(operation)
+            guard count == receipt.byteCount else { throw MonitorMediaCacheError.invalidReceipt }
+            complete = true
+            return .init(byteCount: count, expectedByteCount: receipt.expectedByteCount)
+        }
+        throw lastError
+    }
+    public func clearHostProgress(_ authority: MonitorMediaLibraryIOAuthority) {
+        guard authority.owner == hostOwner, hostProgressOwners[authority.key]?.id == authority.id else { return }
+        hostProgressOwners[authority.key] = nil
+        let old = hostProgressDelays.removeValue(forKey: authority.key)
+        old?.cancel()
+        commit { $0.hostProgress[authority.key] = nil }
+    }
+    public func completeHostTransfer(_ authority: MonitorMediaLibraryIOAuthority,
+        role: MediaRepresentationRole) {
+        guard authority.owner == hostOwner, authority.isCurrent,
+            hostProgressOwners[authority.key]?.id == nil || hostProgressOwners[authority.key]?.id == authority.id
+        else { return }
+        hostProgressOwners[authority.key] = authority
+        reloadEntries()
+        guard authority.isCurrent, hostProgressOwners[authority.key]?.id == authority.id else { return }
+        if role != .original { clearHostProgress(authority); return }
+        let previous = hostProgressDelays.removeValue(forKey: authority.key)
+        previous?.cancel()
+        let delay = Task { [weak self] in
+            guard let self else { return }
+            do { try await self.sleep(.milliseconds(450)) } catch { return }
+            guard !Task.isCancelled, authority.isCurrent,
+                self.hostProgressOwners[authority.key]?.id == authority.id,
+                self.hostProgress[authority.key] == 1 else { return }
+            self.clearHostProgress(authority)
+        }
+        hostProgressDelays[authority.key] = delay
+        commit { $0.hostProgress[authority.key] = 1 }
+        if !authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id { delay.cancel() }
+    }
+
+    private func extractRetiredOperations(except retained: Set<MediaAssetID>? = nil, retainingHost: UUID? = nil,
+        completingClaim: UUID? = nil)
+        -> (ids: Set<MediaAssetID>, hostKeys: Set<MonitorMediaLibraryIOKey>, dispose: @MainActor () -> Void)
     {
-        let ids = Set(transfers.keys.filter { !retained.contains($0) })
+        let ids = Set(transfers.keys.filter { retained?.contains($0) != true })
         let retiredTransfers = ids.compactMap { transfers.removeValue(forKey: $0) }
-        let thumbIDs = thumbnails.keys.filter { !retained.contains($0) }
+        let thumbIDs = thumbnails.keys.filter { retained?.contains($0) != true }
         let tasks = thumbIDs.compactMap { thumbnailTasks.removeValue(forKey: $0) }
         let writers = thumbIDs.compactMap { thumbnailWriters.removeValue(forKey: $0) }
         for id in thumbIDs { thumbnails[id] = nil }
+        func retireHost(_ authority: MonitorMediaLibraryIOAuthority) -> Bool {
+            guard let retained else { return true }
+            return authority.asset.map { !retained.contains($0) } ?? false
+        }
+        let hostRuns = hostOperations.values.filter { $0.authority.id != retainingHost && retireHost($0.authority) }
+        for operation in hostRuns {
+            hostOperations[operation.authority.id] = nil
+            let claim = HostClaim(key: operation.authority.key, purpose: operation.purpose)
+            if hostClaims[claim] == operation.authority.id { hostClaims[claim] = nil }
+        }
+        let hostKeys = Set(hostProgressOwners.filter { retireHost($0.value) }.map(\.key))
+        let hostDelays = hostKeys.compactMap { hostProgressDelays.removeValue(forKey: $0) }
+        for key in hostKeys { hostProgressOwners[key] = nil }
         return (
-            ids,
+            ids, hostKeys,
             {
                 for transfer in retiredTransfers {
                     transfer.task.cancel()
@@ -968,15 +1505,23 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                 }
                 for task in tasks { task.cancel() }
                 for writer in writers { writer.abort() }
+                for operation in hostRuns {
+                    if operation.deletion?.id == completingClaim { operation.deletion?.expireIO() }
+                    else { operation.deletion?.retire() }
+                    if operation.purpose != .deletion { operation.task?.cancel() }
+                    operation.writer?.abort()
+                }
+                for delay in hostDelays { delay.cancel() }
             }
         )
     }
-    private func retireOperations(except retained: Set<MediaAssetID> = []) {
+    private func retireOperations(except retained: Set<MediaAssetID>? = nil) {
         let retired = extractRetiredOperations(except: retained)
-        if !retired.ids.isEmpty {
+        if !retired.ids.isEmpty || !retired.hostKeys.isEmpty {
             commit {
                 $0.transferring.subtract(retired.ids)
                 for id in retired.ids { $0.progress[id] = nil }
+                for key in retired.hostKeys { $0.hostProgress[key] = nil }
             }
         }
         retired.dispose()
@@ -1151,4 +1696,70 @@ private actor LibraryProgressSink: MediaByteSink {
         bytes += UInt64(chunk.count)
         await publish(bytes)
     }
+}
+
+private actor LibraryHostProgressSink: MediaTransferProgressSink {
+    let sink: any MediaByteSink
+    let admitted: @MainActor @Sendable () -> Bool
+    let publish: @MainActor @Sendable (Double) -> Void
+    var expected: UInt64?
+    var bytes: UInt64 = 0
+    init(sink: any MediaByteSink, expected: UInt64?,
+        admitted: @escaping @MainActor @Sendable () -> Bool,
+        publish: @escaping @MainActor @Sendable (Double) -> Void) {
+        self.sink = sink; self.expected = expected.flatMap { $0 > 0 ? $0 : nil }
+        self.admitted = admitted; self.publish = publish
+    }
+    func expectedByteCount(_ count: UInt64?) async throws {
+        guard await admitted(), !Task.isCancelled else { throw MediaServiceError.retired }
+        expected = count.flatMap { $0 > 0 ? $0 : nil }
+    }
+    func write(_ chunk: Data) async throws {
+        guard await admitted(), !Task.isCancelled else { throw MediaServiceError.retired }
+        try await sink.write(chunk)
+        guard await admitted(), !Task.isCancelled else { throw MediaServiceError.retired }
+        bytes += UInt64(chunk.count)
+        let progress = expected.map { min(1, Double(bytes) / Double($0)) } ?? 0
+        await publish(progress)
+    }
+}
+
+private actor LibraryHostAdmissionSink: MediaByteSink {
+    let sink: any MediaByteSink
+    let admitted: @MainActor @Sendable () -> Bool
+    init(sink: any MediaByteSink, admitted: @escaping @MainActor @Sendable () -> Bool) {
+        self.sink = sink; self.admitted = admitted
+    }
+    func write(_ bytes: Data) async throws {
+        guard !Task.isCancelled, await admitted() else { throw MediaServiceError.retired }
+        try await sink.write(bytes)
+        guard !Task.isCancelled, await admitted() else { throw MediaServiceError.retired }
+    }
+}
+
+/// A private attempt file, not another cache owner. Only the enclosing captured run controls
+/// its lifetime, and failed attempts are removed before any bytes enter a borrowed native sink.
+private final class LibraryHostFileSink: MediaByteSink, @unchecked Sendable {
+    private let lock = NSLock()
+    private var handle: FileHandle?
+    init(at location: URL) throws {
+        try FileManager.default.createDirectory(at: location.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard FileManager.default.createFile(atPath: location.path, contents: nil) else { throw MediaServiceError.unavailable }
+        handle = try FileHandle(forWritingTo: location)
+    }
+    func write(_ bytes: Data) async throws {
+        try Task.checkCancellation()
+        try writeBytes(bytes)
+    }
+    private func writeBytes(_ bytes: Data) throws {
+        lock.lock(); defer { lock.unlock() }
+        guard let handle else { throw MediaServiceError.retired }
+        try handle.write(contentsOf: bytes)
+    }
+    func close() {
+        lock.lock(); defer { lock.unlock() }
+        let previous = handle; handle = nil
+        try? previous?.close()
+    }
+    deinit { close() }
 }

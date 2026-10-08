@@ -26,7 +26,7 @@ object CaptureWheels {
         denoms.minByOrNull { abs(it - current) }
 
     fun colorWheelOrder(name: String, family: String, profile: CameraLabelProfile = CameraLabelProfile.standard): List<Pair<Int, String>> {
-        val codes = profile.colorModes ?: CameraModel.colorModesFor(name, family)
+        val codes = profile.colorModes.orEmpty()
         return codes.map { it to CameraCommands.colorLabel(it, family, profile) }
     }
 
@@ -37,6 +37,7 @@ object CaptureWheels {
         profile: CameraLabelProfile = CameraLabelProfile.standard,
     ): List<Pair<Int, String>> {
         val order = colorWheelOrder(name, family, profile)
+        if (order.isEmpty()) return available.map { it to CameraCommands.colorLabel(it, family, profile) }
         if (available.isEmpty()) return order
         val have = available.toSet()
         val ranked = order.filter { it.first in have }

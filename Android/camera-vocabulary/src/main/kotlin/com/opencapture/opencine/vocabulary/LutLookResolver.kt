@@ -23,13 +23,13 @@ object LutLookResolver {
         selection: String,
         lutOn: Boolean,
         colorMode: Int,
-        family: String,
-        cameraName: String?,
+        profile: CameraLUTProfile? = null,
         isPhoto: Boolean = false,
-        cameraLooks: List<LutEntry> = LutCatalog.cameraLooks,
+        cameraLooks: List<LutEntry> = profile?.cameraLooks.orEmpty(),
     ): LutLookSource {
         if (!lutOn) return LutLookSource.Off
         if (isPhoto && isTechnicalLogSelection(selection)) return LutLookSource.Off
+        profile?.selections?.get(selection)?.let { return it }
         cameraLooks.firstOrNull { it.id == selection }?.let { entry ->
             return entry.fileName?.let { LutLookSource.Asset(it, entry.inputTransfer, entry.title) }
                 ?: LutLookSource.Off
@@ -37,18 +37,18 @@ object LutLookResolver {
         if (selection == LutCatalog.AUTO || selection == LutCatalog.OFFICIAL_AUTO) {
             // Auto picks the camera look whose input transfer matches the live transfer (an I-Log conversion).
             autoCameraLook(colorMode, cameraLooks)?.let { return it }
-            if (family == "generic") return LutLookSource.Off
+            return profile?.automatic?.get(colorMode) ?: LutLookSource.Off
         }
         return when (selection) {
             LutCatalog.OFF -> LutLookSource.Off
-            LutCatalog.AUTO, LutCatalog.OFFICIAL_AUTO -> officialAuto(colorMode, family, cameraName)
+            LutCatalog.AUTO, LutCatalog.OFFICIAL_AUTO -> profile?.automatic?.get(colorMode) ?: LutLookSource.Off
             "officialDLog" -> LutLookSource.Asset("DJI_Official_Pocket4P_DLog_Rec709_33.cube")
             "officialDLog2" -> LutLookSource.Asset("DJI_Official_Pocket4P_DLog2_Rec709_33.cube")
             "creativeMono", "creativeContrast", "creativeWarm", "creativeCool" ->
                 LutLookSource.Creative(LutCatalog.creativeName(selection) ?: "Mono")
             "djiDLog" -> LutLookSource.Asset("DJI_Official_Pocket4P_DLog_Rec709_33.cube")
             "djiDLog2" -> LutLookSource.Asset("DJI_Official_Pocket4P_DLog2_Rec709_33.cube")
-            "djiDLogM" -> LutLookSource.Asset(dLogMFile(cameraName))
+            "djiDLogM" -> profile?.selections?.get(selection) ?: LutLookSource.Off
             "djiAction6DLogM" -> LutLookSource.Asset("DJI_Official_Action6_DLogM_Rec709_33.cube")
             else -> {
                 LutCatalog.customFileName(selection)?.let { LutLookSource.Custom(it) }
@@ -78,14 +78,14 @@ object LutLookResolver {
     }
 
     /** iOS `LUTResolver.autoCaption`; [noLook] is what the app says when Auto applies no cube. */
-    fun autoCaption(source: LutLookSource, noLook: String): String =
+    fun autoCaption(source: LutLookSource, noLook: String, cameraLooks: List<LutEntry> = emptyList()): String =
         when (source) {
             LutLookSource.Off -> noLook
             is LutLookSource.Asset -> {
                 val title = sourceTitle(source)
                 val official =
                     LutCatalog.officialCameraCubes.any { it.fileName == source.fileName } ||
-                        LutCatalog.cameraLooks.any { it.fileName == source.fileName }
+                        cameraLooks.any { it.fileName == source.fileName }
                 if (official) "Applying official $title" else "Applying $title"
             }
             is LutLookSource.Custom -> "Applying ${LutCatalog.displayName(source.fileName)}"
@@ -114,37 +114,6 @@ object LutLookResolver {
         val entry = cameraLooks.firstOrNull { it.inputTransfer == transfer && it.fileName != null } ?: return null
         return LutLookSource.Asset(entry.fileName!!, entry.inputTransfer, entry.title)
     }
-
-    private fun officialAuto(colorMode: Int, family: String, cameraName: String?): LutLookSource {
-        val nano = family.equals("nano", ignoreCase = true)
-        return when (colorMode) {
-            CameraCommands.COLOR_DLOG2 ->
-                if (nano) {
-                    LutLookSource.Asset(dLogMFile(cameraName))
-                } else {
-                    LutLookSource.Asset("DJI_Official_Pocket4P_DLog2_Rec709_33.cube")
-                }
-            CameraCommands.COLOR_DLOG ->
-                if (nano) {
-                    LutLookSource.Asset(dLogMFile(cameraName))
-                } else {
-                    LutLookSource.Asset("DJI_Official_Pocket4P_DLog_Rec709_33.cube")
-                }
-            COLOR_DLOG_M -> LutLookSource.Asset(dLogMFile(cameraName))
-            else -> LutLookSource.Off
-        }
-    }
-
-    private fun dLogMFile(cameraName: String?): String {
-        val n = cameraName.orEmpty().lowercase().replace(" ", "")
-        return if ("action6" in n) {
-            "DJI_Official_Action6_DLogM_Rec709_33.cube"
-        } else {
-            "DJI_Official_Nano_DLogM_Rec709_33.cube"
-        }
-    }
-
-    private const val COLOR_DLOG_M = 0x00
 
     /** DJI/official log conversions and log-specific custom slots. Creative and generic Custom stay. */
     fun isTechnicalLogSelection(selection: String): Boolean =

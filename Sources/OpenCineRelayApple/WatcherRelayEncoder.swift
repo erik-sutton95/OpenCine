@@ -38,18 +38,21 @@
             _ buffer: CVPixelBuffer, forceKey: Bool,
             completion: @escaping (Annex?, Bool) -> Void
         ) {
+            let input = Input(buffer: buffer)
+            let output = Output(completion)
             queue.async { [self] in
+                let buffer = input.buffer
                 let w = CVPixelBufferGetWidth(buffer)
                 let h = CVPixelBufferGetHeight(buffer)
                 guard w > 8, h > 8 else {
-                    completion(nil, true)
+                    output.finish(nil, failed: true)
                     return
                 }
                 if session == nil || w != width || h != height {
                     rebuildLocked(width: w, height: h)
                 }
                 guard let session else {
-                    completion(nil, true)
+                    output.finish(nil, failed: true)
                     return
                 }
                 let now = ProcessInfo.processInfo.systemUptime
@@ -57,7 +60,6 @@
                 let props =
                     key ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil
                 let pts = CMTime(value: CMTimeValue(now * 90_000), timescale: 90_000)
-                let output = Output(completion)
                 var info = VTEncodeInfoFlags()
                 let status = VTCompressionSessionEncodeFrame(
                     session, imageBuffer: buffer, presentationTimeStamp: pts, duration: .invalid,
@@ -69,6 +71,12 @@
                     output.finish(nil, failed: status != noErr)
                 }
             }
+        }
+
+        // Retain the same read-only native input across the existing queue hop. Pixels
+        // remain owned by their source/SDK; this bridge does not mutate or copy them.
+        private struct Input: @unchecked Sendable {
+            let buffer: CVPixelBuffer
         }
 
         /// VT may complete on another thread, including before EncodeFrame returns.
@@ -137,7 +145,7 @@
                 value: [bytes, 1] as CFArray)
         }
 
-        public struct Annex {
+        public struct Annex: Sendable {
             public var data: Data
             public var isKey: Bool
             public var sets: [Data]?

@@ -79,6 +79,7 @@
         /// Whether AWB lock can pin the live Auto Kelvin now.
         var canLockAutoWhiteBalance: Bool { get }
         var captureCapabilities: CaptureSheetCapabilities { get }
+        var audioService: CaptureAudioService? { get }
         /// The FOCUS rows this app offers.
         var focusOptions: [FocusOption] { get }
 
@@ -103,7 +104,5 @@
         func captureDrumDidCommit(_ value: SettingValue)
         /// The ISO GET the ISO sheet asks for on open; returns once the reply arrived.
         func refreshIsoLimit() async
-        /// The audio GET the AUDIO sheet asks for on open.
-        func refreshAudioState() async
     }
 #endif

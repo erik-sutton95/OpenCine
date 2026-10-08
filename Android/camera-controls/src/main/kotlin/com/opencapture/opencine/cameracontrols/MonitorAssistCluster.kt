@@ -14,6 +14,7 @@ import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorToolUsageState
+import com.opencapture.opencine.appkit.MonitorToolUsagePreferences
 
 /**
  * The app supplies its supported tool inventory and existing live/playback actions.
@@ -27,14 +28,29 @@ fun MonitorAssistCluster(prefs: OperatorPreferenceStore, portrait: Boolean, lock
     onToggle: (MonitorAssistTool) -> Unit, onLongPress: (MonitorAssistTool) -> Unit,
     modifier: Modifier = Modifier, requestExpand: Boolean = false, onExpansionHandled: () -> Unit = {},
     showsAudio: Boolean = true, inspectorOpen: Boolean = false, playback: Boolean = false,
-    onBoundsChanged: (MonitorRect?) -> Unit = {}) {
-    if (inspectorOpen) return
+    onBoundsChanged: (MonitorRect?) -> Unit = {}, collapseRevision: Long = 0L,
+    availableTools: Set<MonitorAssistTool>? = null) {
     val context = LocalContext.current
+    val usageStore = remember(prefs, context) { prefs.assistToolUsagePreferences(context) }
+    MonitorAssistCluster(usageStore, portrait, locked, isOn, onToggle, onLongPress,
+        modifier, requestExpand, onExpansionHandled, showsAudio, inspectorOpen, playback,
+        onBoundsChanged, collapseRevision, availableTools)
+}
+
+/** Borrows an existing usage store without constructing a second namespace. */
+@Composable
+fun MonitorAssistCluster(usageStore: MonitorToolUsagePreferences, portrait: Boolean, locked: Boolean, isOn: (MonitorAssistTool) -> Boolean,
+    onToggle: (MonitorAssistTool) -> Unit, onLongPress: (MonitorAssistTool) -> Unit,
+    modifier: Modifier = Modifier, requestExpand: Boolean = false, onExpansionHandled: () -> Unit = {},
+    showsAudio: Boolean = true, inspectorOpen: Boolean = false, playback: Boolean = false,
+    onBoundsChanged: (MonitorRect?) -> Unit = {}, collapseRevision: Long = 0L,
+    availableTools: Set<MonitorAssistTool>? = null) {
+    if (inspectorOpen) return
     val density = LocalDensity.current.density
     val origin = LocalLiveCanvasOrigin.current
-    var usage by remember { mutableStateOf(prefs.assistToolUsage(context)) }
+    var usage by remember(usageStore) { mutableStateOf(usageStore.value) }
     val catalog = if (playback) MonitorAssistTool.playbackToolbarCases else MonitorAssistTool.settingsCases
-    val tools = if (showsAudio) catalog else catalog.filter { it != MonitorAssistTool.AUDIO }
+    val tools = catalog.filter { (showsAudio || it != MonitorAssistTool.AUDIO) && (availableTools?.contains(it) != false) }
     com.opencapture.monitorui.MonitorAssistPalette(
         tools = tools, usageSeed = ASSIST_USAGE_SEED,
         portrait = portrait, locked = locked, isOn = isOn, title = { it.title }, label = { it.chipLabel },
@@ -45,10 +61,11 @@ fun MonitorAssistCluster(prefs: OperatorPreferenceStore, portrait: Boolean, lock
                 else { if (expanded) MonitorIcon.CHEVRON_LEFT else MonitorIcon.CHEVRON_RIGHT }
             MonitorIcon(icon, null, Modifier.size(14.dp), LiveDesign.muted)
         }, modifier = modifier, requestExpand = requestExpand, onExpansionHandled = onExpansionHandled,
+        collapseRevision = collapseRevision,
         idOf = { it.name }, usage = usage,
         onUsageChange = { next: MonitorToolUsageState ->
             usage = next
-            prefs.setAssistToolUsage(context, next)
+            usageStore.value = next
         },
         onBoundsInRootChanged = { bounds ->
             onBoundsChanged(bounds?.let {

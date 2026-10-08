@@ -116,6 +116,7 @@ data class PocketControlState(
 
 /** The Pocket session as the seam drives it. `PocketCameraSession` and the JVM tests implement it. */
 interface PocketControlPort {
+    val commandOwner: DjiCommandOwner? get() = null
     fun controlState(): PocketControlState
     fun captureControlState(): DjiCaptureControlState? = null
     fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
@@ -132,6 +133,29 @@ interface PocketControlPort {
     fun setRecording(start: Boolean, onStage: ((ControlWireEvent) -> Unit)? = null)
 
     fun takePhoto()
+
+    // Supplied operations never fall through an unavailable native port into direct work.
+    fun writeShutter(denominator: Int, admission: DjiCommandAdmission, onStage: (ControlWireEvent) -> Unit): Unit =
+        onStage(ControlWireEvent.NOT_SENT)
+    fun writeExposureCompensation(value: EvComp, admission: DjiCommandAdmission, onStage: (ControlWireEvent) -> Unit): Unit =
+        onStage(ControlWireEvent.NOT_SENT)
+    fun writeFocusMode(continuous: Boolean, admission: DjiCommandAdmission, onStage: (ControlWireEvent) -> Unit): Unit =
+        onStage(ControlWireEvent.NOT_SENT)
+    fun writeZoom(ratio: Double, admission: DjiCommandAdmission, onStage: (ControlWireEvent) -> Unit): Unit =
+        onStage(ControlWireEvent.NOT_SENT)
+    fun setIsoIndex(index: Int, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?): Unit {
+        onStage?.invoke(ControlWireEvent.NOT_SENT)
+    }
+    fun setWhiteBalanceAuto(tint: Int?, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?): Unit {
+        onStage?.invoke(ControlWireEvent.NOT_SENT)
+    }
+    fun setWhiteBalance(kelvin: Int, tint: Int, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?): Unit {
+        onStage?.invoke(ControlWireEvent.NOT_SENT)
+    }
+    fun setRecording(start: Boolean, admission: DjiCommandAdmission, onStage: ((ControlWireEvent) -> Unit)?): Unit {
+        onStage?.invoke(ControlWireEvent.NOT_SENT)
+    }
+    fun takePhoto(admission: DjiCommandAdmission): Unit {}
 
     fun noteControlRejection(note: String)
 }
@@ -207,24 +231,41 @@ class DjiCameraSessionAdapter(
     fun setIsoIndex(index: Int): CommandReceipt =
         request(CameraCommandIntent.Set(SettingValue.Iso(iso(index))))
 
+    public fun setIsoIndex(index: Int, admission: DjiCommandAdmission): CommandReceipt =
+        request(CameraCommandIntent.Set(SettingValue.Iso(iso(index))), admission)
+
     /** `null` keeps the current (or pending) tint, as the Auto row always has. */
     fun setWhiteBalanceAuto(tint: Int? = null): CommandReceipt = setWhiteBalance(WhiteBalanceValue.Auto, tint)
+
+    public fun setWhiteBalanceAuto(tint: Int? = null, admission: DjiCommandAdmission): CommandReceipt =
+        setWhiteBalance(WhiteBalanceValue.Auto, tint, admission)
 
     /** Kelvin snaps to the 100 K steps the camera stores (`K/100` on the wire). */
     fun setWhiteBalanceCustom(kelvin: Int, tint: Int): CommandReceipt =
         setWhiteBalance(WhiteBalanceValue.Kelvin((kelvin.coerceIn(2_000, 10_000) + 50) / 100 * 100), tint)
 
+    public fun setWhiteBalanceCustom(kelvin: Int, tint: Int, admission: DjiCommandAdmission): CommandReceipt =
+        setWhiteBalance(WhiteBalanceValue.Kelvin((kelvin.coerceIn(2_000, 10_000) + 50) / 100 * 100), tint, admission)
+
     /**
      * One Core write per setting that changes: white balance (keeping the pending tint), then tint
      * (on the pending white balance). Returns the last receipt.
      */
-    private fun setWhiteBalance(value: WhiteBalanceValue, tint: Int?): CommandReceipt {
+    private fun setWhiteBalance(value: WhiteBalanceValue, tint: Int?): CommandReceipt =
+        setWhiteBalance(value, tint, null)
+
+    private fun setWhiteBalance(value: WhiteBalanceValue, tint: Int?, admission: DjiCommandAdmission?): CommandReceipt {
+        fun write(value: SettingValue): CommandReceipt = if (admission == null) {
+            request(CameraCommandIntent.Set(value))
+        } else {
+            request(CameraCommandIntent.Set(value), admission)
+        }
         val state = port.controlState()
         val pending = state.pendingWhiteBalance ?: state.whiteBalance
         val t = tint?.coerceIn(-100, 100)
-        if (t == null || t == pending?.tint) return request(CameraCommandIntent.Set(SettingValue.WhiteBalance(value)))
-        if (pending?.let { whiteBalance(it) } != value) request(CameraCommandIntent.Set(SettingValue.WhiteBalance(value)))
-        return request(CameraCommandIntent.Set(SettingValue.WhiteBalanceTint(t.toDouble())))
+        if (t == null || t == pending?.tint) return write(SettingValue.WhiteBalance(value))
+        if (pending?.let { whiteBalance(it) } != value) write(SettingValue.WhiteBalance(value))
+        return write(SettingValue.WhiteBalanceTint(t.toDouble()))
     }
 
     /**
@@ -238,6 +279,15 @@ class DjiCameraSessionAdapter(
         }
         val recording = current.recording.value == RecordingState.RECORDING
         return request(if (recording) CameraCommandIntent.StopRecording else CameraCommandIntent.StartRecording)
+    }
+    public fun shutter(admission: DjiCommandAdmission): CommandReceipt? {
+        if (!admission.admits(port.commandOwner)) return null
+        if (CameraCommands.isPhotoMode(port.controlState().shootingMode)) {
+            port.takePhoto(admission)
+            return null
+        }
+        val recording = current.recording.value == RecordingState.RECORDING
+        return request(if (recording) CameraCommandIntent.StopRecording else CameraCommandIntent.StartRecording, admission)
     }
 
     override fun receipt(operation: OperationID): CommandReceipt? = receipts[operation]
@@ -288,6 +338,8 @@ class DjiCameraSessionAdapter(
     // ---- OpenCineCore.CameraSession ----
 
     override suspend fun submit(command: CameraCommand): CommandReceipt = send(command)
+    public suspend fun submit(command: CameraCommand, admission: DjiCommandAdmission): CommandReceipt =
+        sendAdmitted(command, admission)
 
     override suspend fun outcome(operation: OperationID): CommandReceipt? {
         val receipt = receipts[operation] ?: return null
@@ -314,7 +366,12 @@ class DjiCameraSessionAdapter(
 
     // ---- commands ----
 
-    fun send(command: CameraCommand): CommandReceipt {
+    fun send(command: CameraCommand): CommandReceipt = sendAdmitted(command, null)
+
+    public fun request(intent: CameraCommandIntent, admission: DjiCommandAdmission): CommandReceipt =
+        sendAdmitted(CameraCommand(intent, CommandPreconditions(current)), admission)
+
+    private fun sendAdmitted(command: CameraCommand, admission: DjiCommandAdmission?): CommandReceipt {
         val operation = command.operation
         receipts[operation]?.let { return it }
         val snapshot = current
@@ -324,6 +381,9 @@ class DjiCameraSessionAdapter(
                 confirmation = snapshot.capabilities[command.intent.key]?.semantics?.confirmation
                     ?: com.opencapture.opencine.core.SettingSemantics.Confirmation.READBACK,
             )
+        if (admission != null && !admission.admits(port.commandOwner)) {
+            return advance(operation, CommandStage.Rejected(CommandRejection.AuthorityExpired))
+        }
         val rejection = snapshot.rejection(command, clock()) ?: integrationRejection(command.intent, snapshot)
         if (rejection != null) {
             noteRejection(rejection)
@@ -331,7 +391,7 @@ class DjiCameraSessionAdapter(
         }
         advance(operation, CommandStage.Admitted)
         if (alreadyReported(command.intent, snapshot)) return advance(operation, CommandStage.Confirmed)
-        val plan = wirePlan(command.intent)
+        val plan = wirePlan(command.intent, admission)
             ?: return advance(operation, CommandStage.Rejected(CommandRejection.Unsupported))
         open[operation] = Expectation(clock() + wireTimeout, plan.shows, plan.requiresReport)
         expire(wireTimeout)
@@ -353,7 +413,7 @@ class DjiCameraSessionAdapter(
      * sends white balance and tint in one frame, so each write fills the other half from the
      * pending (else reported) white balance.
      */
-    private fun wirePlan(intent: CameraCommandIntent): WirePlan? =
+    private fun wirePlan(intent: CameraCommandIntent, admission: DjiCommandAdmission?): WirePlan? =
         when (intent) {
             is CameraCommandIntent.Set ->
                 when (val value = intent.value) {
@@ -361,14 +421,16 @@ class DjiCameraSessionAdapter(
                         val duration = (value.value as? com.opencapture.opencine.core.ShutterValue.Duration)?.seconds
                         if (duration == null || duration.numerator != 1 || duration.denominator <= 0) null
                         else WirePlan({ port.captureControlState()?.reported?.shutterDenom == duration.denominator }, true) {
-                            port.writeShutter(duration.denominator, it)
+                            if (admission == null) port.writeShutter(duration.denominator, it)
+                            else port.writeShutter(duration.denominator, admission, it)
                         }
                     }
                     is SettingValue.ExposureCompensation -> EvComp.allCases.firstOrNull {
                         com.opencapture.opencine.core.Rational(it.thirds, 3) == value.stops
                     }?.let { target ->
                         WirePlan({ port.captureControlState()?.reported?.evComp == target.rawValue }, true) {
-                            port.writeExposureCompensation(target, it)
+                            if (admission == null) port.writeExposureCompensation(target, it)
+                            else port.writeExposureCompensation(target, admission, it)
                         }
                     }
                     is SettingValue.FocusMode -> {
@@ -380,47 +442,56 @@ class DjiCameraSessionAdapter(
                         if (continuous == null) null else WirePlan({
                             port.captureControlState()?.reported?.focusMode ==
                                 if (continuous) CameraCommands.FOCUS_CONTINUOUS else CameraCommands.FOCUS_SINGLE
-                        }, true) { port.writeFocusMode(continuous, it) }
+                        }, true) {
+                            if (admission == null) port.writeFocusMode(continuous, it)
+                            else port.writeFocusMode(continuous, admission, it)
+                        }
                     }
                     is SettingValue.Zoom -> WirePlan({
                         port.captureControlState()?.reported?.zoomFactor?.let { CamFov.matches(it, value.ratio) } ?: false
-                    }, true) { port.writeZoom(value.ratio, it) }
+                    }, true) {
+                        if (admission == null) port.writeZoom(value.ratio, it) else port.writeZoom(value.ratio, admission, it)
+                    }
                     is SettingValue.Iso -> isoIndex(value.value)?.let { index ->
-                        WirePlan({ it.isoIndex == index }) { onStage -> port.setIsoIndex(index, onStage) }
+                        WirePlan({ it.isoIndex == index }) { onStage ->
+                            if (admission == null) port.setIsoIndex(index, onStage) else port.setIsoIndex(index, admission, onStage)
+                        }
                     }
                     is SettingValue.WhiteBalanceTint -> {
                         val state = port.controlState()
                         (state.pendingWhiteBalance ?: state.whiteBalance)?.let {
-                            whiteBalancePlan(whiteBalance(it), value.tint.toInt())
+                            whiteBalancePlan(whiteBalance(it), value.tint.toInt(), admission)
                         }
                     }
                     is SettingValue.WhiteBalance -> {
                         val state = port.controlState()
-                        whiteBalancePlan(value.value, (state.pendingWhiteBalance ?: state.whiteBalance)?.tint ?: 0)
+                        whiteBalancePlan(value.value, (state.pendingWhiteBalance ?: state.whiteBalance)?.tint ?: 0, admission)
                     }
                     else -> null
                 }
             CameraCommandIntent.StartRecording, CameraCommandIntent.StopRecording -> {
                 val start = intent == CameraCommandIntent.StartRecording
-                WirePlan({ it.recording == start }) { onStage -> port.setRecording(start, onStage) }
+                WirePlan({ it.recording == start }) { onStage ->
+                    if (admission == null) port.setRecording(start, onStage) else port.setRecording(start, admission, onStage)
+                }
             }
             is CameraCommandIntent.FocusPoint -> null
         }
 
-    private fun whiteBalancePlan(value: WhiteBalanceValue, tint: Int): WirePlan? {
+    private fun whiteBalancePlan(value: WhiteBalanceValue, tint: Int, admission: DjiCommandAdmission?): WirePlan? {
         val t = tint.coerceIn(-100, 100)
         return when (val wb = value) {
             WhiteBalanceValue.Auto -> {
                 val target = ReportedWhiteBalance(CameraCommands.WB_AUTO, 0, t)
                 WirePlan({ it.whiteBalance == target }) { onStage ->
-                    port.setWhiteBalanceAuto(t, onStage)
+                    if (admission == null) port.setWhiteBalanceAuto(t, onStage) else port.setWhiteBalanceAuto(t, admission, onStage)
                 }
             }
             is WhiteBalanceValue.Kelvin -> {
                 val k = wb.kelvin.coerceIn(2_000, 10_000)
                 val target = ReportedWhiteBalance(CameraCommands.WB_CUSTOM, k, t)
                 WirePlan({ it.whiteBalance == target }) { onStage ->
-                    port.setWhiteBalance(k, t, onStage)
+                    if (admission == null) port.setWhiteBalance(k, t, onStage) else port.setWhiteBalance(k, t, admission, onStage)
                 }
             }
             is WhiteBalanceValue.Preset -> null

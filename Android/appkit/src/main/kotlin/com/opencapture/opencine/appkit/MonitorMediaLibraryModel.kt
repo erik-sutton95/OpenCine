@@ -16,6 +16,8 @@ public data class MonitorMediaFilterFacts(
     public val dateKey: String? = null, public val orderKey: String? = null, public val color: String? = null,
     /** Explicit host category policy; never rewrites source asset.kind. */
     public val presentationKind: MediaAssetKind? = null,
+    /** Observed source opening support; null preserves the caller's existing policy. */
+    public val playbackEligible: Boolean? = null,
 )
 public enum class MonitorMediaCategoryFilter { ALL, VIDEOS, PHOTOS, FAVORITES }
 public data class MonitorMediaLibraryActionToken internal constructor(
@@ -57,6 +59,9 @@ public data class MonitorMediaLibraryState<P>(
     public val visibility: MonitorMediaLibraryVisibility = MonitorMediaLibraryVisibility.SOURCE_AVAILABILITY,
     /** Accepted source deltas in this listing; local/cache changes never count. */
     public val catalogPageCount: Int = 0,
+    public val acquiringSource: Boolean = false,
+    public val hostProgress: Map<MonitorMediaLibraryIOKey, Double> = emptyMap(),
+    public val deletionProgress: MonitorMediaDeletionProgress? = null,
 ) {
     public val activeFilterCount: Int get() = formats.size + resolutions.size + colors.size +
         if (dateStart == null && dateEnd == null) 0 else 1
@@ -92,12 +97,42 @@ public class MonitorMediaLibraryModel<P>(
     private val lifetime: UUID get() = state.value.lifetimeToken
     private var listing = UUID.randomUUID()
     private var openTask: Job? = null
+    private var acquisitionTask: Job? = null
+    private var acquisition = UUID.randomUUID()
     private var listTask: Job? = null
     private var reconciliationTask: Deferred<Unit>? = null
     private var entryTask: Job? = null
     private var entryRequest = UUID.randomUUID()
     private data class Transfer(val id: UUID, val writer: MonitorMediaCacheWrite, val task: Deferred<File>)
     private val transfers = mutableMapOf<MediaAssetID, Transfer>()
+    private val hostOwner = UUID.randomUUID()
+    private data class HostClaim(val key: MonitorMediaLibraryIOKey, val purpose: MonitorMediaLibraryIOPurpose)
+    private class HostOperation(val authority: MonitorMediaLibraryIOAuthority,
+        val purpose: MonitorMediaLibraryIOPurpose, var writer: MonitorMediaCacheWrite?) {
+        var task: Deferred<MediaTransferReceipt>? = null
+        var attempt: UUID = UUID.randomUUID()
+        var deletion: MonitorMediaLibraryDeletionAuthority? = null
+    }
+    private val hostOperations = mutableMapOf<UUID, HostOperation>()
+    private val hostClaims = mutableMapOf<HostClaim, UUID>()
+    private val hostProgressOwners = mutableMapOf<MonitorMediaLibraryIOKey, MonitorMediaLibraryIOAuthority>()
+    private val hostProgressDelays = mutableMapOf<MonitorMediaLibraryIOKey, Job>()
+    private var deletionProgressOwner: UUID? = null
+    private class DeletionFinish(val claim: UUID, var lifetime: UUID, val sourceCurrent: () -> Boolean) {
+        var admission: MonitorMediaLibraryActionToken? = null
+        var relisted = false
+        var valid = true
+    }
+    private val finishingDeletions = mutableMapOf<UUID, DeletionFinish>()
+    public val acquiringSource: Boolean get() = state.value.acquiringSource
+    public val hostProgress: Map<MonitorMediaLibraryIOKey, Double> get() = state.value.hostProgress
+    public val deletionProgress: MonitorMediaDeletionProgress? get() {
+        val value = state.value.deletionProgress
+        val id = deletionProgressOwner ?: return null
+        val operation = hostOperations.values.firstOrNull { it.deletion?.id == id } ?: return null
+        if (operation.deletion?.isCurrent != true || deletionProgressOwner != id || hostOperations[operation.authority.id] !== operation) return null
+        return value
+    }
     private val thumbnails = mutableMapOf<MediaAssetID, UUID>()
     private val thumbnailTasks = mutableMapOf<MediaAssetID, Job>()
     private val thumbnailWriters = mutableMapOf<MediaAssetID, MonitorMediaCacheWrite>()
@@ -187,12 +222,72 @@ public class MonitorMediaLibraryModel<P>(
     }
     public fun begin() {
         if (disposed || state.value.browsing) return
-        val generation = UUID.randomUUID()
-        mutate { it.copy(lifetimeToken = generation, browsing = true, note = null, catalogPageCount = 0) }
+        begin(UUID.randomUUID(), completingClaim = null)
+    }
+    private fun begin(generation: UUID, completingClaim: UUID?) {
+        if (disposed || state.value.browsing) return
+        invalidateFinishingDeletions(completingClaim)
+        val retired = extractRetiredOperations(completingClaim = completingClaim)
+        mutate { it.copy(lifetimeToken = generation, browsing = true, note = null, catalogPageCount = 0,
+            hostProgress = it.hostProgress - retired.hostKeys) }
+        retired.dispose()
         if (!current(generation)) return
         if (cacheScanning == MonitorMediaCacheScanning.BACKGROUND) reloadEntries()
         if (!current(generation)) return
         open()
+    }
+    /** One consumed deletion may reopen its own source once, during finish. The existing open
+     * task supplies the actual binding before a return action token is sealed. */
+    public suspend fun relist(after: MonitorMediaLibraryDeletionAuthority): Boolean {
+        if (after.owner != hostOwner || after.directory !== cache.directory) return false
+        val finish = finishingDeletions[after.id] ?: return false
+        if (finish.relisted || !after.isCompleting || finishingDeletions[after.id] !== finish) return false
+        finish.relisted = true
+        if (state.value.browsing) refresh() else {
+            val replacement = UUID.randomUUID()
+            finish.lifetime = replacement
+            begin(replacement, completingClaim = after.id)
+        }
+        if (!after.isCompleting || finishingDeletions[after.id] !== finish) return false
+        val opened = openTask
+        opened?.join()
+        return currentCoroutineContext().isActive && after.isCompleting && finishingDeletions[after.id] === finish
+    }
+    private fun invalidateFinishingDeletions(retained: UUID? = null) {
+        finishingDeletions.forEach { (id, finish) -> if (id != retained) finish.valid = false }
+    }
+    private fun finishingCurrent(finish: DeletionFinish): Boolean {
+        if (!finish.valid || disposed || lifetime != finish.lifetime || finish.admission?.let(::isCurrent) == false) return false
+        val available = finish.sourceCurrent()
+        return available && finish.valid && !disposed && lifetime == finish.lifetime && finish.admission?.let(::isCurrent) != false
+    }
+    /** Offline rows open immediately; only the same gallery may adopt the captured SDK result. */
+    public fun begin(acquiring: suspend () -> CameraMediaService?, unavailableNote: String? = null) {
+        if (disposed || state.value.browsing) return
+        bind(null)
+        if (disposed || state.value.browsing) return
+        begin()
+        if (disposed || !state.value.browsing) return
+        val generation = lifetime; val request = UUID.randomUUID(); acquisition = request
+        val task = owner.launch(start = CoroutineStart.LAZY) {
+            if (!current(generation) || acquisition != request) return@launch
+            val producer = try { acquiring() } catch (error: Exception) {
+                if (current(generation) && acquisition == request && isActive) {
+                    acquisitionTask = null
+                    mutate { it.copy(acquiringSource = false, note = unavailableNote ?: copy.openFailed) }
+                }
+                return@launch
+            }
+            if (!current(generation) || acquisition != request || !isActive) return@launch
+            acquisitionTask = null
+            mutate { it.copy(acquiringSource = false) }
+            if (!current(generation) || acquisition != request || !isActive) return@launch
+            if (producer == null) { mutate { it.copy(note = unavailableNote ?: copy.openFailed) }; return@launch }
+            bind(producer)
+        }
+        acquisitionTask = task
+        mutate { it.copy(acquiringSource = true) }
+        if (!current(generation) || acquisition != request) task.cancel() else task.start()
     }
     private fun open() {
         val service = service ?: return
@@ -210,15 +305,21 @@ public class MonitorMediaLibraryModel<P>(
         openTask = task; task.start()
     }
     private data class Retirement(val token: UUID, val browse: CameraMediaBrowse?)
-    private fun retire(): Retirement {
-        val token = UUID.randomUUID(); listing = UUID.randomUUID(); entryRequest = UUID.randomUUID()
+    private fun retire(token: UUID = UUID.randomUUID(), retainingHost: UUID? = null): Retirement {
+        invalidateFinishingDeletions()
+        listing = UUID.randomUUID(); entryRequest = UUID.randomUUID()
         val oldOpen = openTask; val oldList = listTask; val oldReconciliation = reconciliationTask; val oldCursor = cursor; val oldEntries = entryTask; val closed = browse
+        val oldAcquisition = acquisitionTask; acquisitionTask = null; acquisition = UUID.randomUUID()
         openTask = null; listTask = null; reconciliationTask = null; cursor = null; entryTask = null; browse = null
-        val retired = extractRetiredOperations()
+        val retired = extractRetiredOperations(retainingHost = retainingHost)
+        if (retainingHost == null) deletionProgressOwner = null
         val cleanup = closed?.let(::prepareRetirement)
-        mutate { it.copy(lifetimeToken = token, browsing = false, fetching = false, catalogPageCount = 0,
-            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+        mutate { it.copy(lifetimeToken = token, browsing = false, fetching = false, acquiringSource = false, catalogPageCount = 0,
+            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids,
+            hostProgress = it.hostProgress - retired.hostKeys,
+            deletionProgress = if (retainingHost == null) null else it.deletionProgress) }
         oldOpen?.cancel(); oldList?.cancel(); oldReconciliation?.cancel(); oldCursor?.close(); oldEntries?.cancel(); retired.dispose()
+        oldAcquisition?.cancel()
         cleanup?.start()
         return Retirement(token, closed)
     }
@@ -347,7 +448,8 @@ public class MonitorMediaLibraryModel<P>(
             catalogPageCount = it.catalogPageCount + if (catalog != null) 1 else 0,
             fetchedCount = records.size, selectedIDs = it.selectedIDs.intersect(retained),
             entries = it.entries.filterKeys { id -> id in retained },
-            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids,
+            hostProgress = it.hostProgress - retired.hostKeys) }
         retired.dispose()
         if (!ifCurrent()) return false
         if (capture.sourceFavoriteKeys != null) favoritesStore.saveFavorites(favorites)
@@ -391,7 +493,8 @@ public class MonitorMediaLibraryModel<P>(
         val retired = extractRetiredOperations(records.map { it.asset.id }.toSet())
         mutate { it.copy(records = records, selectedIDs = it.selectedIDs - ids,
             entries = it.entries.filterKeys { id -> id !in ids }, fetchedCount = records.size,
-            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+            transferring = it.transferring - retired.ids, progress = it.progress - retired.ids,
+            hostProgress = it.hostProgress - retired.hostKeys) }
         retired.dispose()
         if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
         if (removeLocalFavorites) favoritesStore.saveFavorites(favorites)
@@ -434,22 +537,397 @@ public class MonitorMediaLibraryModel<P>(
 
     /** An app-owned playback/delivery adapter committed through this same root lifetime. */
     public fun refreshLocalCache() { reloadEntries() }
-    private data class RetiredOperations(val ids: Set<MediaAssetID>, val dispose: () -> Unit)
-    private fun extractRetiredOperations(retained: Set<MediaAssetID> = emptySet()): RetiredOperations {
-        val ids = transfers.keys.filterNot { it in retained }.toSet()
+    /** A missing indexed asset is a host-only request and never creates a catalog row. */
+    public fun captureIO(key: MonitorMediaLibraryIOKey, asset: MediaAssetID?,
+        ifCurrent: () -> Boolean): MonitorMediaLibraryIOAuthority {
+        val token = actionToken
+        return MonitorMediaLibraryIOAuthority(hostOwner, key, asset, cache.directory) {
+            if (disposed || !isCurrent(token) || (asset != null && record(asset) == null)) false
+            else {
+                val allowed = ifCurrent()
+                allowed && !disposed && isCurrent(token) && (asset == null || record(asset) != null)
+            }
+        }
+    }
+    /** Capture at confirmation, before SDK preparation can reenter or retire the gallery. */
+    public fun captureDeletion(key: MonitorMediaLibraryIOKey,
+        ifCurrent: () -> Boolean): MonitorMediaLibraryDeletionAuthority {
+        val capturedService = service
+        val sourceCurrent = {
+            if (disposed || service !== capturedService) false else {
+                val allowed = ifCurrent()
+                allowed && !disposed && service === capturedService
+            }
+        }
+        return MonitorMediaLibraryDeletionAuthority(hostOwner, key, cache.directory, actionToken, sourceCurrent) { token ->
+            if (disposed || !isCurrent(token)) false else {
+                val allowed = sourceCurrent()
+                allowed && !disposed && isCurrent(token)
+            }
+        }
+    }
+
+    /** Existing IO scheduler, retaining exactly this consumed claim during catalog preparation. */
+    public suspend fun <V, L> deleteHostBatch(authority: MonitorMediaLibraryDeletionAuthority,
+        targets: List<MonitorMediaDeletionTarget<V, L>>, selectedCount: Int,
+        preparation: MonitorMediaDeletionPreparation = MonitorMediaDeletionPreparation.PRESERVE_GALLERY,
+        prepare: () -> Unit = {}, progress: ((MonitorMediaDeletionProgress) -> Unit)? = null,
+        port: MonitorMediaDeletionPort<V, L>): Int {
+        if (authority.owner != hostOwner || authority.directory !== cache.directory ||
+            !authority.consume() || !currentCoroutineContext().isActive) return 0
+        val io = MonitorMediaLibraryIOAuthority(hostOwner, authority.key, null, authority.directory) { authority.isCurrent }
+        val operation = try {
+            startHost(io, MonitorMediaLibraryIOPurpose.DELETION, null)?.also { it.deletion = authority }
+                ?: run { authority.retire(); return 0 }
+        } catch (_: Exception) { authority.retire(); return 0 }
+        var removed = 0
+        try {
+            requireHost(operation); prepare(); requireHost(operation)
+            if (preparation == MonitorMediaDeletionPreparation.RETIRE_GALLERY) {
+                val replacement = UUID.randomUUID()
+                authority.prepare(MonitorMediaLibraryActionToken(replacement, null))
+                retire(replacement, io.id); requireHost(operation)
+            }
+            performHost(operation) {
+                var finishedCount = 0
+                val scheduledPort = MonitorMediaDeletionPort(port.remove, port.commit, finish = {
+                    if (hostCurrent(operation)) {
+                        if (authority.clearsSelection) clearSelection()
+                        if (hostCurrent(operation)) {
+                            val finish = DeletionFinish(authority.id, lifetime, authority.sourceCurrent)
+                            finishingDeletions[authority.id] = finish
+                            authority.beginCompletion { finishingCurrent(finish) }
+                            if (authority.isCompleting && finishingDeletions[authority.id] === finish) {
+                                port.finish()
+                                if (currentCoroutineContext().isActive && authority.isCompleting && finishingDeletions[authority.id] === finish) {
+                                    val admission = actionToken
+                                    finish.admission = admission
+                                    authority.sealCompletion(finishedCount, admission)
+                                }
+                            }
+                        }
+                    }
+                })
+                scheduledPort.completed = { finishedCount = it; removed = it }
+                removed = MonitorMediaOrderedDeletion.run(targets, selectedCount,
+                    ifCurrent = { hostCurrent(operation) }, port = scheduledPort, progress = { value ->
+                        if (hostCurrent(operation)) {
+                            deletionProgressOwner = authority.id
+                            mutate { it.copy(deletionProgress = value) }
+                            if (hostCurrent(operation)) progress?.invoke(value)
+                        }
+                    })
+                MediaTransferReceipt(0)
+            }
+        } catch (_: Exception) {
+            // Retirement cannot undo source commits already accepted by this action.
+        } finally {
+            if (deletionProgressOwner == authority.id) {
+                deletionProgressOwner = null; mutate { it.copy(deletionProgress = null) }
+            }
+            finishingDeletions.remove(authority.id)
+            if (authority.completion?.isCurrent == true) authority.expireIO() else authority.retire()
+            finishHost(operation, clearingProgress = false)
+        }
+        return removed
+    }
+    private fun requireAuthority(authority: MonitorMediaLibraryIOAuthority) {
+        if (authority.owner != hostOwner || authority.directory !== cache.directory) throw MediaServiceException(MediaServiceFailure.RETIRED)
+        authority.requireCurrent()
+    }
+    private fun hostCurrent(operation: HostOperation): Boolean {
+        if (hostOperations[operation.authority.id] !== operation || !operation.authority.isCurrent) return false
+        return hostOperations[operation.authority.id] === operation
+    }
+    private suspend fun requireHost(operation: HostOperation) {
+        currentCoroutineContext().ensureActive()
+        if (!hostCurrent(operation)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+    }
+    private fun startHost(authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, writer: MonitorMediaCacheWrite?): HostOperation? {
+        requireAuthority(authority)
+        val claim = HostClaim(authority.key, purpose)
+        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && claim in hostClaims) return null
+        if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val operation = HostOperation(authority, purpose, writer)
+        hostOperations[authority.id] = operation
+        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK) hostClaims[claim] = authority.id
+        if (purpose.tracksProgress) {
+            val previous = hostProgressDelays.remove(authority.key)
+            hostProgressOwners[authority.key] = authority
+            previous?.cancel()
+            mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 0.0)) }
+        }
+        if (!hostCurrent(operation)) {
+            finishHost(operation, clearingProgress = true); writer?.abort()
+            throw MediaServiceException(MediaServiceFailure.RETIRED)
+        }
+        return operation
+    }
+    private fun finishHost(operation: HostOperation, clearingProgress: Boolean) {
+        val authority = operation.authority
+        if (hostOperations[authority.id] !== operation) return
+        hostOperations.remove(authority.id)
+        val claim = HostClaim(authority.key, operation.purpose)
+        if (hostClaims[claim] == authority.id) hostClaims.remove(claim)
+        if (clearingProgress) clearHostProgress(authority)
+    }
+    private fun hostSink(operation: HostOperation, attempt: UUID, hint: Long?, sink: MediaByteSink): MediaByteSink =
+        object : MediaTransferProgressSink {
+            var expected = hint?.takeIf { it > 0 }
+            var bytes = 0L
+            override suspend fun expectedByteCount(count: Long?) {
+                withContext(owner.coroutineContext.minusKey(Job)) {
+                    requireHost(operation)
+                    if (operation.attempt != attempt) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                    expected = count?.takeIf { it > 0 }
+                }
+            }
+            override suspend fun write(chunk: ByteArray) {
+                withContext(owner.coroutineContext.minusKey(Job)) {
+                    requireHost(operation)
+                    if (operation.attempt != attempt) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                    sink.write(chunk)
+                    requireHost(operation)
+                    if (operation.attempt != attempt) throw MediaServiceException(MediaServiceFailure.RETIRED)
+                    bytes += chunk.size
+                    if (hostProgressOwners[operation.authority.key]?.id == operation.authority.id &&
+                        operation.purpose.tracksProgress) {
+                        val value = expected?.let { (bytes.toDouble() / it).coerceAtMost(1.0) } ?: 0.0
+                        mutate { it.copy(hostProgress = it.hostProgress + (operation.authority.key to value)) }
+                    }
+                }
+            }
+        }
+    private suspend fun performHost(operation: HostOperation, expected: Long?, sink: MediaByteSink,
+        transfer: suspend (MediaByteSink) -> MediaTransferReceipt): MediaTransferReceipt {
+        val attempt = UUID.randomUUID(); operation.attempt = attempt
+        val progressSink = hostSink(operation, attempt, expected, sink)
+        return performHost(operation) { transfer(progressSink) }
+    }
+    private suspend fun performHost(operation: HostOperation,
+        transfer: suspend () -> MediaTransferReceipt): MediaTransferReceipt {
+        val task = owner.async(start = CoroutineStart.LAZY) {
+            requireHost(operation)
+            val receipt = transfer()
+            requireHost(operation)
+            receipt
+        }
+        operation.task = task
+        if (!hostCurrent(operation)) task.cancel() else task.start()
+        try { return task.await() }
+        catch (error: CancellationException) {
+            if (operation.purpose != MonitorMediaLibraryIOPurpose.DELETION) task.cancel()
+            throw error
+        }
+    }
+    /** Original native thumbnail bytes, under the same task/claim lifetime; no cache or progress mutation. */
+    public suspend fun readHostThumbnail(authority: MonitorMediaLibraryIOAuthority,
+        read: suspend () -> ByteArray): ByteArray? =
+        readHostBytes(authority, MonitorMediaLibraryIOPurpose.THUMBNAIL, read)
+
+    /** Uncached original image bytes with a real record and a distinct claim, under existing IO retirement. */
+    public suspend fun readHostOriginalImage(authority: MonitorMediaLibraryIOAuthority,
+        read: suspend () -> ByteArray): ByteArray? {
+        if (authority.asset == null) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        return readHostBytes(authority, MonitorMediaLibraryIOPurpose.ORIGINAL_IMAGE, read)
+    }
+
+    private suspend fun readHostBytes(authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, read: suspend () -> ByteArray): ByteArray? {
+        currentCoroutineContext().ensureActive()
+        val operation = startHost(authority, purpose, null) ?: return null
+        try {
+            var bytes: ByteArray? = null
+            performHost(operation) {
+                val incoming = read()
+                bytes = incoming
+                MediaTransferReceipt(incoming.size.toLong())
+            }
+            requireHost(operation)
+            return bytes
+        } finally { finishHost(operation, clearingProgress = false) }
+    }
+    public suspend fun ensureHostThumbnail(authority: MonitorMediaLibraryIOAuthority, address: String,
+        read: suspend () -> ByteArray) {
+        currentCoroutineContext().ensureActive(); requireAuthority(authority)
+        if (HostClaim(authority.key, MonitorMediaLibraryIOPurpose.THUMBNAIL) in hostClaims) return
+        if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val writer = cache.directory.beginWrite(address)
+        val operation = startHost(authority, MonitorMediaLibraryIOPurpose.THUMBNAIL, writer)
+            ?: run { writer.abort(); return }
+        try {
+            val receipt = performHost(operation, null, writer) { sink ->
+                val bytes = read()
+                if (bytes.isEmpty()) throw MonitorMediaCacheException(MonitorMediaCacheFailure.EMPTY)
+                sink.write(bytes); MediaTransferReceipt(bytes.size.toLong())
+            }
+            requireHost(operation); writer.commit(receipt); reloadEntries()
+        } finally { writer.abort(); finishHost(operation, clearingProgress = false) }
+    }
+    /** One host stream and canonical write under the existing library/cache lifetime. */
+    public suspend fun cacheHostFile(authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, address: String, expectedByteCount: Long? = null,
+        transfer: suspend (MediaByteSink) -> MediaTransferReceipt): File? = cacheHostFile(
+            authority, purpose, address, MediaTransferPlan(expectedByteCount, listOf(transfer), retry = { false }))
+    /** Each real attempt receives a fresh writer, so a failed partial body cannot join the next. */
+    public suspend fun cacheHostFile(authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, address: String, plan: MediaTransferPlan): File? {
+        if (purpose == MonitorMediaLibraryIOPurpose.DELETION) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
+        currentCoroutineContext().ensureActive(); requireAuthority(authority)
+        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && HostClaim(authority.key, purpose) in hostClaims) return null
+        if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val operation = startHost(authority, purpose, null) ?: return null
+        var committed = false
+        try {
+            var lastError: Throwable = MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+            for ((index, transfer) in plan.attempts.withIndex()) {
+                requireHost(operation)
+                val writer = cache.directory.beginWrite(address); operation.writer = writer
+                val receipt = try { performHost(operation, plan.expectedByteCount, writer, transfer) }
+                catch (error: Exception) {
+                    writer.abort(); operation.writer = null; requireHost(operation)
+                    if (!plan.retry(error)) throw error
+                    requireHost(operation); lastError = error; continue
+                }
+                requireHost(operation); plan.accepted?.invoke(index, receipt); requireHost(operation)
+                val location = writer.commit(receipt); reloadEntries(); requireHost(operation)
+                committed = true
+                return location
+            }
+            throw lastError
+        } finally { operation.writer?.abort(); finishHost(operation, clearingProgress = !committed) }
+    }
+    /** SDK staging compatibility; the shared owner alone copies and commits the canonical name. */
+    public suspend fun cacheHostStagedFile(authority: MonitorMediaLibraryIOAuthority,
+        purpose: MonitorMediaLibraryIOPurpose, address: String, expectedByteCount: Long? = null,
+        stagingAt: File? = null, staging: suspend (File) -> Unit): File? {
+        if (purpose == MonitorMediaLibraryIOPurpose.DELETION) throw MediaServiceException(MediaServiceFailure.UNSUPPORTED)
+        currentCoroutineContext().ensureActive(); requireAuthority(authority)
+        if (purpose != MonitorMediaLibraryIOPurpose.PLAYBACK && HostClaim(authority.key, purpose) in hostClaims) return null
+        if (authority.id in hostOperations) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val destination = cache.directory.file(address)
+        val incoming = stagingAt ?: File(destination.parentFile, ".incoming-${authority.id}")
+        try {
+            return cacheHostFile(authority, purpose, address, expectedByteCount) { sink ->
+                staging(incoming); authority.requireCurrent()
+                val count = MonitorMediaLibraryFileCopy.copy(incoming, sink, owner.coroutineContext.minusKey(Job))
+                MediaTransferReceipt(count, expectedByteCount)
+            }
+        } finally { incoming.delete() }
+    }
+    /** The existing player owns its writer; this library owns progress and source retirement. */
+    public suspend fun transferHostFile(authority: MonitorMediaLibraryIOAuthority,
+        expectedByteCount: Long? = null, sink: MediaByteSink,
+        transfer: suspend (MediaByteSink) -> MediaTransferReceipt): MediaTransferReceipt {
+        currentCoroutineContext().ensureActive()
+        val operation = startHost(authority, MonitorMediaLibraryIOPurpose.PLAYBACK, null)
+            ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        var complete = false
+        try {
+            val receipt = performHost(operation, expectedByteCount, sink, transfer)
+            requireHost(operation); complete = true
+            return receipt
+        } finally { finishHost(operation, clearingProgress = !complete) }
+    }
+    /** A borrowed native writer cannot rewind; only the accepted attempt is copied from disk. */
+    public suspend fun transferHostFile(authority: MonitorMediaLibraryIOAuthority,
+        sink: MediaByteSink, plan: MediaTransferPlan, stagingRoot: File): MediaTransferReceipt {
+        currentCoroutineContext().ensureActive()
+        val operation = startHost(authority, MonitorMediaLibraryIOPurpose.PLAYBACK, null)
+            ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        var complete = false
+        try {
+            var lastError: Throwable = MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+            for ((index, transfer) in plan.attempts.withIndex()) {
+                requireHost(operation)
+                val incoming = File(stagingRoot, "opc-player-${UUID.randomUUID()}.incoming")
+                val staged = LibraryHostFileSink(incoming)
+                try {
+                    val receipt = try { performHost(operation, plan.expectedByteCount, staged, transfer) }
+                    catch (error: Exception) {
+                        requireHost(operation)
+                        if (!plan.retry(error)) throw error
+                        requireHost(operation); lastError = error; continue
+                    }
+                    staged.close(); requireHost(operation)
+                    plan.accepted?.invoke(index, receipt); requireHost(operation)
+                    val admitted = object : MediaByteSink {
+                        override suspend fun write(chunk: ByteArray) {
+                            requireHost(operation); sink.write(chunk); requireHost(operation)
+                        }
+                    }
+                    val count = MonitorMediaLibraryFileCopy.copy(incoming, admitted, owner.coroutineContext.minusKey(Job))
+                    requireHost(operation)
+                    if (count != receipt.byteCount) throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_RECEIPT)
+                    complete = true
+                    return MediaTransferReceipt(count, receipt.expectedByteCount)
+                } finally { try { staged.close() } finally { incoming.delete() } }
+            }
+            throw lastError
+        } finally { finishHost(operation, clearingProgress = !complete) }
+    }
+    public fun clearHostProgress(authority: MonitorMediaLibraryIOAuthority) {
+        if (authority.owner != hostOwner || hostProgressOwners[authority.key]?.id != authority.id) return
+        hostProgressOwners.remove(authority.key)
+        hostProgressDelays.remove(authority.key)?.cancel()
+        mutate { it.copy(hostProgress = it.hostProgress - authority.key) }
+    }
+    public fun completeHostTransfer(authority: MonitorMediaLibraryIOAuthority, role: MediaRepresentationRole) {
+        val progressOwner = hostProgressOwners[authority.key]
+        if (authority.owner != hostOwner || !authority.isCurrent || (progressOwner != null && progressOwner.id != authority.id)) return
+        hostProgressOwners[authority.key] = authority
+        reloadEntries()
+        if (!authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id) return
+        if (role != MediaRepresentationRole.ORIGINAL) { clearHostProgress(authority); return }
+        hostProgressDelays.remove(authority.key)?.cancel()
+        val task = owner.launch(start = CoroutineStart.LAZY) {
+            sleep(450)
+            if (isActive && authority.isCurrent && hostProgressOwners[authority.key]?.id == authority.id &&
+                hostProgress[authority.key] == 1.0) clearHostProgress(authority)
+        }
+        hostProgressDelays[authority.key] = task
+        mutate { it.copy(hostProgress = it.hostProgress + (authority.key to 1.0)) }
+        if (!authority.isCurrent || hostProgressOwners[authority.key]?.id != authority.id) task.cancel() else task.start()
+    }
+    private data class RetiredOperations(val ids: Set<MediaAssetID>,
+        val hostKeys: Set<MonitorMediaLibraryIOKey>, val dispose: () -> Unit)
+    private fun extractRetiredOperations(retained: Set<MediaAssetID>? = null, retainingHost: UUID? = null,
+        completingClaim: UUID? = null): RetiredOperations {
+        val ids = transfers.keys.filterNot { retained?.contains(it) == true }.toSet()
         val oldTransfers = ids.mapNotNull { transfers.remove(it) }
-        val thumbIDs = thumbnails.keys.filterNot { it in retained }
+        val thumbIDs = thumbnails.keys.filterNot { retained?.contains(it) == true }
         val tasks = thumbIDs.mapNotNull { thumbnailTasks.remove(it) }
         val writers = thumbIDs.mapNotNull { thumbnailWriters.remove(it) }
         thumbIDs.forEach { thumbnails.remove(it) }
-        return RetiredOperations(ids) {
+        fun retireHost(authority: MonitorMediaLibraryIOAuthority): Boolean =
+            retained == null || authority.asset?.let { it !in retained } == true
+        val hostRuns = hostOperations.values.filter { it.authority.id != retainingHost && retireHost(it.authority) }
+        hostRuns.forEach {
+            hostOperations.remove(it.authority.id)
+            val claim = HostClaim(it.authority.key, it.purpose)
+            if (hostClaims[claim] == it.authority.id) hostClaims.remove(claim)
+        }
+        val hostKeys = hostProgressOwners.filterValues(::retireHost).keys.toSet()
+        val hostDelays = hostKeys.mapNotNull { hostProgressDelays.remove(it) }
+        hostKeys.forEach { hostProgressOwners.remove(it) }
+        return RetiredOperations(ids, hostKeys) {
             oldTransfers.forEach { it.task.cancel(); it.writer.abort() }
             tasks.forEach { it.cancel() }; writers.forEach { it.abort() }
+            hostRuns.forEach {
+                if (it.deletion?.id == completingClaim) it.deletion?.expireIO() else it.deletion?.retire()
+                if (it.purpose != MonitorMediaLibraryIOPurpose.DELETION) it.task?.cancel()
+                it.writer?.abort()
+            }
+            hostDelays.forEach { it.cancel() }
         }
     }
-    private fun retireOperations(retained: Set<MediaAssetID> = emptySet()) {
+    private fun retireOperations(retained: Set<MediaAssetID>? = null) {
         val retired = extractRetiredOperations(retained)
-        if (retired.ids.isNotEmpty()) mutate { it.copy(transferring = it.transferring - retired.ids, progress = it.progress - retired.ids) }
+        if (retired.ids.isNotEmpty() || retired.hostKeys.isNotEmpty()) mutate {
+            it.copy(transferring = it.transferring - retired.ids, progress = it.progress - retired.ids,
+                hostProgress = it.hostProgress - retired.hostKeys)
+        }
         retired.dispose()
     }
 

@@ -2,19 +2,14 @@ import Foundation
 
 /// One control holder. Host reclaim is `clear()`. Dropped holder with a `watcherID` parks 20 s.
 public struct WatcherRelayControlLease: Equatable, Sendable {
-    public static let defaultWindowSeconds: TimeInterval = 20
+    public static let defaultWindowSeconds = RelayParkedControlLease.defaultWindowSeconds
 
     public var holderName: String
     public var holderWatcherID: String?
     public let windowSeconds: TimeInterval
 
-    private struct Parked: Equatable, Sendable {
-        var watcherID: String
-        var name: String
-        var until: Date
-    }
-
-    private var parked: Parked?
+    private var parked: RelayParkedControlLease
+    private var parkedName: String?
 
     public init(
         holderName: String = "Host",
@@ -22,6 +17,7 @@ public struct WatcherRelayControlLease: Equatable, Sendable {
     ) {
         self.holderName = holderName
         self.windowSeconds = windowSeconds
+        parked = RelayParkedControlLease(windowSeconds: windowSeconds)
     }
 
     public var hostHolds: Bool { holderWatcherID == nil }
@@ -36,13 +32,15 @@ public struct WatcherRelayControlLease: Equatable, Sendable {
         holderName = name
         let id = watcherID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         holderWatcherID = id.isEmpty ? nil : id
-        parked = nil
+        parked.clear()
+        parkedName = nil
     }
 
     public mutating func reclaim(hostName: String) {
         holderName = hostName
         holderWatcherID = nil
-        parked = nil
+        parked.clear()
+        parkedName = nil
     }
 
     /// Dropped socket. Anonymous watcher releases immediately.
@@ -53,8 +51,8 @@ public struct WatcherRelayControlLease: Equatable, Sendable {
             reclaim(hostName: "Host")
             return false
         }
-        parked = Parked(
-            watcherID: watcherID, name: name, until: now.addingTimeInterval(windowSeconds))
+        parked.park(watcherID: watcherID, now: now)
+        parkedName = name
         holderName = "Host"
         holderWatcherID = nil
         return true
@@ -63,13 +61,14 @@ public struct WatcherRelayControlLease: Equatable, Sendable {
     @discardableResult
     public mutating func claim(watcherID: String?, name: String, now: Date) -> Bool {
         guard let watcherID, !watcherID.isEmpty else { return false }
-        guard let parked, now < parked.until, parked.watcherID == watcherID else { return false }
-        grant(name: name.isEmpty ? parked.name : name, watcherID: watcherID)
+        guard parked.claim(watcherID: watcherID, now: now) else { return false }
+        grant(name: name.isEmpty ? (parkedName ?? name) : name, watcherID: watcherID)
         return true
     }
 
     public mutating func clear() {
-        parked = nil
+        parked.clear()
+        parkedName = nil
         holderWatcherID = nil
         holderName = "Host"
     }

@@ -217,6 +217,8 @@ public struct MonitorMediaCacheEntry: Sendable {
         else { throw MonitorMediaCacheError.invalidAddress }
         return root.appendingPathComponent(address)
     }
+    /// Remove only the staging resource supplied by the captured library operation.
+    func removeStagingFile(at location: URL) throws { try manager.removeItem(at: location) }
     public func read(_ address: String) throws -> Data { try Data(contentsOf: url(address)) }
     public func write(_ data: Data, at address: String) throws {
         let destination = try url(address)
@@ -268,6 +270,19 @@ public struct MonitorMediaCacheEntry: Sendable {
             return MonitorMediaCacheWrite(
                 id: id, generation: writes.generation, destination: destination,
                 temporary: temporary, handle: handle, writes: writes, manager: manager)
+        }
+    }
+
+    /// Fence old writers and catalog captures while retaining resumable transfer files.
+    public func retireWrites() {
+        writes.withLock {
+            writes.generation &+= 1
+            writes.current.removeAll()
+            for resource in writes.resources.values {
+                try? resource.handle.close()
+                try? manager.removeItem(at: resource.temporary)
+            }
+            writes.resources.removeAll()
         }
     }
 

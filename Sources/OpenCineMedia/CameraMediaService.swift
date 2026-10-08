@@ -117,6 +117,12 @@ public protocol MediaByteSink: Sendable {
     func write(_ chunk: Data) async throws
 }
 
+/// Optional length observation for sinks that publish transfer progress. A response header may
+/// replace the source hint; absent length stays unknown and never becomes a zero-byte fact.
+public protocol MediaTransferProgressSink: MediaByteSink {
+    func expectedByteCount(_ count: UInt64?) async throws
+}
+
 @MainActor public protocol CameraMediaThumbnailService: AnyObject, Sendable {
     func thumbnail(_ asset: MediaAssetID) async throws -> Data
 }

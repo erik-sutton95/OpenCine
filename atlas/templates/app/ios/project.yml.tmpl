@@ -35,6 +35,12 @@ targets:
         product: OpenCineAppKit
       - package: OpenCine
         product: MonitorUI
+      - package: OpenCine
+        product: MonitorPresentation
+      - package: OpenCine
+        product: OpenCineCameraControls
+      - package: OpenCine
+        product: OpenCineMedia
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__
@@ -43,7 +49,7 @@ targets:
     scheme: {}
 
   # SIMULATED, developer-only: the same app over OpenCine's fake integration (Simulated/). Never
-  # archived or released; OpenCineCoreTestSupport is linked here and in the tests only.
+  # archived or released; its small fake implements public Core and Media contracts directly.
   __NAME__Simulated:
     type: application
     platform: iOS
@@ -57,16 +63,24 @@ targets:
       - package: OpenCine
         product: MonitorUI
       - package: OpenCine
+        product: MonitorPresentation
+      - package: OpenCine
+        product: OpenCineCameraControls
+      - package: OpenCine
         product: OpenCineCore
       - package: OpenCine
-        product: OpenCineCoreTestSupport
+        product: OpenCineMedia
+      - package: OpenCine
+        product: OpenCineApple
+      - package: OpenCine
+        product: OpenCineAppKitApple
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__.simulated
         INFOPLIST_KEY_CFBundleDisplayName: __NAME__ SIMULATED
         CODE_SIGN_ENTITLEMENTS: __NAME__/__NAME__.entitlements
     scheme:
-      testTargets: [__NAME__Tests]
+      testTargets: [__NAME__Tests, __NAME__UITests]
 
   # SIMULATED contract test: the app's shell composition over the fake, no host app.
   __NAME__Tests:
@@ -82,7 +96,23 @@ targets:
       - package: OpenCine
         product: OpenCineCore
       - package: OpenCine
-        product: OpenCineCoreTestSupport
+        product: OpenCineMedia
+      - package: OpenCine
+        product: OpenCineApple
+      - package: OpenCine
+        product: OpenCineAppKitApple
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__.tests
+
+  # SIMULATED installed-app flow with actual AVPlayer decoding and retained native pictures.
+  __NAME__UITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: __NAME__Simulated
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__.uitests
+        TEST_TARGET_NAME: __NAME__Simulated

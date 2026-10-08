@@ -1,6 +1,16 @@
 package __APP_ID__
 
 import com.opencapture.opencine.appkit.AppIntegration
+import com.opencapture.opencine.appkit.MonitorAssistState
+import com.opencapture.opencine.appkit.MonitorOperatorPreferences
+import android.content.Context
+import android.app.Activity
+import androidx.compose.runtime.Composable
+import com.opencapture.opencine.appkit.MonitorMediaPlaybackModel
+import com.opencapture.opencine.appkit.MonitorMediaRecord
+import com.opencapture.opencine.appkit.MonitorOperatorMediaModel
+import com.opencapture.opencine.media.MediaAsset
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * The integrations this app ships (Swift `integrations()`), in the order the pair page lists
@@ -9,3 +19,11 @@ import com.opencapture.opencine.appkit.AppIntegration
  * has one; the `simulated` flavor lists the fake instead.
  */
 fun integrations(): List<AppIntegration> = emptyList()
+fun appIntegrations(activity: Activity): List<AppIntegration> = integrations()
+
+fun makeOperatorMedia(context: Context, scope: CoroutineScope): MonitorOperatorMediaModel<MediaAsset, String>? = null
+
+/** Bounded native adapters are supplied with a real integration. This list advertises no source. */
+@Composable fun OperatorPicture(assist: MonitorAssistState, preferences: MonitorOperatorPreferences, iso: Int?) {}
+@Composable fun OperatorThumbnail(record: MonitorMediaRecord<MediaAsset>) {}
+@Composable fun OperatorPlaybackPicture(model: MonitorMediaPlaybackModel<MediaAsset, String>, assist: MonitorAssistState, preferences: MonitorOperatorPreferences) {}

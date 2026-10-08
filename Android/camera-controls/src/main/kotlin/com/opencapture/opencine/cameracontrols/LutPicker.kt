@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraLUTProfile
 import com.opencapture.opencine.vocabulary.LutCatalog
 import com.opencapture.opencine.vocabulary.LutCategory
 import com.opencapture.opencine.vocabulary.LutEntry
@@ -126,17 +127,16 @@ fun LUTPicker(
     onArmLut: () -> Unit = {},
     onClose: (() -> Unit)? = null,
     colorMode: Int = CameraCommands.COLOR_NORMAL,
-    family: String = "pocket",
-    cameraName: String? = null,
+    profile: CameraLUTProfile? = null,
     isPhoto: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val cameraEntries =
-        remember(context, isPhoto) {
+        remember(context, isPhoto, profile) {
             val names = context.assets.list(LutCatalog.ASSET_DIRECTORY)?.toList().orEmpty()
-            if (LutCatalog.cameraLooks.isEmpty()) LutCatalog.officialEntries(names, isPhotoLive = isPhoto)
-            else if (isPhoto) listOf(LutCatalog.auto) else LutCatalog.cameraEntries(names)
+            if (profile?.cameraLooks.isNullOrEmpty()) LutCatalog.officialEntries(names, isPhotoLive = isPhoto)
+            else if (isPhoto) listOf(LutCatalog.auto) else LutCatalog.cameraEntries(names, looks = profile?.cameraLooks.orEmpty())
         }
     val creativeEntries = remember { LutCatalog.creative }
     var tab by remember {
@@ -217,8 +217,7 @@ fun LUTPicker(
                 onSplitVertical = onSplitVertical,
                 onExposure = onExposure,
                 colorMode = colorMode,
-                family = family,
-                cameraName = cameraName,
+                profile = profile,
                 isPhoto = isPhoto,
             )
         }
@@ -313,8 +312,7 @@ private fun LUTPickerBody(
     onSplitVertical: (Boolean) -> Unit,
     onExposure: (Double) -> Unit,
     colorMode: Int,
-    family: String,
-    cameraName: String?,
+    profile: CameraLUTProfile?,
     isPhoto: Boolean,
 ) {
     BoxWithConstraints(
@@ -348,7 +346,7 @@ private fun LUTPickerBody(
             when (tab) {
                 LutTab.CAMERA ->
                     CatalogTab(
-                        caption = cameraCaption(copy, selection, colorMode, family, cameraName, isPhoto),
+                        caption = cameraCaption(copy, selection, colorMode, profile, isPhoto),
                         entries = cameraEntries,
                         selection = selection,
                         fallbackId = copy.autoId,
@@ -357,7 +355,7 @@ private fun LUTPickerBody(
                     )
                 LutTab.CREATIVE ->
                     CatalogTab(
-                        caption = creativeCaption(copy, selection, colorMode, family, cameraName, isPhoto),
+                        caption = creativeCaption(copy, selection, colorMode, profile, isPhoto),
                         entries = creativeEntries,
                         selection = selection,
                         fallbackId = "creativeMono",
@@ -547,14 +545,14 @@ fun LUTExposureCompensationBar(stops: Double, onChange: (Double) -> Unit,
 fun LUTSplitComparisonBar(
     splitComparison: Boolean,
     splitVertical: Boolean,
-    lutExposureStops: Double = 0.0,
+    lutExposureStops: Double? = 0.0,
     onToggleSplit: () -> Unit,
     onSplitVertical: (Boolean) -> Unit,
     onExposure: (Double) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        LUTExposureCompensationBar(stops = lutExposureStops, onChange = onExposure)
+        lutExposureStops?.let { LUTExposureCompensationBar(stops = it, onChange = onExposure) }
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -630,14 +628,13 @@ internal fun creativeCaption(
     copy: LutPickerCopy,
     selection: String,
     colorMode: Int,
-    family: String,
-    cameraName: String?,
+    profile: CameraLUTProfile?,
     isPhoto: Boolean,
 ): String =
     if (LutCatalog.categoryOf(selection) == LutCategory.CREATIVE) {
         LutLookResolver.autoCaption(
-            LutLookResolver.resolve(selection, true, colorMode, family, cameraName, isPhoto),
-            copy.noLookCaption,
+            LutLookResolver.resolve(selection, true, colorMode, profile, isPhoto),
+            copy.noLookCaption, profile?.cameraLooks.orEmpty(),
         )
     } else {
         "Looks for the displayed picture"
@@ -647,8 +644,7 @@ internal fun cameraCaption(
     copy: LutPickerCopy,
     selection: String,
     colorMode: Int,
-    family: String,
-    cameraName: String?,
+    profile: CameraLUTProfile?,
     isPhoto: Boolean,
 ): String =
     if (isPhoto) {
@@ -656,11 +652,11 @@ internal fun cameraCaption(
     } else when {
         selection == LutCatalog.AUTO || selection == LutCatalog.OFFICIAL_AUTO ->
             LutLookResolver.autoCaption(
-                LutLookResolver.resolve(selection, true, colorMode, family, cameraName, isPhoto),
-                copy.noLookCaption,
+                LutLookResolver.resolve(selection, true, colorMode, profile, isPhoto),
+                copy.noLookCaption, profile?.cameraLooks.orEmpty(),
             )
         selection.startsWith("camera:") ->
-            LutCatalog.cameraLooks.firstOrNull { it.id == selection }?.caption ?: "Manual camera conversion"
+            profile?.cameraLooks?.firstOrNull { it.id == selection }?.caption ?: "Manual camera conversion"
         LutCatalog.categoryOf(selection) == LutCategory.CAMERA -> copy.officialCubeCaption
         else -> copy.cameraLooksCaption
     }

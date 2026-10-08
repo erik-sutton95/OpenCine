@@ -25,6 +25,7 @@
         public var chromeClearance: EdgeInsets = EdgeInsets()
         public var hapticsEnabled = false
         public var onConfigure: () -> Void = {}
+        public var referenceValues: MonitorFalseColorReferenceValues?
         @Environment(\.interfaceLocked) private var interfaceLocked
         @Environment(\.scenePhase) private var scenePhase
         @GestureState private var pointerActive = false
@@ -37,7 +38,7 @@
             stores: AssistPanelStores, looks: FalseColorLooks, scale: MonitorFalseColorSelection,
             transfer: MonitorTransfer, rec709: Bool, clipByte: Int, bounds: CGRect,
             chromeClearance: EdgeInsets = EdgeInsets(), hapticsEnabled: Bool = false,
-            onConfigure: @escaping () -> Void = {}
+            onConfigure: @escaping () -> Void = {}, referenceValues: MonitorFalseColorReferenceValues? = nil
         ) {
             self.stores = stores
             self.looks = looks
@@ -49,6 +50,7 @@
             self.chromeClearance = chromeClearance
             self.hapticsEnabled = hapticsEnabled
             self.onConfigure = onConfigure
+            self.referenceValues = referenceValues
         }
         private var store: FalseColorReferencePositionStore { stores.reference }
 
@@ -63,11 +65,10 @@
                 dragCenter ?? store.positions.center(in: bounds, size: size, movement: movement)
             ZStack {
                 Color.clear.contentShape(Rectangle())
-                FalseColorReference(
-                    scale: scale, transfer: transfer, rec709: rec709, clipByte: clipByte,
-                    looks: looks
-                )
-                .allowsHitTesting(false)
+                Group {
+                    if let referenceValues { MonitorFalseColorReference(values: referenceValues) }
+                    else { FalseColorReference(scale: scale, transfer: transfer, rec709: rec709, clipByte: clipByte, looks: looks) }
+                }.allowsHitTesting(false)
             }
             .scaleEffect(fit)
             .frame(width: size.width, height: size.height)

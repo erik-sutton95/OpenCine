@@ -70,7 +70,7 @@ private class UnregisteredDjiService
 /** Swift suite `DJIIntegrationTests`, same method names. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DjiIntegrationTest {
-    private val pocket = FoundCamera("cam-1", "AA:BB", "OsmoPocket3-AAAA", CameraModel(name = "Osmo Pocket 3"), 0x20)
+    private val pocket = FoundCamera("cam-1", "AA:BB", "OsmoPocket3-AAAA", djiBodyProfile("Osmo Pocket 3"), 0x20)
     private val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "OsmoPocket3-AAAA", bluetooth = true)
     private val wifi = SavedRoute(key = "wifi", kind = RouteKind.INFRASTRUCTURE_NETWORK, network = "studio", bluetooth = true)
     private val saved = SavedCamera(
@@ -338,7 +338,7 @@ class DjiIntegrationTest {
         val port = FakeDjiPort()
         val dji = integration(port)
         dji.savedCameras = { listOf(saved.copy(id = "cam-2")) }
-        port.found.value = listOf(FoundCamera("cam-3", "CC", "OsmoPocket3-CCCC", CameraModel(name = "Osmo Pocket 3"), 0x20))
+        port.found.value = listOf(FoundCamera("cam-3", "CC", "OsmoPocket3-CCCC", djiBodyProfile("Osmo Pocket 3"), 0x20))
         val owned = collect(dji.connect(ConnectTarget.Nearby(NearbyCamera("cam-3", name = "Osmo Pocket 3", model = "Osmo Pocket 3", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
         runCurrent()
         port.joinedSSID = "OsmoPocket3-AAAA"
@@ -348,7 +348,7 @@ class DjiIntegrationTest {
         assertEquals(listOf<String?>(null), first.routes.map { it.network }, "the other camera's access point is not saved here")
         assertTrue(first.advertisedName == "OsmoPocket3-CCCC" && first.extras["modelId"] == "32")
 
-        port.found.value = listOf(FoundCamera("cam-4", "DD", "OsmoNano-DDDD", CameraModel(name = "Osmo Nano", family = "nano"), 0x19))
+        port.found.value = listOf(FoundCamera("cam-4", "DD", "OsmoNano-DDDD", djiBodyProfile("Osmo Nano", family = "nano"), 0x19))
         val crossed = collect(dji.connect(ConnectTarget.Nearby(NearbyCamera("cam-4", name = "Osmo Nano", model = "Osmo Nano", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
         runCurrent()
         port.joinedSSID = "OsmoPocket3-EEEE"

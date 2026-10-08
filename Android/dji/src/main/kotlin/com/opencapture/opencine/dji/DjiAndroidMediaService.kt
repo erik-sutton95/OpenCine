@@ -18,7 +18,8 @@ import com.opencapture.opencine.vocabulary.MediaFile
 data class DjiAndroidMediaIdentity(val session: DJICameraSessionID, val epoch: DJIControlEpoch, val cameraID: String) {
     fun sameConnection(other: DjiAndroidMediaIdentity): Boolean = session == other.session && cameraID == other.cameraID
 }
-data class DjiAndroidMediaFacts(val identity: DjiAndroidMediaIdentity, val canQuery: Boolean, val bodyGalleryOpen: Boolean, val inPlayback: Boolean)
+data class DjiAndroidMediaFacts(val identity: DjiAndroidMediaIdentity, val canQuery: Boolean, val bodyGalleryOpen: Boolean, val inPlayback: Boolean,
+    val sourcePolicy: DJIMediaSourcePolicy? = null)
 data class DjiAndroidMediaTiming(val nowMs: () -> Long, val sleep: suspend (Long) -> Unit)
 
 /** Native primitives only. The producer, rather than the host, owns all catalog loops. */
@@ -43,6 +44,13 @@ data class DJIMediaCatalogRecord(val asset: MediaAssetID, val file: MediaFile)
 interface DJIMediaCatalogRecordSource {
     fun mediaCatalogRecord(asset: MediaAssetID, binding: MediaBrowseBinding): DJIMediaCatalogRecord?
 }
+
+/** A native write was submitted, not acknowledged by the camera. */
+data class DjiAndroidMediaMutationSubmission internal constructor(
+    val asset: MediaAssetID,
+    val binding: MediaBrowseBinding,
+    internal val source: DjiAndroidMediaIdentity,
+)
 
 /** Captured on the receive thread BEFORE main.post. Consumers cannot manufacture admission. */
 data class DjiAndroidMediaIngress internal constructor(
@@ -129,6 +137,9 @@ class DjiAndroidMediaService(
     private var returnTask: Deferred<Unit>? = null
     private var galleryReturn: UUID? = null
     private var exchange: Exchange? = null
+    private var actionCounter = 1L
+
+    val sourcePolicy: DJIMediaSourcePolicy? get() = port.mediaFacts?.sourcePolicy
 
     /** Endpoint replacement rejects queued old queries but keeps same-session return authority. */
     fun attachIngress(next: DjiAndroidMediaIngressSlot) {
@@ -172,6 +183,34 @@ class DjiAndroidMediaService(
         val browse = current ?: return null
         if (browse.binding != binding || !admitted(browse)) return null
         return browse.records[asset]?.let { DJIMediaCatalogRecord(asset, it) }
+    }
+    fun submitFavorite(asset: MediaAssetID, on: Boolean, binding: MediaBrowseBinding): DjiAndroidMediaMutationSubmission? =
+        submitMutation(asset, binding, MediaCommands.SET_CAMERA, MediaCommands.CMD_MEDIA_FAVORITE) { file, counter ->
+            file.favoriteHandle.takeIf { it != 0L }?.let { MediaCommands.favoritePayload(it, on, counter) }
+        }
+
+    fun submitDeletion(asset: MediaAssetID, binding: MediaBrowseBinding): DjiAndroidMediaMutationSubmission? =
+        submitMutation(asset, binding, MediaCommands.SET_GENERAL, MediaCommands.CMD_MEDIA_DELETE) { file, counter ->
+            file.takeIf { it.isDeletable }?.let { MediaCommands.deletePayload(it.handle, counter) }
+        }
+
+    fun isCurrent(submission: DjiAndroidMediaMutationSubmission): Boolean {
+        val browse = current ?: return false
+        return admitted(browse) && browse.binding == submission.binding && browse.source == submission.source &&
+            browse.records.containsKey(submission.asset)
+    }
+
+    private fun submitMutation(asset: MediaAssetID, binding: MediaBrowseBinding, set: Int, command: Int,
+        encode: (MediaFile, Long) -> ByteArray?): DjiAndroidMediaMutationSubmission? {
+        val browse = current ?: return null
+        if (browse.binding != binding || !admitted(browse)) return null
+        val file = browse.records[asset] ?: return null
+        val payload = encode(file, actionCounter) ?: return null
+        actionCounter = (actionCounter + 1) and 0xffff_ffffL
+        if (actionCounter == 0L) actionCounter = 1L
+        val submission = DjiAndroidMediaMutationSubmission(asset, binding, browse.source)
+        port.writeMedia(set, command, payload, browse.source)
+        return submission.takeIf(::isCurrent)
     }
     fun ingest(frame: DumlFrame, ticket: DjiAndroidMediaIngress): Boolean {
         val active = exchange ?: return false

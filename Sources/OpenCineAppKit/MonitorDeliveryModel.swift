@@ -1,6 +1,42 @@
 import Foundation
 import Observation
 
+private final class MonitorDeliveryCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var retired = false
+    func cancel() {
+        lock.lock()
+        retired = true
+        lock.unlock()
+    }
+    var active: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !retired
+    }
+}
+
+/// A captured handle to the existing delivery task. Retirement never borrows a successor run.
+public struct MonitorDeliveryRunHandle: Sendable {
+    private let work: Task<Void, Never>
+    private let cancelCaptured: @MainActor @Sendable () -> Void
+    fileprivate init(
+        work: Task<Void, Never>, cancelCaptured: @escaping @MainActor @Sendable () -> Void
+    ) {
+        self.work = work
+        self.cancelCaptured = cancelCaptured
+    }
+    public func awaitEnteredCleanup() async { await work.value }
+    @MainActor public func cancel() {
+        cancelCaptured()
+        work.cancel()
+    }
+    @MainActor public func cancelAndJoin() async {
+        cancel()
+        await work.value
+    }
+}
+
 /// App-owned completion facts. The shell chooses no destination, file or storage namespace.
 public struct MonitorDeliveryCompletion<Outcome: Sendable, Share: Sendable>: Sendable {
     public let outcome: Outcome
@@ -69,19 +105,55 @@ public final class MonitorDeliveryModel<Progress: Sendable, Outcome: Sendable, S
             @escaping @MainActor (@escaping @MainActor (Progress) -> Void) async
             -> MonitorDeliveryCompletion<Outcome, Share>
     ) {
-        guard !closed else { return }
+        beginAdmitted(onCancel: onCancel, onComplete: onComplete) { progress, _ in
+            await operation(progress)
+        }
+    }
+
+    public func beginAdmitted(
+        onCancel: (() -> Void)? = nil,
+        onComplete: ((Outcome) -> String?)? = nil,
+        operation:
+            @escaping @MainActor (@escaping @MainActor (Progress) -> Void, MonitorDeliveryAdmission)
+            async
+            -> MonitorDeliveryCompletion<Outcome, Share>
+    ) {
+        _ = beginCaptured(onCancel: onCancel, onComplete: onComplete, operation: operation)
+    }
+
+    /// Starts through the same task owner and returns only that task's cancellation/join handle.
+    @discardableResult public func beginCaptured(
+        onCancel: (() -> Void)? = nil,
+        onComplete: ((Outcome) -> String?)? = nil,
+        operation:
+            @escaping @MainActor (@escaping @MainActor (Progress) -> Void, MonitorDeliveryAdmission)
+            async
+            -> MonitorDeliveryCompletion<Outcome, Share>
+    ) -> MonitorDeliveryRunHandle? {
+        guard !closed else { return nil }
         let previous = work
         let token = UUID()
         run = token
         pendingShareAcknowledgement = nil
         cancelHandler = onCancel
         previous?.cancel()
-        guard current(token) else { return }
-        work = Task { [weak self] in
+        guard current(token) else { return nil }
+        let next = Task { [weak self] in
             guard let self, self.current(token) else { return }
-            let completion = await operation { [weak self] progress in
-                guard let self, self.current(token), self.state.running else { return }
-                self.publish(token) { $0.progress = progress }
+            let cancellation = MonitorDeliveryCancellation()
+            let completion = await withTaskCancellationHandler {
+                await operation(
+                    { [weak self] progress in
+                        guard let self, self.current(token), self.state.running else { return }
+                        self.publish(token) { $0.progress = progress }
+                    },
+                    .init { [weak self] in
+                        cancellation.active && self?.current(token) == true
+                            && self?.state.running == true
+                            && cancellation.active && self?.current(token) == true
+                    })
+            } onCancel: {
+                cancellation.cancel()
             }
             if Task.isCancelled, self.current(token) { self.cancel() }
             guard self.current(token), self.state.running else {
@@ -90,10 +162,15 @@ public final class MonitorDeliveryModel<Progress: Sendable, Outcome: Sendable, S
             }
             self.finish(completion, token: token, onComplete: onComplete)
         }
+        work = next
         publish(token) {
             $0.running = true
             $0.progress = nil
             $0.expanded = false
+        }
+        return MonitorDeliveryRunHandle(work: next) { [weak self] in
+            guard let self, self.current(token), self.state.running else { return }
+            self.cancel()
         }
     }
 

@@ -99,6 +99,10 @@
         public var showsInlineClear: Bool
         /// A source can retain an active filter while its available choices are hidden.
         public var hasActiveFilters: Bool?
+        /// Opaque source identities support color catalogues without narrowing them to wire bytes.
+        public var colorChoices: [MonitorMediaFilterChoice]?
+        public var colorIDs: Set<String>
+        public var onToggleColorID: ((String) -> Void)?
 
         public init(
             formats: [String], resolutions: [String], colors: [ColorOption],
@@ -112,7 +116,9 @@
             dateWindows: MonitorMediaDateWindowChoices? = nil,
             storage: MonitorMediaStorageChoices? = nil,
             chipLayout: MonitorMediaFilterChipLayout = .platformDefault,
-            showsInlineClear: Bool = true, hasActiveFilters: Bool? = nil
+            showsInlineClear: Bool = true, hasActiveFilters: Bool? = nil,
+            colorChoices: [MonitorMediaFilterChoice]? = nil, colorIDs: Set<String> = [],
+            onToggleColorID: ((String) -> Void)? = nil
         ) {
             self.formats = formats
             self.resolutions = resolutions
@@ -135,10 +141,11 @@
             self.chipLayout = chipLayout
             self.showsInlineClear = showsInlineClear
             self.hasActiveFilters = hasActiveFilters
+            self.colorChoices = colorChoices; self.colorIDs = colorIDs; self.onToggleColorID = onToggleColorID
         }
 
         private var empty: Bool {
-            formats.isEmpty && resolutions.isEmpty && !hasDates && colors.isEmpty
+            formats.isEmpty && resolutions.isEmpty && !hasDates && (colorChoices?.isEmpty ?? colors.isEmpty)
                 && (photoSizes?.options.isEmpty ?? true)
                 && (dateWindows?.options.isEmpty ?? true)
                 && (storage?.options.isEmpty ?? true)
@@ -147,7 +154,7 @@
         private var active: Bool {
             if let hasActiveFilters { return hasActiveFilters }
             return !formatSelection.isEmpty || !resolutionSelection.isEmpty
-                || !colorSelection.isEmpty
+                || !colorSelection.isEmpty || !colorIDs.isEmpty
                 || dateStartLabel != nil || dateEndLabel != nil
                 || !(photoSizes?.selectedIds.isEmpty ?? true)
                 || dateWindows?.selectedId != nil || storage?.selectedId != nil
@@ -180,17 +187,13 @@
                         }
                     }
                 }
-                if !colors.isEmpty {
-                    section("COLOUR") {
-                        chipGrid(
-                            colors.map(\.label),
-                            Set(colors.filter { colorSelection.contains($0.id) }.map(\.label))
-                        ) { title in
-                            if let option = colors.first(where: { $0.label == title }) {
-                                onToggleColor(option.id)
-                            }
+                if let colorChoices, !colorChoices.isEmpty {
+                    choiceSection("COLOUR", colorChoices, colorIDs) { onToggleColorID?($0) }
+                } else if colorChoices == nil, !colors.isEmpty {
+                    choiceSection("COLOUR", colors.map { .init(id: String($0.id), label: $0.label) },
+                        Set(colorSelection.map { String($0) })) { id in
+                            if let byte = UInt8(id) { onToggleColor(byte) }
                         }
-                    }
                 }
                 if let storage, !storage.options.isEmpty {
                     choiceSection(

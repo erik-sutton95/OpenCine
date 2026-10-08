@@ -61,13 +61,16 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     var looping: Bool = false
     var conformTarget: Double? = nil
     var look: MonitorPlaybackLook<Look>? = nil
+    var resolvedLookRequest: UUID?
     var scrubbing: Bool = false
     var scrubPosition: Double = 0
     var closed: Bool = false
   }
   @ObservationIgnored private var snapshot: Snapshot
   @ObservationIgnored private var publication: UInt64 = 0
-  private enum Field {
+  @ObservationIgnored private var notifying = false
+  @ObservationIgnored private var pendingNotifications: [Field] = []
+  private enum Field: Equatable {
     case active, playlist, item, token, ready, nativeItemInstalled, loading, error,
       playRequested, reportedPlaying, position, duration, metadata, reachedEnd, muted,
       looping, conformTarget, look, scrubbing, scrubPosition, closed
@@ -159,6 +162,8 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     return snapshot.closed
   }
   public var transfer: MonitorTransfer? { look?.transfer }
+  /// The already-captured lookup request whose facts were actually accepted.
+  public var lookResolution: UUID? { look == nil ? nil : snapshot.resolvedLookRequest }
 
   @discardableResult private func publish(_ fields: [Field], _ change: (inout Snapshot) -> Void)
     -> Bool
@@ -166,8 +171,16 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     change(&snapshot)
     publication &+= 1
     let committed = publication
-    for field in fields {
-      guard publication == committed else { return false }
+    for field in fields where !pendingNotifications.contains(field) {
+      pendingNotifications.append(field)
+    }
+    // A successor commits synchronously, while notification waits for the outgoing one-shot
+    // observation callback to unregister. Reentering willSet would call that callback again.
+    guard !notifying else { return publication == committed }
+    notifying = true
+    defer { notifying = false }
+    while !pendingNotifications.isEmpty {
+      let field = pendingNotifications.removeFirst()
       switch field {
       case .active: withMutation(keyPath: \.active) {}
       case .playlist: withMutation(keyPath: \.playlist) {}
@@ -208,6 +221,8 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   @ObservationIgnored private let retryNativeFailures: Bool
   @ObservationIgnored private let lookTiming: MonitorPlaybackLookTiming
   @ObservationIgnored private let startTiming: MonitorPlaybackStartTiming
+  @ObservationIgnored private let seekEndClearance: Double
+  @ObservationIgnored private let sceneLossPolicy: MonitorPlaybackSceneLossPolicy
   @ObservationIgnored private var loadTask: Task<Void, Never>?
   @ObservationIgnored private var lookTask: Task<Void, Never>?
   @ObservationIgnored private var lookRevision = UUID()
@@ -238,7 +253,9 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     resolveLook:
       @escaping @MainActor @Sendable (MonitorMediaRecord<Payload>, MonitorPlaybackItem) async
       -> MonitorPlaybackLook<Look>? = { _, _ in nil },
-    now: @escaping @MainActor @Sendable () -> MonotonicInstant = { .now() }
+    now: @escaping @MainActor @Sendable () -> MonotonicInstant = { .now() },
+    seekEndClearance: Double = 0.05,
+    sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .preserveRequest
   ) {
     self.library = library
     libraryLifetime = library.lifetimeToken
@@ -250,6 +267,8 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     self.retryNativeFailures = retryNativeFailures
     self.lookTiming = lookTiming
     self.startTiming = startTiming
+    self.seekEndClearance = seekEndClearance.isFinite && seekEndClearance >= 0 ? seekEndClearance : 0.05
+    self.sceneLossPolicy = sceneLossPolicy
     snapshot = .init(token: .init(owner: UUID(), revision: 0))
     native.retireItem(for: token)
     watchLibrary()
@@ -278,14 +297,24 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     }
     return MonitorConformPreview.speed(captureRate: capture, targetRate: target)
   }
-  private func current(_ admitted: MonitorPlaybackItemToken) -> Bool {
+  private func ownsItem(_ admitted: MonitorPlaybackItemToken) -> Bool {
     !closed && token == admitted && library.lifetimeToken == libraryLifetime && library.browsing
-      && (itemAdmission?.isCurrent() ?? true)
+  }
+  private func capturedItemAdmission(_ admitted: MonitorPlaybackItemToken) -> Bool? {
+    guard ownsItem(admitted) else { return nil }
+    let admission = itemAdmission
+    let accepted = admission?.isCurrent() ?? true
+    // A host predicate can synchronously retire this item or load its successor.
+    guard ownsItem(admitted) else { return nil }
+    return accepted
+  }
+  private func current(_ admitted: MonitorPlaybackItemToken) -> Bool {
+    capturedItemAdmission(admitted) == true
   }
   private func admit(_ admitted: MonitorPlaybackItemToken) -> Bool {
-    if current(admitted) { return true }
-    if !closed, token == admitted, itemAdmission?.isCurrent() == false { close() }
-    return false
+    guard let accepted = capturedItemAdmission(admitted) else { return false }
+    if !accepted { close() }
+    return accepted
   }
   private func watchAdmission() {
     guard let admission = itemAdmission, !closed else { return }
@@ -406,7 +435,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
             let value = await self.resolveLook(record, prepared)
             guard self.admit(admitted), self.lookRevision == request, !Task.isCancelled
             else { return }
-            guard self.publish([.look], { $0.look = value }), self.admit(admitted),
+            guard self.publish([.look], { $0.look = value; $0.resolvedLookRequest = value == nil ? nil : request }), self.admit(admitted),
               !Task.isCancelled
             else { return }
           }
@@ -555,7 +584,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
         return
       }
       self.lookTask = nil
-      self.publish([.look]) { $0.look = value }
+      self.publish([.look]) { $0.look = value; $0.resolvedLookRequest = value == nil ? nil : request }
     }
   }
 
@@ -678,7 +707,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
         {
           $0.position = target
           $0.scrubPosition = target
-          if $0.reachedEnd, target + 0.05 < ($0.duration ?? 0) { $0.reachedEnd = false }
+          if $0.reachedEnd, target + seekEndClearance < ($0.duration ?? 0) { $0.reachedEnd = false }
         }), admit(admitted)
     else { return }
     seekTask = Task { [weak self] in
@@ -720,7 +749,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
         [.scrubPosition, .reachedEnd],
         {
           $0.scrubPosition = target
-          if $0.reachedEnd, target + 0.05 < ($0.duration ?? 0) { $0.reachedEnd = false }
+          if $0.reachedEnd, target + seekEndClearance < ($0.duration ?? 0) { $0.reachedEnd = false }
         }), admit(admitted.item), scrub?.token == admitted
     else { return }
     let instant = now()
@@ -788,6 +817,10 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     guard admit(admitted) else { return }
     sceneActive = value
     if !value {
+      if sceneLossPolicy == .clearRequest {
+        guard publish([.playRequested], { $0.playRequested = false }), admit(admitted)
+        else { return }
+      }
       cancelScrub(interrupted: false, admitted: admitted)
       if admit(admitted) { native.pause(token: admitted) }
     } else if presentationActive, playRequested, ready {

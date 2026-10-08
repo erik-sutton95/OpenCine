@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 fun MonitorTelemetry(
     signalBars: Int,
     fps: String,
-    phonePercent: Int,
+    phonePercent: Int?,
     cameraPercent: Int,
     horizontal: Boolean,
     modifier: Modifier = Modifier,
@@ -49,9 +49,10 @@ fun MonitorTelemetry(
             if (showsFps) fps.toDoubleOrNull()?.let { "${Math.round(it)} fps" } ?: fps else null,
             onClick = { showsFps = !showsFps })
         if (showsPower) {
-        TelemetryGauge(MonitorIcon.SMARTPHONE, batteryTint(phonePercent), phonePercent / 100f,
-            if (phonePercent >= 0) "Phone battery $phonePercent percent" else "Phone battery unavailable",
-            horizontal, phonePercent.takeIf { it in 0..100 }?.let { "$it%" } ?: "\u2014")
+        TelemetryGauge(MonitorIcon.SMARTPHONE, phonePercent?.let(::batteryTint) ?: MonitorPalette.text,
+            phonePercent?.div(100f) ?: 0f,
+            if (phonePercent != null && phonePercent >= 0) "Phone battery $phonePercent percent" else "Phone battery unavailable",
+            horizontal, phonePercent?.takeIf { it in 0..100 }?.let { "$it%" } ?: "\u2014")
         MonitorCameraBatteryGauge(cameraPercent, stacked = horizontal)
         }
     }

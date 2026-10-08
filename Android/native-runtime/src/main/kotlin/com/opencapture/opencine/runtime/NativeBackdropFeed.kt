@@ -57,7 +57,7 @@ class NativeBackdropFeed(context: Context,
         executor.execute {
             var posted = false
             try {
-                if (!gate.isCurrent(ticket) || !admission()) return@execute
+                if (!gate.accepts(ticket) { !closed && admission() && !closed }) return@execute
                 val nextImage = if (plan.hasPlaybackLook) {
                     val gl = renderer ?: InspectorPreviewRenderer(glFactory).also { renderer = it }
                     gl.render(app, plan, frame)
@@ -74,7 +74,7 @@ class NativeBackdropFeed(context: Context,
                 }
                 posted = main.post {
                     try {
-                        if (gate.isCurrent(ticket) && admission()) {
+                        if (gate.accepts(ticket) { !closed && admission() && !closed }) {
                             this@NativeBackdropFeed.image = nextImage
                             receive(nextImage)
                         }
@@ -82,7 +82,7 @@ class NativeBackdropFeed(context: Context,
                 }
             } catch (error: Exception) {
                 synchronized(this) {
-                    if (gate.isCurrent(ticket) && admission()) {
+                    if (gate.accepts(ticket) { !closed && admission() && !closed }) {
                         failed = true
                         gate.setActive(false)
                         clear()

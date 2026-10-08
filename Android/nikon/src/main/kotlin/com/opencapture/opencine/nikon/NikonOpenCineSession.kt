@@ -102,7 +102,13 @@ class NikonOpenCineSession(
 
     private fun now(): MonotonicInstant = clock()
 
-    override suspend fun submit(command: CameraCommand): CommandReceipt {
+    override suspend fun submit(command: CameraCommand): CommandReceipt = submitAdmitted(command, null)
+
+    /** One operation's source receipt reaches the existing mutex and native first-send checks. */
+    public suspend fun submit(command: CameraCommand, admission: CameraCommandAdmission): CommandReceipt =
+        submitAdmitted(command, admission)
+
+    private suspend fun submitAdmitted(command: CameraCommand, admission: CameraCommandAdmission?): CommandReceipt {
         val operation = command.operation
         val start: Boolean?
         val controlWrite: Pair<CameraControl, String>?
@@ -120,6 +126,9 @@ class NikonOpenCineSession(
                                 ?: SettingSemantics.Confirmation.READBACK,
                     ),
                 )
+            if (admission != null && !admission.admits(session)) {
+                return transition(operation, CommandStage.Rejected(CommandRejection.AuthorityExpired))
+            }
             snapshot.rejection(command, now())?.let {
                 return transition(operation, CommandStage.Rejected(it))
             }
@@ -151,9 +160,9 @@ class NikonOpenCineSession(
             transition(operation, CommandStage.Sent)
         }
         return if (controlWrite != null) {
-            write(operation, controlWrite.first, controlWrite.second)
+            write(operation, controlWrite.first, controlWrite.second, admission)
         } else {
-            record(operation, start == true)
+            record(operation, start == true, admission)
         }
     }
 
@@ -226,10 +235,13 @@ class NikonOpenCineSession(
     /** Re-reads the camera facts, publishes a changed snapshot, and confirms reported records. */
     fun refresh(): CameraSnapshot = synchronized(lock) { refreshLocked() }
 
-    private suspend fun write(operation: OperationID, control: CameraControl, label: String): CommandReceipt {
+    private suspend fun write(
+        operation: OperationID, control: CameraControl, label: String, admission: CameraCommandAdmission?,
+    ): CommandReceipt {
         val stage =
             try {
-                session.applyControl(control, label)
+                if (admission == null) session.applyControl(control, label)
+                else session.applyControl(control, label, admission)
                 // The Swift core read every write back before returning.
                 CommandStage.Confirmed
             } catch (error: CameraControlException) {
@@ -241,9 +253,9 @@ class NikonOpenCineSession(
         return finish(operation, stage)
     }
 
-    private suspend fun record(operation: OperationID, start: Boolean): CommandReceipt {
+    private suspend fun record(operation: OperationID, start: Boolean, admission: CameraCommandAdmission?): CommandReceipt {
         try {
-            session.setRecording(start)
+            if (admission == null) session.setRecording(start) else session.setRecording(start, admission)
         } catch (error: CameraRecordingException) {
             return finish(operation, error.toStage())
         } catch (cancelled: CancellationException) {

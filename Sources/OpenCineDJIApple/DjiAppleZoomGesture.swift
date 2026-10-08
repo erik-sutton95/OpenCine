@@ -180,6 +180,22 @@ public final class DjiAppleZoomGesture {
         _ = commit(next)
     }
     public func chip(_ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)? = nil) {
+        chip(factor, suppliedAdmission: nil, onStage: onStage)
+    }
+    public func chip(
+        _ factor: Double, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)? = nil
+    ) {
+        chip(factor, suppliedAdmission: admission, onStage: onStage)
+    }
+    private func chip(
+        _ factor: Double, suppliedAdmission admission: DJICommandAdmission?,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) {
+        guard admission?.isCurrent ?? true else {
+            onStage?(.notSent)
+            return
+        }
         guard facts().supportsZoom else {
             onStage?(.notSent)
             return
@@ -214,12 +230,23 @@ public final class DjiAppleZoomGesture {
         var next = snapshot
         next.preview = nil
         admitted = commit(next)
-        guard admits(admitted), inColor { color.dropForZoom(factor) }, admits(admitted) else {
+        guard admits(admitted),
+            inColor({
+                if let admission { return color.dropForZoom(factor, admission: admission) }
+                return color.dropForZoom(factor)
+            }), admits(admitted)
+        else {
             onStage?(.notSent)
             return
         }
         if color.holding(factor) {
-            inColor { color.queue(factor, onStage: onStage) }
+            inColor {
+                if let admission {
+                    color.queue(factor, admission: admission, onStage: onStage)
+                } else {
+                    color.queue(factor, onStage: onStage)
+                }
+            }
             return
         }
         let source = color.authority
@@ -241,9 +268,32 @@ public final class DjiAppleZoomGesture {
             onStage?(.notSent)
             return
         }
-        inColor { color.fire(write, target: factor, announce: true, onStage: onStage) }
+        inColor {
+            if let admission {
+                color.fire(
+                    write, target: factor, announce: true, admission: admission, onStage: onStage)
+            } else {
+                color.fire(write, target: factor, announce: true, onStage: onStage)
+            }
+        }
     }
     public func slider(_ factor: Double, onStage: (@MainActor (ControlWireEvent) -> Void)? = nil) {
+        slider(factor, suppliedAdmission: nil, onStage: onStage)
+    }
+    public func slider(
+        _ factor: Double, admission: DJICommandAdmission,
+        onStage: (@MainActor (ControlWireEvent) -> Void)? = nil
+    ) {
+        slider(factor, suppliedAdmission: admission, onStage: onStage)
+    }
+    private func slider(
+        _ factor: Double, suppliedAdmission admission: DJICommandAdmission?,
+        onStage: (@MainActor (ControlWireEvent) -> Void)?
+    ) {
+        guard admission?.isCurrent ?? true else {
+            onStage?(.notSent)
+            return
+        }
         let admitted = begin()
         event(.cancelProgrammedMove)
         guard admits(admitted) else {
@@ -254,7 +304,13 @@ public final class DjiAppleZoomGesture {
             onStage?(.notSent)
             return
         }
-        inColor { color.slider(factor, onStage: onStage) }
+        inColor {
+            if let admission {
+                color.slider(factor, admission: admission, onStage: onStage)
+            } else {
+                color.slider(factor, onStage: onStage)
+            }
+        }
     }
     public func slew(_ value: UInt16) {
         let admitted = begin()

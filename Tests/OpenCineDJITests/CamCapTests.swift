@@ -333,7 +333,7 @@ import Testing
         #expect(ColorMode.dLogM.isoAutoBase(for: p3) == 50)
         #expect(ColorMode.normal.isoAutoBase(for: p4) == 50)
         #expect(ColorMode.normal.isoAutoBase(for: p4p) == 100)
-        #expect(ColorMode.normal.isoAutoBase == 100, "unknown body keeps captured 4 Pro floor")
+        #expect(ColorMode.normal.isoAutoBase(for: p4p) == 100, "declared 4 Pro floor stays captured")
         #expect(ColorMode.dLog.isoAutoBase(for: p3) == 400, "D-Log floor is color, not body")
         #expect(ColorMode.dLog2.isoAutoBase(for: p3) == nil)
 

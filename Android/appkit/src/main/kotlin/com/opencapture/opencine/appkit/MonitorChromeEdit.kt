@@ -151,6 +151,7 @@ public fun MonitorChromeEditBanner(
             Modifier
                 .clip(RoundedCornerShape(50))
                 .background(MonitorPalette.accent)
+                .testTag("monitor.chromeEdit.done")
                 .monitorChromeClickable(onClickFeedback = { haptics.selection() }, onClick = onDone)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         ) {

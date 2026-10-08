@@ -25,24 +25,24 @@ object IsoSheetLogic {
     fun isAutoTab(status: CameraStatus, selectedMode: Int): Boolean =
         CaptureLists.offersIsoAuto(status) && selectedMode == 0
 
-    fun reseat(status: CameraStatus, bodyName: String = ""): State {
+    fun reseat(status: CameraStatus, bodyName: String = "", isoAutoRangeFloor: Int? = null): State {
         val selectedMode =
             if (CaptureLists.offersIsoAuto(status)) {
                 if (status.isoIndex == 0) 0 else 1
             } else {
                 0
             }
-        return reseatDrum(status, selectedMode, bodyName)
+        return reseatDrum(status, selectedMode, bodyName, isoAutoRangeFloor)
     }
 
-    fun reseatDrum(status: CameraStatus, selectedMode: Int, bodyName: String = ""): State {
+    fun reseatDrum(status: CameraStatus, selectedMode: Int, bodyName: String = "", isoAutoRangeFloor: Int? = null): State {
         val autoTab = isAutoTab(status, selectedMode)
         val labels =
-            if (autoTab) CaptureLists.isoAutoLabels(status, bodyName)
+            if (autoTab) CaptureLists.isoAutoLabels(status, bodyName, isoAutoRangeFloor)
             else CaptureLists.isoDrumLabels(status)
         val live =
             if (autoTab) {
-                CaptureLists.isoAutoLabel(status, bodyName)
+                CaptureLists.isoAutoLabel(status, bodyName, isoAutoRangeFloor)
             } else {
                 when {
                     status.isoIndex > 0 -> CameraCommands.isoLabel(status.isoIndex)
@@ -58,11 +58,11 @@ object IsoSheetLogic {
         value: String,
         status: CameraStatus,
         selectedMode: Int,
-        bodyName: String = "",
+        bodyName: String = "", isoAutoRangeFloor: Int? = null,
     ): Command? {
         if (value.isEmpty()) return null
         if (isAutoTab(status, selectedMode)) {
-            val limit = CaptureLists.isoLimit(value, status, bodyName) ?: return null
+            val limit = CaptureLists.isoLimit(value, status, bodyName, isoAutoRangeFloor) ?: return null
             return Command.SetLimit(limit.rawValue)
         }
         val idx = CaptureLists.isoIndexFromLabel(value) ?: return null
@@ -73,13 +73,13 @@ object IsoSheetLogic {
     fun handleModeChange(
         index: Int,
         status: CameraStatus,
-        bodyName: String = "",
+        bodyName: String = "", isoAutoRangeFloor: Int? = null,
     ): Pair<State, Command?> {
-        if (!CaptureLists.offersIsoAuto(status)) return reseatDrum(status, 0, bodyName) to null
+        if (!CaptureLists.offersIsoAuto(status)) return reseatDrum(status, 0, bodyName, isoAutoRangeFloor) to null
         return if (index == 0) {
-            reseatDrum(status, 0, bodyName) to Command.SetIndex(0)
+            reseatDrum(status, 0, bodyName, isoAutoRangeFloor) to Command.SetIndex(0)
         } else {
-            val state = reseatDrum(status, 1, bodyName)
+            val state = reseatDrum(status, 1, bodyName, isoAutoRangeFloor)
             val cmd =
                 CaptureLists.isoIndexFromLabel(state.drumSelection)?.let { idx ->
                     if (idx in CaptureLists.isoIndices(status)) Command.SetIndex(idx) else null

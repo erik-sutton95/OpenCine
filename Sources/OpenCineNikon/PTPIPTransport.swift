@@ -267,6 +267,28 @@
             dataOut: Data?,
             deadline: Duration?
         ) async throws -> PTPIPTransactionResult {
+            try await executeTransactionAdmitted(
+                operationCode: operationCode, transactionID: explicitTransactionID,
+                parameters: parameters, dataPhase: dataPhase, dataOut: dataOut,
+                deadline: deadline, admission: nil)
+        }
+
+        public func executeTransaction(
+            operationCode: PTPOperationCode, transactionID: UInt32?, parameters: [UInt32],
+            dataPhase: PTPDataPhase, dataOut: Data?, deadline: Duration?,
+            admission: NikonCommandAdmission
+        ) async throws -> PTPIPTransactionResult {
+            try await executeTransactionAdmitted(
+                operationCode: operationCode, transactionID: transactionID,
+                parameters: parameters, dataPhase: dataPhase, dataOut: dataOut,
+                deadline: deadline, admission: admission)
+        }
+
+        private func executeTransactionAdmitted(
+            operationCode: PTPOperationCode, transactionID explicitTransactionID: UInt32?,
+            parameters: [UInt32], dataPhase: PTPDataPhase, dataOut: Data?, deadline: Duration?,
+            admission: NikonCommandAdmission?
+        ) async throws -> PTPIPTransactionResult {
             // Throws `CancellationError` if this task is cancelled while queued; the gate was never
             // acquired, so no `signal()` (the defer below is only registered after acquisition).
             try await transactionGate.wait()
@@ -274,6 +296,7 @@
             // Cancelled between acquiring the gate and sending: bail before touching the socket so a
             // stale transaction (e.g. an orphaned live-view fetch after a stall restart) never runs.
             try Task.checkCancellation()
+            try admission?.requireCurrent()
 
             // Whole-transaction deadline. The send/read calls below block in non-cancellable syscalls
             // on the socket queue, so task cancellation can't interrupt them. On breach we close the
@@ -327,7 +350,8 @@
                 parameters: parameters
             )
             try await command.send(
-                PTPIPPacket(type: .operationRequest, payload: Data(request.payloadBytes))
+                PTPIPPacket(type: .operationRequest, payload: Data(request.payloadBytes)),
+                admission: admission
             )
             if let dataOut {
                 try await command.send(
@@ -550,8 +574,8 @@
             }
         }
 
-        func send(_ packet: PTPIPPacket) async throws {
-            try await send(Data(packet.serializedBytes))
+        func send(_ packet: PTPIPPacket, admission: NikonCommandAdmission? = nil) async throws {
+            try await send(Data(packet.serializedBytes), admission: admission)
         }
 
         func readPacket() async throws -> PTPIPPacket {
@@ -580,8 +604,14 @@
             return PTPIPPacket(type: type, payload: payload)
         }
 
-        private func send(_ data: Data) async throws {
-            try await performOnQueue { try self.sendOnQueue(data) }
+        private func send(_ data: Data, admission: NikonCommandAdmission? = nil) async throws {
+            try await performOnQueue {
+                if let admission {
+                    try admission.perform { try self.sendOnQueue(data) }
+                } else {
+                    try self.sendOnQueue(data)
+                }
+            }
         }
 
         private func readExact(byteCount: Int) async throws -> Data {

@@ -9,6 +9,7 @@ import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.CommandFailure
+import com.opencapture.opencine.core.CommandDispatchAdmission
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandReceipt
 import com.opencapture.opencine.core.CommandRejection
@@ -112,7 +113,10 @@ public class MonitorControlModel(
 
     private var binding = 0
     private var feed: Job? = null
-    private data class PendingEdit(val operation: OperationID, val label: String, val editor: Editor?)
+    private data class PendingEdit(
+        val operation: OperationID, val label: String, val editor: Editor?,
+        val admission: CommandDispatchAdmission?,
+    )
     private val operations = HashMap<SettingKey, PendingEdit>()
     private val scheduled = HashSet<SettingKey>()
     private val editRevisions = HashMap<SettingKey, Long>()
@@ -198,7 +202,15 @@ public class MonitorControlModel(
     /** Sets [value] from an open editor. Refused (`false`, nothing sent) once the editor is obsolete. */
     public fun commit(value: SettingValue, editor: Editor, label: String): Boolean {
         if (!admits(value, editor)) return false
-        set(value, label, editor)
+        set(value, label, editor, null)
+        return true
+    }
+
+    public fun commit(
+        value: SettingValue, editor: Editor, label: String, admission: CommandDispatchAdmission,
+    ): Boolean {
+        if (!admits(value, editor)) return false
+        set(value, label, editor, admission)
         return true
     }
 
@@ -224,13 +236,18 @@ public class MonitorControlModel(
      * Shows [value] at once and sends it after the coalescing window; a newer value for the same
      * setting replaces it. [label] names it in operator notes ("ISO 800").
      */
-    public fun set(value: SettingValue, label: String): Unit = set(value, label, null)
+    public fun set(value: SettingValue, label: String): Unit = set(value, label, null, null)
 
-    private fun set(value: SettingValue, label: String, editor: Editor?) {
+    public fun set(value: SettingValue, label: String, admission: CommandDispatchAdmission): Unit =
+        set(value, label, null, admission)
+
+    private fun set(
+        value: SettingValue, label: String, editor: Editor?, admission: CommandDispatchAdmission?,
+    ) {
         if (state.value.session == null) return onNote(CONNECT_FIRST)
         val key = value.key
         mutable.update { it.copy(pending = it.pending + (key to value)) }
-        operations[key] = PendingEdit(OperationID(), label, editor)
+        operations[key] = PendingEdit(OperationID(), label, editor, admission)
         onChange()
         if (!scheduled.add(key)) return
         val current = binding
@@ -244,7 +261,7 @@ public class MonitorControlModel(
     }
 
     private fun submit(key: SettingKey) {
-        val (operation, label, editor) = operations[key] ?: return
+        val (operation, label, editor, admission) = operations[key] ?: return
         val value = state.value.pending[key] ?: return
         if (editor != null && !admits(value, editor)) return finish(key, operation, binding, null)
         val session = state.value.session
@@ -252,7 +269,7 @@ public class MonitorControlModel(
         if (session == null || snapshot == null) return finish(key, operation, binding, CONNECT_FIRST)
         val command = CameraCommand(CameraCommandIntent.Set(value), CommandPreconditions(snapshot), operation)
         val current = binding
-        scope.launch { finish(key, operation, current, noteFor(finished(session, command).stage, label)) }
+        scope.launch { finish(key, operation, current, noteFor(finished(session, command, admission).stage, label)) }
     }
 
     private fun finish(key: SettingKey, operation: OperationID, from: Int, note: String?) {
@@ -308,14 +325,27 @@ public class MonitorControlModel(
         return true
     }
 
+    public fun commitRecord(editor: RecordEditor, admission: CommandDispatchAdmission): Boolean {
+        if (!canCommitRecord(editor)) return false
+        beginRecord(!editor.recording, editor, admission)
+        return true
+    }
+
     public fun record(start: Boolean?) { beginRecord(start, null) }
+
+    public fun record(start: Boolean?, admission: CommandDispatchAdmission) { beginRecord(start, null, admission) }
 
     /** Waits for the same terminal receipt as [record]; null means no operation or a retired binding. */
     public suspend fun recordAndWait(start: Boolean?): CommandReceipt? = beginRecord(start, null)?.await()
 
+    public suspend fun recordAndWait(start: Boolean?, admission: CommandDispatchAdmission): CommandReceipt? =
+        beginRecord(start, null, admission)?.await()
+
     private fun record(start: Boolean?, approved: RecordEditor?) { beginRecord(start, approved) }
 
-    private fun beginRecord(start: Boolean?, approved: RecordEditor?): Deferred<CommandReceipt?>? {
+    private fun beginRecord(
+        start: Boolean?, approved: RecordEditor?, admission: CommandDispatchAdmission? = null,
+    ): Deferred<CommandReceipt?>? {
         if (state.value.recordPending) return null
         val session = state.value.session ?: run { onNote(CONNECT_FIRST); return null }
         val operation = OperationID()
@@ -339,7 +369,7 @@ public class MonitorControlModel(
                 finishRecord(operation, current, RECORDING_UNKNOWN, null)
                 return@async null
             }
-            val receipt = finished(session, CameraCommand(intent, CommandPreconditions(fresh), operation))
+            val receipt = finished(session, CameraCommand(intent, CommandPreconditions(fresh), operation), admission)
             val label = if (intent == CameraCommandIntent.StartRecording) "Record" else "Stop"
             if (binding != current || recordOperation != operation) return@async null
             finishRecord(operation, current, noteFor(receipt.stage, label), receipt)
@@ -359,8 +389,10 @@ public class MonitorControlModel(
         public const val CONNECT_FIRST: String = "Connect the camera to use its controls."
         public const val RECORDING_UNKNOWN: String = "Recording state is not known yet. Try again in a moment."
 
-        private suspend fun finished(session: CameraSession, command: CameraCommand): CommandReceipt {
-            val receipt = session.submit(command)
+        private suspend fun finished(
+            session: CameraSession, command: CameraCommand, admission: CommandDispatchAdmission? = null,
+        ): CommandReceipt {
+            val receipt = admission?.dispatch(command, session.id) ?: session.submit(command)
             if (receipt.isFinished) return receipt
             return session.outcome(command.operation) ?: receipt
         }

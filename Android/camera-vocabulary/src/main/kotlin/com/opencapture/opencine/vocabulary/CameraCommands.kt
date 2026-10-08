@@ -116,44 +116,13 @@ object CameraCommands {
             SHOOT_PHOTO, SHOOT_PHOTO_POCKET4 -> "Photo"
             SHOOT_LIVE_PHOTO -> "Live Photo"
             SHOOT_HYPERLAPSE -> "HyperLapse"
-            SHOOT_SUPER_NIGHT ->
-                if (CameraModel.looksLikePocket3(cameraName.orEmpty())) "Low-Light" else "SuperNight"
+            SHOOT_SUPER_NIGHT -> "SuperNight"
             else -> null
         }
 
-    /**
-     * Photo is the one mode whose `0x02/0xE1` value is body-dependent: Pocket 4 / 4 Pro take
-     * `0x17`, and a Nano rejects that and takes `0x05`.
-     */
-    fun photoModeRaw(cameraName: String?): Int {
-        val n = cameraName.orEmpty().lowercase().replace(" ", "")
-        return if (n.contains("pocket4")) SHOOT_PHOTO_POCKET4 else SHOOT_PHOTO
-    }
-
-    /**
-     * The camera's own on-screen carousel order; Video, Photo, TimeLapse, HyperLapse,
-     * SuperNight (Low-Light on Pocket 3), SlowMo; which is not the numeric order. The
-     * wire enum is sparse and unordered, so this is tabled and never computed.
-     *
-     * Only ever send a value from this table. Sweeping the `0x02/0xE1` value space froze a Nano
-     * solid and needed a power cycle, so an unlisted mode must be refused rather than passed
-     * through (Osmosis `MEDIA_PROTOCOL.md` §13a, DJI-Remote `engine_media.c`).
-     *
-     * Panorama (`0x0c`) is documented but left out: no hardware here has confirmed it.
-     *
-     * Note this is `0x02/0xE1`, never `0x02/0x02`. That opcode is nominally DJI's four-value
-     * *work* mode, but on a Nano it **is** record control; a "Video" entry mapped to `[01]`
-     * would start a recording behind the operator's back.
-     */
-    fun shootingModeCarousel(cameraName: String?): List<Int> =
-        listOf(
-            SHOOT_VIDEO,
-            photoModeRaw(cameraName),
-            SHOOT_TIMELAPSE,
-            SHOOT_HYPERLAPSE,
-            SHOOT_SUPER_NIGHT,
-            SHOOT_SLOWMO,
-        )
+    fun shootingModeCarousel(profile: CameraLabelProfile = CameraLabelProfile.standard): List<Int> =
+        profile.shootingModes ?: listOf(SHOOT_VIDEO, SHOOT_PHOTO, SHOOT_TIMELAPSE,
+            SHOOT_HYPERLAPSE, SHOOT_SUPER_NIGHT, SHOOT_SLOWMO)
 
     const val GIMBAL_STICK_CENTER = 1024
     const val GIMBAL_STICK_TRAVEL = 550
@@ -440,12 +409,12 @@ object CameraCommands {
     /** [profile] carries the session's own names (for example Standard for Normal). */
     fun colorLabel(mode: Int, family: String = "pocket", profile: CameraLabelProfile = CameraLabelProfile.standard): String =
         profile.colorModeLabels[mode] ?: when (mode) {
-            COLOR_NORMAL -> if (family == "nano") "Normal 8-bit" else "Normal"
+            COLOR_NORMAL -> "Normal"
             COLOR_HDR -> "HDR"
             COLOR_DLOG -> "D-Log"
             COLOR_DLOG2 -> "D-Log2"
             COLOR_NORMAL10 -> "Normal 10-bit"
-            COLOR_DLOG_M -> if (family == "nano") "D-Log M 10-bit" else "D-Log M"
+            COLOR_DLOG_M -> "D-Log M"
             COLOR_ILOG -> "I-Log"
             COLOR_DOLBY_VISION -> "Dolby Vision"
             else -> "—"

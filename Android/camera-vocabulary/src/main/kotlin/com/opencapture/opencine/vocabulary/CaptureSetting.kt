@@ -28,10 +28,6 @@ sealed interface CaptureSetting {
     data class ExpoMode(val mode: Int) : CaptureSetting
     /** A focus row label (AF-S, AF-C or a track), chosen against the report the sheet showed. */
     data class Focus(val label: String) : CaptureSetting
-    data class AudioChannel(val value: Int) : CaptureSetting
-    data class DirectionalAudio(val mode: Int) : CaptureSetting
-    data class WindNoiseReduction(val on: Boolean) : CaptureSetting
-    data class VocalBoost(val on: Boolean) : CaptureSetting
 }
 
 /**

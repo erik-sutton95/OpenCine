@@ -63,7 +63,9 @@ public final class MonitorControlModel {
     @ObservationIgnored public var onNote: (String) -> Void = { _ in }
     /// The copy for a finished write or record (`note(for:_:)` by default); `nil` stays silent.
     /// A host may keep its own.
-    @ObservationIgnored public var noteFor: (CommandStage, String) -> String? = { MonitorControlModel.note(for: $0, $1) }
+    @ObservationIgnored public var noteFor: (CommandStage, String) -> String? = {
+        MonitorControlModel.note(for: $0, $1)
+    }
     /// A record operation finished (any stage), for the app's follow-up (refresh media).
     @ObservationIgnored public var onRecordFinished: (CommandReceipt) -> Void = { _ in }
     /// The reported state or a pending target changed: for projections that still copy it.
@@ -76,7 +78,10 @@ public final class MonitorControlModel {
     @ObservationIgnored private var binding = 0
     @ObservationIgnored private var feed: Task<Void, Never>?
     @ObservationIgnored private var operations:
-        [SettingKey: (operation: OperationID, label: String, editor: Editor?)] = [:]
+        [SettingKey: (
+            operation: OperationID, label: String, editor: Editor?,
+            admission: CommandDispatchAdmission?
+        )] = [:]
     @ObservationIgnored private var scheduled: Set<SettingKey> = []
     @ObservationIgnored private var editRevisions: [SettingKey: Int] = [:]
     @ObservationIgnored private var recordOperation: OperationID?
@@ -172,7 +177,8 @@ public final class MonitorControlModel {
     /// Whether `editor` still describes this session, epoch, authority and domain.
     public func isCurrent(_ editor: Editor) -> Bool {
         guard editor.binding == binding,
-            editor.localRevision == editRevisions[editor.key, default: 0], let snapshot else { return false }
+            editor.localRevision == editRevisions[editor.key, default: 0], let snapshot
+        else { return false }
         return editor.session == snapshot.session && editor.epoch == snapshot.epoch
             && editor.authority == snapshot.authority
             && editor.domain == snapshot.capabilities[editor.key]?.domain
@@ -182,7 +188,17 @@ public final class MonitorControlModel {
     @discardableResult
     public func commit(_ value: SettingValue, from editor: Editor, label: String) -> Bool {
         guard admits(value, from: editor) else { return false }
-        set(value, label: label, editor: editor)
+        set(value, label: label, editor: editor, admission: nil)
+        return true
+    }
+
+    @discardableResult
+    public func commit(
+        _ value: SettingValue, from editor: Editor, label: String,
+        admission: CommandDispatchAdmission
+    ) -> Bool {
+        guard admits(value, from: editor) else { return false }
+        set(value, label: label, editor: editor, admission: admission)
         return true
     }
 
@@ -211,14 +227,20 @@ public final class MonitorControlModel {
     /// Shows `value` at once and sends it after the coalescing window; a newer value for the
     /// same setting replaces it. `label` names it in operator notes ("ISO 800").
     public func set(_ value: SettingValue, label: String) {
-        set(value, label: label, editor: nil)
+        set(value, label: label, editor: nil, admission: nil)
     }
 
-    private func set(_ value: SettingValue, label: String, editor: Editor?) {
+    public func set(_ value: SettingValue, label: String, admission: CommandDispatchAdmission) {
+        set(value, label: label, editor: nil, admission: admission)
+    }
+
+    private func set(
+        _ value: SettingValue, label: String, editor: Editor?, admission: CommandDispatchAdmission?
+    ) {
         guard session != nil else { return onNote(Self.connectFirst) }
         let key = value.key
         pending[key] = value
-        operations[key] = (OperationID(), label, editor)
+        operations[key] = (OperationID(), label, editor, admission)
         onChange()
         guard scheduled.insert(key).inserted else { return }
         let current = binding
@@ -226,14 +248,17 @@ public final class MonitorControlModel {
         Task { [weak self] in
             guard let self else { return }
             await self.sleep(self.coalescing)
-            guard self.binding == current, self.editRevisions[key, default: 0] == revision else { return }
+            guard self.binding == current, self.editRevisions[key, default: 0] == revision else {
+                return
+            }
             self.scheduled.remove(key)
             self.submit(key)
         }
     }
 
     private func submit(_ key: SettingKey) {
-        guard let (operation, label, editor) = operations[key], let value = pending[key] else {
+        guard let (operation, label, editor, admission) = operations[key], let value = pending[key]
+        else {
             return
         }
         if let editor, !admits(value, from: editor) {
@@ -246,7 +271,7 @@ public final class MonitorControlModel {
             .set(value), preconditions: CommandPreconditions(snapshot), operation: operation)
         let current = binding
         Task { [weak self] in
-            let receipt = await Self.finished(command, on: session)
+            let receipt = await Self.finished(command, on: session, admission: admission)
             guard let self else { return }
             self.finish(key, operation, current, note: self.noteFor(receipt.stage, label))
         }
@@ -290,7 +315,8 @@ public final class MonitorControlModel {
         }
         return RecordEditor(
             recording: recording, policy: policy,
-            editor: Editor(key: .recording, binding: binding, session: snapshot.session,
+            editor: Editor(
+                key: .recording, binding: binding, session: snapshot.session,
                 epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain,
                 localRevision: editRevisions[.recording, default: 0]),
             mode: mode)
@@ -316,10 +342,22 @@ public final class MonitorControlModel {
         return true
     }
 
+    @discardableResult public func commitRecord(
+        from editor: RecordEditor, admission: CommandDispatchAdmission
+    ) -> Bool {
+        guard canCommitRecord(from: editor) else { return false }
+        beginRecord(start: !editor.recording, approved: editor, admission: admission)
+        return true
+    }
+
     /// Starts (`true`) or stops (`false`) recording; `nil` resolves from a fresh report (stop
     /// while recording, start while idle). Unknown sends nothing. One record operation at a time.
     public func record(start: Bool?) {
         beginRecord(start: start, approved: nil)
+    }
+
+    public func record(start: Bool?, admission: CommandDispatchAdmission) {
+        beginRecord(start: start, approved: nil, admission: admission)
     }
 
     private func record(start: Bool?, approved: RecordEditor?) {
@@ -331,7 +369,15 @@ public final class MonitorControlModel {
         await beginRecord(start: start, approved: nil)?.value
     }
 
-    @discardableResult private func beginRecord(start: Bool?, approved: RecordEditor?) -> Task<
+    public func recordAndWait(start: Bool?, admission: CommandDispatchAdmission) async
+        -> CommandReceipt?
+    {
+        await beginRecord(start: start, approved: nil, admission: admission)?.value
+    }
+
+    @discardableResult private func beginRecord(
+        start: Bool?, approved: RecordEditor?, admission: CommandDispatchAdmission? = nil
+    ) -> Task<
         CommandReceipt?, Never
     >? {
         guard !recordPending else { return nil }
@@ -368,7 +414,7 @@ public final class MonitorControlModel {
             }
             let command = CameraCommand(
                 intent, preconditions: CommandPreconditions(fresh), operation: operation)
-            let receipt = await Self.finished(command, on: session)
+            let receipt = await Self.finished(command, on: session, admission: admission)
             guard self.binding == current, self.recordOperation == operation else { return nil }
             self.finishRecord(
                 operation, current,
@@ -390,10 +436,18 @@ public final class MonitorControlModel {
 
     // MARK: Outcomes
 
-    private static func finished(_ command: CameraCommand, on session: any CameraSession) async
+    private static func finished(
+        _ command: CameraCommand, on session: any CameraSession,
+        admission: CommandDispatchAdmission? = nil
+    ) async
         -> CommandReceipt
     {
-        let receipt = await session.submit(command)
+        let receipt: CommandReceipt
+        if let admission {
+            receipt = await admission.dispatch(command, on: session.id)
+        } else {
+            receipt = await session.submit(command)
+        }
         if receipt.isFinished { return receipt }
         return await session.outcome(of: command.operation) ?? receipt
     }

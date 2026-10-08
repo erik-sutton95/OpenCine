@@ -30,7 +30,7 @@ jobs:
           check Android/Play/whatsnew/whatsnew-en-US 500
 
   ios:
-    name: iOS (both targets, SIMULATED contract test)
+    name: iOS generated operator flow (SIMULATED)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,18 +41,18 @@ jobs:
           xcode-version: latest-stable
       - name: OpenCine at the pinned commit
         run: scripts/checkout-opencine.sh
-      - name: Project
-        run: brew install xcodegen && (cd ios && xcodegen generate)
-      - name: Build the shipping app
-        run: xcodebuild -project ios/__NAME__.xcodeproj -scheme __NAME__ -destination 'generic/platform=iOS Simulator' build
-      - name: SIMULATED contract test (private simulator)
-        run: |
-          udid=$(xcrun simctl create contract "iPhone 16 Pro")
-          xcodebuild -project ios/__NAME__.xcodeproj -scheme __NAME__Simulated -destination "platform=iOS Simulator,id=$udid" test
-          xcrun simctl delete "$udid"
+      - name: Build Debug/Release and run the full operator, native picture and storage acceptance
+        env:
+          OUT: ${{ runner.temp }}/SIMULATED-ios
+        run: brew install xcodegen && scripts/check-simulated.sh ios
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: SIMULATED-ios-evidence
+          path: ${{ runner.temp }}/SIMULATED-ios
 
   android:
-    name: Android (unit tests, lint, assemble)
+    name: Android generated operator flow (SIMULATED)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,6 +65,17 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-      - name: Test, lint and assemble
-        working-directory: Android
-        run: ./gradlew test lint assembleSimulatedDebug assembleCameraRelease
+      - name: Allow this ephemeral CI runner to use emulator acceleration
+        run: if [ -e /dev/kvm ]; then sudo setfacl -m u:"$(id -un)":rw /dev/kvm; fi
+      - name: Test, lint, build Debug/Release and run the installed full operator acceptance
+        env:
+          OUT: ${{ runner.temp }}/SIMULATED-android
+          TEMPLATE_EMULATOR: "1"
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          scripts/check-simulated.sh android
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: SIMULATED-android-evidence
+          path: ${{ runner.temp }}/SIMULATED-android

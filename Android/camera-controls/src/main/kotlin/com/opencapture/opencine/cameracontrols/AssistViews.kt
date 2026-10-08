@@ -79,6 +79,7 @@ class AssistHost(
     val ndHelp: String = NDAssist.HELP,
     val guideMaskPolicy: MonitorGuideMaskPolicy = MonitorGuideMaskPolicy.UNION,
     val scopeCeiling: (MonitorAssistState) -> ScopeClipSource = { it.scopeCeiling },
+    val rec709LookCurve: (MonitorTransfer) -> List<Double>? = { null },
 )
 
 /** The LUT tab's picker values: the app copy, the selection and where a pick goes, and the body. */
@@ -86,8 +87,7 @@ class AssistLutPicker(
     val copy: LutPickerCopy,
     val selection: String,
     val onSelect: (String) -> Unit,
-    val family: String,
-    val cameraName: String?,
+    val profile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
     /** The camera's raw colour mode for the picker's automatic camera look (LutLookResolver). */
     val colorMode: Int = CameraCommands.COLOR_NORMAL,
 )
@@ -104,7 +104,7 @@ fun AssistOptionsPanel(
     state: MonitorAssistState,
     onDismiss: () -> Unit,
     host: AssistHost,
-    lut: AssistLutPicker,
+    lut: AssistLutPicker? = null,
     modifier: Modifier = Modifier,
     maxHeightDp: Float? = null,
     transfer: MonitorTransfer = MonitorTransfer.REC709,
@@ -112,13 +112,18 @@ fun AssistOptionsPanel(
     playback: Boolean = false,
     isPhoto: Boolean = false,
     imagePreview: (@Composable () -> Unit)? = null,
+    signalOptions: MonitorOperatorSignalOptions = MonitorOperatorSignalOptions(),
+    lookMenu: (@Composable () -> Unit)? = null,
 ) {
     val width = MonitorAssistPanelMetrics.preferredWidthDp(tool).dp
     val cap = maxHeightDp?.dp
-    val isLut = tool == MonitorAssistTool.LUT
+    val isLut = tool == MonitorAssistTool.LUT && (lut != null || lookMenu != null)
     val panelPad = MonitorAssistPanelMetrics.PANEL_PAD_DP.dp
     val panelGap = MonitorAssistPanelMetrics.PANEL_GAP_DP.dp
     val panelScroll = rememberScrollState()
+    // Uncapped embedded content borrows its settings page's scroll owner. A bounded inspector
+    // supplies a cap and owns scrolling inside that measured picture/options region.
+    val scrollEmbedded = embedded && cap != null
     Column(
         modifier
             .then(if (embedded) Modifier.fillMaxWidth() else Modifier.widthIn(max = width).width(width))
@@ -131,7 +136,7 @@ fun AssistOptionsPanel(
                 },
             )
             .then(if (embedded) Modifier else Modifier.pickerPanelGlass(CardShape).padding(panelPad))
-            .then(if (embedded && !isLut) Modifier.monitorScrollFade(panelScroll).verticalScroll(panelScroll) else Modifier),
+            .then(if (scrollEmbedded && !isLut) Modifier.monitorScrollFade(panelScroll).verticalScroll(panelScroll) else Modifier),
         verticalArrangement = Arrangement.spacedBy(panelGap),
     ) {
         if (!embedded) {
@@ -152,14 +157,17 @@ fun AssistOptionsPanel(
         }
         val lutScroll = rememberScrollState()
         Column(
-            Modifier.then(if (isLut) Modifier.weight(1f).monitorScrollFade(lutScroll).verticalScroll(lutScroll) else Modifier),
+            Modifier.then(if (isLut && (!embedded || cap != null))
+                Modifier.weight(1f).monitorScrollFade(lutScroll).verticalScroll(lutScroll) else Modifier),
             verticalArrangement = Arrangement.spacedBy(panelGap),
         ) {
             if (embedded) {
                 AssistInspectorScopePreview(tool, state, transfer, playback)
                 imagePreview?.invoke()
             }
-            if (isLut) {
+            if (isLut && lookMenu != null) {
+                lookMenu()
+            } else if (isLut && lut != null) {
                 // Keep a usable catalog height while the preview and catalog scroll
                 // together above the pinned exposure / comparison controls.
                 Box(
@@ -183,8 +191,7 @@ fun AssistOptionsPanel(
                         onExposure = { state.updateLutExposure(it) },
                         onArmLut = { state.armLut() },
                         colorMode = lut.colorMode,
-                        family = lut.family,
-                        cameraName = lut.cameraName,
+                        profile = lut.profile,
                         isPhoto = isPhoto && !playback,
                     )
                 }
@@ -197,8 +204,8 @@ fun AssistOptionsPanel(
                         .then(if (!embedded && cap != null) Modifier.monitorScrollFade(optionsScroll).verticalScroll(optionsScroll) else Modifier),
                 ) {
                     if (tool == MonitorAssistTool.WAVE || tool == MonitorAssistTool.PARADE) {
-                        AssistOptionsBody(tool, state, transfer, host)
-                    } else com.opencapture.monitorui.MonitorOptionGroup { AssistOptionsBody(tool, state, transfer, host) }
+                        AssistOptionsBody(tool, state, transfer, host, signalOptions)
+                    } else com.opencapture.monitorui.MonitorOptionGroup { AssistOptionsBody(tool, state, transfer, host, signalOptions) }
                 }
             }
         }
@@ -206,7 +213,7 @@ fun AssistOptionsPanel(
             LUTSplitComparisonBar(
                 splitComparison = state.splitComparison,
                 splitVertical = state.splitVertical,
-                lutExposureStops = state.lutExposureStops,
+                lutExposureStops = if (lut != null) state.lutExposureStops else null,
                 onToggleSplit = { state.setSplitComparison(!state.splitComparison) },
                 onSplitVertical = { state.setSplitComparison(state.splitComparison, it) },
                 onExposure = { state.updateLutExposure(it) },
@@ -216,12 +223,14 @@ fun AssistOptionsPanel(
 }
 
 @Composable
-private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState, transfer: MonitorTransfer, host: AssistHost) {
+private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState, transfer: MonitorTransfer, host: AssistHost,
+    signalOptions: MonitorOperatorSignalOptions) {
     when (tool) {
-        MonitorAssistTool.LUT, MonitorAssistTool.EV, MonitorAssistTool.LEVEL -> Spacer(Modifier.height(0.dp))
+        MonitorAssistTool.LUT, MonitorAssistTool.EV -> Spacer(Modifier.height(0.dp))
+        MonitorAssistTool.LEVEL -> signalOptions.level?.invoke() ?: Spacer(Modifier.height(0.dp))
         MonitorAssistTool.PEAK -> PeakingOptions(state, host)
-        MonitorAssistTool.FALSE -> FalseColorOptions(state, transfer, host)
-        MonitorAssistTool.ZEBRA -> ZebraOptions(state, transfer, host)
+        MonitorAssistTool.FALSE -> signalOptions.falseColor?.invoke() ?: FalseColorOptions(state, transfer, host)
+        MonitorAssistTool.ZEBRA -> signalOptions.zebra?.invoke() ?: ZebraOptions(state, transfer, host)
         MonitorAssistTool.WAVE -> WaveformOptions(state)
         MonitorAssistTool.PARADE -> ParadeOptions(state)
         MonitorAssistTool.HISTO -> HistogramOptions(state)
@@ -271,7 +280,7 @@ private fun FalseColorOptions(state: MonitorAssistState, transfer: MonitorTransf
         listOf("CineStop", "Video", "IRE", "Limits").map(MonitorFalseColorSelection::fromMenuLabel),
         state.falseColorScale, { haptics.selection(); state.setFalseColor(scale = it) }, { it.menuLabel },
         state.falseColorRec709, { haptics.selection(); state.setFalseColorRead(it) },
-        falseColorReferenceValues(state, transfer, host.scopeCeiling(state)), state.falseColorReference,
+        falseColorReferenceValues(state, transfer, host.scopeCeiling(state), host.rec709LookCurve(transfer)), state.falseColorReference,
         { haptics.selection(); state.setFalseColor(reference = it) }, scaleHelp, readHelp,
         "Show a compact color key over live view while False Color is active.")
 }
@@ -401,59 +410,19 @@ fun AssistInspectorFrame(
     playback: Boolean = false,
     safeTrailing: Float = 0f,
     tabs: List<MonitorAssistTool> = MonitorAssistTool.settingsCases,
+    trailing: Boolean = false,
     options: @Composable (maxHeightDp: Float) -> Unit,
 ) {
-    var helpVisible by remember { mutableStateOf(false) }
-    MonitorInspector(
-        title = tool.title,
-        helpVisible = helpVisible,
-        onToggleHelp = { helpVisible = !helpVisible },
-        viewportWidth = viewportWidth,
-        viewportHeight = viewportHeight,
-        onDismiss = onDismiss,
-        trailing = false,
-        safeLeading = safeLeading,
-        safeTrailing = safeTrailing,
-        safeTop = safeTop,
-        safeBottom = safeBottom,
-        navigation = { portrait ->
-            if (portrait) {
-                val tabScroll = rememberScrollState()
-                Row(Modifier.fillMaxWidth().monitorScrollFade(tabScroll, vertical = false).horizontalScroll(tabScroll).monitorTabStrip()) {
-                    tabs.forEach { InspectorTab(it, tool, state, true) }
-                }
-            } else {
-                val tabScroll = rememberScrollState()
-                Column(Modifier.fillMaxHeight().monitorScrollFade(tabScroll).verticalScroll(tabScroll).monitorTabStrip()) {
-                    tabs.forEach { InspectorTab(it, tool, state, false) }
-                }
-            }
-        },
-    ) {
-        key(tool, playback) {
-            BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight()) {
-                CompositionLocalProvider(LocalMonitorInspectorHelp provides helpVisible) {
-                    options(maxHeight.value)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InspectorTab(tool: MonitorAssistTool, selected: MonitorAssistTool, state: MonitorAssistState, portrait: Boolean) {
-    val active = tool == selected
     val haptics = LocalOperatorHaptics.current
-    val tint = if (active) LiveDesign.accent else LiveDesign.muted
-    MonitorTab(active, { haptics.selection(); state.configureTool = tool },
-        Modifier.then(if (portrait) Modifier.width(94.dp) else Modifier.fillMaxWidth()).height(44.dp),
-        vertical = !portrait, separator = tool != MonitorAssistTool.settingsCases.first(),
-        accessibilityLabel = tool.chipLabel) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AssistToolGlyph(tool, tint, Modifier.size(15.dp))
-            Text(tool.chipLabel, color = tint, style = LiveType.ui(9f, FontWeight.SemiBold), maxLines = 1)
-        }
+    fun descriptor(item: MonitorAssistTool) = com.opencapture.monitorui.MonitorInspectorTool(
+        value = item, title = item.chipLabel, label = item.chipLabel)
+    com.opencapture.monitorui.MonitorToolInspector(selection = descriptor(tool), tools = tabs.map(::descriptor),
+        viewportWidth = viewportWidth, viewportHeight = viewportHeight,
+        safeLeading = safeLeading, safeTop = safeTop, safeBottom = safeBottom, safeTrailing = safeTrailing,
+        trailing = trailing,
+        onSelect = { haptics.selection(); state.configureTool = it }, onDismiss = onDismiss,
+        glyph = { item, tint, modifier -> AssistToolGlyph(item, tint, modifier) }) { height ->
+        key(tool, playback) { options(height) }
     }
 }
 
@@ -491,20 +460,87 @@ fun AssistOverlayLayer(
     onScopeStackMoved: () -> Unit = {},
     focusLayer: @Composable () -> Unit = {},
 ) {
+    AssistOverlayLayer(state, scopeBundle, host, modifier, locked, playback,
+        feedFrame, framingFrame, placementFrame, audioPlacementFrame, onOpenOptions, transfer,
+        if (showsAudio) audioOverlayChannels(status) else null, onScopeStackMoved, focusLayer)
+}
+
+/** Portable source values exercise the same plot, options and placement owner as native apps. */
+@Composable
+fun AssistOverlayLayer(
+    state: MonitorAssistState,
+    scopeBundle: ScopeAssistBundle,
+    host: AssistHost,
+    modifier: Modifier = Modifier,
+    locked: Boolean = false,
+    playback: Boolean = false,
+    /** Picture well in the same space as [modifier]; defaults to the layer box. */
+    feedFrame: MonitorRect? = null,
+    /** Recorded image within the source raster, excluding camera-added padding. AF keeps [feedFrame]. */
+    framingFrame: MonitorRect? = null,
+    /** Clear space between fixed controls, in dp. Storage still uses the full canvas. */
+    placementFrame: MonitorRect? = null,
+    /** Audio defaults at the safe leading edge, independent of the expanded palette. */
+    audioPlacementFrame: MonitorRect? = null,
+    onOpenOptions: ((MonitorAssistTool, MonitorRect) -> Unit)? = null,
+    /** WAVE / PARADE / FALSE ruler curve. Playback passes the clip's; live uses the status's. */
+    transfer: MonitorTransfer = MonitorTransfer.REC709,
+    audioChannels: Pair<AudioMeterReading, AudioMeterReading>? = null,
+    onScopeStackMoved: () -> Unit = {},
+    focusLayer: @Composable () -> Unit = {},
+) {
+    AssistOverlayLayer(state, scopeBundle, host, modifier, locked, playback,
+        feedFrame, framingFrame, placementFrame, audioPlacementFrame, onOpenOptions, transfer,
+        audioChannels, onScopeStackMoved, focusLayer, referenceValues = null)
+}
+
+/** Portable source values exercise the same plot, options and placement owner as native apps. */
+@Composable
+fun AssistOverlayLayer(
+    state: MonitorAssistState,
+    scopeBundle: ScopeAssistBundle,
+    host: AssistHost,
+    modifier: Modifier = Modifier,
+    locked: Boolean = false,
+    playback: Boolean = false,
+    /** Picture well in the same space as [modifier]; defaults to the layer box. */
+    feedFrame: MonitorRect? = null,
+    /** Recorded image within the source raster, excluding camera-added padding. AF keeps [feedFrame]. */
+    framingFrame: MonitorRect? = null,
+    /** Clear space between fixed controls, in dp. Storage still uses the full canvas. */
+    placementFrame: MonitorRect? = null,
+    /** Audio defaults at the safe leading edge, independent of the expanded palette. */
+    audioPlacementFrame: MonitorRect? = null,
+    onOpenOptions: ((MonitorAssistTool, MonitorRect) -> Unit)? = null,
+    /** WAVE / PARADE / FALSE ruler curve. Playback passes the clip's; live uses the status's. */
+    transfer: MonitorTransfer = MonitorTransfer.REC709,
+    audioChannels: Pair<AudioMeterReading, AudioMeterReading>? = null,
+    onScopeStackMoved: () -> Unit = {},
+    focusLayer: @Composable () -> Unit = {},
+    referenceValues: MonitorFalseColorReferenceValues?,
+    panelPlacement: MonitorAssistPanelPlacement? = null,
+    showsReference: Boolean = true,
+    placementPaddingDp: Float = 8f,
+    visibleTools: Set<MonitorAssistTool>? = null,
+    onPanelFrameChanged: ((MonitorAssistTool, MonitorRect?) -> Unit)? = null,
+    canvasFrame: MonitorRect? = null,
+    paradeIntensityScale: Double = 1.0,
+) {
     val density = LocalDensity.current
     val shown: (MonitorAssistTool) -> Boolean =
         if (playback) {
-            { state.isPlaybackVisible(it) }
+            { (visibleTools == null || it in visibleTools) && state.isPlaybackVisible(it) }
         } else {
-            { state.isVisible(it) }
+            { (visibleTools == null || it in visibleTools) && state.isVisible(it) }
         }
     state.acceptScopeBundle(scopeBundle)
     BoxWithConstraints(
         modifier
             .fillMaxSize(),
     ) {
-        val canvas =
-            MonitorScopeRect(0f, 0f, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        val canvas = canvasFrame?.let { frame -> with(density) {
+            MonitorScopeRect(frame.x.dp.toPx(), frame.y.dp.toPx(), frame.width.dp.toPx(), frame.height.dp.toPx())
+        } } ?: MonitorScopeRect(0f, 0f, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val feed =
             if (feedFrame == null) {
                 canvas
@@ -525,7 +561,7 @@ fun AssistOverlayLayer(
             val frame = placementFrame ?: MonitorRect(56f, 56f,
                 maxOf(0f, canvas.width / density.density - 112f),
                 maxOf(0f, canvas.height / density.density - 166f))
-            val padding = 8.dp.toPx()
+            val padding = placementPaddingDp.dp.toPx()
             MonitorScopeRect(frame.x.dp.toPx() + padding, frame.y.dp.toPx() + padding,
                 maxOf(0f, frame.width.dp.toPx() - 2 * padding),
                 maxOf(0f, frame.height.dp.toPx() - 2 * padding))
@@ -542,14 +578,32 @@ fun AssistOverlayLayer(
         if (shown(MonitorAssistTool.CROSS)) {
             com.opencapture.monitorui.MonitorFeedCrosshair(framingFeed)
         }
-        if (shown(MonitorAssistTool.FALSE) && state.falseColorReference) {
+        if (shown(MonitorAssistTool.FALSE) && state.falseColorReference && showsReference) {
             val portrait = canvas.height > canvas.width
+            val stored = if (panelPlacement == null) state.centerFor(MonitorAssistTool.FALSE, portrait)
+                else panelPlacement.read(MonitorAssistTool.FALSE, portrait)
+            val defaultFraction = panelPlacement?.falseColorDefaultHorizontalFraction ?: 0.5f
+            val gap = panelPlacement?.referenceBelowFeedGapDp?.times(density.density)
+            val size = MonitorScopePanelSize.falseColorReference
+            val width = minOf(size.width * density.density, feed.width)
+            val height = size.height * density.density
+            val referenceTop = if (gap == null) null else if (feed.maxY + gap + height <= canvas.maxY)
+                feed.maxY + gap else minOf(feed.maxY, canvas.maxY) - gap - height
+            val supplied = panelPlacement?.referenceDefaultFrame
+            val defaultCenter = if (supplied != null) MonitorScopePoint(supplied.midX * density.density, supplied.midY * density.density)
+                else if (referenceTop == null) MonitorScopePoint(canvas.x + canvas.width * defaultFraction, canvas.midY)
+                else MonitorScopePoint(feed.minX + maxOf(0f, feed.width - width) * defaultFraction + width / 2,
+                    referenceTop + height / 2)
             MovableAssistPanel(MonitorAssistTool.FALSE, MonitorScopePanelSize.falseColorReference, 1.0,
-                state.centerFor(MonitorAssistTool.FALSE, portrait), canvas, placement, MonitorScopePoint(canvas.midX, canvas.midY),
-                enabled = !locked, onStore = { state.storeCenter(MonitorAssistTool.FALSE, it, portrait) }, fillPlate = false,
-                onOpenOptions = onOpenOptions?.let { open -> { open(MonitorAssistTool.FALSE, it) } }) {
+                stored, canvas, placement, defaultCenter,
+                enabled = !locked, onStore = {
+                    if (panelPlacement == null) state.storeCenter(MonitorAssistTool.FALSE, it, portrait)
+                    else panelPlacement.write(MonitorAssistTool.FALSE, it, portrait)
+                }, fillPlate = false,
+                onOpenOptions = onOpenOptions?.let { open -> { open(MonitorAssistTool.FALSE, it) } },
+                onFrameChanged = onPanelFrameChanged?.let { report -> { frame -> report(MonitorAssistTool.FALSE, frame) } }) {
                 com.opencapture.monitorui.MonitorFalseColorReference(
-                    falseColorReferenceValues(state, transfer, host.scopeCeiling(state)), Modifier.fillMaxSize())
+                    referenceValues ?: falseColorReferenceValues(state, transfer, host.scopeCeiling(state), host.rec709LookCurve(transfer)), Modifier.fillMaxSize())
             }
         }
         if (!playback) {
@@ -572,12 +626,13 @@ fun AssistOverlayLayer(
             if (!shown(tool)) return@forEach
             key(tool) {
                 Box(Modifier.fillMaxSize().zIndex(zRanks[tool] ?: 1f)) {
-                    StackedScopePanel(tool, state, canvas, placement, locked, onOpenOptions, transfer)
+                    StackedScopePanel(tool, state, canvas, placement, locked, onOpenOptions, transfer,
+                        onPanelFrameChanged?.let { report -> { frame -> report(tool, frame) } }, paradeIntensityScale)
                 }
             }
         }
-        if (!playback && showsAudio && shown(MonitorAssistTool.AUDIO)) {
-            val channels = audioOverlayChannels(status)
+        if (!playback && audioChannels != null && shown(MonitorAssistTool.AUDIO)) {
+            val channels = audioChannels
             val audioPlacement = audioPlacementFrame?.let { frame -> with(density) {
                 val inset = 8.dp.toPx()
                 MonitorScopeRect(frame.x.dp.toPx() + inset, frame.y.dp.toPx() + inset,
@@ -598,6 +653,8 @@ private fun StackedScopePanel(
     locked: Boolean,
     onOpenOptions: ((MonitorAssistTool, MonitorRect) -> Unit)?,
     transfer: MonitorTransfer,
+    onFrameChanged: ((MonitorRect?) -> Unit)? = null,
+    paradeIntensityScale: Double = 1.0,
 ) {
     val portrait = canvas.height > canvas.width
     val (base, scale) =
@@ -637,10 +694,11 @@ private fun StackedScopePanel(
         onActivate = { state.bringToFront(tool) },
         fillPlate = true,
         chip = tool == MonitorAssistTool.ND,
+        onFrameChanged = onFrameChanged,
     ) {
         when (tool) {
             MonitorAssistTool.WAVE -> WaveformPanel(state, transfer, Modifier.fillMaxSize())
-            MonitorAssistTool.PARADE -> ParadePanel(state, transfer, Modifier.fillMaxSize())
+            MonitorAssistTool.PARADE -> ParadePanel(state, transfer, Modifier.fillMaxSize(), intensityScale = paradeIntensityScale)
             MonitorAssistTool.VECTOR -> VectorscopePanel(state, Modifier.fillMaxSize())
             MonitorAssistTool.HISTO -> HistogramPanel(state, Modifier.fillMaxSize())
             MonitorAssistTool.LIGHTS -> TrafficLightsPanel(state, Modifier.fillMaxSize())
@@ -651,17 +709,18 @@ private fun StackedScopePanel(
 }
 
 /** The false color ruler's values for [transfer], read through [ceiling]. */
-fun falseColorReferenceValues(state: MonitorAssistState, transfer: MonitorTransfer, ceiling: ScopeClipSource): MonitorFalseColorReferenceValues {
+fun falseColorReferenceValues(state: MonitorAssistState, transfer: MonitorTransfer, ceiling: ScopeClipSource,
+    lookCurve: List<Double>? = null): MonitorFalseColorReferenceValues {
     val rec709 = state.falseColorRec709
-    val segments = FalseColorReference.segments(state.falseColorScale, transfer, rec709, ceiling)
+    val segments = FalseColorReference.segments(state.falseColorScale, transfer, rec709, ceiling, lookCurve)
     val markers =
         if (state.falseColorScale.usesSceneStops) {
-            FalseColorReference.sceneStopMarkers(transfer, rec709, ceiling)
+            FalseColorReference.sceneStopMarkers(transfer, rec709, ceiling, lookCurve)
         } else {
             emptyList()
         }
     return MonitorFalseColorReferenceValues(
-            subtitle = "${state.falseColorScale.menuLabel} · ${FalseColorReference.curveKeyLabel(transfer, rec709)}",
+            subtitle = "${state.falseColorScale.menuLabel} · ${FalseColorReference.curveKeyLabel(transfer, rec709, lookCurve)}",
             segments = segments.mapIndexed { index, segment ->
                 com.opencapture.monitorui.MonitorFalseColorReferenceSegment(index,
                     segment.lowerFraction, segment.upperFraction, segment.band.red, segment.band.green, segment.band.blue)

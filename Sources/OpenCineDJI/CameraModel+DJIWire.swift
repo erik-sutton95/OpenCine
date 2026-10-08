@@ -50,9 +50,11 @@ extension CameraModel {
     public func alternate() -> CameraModel {
         datalinkPort == 9004
             ? CameraModel(
-                name: name, datalinkPort: 10004, tcpPoke: false, wpa3: wpa3, isDrone: isDrone)
+                name: name, datalinkPort: 10004, tcpPoke: false, wpa3: wpa3, isDrone: isDrone,
+                family: family, captureProfile: captureProfile)
             : CameraModel(
-                name: name, datalinkPort: 9004, tcpPoke: true, wpa3: wpa3, isDrone: isDrone)
+                name: name, datalinkPort: 9004, tcpPoke: true, wpa3: wpa3, isDrone: isDrone,
+                family: family, captureProfile: captureProfile)
     }
 }
 

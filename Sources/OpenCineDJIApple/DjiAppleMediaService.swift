@@ -22,15 +22,26 @@ public struct DjiAppleMediaFacts: Sendable {
     public let canQuery: Bool
     public let bodyGalleryOpen: Bool
     public let inPlayback: Bool
+    public let model: CameraModel?
+    public let sourcePolicy: DJIMediaSourcePolicy?
     public init(
         identity: DjiAppleMediaIdentity, canQuery: Bool,
-        bodyGalleryOpen: Bool, inPlayback: Bool
+        bodyGalleryOpen: Bool, inPlayback: Bool, model: CameraModel? = nil,
+        sourcePolicy: DJIMediaSourcePolicy? = nil
     ) {
         self.identity = identity
         self.canQuery = canQuery
         self.bodyGalleryOpen = bodyGalleryOpen
         self.inPlayback = inPlayback
+        self.model = model
+        self.sourcePolicy = sourcePolicy
     }
+}
+
+/// Optional native exchange primitive, implemented only by hosts with real mutation IO.
+@MainActor public protocol DjiAppleMediaMutationPort: DjiAppleMediaPort {
+    func requestMedia(_ frame: Duml.Frame, source: DjiAppleMediaIdentity, timeout: Duration)
+        async throws -> Duml.Frame
 }
 
 /// Primitive native IO and authority only. This port never supplies browse/query/retry loops.
@@ -79,7 +90,9 @@ public struct DjiAppleMediaIngress: Equatable, Sendable {
     private var ingress: DjiAppleMediaIngressSlot
     private var current: DjiAppleMediaBrowse?
     private var returnTask: Task<Void, Never>?
+    private var actionCounter: UInt32 = 1
     public var isReturning: Bool { returnTask != nil }
+    public var sourcePolicy: DJIMediaSourcePolicy? { port?.mediaFacts?.sourcePolicy }
 
     public init(
         session: DJICameraSessionID, port: any DjiAppleMediaPort,
@@ -148,6 +161,41 @@ public struct DjiAppleMediaIngress: Equatable, Sendable {
             let file = current.records[asset]
         else { return nil }
         return .init(asset: asset, file: file)
+    }
+
+    /// A false result means no camera acknowledgement was confirmed. It never removes local data.
+    public func deleteAsset(_ asset: MediaAssetID, binding: MediaBrowseBinding) async throws -> Bool {
+        let (browse, file, port) = try mutationSource(asset, binding: binding)
+        guard file.isDeletable else { throw MediaServiceError.unavailable }
+        let frame = Commands.deleteMedia(handle: file.handle, counter: nextActionCounter())
+        let reply = try await port.requestMedia(frame, source: browse.source, timeout: .seconds(2))
+        try check(browse)
+        return CameraReply.parse(reply.payload).isSuccess || reply.payload.starts(with: [0, 0])
+    }
+
+    public func setFavorite(_ asset: MediaAssetID, on: Bool, binding: MediaBrowseBinding) async throws {
+        let (browse, file, port) = try mutationSource(asset, binding: binding)
+        guard file.favoriteHandle != 0 else { throw MediaServiceError.unavailable }
+        let frame = Commands.setMediaFavorite(handle: file.favoriteHandle, on: on,
+            counter: nextActionCounter(), model: port.mediaFacts?.model)
+        _ = try await port.requestMedia(frame, source: browse.source, timeout: .milliseconds(900))
+        try check(browse)
+    }
+
+    private func mutationSource(_ asset: MediaAssetID, binding: MediaBrowseBinding) throws
+        -> (DjiAppleMediaBrowse, MediaFile, any DjiAppleMediaMutationPort) {
+        guard let current, current.binding == binding else { throw MediaServiceError.retired }
+        try check(current)
+        guard let file = current.records[asset], let port = port as? any DjiAppleMediaMutationPort
+        else { throw MediaServiceError.unavailable }
+        return (current, file, port)
+    }
+
+    private func nextActionCounter() -> UInt32 {
+        let value = actionCounter
+        actionCounter &+= 1
+        if actionCounter == 0 { actionCounter = 1 }
+        return value
     }
 
     public func captureIngress(source: DjiAppleMediaIdentity) -> DjiAppleMediaIngress? {

@@ -11,13 +11,15 @@ public struct MonitorCacheSettings: View {
     private let clearHelp: String
     private let feedback: () -> Void
     private let clear: () -> Void
+    private let clearSummary: String?
 
     public init(cacheOriginals: Binding<Bool>? = nil, sizeLabel: String, clearing: Bool = false,
         cacheHelp: String = "", scopeHelp: String, clearHelp: String,
-        feedback: @escaping () -> Void = {}, clear: @escaping () -> Void) {
+        feedback: @escaping () -> Void = {}, clear: @escaping () -> Void, clearSummary: String? = nil) {
         self.cacheOriginals = cacheOriginals; self.sizeLabel = sizeLabel; self.clearing = clearing
         self.cacheHelp = cacheHelp; self.scopeHelp = scopeHelp; self.clearHelp = clearHelp
         self.feedback = feedback; self.clear = clear
+        self.clearSummary = clearSummary
     }
     public var body: some View {
         MonitorSettingsRowCard {
@@ -38,6 +40,10 @@ public struct MonitorCacheSettings: View {
                 }
                 .buttonStyle(MonitorSettingsButtonStyle())
                 .disabled(clearing)
+            }
+            if let clearSummary {
+                Text(clearSummary).font(MonitorTheme.font(11.5)).foregroundStyle(MonitorTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("monitor.cache.result")
             }
         }
     }

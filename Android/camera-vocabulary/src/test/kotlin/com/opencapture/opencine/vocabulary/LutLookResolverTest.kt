@@ -6,6 +6,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class LutLookResolverTest {
+    private val declaredLooks = CameraLUTProfile(automatic = mapOf(
+        CameraCommands.COLOR_DLOG to LutLookSource.Asset("DJI_Official_Pocket4P_DLog_Rec709_33.cube"),
+        CameraCommands.COLOR_DLOG2 to LutLookSource.Asset("DJI_Official_Pocket4P_DLog2_Rec709_33.cube"),
+    ))
+
+    @Test fun `unknown profile never invents a camera cube`() {
+        assertEquals(LutLookSource.Off,
+            LutLookResolver.resolve(LutCatalog.AUTO, true, CameraCommands.COLOR_DLOG2))
+        assertEquals(LutLookSource.Off,
+            LutLookResolver.resolve("djiDLogM", true, CameraCommands.COLOR_DLOG_M))
+    }
+
     private val iLogLook =
         LutEntry(
             id = "camera:ilog",
@@ -18,7 +30,7 @@ class LutLookResolverTest {
     @Test
     fun `Auto picks the camera look matching the live transfer`() {
         fun auto(colorMode: Int) =
-            LutLookResolver.resolve(LutCatalog.AUTO, true, colorMode, "generic", "Luna Ultra", cameraLooks = listOf(iLogLook))
+            LutLookResolver.resolve(LutCatalog.AUTO, true, colorMode, cameraLooks = listOf(iLogLook))
         val iLog = auto(CameraCommands.COLOR_ILOG)
         assertEquals(
             LutLookSource.Asset("Luna_I-Log_to_Rec709_BT1886_s33_v2.cube", MonitorTransfer.ILOG, "I-Log → Rec.709"),
@@ -38,74 +50,9 @@ class LutLookResolverTest {
                 selection = LutCatalog.AUTO,
                 lutOn = false,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = "Pocket 4 Pro",
+                profile = declaredLooks,
             ),
         )
-    }
-
-    private data class AutoCase(
-        val name: String,
-        val selection: String,
-        val colorMode: Int,
-        val family: String,
-        val cameraName: String?,
-        val expected: LutLookSource,
-    )
-
-    @Test
-    fun `auto selections pick the official cube for the body`() {
-        val cases =
-            listOf(
-                AutoCase(
-                    "built-in auto follows pocket D-Log2",
-                    LutCatalog.AUTO, CameraCommands.COLOR_DLOG2, "pocket", null,
-                    LutLookSource.Asset("DJI_Official_Pocket4P_DLog2_Rec709_33.cube"),
-                ),
-                AutoCase(
-                    "built-in auto follows pocket D-Log",
-                    LutCatalog.AUTO, CameraCommands.COLOR_DLOG, "pocket", null,
-                    LutLookSource.Asset("DJI_Official_Pocket4P_DLog_Rec709_33.cube"),
-                ),
-                AutoCase(
-                    "built-in auto leaves pocket normal ungraded",
-                    LutCatalog.AUTO, CameraCommands.COLOR_NORMAL, "pocket", null,
-                    LutLookSource.Off,
-                ),
-                AutoCase(
-                    "built-in auto grades nano with the Nano D-Log M cube",
-                    LutCatalog.AUTO, CameraCommands.COLOR_DLOG2, "nano", "Osmo Nano",
-                    LutLookSource.Asset("DJI_Official_Nano_DLogM_Rec709_33.cube"),
-                ),
-                AutoCase(
-                    "dji auto picks the Pocket 4 Pro cube",
-                    LutCatalog.OFFICIAL_AUTO, CameraCommands.COLOR_DLOG2, "pocket", "Pocket 4 Pro",
-                    LutLookSource.Asset("DJI_Official_Pocket4P_DLog2_Rec709_33.cube"),
-                ),
-                AutoCase(
-                    "dji auto picks the Nano cube",
-                    LutCatalog.OFFICIAL_AUTO, CameraCommands.COLOR_DLOG2, "nano", "Osmo Nano",
-                    LutLookSource.Asset("DJI_Official_Nano_DLogM_Rec709_33.cube"),
-                ),
-                AutoCase(
-                    "dji auto picks the Action 6 cube",
-                    LutCatalog.OFFICIAL_AUTO, 0x00, "nano", "Osmo Action 6",
-                    LutLookSource.Asset("DJI_Official_Action6_DLogM_Rec709_33.cube"),
-                ),
-            )
-        for (case in cases) {
-            assertEquals(
-                case.expected,
-                LutLookResolver.resolve(
-                    case.selection,
-                    lutOn = true,
-                    colorMode = case.colorMode,
-                    family = case.family,
-                    cameraName = case.cameraName,
-                ),
-                case.name,
-            )
-        }
     }
 
     @Test
@@ -115,8 +62,7 @@ class LutLookResolverTest {
                 LutCatalog.customId("Look.cube"),
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = null,
+                profile = declaredLooks,
             )
         val custom = assertIs<LutLookSource.Custom>(source)
         assertEquals("Look.cube", custom.fileName)
@@ -129,8 +75,7 @@ class LutLookResolverTest {
                 LutCatalog.AUTO,
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = null,
+                profile = declaredLooks,
             )
         assertEquals(
             "Auto · D-Log2 → Rec.709",
@@ -158,8 +103,7 @@ class LutLookResolverTest {
                         LutCatalog.OFFICIAL_AUTO,
                         lutOn = true,
                         colorMode = CameraCommands.COLOR_DLOG2,
-                        family = "pocket",
-                        cameraName = "Pocket 4 Pro",
+                        profile = declaredLooks,
                     ),
             ),
         )
@@ -173,8 +117,7 @@ class LutLookResolverTest {
                 LutCatalog.OFFICIAL_AUTO,
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = "Pocket 4 Pro",
+                profile = declaredLooks,
                 isPhoto = true,
             ),
         )
@@ -184,8 +127,7 @@ class LutLookResolverTest {
                 "djiDLog2",
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = "Pocket 4 Pro",
+                profile = declaredLooks,
                 isPhoto = true,
             ),
         )
@@ -195,8 +137,7 @@ class LutLookResolverTest {
                 "customDLog",
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG,
-                family = "pocket",
-                cameraName = null,
+                profile = declaredLooks,
                 isPhoto = true,
             ),
         )
@@ -205,8 +146,7 @@ class LutLookResolverTest {
                 "creativeWarm",
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = null,
+                profile = declaredLooks,
                 isPhoto = true,
             ),
         )
@@ -216,8 +156,7 @@ class LutLookResolverTest {
                     LutCatalog.customId("Look.cube"),
                     lutOn = true,
                     colorMode = CameraCommands.COLOR_DLOG2,
-                    family = "pocket",
-                    cameraName = null,
+                    profile = declaredLooks,
                     isPhoto = true,
                 ),
             )
@@ -228,8 +167,7 @@ class LutLookResolverTest {
                 LutCatalog.OFFICIAL_AUTO,
                 lutOn = true,
                 colorMode = CameraCommands.COLOR_DLOG2,
-                family = "pocket",
-                cameraName = "Pocket 4 Pro",
+                profile = declaredLooks,
                 isPhoto = false,
             ),
         )

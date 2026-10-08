@@ -114,10 +114,15 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
-      - name: Generate, build both targets, contract test and screenshot on a private simulator
+      - name: Generate Debug/Release apps and prove the full operator flow on a private simulator
         env:
           OUT: ${{ runner.temp }}/template
         run: brew install xcodegen && scripts/template-app-check.sh ios
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: SIMULATED-template-ios-evidence
+          path: ${{ runner.temp }}/template
 
   template-android:
     name: New-app template, Android (SIMULATED)
@@ -131,7 +136,17 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-      - name: Generate, unit tests, lint, SIMULATED debug and shipping release
+      - name: Allow this ephemeral CI runner to use emulator acceleration
+        run: if [ -e /dev/kvm ]; then sudo setfacl -m u:"$(id -un)":rw /dev/kvm; fi
+      - name: Generate, test, build Debug/Release and prove the installed full operator flow
         env:
           OUT: ${{ runner.temp }}/template
-        run: scripts/template-app-check.sh android
+          TEMPLATE_EMULATOR: "1"
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          scripts/template-app-check.sh android
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: SIMULATED-template-android-evidence
+          path: ${{ runner.temp }}/template

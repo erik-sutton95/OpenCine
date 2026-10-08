@@ -4,6 +4,25 @@ import OpenCineMedia
 import Testing
 
 @MainActor @Suite struct MonitorMediaCacheTests {
+    @Test func retiringWritesPreservesResumableFilesAndFencesOldFinally() async throws {
+        let (parent, directory) = directory()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        try FileManager.default.createDirectory(at: directory.root, withIntermediateDirectories: true)
+        let partial = directory.root.appendingPathComponent("camera-object.part")
+        try Data([8, 9]).write(to: partial)
+        let old = try directory.beginWrite(at: "take.mov")
+        try await old.write(Data([1]))
+        let generation = directory.generation
+        directory.retireWrites()
+        #expect(generation != directory.generation)
+        let current = try directory.beginWrite(at: "take.mov")
+        try await current.write(Data([2, 3]))
+        let committed = try current.commit(.init(byteCount: 2))
+        #expect(throws: MonitorMediaCacheError.retired) { try old.commit(.init(byteCount: 1)) }
+        old.abort()
+        #expect(try Data(contentsOf: committed) == Data([2, 3]))
+        #expect(try Data(contentsOf: partial) == Data([8, 9]))
+    }
     private func directory() -> (URL, MonitorMediaCacheDirectory) {
         let parent = FileManager.default.temporaryDirectory.appendingPathComponent("opencine-cache-" + UUID().uuidString)
         return (parent, MonitorMediaCacheDirectory(root: parent.appendingPathComponent("camera")))

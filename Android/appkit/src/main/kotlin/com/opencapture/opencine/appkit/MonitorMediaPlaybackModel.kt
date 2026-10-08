@@ -40,7 +40,7 @@ public data class MonitorMediaPlaybackState<P, L>(
     public val position: Double = 0.0, public val duration: Double? = null,
     public val metadata: MonitorPlaybackMetadata = MonitorPlaybackMetadata(), public val reachedEnd: Boolean = false,
     public val muted: Boolean = false, public val looping: Boolean = false, public val conformTarget: Double? = null,
-    public val look: MonitorPlaybackLook<L>? = null, public val scrubbing: Boolean = false,
+    public val look: MonitorPlaybackLook<L>? = null, public val lookResolution: UUID? = null, public val scrubbing: Boolean = false,
     public val scrubPosition: Double = 0.0, public val closed: Boolean = false,
 )
 /** Real load/cache/item/scrub owner borrowing its gallery. Native callbacks share one revision. */
@@ -52,7 +52,10 @@ public class MonitorMediaPlaybackModel<P, L>(
     private val candidates: (MonitorMediaRecord<P>) -> List<MonitorPlaybackCandidate>,
     private val resolveLook: suspend (MonitorMediaRecord<P>, MonitorPlaybackItem) -> MonitorPlaybackLook<L>? = { _, _ -> null },
     private val now: () -> MonotonicInstant = { MonotonicInstant.now() },
+    seekEndClearance: Double = 0.05,
+    private val sceneLossPolicy: MonitorPlaybackSceneLossPolicy = MonitorPlaybackSceneLossPolicy.PRESERVE_REQUEST,
 ) {
+    private val seekEndClearance = seekEndClearance.takeIf { it.isFinite() && it >= 0.0 } ?: 0.05
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
     private val mutable = MutableStateFlow(MonitorMediaPlaybackState<P, L>(MonitorPlaybackItemToken(UUID.randomUUID(), 0)))
     public val state: StateFlow<MonitorMediaPlaybackState<P, L>> = mutable.asStateFlow()
@@ -88,11 +91,21 @@ public class MonitorMediaPlaybackModel<P, L>(
     public fun setItemAdmission(capture: (MonitorMediaRecord<P>) -> MonitorPlaybackAdmission) {
         if (state.value.active == null && !state.value.closed) captureAdmission = capture
     }
-    private fun current(token: MonitorPlaybackItemToken): Boolean = !state.value.closed && state.value.token == token && library.state.value.lifetimeToken == libraryLifetime && library.state.value.browsing && (itemAdmission?.isCurrent?.invoke() ?: true)
+    private fun ownsItem(token: MonitorPlaybackItemToken): Boolean = !state.value.closed &&
+        state.value.token == token && library.state.value.lifetimeToken == libraryLifetime && library.state.value.browsing
+    private fun capturedItemAdmission(token: MonitorPlaybackItemToken): Boolean? {
+        if (!ownsItem(token)) return null
+        val admission = itemAdmission
+        val accepted = admission?.isCurrent?.invoke() ?: true
+        // A host predicate can synchronously retire this item or load its successor.
+        if (!ownsItem(token)) return null
+        return accepted
+    }
+    private fun current(token: MonitorPlaybackItemToken): Boolean = capturedItemAdmission(token) == true
     private fun admit(token: MonitorPlaybackItemToken): Boolean {
-        if (current(token)) return true
-        if (!state.value.closed && state.value.token == token && itemAdmission?.isCurrent?.invoke() == false) close()
-        return false
+        val accepted = capturedItemAdmission(token) ?: return false
+        if (!accepted) close()
+        return accepted
     }
     private val index: Int? get() = state.value.active?.let { active -> state.value.playlist.indexOfFirst { it.asset.id == active.asset.id }.takeIf { it >= 0 } }
     public val canGoPrevious: Boolean get() = index?.let { it > 0 } == true
@@ -117,7 +130,7 @@ public class MonitorMediaPlaybackModel<P, L>(
             duration = record.asset.durationSeconds, metadata = MonitorPlaybackMetadata(record.asset.durationSeconds,
                 record.asset.pixelSize?.width?.toDouble(), record.asset.pixelSize?.height?.toDouble(),
                 MonitorConformPreview.Source(captureRate = record.asset.frameRate)),
-            conformTarget = null, look = null, reportedPlaying = null, playRequested = play, scrubbing = false) } || !admit(token)) return
+            conformTarget = null, look = null, lookResolution = null, reportedPlaying = null, playRequested = play, scrubbing = false) } || !admit(token)) return
         native.retireItem(token)
         if (!admit(token)) return
         val choices = candidates(record).toList()
@@ -139,7 +152,7 @@ public class MonitorMediaPlaybackModel<P, L>(
                         catch (error: CancellationException) { throw error }
                         catch (_: Exception) { null }
                         if (!admit(token) || lookRevision != request || !isActive) return@launch
-                        if (!mutate { it.copy(look = value) } || !admit(token) || !isActive) return@launch
+                        if (!mutate { it.copy(look = value, lookResolution = if (value == null) null else request) } || !admit(token) || !isActive) return@launch
                     }
                     val facts = native.prepare(prepared, token, readyTimeout)
                     if (!admit(token) || !isActive) return@launch
@@ -234,7 +247,7 @@ public class MonitorMediaPlaybackModel<P, L>(
             catch (error: CancellationException) { throw error }
             catch (_: Exception) { null }
             if (!admit(state.token) || lookRevision != request || !isActive) return@launch
-            lookTask = null; mutate { it.copy(look = value) }
+            lookTask = null; mutate { it.copy(look = value, lookResolution = if (value == null) null else request) }
         }
         lookTask = task; task.start()
     }
@@ -294,7 +307,7 @@ public class MonitorMediaPlaybackModel<P, L>(
         val target = bounded(seconds) ?: return
         if (!state.value.ready || !admit(token)) return
         seekTask?.cancel(); seekTask = null
-        if (!mutate { it.copy(position = target, scrubPosition = target, reachedEnd = it.reachedEnd && target + 0.05 >= (it.duration ?: 0.0)) } || !admit(token)) return
+        if (!mutate { it.copy(position = target, scrubPosition = target, reachedEnd = it.reachedEnd && target + seekEndClearance >= (it.duration ?: 0.0)) } || !admit(token)) return
         val task = owner.launch(start = CoroutineStart.LAZY) {
             if (!admit(token) || !isActive) return@launch
             val completed = native.seek(target, 0.0, token)
@@ -320,7 +333,7 @@ public class MonitorMediaPlaybackModel<P, L>(
     public fun updateScrub(seconds: Double, admitted: MonitorPlaybackScrubToken) {
         val edit = scrub ?: return; val target = bounded(seconds) ?: return
         if (edit.token != admitted || !admit(admitted.item) || !sceneActive || !presentationActive) return
-        if (!mutate { it.copy(scrubPosition = target, reachedEnd = it.reachedEnd && target + 0.05 >= (it.duration ?: 0.0)) } || !admit(admitted.item) || scrub !== edit) return
+        if (!mutate { it.copy(scrubPosition = target, reachedEnd = it.reachedEnd && target + seekEndClearance >= (it.duration ?: 0.0)) } || !admit(admitted.item) || scrub !== edit) return
         val instant = now()
         if (edit.lastSeek == null || instant - edit.lastSeek!! >= 75.milliseconds) {
             edit.lastSeek = instant; seekTask?.cancel()
@@ -368,7 +381,12 @@ public class MonitorMediaPlaybackModel<P, L>(
         val token = state.value.token
         if (!admit(token)) return
         sceneActive = value
-        if (!value) { cancelScrub(false, token); if (admit(token)) native.pause(token) }
+        if (!value) {
+            if (sceneLossPolicy == MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST &&
+                (!mutate { it.copy(playRequested = false) } || !admit(token))) return
+            cancelScrub(false, token)
+            if (admit(token)) native.pause(token)
+        }
         else if (presentationActive && state.value.playRequested && state.value.ready) native.play(rate, token)
     }
     public fun goToAdjacent(offset: Int) {

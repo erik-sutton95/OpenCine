@@ -62,6 +62,7 @@ import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.ShutterAngle
 import com.opencapture.opencine.vocabulary.VideoAspect
+import com.opencapture.opencine.vocabulary.VideoResolution
 import com.opencapture.opencine.vocabulary.VideoFormat
 import kotlin.math.abs
 import kotlin.math.max
@@ -179,7 +180,7 @@ private fun LiveControlSheetContent(
     }
     var selectedAspect by remember(sheet) {
         mutableStateOf(
-            VideoFormat.current(status).resolution.aspect ?: VideoAspect.SIXTEEN_NINE,
+            VideoResolution.fromRaw(status.resolutionCode)?.aspect ?: VideoAspect.SIXTEEN_NINE,
         )
     }
     var drumSelection by remember(sheet) { mutableStateOf("") }
@@ -190,7 +191,8 @@ private fun LiveControlSheetContent(
         sheet, status.expoMode, selectedMode, status.shootingMode,
     )
     val formatAspects = CaptureLists.formatAspects(status)
-    val tabs = CaptureLists.modeTabs(sheet, status, offersIsoAuto, selectedAspect)
+    val tabs = if (sheet == LiveSheet.AUDIO) host.audioService?.fields?.map { it.title }.orEmpty()
+        else CaptureLists.modeTabs(sheet, status, offersIsoAuto, selectedAspect)
     val bodyFamily = host.camera?.family ?: "pocket"
     val bodyName = host.camera?.name ?: ""
 
@@ -205,7 +207,7 @@ private fun LiveControlSheetContent(
     }
 
     fun reseatIso() {
-        applyIsoSeat(IsoSheetLogic.reseat(status, bodyName))
+        applyIsoSeat(IsoSheetLogic.reseat(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor))
     }
 
     fun applySeat(seat: CaptureLists.ShutterSeat) {
@@ -241,11 +243,11 @@ private fun LiveControlSheetContent(
             lastApplied = drumSelection
             return
         }
-        val format = VideoFormat.current(status)
-        selectedAspect = format.resolution.aspect ?: VideoAspect.SIXTEEN_NINE
+        val resolution = VideoResolution.fromRaw(status.resolutionCode)
+        selectedAspect = resolution?.aspect ?: CaptureLists.formatAspects(status).firstOrNull() ?: VideoAspect.SIXTEEN_NINE
         val tabs = CaptureLists.formatResolutions(status, selectedAspect)
-        selectedMode = tabs.indexOf(format.resolution).coerceAtLeast(0)
-        val label = format.frameRate.drumLabel
+        selectedMode = tabs.indexOf(resolution).coerceAtLeast(0)
+        val label = CaptureLists.fpsDrumLabel(status)
         drumSelection = label
         lastApplied = label
     }
@@ -255,13 +257,13 @@ private fun LiveControlSheetContent(
         selectedAspect = aspect
         val sizes = CaptureLists.formatResolutions(status, aspect)
         val match =
-            sizes.firstOrNull { it.sizeTitle == VideoFormat.current(status).resolution.sizeTitle }
+            sizes.firstOrNull { it.sizeTitle == VideoResolution.fromRaw(status.resolutionCode)?.sizeTitle }
                 ?: sizes.firstOrNull()
                 ?: return
         selectedMode = sizes.indexOf(match).coerceAtLeast(0)
         val rates = CaptureLists.formatRates(status, match)
-        val currentRate = VideoFormat.current(status).frameRate
-        val rate = if (currentRate in rates) currentRate else rates.firstOrNull() ?: return
+        val currentRate = VideoFormat.current(status)?.frameRate
+        val rate = currentRate?.takeIf { it in rates } ?: rates.firstOrNull() ?: return
         drumSelection = rate.drumLabel
         lastApplied = drumSelection
         val next = VideoFormat(match, rate)
@@ -314,7 +316,7 @@ private fun LiveControlSheetContent(
         if (!enabled) return
         when {
             sheet == LiveSheet.ISO && offersIsoAuto -> {
-                val (state, cmd) = IsoSheetLogic.handleModeChange(index, status, bodyName)
+                val (state, cmd) = IsoSheetLogic.handleModeChange(index, status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor)
                 applyIsoSeat(state)
                 when (cmd) {
                     is IsoSheetLogic.Command.SetIndex -> host.commit(CaptureSetting.IsoIndex(cmd.index), commonField, status)
@@ -347,7 +349,7 @@ private fun LiveControlSheetContent(
         lastApplied = value
         when (sheet) {
             LiveSheet.ISO -> {
-                when (val cmd = IsoSheetLogic.applyDrum(value, status, selectedMode, bodyName)) {
+                when (val cmd = IsoSheetLogic.applyDrum(value, status, selectedMode, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor)) {
                     is IsoSheetLogic.Command.SetLimit ->
                         commitDrumValue { host.commit(CaptureSetting.IsoLimitRaw(cmd.raw), commonField, status) }
                     is IsoSheetLogic.Command.SetIndex ->
@@ -513,7 +515,7 @@ private fun LiveControlSheetContent(
                         Box(Modifier.fillMaxWidth()) {
                             if (isIsoAutoTab) {
                                 CaptureDrumWheel(
-                                    options = CaptureLists.isoAutoLabels(status, bodyName),
+                                    options = CaptureLists.isoAutoLabels(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor),
                                     selection = drumSelection,
                                     interactive = enabled,
 
@@ -777,36 +779,25 @@ fun LivePickerHost(
 
 @Composable
 private fun AudioBody(status: CameraStatus, enabled: Boolean, selectedMode: Int, host: CaptureSheetHost) {
-    when (selectedMode) {
-        0 ->
-            CheckedRows(
-                options = CaptureLists.audioChannelLabels,
-                selected = CaptureLists.audioChannelLabel(status.audioChannel),
-                enabled = enabled,
-            ) { label ->
-                CaptureLists.audioChannelValue(label)?.let { host.commit(CaptureSetting.AudioChannel(it), null, status) }
-            }
-        1 ->
-            CheckedRows(
-                options = CaptureLists.audioWindLabels,
-                selected = CaptureLists.audioWindLabel(status.windNr),
-                enabled = enabled,
-            ) { label -> host.commit(CaptureSetting.WindNoiseReduction(label == "On"), null, status) }
-        2 ->
-            CheckedRows(
-                options = CaptureLists.audioDirLabels,
-                selected = CaptureLists.audioDirLabel(status.directionalAudio),
-                enabled = enabled,
-            ) { label ->
-                CaptureLists.audioDirValue(label)?.let { host.commit(CaptureSetting.DirectionalAudio(it), null, status) }
-            }
-        else ->
-            CheckedRows(
-                options = CaptureLists.audioVocalLabels,
-                selected = CaptureLists.audioVocalLabel(status.vocalBoost),
-                enabled = enabled,
-            ) { label -> host.commit(CaptureSetting.VocalBoost(label == "On"), null, status) }
+    val service = host.audioService
+    val sourceID = remember(host) { service?.sourceID }
+    var refusal by remember(host) { mutableStateOf<String?>(null) }
+    val field = service?.fields?.getOrNull(selectedMode)
+    if (field == null) Text("Audio controls unavailable", color = LiveDesign.faint)
+    else CheckedRows(field.choices.map { it.label }, field.observed?.label,
+        enabled && field.isEditable && service?.sourceID == sourceID) { label ->
+        val current = host.audioService
+        val currentField = current?.fields?.firstOrNull { it.id == field.id }
+        val value = currentField?.choices?.firstOrNull { it.label == label }
+        refusal = if (current == null || current.sourceID != sourceID || currentField?.isEditable != true || value == null)
+            "Audio control unavailable"
+        else when (current.commit(value)) {
+            CaptureAudioCommitResult.SUBMITTED -> null
+            CaptureAudioCommitResult.UNAVAILABLE -> "Audio control unavailable"
+            CaptureAudioCommitResult.REFUSED -> "Audio control refused"
+        }
     }
+    refusal?.let { Text(it, color = LiveDesign.faint) }
 }
 
 private fun initialSelectedMode(
@@ -824,8 +815,8 @@ private fun initialSelectedMode(
             else 0
         LiveSheet.WB -> CaptureLists.wbInitialTab(status, session.awbLockKelvin != null)
         LiveSheet.FORMAT -> {
-            val format = VideoFormat.current(status)
-            CaptureLists.formatResolutions(status).indexOf(format.resolution).coerceAtLeast(0)
+            val resolution = VideoResolution.fromRaw(status.resolutionCode)
+            CaptureLists.formatResolutions(status).indexOf(resolution).coerceAtLeast(0)
         }
         else -> 0
     }

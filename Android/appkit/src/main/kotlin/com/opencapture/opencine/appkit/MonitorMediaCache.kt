@@ -137,6 +137,16 @@ public class MonitorMediaCacheDirectory(public val root: File,
         current[destination.path] = id; resources[id] = Resource(stream, temporary)
         MonitorMediaCacheWrite(this, id, revision, destination, temporary, stream)
     }
+    /** Fence old writers/catalog captures while retaining files owned by resumable transfers. */
+    public fun retireWrites(): Unit = synchronized(lock) {
+        revision += 1
+        current.clear()
+        resources.values.forEach {
+            runCatching { it.stream.close() }
+            it.temporary.delete()
+        }
+        resources.clear()
+    }
     public suspend fun clear(preserving: List<String>) {
         val pending = synchronized(lock) {
             revision += 1; current.clear()

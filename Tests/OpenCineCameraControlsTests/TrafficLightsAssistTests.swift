@@ -11,7 +11,7 @@
     /// lamps, and labels - onto the shared assists. IRE / histogram science stays in core.
     final class TrafficLightsAssistTests: XCTestCase {
         /// This test's monitored source (XCTest makes a fresh one per test).
-        private let ceiling = OpenCineCameraVocabulary.ScopeExposureCeiling()
+        private let ceiling = DeclaredMonitorColorFacts.makeCeiling()
 
         func testColumnWidthLandscapeAndFillsWidth() {
             XCTAssertEqual(

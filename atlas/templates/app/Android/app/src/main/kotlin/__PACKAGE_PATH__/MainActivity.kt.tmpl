@@ -3,75 +3,57 @@ package __APP_ID__
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Button
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.opencapture.opencine.core.SettingKey
+import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.ISOValue
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
-import com.opencapture.opencine.appkit.AppShell
+import com.opencapture.opencine.appkit.MonitorAssistState
+import com.opencapture.monitorui.MonitorAssistTool
+import com.opencapture.opencine.appkit.MonitorDisplayPreferences
+import com.opencapture.opencine.appkit.MonitorOperatorPreferences
+import com.opencapture.opencine.cameracontrols.MonitorOperatorScene
 import com.opencapture.opencine.appkit.ShellActions
-import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.stored
 
-/**
- * OpenCine's shared shell ([AppShell]): the cameras and pair pages over [makeShell], with this
- * app's monitor and cover pages in its slots. The manifest keeps the activity across rotation, so
- * one shell lives as long as the app's window.
- */
+/** Brand, storage values and bounded native adapters over the complete shared operator scene. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val shell = makeShell(getSharedPreferences("__NAME__.cameras", MODE_PRIVATE).stored("document"), lifecycleScope)
+        val shell = makeShell(getSharedPreferences("__NAME__.cameras", MODE_PRIVATE).stored("document"), lifecycleScope,
+            integrationList = appIntegrations(this))
+        val media = makeOperatorMedia(this, lifecycleScope)
+        val storage = getSharedPreferences("__NAME__.operator", MODE_PRIVATE)
+        val operatorPreferences = MonitorOperatorPreferences(storage,
+            MonitorOperatorPreferences.Keys("__NAME__.KeepScreenAwake", "__NAME__.HDRDisplay", "__NAME__.RecordConfirmation",
+                "__NAME__.Haptics", "__NAME__.CacheOriginals"))
+        val displayPreferences = MonitorDisplayPreferences(storage,
+            MonitorDisplayPreferences.Keys("__NAME__.Display.Live", "__NAME__.Display.Clean"))
+        val assist = MonitorAssistState(encoded = storage.getString("__NAME__.Assists", null),
+            pinnedNames = storage.getStringSet("__NAME__.CleanPins", setOf("LUT", "PEAK", "MIRROR", "DESQ"))!!.toSet(),
+            onPersist = { storage.edit().putString("__NAME__.Assists", it).apply() },
+            onPersistPins = { storage.edit().putStringSet("__NAME__.CleanPins", it).apply() },
+            playbackNames = storage.getStringSet("__NAME__.PlaybackAssists", emptySet())!!.toSet(),
+            onPersistPlayback = { storage.edit().putStringSet("__NAME__.PlaybackAssists", it).apply() })
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                AppShell(
-                    shell, brand,
-                    // ponytail: no diagnostics share or problem report yet; the app wires its own here.
-                    ShellActions(diagnostics = {}, reportProblem = {}),
-                    monitor = { MonitorSlot(it.camera.saved.displayName, shell::close) },
-                    page = { cover ->
-                        CoverPage(if (cover == ShellModel.Cover.SETTINGS) "Settings" else "Media", shell::dismissCover)
-                    },
-                    // The window draws edge to edge: the pages keep clear of the system bars.
-                    pageFrame = { _, content -> Box(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) { content() } },
-                )
+                MonitorOperatorScene(shell = shell, brand = brand,
+                    actions = ShellActions(diagnostics = {}, reportProblem = {}),
+                    operatorPreferences = operatorPreferences, displayPreferences = displayPreferences,
+                    assist = assist, media = media,
+                    availableAssistTools = setOf(MonitorAssistTool.PEAK, MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA,
+                        MonitorAssistTool.GUIDES, MonitorAssistTool.GRID, MonitorAssistTool.CROSS,
+                        MonitorAssistTool.DESQ, MonitorAssistTool.MIRROR),
+                    picture = { live ->
+                        val snapshot by live.camera.session.snapshots.collectAsState()
+                        val iso = ((snapshot.settings[SettingKey.ISO]?.value as? SettingValue.Iso)?.value as? ISOValue.Manual)?.iso
+                        OperatorPicture(assist, operatorPreferences, iso)
+                    }, thumbnail = { OperatorThumbnail(it) },
+                    playbackPicture = { OperatorPlaybackPicture(it, assist, operatorPreferences) })
             }
         }
-    }
-}
-
-/**
- * The monitor slot. The shell already owns the camera's session and its common controls
- * (`shell.control`); compose the monitor screen here, as the existing apps do.
- */
-@Composable
-private fun MonitorSlot(name: String, close: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().background(Color.Black),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(name, color = Color.White, style = MaterialTheme.typography.titleLarge)
-        Button(onClick = close) { Text("Close") }
-    }
-}
-
-/** A cover page (settings or media) over the current page; covering never disconnects. */
-@Composable
-private fun CoverPage(title: String, done: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
-        Text(title, color = Color.White, style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.Center))
-        Button(onClick = done, modifier = Modifier.align(Alignment.TopEnd)) { Text("Done") }
     }
 }
