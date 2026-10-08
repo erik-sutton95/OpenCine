@@ -1,40 +1,164 @@
 # Compatibility inventory (thin-app migration)
 
-What is still a compatibility surface on `integration/thin-app`, in OpenCine and in each app, and
-why it stays: every remaining shim, facade, typealias bridge, forwarder, source-sync remnant and
-app-owned copy of a shared owner. Companion of [RETIRED-OWNERS.md](RETIRED-OWNERS.md) (what
-already moved) and evidence for the ledger rows `pocket.compat`, `insta.compat` and `nikon.compat`.
+Retained facades, aliases, stored/wire contracts, SDK adapters and copied bodies in the current
+thin-app candidate. Companion of [RETIRED-OWNERS.md](RETIRED-OWNERS.md) and
+[TESTER-GUIDE.md](TESTER-GUIDE.md). Updated 2026-10-08 from task-owned source, actual call sites and
+frozen coordinator consumer/source captures. Status: candidate WIP. Source adoption is not final
+consumer, physical, integrated or released status.
 
-Status: candidate. Measured on the union recorded as `opencine-thin-app` in
-[atlas/compat/candidates.json](../../atlas/compat/candidates.json) (OpenCine `aed102b9`,
-OpenPocketCine `3e429797`, OpenInstaCine `ed7e0089`, OpenZCine `25a49155`) and on the compat lane's
-`lane/compat` heads with the retirements listed below (OpenCine `54e2d41` plus this document,
-OpenPocketCine `2216acb5`, OpenInstaCine `32caba6`, OpenZCine `d462fcaf`). The retirements remove
-about 3,780 production lines from the apps (Pocket -1,507, Insta -1,905, Nikon -364), only dead or
-purely forwarding code, with no behavior change. Physical hardware is untested.
+This refresh audits the retained groups in the earlier inventory; it does not certify every
+semantic line. Source-byte and call-site evidence is preserved in the documentation lane. Final
+revision and qualification binding remains the coordinator's table in the retired-owner ledger.
+Recorded Pocket/Insta/Nikon native and Android consumer gates now pass at their own inputs with
+the known native skips. Pocket focused real-service AX v1/v2 still reach the original no-tree skip;
+its original VoiceOver assertions remain untested after the two-fragment scene setup correction.
+Current SDK tests/strict and optimized shipping Release passed; generated iOS and Android full
+v3 each passed all original eleven cases with zero failures/skips (combined receipt `b9843798`).
+The fixed original coding ledger is 42/46 (91%). Nikon APK/AAB/DEX/JNI v5 passed with original
+release pruning. Current native/input/GPU/linkage scopes, local adopter commits and pending final/
+installed/physical bindings are stated in [RETIRED-OWNERS.md](RETIRED-OWNERS.md#qualification-and-final-revision-binding)
+and [TESTER-GUIDE.md](TESTER-GUIDE.md#9-what-is-verified-and-what-is-not). The original retention,
+historical measurements and follow-up criteria below remain unchanged except for the finite
+qualification status notes; source retirement does not imply final closure.
 
-## Reasons
+## Retention rules
 
-| Verdict | Meaning |
+| Reason | Required evidence |
 |---|---|
-| app composition | Wires the shared shell with the app's integration list, brand, slots or log subsystem |
-| brand wire format | A JNI class, member or exported symbol, a library name, a saved key, a keychain service, a stored raw value or a network wire version that existing installs or the other platform depend on |
-| SDK adapter | An adapter over a vendor SDK or an OS API that only this app uses |
-| main parity | Needed for the app to behave like its `main`; no shared owner covers it yet |
-| Nikon feature | Kept Nikon behavior (MF strip, e-VR, passive discovery and admission, N-Log/R3D calibration, photography and HDMI states) |
-| retire (follow-up) | Should go; listed with what blocks it |
+| App composition | Actual caller wires integration/source facts, brand content, storage/account namespace or a bounded native view/operation; it does not own a second common page or scheduler |
+| Deployed contract | Existing JNI/JVM/library name, saved raw value/key, keychain service, filename/address or network schema must survive upgrades and existing consumers |
+| SDK/OS adapter | Actual native transport, decoder, sensor, Photos/share/OAuth/permission/filesystem or third-party SDK boundary stays in its declared layer |
+| Compatibility API/test donor | Original public entry or fixture still exercises its shape; add/migrate/remove and preserved assertions govern retirement, not an assumed shipping caller |
+| Hardware facts | Observed Nikon/DJI/Luna capability, calibration or source behavior stays integration-owned; unknown remains nil |
+| Active copied owner | Actual copied common behavior remains; state its caller and finite ownership gap rather than calling it main parity indefinitely |
 
-## Duplication exit
+## OpenCine retained surfaces
 
-`python3 atlas/tools/atlas.py dupes --candidate opencine-thin-app` reads each app at the
-candidate's recorded commit (`--candidate` never writes the baseline). "Union when this lane
-started" is OpenCine `bb500df8` with OpenPocketCine `3e429797`, OpenInstaCine `ed7e0089` and
-OpenZCine `0b7e555e`; "After the compat lane" is the four `lane/compat` heads named in the Status
-line. The registry refs still name the apps' pre-migration `opencine/integration` commits, so a
-plain `atlas dupes --check` on `integration/thin-app` reports growth until those refs move after
-the authorized merge.
+| Surface | Current reason and caller |
+|---|---|
+| `OpcVulkan`, `DjiNative`, `NikonNative` classes and exported symbols | Deployed JNI contract. The legacy renderer package stays `com.opencapture.openpocketcine.feed`; source declarations on both sides are preserved. Pocket Android v6 and Insta v8 actual APK/JNI linkage audits passed for their recorded packages and retained names; current Nikon v5 APK/AAB/staging/DEX/JNI audit passed (`5a13191a`), with 99 debug/81 release production native DEX methods, 18 unused Vulkan methods removed by unchanged R8 rules and all 99 production native exports retained. Source declarations alone do not qualify another artifact |
+| Android DJI `PocketCameraSession`, `PocketSessionHost`, `PocketPhase`, `PocketControlState`, `PocketControlPort`; aliases `DjiCameraSession`/`DjiSessionHost` | Integration API/JVM compatibility. Pocket `AppModel`/`AppSessionHost` and original preview fixtures exercise these names. Rename only through add/migrate/remove; these are not neutral brand-policy branches |
+| DJI session/control/route identities and `CameraModel` DJI profile/name initializer | Integration-owned identity/catalogue compatibility. Actual DJI controls and original Pocket model fixtures resolve the DJI profile here; neutral vocabulary does not infer a brand from a name |
+| `MonitorUI` presentation aliases and `MonitorPresentation.MonitorPreviewAdmission` | Public import compatibility. Scope placement aliases delegate Presentation; preview admission delegates Media. Actual P/I preview imports and existing tests retain these paths, not copied timing policy |
+| Kotlin Library original constructor with positional/trailing sleep compatibility | Original API delegates the same Library owner with immediate scanning. Existing tests/clients retain it; current app adapters may select the explicit scanning constructor. Positional syntax alone is not evidence that the legacy overload is still the shipping path |
+| Kotlin Media return scheduler | Recorded boundary exception `e67c7460` admits only six existing Core-exported coroutine primitives in `MonitorMediaReturnSession`; Swift uses language concurrency. No new dependency, upward edge, Main/global dispatcher or broad import exemption |
+| `LegacySavedCameraCodec`, `BodyRecordsV0`, `SavedCamerasStore.Legacy`, `legacyKeepScreenAwake`, `LEGACY_COMBINED` favorite authority | Real saved-data migrations. P/I saved-camera stores and Pocket/Nikon media codecs still read these; removing them would discard prior installs' state |
+| Atlas Insta `source-copy` edges, products and dated docs | Registry facts still describe their registered main/integration refs, not this uncommitted union. Product-source retirement does not authorize a registry/ref/pin move; no build depends on atlas |
 
-| Pair (normalized lines) | Registry refs (pre-migration) | Union when this lane started | After the compat lane |
+## OpenPocketCine retained surfaces
+
+| Surface | Current reason and actual boundary |
+|---|---|
+| `OpenPocketViewCore` and `OpenPocketCineAndroid` product/library names | Public module/deployed library compatibility. View core is now 76 production lines in six files: shared DJI/Media/Motion/Relay re-exports, `ConnectionPhase`, and the telemetry/wrist-copy snapshot adapter; no saved-camera/control/math copy |
+| Four Android facade sources and six `SwiftCore` exports | Real JNI address/array adapter. `FeedEffectsWire` uses the Media lattice and `LUTLibraryWire` the shared packer with DJI look facts. False-color traversal/packing no longer lives here |
+| Preferences/keychain/cache paths and raw migrations | Keep `openpocketcine.*`, `com.opencapture.openpocketcine.*`, `OpenPocketCine.frameio`, shot-color/LUT/upscaler/saved-camera keys and namespaces. Actual preference, credential and media adapters still use them |
+| iOS `CameraSession`, `DJIAppleTransport` and actual composition extensions | Bounded DJI/native/source admission, owner identity, telemetry, controls and exact route/URL/storage facts remain. Common media scheduling/return and command first-dispatch policy use shared owners; no `MediaSessionLink` reflection remains |
+| `LiveAssistEngine`, look/preview/native picture constructors and `FeedWorkingRaster` | Integration/native constructor facts and inherited fixture/API compatibility. Actual immutable backdrop raster/cache/lifecycle is shared; the legacy mutable raster helper is retained explicitly, not counted as a newly retired body |
+| `CameraMedia.cacheEntries` and one-record original/thumbnail/download/delete facades | Filesystem/source adapter over existing Library/cache/IO authority. Actual public media pages call `originalImageBytes`/`thumbnailBytes`; `cacheEntries` itself has no shipping call found in this audit and remains a legacy/test facade rather than a second cache owner |
+| `AudioLevelTapBox`, native audio sinks, picture leaves, `MonitorBackdropFeed`, `GpuOverlayBus` | Actual SDK/Compose bridge. The peak accumulator, audio cadence, effects/scopes, raster queue and GL backend are shared; app leaves connect Media3/native frames/passive image sources and current layout callbacks |
+| `rememberPlaybackMonitorGlass`, level/geometry/preview forwarding entries | Small compatibility/OS leaves. Playback pixel transforms and pan are shared; the old glass constructor has no shipping caller found. Pocket's one-line `InspectorPreviewRenderer()` uses NativeGlBackend and remains exercised by an original instrumented host |
+| `BrandColors`, `OpcFonts`, `LiveType`, `LiveDesign`, icon/palette/usage values and log subsystem | App content/configuration and persisted choices. Settings and live rendering consume shared owners; `SettingsPalette` still supplies actual color values to the common inspector |
+| Watch app and `WatchRelayState.snapshot`/wrist copy | Actual app wrist telemetry/source facts and app-name content over shared transport/UI; no app-owned wrist network/clock recipe |
+
+`AppRoot.liveOperatorPanel` has no remaining reference. `LiveChromeThrottle`, `GamepadOperator`,
+`SessionRecoveryCopy`, `PlaybackVideoLayout`, `GimbalStickLuma`, `ExposureMeterReading` and
+`CameraWiFiQRCode` are now shared owners; saved-camera connection/Wi-Fi/identity types belong DJI.
+They are no longer reasons to retain app copies.
+
+## OpenInstaCine retained surfaces
+
+| Surface | Current reason and actual boundary |
+|---|---|
+| `OpenInstaViewCore`, `OpenInstaCineAndroid`, `com.opencapture.openinstacine.monitor` and version-code names | Renamed products are adopted. View core is 197 production lines in seven files: shared exports/`ConnectionPhase`, actual Luna I-Log profile, legacy reach/initializer compatibility and wrist telemetry projection; no DJI wire parser copy |
+| Six current `SwiftCore` exports and four facade sources | JNI adapter over shared Media with actual Luna color/profile values. Prior eight-export evidence is historical, not a current symbol count; `cameraSoftAPDecision`/`conformPreviewJSON` remain absent on Insta |
+| Saved Pocket-derived namespaces and baseline attribution | Deployed contract/license history, including the shared renderer's legacy package, camera-Wi-Fi preferences/key alias and original approval/keychain defaults. Renaming module/package did not rename saved data |
+| `ClipColorProfile`, `LogColorTransform`, converted-clip gamma metadata | Actual Luna playback/export still reads or writes `com.dji.camera.ColorGammaSxS` for legacy converted files. This stored content is not permission to inject DJI live calibration or infer a DJI camera profile |
+| `LunaMonitorColorProfile`, bundled I-Log look and bounded live/preview adapters | Actual I-Log curve and unreported calibration remain Luna facts. The old shared 223/247 DJI calibration injection is retired; original DJI positive goldens are explicit integration fixtures. Unknown Luna calibration stays nil |
+| `HeadTrack` reach/default constructors and `WatchRelayState.snapshot` | Inherited app-visible reach/field-of-view and wrist telemetry compatibility, delegated to shared Motion/Relay. Bounds remain actual adapter values; the native programmed lifecycle is shared |
+| `CameraSession`/controls/core, `CameraMedia`, Kotlin `session/PocketCameraSession` | Actual Luna source/status/commands/URL/storage adapters; commands remain through LunaCameraSession. Programmed motion uses shared MotionProgramSession. Kotlin reconnect execution still drives Luna native connection using the shared recovery policy; it is not credited as a fully retired recovery runner |
+| Aperture compatibility host cases | Exhaustive shared setting/legacy API cases remain, while the actual Luna profile exposes no aperture service. Unavailable entry reports refusal; no aperture page or invented observation is supplied |
+| Native picture/audio/sensor/permission bridges, brand/theme/palette/log and provider credentials | Same bounded OS/configuration roles as Pocket, with actual Luna facts. Native look/native source acquisition is not a second common inspector/page/runtime |
+
+Pocket source-sync scripts, stamps and build inputs remain retired. `baseline-provenance.json`,
+NOTICE, THIRD-PARTY-NOTICES and legal attribution remain history/license data. Multiview stubs
+remain removed; live Luna gimbal-limit feedback remains supported. Existing aliases used by
+instrumented tests and `FalseColorReferencePositions` used by `MonitorUIReview` are compatibility
+fixtures, not evidence that the old assist UI owner is still required.
+
+## OpenZCine retained surfaces
+
+| Surface | Current reason and actual boundary |
+|---|---|
+| Nikon protocol/property/discovery and infrastructure/USB adapters | Actual passive discovery, admission, PTP objects/raw angles/property descriptors, RAW/rating/card/codec/lens/AF/e-VR/HDMI/UVC facts. Hardware admission changes still need hardware-qualified reasons |
+| Calibration/look tables, `ExposureScale`, `FalseColor`, `FocusAssist`, `TrafficLightsMeter`, RED facts and thermal policy | Nikon-only facts and stored meaning. Generic lattice/transfer math delegates Media; native calibration/sampling bodies are preserved |
+| `OpenZCineCore.MonitorAssistTool`, stored DISP/field/panel vocabulary | Codable/stored compatibility, including retired MAG decoding and actual Nikon tool extensions. Actual UI projects into common tool/descriptor inputs; stored cases are not a copied common screen |
+| `NikonMonitorShell`, `MonitorUnified`, `MonitorScreen`, `OperatorSettingsScreen`, root cover fragments | Actual descriptor/borrowed-display and hardware/native adapters into common complete live/settings/shell owners. The old whole settings/cache/account card and copied player/catalog/photo recipes are retired; no dummy session/display or unsupported option is supplied |
+| `MonitorOverlays` legacy playback overlay/`MovablePanel`, `PaletteStrip`/scope compatibility entries | No current live/player adopter call to the old playback overlay was found. Original/developer/public helper shapes remain; actual full players/live use common scope/panel owners. Do not justify these as a required copied shipping screen |
+| Kotlin `MonitorFrameRateSampler` in `MonitorReadouts.kt`, called by `MonitorScreen.kt` | Captured follow-up `8a8e41dd` delegates the rolling algorithm to existing Media FrameRateSampler. The 15-line adapter retains ns-to-seconds and observable READY/rate label facts; 30 intervals/1 Hz and original tests stay exact. Recorded full Android v5 consumer passed; current physical readout/camera behavior untested |
+| `MediaCacheStore`, `MediaCacheObjectIdentity`, `MediaCacheSettingsState` | PTP identity and synchronous filesystem/receipt adapters over shared ProgressiveMediaCache and canonical Library directory. MainActivity constructs one actual cache adapter. Settings count/clear Tasks belong the shared cache model; there is no second app Settings scheduler |
+| `RelayBitrateAdaptation`, relay/watch protocols and facade aliases | Original API wrappers delegate shared adaptation/framing/control owners. Distinct deployed `_openzcine-mon._tcp`, monitor v2 and watch v1/JPEG/HEVC payloads survive; runtime convergence did not change wire schema |
+| 25 `SwiftCore` JNI declarations/exports and `AndroidLiveViewPolicyWire` | Real integration/facade contract. Source-side names match; no new binary-symbol proof asserted. `feedEffectsScalars` has no actual shipping invocation found but remains both-side ABI; ignored/dead surfaces await synchronized qualified removal |
+| Native media/picture/export/Photos/share/OAuth/network-hop leaves and Frame.io secure/history adapters | Actual OS/integration IO and persisted provider keys. Existing shared playback/delivery/cache owners schedule and retire them; account card/consent/busy/error is shared. K browser launch restores the captured lease on Settings retirement; Swift auth completion restores on finish |
+| Closed diagnostics journal, historical exit reader, Sentry/OkHttp adapters | Existing Nikon event/file/report contract and external SDK IO. Bounded report formatting/runtime is shared; no third-party dependency was added to OpenCine |
+| Frozen Vulkan/Media3/Nikon donors and original parity tests | Independent pixel/wire/native oracles and app-hosted assertions. Retain them through actual qualified comparison; shared source/test success alone does not authorize deleting original assertions |
+
+The previous reasons that common Catalog would need no-op operations, Settings would need a
+whole-tab slot, and the account card lacked switching/consent/error ports no longer describe
+current source. Captured access, borrowed display, optional setting/services and the existing
+Account/Cache owners are exercised by actual adopters. Unsupported features stay absent.
+
+## SDK leaves and original tests across the apps
+
+| Retained group | Audited reason |
+|---|---|
+| Swift/Kotlin Sentry sink, OkHttp upload and reliability transport tests | Actual third-party SDK calls and app namespaces. Shared reliability policy/formatting does not import these dependencies |
+| DiscoveryPermissions, app crash-guard preference adapter and associated tests | OS permission/storage/log values; guard behavior is shared native-runtime |
+| App backdrop/preview factories, native Bitmap/ImageIO/Media3 audio/picture bridges | Real native acquisition/render/API bridge. App `Media3GlBackend` production copy is gone; the original donor lives only in pixel-conformance tests |
+| BackdropRenderActivity, MonitorMotionInputTest and app-hosted UI instrumentation | Developer activity/device/test setup, actual app bindings and original interaction assertions; not production common-owner substitutes |
+| LiveLevelOverlay and SettingsPalette tests | Actual geometry forwards to shared level math/UI; app sensor acquisition/palette content remains. Tests still pin the deployed app labels/values; the old claim that Pocket draws a separate level renderer is stale |
+| AppModel watcher/audio/zebra/Wi-Fi wrappers and log facade | Shared watcher/assist/QR implementations are adopted; remaining app methods supply current model/source/service name, saved keys and log content |
+| Encoder-format, staging-lease, status-chrome, LUT, camera/Wi-Fi/watch/nav/preferences and bundled-resource tests | Actual native or app-contract assertions. Keep their original expectations and payloads when changing compatibility fixture setup; preserve intentional corrections explicitly |
+| Frozen SDK/input captures | Byte identities qualify only their recorded inputs and platform scope. Compilation, simulated fixtures and optional physical-driver source are not physical success |
+
+## Follow-up disposition
+
+| Earlier IDs | Current disposition |
+|---|---|
+| O-1, O-2 | Retain deployed integration names and original Library constructor through add/migrate/remove; no second owner |
+| O-3 | Registry/ref/pin facts require authorized final integration; not changed here |
+| P-1, I-2, I-3, I-5, I-6, I-8 | Source aliases/dead code, neutral vocabulary/platform moves, module/package rename and multiview-stub retirement are implemented; saved namespaces/provenance remain |
+| P-2 | Vocabulary/DJI owns former view-core twins. App wrist snapshots are telemetry/content adapters |
+| P-3 | Media lattice adopted by all three facades and real Pocket look baking; original paint/weight/Float/byte goldens preserved |
+| P-4, I-4 | Common tracking/input/pan/incident/library/live/settings/photo/player/delivery/watcher/preview owners are adopted. Bounded IO, third-party sinks, sensor/source factories and original test facades remain; complete current consumer/physical qualification is separate |
+| P-5 | One-line native preview factory remains original instrumented compatibility; actual renderer/pipeline is shared |
+| P-6 | `liveOperatorPanel` is absent; cover state comes from AppShell |
+| I-1 | Shared recovery decisions and programmed-motion lifecycle adopted; bounded Luna reconnect runner still remains and is not claimed retired |
+| I-7 | Legacy converted-file metadata remains. DJI live calibration/profile branching is retired; Luna uses actual I-Log values. Aperture compatibility cases do not advertise a service |
+| Z-2 | Common tool/scope/panel/account/player/live owner adoption is implemented; stored/native facts and legacy helper APIs remain. FPS rolling calculation delegates the existing shared sampler; recorded Android v5 consumer passed, and final combined-source/physical qualification remains pending |
+| Z-3 | Canonical shared progressive/cache/library/catalog/photo/player owners and typed access/rating/staging adapters are implemented; actual native/hardware qualification and original donors remain |
+| Z-4 | Declared ABI/dead-entry cleanup remains a both-platform qualified removal; no silent JNI change |
+| Z-5 | Runtime/reader/control/framing/watch composition is shared; deployed schemas remain distinct |
+| Z-6 | Passive discovery remains integration/OS hardware behavior; no unqualified discovery rewrite |
+| Z-7 | Actual borrowed-display settings/cache/account/root adoption is implemented; recorded Android v5 and native v15 gates passed, with two known native skips; final combined-source/installed/physical binding remains pending |
+| Z-8 | Shared descriptor uses captured fields and editable sections. The exact REC/clock/lock eye UX criterion is not credited closed by this source audit; bind actual two-platform UI evidence |
+| X-1, X-2, X-3 | Shared shader/staging/bootstrap/tester checks and protocol probe owner references are implemented. Each app keeps pre-pin bootstrap/thin wrappers; Nikon's different TestFlight contract remains |
+
+No follow-up row here awards central checkpoint credit. The final source, normalized duplication
+exit, generated-template/consumer matrix and physical supported-or-untested results must be bound
+by the coordinator before the remaining original criteria close.
+
+## Historical compatibility snapshot and measurements
+
+The previous inventory's candidate was OpenCine `aed102b9`, Pocket `3e429797`, Insta `ed7e0089`,
+Nikon `25a49155`; compat heads were shared `54e2d41`, Pocket `2216acb5`, Insta `32caba6`, Nikon
+`d462fcaf`. Retained as pre-2026-10-07 provenance, frozen in the October 7 review, not current
+candidate identities. The recorded compat-only app removal was about 3,780 lines (P -1,507,
+I -1,905, N -364). Its binary/JNI checks belong to that snapshot.
+
+Historical normalized duplication (same old atlas block method; comments/imports/blank lines are
+normalized, so these are not the all-line production counts):
+
+| Pair | Registered pre-migration refs | Union at compat-lane start | After that compat lane |
 |---|---:|---:|---:|
 | OpenCine / OpenInstaCine | 28,525 | 8,497 | 7,749 |
 | OpenCine / OpenPocketCine | 13,197 | 658 | 504 |
@@ -43,234 +167,20 @@ the authorized merge.
 | OpenInstaCine / OpenZCine | 716 | 227 | 206 |
 | OpenPocketCine / OpenZCine | 1,687 | 275 | 248 |
 
-What the remaining numbers are:
+The start used shared `bb500df8`, Pocket `3e429797`, Insta `ed7e0089`, Nikon `0b7e555e`. Those
+numbers are preserved, not recalculated or presented as the current exit. Their old explanation
+that no shared live/watcher/gamepad/assist/lattice owner existed is superseded by current actual
+adoption. `atlas dupes --candidate` reads recorded refs; a pre-migration registry or stale
+candidate cannot measure later uncommitted sources. Final normalized duplication remains pending
+an exact final source binding; no atlas baseline was changed.
 
-- OpenCine / OpenInstaCine: Insta's forks of DJI-only `OpenCineDJI` / `Android/dji` owners
-  (exposure lock, face-priority exposure, gamepad map, joystick and touch mapping, zoom stops,
-  privacy redaction). Insta cannot link the DJI integration, and the Luna build reaches these, so
-  they wait for a neutral owner (follow-up I-3 below).
-- OpenInstaCine / OpenPocketCine: Insta's Pocket-derived iOS and Android shell code that has no
-  OpenCine owner yet (reliability reporting, live chrome, assists views, watcher views, gamepad).
-  Nothing syncs it any more; each area is a follow-up move into OpenCine (I-4).
-- OpenCine / OpenPocketCine and OpenCine / OpenZCine: function blocks only, no whole files. Most
-  are small idioms or the copies listed as follow-ups (false-colour lattice, tracking bracket,
-  relay and watch wires, frozen test donors).
-
-## OpenCine (kept for the apps)
-
-| Item | Verdict |
-|---|---|
-| JNI classes `com.opencapture.openpocketcine.feed.OpcVulkan` (legacy app package), `com.opencapture.opencine.dji.DjiNative`, `com.opencapture.opencine.nikon.NikonNative` and their exports | brand wire format |
-| Android `dji`: `PocketCameraSession`, `PocketSessionHost`, `PocketPhase`, `PocketControlState`, `PocketControlPort`, with the neutral aliases `DjiCameraSession` and `DjiSessionHost` | retire (follow-up O-1): the Pocket-named shared session of SHELL-04. Pocket uses `DjiCameraSession` 27 times; rename the classes, keep the old names as aliases one release, then remove (add, migrate, remove) |
-| Swift `DJICameraSessionID`, `DJIControlEpoch`, `DJIConnectionRoute`; Kotlin `DJICameraSessionID`, `DJIControlEpoch` | app composition (the DJI integration's boundary names) |
-| `MonitorUI` aliases of 15 `MonitorPresentation` values (`MonitorAssistTool`, `MonitorGridOption`, scope and false-colour values) and `MonitorPresentation.MonitorPreviewAdmission` | app composition (callers that import only `MonitorUI` keep compiling) |
-| Android appkit `MonitorMediaLibraryModel` original constructor | retire (follow-up O-2) once no app calls it positionally |
-| Saved-setup and preference migration: `LegacySavedCameraCodec`, `BodyRecordsV0`, `SavedCamerasStore.Legacy`, `MonitorOperatorPreferences.legacyKeepScreenAwake`, `MonitorMediaFavoriteAuthority.LEGACY_COMBINED` | brand wire format (saved setups and favorites survive upgrade) |
-| Atlas registry: `repos/openinstacine/meta.json` live `source-copy` edges to OpenPocketCine and its stale `products`; the same claim in `atlas/README.md`, `repos/openinstacine/SUMMARY.md`, `docs/CONTRACTS.md`, `docs/PUBLISH.md` | retire (follow-up O-3) when `integration/thin-app` merges: the edges are still true for Insta `main`, and atlas facts change only after an authorized merge |
-
-Retired here (`9fe3a9f`): the Kotlin aliases `MonitorZoomStops` (deprecated while adapters switched
-to `MonitorZoomTapStops`) and `DjiConnectionRoute`, unused in OpenCine, in the three apps and at
-their registered refs.
-
-## OpenPocketCine
-
-| Item | Verdict |
-|---|---|
-| `Package.swift` products `OpenPocketViewCore` (with `@_exported` OpenCineDJI, OpenCineMedia, OpenCineMotion, OpenCineRelay) and `OpenPocketCineAndroid` (`libOpenPocketCineAndroid.so`) | app composition; the library name is a brand wire format |
-| `Sources/OpenPocketCineAndroidFacade`: `SwiftCoreJNI.swift` exports `Java_com_opencapture_openpocketcine_bridge_SwiftCore_*` (`coreVersion`, LUT packing, false-colour paint and weight, feed assist scalars), `FeedEffectsWire.swift`, `LUTLibraryWire.swift` | brand wire format; `FeedEffectsWire`'s false-colour lattice is main parity until a portable owner exists (follow-up P-3) |
-| Android SharedPreferences names `openpocketcine.*`, iOS keychain services `com.opencapture.openpocketcine.*` and `OpenPocketCine.frameio`, legacy value migrations (keep-screen-awake, clip shot colours, LUT selection, feed upscaler raw values, `SavedCamerasStore.Legacy`) | brand wire format |
-| iOS `CameraSession` composition and its projections (`sessionRecovery`, `legacyConnectionRunError`, `DjiAppleTransportHost.pocket`, `LiveAssistEngine`, `LiveLUTResolver`, inspector renderer init) | app composition or main parity |
-| `AppRoot.liveOperatorPanel` (projects `shell.cover` for native panels) | app composition; follow-up P-6 when the panels read the shell cover directly |
-| `Sources/OpenPocketViewCore` DJI twins with no Swift owner: `LiveChromeThrottle`, `GamepadOperator`, `SavedCamera` (`CameraConnectionSetup`, `CameraWifiResolution`, `FoundCameraIdentity`), `SessionRecoveryCopy` | main parity; follow-up P-2 (`ConnectionPhase` is now OpenCineCameraVocabulary's `CameraConnectionPhase`) |
-| `PlaybackVideoLayout`, `GimbalStickLuma`, `ExposureMeterReading`, `CameraWiFiQRCode`, `PlaybackAudio.AudioLevelTapBox`, `rememberPlaybackMonitorGlass`, `GlassChrome`, `CameraMedia.cacheEntries` | main parity |
-| Theme forwarders `BrandColors`, `OpcFonts`, `LiveType`, `LiveDesign` (brand tokens mixed with `MonitorPalette`/`MonitorTypography` pass-throughs) | app composition; the mixed tokens stay in the app. P-1 retired the identity aliases and left these |
-| Typealias bridges to shared types: 191 on the union (Swift and Kotlin) | see "Retired here"; the remaining heavy aliases were follow-up P-1 and are now retired |
-| Release and staging scripts | Done in X-2. OpenCine `scripts/` owns Swift Android staging, the checkout bootstrap, and the Pocket/Insta tester-note checks. Each app keeps a matching `checkout-opencine.sh` because that script runs before the pin exists, plus a thin wrapper for the scripts it calls. Nikon keeps its own TestFlight note contract. |
-| Source sync | none: Pocket was the donor and never carried sync tooling |
-
-Retired here (`2216acb5`, production about -1,500 lines net):
-
-- Dead code: `ios/OpenPocketCine/FeedSuperResolution.swift` (694 lines, a copy of
-  `MonitorSuperResolutionScaler` with no caller since `299fad83`), the facade's unused JSON helpers and
-  its private copy of `javaFloatArray` (`OpenCineJNISupport` has the public one), Swift and Kotlin
-  `PlaybackFrameTap`.
-- JNI, both sides in step: exports `hevcCsd`, `hevcNalTypes`, `hevcIsKeyframe`, `validateImportedLut` and
-  `conformPreviewJSON` with their `external fun`s and the helpers only they reached. `llvm-nm` of
-  `libOpenPocketCineAndroid.so` lists exactly the six remaining `SwiftCore` exports; the 30
-  `DjiNative` exports are unchanged.
-- Copies and forwarders: the Android `ConformPreview` copy (callers use `MonitorConformPreview`; the
-  file keeps `PlaybackVideoLayout`), the `NDFilterRecommendation` forwarder and its two aliases (the
-  app passes its dash label to `MonitorNDFilterRecommendation`), 16 identity adapters in
-  `OperatorSetup.kt`, `OperatorHaptics.kt`, `MonitorPageScaffold.kt`, `LiveTypeDesign`, the
-  `AnamorphicDesqueeze` forwarders.
-- Aliases: 94 of the 191 (no reference, test-only, used only in their own file, or same-name
-  re-exports); six alias-only files deleted.
-- Docs: `AGENTS.md`, `ANDROID.md`, `docs/ARCHITECTURE.md`, `docs/diagnostics.md`,
-  `docs/feed-watchdog.md`, `docs/SHARED-MONITOR-ENGINE.md` and seven handbook protocol and device pages
-  point at the current OpenCine owners.
-
-## OpenInstaCine
-
-| Item | Verdict |
-|---|---|
-| Source sync from OpenPocketCine (scripts, overlay helper, just recipe, stamp) | retired before this lane (`705d316`, `67c4250`); the iOS and Android shells are app-owned code on the shared shell, no longer synced |
-| `docs/implementation/baseline-provenance.json`, attribution in NOTICE, THIRD-PARTY-NOTICES and `LegalScreens` ("adapted from OpenPocketCine") | stay (licence provenance and history) |
-| `Package.swift` products `OpenInstaViewCore` and `OpenInstaCineAndroid`, monitor package `com.opencapture.openinstacine.monitor`, Gradle `openinstacine.versionCode`/`versionName` | follow-up I-6 done (`65fccf6`). Saved preference names, keychain services, paths, and `com.opencapture.openpocketcine.feed.OpcVulkan` stay. |
-| `Sources/OpenInstaCineAndroidFacade` live exports (`coreVersion`, LUT packing, false-colour paint and weight, feed assist scalars) | brand wire format |
-| JNI exports `cameraSoftAPDecision` and `conformPreviewJSON` | follow-up I-5 done on Insta: the app no longer names either symbol. The DJI Android owner still exports `cameraSoftAPDecision` for Pocket and is not this lane's deletion. |
-| `Sources/OpenInstaViewCore` | follow-up I-2 done: 172 lines, re-exports of the shared vocabulary, media, motion and relay, plus the `ConnectionPhase` typealias and the bundled I-Log curve. No DJI wire parsers remain. The module was renamed in I-6. |
-| Byte copies of DJI owners that Luna reaches: `ExposureLock`, `FacePriorityExposure`, `GamepadOperator` (both platforms), `FaceDetectFlight`, `VirtualJoystickMapping`, `GimbalStickTouchMapping`, `CamFov` zoom stops, `PrivacyRedactor`, `CameraWifiCredentialStore` | follow-up I-3 done. Vocabulary or media owns the named types. `CameraWifiCredentialStore` behavior is on `Android/platform`. The Insta app and `Android/dji` keep thin facades that pin `preferencesName` and `keyAlias` to `openpocketcine.camera-wifi`. Those saved names stay out of platform. |
-| Reached DJI behavior: convert-log (`LogColorTransform`), `ClipColorProfile`, D-Log live calibrations, Kotlin `ApertureStrategy`, the debug Pocket 4 Pro reconnect | I-7. The first four stay. Convert-log rewrites export pixels and stores `com.dji.camera.ColorGammaSxS` (`MediaLogExportTests`). Playback reads that key before the Luna gamma fallback, so dropping `ClipColorProfile` changes a converted clip's look. Scope ceilings 223 and 247 still paint when a D-Log or D-Log2 monitoring look is selected (`LiveColorScienceTest`). Luna color modes are normal, iLog, and Dolby Vision, and aperture is hidden (`supportsAperture` is false, `layout.iris` is false), but `CaptureSetting.aperture` stays an exhaustive host case and `ApertureStrategy.label` still formats the quick control. The debug stress seam records `live` or `none` and does not reconnect a saved camera. |
-| iOS `CameraSession` quartet and `CameraMedia`, Android `PocketCameraSession` | app composition. Follow-up I-1, this slice: `SessionRecoveryDrive` in `OpenCineCameraVocabulary` and `camera-vocabulary` records the Insta iOS recovery decisions (admit, storm, generation, 2.5s card grace, attempts, budget). Insta iOS `CameraSession` calls it. Pocket stays on `DjiAppleRecoveryEpisode`. Android Insta's loop is unchanged. `LunaCameraSession` stays the brand command path. The rest of the shell stays in the app. |
-| Pocket-derived code with no OpenCine owner (reliability reporting and Sentry sinks, live chrome and capture sheets, assists views, Frame.io and delivery views, gimbal and head-track UI, watcher views, pairing permissions) | main parity; Sentry sinks are SDK adapters; follow-up I-4 (move area by area into MonitorUI/monitor-ui, OpenCineAppKit/appkit, OpenCineApple, OpenCineRelayApple) |
-| Multiview stubs and constant-false branches | retired in follow-up I-8 (Insta `24ff364`); the gimbal-limit pulse is live (Luna gimbal status field 92 and notification 8302 drive it) and stays |
-
-Retired here (`32caba6`, production -1,905 lines net; the eight `SwiftCore` JNI exports are
-unchanged and match their `external fun`s):
-
-- DJI code the Luna build never reaches: `Commands.swift`, `DumlFrame.swift` and `CameraParam`, the empty
-  `EncoderPresentPath+DJI` and `Hevc+DJI` extensions, `MultiviewRecovery` and the facade's unread
-  watchdog and recovery stores, the `CamAudioStatus` parser, `CameraSoftAPSwitch`, `SharedWiFiPath` and
-  all of `WiFiJoiner` except `leave(ssid:)`, the bundled Pocket and DJI LUT loaders (only the Luna cube
-  ships), 106 unreferenced `CameraCommands.kt` members (DUML builders and constants), the multiview
-  control lease and the never-passed `controlLease` and `borrowing` parameters, `multiviewAutoLut`,
-  `SettingsHelpCopy.PROTOCOL`, `LiveLockButton`, `ScopeMonitorLook` with `ScopeSampler.monitorCube`.
-- Forwarders and aliases: the `AudioLevelMeter` names (callers use `MonitorAudioMeterLevels`), the
-  `NDFilterRecommendation` forwarder (the dash label is passed explicitly), three motion forwarders, the
-  two-argument `WatcherRelayJoin.hostAccepts`, the `LUTLibraryWire` import validation reached by no
-  export, the Frame.io alias files, `MonitorPageScaffold`, the dead and small iOS aliases and 54 Kotlin
-  aliases.
-- Source-sync leftovers: the `openpocketcine-provenance.json` stamp, `tools/analyze-live-log.py` and
-  `tools/pull-control-log.sh` (Pocket copies; the latter pulled Pocket's container), the Gradle input
-  for the missing `Adapters/OsmoCompatibility`, duplicate `ios/project.yml` keys.
-- Docs: `README.md`, `docs/DEVELOPMENT.md`, `docs/implementation/` (architecture, OpenCine integration,
-  Apple session and adapter review, Luna iOS status, shared-core extraction), the handbook app and
-  device pages and `.github/labels.yml` describe app-owned shells on the shared OpenCine shell, no longer
-  synced from OpenPocketCine (I-6 documentation clause). Dated history entries stay as history.
-
-Still to do from the same sweep: 12 Kotlin aliases that instrumented tests use and
-`FalseColorReferencePositions` (used by the UI review host) wait for their test owners.
-
-## OpenZCine
-
-| Item | Verdict |
-|---|---|
-| Monitor slots | no whole-screen slot remains: iOS `NikonMonitorShell` and Android `MonitorScreen` mount the shared monitor through bounded slots; the Android `MonitorShell` placeholder is retired (Pocket mounts its monitor with no core gate) |
-| Compatibility projection | none: the panels read the shared control model's pending targets at read time (iOS) and the shared `MonitorFieldLayout` directly (Android); retired by the nikon-z1 lane |
-| Native runtime | no duplicate: the app ships no shader, SPIR-V or native code and loads OpenCine's assets; `scripts/check-gles-shaders.sh` lints those shaders and the OpenZCine recipe calls it |
-| Test-only frozen donors (`:frozen-vulkan-donor`, `FrozenNikon*`, parity tests, about 4,700 lines) | stay until the Z-3 parity checkpoint closes |
-| `Sources/OpenZCineAndroidFacade` (25 exports `Java_com_opencapture_openzcine_bridge_SwiftCore_*`, Frame.io, LUT, scope, playback-audio and feed-effects wires), `AndroidLiveViewPolicyWire` | brand wire format; the dead export `feedEffectsScalars` and the ignored policy parameters are follow-up Z-4 (both sides in step) |
-| Monitor relay (`_openzcine-mon._tcp`, version 2, JPEG and HEVC), watch wire (`WatchRelayProtocolV1.json` with the Wear twin), Kotlin `core-api` relay types | brand wire format; converging on OpenCineRelay/OpenCineWatch is follow-up Z-5 |
-| Saved keys and credentials (`NativeCameraConnectionStore` rebrand migration, `CameraWiFiCredentialStore`, assist and scope storage keys) | brand wire format |
-| Discovery: `NativeCameraDiscovery`, `InfrastructureCameraFinder` (iOS), Kotlin discovery adapters | SDK adapter and Nikon feature (passive discovery); follow-up Z-6 (an Apple Nikon integration target) |
-| Android `diagnostics/SentryReliabilitySink.kt` and `OkHttpManualReportUpload.kt` (Pocket's two files with only the package changed; Insta carries the same copy), with Pocket's `sentry-android` and `okhttp` versions | SDK adapter: OpenCine takes no third-party package, so the Sentry and OkHttp adapters stay per app |
-| Android diagnostics journal: `DiagnosticEventStore` (closed event vocabulary; `events.log` and `connect-trace.log` formats), the share report renderer and the historical exit reader | Nikon feature and saved data: only closed codes reach a report, and no shared owner keeps a closed vocabulary or these files (OpenCine `DiagnosticJournal` is a free-form in-memory ring). The problem-report text already goes through the shared `BoundedDiagnosticFormatter`, `ManualProblemReport` and incident runtime; Nikon iOS keeps its journal too |
-| Nikon calibration and policy (`ExposureScale`, `FalseColor`, `FocusAssist`, `TrafficLightsMeter`, `MonitorLUT`, RED LUTs, `ThermalLoadPolicy`, `MonitorChrome` DISP modes, MF drive, photography) | Nikon feature |
-| Kept app copies of shared owners: `OpenZCineCore.MonitorAssistTool` (the shared enum lacks PLAY and MAG, titles differ, not `Codable`), the horizon line (Nikon feature, no shared equivalent; the level gauge is the shared `MonitorLevelOverlay`), `MovablePanel` for the audio and false-colour panels (the shared panel always draws a resize grip; Android draws both on the shared `MonitorMovableScopePanel` with the shared ruler and meter), Android `FrameRateSampler` (reads READY where the shared one reads 0.00), Android `SelectionHeader` (small gain), glass chrome (different rendering technology), Android media browser composition (header, selection header, filter dialog, storage-slot cards and portrait band already sit on the monitor-ui page owners; camera-controls `MediaLibraryPage` would need six parameters and leave 15 of its 18 actions as no-ops; Nikon iOS keeps its browser composition too), still-viewer and live-feed pinch zoom on both platforms (`MonitorPlaybackZoom` resets its pan baseline when either gesture ends, so a pinch that ends mid-drag jumps; the Android live feed also zooms to 8x), Android playback audio meter ballistics (stepped through the Swift JNI wire with the same constants as `MonitorAudioMeterBallistics`), the Android Frame.io account row (its switching-networks state, sign-in over internet, retry and error line would need four more parameters on monitor-ui `MonitorAccountSettings`) | Nikon feature or follow-up Z-2, reason per item |
-| Android Operator Settings composition (`OperatorSettingsScreen`; its cards already sit on the monitor-ui settings owners, the card resets on appkit `MonitorAssistState.resetSettings`) | follow-up Z-7: camera-controls `OperatorSetupScreen` would need about 20 parameters and whole-tab replacements; Display needs DISP 3 and a capture side that appkit `MonitorDisplayMode` and `chrome()` lack; Storage keeps Nikon's purge result |
-| `RelayBitrateAdaptation`, `RelayControlLease` | follow-up Z-5 (iOS has no OpenCineRelay link, Kotlin no shared owner) |
-| Android media owners: two `MediaCacheStore` instances, the share intent, the listing checkpoint | follow-up Z-3: one cache instance changes transfer reader/writer wake-up (needs a hardware run); the shared share API would grow; the checkpoint's census tests are its only unit coverage, so they move to the shared codec first |
-| Source sync | none |
-
-Retired here (`fbbbd705`, `4f11941d`, `5c8bda63`, production -364 lines net):
-
-- iOS: the `LiveFeedNoiseFilter`, `PlaybackAudioMeterController` and `ConformPreview` aliases, the
-  `CubeLUTParseError` re-export, the legacy `MediaLUT.export(baseName:)` overload and four
-  `MonitorMovieFile` forwarders, `MetalFeedFrameBaker` and `LiveFrameRenderer` forwarders,
-  `FrameSampling`, the `FeedUpscaler` super-resolution copies, the `OperatorSettingsTab` alias, the
-  app copy of `PortraitFeedAspect` (now re-exported from OpenCineMedia: same cases, raw values and
-  `Codable`), and the `Magnification` enum of the retired MAG tool (its one call always returned
-  `false`; the saved magnification setting stays).
-- Android: `VulkanLiveFeedNative` (not a JNI class), unused `ZoneStyle` constants, the deprecated
-  `fromFailurePhase`, `drainPeaks`, the `FrameioLutPayload`, `MediaExportContainer` and
-  `LiveFramePreviewBaker` aliases, `FramePacing.kt`, the `MediaClips` forwarder.
-- Tooling: `scripts/check-vulkan-shaders.sh` (the recipe calls OpenCine's script directly).
-- Tests: `Tests/OpenZCineCoreTests/MediaFilterDerivationTests.swift`, the same 18 cases as OpenCine's
-  `NikonMediaFilterDerivationTests` run through the app's legacy alias names.
-
-Retired by the nikon-z1 lane (OpenZCine `8bef53c3`, `9010d9d2`, `5e175fa8`, `82acde96`, `d41a253f`; OpenCine `6dd6dd4`):
-
-- Z-1, iOS: `makeShellModel`'s write-back of the control's pending edits and reported recording into
-  `CameraDisplayState`; the command grid, side column, values bar and picker read the pending target
-  over the report (`NativeAppModel.shownCameraValues`). Recording stays camera-authoritative.
-- Z-1, Android: `bridge/MonitorZones.kt` (`MonitorZones`, `ZoneStyle`, `ZoneFrame`); its consumers take
-  `MonitorFieldLayout` and `MonitorRect`. The `MonitorShell` placeholder and its core gate; the three scope
-  helpers that called the core unguarded now fail closed like every other core call.
-- Z-7: `AnchoredPinchZoom` (the shared `MonitorPlaybackZoom`'s unbounded API line for line) and the Android
-  `JpegFrameDecoder` forwarder (callers pass the Nikon 1024 cap to `MonitorJpegFrameDecoder`).
-- Z-2 (part): the `FrameRateSampler` re-export, the `FrameScopeSampler` wrapper of
-  `MonitorUIImageScopeSampler`, and Android `AndroidBatteryReadout` (appkit's `rememberPhoneBatteryReadout`;
-  its mapping test moved to `PhoneBatteryReadoutTest`).
-
-Retired by the nikon-z1 lane, round 2 (OpenZCine `1313f77f`, `5cf86817`, `ec3381b7`, `f6135ef1`, `9b0afd04`,
-`b6a60447`, `47ce0974`, `e63a37d4`; OpenCine `b874e0b`, `75217b2`; OpenPocketCine `9325d8b3`; OpenInstaCine `cee4769`):
-
-- Z-2, aliases: every app alias over a shared type (Swift media filter names, `StreamPreset` and
-  `QualityBias`, the audio meter aliases, `StoredLUT`; Kotlin settings, effects, Frame.io and media
-  aliases). The meter and stored-LUT types are re-exported from OpenZCineCore (`@_exported import`), so
-  the Watch app and the JNI facade keep one import; raw values, `Codable` keys and wire bytes are unchanged.
-- Z-2, owners: `FeedUpscaler` (`MonitorUpscaler`), `StoredLUT` and the folder index (`StoredCustomLUT`,
-  `CustomLUTIndex`), `SettingsDashScale` (`MonitorLinkHealthScale`), `GlassChoice`, the Android
-  `MonitorPickerAnchor` and the gallery album path (`MediaStoreInsertPolicy`).
-- Z-3, iOS: `MediaBrowserView` renders the shared `MonitorMediaCatalog`. Nikon keeps its media features
-  through additive slots with empty defaults (card-slot cards in the landscape sidebar, the caching bar
-  under the header, burst count, RAW+J, EXPORTED and caching badges on `MonitorMediaItem`); opening,
-  sharing, caching and deleting stay Nikon's. Pocket and Insta use the shared `MonitorCatalogFilterButton`
-  (their identical copies are gone) and render pixel-identically. `MonitorCatalogHeader` and the
-  app-hosted `MonitorMediaSelectionHost` lost their only caller and are removed from OpenCine.
-- Tests: Nikon's `AudioLevelMeterTests.swift` (its three missing cases moved into
-  `MonitorAudioMeterBallisticsTests`) and two LUT tests duplicated by OpenCine `CubeLUTTests`.
-
-## Kept copies (dupes-final)
-
-Pocket and Insta still each hold these copies. The reason is the owner boundary.
-
-| Copy | Reason |
-|---|---|
-| Kotlin and Swift `SentryReliabilitySink`, Kotlin `OkHttpManualReportUpload`, and their reliability tests (`ReliabilityReportingTest`, `ReliabilityTransportRetryTest`, the Sentry cases in `ReliabilityReportingTests.swift`) | SDK adapters. OpenCine takes no third-party dependency |
-| Android `MonitorBackdropFeed` | App composition: binds native-runtime, monitor-ui and the app Media3 backend. No OpenCine module may see both native-runtime and Compose UI |
-| Android `Media3GlBackend` | SDK adapter (Media3) |
-| Android `DiscoveryPermissions` | App composition: the saved-denials preferences file and the app log |
-| Android `BackdropRenderActivity` | Debug host for the apps' instrumented tests. monitor-ui keeps `MonitorBackdropRenderActivity` for the shared material tests |
-| Android `GpuOverlayBus` (`onSlotsMoved`, `LocalGpuLive`) | App composition. The unread slot rects and plate map were deleted. The callback stays with the app's `LiveVulkanSession` |
-| Android `MonitorMotionInputTest` | The instrumented setup launches the app activity and `AppModel`, which is more than a fake gimbal host |
-| Android `LiveLevelOverlayTest` | Pocket draws its own level overlay and Insta delegates to monitor-ui. The test pins each app's label and mapping |
-| Android `SettingsPaletteTest` | App settings palette, no shared owner |
-| Android `AppVulkanCrashGuardTest` | Pins the app's guard preferences name. The guard itself is tested in native-runtime |
-| iOS `AppModel+Watcher`, `AudioMeterOverlay`, `ZebraAssist`, `WatcherWiFiCodeView`, `ControlLiveLog` | App composition over the app model, session and log |
-| iOS `AndroidSessionWire`, `WatcherRelayKeychain` | Brand wire format (JNI core version, keychain service name) |
-| iOS watcher connection, navigation and presentation tests; virtual joystick preference tests; media review tests; system chrome tests | Each pins an app value: relay client, preference keys, cache paths, or Info.plist |
-| iOS `EncoderFormatChangeTests` other than present timing, the delivery staging-lease test, the readout status-chrome test, Pocket `MonitorLUTTests` and `HevcTestFixtures` | App decoder, coordinator wrapper, status chrome, or a bundled resource the other app does not ship |
-
-Kotlin `LiveAssistTool` and `OpcIcon`, and the assist type aliases beside them, now call the shared monitor-ui and media names. P-4 and I-4 stay open.
-
-## Follow-ups
-
-| Id | Repository | Item | Blocked by |
-|---|---|---|---|
-| O-1 | OpenCine, Pocket | Rename the Pocket-named DJI session types | add, migrate, remove across a release |
-| O-2 | OpenCine | `MonitorMediaLibraryModel` original constructor | apps calling it positionally |
-| O-3 | OpenCine | Atlas Insta `source-copy` edges, products and docs | the authorized merge of `integration/thin-app` |
-| P-1 | Pocket | Done: file-level identity aliases now use the shared names (`ChromeRect`, `PocketDispSection`, iOS `LiveImageEffects`, `FalseColorScaleKind`, `FoundCamera` as `DjiAppleSighting`, and the lighter bridges). Generic `AppModel` bindings, each view core's `ConnectionPhase`, and the mixed theme tokens stay | none |
-| P-2 | Pocket, Insta | Swift owners in OpenCineCameraVocabulary for the view-core twins (`CameraConnectionPhase`, `LiveViewLink`, `LiveFeedWarmup` moved; each view core keeps `ConnectionPhase` as a typealias); `WatchRelayState.snapshot` stays per app (the vocabulary takes no relay edge; only its wrist copy differs) | new shared owner |
-| P-3 | Pocket, Insta, Nikon | Portable false-colour lattice in OpenCineMedia | new shared owner |
-| P-4 | Pocket | Tracking-bracket geometry, number-pad input, playback pan, media path helpers, Kotlin `ClipColorProfile`, iOS reliability reporting, `FeedIncidentQueue` glue, `MediaSessionLink` | expose or extend shared owners |
-| P-5 | Pocket | `InspectorPreviewRenderer.kt` factory (used by an instrumented test) | an instrumented run |
-| P-6 | Pocket | `AppRoot.liveOperatorPanel` projection | shell cover API |
-| I-1 | Insta | Session shell stays in the app. `SessionRecoveryDrive` now owns the Insta iOS recovery decisions. Pocket's episode and the Android loop stay. | none for the drive; the rest of the shell waits on a host that can take it without changing a card |
-| I-2 | Insta | Done: view core re-exports `OpenCineCameraVocabulary` and defines none of the listed DJI types | none |
-| I-3 | Insta, OpenCine | Done. Store behavior is on `Android/platform`. Insta and `dji` facades pin the saved `openpocketcine.camera-wifi` alias and stay as the host values. | none |
-| I-4 | Insta | Pocket-derived areas into OpenCine | per-area moves |
-| I-5 | Insta | Done on Insta: no remaining `cameraSoftAPDecision` or `conformPreviewJSON` references. DJI Android still exports the first for Pocket. | none |
-| I-6 | Insta | Done (`65fccf6`): `OpenInstaViewCore`, `OpenInstaCineAndroid`, monitor package `com.opencapture.openinstacine.monitor`. Saved keys stay. `PocketCameraSession` was not renamed. | none |
-| I-7 | Insta | Convert-log, `ClipColorProfile`, D-Log live ceilings, and `ApertureStrategy` stay: removal changes an export pixel, stored gamma, a scope ceiling, or the shared capture case. The debug stress seam no longer reconnects a Pocket 4 Pro. | none |
-| Z-2 | Nikon | Kept app copies of shared owners | the reason named per item in the OpenZCine table |
-| Z-3 | Nikon | Android media owners | a hardware run for one cache instance; shared share API; census tests on the codec |
-| Z-4 | Nikon | `feedEffectsScalars`, ignored policy parameters | JNI export gate |
-| Z-5 | Nikon | Relay and watch wire convergence | wire version decision |
-| Z-6 | Nikon | Discovery into an Apple Nikon integration target | hardware-qualified reason |
-| Z-7 | Nikon | Android Operator Settings onto camera-controls `OperatorSetupScreen` | camera-controls moving its Assist and Display tabs onto the monitor-ui owners Nikon already uses (`MonitorViewAssistSettings`, `MonitorDisplaySettings`) |
-| Z-8 | Nikon (both platforms) | Edit view eyes for REC, the video clock and the lock button (configurable, but no eye on either platform) | a parity decision for both platforms; Android's shared `MonitorStatusChrome` already takes `recordingModifier` and `clockModifier` |
-| X-1 | Nikon, OpenCine | Done. `scripts/check-gles-shaders.sh` lives in OpenCine. The OpenZCine recipe calls it. | none |
-| X-2 | all apps | Done. Shared staging and Pocket/Insta tester-note scripts live in OpenCine `scripts/`. Each app's `checkout-opencine.sh` matches that copy because it runs before the pin exists. Nikon's TestFlight checker stays; its caps differ. | none |
-| X-3 | Pocket, Insta | Done. The probe calls `DjiNativeWire.statusJSON` in the sibling OpenCine package. Pocket audit links point at `LiveViewLink`, `Diagnostics`, `FeedWatchdog`, `CameraSoftAP`, and `DjiNativeWire`. Insta `architecture.md`, the UCD2 handbook page, and `luna-swift-protocol.md` name `../OpenCine` `Insta360Protocol`. | none |
+Historical removal provenance: shared `9fe3a9f` removed unused MonitorZoomStops/DjiConnectionRoute
+aliases; Pocket `2216acb5` removed dead scaler/JSON/JNI helpers, playback-frame taps and forwarding
+aliases; Insta `32caba6` removed unreachable DJI parsers/commands, unused transport/LUT/audio/
+multiview paths, forwarding aliases and source-sync leftovers; Nikon `fbbbd705`, `4f11941d`,
+`5c8bda63` removed dead renderer/scaler/alias/tooling copies. The nikon-z1 rounds (`8bef53c3`,
+`9010d9d2`, `5e175fa8`, `82acde96`, `d41a253f`, `1313f77f`, `5cf86817`, `ec3381b7`, `f6135ef1`,
+`9b0afd04`, `b6a60447`, `47ce0974`, `e63a37d4`) retired control writeback, zone/core-gate shells,
+unbounded zoom/decoder forwarders and old folder/catalog aliases. Their original source and
+assertions remain historical evidence; the current deep page/lifetime retirements are listed in
+[RETIRED-OWNERS.md](RETIRED-OWNERS.md).

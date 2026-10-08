@@ -5,12 +5,15 @@ How to build OpenPocketCine, OpenInstaCine and OpenZCine against OpenCine on
 on a real camera. Which app code moved where: [RETIRED-OWNERS.md](RETIRED-OWNERS.md); what the
 apps still keep and why: [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md).
 
-Status: candidate. Every check below passed only on simulators, emulators or in unit tests.
-**Nothing in this migration has run on a physical camera or phone**: the device run this guide
-describes is the first one.
+Status at the 2026-10-08 verification checkpoint: local candidate preparation. Recorded shared
+checks, all three apps' native/Android gates and original full template acceptance on both
+platforms pass within their recorded input scopes, with the known native skips listed below.
+The original coding ledger is 42/46 (91%). Final combined-source and installed-build binding
+and the remaining original UI/device matrix are pending. Earlier physical standby/navigation
+checks remain historical; the current combined migration is not yet hardware-qualified.
 
-Values shown as `FILL` are filled in by the coordinator after the final combined run
-(finish.matrix). Build exactly the revisions in [Revisions](#revisions-under-test).
+The coordinator binds final candidate commits and install results after the combined run
+(finish.matrix). Working HEADs below identify provenance, not the uncommitted source bytes.
 
 What counts as a regression:
 
@@ -35,35 +38,29 @@ Contents: [Revisions](#revisions-under-test) ·
 
 ## Revisions under test
 
-| Repository | `integration/thin-app` | Parity baseline (`main`) | Pinned OpenCine (`opencine-pins.txt`) |
+| Repository | Working HEAD, before uncommitted changes | Parity baseline (`main`) | Pinned OpenCine (`opencine-pins.txt`) |
 |---|---|---|---|
-| OpenCine | `FILL` | `d739bbdb` | |
-| OpenPocketCine | `FILL` | `27b15028` | `5d7c9ecd` (`FILL` commits behind) |
-| OpenInstaCine | `FILL` | `35b6f33b` | `400962e1` (`FILL` commits behind) |
-| OpenZCine | `FILL` | `9ac41387` (origin/main) | `400962e1` (`FILL` commits behind) |
+| OpenCine | `7a0d073150c181cad702ca1b3b749e6bb5ed37bd` | `d739bbdb` | |
+| OpenPocketCine | `55465f8a9b3a68a7663eb35fbb44869cfd4c5694` | `27b15028` | `5d7c9ecd` |
+| OpenInstaCine | `e5e6e5e5897b7254459d2aa666d4ca0b2071dbb7` | `35b6f33b` | `400962e1` |
+| OpenZCine | `61fc7109f9a3fc699d5f97f0f174bef17de1b55a` | `9ac41387` (origin/main) | `400962e1` |
 
-This revision of the guide was written against OpenCine `a7589fcf`, OpenPocketCine `f64d26a8`,
-OpenInstaCine `fc5e13b6` and OpenZCine `4d242db3` (2026-10-06). Still landing then: the
-insta-ios and insta-android lanes (Insta and Pocket code moving into OpenCine). Their final
-state: `FILL`. Nikon's baseline is `origin/main`: the local `main` (`f1ccfcfd`) is 9 commits
-behind and lacks the Android upright-picture fix (#382). Write down the four
-`git log -1 --format=%h` values of what you actually built in every report.
+The current automated checks use frozen actual consumer worktrees and source manifests under
+the coordinator's `CODEX-RESUME-20261007` evidence packet. These HEADs alone cannot reproduce
+those uncommitted inputs. Final candidate linkage is pending. Nikon's parity baseline is the
+recorded `origin/main` revision above; the older local `main` lacks Android upright-picture
+fix #382. Record all four final commits and installed build identities in every device report.
 
 The app pins are older than the shared code the apps now use and were not moved (a pin move
 needs the maintainer's approval). Always build against a sibling OpenCine checkout at
 `integration/thin-app`; `scripts/checkout-opencine.sh` then only warns
 `../OpenCine is at ..., pinned ...`, which is expected.
 
-Production lines ([counting rules](RETIRED-OWNERS.md#production-line-counts)), `main` to the
-revisions above:
-
-| Repository | `main` | `integration/thin-app` | Change |
-|---|---:|---:|---:|
-| OpenPocketCine | 172,466 | `FILL` | `FILL` |
-| OpenInstaCine | 174,997 | `FILL` | `FILL` |
-| OpenZCine | 190,396 | `FILL` | `FILL` |
-| OpenCine (shared) | 159,489 | `FILL` | `FILL` |
-| Everything | 697,348 | `FILL` | `FILL` |
+Production counts and their exclusions are recorded in
+[RETIRED-OWNERS.md](RETIRED-OWNERS.md#current-production-counts-candidate-wip).
+Its dated working-tree census includes nonignored new sources and excludes deleted files.
+Final commit counts are pending; line reduction alone does not qualify behavior or prove that
+an interface became simpler.
 
 ## 1. Set up
 
@@ -152,8 +149,11 @@ Keep the same team and bundle ID as your `main` build to test the upgrade path (
 | OpenInstaCine | `OpenInstaCine/ios` | `OpenInstaCine` | `OpenInstaCineWatch` | `com.opencapture.openinstacine` |
 | OpenZCine | `OpenZCine/ios` (`Runner.xcodeproj`) | `Runner` | `OpenZCineWatch` | `com.opencapture.openzcine` |
 
-Schemes ending in `UIReview` and anything labelled SIMULATED are developer-only and never talk
-to a camera. Bluetooth, Local Network and hotspot joins do not work in the Simulator.
+SIMULATED scenarios are developer-only. The dedicated opt-in physical qualification test also
+uses the Pocket/Insta `UIReview` schemes, with normal app launch and no simulated camera
+arguments; Nikon uses `RunnerPhysicalQualification`. Scheme names alone do not establish
+whether a run used a real camera. Bluetooth, Local Network and hotspot joins do not work in
+the Simulator.
 
 ### Android (all three apps)
 
@@ -227,7 +227,7 @@ Moved into shared code since the last revision of this guide, and the checks tha
 | Media browser on the shared catalog; Link Health scale; Feed Upscaler and custom LUT index | Nikon iOS | N11, C13, N5, C21 |
 | Phone battery readout | Nikon Android | C7 |
 | Multicam stage (finished) | Pocket, Nikon | P7, N14 |
-| insta-ios and insta-android final state | Pocket, Insta | `FILL` |
+| Playback, audio/scopes, settings, media and delivery owner consolidation | Pocket, Insta, both; Nikon typed native adapters | C10-C17; current complete consumer/device gates still required |
 
 ## 4. OpenPocketCine
 
@@ -528,21 +528,37 @@ them on hardware.
 
 ## 9. What is verified and what is not
 
-Supported: iOS 17+ (iPhone, iPad, Apple Watch) and Android 10+ arm64 (phone; Nikon also Wear
-OS). Status of every changed area: automated checks passed on simulators and emulators;
-**physical: untested**.
+Target platforms: iOS 17+ (iPhone, iPad, Apple Watch) and Android 10+ arm64 (phone; Nikon also
+Wear OS). The following table separates the current passing scopes from checks still pending.
+Current combined physical qualification remains untested.
 
-| Area | Verified by (final matrix) | Physical |
+| Area | Recorded checks and remaining qualification | Physical |
 |---|---|---|
-| OpenCine shared code | `swift test` `FILL`, Android unit `FILL`, monitor-ui instrumented `FILL`, strict concurrency, iOS builds of `MonitorUI` and `OpenCineApple`, Vulkan sync regression, atlas check | n/a |
-| OpenPocketCine | `swift test` `FILL`; iOS unit `FILL` and UI `FILL` on a private simulator; Android unit `FILL`, lint, debug and release APKs; Multiview instrumented `FILL`; watch build | untested |
-| OpenInstaCine | `swift test` `FILL`; iOS unit `FILL` and UI `FILL` on a private simulator; Android unit `FILL`, lint, instrumented `FILL`; watch build | untested |
-| OpenZCine | `swift test` `FILL`; iOS `FILL` XCTest + `FILL` Swift Testing on a private simulator; Android unit `FILL`, lint, APKs, instrumented `FILL`; watch build | untested |
-| Live picture, Metal and Vulkan | Simulator Metal and emulator SwiftShader only | untested on real GPUs |
+| OpenCine shared code | Final SDK Swift v2: 3,132 Swift Testing cases in 372 suites + 176 XCTest passed; final strict v2 passed. Both retained all 1,290 source guards after the current private immutable progress callback capture. Optimized shipping Release v3 passed for both simulator architectures; this is compile-only. Android v24: 2,221 cases, zero failures/errors, two known Core skips; test/lint/release passed, 343 raw XML files frozen. Vulkan sync passed. Atlas unit v3: 102 cases, one known skip; plain check passed. Latest shared iOS palette correction passed in Nikon native v15; final combined-source binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined operator flows |
+| OpenPocketCine | Portable v3: 76 cases and strict passed. Native v4: 580 cases, 579 passed, one original no-tree accessibility skip, zero failures; arm64/x86_64 products. Android v6: 233 cases, 44 raw XML files, zero failures/errors/skips; test/lint/debug/release/instrumentation compilation and Swift staging passed. Repository v2 and APK/JNI linkage passed. Original installed Android native matrix: 21 passed; original iOS MultiviewUIFlowTests: five passed, zero failure/skip. Focused original AX v1/v2 each reached the original no-tree skip (0 passed/0 failed/1 skipped); its VoiceOver assertions remain untested; final source/install binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined candidate |
+| OpenInstaCine | Portable v2: 60 cases and strict passed; repository v2 passed. Native v13: 403 cases, 402 passed, one original accessibility-service skip, zero failures; arm64/x86_64 products. Android v8: 207 cases, 40 raw XML files, zero failures/errors/skips; test/lint/debug/release/instrumentation compilation and Swift staging passed. Whole original decoded-movie v4, metadata v2 and pointer-cancel v1 passed on the emulator; current APK/JNI/assets linkage passed. Final source/install binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined candidate |
+| OpenZCine | Portable v1: 404 tests in 23 suites and strict passed. Android v5: 897 cases, 114 raw XML files, zero failures/errors/skips; test/lint/debug/release/Wear/instrumentation compilation and Swift staging passed. Original real-accessibility-service six v2 passed 6/0/0. Full native v15: 390 cases, 388 passed, two known skips, zero failures; arm64/x86_64 products. Current APK/AAB/staging/DEX/JNI linkage v5 passed (`5a13191a`): 99 debug/81 release production native DEX methods, 18 unused Vulkan methods pruned by existing R8 rules, all 99 production native exports retained; final source/install binding [PENDING: FINAL_SOURCE_MATRIX] | untested for current combined candidate |
+| Live picture, Metal and Vulkan | Simulator Metal and emulator EGL only. Original Pocket GPU oracle passed one test with 27 pixel comparisons (nine plans by three odd sizes) | untested on real GPUs |
 | Bluetooth, Wi-Fi join, hotspot, USB, PTP, UVC | Unit tests with fakes; not possible on simulators | untested |
-| Multiview and Multicam with 2 to 4 cameras | Simulated scenarios on the shared engine | untested |
+| Multiview and Multicam with 2 to 4 cameras | Existing shared control/lease/admission scenarios are SIMULATED. Original Pocket installed Android 21-case matrix passed, including four synthetic native Surface pictures. Original iOS MultiviewUIFlowTests passed five/zero failure/skip with existing default3/explicit4/one-capability inputs | real peer performance and hardware untested |
 | AirPods head tracking, Apple Watch, Wear OS | Unit tests and watch builds | untested |
-| VoiceOver, TalkBack | Accessibility-tree tests on the simulator (iOS); TalkBack not run | untested on a device |
+| VoiceOver, TalkBack | Original Nikon native accessibility/action/pixel six passed with the real simulator accessibility service; full native v15 passed. Insta's full native receipt retains its original accessibility-service skip. Pocket focused AX v1/v2 both retain the original no-tree skip with the real service enabled; v2 includes the two-fragment scene registration/restoration setup correction. Pocket's original picker/zoom/cover VoiceOver assertions did not execute. TalkBack not run | untested on a device |
+
+Each result qualifies its recorded input and platform scope. Nikon's two native skips are the
+absent reference-proxy sample and the simulator VideoToolbox refusal of a real ZR JPEG frame.
+Insta's whole movie checks actual Media3/GLES decoding of the original cached moving MP4s with a
+SIMULATED catalogue; its eventual B-pixel assertion does not inject transient old-A buffers.
+The Pocket 2/4 matrix separates command/lease membership from picture rendering: its four
+retained Surface hosts use synthetic pixels, and native metadata/prepare tests use SIMULATED
+observations. No existing exact two-decoded-picture installed selector is claimed or newly
+required. These results do not qualify camera decoding, real two/four-peer performance or hardware.
+
+Latest recorded physical readiness, 2026-10-08 10:09 CEST: the paired iPhone is unlocked
+(`passcodeRequired=false`, lock-state v4); the Android phone remains detached. No current combined
+physical result exists. Keep-unlocked and powered/lit Osmo Pocket, Luna Ultra and Nikon ZR
+readiness and the original device flows remain to qualify. Historical standby/navigation
+results remain scoped to their original assertions. The opt-in real-camera driver is prepared;
+it has no current passing device receipt.
 
 Decisions for you after the device run:
 
@@ -561,8 +577,16 @@ Known open items at this revision:
 
 - App pins are stale (see [Revisions](#revisions-under-test)); a CI checkout of an app at
   `integration/thin-app` would fetch the old pin and fail to compile.
-- insta-ios and insta-android: `FILL`.
-- Pocket and Insta parity lane: `FILL`.
+- All three recorded native/Android consumer gates now pass at their own inputs with the
+  known native skips above. Final combined-source qualification [PENDING: FINAL_SOURCE_MATRIX].
+- Full generated template v3 passed all original eight contracts plus three installed cases
+  on each platform, with zero failures/skips (combined receipt `b9843798`). Camera data is
+  SIMULATED; native decoding and installed operator/lifetime/persistence/isolation checks passed.
+  The original Pocket iOS AX case retains its known no-tree skip; its VoiceOver assertions and
+  current physical-device qualification remain untested.
+- Final local candidate commits/content manifests, source counts, normalized duplication exit
+  and installed-build binding [PENDING: FINAL_CANDIDATE_BINDING]. The existing PD/ID parity rows
+  retain their dated, scoped status; the common and camera checklists are unchanged.
 
 ## 10. Report a regression
 
@@ -579,14 +603,13 @@ an issue only in an app's own panel belongs in that app.
 
 ## 11. Refresh this guide
 
-1. Replace every `FILL` (`grep -n FILL docs/testing/TESTER-GUIDE.md`): the revisions
-   (`git -C <repo> rev-parse --short=8 integration/thin-app` in all four), the pin columns (or
-   remove them once pins move), the line counts (method in
-   [RETIRED-OWNERS.md](RETIRED-OWNERS.md#production-line-counts)), the section 9 counts from
-   the final combined run (finish.matrix), and the open items.
+1. Bind all four final candidate commits and content manifests. Record the unchanged pins
+   separately until an authorized pin move occurs. Refresh production counts using the
+   documented exclusions in [RETIRED-OWNERS.md](RETIRED-OWNERS.md), and replace section 9
+   pending entries only with their exact current-source results (finish.matrix).
 2. Update the Status of the PD and ID rows as the parity lane restores or decides each one
    (its brief lists every row with the app doc lines); drop a row once restored and checked.
 3. Record what insta-ios and insta-android moved last in the "Moved into shared code" table.
-4. Rerun the refresh commands in [RETIRED-OWNERS.md](RETIRED-OWNERS.md#refresh) and update its
-   tables and [Not retired yet](RETIRED-OWNERS.md#not-retired-yet).
+4. Refresh the source and caller inventory in [RETIRED-OWNERS.md](RETIRED-OWNERS.md) and
+   [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md). Keep historical snapshots dated.
 5. Add checks for anything new the lanes ship.

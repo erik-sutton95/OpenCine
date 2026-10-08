@@ -1,14 +1,136 @@
 # Retired app owners (thin-app migration)
 
-Which app-owned code moved to which OpenCine owner on `integration/thin-app`, with the commits
-that did it, and how much production code each app still carries. Companion of the
-[tester guide](TESTER-GUIDE.md): a row here is where a regression in that area would come from.
+Which actual app implementations now use shared OpenCine owners, what remains in the apps, and
+how much source each repository carries. Companion of [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md)
+and [TESTER-GUIDE.md](TESTER-GUIDE.md).
 
-Status: candidate. Automated checks passed on simulators and emulators; physical hardware is
-untested on every changed platform. Several lanes are still landing (see
-[Not retired yet](#not-retired-yet)), so the revisions and counts below are a snapshot.
+Updated 2026-10-08. Status: candidate implementation in task-owned worktrees. Source retirement,
+automated checks, actual-consumer checks and physical qualification are separate states. No final
+candidate revision, pin move, integration, release or checkpoint closure is asserted here.
 
-## Snapshot
+## Current source ownership
+
+These are adopted owners, rather than interfaces awaiting an app caller. Capture identifiers name
+immutable coordinator source packets; they are evidence references, not Git commits. Later finite
+compiler and reentry corrections remain separately captured. Original tests and pixel/native
+oracles remain qualification inputs.
+
+| Retired app owner or recipe | Shared owner and actual adapters | Frozen source evidence | State |
+|---|---|---|---|
+| Pocket/Insta model-name control policy, duplicated labels/lists, invented unknown FORMAT and unsupported audio pages | CameraVocabulary capture/label/LUT profiles and CameraControls; DJI and Luna supply their own values and optional services through actual Swift/Kotlin control hosts | `wave-2-source-boundary`, `wave-2-inference-and-declaration-correction`; integration compatibility corrections separate | Implemented; combined shared checks passed; actual camera behavior untested |
+| Insta countdown, pause/resume, looping and streamed programmed-move lifecycle | Motion timeline/session in Swift, mirrored pure Core motion and AppKit coroutine session in Kotlin; `CameraSessionControls.swift` and `session/PocketCameraSession.kt` retain bounded Luna angle/zoom/wire adapters | `wave-3-motion-full-source-capture`, `wave-3-motion-predicate-reentry-source-capture` | Implemented; recorded manual-clock red/green and shared checks passed; native/physical motion qualification separate |
+| Pocket media acquisition, download scheduling and return-to-live authority; duplicate progressive cache policy | Existing Library host IO, Media return session, cache and progressive reader/writer; `CameraMedia.swift`, `MediaLibraryController.kt` and Nikon identity/storage adapters retain actual addresses and source services | `wave-3-media-scheduling-source-capture`, `wave-3-progressive-cache-source-capture` | Implemented; shared IO/lifetime checks passed; camera transfer/recovery qualification separate |
+| App-packed false-color lattice and common color/transfer math | Media `MonitorFalseColorLattice` and typed source color values; actual P/I JNI facades and Pocket look baking delegate; Nikon retains its calibration facts | `wave-2-source-boundary`, `wave-5-transfer-inference-source-capture` | Implemented; positive golden fixtures retained; shared checks passed; actual native/physical effects separate |
+| P/I and Nikon catalog/filter/calendar/selection/delete page recipes | AppKit Library/Gallery/Deletion and CameraControls `MonitorOperatorCatalogScreen`; actual `MediaLibraryStub`/`MediaLibraryScreen` and Nikon `MediaBrowser`/`MediaBrowseScreen` supply records, access, storage and native thumbnails | `wave-4-production-catalog-source-capture`, `wave-5-complete-nikon-catalog-source-capture`, accepted-deletion follow-ups | Implemented; current shared checks passed; current complete consumer flows remain to bind |
+| Copied photo page/loading/variant/rating/filmstrip recipes | Existing Picture/Gallery owners and `MonitorOperatorPhotoScreen`; original/thumbnail IO stays on Library with captured bounded source ports; native decoding is an app leaf | `wave-5-production-photo-owner-source-capture`, `wave-5-original-image-io-owner-source-capture`, `wave-5-complete-nikon-photo-source-capture24`, `wave-4-raw-thumbnail-owner-source-capture` | Implemented; current shared checks passed; native decoder/consumer/physical scopes separate |
+| P/I and Nikon player preparation, adjacent-item, controls, effects/scopes, audio and action lifetime recipes | AppKit `MonitorOperatorMediaModel`/Playback/Scope owners, CameraControls `MonitorOperatorPlaybackScreen`, Apple native assist/audio and Android native sampling; actual P/I `MediaPlayer`/`MediaPlaybackScreens` and Nikon `MediaBrowser`/`MediaPlaybackScreen` keep real native picture/source ports | `wave-5-full-playback-source-capture`, `wave-5-complete-nikon-ios-player-source-capture28`, later Nikon Kotlin/cleanup captures, `wave-6c-rating-predicate-reentry-source-capture4` | Implemented; combined shared and scoped native checks passed; complete app/device flows separate |
+| P/I and Nikon delivery page/preparation/batch/consent/cancel recipes and copied Photos helper | Existing Delivery/Library and FrameIO owners, common delivery screen and AppKitApple Photos adapter; real native export, credentials, route/hop and provider content remain bounded app ports | `wave-5-delivery-owner-source-capture`, neutral naming follow-up, `wave-6b1-delivery-contract-source-capture15` and subsequent native/adopted-lease captures | Implemented; current shared checks passed; actual destinations and physical route/export flows untested |
+| Copied watcher connection, reconnect/framing/freshness/control timeout and complete P/I screen/tool assembly | One RelayAppleClient transport/clock with typed watcher policy; Relay watcher values, AppKitApple `MonitorWatcherSource`, CameraControls `MonitorOperatorWatcherScreen`; P/I clients are native/color factories. Nikon Android uses common watcher overlay; no absent P/I Android feature was added | `wave-6-complete-watcher-source-capture22`, tap captures and finite wiring/compile corrections | Implemented; shared policy/tap tests passed; current app transport/native/physical qualification separate |
+| Wrist transport/control/publication and broadcaster/nearby composition copies | Existing Relay/Watch and Apple/Android runtime owners; app aliases preserve distinct deployed monitor/watch schemas, native frames and captured command receipts | `wave-3-apple-watch-runtime-source-capture`, Android wrist/socket captures, `wave-4-unified-apple-relay-host-source-capture`, `wave-5-android-broadcaster-owner-source-capture` | Implemented; recorded shared/native checks passed; actual paired wrist/network hardware untested |
+| P/I native backdrop queue/cache/look/raster producer and duplicated visible lifecycle | Apple raster producer, Media immutable mirrored values, AppKitApple visible owner; all actual live/watch/multiview/playback builders capture source/item identity and epochs. Android uses existing NativeBackdropFeed/NativeGlBackend | Backdrop packet `57503cfb`; command-admission and backdrop predicate corrections retained separately | Implemented; eight native backdrop/pixel cases passed; current app/GPU/physical gates separate |
+| P/I inspector and multiview preview polling/assembly | One AppKitApple image-preview session over the existing renderer, common inspector preview UI and mirrored generic meaning/Compose display; actual P/I and multiview adapters supply native facts and truthful optional audio | `wave-6-inspector-preview-source-capture10` plus exact Multiview fragment and two finite corrections | Implemented; 14 controlled native preview cases passed; original renderer/sample/pixel guards retained; physical preview untested |
+| P/I and Nikon live chrome/readouts/popup/scopes/inspector/editor plus root covers and settings recipes | Existing complete live/settings/shell owners; Nikon descriptor/borrowed-display inputs express real fields, three DISP modes, photography and hardware panels. Kotlin legacy P/I and descriptor N paths use the same `MonitorOperatorLiveBody` | `wave-3-complete-live-ui-capture`, `wave-5-common-shell-cover-root-source-capture`, `wave-6c-nikon-compose-live-settings-source-capture18`, Swift live/settings captures | Implemented; current shared checks passed; complete current consumer and physical behavior separate |
+| Nikon Settings count/clear, account consent/rehost/error and stale peer grant/decline policy | Existing Cache/Account owners and common cards; captured native IO/hop cleanup remains in bounded adapters. Pending request receipts include source, peer and request revision | Swift/K cache observation captures, settings/request capture, `wave-6c-settings-cover-pointer-source-capture1` | Implemented; current shared checks passed; actual OAuth/network/cache and cover interaction untested |
+
+The common owner tables do not retire integrations' hardware behavior. DJI/Luna/Nikon protocol,
+raw controls, native frame acquisition, discovery/admission, storage keys, credentials, native
+export and platform permission leaves remain in their declared layer. Compatibility facades and
+remaining copied bodies are listed in the companion inventory, including the newly delegated Nikon FPS
+sampler and its pending consumer qualification. Large app files still include these adapters; a shared entry alone is not proof that an
+entire file became thin.
+
+## Current production counts: candidate WIP
+
+Counted 2026-10-07 23:52 UTC (2026-10-08 locally), from the coordinator's current four-repository
+path enumeration `62dd1213` and a byte-hash/line inventory `8bc6e9fb`. Same extensions, path
+exclusions and all-text-line counting as the dated method below. Present tracked files plus
+nonignored new production inputs are included; deleted tracked paths are absent. No source
+changed during this count. This is a source-only WIP measurement, not a committed or final
+qualification snapshot. The coordinator must bind or refresh it after all candidate inputs settle.
+
+| Repository | October 5 integration snapshot | Current candidate WIP | Change from that snapshot |
+|---|---:|---:|---:|
+| OpenPocketCine | 87,486 lines, 341 files | 35,468 lines, 197 files | -52,018 lines |
+| OpenInstaCine | 87,141 lines, 366 files | 23,191 lines, 178 files | -63,950 lines |
+| OpenZCine | 139,327 lines, 292 files | 98,382 lines, 271 files | -40,945 lines |
+| Three apps | 313,954 lines, 999 files | 157,041 lines, 646 files | -156,913 lines |
+| OpenCine | 181,063 lines, 829 files | 269,582 lines, 1,297 files | +88,519 lines |
+| Everything | 495,017 lines, 1,828 files | 426,623 lines, 1,943 files | -68,394 lines; +115 files |
+
+| App | Current directory | Lines | Files |
+|---|---|---:|---:|
+| Pocket | `Apps/Android` | 13,614 | 82 |
+| Pocket | `ios/OpenPocketCine` | 21,450 | 104 |
+| Pocket | `Sources/OpenPocketViewCore` | 76 | 6 |
+| Pocket | `Sources/OpenPocketCineAndroidFacade` | 315 | 4 |
+| Insta | `Apps/Android` | 9,037 | 82 |
+| Insta | `ios/OpenInstaCine` | 13,632 | 84 |
+| Insta | `Sources/OpenInstaViewCore` | 197 | 7 |
+| Insta | `Sources/OpenInstaCineAndroidFacade` | 312 | 4 |
+| Nikon | `Apps/Android` | 51,071 | 169 |
+| Nikon | `ios/Runner` | 37,830 | 68 |
+| Nikon | `Sources/OpenZCineCore` | 7,821 | 24 |
+| Nikon | `Sources/OpenZCineAndroidFacade` | 1,548 | 7 |
+
+The metric deliberately preserves the old path definition. It therefore also counts developer
+harness/test-support source under nonexcluded `Sources/` paths; it is not an installed-binary
+size or a measure of interface quality. Shared source/file growth must be assessed alongside the
+app reduction. The scoped preview retirement was 750 to 747 production lines (app 750 to 235;
+512 shared), and the Nikon Compose live/settings scope grew by 228 lines overall (app -804,
+shared +1,032). Those moves retired copied policy owners but did not produce large net reductions.
+
+## Qualification and final revision binding
+
+Evidence inspected for this update is limited to immutable source/consumer receipts and current
+call sites. The documentation lane ran no compiler, build, Git operation or device check.
+
+| Gate | Recorded scope at this documentation fence |
+|---|---|
+| Shared portable Swift | `final-sdk-swift-test-v2`: 3,132 Swift Testing cases in 372 suites and 176 XCTest cases passed, log `65d8c035`; `final-sdk-swift-strict-v2` passed, log `926cf3e4`. Both fully reaped with all 1,290 guards exact after current private immutable progress callback capture. Optimized shipping Release v3 passed, log `63035e04`, both simulator architectures/all 1,296 guards; compile-only |
+| Shared Android | `wave-6c-shared-android-all-v24`: test/lint/release passed; 2,221 executions, zero failures/errors, two known Core skips; 343 raw XML files |
+| Actual portable consumers | Pocket v3: 76/13; Insta v2: 60/11; Nikon v1: 404/23 tests/suites passed, each with its strict receipt and exact raw log |
+| Native shared preview/backdrop | 14 controlled preview cases and eight backdrop cases, including the two original pixel oracles, passed on the recorded private simulator; simulated/native scope, not hardware |
+| Actual Pocket native/Android | Native v4: 580 cases, 579 passed, one original no-tree accessibility skip, zero failures; arm64/x86_64 products. Android v6: 233 cases/44 raw XML, zero failures/errors/skips; full consumer compilation/lint/staging and repository v2 passed. APK/JNI packet `321e6b68` passed |
+| Actual Insta native/Android | Native v13: 403 cases, 402 passed, one original accessibility-service skip, zero failures; arm64/x86_64 products. Android v8: 207 cases/40 raw XML, zero failures/errors/skips; full consumer compilation/lint/staging passed. Current APK/JNI/assets packet `dc7fa7d9` passed |
+| Actual Insta original playback input | Whole decoded-movie v4, native metadata v2 and pointer-cancel v1 passed on retained emulator5712 with original fixtures/assertions. SIMULATED catalogue/ports; eventual B pixels do not qualify injected transient old-A buffers or a real camera |
+| Actual Nikon native/Android | Android v5: 897 cases/114 raw XML, zero failures/errors/skips. Original real-service AX/action/pixel six v2: six passed, zero failure/skip. Native v15: 390 cases, 388 passed, zero failures, two known skips; arm64/x86_64 products. Full native14 reserve interruption is retained separately, not a test pass |
+| Original Pocket installed Android/GPU | Original native matrix v1: 21 passed (two-control/four-owner, four synthetic Surface picture/identity, chrome geometry/actions, native metadata/prepare). Original GPU v1: one test/27 comparisons passed. SIMULATED observations/pixels; real GPU/camera/HEVC/peer performance untested |
+| Original installed/template flows | Original Pocket iOS MultiviewUIFlowTests passed five/zero failure/skip on existing default3/explicit4/one-capability inputs. Focused original AX v1/v2 each retain 0 passed/0 failed/1 no-tree skip; v2 scene registration/restoration changes only two setup fragments, with original fourteen XCTest sites/body/walker/waits/skip preserved and VoiceOver assertions untested. No product fix or VoiceOver pass is inferred; generated full v3 passed all original eight contracts plus three installed cases on each platform, zero failure/skip: Android summary `b803fe6b`/log `ed85bea0`, iOS summary `ed42ab03`/log `bb0f0a99`, combined receipt `b9843798`. Both retained all 1,356 source guards; iOS built camera/SIMULATED Debug/Release products and restored private077 Shutdown with no other device state changes. Camera data remains SIMULATED; native decoding and installed operator/lifetime/persistence/isolation checks passed. No new two-decoded-picture selector required |
+| Final exact source/artifact binding | Current Nikon APK/AAB/staging/DEX/JNI v5 passed, packet `5a13191a`: debug99/release81 production native DEX methods, 18 unused Vulkan declarations pruned by unchanged R8, all99 production exports retained. Original native fixture exports remain separate and exact. Latest shared iOS palette is qualified in Nikon native v15; final four-repository content/commit and exact combined matrix/dupes binding [PENDING: FINAL_CANDIDATE_BINDING] |
+| Physical qualification | Untested for the current combined migration on all three brands/platforms. Latest iPhone lock-state v4 at 2026-10-08 10:09 CEST reports `passcodeRequired=false`; Android phone detached. Original opt-in driver is prepared; earlier standby/navigation scopes and unlocked readiness do not establish a current combined physical pass |
+| Pins/integration/release | Unchanged by this documentation checkpoint; no final closure claimed |
+
+The table below keeps the earlier Working HEAD enumeration as provenance. The coordinator
+recorded the three local app-adopter commits below; Pocket/Insta exploratory UI working hashes
+remain preserved. The SDK candidate/content manifest and exact combined checks remain pending.
+A local app commit does not qualify the final SDK combination or a physical installation.
+
+| Repository | Working HEAD at enumeration (provenance only) | Final candidate revision/content manifest | Actual consumer/native gates | Physical result |
+|---|---|---|---|---|
+| OpenCine | `7a0d073150c181cad702ca1b3b749e6bb5ed37bd` | [PENDING: FINAL_OPENCINE_CANDIDATE] | Recorded shared gates above; latest palette in Nikon native v15; exact combined binding pending | Untested |
+| OpenPocketCine | `55465f8a9b3a68a7663eb35fbb44869cfd4c5694` | Local adopter `524facaefc70a413180ca9d516f681fe36f51d2c`; exact final combination [PENDING: FINAL_POCKET_CANDIDATE] | Portable76, native580/one skip, Android233, repository/linkage, original Android21/GPU27 and iOS Multiview5 passed; original AX remains a known no-tree skip with VoiceOver assertions untested; final binding pending | Untested |
+| OpenInstaCine | `e5e6e5e5897b7254459d2aa666d4ca0b2071dbb7` | Local adopter `f2a830e3cd921c72e1deb94a9dcf06442c8b38fe`; exact final combination [PENDING: FINAL_INSTA_CANDIDATE] | Portable60, native403/one skip, Android207, original whole movie/metadata/cancel and linkage passed; exact combined binding pending | Untested |
+| OpenZCine | `61fc7109f9a3fc699d5f97f0f174bef17de1b55a` | Local adopter `8cfe698378cc7673a5fca8c8383f868d4d995d42`; exact final combination [PENDING: FINAL_NIKON_CANDIDATE] | Portable404, native390/two skips, Android897 and original six native action/pixel cases passed; APK/AAB/JNI v5 passed; final binding pending | Untested |
+
+## Remaining completion criteria
+
+The fixed original ledger is 42/46 (91%) at this draft fence. Its 47 registered IDs,
+46 eligible IDs and excluded unsupported Insta multicam row are unchanged. The coordinator
+closed `finish.template` against both original full eleven-case platform passes, combined
+receipt `b9843798`. The remaining four original gates are `insta.compat`, `pocket.compat`,
+`finish.matrix` and `finish.guide`; this documentation proposal closes none of them.
+The compatibility rows still require audited retained copies and qualified actual adopters;
+`finish.matrix` requires one exact combined source, all three consumers, current simulated
+2/4-camera checks, duplication exit and independent reviews; `finish.guide` requires exact
+build/install revisions and truthful supported/untested states. This inventory completes none
+of those gates by itself. `insta.multicam` remains not applicable and excluded from the denominator.
+
+The earlier Insta Android black-picture blocker remains resolved within its recorded emulator
+scope (two media-owner input, ten movie rendering and three backdrop cases on each of two runs).
+That historical success is neither reopened by this documentation update nor expanded into
+physical/current full-flow qualification.
+
+## Historical revision snapshot: 2026-10-05
 
 | Repository | `main` | `integration/thin-app` | Commits `main..integration/thin-app` (no merges) |
 |---|---|---|---|
@@ -23,7 +145,7 @@ three apps depended on OpenCine (no `opencine-pins.txt`): every OpenCine owner b
 apps. Most OpenCine owners already existed on OpenCine `main`; the "OpenCine commits" column lists
 only the owners added on `integration/thin-app`.
 
-## Production line counts
+## Historical production counts: 2026-10-05
 
 Production code is every tracked `.swift`, `.kt`, `.java`, `.m`, `.mm`, `.c`, `.cc`, `.cpp`,
 `.h`, `.hpp`, `.metal`, `.glsl`, `.agsl`, `.frag`, `.vert` and `.comp` file, excluding tests
@@ -94,6 +216,12 @@ done
 The checkpoint ledger is `~/Work/OpenCine-Execution-Progress.d/MIGRATION-CHECKPOINTS.json`
 (machine-local; rows `<app>.<area>`).
 
+## Historical committed owner provenance
+
+The following existing commit tables are retained as migration provenance. Their commits are
+not newly assigned final candidate revisions, and a historical ownership row does not qualify
+later app adapter or lifetime changes.
+
 ## OpenPocketCine
 
 | App code on `main` | Now owned by (Swift / Android) | App commits | OpenCine commits |
@@ -119,10 +247,6 @@ The checkpoint ledger is `~/Work/OpenCine-Execution-Progress.d/MIGRATION-CHECKPO
 | Gimbal trajectory math | `OpenCineMotion` | `63187113` | |
 | Watcher relay wire | `OpenCineRelay` | `0ad71861` | |
 | JNI copy helpers, neutral Android platform and storage | `OpenCineJNISupport` / `platform` | `0d8a7b9a`, `7e97510c` | |
-
-Stays in the app: brand, entitlements, integration list, the iOS `CameraSession` composition
-and its neutral compatibility owners (pocket.integration, partial), the Watch app, the
-Android facade and app-specific panels.
 
 ## OpenInstaCine
 
@@ -150,10 +274,6 @@ Android facade and app-specific panels.
 | DJI code the Luna build never ran (deleted, not moved) | | `6a1da8b`, `e9d7dc8` | |
 | Source sync from OpenPocketCine (scripts, overlays, stamp) | retired | `705d316`, `67c4250` | |
 
-Stays in the app: brand, entitlements, `LunaIntegrationConfiguration`, the Watch app, the
-Android facade, and `Sources/OpenPocketViewCore` (14,150 lines, a remaining copy of Pocket's
-view core that the insta lane is extracting into OpenCine).
-
 ## OpenZCine
 
 | App code on `main` | Now owned by (Swift / Android) | App commits | OpenCine commits |
@@ -175,23 +295,3 @@ view core that the insta lane is extracting into OpenCine).
 | Playback model and page, playback audio | `MonitorUI`, `OpenCineApple` / `monitor-ui` | `27970cb5`, `674c83b2` | `ced835b` |
 | Clip export (Apple and Android) | `OpenCineApple` / `native-runtime` | `55ec0fb4`, `47d82767` | `f818bd3`, `dc23fca`, `0f51121` |
 | Frame.io workflow, delivery panels and coordination | `OpenCineFrameIO`, `OpenCineAppKit`, `MonitorUI` | `5e63cd74`, `f179073d`, `8c14f615` | `d79b371`, `435047e`, `e3ee6de` |
-
-Stays in the app: brand, entitlements, credential storage, the Nikon-only panels composed into
-the shared shell's typed slots, assist and inspector state beyond the typed adapters
-(nikon.assists, partial), discovery and control maintenance, the Watch app and the Android facade.
-
-## Not retired yet
-
-Open or partial rows of the checkpoint ledger at this snapshot (34 of 46 checkpoints done):
-
-| Row | State | What is left |
-|---|---|---|
-| pocket.integration | partial | iOS `CameraSession` and neutral compatibility owners |
-| pocket.multicam, nikon.multicam | partial | Whole multiview stage composition and the simulated 2 and 4 camera exit (multicam lane) |
-| pocket.compat, nikon.compat | open | Final donor retirement, compatibility inventory, duplication exit |
-| insta.runtime, insta.player | partial | Android playback picture is black on the emulator (insta-black lane) |
-| insta.integration, insta.compat | partial | Luna session compatibility and remaining Pocket view-core copy (insta lane) |
-| nikon.assists | partial | App assist and inspector owners beyond typed adapters (nikon-assists lane) |
-| finish.matrix, finish.guide | open | Final combined matrix; refresh of this inventory and the tester guide |
-
-`insta.multicam` is not applicable (excluded from the denominator).
