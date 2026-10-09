@@ -114,6 +114,7 @@
             transfer: MonitorTransfer = .rec709,
             clipByte: Int,
             rec709: Binding<Bool>? = nil,
+            referenceDisplayAvailable: Bool = true,
             onReferenceEnabled: (() -> Void)? = nil
         ) -> FalseColorLongPressMenu {
             FalseColorLongPressMenu(
@@ -124,6 +125,7 @@
                 transfer: transfer,
                 clipByte: clipByte,
                 rec709: rec709,
+                referenceDisplayAvailable: referenceDisplayAvailable,
                 onReferenceEnabled: onReferenceEnabled
             )
         }
@@ -131,7 +133,7 @@
         @MainActor
         public static func commonMenu<Looks: MonitorLookProvider>(
             assist: MonitorAssistState<Looks>, looks: FalseColorLooks, haptics: OperatorHaptics,
-            compact: Bool = false, transfer: MonitorTransfer, clipByte: Int
+            compact: Bool = false, transfer: MonitorTransfer, clipByte: Int, referenceDisplayAvailable: Bool = true
         ) -> MonitorFalseColorMenu<MonitorFalseColorSelection> {
             longPressMenu(
                 options: Binding(
@@ -146,7 +148,7 @@
                     set: {
                         assist.falseColorRec709 = $0
                         assist.persist()
-                    }), onReferenceEnabled: { assist.falseColor = true }
+                    }), referenceDisplayAvailable: referenceDisplayAvailable, onReferenceEnabled: { assist.falseColor = true }
             ).commonMenu
         }
 
@@ -207,12 +209,14 @@
         /// The monitored source's live ceiling for `transfer`.
         public var clipByte: Int
         public var rec709: Binding<Bool>? = nil
+        public var referenceDisplayAvailable: Bool = true
         public var onReferenceEnabled: (() -> Void)? = nil
 
         public init(
             options: Binding<FalseColorAssist.Options>, looks: FalseColorLooks,
             haptics: OperatorHaptics, compact: Bool = false, transfer: MonitorTransfer = .rec709,
-            clipByte: Int, rec709: Binding<Bool>? = nil, onReferenceEnabled: (() -> Void)? = nil
+            clipByte: Int, rec709: Binding<Bool>? = nil, referenceDisplayAvailable: Bool = true,
+            onReferenceEnabled: (() -> Void)? = nil
         ) {
             _options = options
             self.looks = looks
@@ -221,6 +225,7 @@
             self.transfer = transfer
             self.clipByte = clipByte
             self.rec709 = rec709
+            self.referenceDisplayAvailable = referenceDisplayAvailable
             self.onReferenceEnabled = onReferenceEnabled
         }
 
@@ -236,7 +241,7 @@
                 ).displayValues,
                 title: FalseColorAssist.menuLabel(for:), scaleHelp: looks.scaleHelp,
                 readHelp: FalseColorAssist.readHelp, referenceHelp: FalseColorAssist.referenceHelp,
-                compact: compact,
+                compact: compact, referenceDisplayAvailable: referenceDisplayAvailable,
                 selectionFeedback: { haptics.selection() },
                 readFeedback: {
                     haptics.selection()

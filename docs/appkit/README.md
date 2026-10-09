@@ -66,6 +66,12 @@ dialogs) render the model. Each app entry is `AppIntegration(integration, slots)
 are `pairing` (pair-page content while choosing), `addRoute` (builds a `RouteDraft`) and `prompt`
 (renders an `IntegrationPrompt`). Shared code never asks which integration an entry is.
 
+The deployed apps and generated Scenes reach the same cameras page through `AppShell` and
+`CamerasScreen`. Android's `MonitorCameraPage` owns safe-drawing clearance, mirrored landscape
+cutout insets and the Pocket page spacing (18 dp sides, 24 dp top, 16 dp bottom). App `pageFrame`
+adapters retain route lifetime and pairing content without adding another cameras-page frame.
+SwiftUI continues to use `CamerasPage` for that common frame.
+
 Integrations with preparation wizards pass an `IntegrationPairingFlow` to `PairScreen`: the
 current step's presentation, primary/back/selection actions and pane content. The shared page
 still owns the rail, layout, diagnostics and help controls. This replaces the ordinary chooser
@@ -132,8 +138,26 @@ pages over itself.
 
 ## Monitor composition and capture
 
-`MonitorScreen` owns the stable picture/assist host positions and the common status, power,
-capture and system regions from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its
+`MonitorOperatorLiveBody` in `OpenCineCameraControls` / `camera-controls` owns one live monitor
+composition on SwiftUI and Compose. It assembles the picture canvas, status and telemetry,
+system rail, assists and palette, inspector, capture strip, header gestures and capture popup.
+The shared layout and presentation follow the existing Pocket behavior. All three entry APIs
+adapt values and actions into that body:
+
+| Entry | Source adapter |
+| --- | --- |
+| `MonitorOperatorLiveSurface` | Existing vocabulary hosts and their captured native control actions |
+| `MonitorOperatorDescriptorLiveSurface` | Reported fields, optional source facts and typed native control content; a direct body alias on Swift |
+| `MonitorOperatorScene` | Core shell and providers, including both generated future-app templates |
+
+A new app uses one of these adapters and supplies its capabilities, observations and actions.
+Native picture, focus, motion and control content have bounded typed slots. Status, rails,
+palette, inspector and popup chrome stay in the common body. Sources:
+[Swift owner](../../Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveBody.swift) and
+[Compose owner](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorLiveBody.kt).
+
+`MonitorScreen` fixes the stable picture/assist host positions and the bounded status, power,
+capture and system slots from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its
 `MonitorScreenPresentation` carries operator visibility, lock, coverage and popup state rather
 than camera telemetry. Native tools, detail panels, cover pages and recovery content have fixed
 slots; they cannot replace the picture host. Covers sit above panels and controls. A capture
@@ -153,6 +177,22 @@ recording suppresses a compatibility timer's default zero. Presentation creates 
 visibility policy keeps Lock when locked, capture/settings while recording, and hides media for
 a borrowed session. Native return and operator edit decorations stay in the control builders.
 
+The lower [AppKit capture inputs](../../Sources/OpenCineAppKit/MonitorOperatorCaptureInputs.swift)
+([Compose](../../Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MonitorOperatorCaptureInputs.kt))
+carry reported readouts, optional common fields, actual panel metadata and typed native quick
+actions. `MonitorOperatorCaptureState` gives the strip, header and popup the same measured
+anchors, pointer ownership and preview lifetime. The vocabulary adapter retains its real native
+snapshot and release path; descriptor sources use `Never` / `Nothing` for native quick identity.
+Source identity and current-source callbacks retain camera, epoch, monitor and picture ownership.
+Battery, charging, recording and link observations remain optional when unknown.
+
+Opening a valid read-only field inspects its report under the current source and presentation
+admission. Quick edits and panel writes separately require actual command admission and a current
+captured editor or native identity. Native panel slots return controls-only content with the
+actual title, subtitle and panel kind; the common popup owns header, placement, dismissal,
+material and reveal. Native content consumes the common command-enabled environment, retaining
+its existing option lists, locks and write callbacks.
+
 `control.captureField(key)` projects ISO, shutter, white-balance, exposure-compensation and focus descriptors into typed
 `MonitorCaptureChoice` detents and an immutable editor. Missing reports have no selection, even
 when the drum visually centers a legal option. `MonitorCaptureReadout` (Compose
@@ -169,6 +209,18 @@ recording change retires that approval. Existing explicit `record(start:)` prese
 targets; `recordAndWait(start:)` shares its admission/pending gate and returns the actual terminal
 receipt only while the binding remains current.
 
+`SingleSharedMonitorCompositionContractTests`
+([Swift](../../Tests/OpenCineCameraControlsTests/SingleSharedMonitorCompositionContractTests.swift),
+[Compose](../../Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/SingleSharedMonitorCompositionContractTest.kt))
+guards delegation from all three entries, the generated templates and unique common region
+ownership. Mirrored `SharedMonitorControlContractTests` / `SharedMonitorControlContractTest`
+and `SharedMonitorGeometryContractTests` / `SharedMonitorGeometryContractTest` cover unknown
+facts, read-only inspection, stale source/epoch rejection and common popup geometry.
+Hosted [header ownership](../../Tests/OpenCineAppKitTests/MonitorCaptureHeaderOwnershipTests.swift)
+and [record admission](../../Tests/OpenCineCameraControlsTests/CanonicalMonitorRecordAdmissionTests.swift)
+tests enter the real shared views through public native accessibility actions in SIMULATED
+fixtures. Consumer pin adoption and physical UI behavior require separate consumer verification.
+
 ## Operator preferences
 
 `MonitorOperatorPreferences` stores common awake, HDR display, record confirmation, haptic
@@ -177,6 +229,16 @@ SharedPreferences file and keys. Reads do not write missing defaults or rewrite 
 legacy awake key; explicit false survives reload, and a current awake value wins over legacy.
 Apps with an existing structured preferences document can bind its values directly to the
 shared settings views instead of changing that document's storage format.
+
+On Android, the deployed `OperatorSetupScreen`, configured `MonitorOperatorSettingsScreen` and
+Scene's session settings overload all delegate to
+[`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
+It owns the full-cover input barrier, safe-drawing clearance, Back action, page spacing, tab
+and row dispatch, and legal/LUT presentation. Typed source records carry existing preferences,
+reported values, optional services and bounded native content; they do not replace the page.
+SwiftUI retains its complete `MonitorOperatorSettingsScreen` and shared `MonitorSettingsPage`,
+including the typed borrowed-display entry. This describes source adoption; consumer checks
+and physical behavior require separate verification.
 
 `MonitorDisplayPreferences` owns saved Live/Clean visibility maps from app-supplied keys and
 storage. `MonitorDisplayMode`, `MonitorDisplayChrome` and its ordered sections keep the existing
@@ -260,8 +322,9 @@ Kotlin differences: JSON is org.json from android.jar (the real artifact backs t
 the main actor; the model's `State` is one `StateFlow` value and `forget` suspends; slots are
 `@Composable` lambdas (Swift: closures returning `AnyView`). The shell's Kotlin models publish
 one `StateFlow` `State` each (`ShellModel.state`, `MonitorControlModel.state`) on a caller scope;
-Compose `AppShell` takes a `pageFrame` (the app's insets and back handling around the cameras and
-pair pages) where SwiftUI takes a `safeArea` function, and the Compose cameras page has no watch
+Compose `AppShell` retains `pageFrame` for route framing and back handling; `MonitorCameraPage`
+owns the cameras-page insets, while pairing retains its existing host content and framing.
+SwiftUI accepts an optional `safeArea` callback with a window-geometry fallback. The Compose cameras page has no watch
 feed entry yet (only `PairScreen` takes `ShellActions.watchFeed`).
 
 ## Assist preferences

@@ -389,148 +389,31 @@
         }
     }
 
-    /// The link, phone battery and camera battery pills.
+    /// Compatibility projection over the single value-driven telemetry renderer.
     public struct LiveTelemetryGauges<Host: LiveChromeHost>: View {
         @Environment(Host.self) private var host
         var horizontal: Bool
-        /// Portrait phones split the row around the Dynamic Island: the link pill sits
-        /// left of it with storage, the batteries stay on the right.
         var showsLink: Bool
         var showsPower: Bool
-        @State private var phonePercent = -1
-        /// One link pill: tap swaps signal bars and feed fps.
-        @State private var showsFPS = false
-        private var tablet: Bool { Self.tablet }
-        private static var tablet: Bool { UIDevice.current.userInterfaceIdiom == .pad }
-
         public init(horizontal: Bool = false, showsLink: Bool = true, showsPower: Bool = true) {
-            self.horizontal = horizontal
-            self.showsLink = showsLink
-            self.showsPower = showsPower
+            self.horizontal = horizontal; self.showsLink = showsLink; self.showsPower = showsPower
         }
-
         public var body: some View {
-            let axis =
-                horizontal
-                ? AnyLayout(HStackLayout(spacing: 6))
-                : AnyLayout(VStackLayout(alignment: .leading, spacing: tablet ? 5 : 4))
-            let bars = host.liveSignalBars
-            // Signal / fps stay in the accent; the bar count carries the health.
-            let linkColor = MonitorTheme.accent
-            axis {
-                if showsLink {
-                    Button {
-                        showsFPS.toggle()
-                    } label: {
-                        Self.gauge(
-                            icon: showsFPS ? .gauge : .signal, value: showsFPS ? fpsValue : nil,
-                            bars: bars, color: linkColor)
-                    }
-                    .buttonStyle(.monitorTapTarget)
-                    .accessibilityLabel(
-                        "Live link \(bars) of 4 bars, feed \(host.liveFPS) frames per second"
-                    )
-                    .accessibilityHint(showsFPS ? "Shows signal strength" : "Shows feed frame rate")
-                    .accessibilityIdentifier("monitor.telemetry.signal")
-                }
-                if showsPower {
-                    Self.gauge(
-                        icon: .smartphone,
-                        value: phonePercent < 0 ? "\u{2014}" : "\(phonePercent)%",
-                        bars: 0, color: Self.batteryColor(phonePercent)
-                    )
-                    .accessibilityLabel(
-                        "Phone battery \(phonePercent >= 0 ? String(phonePercent) : "unknown") percent"
-                    )
-                    let percent = host.cameraStatus.batteryPercent
-                    Self.gauge(
-                        icon: .camera,
-                        value: (0...100).contains(percent) ? "\(percent)%" : "\u{2014}",
-                        bars: 0, color: Self.batteryColor(percent)
-                    )
-                    .accessibilityLabel(
-                        (0...100).contains(percent)
-                            ? "Camera battery \(percent) percent" : "Camera battery unavailable"
-                    )
-                    .accessibilityIdentifier("monitor.telemetry.camera")
-                }
-            }
-            .onAppear {
-                UIDevice.current.isBatteryMonitoringEnabled = true
-                updatePhone()
-            }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: UIDevice.batteryLevelDidChangeNotification)
-            ) { _ in updatePhone() }
+            let percent = host.cameraStatus.batteryPercent
+            MonitorOperatorTelemetry<Host.Palette>(fps: host.liveFPS, signalBars: host.liveSignalBars,
+                power: [.init(id: "camera", title: "Camera battery", camera: true,
+                    percent: (0...100).contains(percent) ? percent : nil)],
+                horizontal: horizontal, showsLink: showsLink, showsPower: showsPower, automaticPhoneBattery: true)
         }
-
-        /// Phone and camera batteries share one scale.
         public static func batteryColor(_ percent: Int) -> Color {
-            guard (0...100).contains(percent) else { return Host.Palette.text }
-            return percent <= 20
-                ? MonitorTheme.recording : percent <= 40 ? Host.Palette.amber : Host.Palette.good
+            MonitorOperatorTelemetry<Host.Palette>.batteryColor(percent)
         }
-
-        /// Multiview tiles: the camera battery pill without its glyph.
         public static func cameraBattery(_ percent: Int) -> some View {
-            gauge(
-                icon: nil, value: (0...100).contains(percent) ? "\(percent)%" : "\u{2014}",
-                bars: 0,
-                color: batteryColor(percent)
-            )
-            .accessibilityLabel(
-                (0...100).contains(percent)
+            MonitorOperatorTelemetry<Host.Palette>.gauge(icon: nil,
+                value: (0...100).contains(percent) ? "\(percent)%" : "\u{2014}", bars: 0,
+                color: batteryColor(percent))
+                .accessibilityLabel((0...100).contains(percent)
                     ? "Camera battery \(percent) percent" : "Camera battery unavailable")
-        }
-
-        /// Whole frames with a unit; RECOV / LINK / dash pass through.
-        private var fpsValue: String {
-            let label = host.liveFPS
-            return Double(label).map { "\(Int($0.rounded())) fps" } ?? label
-        }
-
-        private func updatePhone() {
-            let value = UIDevice.current.batteryLevel
-            phonePercent = value < 0 ? -1 : Int((value * 100).rounded())
-        }
-
-        /// One glass pill per gauge: white icon, status color on the value only.
-        private static func gauge(icon: MonitorIcon?, value: String?, bars: Int, color: Color)
-            -> some View
-        {
-            let height: CGFloat = tablet ? 22 : 20
-            return HStack(spacing: 4) {
-                if let icon {
-                    icon.frame(width: tablet ? 12 : 11, height: tablet ? 12 : 11)
-                        .foregroundStyle(Host.Palette.text)
-                }
-                if let value {
-                    Text(value)
-                        .font(MonitorTheme.font(tablet ? 11 : 10, weight: .semibold))
-                        .monospacedDigit()
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                        .foregroundStyle(color)
-                } else {
-                    HStack(spacing: 1.5) {
-                        ForEach(0..<4) { index in
-                            RoundedRectangle(cornerRadius: 0.75)
-                                .fill(index < bars ? color : color.opacity(0.2))
-                                .frame(width: 3.5, height: tablet ? 10 : 9)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 6)
-            // One width for every pill, sized for the widest value ("25 fps", or
-            // "100%" without the glyph) so values never jitter.
-            .frame(
-                width: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height,
-                alignment: .leading
-            )
-            // Same glass as the Live View buttons, as a small rounded-rectangle pill.
-            .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .accessibilityElement(children: .ignore)
         }
     }
 #endif

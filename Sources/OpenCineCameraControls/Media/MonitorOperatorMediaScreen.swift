@@ -9,15 +9,79 @@ import SwiftUI
 public struct MonitorOperatorMediaScreen<Payload: Sendable, Look: Sendable, Thumbnail: View, Picture: View>: View {
     private let model: MonitorOperatorMediaModel<Payload, Look>
     private let brand: String
+    private let coverSafeArea: EdgeInsets?
     @Environment(\.monitorWindowGeometry) private var windowGeometry
     private let close: () -> Void
     private let thumbnail: (MonitorMediaRecord<Payload>) -> Thumbnail
-    private let picture: (MonitorMediaPlaybackModel<Payload, Look>) -> Picture
+    private let playback: @MainActor (MonitorMediaGalleryOpen<Payload>,
+        Binding<MonitorMediaGalleryOpen<Payload>?>, Binding<MonitorToolUsage>) -> AnyView
+    @State private var playbackRequest: MonitorMediaGalleryOpen<Payload>?
+    @State private var usage = MonitorToolUsage()
+
     public init(model: MonitorOperatorMediaModel<Payload, Look>, brand: String, close: @escaping () -> Void,
+        safeArea: EdgeInsets? = nil,
         @ViewBuilder thumbnail: @escaping (MonitorMediaRecord<Payload>) -> Thumbnail,
         @ViewBuilder playbackPicture: @escaping (MonitorMediaPlaybackModel<Payload, Look>) -> Picture) {
-        self.model = model; self.brand = brand; self.close = close
-        self.thumbnail = thumbnail; self.picture = playbackPicture
+        let absentAssist: MonitorAssistState<MonitorLUTLooks>? = nil
+        self.init(model: model, brand: brand, close: close, safeArea: safeArea,
+            playbackAssist: absentAssist, preferences: nil,
+            assistPanels: nil, falseColorLooks: .signal,
+            availableAssistTools: [], assistPreview: nil, lookMenu: nil,
+            thumbnail: thumbnail, playbackPicture: playbackPicture)
+    }
+
+    public init<Looks: MonitorLookProvider>(model: MonitorOperatorMediaModel<Payload, Look>,
+        brand: String, close: @escaping () -> Void, safeArea: EdgeInsets? = nil,
+        assist: MonitorAssistState<Looks>, preferences: MonitorOperatorPreferences,
+        assistPanels: AssistPanelStores? = nil, falseColorLooks: FalseColorLooks = .signal,
+        availableAssistTools: Set<MonitorAssistSelection>,
+        assistPreview: ((MonitorMediaPlaybackModel<Payload, Look>, MonitorAssistSelection) -> AnyView)? = nil, lookMenu: (() -> AnyView)? = nil,
+        @ViewBuilder thumbnail: @escaping (MonitorMediaRecord<Payload>) -> Thumbnail,
+        @ViewBuilder playbackPicture: @escaping (MonitorMediaPlaybackModel<Payload, Look>) -> Picture) {
+        self.init(model: model, brand: brand, close: close, safeArea: safeArea,
+            playbackAssist: assist, preferences: preferences, assistPanels: assistPanels,
+            falseColorLooks: falseColorLooks,
+            availableAssistTools: availableAssistTools, assistPreview: assistPreview, lookMenu: lookMenu,
+            thumbnail: thumbnail, playbackPicture: playbackPicture)
+    }
+
+    private init<Looks: MonitorLookProvider>(model: MonitorOperatorMediaModel<Payload, Look>,
+        brand: String, close: @escaping () -> Void, safeArea: EdgeInsets?,
+        playbackAssist: MonitorAssistState<Looks>?, preferences: MonitorOperatorPreferences?,
+        assistPanels: AssistPanelStores?, falseColorLooks: FalseColorLooks,
+        availableAssistTools: Set<MonitorAssistSelection>,
+        assistPreview: ((MonitorMediaPlaybackModel<Payload, Look>, MonitorAssistSelection) -> AnyView)?, lookMenu: (() -> AnyView)?,
+        thumbnail: @escaping (MonitorMediaRecord<Payload>) -> Thumbnail,
+        playbackPicture: @escaping (MonitorMediaPlaybackModel<Payload, Look>) -> Picture) {
+        self.model = model; self.brand = brand; self.close = close; self.coverSafeArea = safeArea
+        self.thumbnail = thumbnail
+        playback = { request, presented, usage in
+            let cache: (@MainActor (MonitorMediaRecord<Payload>) async -> Void)?
+            if model.library.canTransfer {
+                cache = { record in _ = try? await model.library.cacheOriginal(record.asset.id) }
+            } else {
+                cache = nil
+            }
+            return AnyView(MonitorOperatorPlaybackScreen(model: model, initial: request,
+                assist: playbackAssist, stores: assistPanels, looks: falseColorLooks,
+                palette: MonitorDefaultLivePalette.self,
+                haptics: OperatorHaptics(isEnabled: { preferences?.haptics ?? true }), usage: usage,
+                cacheOriginal: preferences?.cacheOriginals == true, deliveryPresented: false,
+                operations: .init(cacheOriginal: cache),
+                source: { record in .init(progress: model.library.progress[record.asset.id], colorLabel: record.asset.colorLabel) },
+                nativeAssists: { _ in nil },
+                close: { presented.wrappedValue = nil }, availableAssistTools: availableAssistTools,
+                picture: { owner, _ in playbackPicture(owner) },
+                preview: { tool in
+                    guard let owner = model.playback else { return AnyView(EmptyView()) }
+                    let token = owner.token
+                    guard model.isCurrent(token), model.playback === owner, owner.token == token else { return AnyView(EmptyView()) }
+                    let rendered = assistPreview?(owner, tool) ?? AnyView(EmptyView())
+                    guard model.isCurrent(token), model.playback === owner, owner.token == token else { return AnyView(EmptyView()) }
+                    return rendered
+                },
+                lookMenu: { lookMenu?() ?? AnyView(EmptyView()) }))
+        }
     }
 
     private var library: MonitorMediaLibraryModel<Payload> { model.library }
@@ -46,7 +110,7 @@ public struct MonitorOperatorMediaScreen<Payload: Sendable, Look: Sendable, Thum
     }
     public var body: some View {
         GeometryReader { proxy in
-            MonitorOperatorCatalogScreen(library: library, brand: brand, safeArea: OperatorPanelMetrics.resolvedDeviceSafeArea(
+            MonitorOperatorCatalogScreen(library: library, brand: brand, safeArea: coverSafeArea ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
                         proxy.safeAreaInsets, window: windowGeometry.safeArea),
                 sourceAvailable: library.canRefresh, operations: operations, colorChoices: colorChoices,
                 facts: { record in
@@ -58,11 +122,14 @@ public struct MonitorOperatorMediaScreen<Payload: Sendable, Look: Sendable, Thum
                         byteCount: record.asset.representations.first { $0.role == .original }?.byteCount,
                         durationSeconds: seconds, dateKey: record.facts.dateKey, colorLabel: record.asset.colorLabel)
                 }, begin: model.showGallery, close: { model.closeGallery(); close() },
-                open: { request in _ = model.open(request.record.asset.id, admitted: request.admission) },
+                open: { request in
+                    guard model.galleryOpen, library.isCurrent(request.admission) else { return }
+                    playbackRequest = request
+                },
                 thumbnail: { value in thumbnail(value.record) })
                 .overlay {
-                    if let player = model.playback {
-                        MonitorOperatorBasicPlaybackScreen(model: model, player: player, picture: { picture(player) })
+                    if let request = playbackRequest {
+                        playback(request, $playbackRequest, $usage).id(request.id)
                     }
                 }
         }.ignoresSafeArea().preferredColorScheme(.dark)
@@ -70,52 +137,4 @@ public struct MonitorOperatorMediaScreen<Payload: Sendable, Look: Sendable, Thum
     }
 }
 
-private struct MonitorOperatorBasicPlaybackScreen<Payload: Sendable, Look: Sendable, Picture: View>: View {
-    let model: MonitorOperatorMediaModel<Payload, Look>
-    let player: MonitorMediaPlaybackModel<Payload, Look>
-    let picture: () -> Picture
-    @Environment(\.scenePhase) private var scenePhase
-
-    var body: some View {
-        MonitorPlaybackScreen(value: presentation, actions: actions, picture: picture,
-            feedAssists: { _ in EmptyView() }, canvasAssists: { _, _ in EmptyView() }, tools: { _ in EmptyView() })
-            .onAppear { player.setPresentationActive(true); player.setSceneActive(scenePhase == .active) }
-            .onChange(of: scenePhase) { _, phase in player.setSceneActive(phase == .active) }
-            .onDisappear { player.setPresentationActive(false) }
-    }
-    private var presentation: MonitorPlaybackPresentation {
-        let asset = player.active?.asset
-        let width = player.metadata.width ?? Double(asset?.pixelSize?.width ?? 0)
-        let height = player.metadata.height ?? Double(asset?.pixelSize?.height ?? 0)
-        let position = player.scrubbing ? player.scrubPosition : player.position
-        return MonitorPlaybackPresentation(item: player.token, title: asset?.filename ?? "Media", subtitle: "",
-            source: nil, metadata: [], aspect: width > 0 && height > 0 ? width / height : 16 / 9,
-            ready: player.ready, error: player.error, progress: asset.flatMap { model.library.progress[$0.id] },
-            position: position, duration: player.duration ?? 0,
-            positionLabel: time(position), durationLabel: player.duration.map(time) ?? "--:--",
-            playing: player.reportedPlaying ?? player.playRequested, reachedEnd: player.reachedEnd,
-            scrubbing: player.scrubbing, muted: player.muted, looping: player.looping,
-            previous: player.canGoPrevious, next: player.canGoNext, favorite: player.active?.favorite ?? false,
-            conform: player.metadata.conform, conformTarget: player.conformTarget, haptics: true, shareEnabled: false)
-    }
-    private func current(_ token: MonitorPlaybackItemToken) -> Bool { player.token == token && !player.closed }
-    private var actions: MonitorPlaybackActions {
-        MonitorPlaybackActions(back: model.closePlayback,
-            play: { if current($0) { player.setPlaying($1) } }, restart: { if current($0) { player.restart() } },
-            seekBy: { if current($0) { player.seek(by: $1) } }, mute: { if current($0) { player.setMuted($1) } },
-            loop: { if current($0) { player.setLooping($1) } }, conform: { if current($0) { player.setConformTarget($1) } },
-            adjacent: { if current($0) { player.goToAdjacent($1) } },
-            favorite: { if current($0), let id = player.active?.asset.id { model.library.toggleFavorite(id) } },
-            share: { _ in }, beginScrub: { current($0) ? player.beginScrub() : nil },
-            updateScrub: { player.updateScrub(seconds: $1, admitted: $0) },
-            updateFrameScrub: { player.updateFrameScrub(delta: $1, width: $2, admitted: $0) },
-            commitScrub: { player.commitScrub(admitted: $0) },
-            cancelScrub: { player.cancelScrub(interrupted: $1 == .interrupted, admitted: $0) })
-    }
-    private func time(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0, seconds < Double(Int.max) else { return "--:--" }
-        let value = Int(seconds)
-        return String(format: "%02d:%02d", value / 60, value % 60)
-    }
-}
 #endif

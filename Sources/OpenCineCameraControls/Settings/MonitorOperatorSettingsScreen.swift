@@ -9,6 +9,7 @@ import SwiftUI
 public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLookProvider>: View {
     private let shell: ShellModel?
     private let brand: String
+    private let coverSafeArea: EdgeInsets?
     @Environment(\.monitorWindowGeometry) private var windowGeometry
     private let actions: ShellActions?
     private let preferences: MonitorOperatorPreferences?
@@ -41,11 +42,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         availableAssistTools: Set<MonitorAssistSelection> = [.lut, .peaking, .falseColor, .zebra, .guides, .grid, .crosshair, .desqueeze, .mirror],
         operatorSession: MonitorOperatorSessionModel<Looks>? = nil,
         assistPanels: AssistPanelStores? = nil, falseColorLooks: FalseColorLooks = .signal,
-        configuration: MonitorOperatorSettingsConfiguration<Looks>? = nil) {
+        configuration: MonitorOperatorSettingsConfiguration<Looks>? = nil, safeArea: EdgeInsets? = nil) {
         self.shell = shell; self.brand = brand; self.actions = actions
         self.preferences = preferences; self.display = display; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
-        self.configuration = configuration
+        self.configuration = configuration; self.coverSafeArea = safeArea
         self.borrowedDisplay = nil; self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
         self.assistPanels = assistPanels; self.falseColorLooks = falseColorLooks
         _operatorSession = State(initialValue: operatorSession ?? MonitorOperatorSessionModel(shell: shell, assist: assist, display: display))
@@ -55,11 +56,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     public init(brand: String, configuration: MonitorOperatorSettingsConfiguration<Looks>,
         library: MonitorMediaLibraryModel<Payload>?, selectedTab: Binding<MonitorSettingsTab>,
         scrollOffsets: Binding<[String: CGFloat]>, borrowedDisplay: MonitorOperatorBorrowedDisplay,
-        sourceIdentity: UUID?, initialReportPresented: Bool = false) {
+        sourceIdentity: UUID?, initialReportPresented: Bool = false, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
         self.preferences = nil; self.display = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
-        self.configuration = configuration; self.borrowedDisplay = borrowedDisplay
+        self.configuration = configuration; self.coverSafeArea = safeArea; self.borrowedDisplay = borrowedDisplay
         self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
         _operatorSession = State(initialValue: nil)
         _showReport = State(initialValue: initialReportPresented)
@@ -81,7 +82,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             if let configuration { configuredPage(configuration) }
             else {
                 GeometryReader { proxy in
-                    MonitorSettingsPage(safeArea: OperatorPanelMetrics.resolvedDeviceSafeArea(
+                    MonitorSettingsPage(safeArea: coverSafeArea ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
                         proxy.safeAreaInsets, window: windowGeometry.safeArea), brand: brand, selection: selectedTab,
                         tabs: tabs, isLive: shell?.monitor != nil,
                         phaseLabel: shell?.monitor?.camera.saved.displayName ?? "No camera connected",
@@ -94,7 +95,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     private func configuredPage(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
-        MonitorSettingsPage(safeArea: source.safeArea, brand: brand, selection: selectedTab,
+        MonitorSettingsPage(safeArea: coverSafeArea ?? source.safeArea, brand: brand, selection: selectedTab,
             tabs: tabs, isLive: source.isLive, phaseLabel: source.phase,
             sharingSubtitle: source.sharingSubtitle, scrollOffsets: borrowedScrollOffsets, feedback: source.feedback,
             onClose: source.close, disconnect: source.disconnect, rows: rows)

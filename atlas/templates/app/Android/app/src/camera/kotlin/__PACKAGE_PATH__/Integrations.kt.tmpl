@@ -10,6 +10,9 @@ import com.opencapture.opencine.appkit.MonitorMediaPlaybackModel
 import com.opencapture.opencine.appkit.MonitorMediaRecord
 import com.opencapture.opencine.appkit.MonitorOperatorMediaModel
 import com.opencapture.opencine.media.MediaAsset
+import com.opencapture.opencine.media.FeedEffectsRenderPlan
+import com.opencapture.opencine.cameracontrols.AssistHost
+import com.opencapture.opencine.cameracontrols.MonitorDefaultAssistHost
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -27,3 +30,7 @@ fun makeOperatorMedia(context: Context, scope: CoroutineScope): MonitorOperatorM
 @Composable fun OperatorPicture(assist: MonitorAssistState, preferences: MonitorOperatorPreferences, iso: Int?) {}
 @Composable fun OperatorThumbnail(record: MonitorMediaRecord<MediaAsset>) {}
 @Composable fun OperatorPlaybackPicture(model: MonitorMediaPlaybackModel<MediaAsset, String>, assist: MonitorAssistState, preferences: MonitorOperatorPreferences) {}
+@Composable fun OperatorAssistHost(): AssistHost = MonitorDefaultAssistHost
+@Composable fun OperatorPlaybackEffects(assist: MonitorAssistState): FeedEffectsRenderPlan? = null
+@Composable fun OperatorPlaybackPicture(model: MonitorMediaPlaybackModel<MediaAsset, String>, assist: MonitorAssistState,
+    preferences: MonitorOperatorPreferences, effects: FeedEffectsRenderPlan?) {}

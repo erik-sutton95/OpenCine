@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorLayoutPolicy
 import com.opencapture.opencine.appkit.LocalOperatorHaptics
+import com.opencapture.opencine.appkit.LocalMonitorCaptureCommandEnabled
 import com.opencapture.opencine.appkit.MonitorCaptureDrum
 import com.opencapture.opencine.appkit.MonitorCaptureField
 import com.opencapture.opencine.appkit.MonitorControlModel
@@ -148,6 +149,7 @@ fun <K> LadderSheet(
     modifier: Modifier = Modifier,
     control: MonitorControlModel? = null,
     fromTop: Boolean = false,
+    chromeless: Boolean = false,
     error: String? = null,
     unavailable: String? = null,
     onHold: (() -> Unit)? = null,
@@ -168,7 +170,9 @@ fun <K> LadderSheet(
     val applied = remember {
         mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
     }
-    val gates = ladderGates(presentation.lock, tab.ladder.lock, enabled)
+    val commandEnabled = LocalMonitorCaptureCommandEnabled.current
+    val gates = ladderGates(presentation.lock, tab.ladder.lock, enabled && commandEnabled)
+    val hold = onHold.takeIf { commandEnabled }
     val shown = when {
         tab.ladder.lock != null -> tab.ladder.current.orEmpty()
         else -> landed.getOrElse(index) { tab.ladder.current.orEmpty() }
@@ -178,28 +182,28 @@ fun <K> LadderSheet(
     val top = MonitorLayoutPolicy.captureTopPadding(fromTop, portrait, compact = false)
     Column(
         modifier
-            .fillMaxSize()
+            .then(if (chromeless) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
             .testTag("ladder_sheet")
-            .pickerPanelGlass(capturePanelShape(fromTop, portrait))
+            .then(if (chromeless) Modifier else Modifier.pickerPanelGlass(capturePanelShape(fromTop, portrait)))
             .then(
-                if (onHold == null) Modifier else Modifier.pointerInput(holdTimeout, onHold) {
+                if (hold == null) Modifier else Modifier.pointerInput(holdTimeout, hold) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         val released = withTimeoutOrNull(holdTimeout) { waitForUpOrCancellation() }
                         if (released == null) {
-                            onHold()
+                            hold()
                             waitForUpOrCancellation()
                         }
                     }
                 },
             )
             .pointerInput(Unit) { detectTapGestures(onTap = {}) }
-            .padding(horizontal = 14.dp)
-            .padding(top = top.dp, bottom = if (fromTop) 14.dp else 11.dp)
+            .padding(horizontal = if (chromeless) 0.dp else 14.dp)
+            .padding(top = if (chromeless) 0.dp else top.dp, bottom = if (chromeless) 0.dp else if (fromTop) 14.dp else 11.dp)
             .semantics { contentDescription = "${presentation.title}. ${presentation.subtitle}" },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SheetHeader(presentation.title, presentation.subtitle, onClose)
+        if (!chromeless) SheetHeader(presentation.title, presentation.subtitle, onClose)
         if (!error.isNullOrBlank()) {
             Text(error, style = LiveType.ui(11f, FontWeight.Medium), color = LiveDesign.destructive, maxLines = 2)
         }
@@ -221,7 +225,7 @@ fun <K> LadderSheet(
                 )
             }
         }
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().then(if (chromeless) Modifier else Modifier.weight(1f)), contentAlignment = Alignment.Center) {
             val core = tab.field?.takeIf { tab.tint == null && control != null }
             when {
                 tab.tint != null -> TintPad(

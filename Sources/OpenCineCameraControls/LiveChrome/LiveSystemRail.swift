@@ -137,24 +137,12 @@
         public init() {}
 
         public var body: some View {
-            Button {
+            MonitorFocusResetButton(
+                foreground: Host.Palette.text, outline: Host.Palette.hairline
+            ) {
                 host.focusBoxLocked = false
                 host.resetFocusPoint()
-            } label: {
-                MonitorIcon.rotateCw
-                    .frame(width: 17, height: 17)
-                    .foregroundStyle(Host.Palette.text)
-                    .frame(
-                        width: LiveChromeMetrics.focusResetSize,
-                        height: LiveChromeMetrics.focusResetSize
-                    )
-                    .background(.black.opacity(0.55), in: Circle())
-                    .overlay(Circle().strokeBorder(Host.Palette.hairline, lineWidth: 1))
             }
-            .buttonStyle(.monitorTapTarget)
-            .accessibilityLabel("Recenter focus")
-            .accessibilityHint("Moves the focus box back to the center and ends subject tracking")
-            .accessibilityIdentifier("monitor.system.focusReset")
         }
     }
 

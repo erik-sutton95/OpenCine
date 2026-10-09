@@ -5,11 +5,28 @@ import XCTest
 /// `OPV_REFERENCE_TAPS` is a `|`-separated list of accessibility labels (or
 /// `@x,y` normalized coordinates) tapped in order; `OPV_REFERENCE_DWELL` is how
 /// long to stay afterwards. Each run attaches the element tree and screenshots.
+/// `OPV_REFERENCE_ORIENTATION` optionally selects portrait or either landscape;
+/// the driver's original device orientation is restored after the capture.
 open class PhysicalReferenceAppTests: SharedAppUITestCase {
     func testDriveReferenceApp() throws {
         let env = ProcessInfo.processInfo.environment
         guard let bundle = env["OPV_REFERENCE_BUNDLE"], !bundle.isEmpty else {
             throw XCTSkip("Requires the opted-in reference capture run")
+        }
+        let originalOrientation = XCUIDevice.shared.orientation
+        let requestedOrientation = env["OPV_REFERENCE_ORIENTATION"]
+        defer {
+            if requestedOrientation != nil { XCUIDevice.shared.orientation = originalOrientation }
+        }
+        if let requestedOrientation {
+            switch requestedOrientation {
+            case "portrait": XCUIDevice.shared.orientation = .portrait
+            case "landscape-left": XCUIDevice.shared.orientation = .landscapeLeft
+            case "landscape-right": XCUIDevice.shared.orientation = .landscapeRight
+            default:
+                XCTFail("Unsupported reference capture orientation")
+                return
+            }
         }
         let app = XCUIApplication(bundleIdentifier: bundle)
         if env["OPV_REFERENCE_LAUNCH"] == "1" { app.launch() } else { app.activate() }

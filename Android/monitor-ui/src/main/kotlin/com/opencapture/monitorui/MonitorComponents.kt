@@ -69,10 +69,11 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
     onQuickActiveChange: (Boolean) -> Unit = {},
     quickBottomClearanceDp: Float = 0f,
     columns: Int? = null,
+    gestureOwner: MonitorQuickGestureOwner? = null,
     onOpen: (String) -> Unit) {
-    val gestureOwner = remember { MonitorQuickGestureOwner() }
+    val owner = gestureOwner ?: remember { MonitorQuickGestureOwner() }
     val notifyQuickActive by rememberUpdatedState(onQuickActiveChange)
-    LaunchedEffect(gestureOwner.active) { notifyQuickActive(gestureOwner.active != null) }
+    LaunchedEffect(owner.active) { notifyQuickActive(owner.active != null) }
     DisposableEffect(Unit) { onDispose { notifyQuickActive(false) } }
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
@@ -106,9 +107,9 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                             .heightIn(min = if (grid) 32.dp else 34.dp)
                             .then(itemModifier(item.id))
                             .background(if (item.selected) MonitorPalette.accent.copy(alpha = .14f) else Color.Transparent, RoundedCornerShape(8.dp))
-                            .monitorReadoutGesture(quickControl(item.id), enabled && (gestureOwner.owner == null || gestureOwner.owner == item.id),
+                            .monitorReadoutGesture(quickControl(item.id), enabled && (owner.owner == null || owner.owner == item.id),
                                 { onOpen(item.id) }, { source, value -> onQuickCommit(item.id, source, value) },
-                                quickBottomClearanceDp, gestureOwner, item.id,
+                                quickBottomClearanceDp, owner, item.id,
                                 renderPreview, onPreviewBegin = { notifyQuickActive(true) })
                             .semantics { contentDescription = "${item.label} ${item.value}${item.annotation?.let { ", $it" }.orEmpty()}" }
                             .monitorReadoutShadow()

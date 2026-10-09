@@ -49,8 +49,10 @@ import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.LiveChromeMetrics
+import com.opencapture.monitorui.MonitorFocusResetButton
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorRect
+import com.opencapture.opencine.appkit.LocalOperatorHaptics
 import com.opencapture.opencine.media.CameraLinkPhase
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.ConnectionPhase
@@ -164,24 +166,11 @@ fun LockButton(locked: Boolean, label: String, modifier: Modifier = Modifier,
 
 @Composable
 fun LiveFocusResetButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier
-            .size(LiveChromeMetrics.FOCUS_RESET_DP.dp)
-            .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.55f))
-            .border(1.dp, LiveDesign.hairline, CircleShape)
-            .chromeClickable(onClick = onClick)
-            .semantics { contentDescription = "Recenter focus" },
-        contentAlignment = Alignment.Center,
-    ) {
-        // Settings reset glyph, distinct from the gimbal recenter crosshair.
-        MonitorIcon(
-            icon = MonitorIcon.ROTATE_CW,
-            contentDescription = null,
-            tint = LiveDesign.text,
-            modifier = Modifier.size(18.dp),
-        )
-    }
+    val haptics = LocalOperatorHaptics.current
+    MonitorFocusResetButton(
+        modifier = modifier, foreground = LiveDesign.text, outline = LiveDesign.hairline,
+        onClickFeedback = { haptics.selection() }, onClick = onClick,
+    )
 }
 
 /** iOS `LiveAutoExposureUnlockButton`: releases the feed AE lock back to Auto. */

@@ -237,6 +237,7 @@ private extension String {
         private let onClose: () -> Void
         private let control: MonitorControlModel?
         private let fromTop: Bool
+        private let chromeless: Bool
         private let error: String?
         private let unavailable: String?
         private let onHold: (() -> Void)?
@@ -253,7 +254,7 @@ private extension String {
         public init(
             presentation: LadderSheetPresentation<Key>, enabled: Bool,
             onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
-            control: MonitorControlModel? = nil, fromTop: Bool = false, error: String? = nil,
+            control: MonitorControlModel? = nil, fromTop: Bool = false, chromeless: Bool = false, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
             @ViewBuilder footer: @escaping (LadderTab<Key>) -> Footer
@@ -264,6 +265,7 @@ private extension String {
             self.onClose = onClose
             self.control = control
             self.fromTop = fromTop
+            self.chromeless = chromeless
             self.error = error
             self.unavailable = unavailable
             self.onHold = onHold
@@ -310,8 +312,28 @@ private extension String {
         private var sheet: some View {
             let top = captureTopPadding(fromTop: fromTop, portrait: portrait)
             let shape = panelShape(fromTop: fromTop, portrait: portrait)
-            return VStack(alignment: .leading, spacing: 8) {
-                header
+            return Group {
+                if chromeless {
+                    controls.monitorCapturePanelHeader(title: presentation.title, subtitle: presentation.subtitle)
+                }
+                else {
+                    controls.padding(.horizontal, 14).padding(.top, top)
+                        .padding(.bottom, fromTop ? 14 : 11)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .monitorGlass(in: shape, density: .expanded)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("\(presentation.title). \(presentation.subtitle)")
+            .accessibilityIdentifier("ladder_sheet")
+            .contentShape(Rectangle())
+            .onTapGesture {}
+            .modifier(LadderHoldGesture(minimumDuration: 0.45, action: onHold))
+        }
+
+        private var controls: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                if !chromeless { header }
                 if let error, !error.isBlank {
                     Text(error)
                         .font(MonitorTheme.font(11, weight: .medium))
@@ -328,7 +350,7 @@ private extension String {
                     lockBanner(banner)
                 }
                 drum
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: chromeless ? nil : .infinity)
                 if presentation.tabs.count > 1 {
                     ModeBar(
                         tabs: presentation.tabs.map(\.label), selected: index,
@@ -340,17 +362,6 @@ private extension String {
                 }
                 footer(tab)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, top)
-            .padding(.bottom, fromTop ? 14 : 11)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .monitorGlass(in: shape, density: .expanded)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("\(presentation.title). \(presentation.subtitle)")
-            .accessibilityIdentifier("ladder_sheet")
-            .contentShape(Rectangle())
-            .onTapGesture {}
-            .modifier(LadderHoldGesture(minimumDuration: 0.45, action: onHold))
         }
 
         private var disabledTabs: Set<Int> {
@@ -472,13 +483,13 @@ private extension String {
         public init(
             presentation: LadderSheetPresentation<Key>, enabled: Bool,
             onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
-            control: MonitorControlModel? = nil, fromTop: Bool = false, error: String? = nil,
+            control: MonitorControlModel? = nil, fromTop: Bool = false, chromeless: Bool = false, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil
         ) {
             self.init(
                 presentation: presentation, enabled: enabled, onWrite: onWrite, onClose: onClose,
-                control: control, fromTop: fromTop, error: error, unavailable: unavailable,
+                control: control, fromTop: fromTop, chromeless: chromeless, error: error, unavailable: unavailable,
                 onHold: onHold, tintLabel: tintLabel, tintHelp: tintHelp, footer: { _ in EmptyView() }
             )
         }

@@ -3,6 +3,7 @@ package com.opencapture.opencine.cameracontrols
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -33,32 +39,29 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.opencapture.monitorui.MonitorIcon
+import com.opencapture.monitorui.portraitAspectToggle
 import com.opencapture.monitorui.LiveMonitorLayout
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorMaterial
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.PortraitZones
-import com.opencapture.monitorui.livePortraitReadoutFrame
 import com.opencapture.monitorui.monitorMaterial
 import com.opencapture.monitorui.portraitAssistToolbar
+import com.opencapture.opencine.appkit.statusPresentation
 import com.opencapture.opencine.appkit.MonitorAssistState
-import com.opencapture.opencine.appkit.MonitorChromeEditBadgeLayer
-import com.opencapture.opencine.appkit.MonitorChromeEditBanner
 import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.MonitorInputAdmission
 import com.opencapture.opencine.appkit.MonitorInputBlock
-import com.opencapture.opencine.appkit.MonitorInteractionContext
-import com.opencapture.opencine.appkit.MonitorInteractionEffect
 import com.opencapture.opencine.appkit.MonitorInteractionTransition
-import com.opencapture.opencine.appkit.MonitorScreen
-import com.opencapture.opencine.appkit.MonitorScreenPresentation
-import com.opencapture.opencine.appkit.monitorChromeEditBoxes
+import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
 import com.opencapture.opencine.core.LocalVPNFilter
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.media.ScopeAssistBundle
 import com.opencapture.opencine.motion.LevelReading
+import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.ControlHud
@@ -88,7 +91,7 @@ public class MonitorOperatorFocusActions(public val tap: (Float, Float) -> Unit,
 
 /** Portable scope publications plus one bounded native inspector picture and a typed look picker. */
 public class MonitorOperatorAssistSource(public val host: AssistHost,
-    public val scopes: Flow<ScopeAssistBundle>, public val scopeStackMoved: () -> Unit,
+    public val scopes: Flow<ScopeAssistBundle>?, public val scopeStackMoved: () -> Unit,
     public val lookPicker: AssistLutPicker?, public val preview: (@Composable (MonitorAssistTool) -> Unit)? = null,
     public val panelPlacement: MonitorAssistPanelPlacement? = null,
     public val lookMenu: (@Composable () -> Unit)? = null,
@@ -129,8 +132,8 @@ public class MonitorOperatorLiveState(locked: Boolean = false) {
 }
 
 /**
- * Complete common live screen. The only view adapter is the retained native picture. Shared owners
- * draw status, capture, system chrome, focus/scopes, full editors, zoom/motion, inspector and banners.
+ * Existing native source values and bounded focus/motion content feed the one common monitor body.
+ * The adapter keeps camera-specific control projection and the retained native picture.
  */
 @Composable
 public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSource<Host>,
@@ -151,21 +154,20 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val covered = shell.cover != null
     val editing = chrome.session.isEditing
     val interactive = !editing && chrome.host.liveChromeInteractive && !covered
-    var paletteBounds by remember(layout.viewportWidth, layout.viewportHeight) { mutableStateOf<MonitorRect?>(null) }
-    val toolbarMounted = chrome.session.mounts(MonitorDisplaySection.TOOL_BAR)
-    val context = MonitorInteractionContext(locked = state.locked, covered = covered, editing = editing,
-        clean = assist.clean, toolbarMounted = toolbarMounted, camera = common.snapshot?.session,
-        transientPanelPresented = state.capturePresented, orientationRevision = if (portrait) 1 else 0)
-    val applyTransition: (MonitorInteractionTransition) -> Unit = { transition ->
-        state.apply(transition, chrome.capture)
-        if (transition.dismissTransients) assist.configureTool = null
-        val admission = transition.inputAdmission
-        if (admission is MonitorInputAdmission.Blocked) nativeInputBlocked(admission.reason)
-    }
+    val field = checkNotNull(layout.field)
+    val editor = remember(chrome.session) { operatorChromeHost(chrome.session) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val usageStore = remember(chrome.preferences, context) { chrome.preferences.assistToolUsagePreferences(context) }
+    var usage by remember(usageStore) { mutableStateOf(usageStore.value) }
+    val identity = MonitorOperatorLiveIdentity(common.snapshot?.session, common.snapshot?.epoch, chrome.capture,
+        monitor = shell.monitor?.id, picture = "live")
+    val inputs = captureSheetHostInputs(chrome.capture, status, capabilities, state.sheet, { state.sheet = it },
+        section = MonitorDisplaySection.CAMERA_VALUES, metering = presentation.metering,
+        quickEnabled = !presentation.busy,
+        quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null })
     LaunchedEffect(status.shootingMode, capabilities.focus, capabilities.iris, capabilities.audio) {
         state.sheet = CaptureShutterPolicy.retainedSheet(state.sheet, status.shootingMode)
-        if (state.sheet == LiveSheet.FOCUS && !capabilities.focus || state.sheet == LiveSheet.APERTURE && !capabilities.iris)
-            state.sheet = null
+        if (state.sheet == LiveSheet.FOCUS && !capabilities.focus || state.sheet == LiveSheet.APERTURE && !capabilities.iris) state.sheet = null
         if (!capabilities.audio && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
     }
     LaunchedEffect(presentation.note, common.snapshot?.session, common.snapshot?.epoch) {
@@ -174,48 +176,33 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
         delay((ControlHud.TOAST_HOLD_SECONDS * 1000).toLong())
         if (chrome.capture.control.state.value.snapshot?.let { it.session to it.epoch } == source) clearNote(note)
     }
+    var paletteBounds by remember(layout.viewportWidth, layout.viewportHeight) { mutableStateOf<MonitorRect?>(null) }
+    val toolbarMounted = chrome.session.mounts(MonitorDisplaySection.TOOL_BAR)
     val cluster = layout.gimbalCluster(capabilities.gimbal && chrome.session.mounts(MonitorDisplaySection.GIMBAL_STICK))
     val desqueezed = assist.isVisible(MonitorAssistTool.DESQ)
     val meterFeed = if (desqueezed) geometry.pictureContent else layout.onFeed
     val showsAssist = toolbarMounted && !covered && assist.configureTool == null
-    val palette = if (!showsAssist) null else paletteBounds ?: if (zones != null)
+    val paletteBoundsForMeter = if (!showsAssist) null else paletteBounds ?: if (zones != null)
         portraitAssistToolbar(zones.assistToolbar.minY, minOf(layout.viewportWidth, layout.viewportHeight) >= 600f) else layout.assist
-    val captureHidden = hidesLowerCaptureValues(state.sheet, state.stripQuickActive, state.topQuickActive)
-    MonitorOperatorLiveBody(chrome.capture.control, checkNotNull(layout.field), MonitorScreenPresentation(
-        visible = !covered || editing, interactive = interactive,
-        statusMounted = chrome.session.mounts(MonitorDisplaySection.STATUS_BAR),
-        powerMounted = chrome.session.mounts(MonitorDisplaySection.BATTERIES),
-        captureMounted = chrome.session.mounts(MonitorDisplaySection.CAMERA_VALUES),
-        captureHidden = captureHidden, captureInteractive = state.sheet == null || state.sheet?.isTopAnchored == true,
-        locked = state.locked, popupInteractive = interactive && !state.locked,
-        capturePresented = state.capturePresented, recovering = presentation.recovering),
-        context, applyTransition, modifier, picture = picture,
-        status = { accepts ->
-            MonitorOperatorStatusChrome(chrome, layout, status, capabilities, accepts && !state.locked && interactive,
-                state.sheet, { state.sheet = it }, presentation.fps, presentation.bars, presentation.phoneBattery,
-                state.showStorageDuration, { state.showStorageDuration = !state.showStorageDuration },
-                onChipFrame = { section, frame -> state.statusChipFrames[section] = frame },
-                onQuickActiveChange = { state.topQuickActive = it; if (it) state.sheet = null })
-        }, power = {
-            com.opencapture.monitorui.MonitorTelemetry(presentation.bars, presentation.fps, presentation.phoneBattery,
-                status.batteryPercent, horizontal = portrait && !checkNotNull(layout.field).tablet,
-                showsLink = !portrait || checkNotNull(layout.field).tablet)
-        }, capture = { accepts ->
-            MonitorOperatorCaptureStrip(chrome.capture, status, state.sheet, accepts && !presentation.busy,
-                portrait, capabilities, Modifier.monitorChromeEditStroke(editing, true), presentation.metering,
-                onOpen = { if (!state.locked && accepts) state.open(it, status) },
-                onQuickActiveChange = { state.stripQuickActive = it; if (it) state.sheet = null },
-                quickBottomClearanceDp = if (zones != null) layout.viewportHeight - zones.systemBar.minY + 12f else layout.safeBottom)
-        }, system = { accepts ->
-            MonitorOperatorSystemChrome(chrome, layout, status, state.locked,
-                { state.locked = !state.locked; lockedChanged(state.locked) }, state.capturePresented,
-                if (portrait) state.topQuickActive || state.stripQuickActive else state.capturePresented,
-                accepts && interactive, presentation.busy, assist.clean, { assist.clean = !assist.clean },
-                { state.sheet = LiveSheet.MODE })
-        }, tools = {
+    val feed = if (desqueezed) geometry.pictureContent else layout.onFeed
+        .fittedContent(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect)
+    val framing = if (desqueezed) geometry.pictureContent.fittedContent(
+        assist.presentedAspect(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect)) else null
+    val tools = MonitorAssistTool.settingsCases.filter {
+        it != MonitorAssistTool.AUDIO || capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
+    }
+    val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
+        tool, assist.isOn(tool), { assist.toggle(tool) }, tool.hasConfiguration) }
+    val native = MonitorOperatorBodyViews(
+        focusMarks = {
+            MonitorOperatorFocusLayer(focus.tracking, if (chrome.session.mounts(MonitorDisplaySection.FOCUS_BOX)) focus.point else null,
+                presentation.mirrored, chrome.session.mounts(MonitorDisplaySection.FOCUS_BOX) &&
+                    (focus.tapFocusSupported || focus.aeLocked) && focus.point != null,
+                Modifier.fillMaxSize(), focus.aeLocked, presentation.flippedVertically, focus.held)
+        }, feedGestures = { enabled ->
             val gestureFrame = meterFeed
             Box(Modifier.frame(gestureFrame)) {
-                LiveFeedGestureWell(enabled = !state.locked && !covered && interactive,
+                LiveFeedGestureWell(enabled = enabled && !state.locked && !covered && interactive,
                     feed = MonitorRect(0f, 0f, gestureFrame.width, gestureFrame.height),
                     onTap = { point ->
                         if (focus.held) focusActions.presentNote(LiveFeedFocusGesture.FOCUS_LOCKED_NOTE)
@@ -229,82 +216,73 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                     mirrored = presentation.mirrored, flippedVertically = presentation.flippedVertically,
                     onToggleFocusLock = focusActions.toggleHeld)
             }
-            OperatorAssistLayer(assist, assists, geometry, status, focus, presentation, state.locked,
-                chrome.session.mounts(MonitorDisplaySection.FOCUS_BOX))
-            if (!presentation.hasPicture) OperatorWaitingPicture(layout.onFeed, chrome, vpnActive)
+        }, focusControls = { enabled ->
             if (assist.evMeter && chrome.session.mode == MonitorDisplayMode.LIVE)
                 MonitorOperatorExposureMeter(readExposure(), exposureAvailable, meterFeed, chrome.session.mode,
-                    Modifier.zIndex(1f), palette)
+                    Modifier.zIndex(1f), paletteBoundsForMeter)
             if (level != null && assist.isVisible(MonitorAssistTool.LEVEL))
                 MonitorOperatorLevelOverlay(level, levelViewFlip, meterFeed,
                     MonitorRect(0f, 0f, layout.viewportWidth, layout.viewportHeight), portrait, Modifier.zIndex(1f))
             val subject = focus.tracking.overlay as? FocusOverlay.Subject
-            if (!state.locked && interactive && subject != null) Box(Modifier.frame(layout.onFeed)) {
+            if (enabled && !state.locked && interactive && subject != null) Box(Modifier.frame(layout.onFeed)) {
                 MonitorOperatorTrackingCancelButton(subject.box, layout.onFeed.width, layout.onFeed.height,
                     presentation.mirrored, presentation.flippedVertically, focusActions.cancelTracking)
             }
-            if (!state.locked && interactive && focus.aeLocked) Box(Modifier.frame(layout.aeUnlock).zIndex(3f)) {
+            if (enabled && !state.locked && interactive && focus.aeLocked) Box(Modifier.frame(layout.aeUnlock).zIndex(3f)) {
                 LiveAutoExposureUnlockButton(onClick = focusActions.unlockAE)
             }
-            Box(Modifier.zIndex(2f)) {
-                MonitorOperatorControlChrome(chrome, layout, zones, status, capabilities, assist, state.locked,
-                    interactive, state.capturePresented, presentation.verticalPicture, focus.resetAvailable,
-                    focusActions.reset, { assist.configureTool = it }, { paletteBounds = it }, state.paletteRevision)
-            }
-        }, panels = {
-            OperatorToast(presentation.note, layout, chrome.session.mounts(MonitorDisplaySection.STATUS_BAR))
-            val sheet = state.sheet
-            if (interactive && sheet != null && !state.locked) LivePickerHost(sheet, layout.viewportWidth, layout.viewportHeight,
-                layout.safeLeading, layout.safeTrailing, layout.safeTop, layout.safeBottom, zones?.systemBar?.minY,
-                chrome.host, status, false, { state.sheet = it }, zones?.let { livePortraitReadoutFrame(layout, it).maxY })
-            if (interactive && capabilities.gimbal && chrome.session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
+        }, motion = MonitorOperatorMotionViews(controls = { enabled ->
+            MonitorOperatorNativeControls(chrome, layout, zones, status, capabilities, assist, state.locked,
+                enabled && interactive, state.capturePresented, presentation.verticalPicture, focus.resetAvailable, focusActions.reset)
+        }, editor = { enabled ->
+            if (enabled && capabilities.gimbal && chrome.session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
                 chrome.host.liveGimbalPanel == LiveGimbalPanel.SHEET && !state.locked)
                 LiveGimbalSheetHost(chrome.host, layout, cluster, layout.safeLeading, layout.safeTrailing, layout.safeTop, layout.safeBottom)
-            val configure = assist.configureTool
-            if (interactive && configure != null && !state.locked && !covered) Box(Modifier.fillMaxSize().zIndex(8f)) {
-                val imagePreview: (@Composable () -> Unit)? = assists.preview?.let { renderer -> { renderer(configure) } }
-                AssistInspectorFrame(configure, assist, layout.viewportWidth, layout.viewportHeight,
-                    layout.safeLeading, layout.safeTop, layout.safeBottom, { assist.configureTool = null },
-                    safeTrailing = layout.safeTrailing) { maximum ->
-                    AssistOptionsPanel(configure, assist, { assist.configureTool = null }, assists.host, assists.lookPicker,
-                        maxHeightDp = maximum, transfer = status.monitorTransfer, embedded = true, isPhoto = status.isPhoto,
-                        imagePreview = imagePreview, lookMenu = assists.lookMenu)
-                }
-            }
+        }), waitingPicture = { if (!presentation.hasPicture) OperatorWaitingPicture(layout.onFeed, chrome, vpnActive) },
+        feedback = { OperatorToast(presentation.note, layout, chrome.session.mounts(MonitorDisplaySection.STATUS_BAR)) })
+    val viewport = MonitorRect(layout.safeLeading, layout.safeTop,
+        maxOf(0f, layout.viewportWidth - layout.safeLeading - layout.safeTrailing),
+        maxOf(0f, layout.viewportHeight - layout.safeTop - layout.safeBottom))
+    MonitorOperatorLiveBody(chrome.capture.control, identity, { value ->
+        chrome.capture.control.state.value.snapshot?.session == value.camera &&
+            chrome.capture.control.state.value.snapshot?.epoch == value.epoch && chrome.shell.state.value.monitor?.id == value.monitor
+    }, field, viewport, MonitorOperatorLiveSections(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.BATTERIES,
+        MonitorDisplaySection.CAMERA_VALUES, MonitorDisplaySection.TOOL_BAR, MonitorDisplaySection.LOCK_BUTTON,
+        MonitorDisplaySection.RAIL_SETTINGS, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_RECORD, null),
+        MonitorDisplaySection.entries.filter(chrome.session::mounts).toSet(), editor, chrome.session.editingMode,
+        state.locked, { state.locked = it; lockedChanged(it) }, covered, assist.clean, false, false, presentation.recovering,
+        operatorStatusProjection(chrome, layout, status, capabilities, presentation.fps, presentation.bars,
+            state.showStorageDuration, { state.showStorageDuration = !state.showStorageDuration }),
+        listOf(MonitorOperatorPowerReading(false, presentation.phoneBattery, null),
+            MonitorOperatorPowerReading(true, status.batteryPercent.takeIf { it in 0..100 }, null)),
+        inputs, {}, { chrome.shell.open(ShellModel.Cover.SETTINGS) }, { chrome.shell.open(ShellModel.Cover.MEDIA) },
+        { assist.clean = !assist.clean }, if (assist.clean) 1 else 0, 2, status.isPhoto,
+        chrome.capture.confirmRecording(), !presentation.busy, assist = assist, assists = assists,
+        palette = palette, usage = usage, setUsage = { usage = it; usageStore.value = it }, usageSeed = MONITOR_OPERATOR_USAGE_SEED,
+        renderedTools = tools.toSet(), fittedScopes = emptyList(), scopeZone = null,
+        audioChannels = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
+        cameraViews = native, modifier = modifier, chromeBoxes = state.statusChipFrames,
+        openMode = { state.sheet = LiveSheet.MODE }, recordConfirmationPolicy = com.opencapture.opencine.appkit.MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
+        interactionEnabled = chrome.host.liveChromeInteractive,
+        borrowed = shell.monitor?.isBorrowed == true, returnToStage = chrome.returnToStage,
+        safeLeading = layout.safeLeading, safeTrailing = layout.safeTrailing, safeTop = layout.safeTop, safeBottom = layout.safeBottom,
+        scopeFeed = feed, framingFrame = framing, scopePlacement = geometry.scopePlacement, scopeFloating = true,
+        scopeTransfer = status.monitorTransfer, paletteFrameChanged = { paletteBounds = it },
+        transitionChanged = { transition ->
+            if (transition.dismissTransients) state.dismiss()
+            if (transition.retireReadout) { state.topQuickActive = false; state.stripQuickActive = false }
+            val admission = transition.inputAdmission
+            if (admission is MonitorInputAdmission.Blocked) nativeInputBlocked(admission.reason)
+        }, picture = picture, cameraPanel = { key, frame, _, captureState ->
+            val sheet = LiveSheet.valueOf(key)
+            LiveControlSheet(sheet, chrome.host, status, locked = false,
+                onDismiss = { state.sheet = null }, maxHeightDp = frame.height, portrait = field.portrait,
+                chromeless = true, onHeaderChanged = { title, subtitle -> captureState.publishHeader(key, title, subtitle) })
+        }, photoRelease = { enabled, decoration ->
+            com.opencapture.opencine.appkit.MonitorCaptureButton(chrome.capture.control, field.record.width,
+                enabled && chrome.capture.isReady, decoration, photo = true, confirm = chrome.capture.confirmRecording(),
+                takePhoto = chrome.capture.takePhoto, openMode = { state.sheet = LiveSheet.MODE })
         })
-    chrome.session.editingMode?.let { mode -> Box(Modifier.fillMaxSize()) {
-        val boxes = monitorChromeEditBoxes(layout, chrome.session::mounts, state.locked, cluster.zoom, cluster.stick,
-            state.statusChipFrames.toMap())
-        MonitorChromeEditBadgeLayer(boxes, layout.viewportWidth, layout.viewportHeight,
-            visible = { chrome.session.chrome(mode).isVisible(it) }, onToggle = { chrome.session.toggle(it, mode) })
-        val bottomBars = chrome.session.mounts(MonitorDisplaySection.TOOL_BAR) || chrome.session.mounts(MonitorDisplaySection.CAMERA_VALUES)
-        val floor = if (bottomBars) minOf(layout.assist.minY, layout.capture.minY) else layout.feed.maxY
-        MonitorChromeEditBanner(mode, Modifier.align(Alignment.TopCenter)
-            .offset(x = (layout.feed.midX - layout.viewportWidth / 2f).dp, y = (floor - 28f).dp), chrome.session::finishEditing)
-    } }
-}
-
-@Composable
-private fun OperatorAssistLayer(state: MonitorAssistState, source: MonitorOperatorAssistSource,
-    geometry: MonitorOperatorLiveLayout, status: CameraStatus, focus: MonitorOperatorFocusObservation,
-    presentation: MonitorOperatorLivePresentation, locked: Boolean, focusMounted: Boolean): Unit {
-    val bundle by source.scopes.collectAsState(initial = ScopeAssistBundle.EMPTY)
-    val feed = if (state.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent else geometry.layout.onFeed
-        .fittedContent(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect)
-    val framing = if (state.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent.fittedContent(
-        state.presentedAspect(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect)) else null
-    Box(Modifier.fillMaxSize().zIndex(1f)) {
-        AssistOverlayLayer(state, bundle, status, source.host, locked = locked, feedFrame = feed, framingFrame = framing,
-            placementFrame = geometry.scopePlacement, audioPlacementFrame = geometry.scopePlacement.copy(
-                x = geometry.layout.safeLeading, width = maxOf(0f, geometry.scopePlacement.maxX - geometry.layout.safeLeading)),
-            onOpenOptions = { tool, frame -> state.longPressAnchor = frame; state.configureTool = tool },
-            showsAudio = presentation.capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode),
-            onScopeStackMoved = source.scopeStackMoved) {
-            MonitorOperatorFocusLayer(focus.tracking, if (focusMounted) focus.point else null,
-                presentation.mirrored, focusMounted && (focus.tapFocusSupported || focus.aeLocked) && focus.point != null,
-                Modifier.fillMaxSize(), focus.aeLocked, presentation.flippedVertically, focus.held)
-        }
-    }
 }
 
 @Composable
@@ -343,4 +321,119 @@ private fun BoxScope.OperatorToast(note: String?, layout: LiveMonitorLayout, sta
             .padding(horizontal = 12.dp, vertical = 6.dp))
 }
 
+@Composable
+private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChromeSource<Host>,
+    layout: LiveMonitorLayout, zones: PortraitZones?, status: CameraStatus, capabilities: MonitorLayoutCapabilities,
+    assist: MonitorAssistState, locked: Boolean, interactive: Boolean, capturePresented: Boolean,
+    sourceIsVertical: Boolean, focusResetAvailable: Boolean, resetFocus: () -> Unit
+): Unit
+    where Host : CaptureSheetHost, Host : GimbalChromeHost {
+    val shell by source.shell.state.collectAsState()
+    val editing = source.session.isEditing
+    val showGimbal = capabilities.gimbal && source.session.mounts(MonitorDisplaySection.GIMBAL_STICK)
+    val cluster = layout.gimbalCluster(showGimbal)
+    val portrait = zones != null
+    val desqueezed = assist.isVisible(com.opencapture.monitorui.MonitorAssistTool.DESQ)
+    Box(Modifier.fillMaxSize()) {
+        if (zones != null && !editing && !sourceIsVertical && !desqueezed) {
+            val fill = source.portraitAspect == PortraitFeedAspect.FILL
+            val toggle = portraitAspectToggle(layout.viewportWidth, zones.assistToolbar.minY)
+            Box(Modifier.operatorFrame(toggle).alpha(if (locked) .4f else 1f)
+                .clip(CircleShape).background(Color.Black.copy(alpha = .55f))
+                .border(1.dp, LiveDesign.hairline, CircleShape)
+                .chromeClickable(enabled = !locked) {
+                    source.setPortraitAspect(if (fill) PortraitFeedAspect.FIT_16X9 else PortraitFeedAspect.FILL)
+                }.semantics { contentDescription = if (fill) "Fit feed in frame" else "Fill frame with feed" },
+                contentAlignment = Alignment.Center) {
+                MonitorIcon(if (fill) MonitorIcon.MINIMIZE else MonitorIcon.MAXIMIZE, null,
+                    Modifier.size(15.dp), LiveDesign.text)
+            }
+        }
+        source.zoom?.let { zoom ->
+            if (!capturePresented && capabilities.zoom && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
+                LiveZoomChip(zoom.factor, locked,
+                    Modifier.operatorFrame(cluster.zoom).alpha(if (locked || zoom.dimmed) .4f else 1f)
+                        .monitorChromeEditStroke(editing, true), zoom.pinching, zoom.dimmed,
+                    onCycle = { zoom.commitCycle(LiveZoom.nextJump(zoom.cycleFrom(), zoom.tapStops.primary)) },
+                    maximum = zoom.maximum, opticalStops = zoom.opticalStops,
+                    onDial = zoom.drag, onDialEnd = zoom.endDrag,
+                    dialFactor = zoom.dialFactor,
+                    onDigitalCycle = zoom.tapStops.secondary.takeIf { it.isNotEmpty() }?.let { stops ->
+                        { zoom.commitCycle(LiveZoom.nextJump(zoom.cycleFrom(), stops)) }
+                    })
+            }
+        }
+        if (!capturePresented && showGimbal && !cluster.controls.isEmpty) {
+            LiveGimbalButton(locked, {
+                source.host.liveGimbalPanel = if (source.host.liveGimbalPanel == LiveGimbalPanel.SHEET)
+                    LiveGimbalPanel.NONE else LiveGimbalPanel.SHEET
+            }, Modifier.operatorFrame(cluster.controls).alpha(if (locked) .4f else 1f))
+        }
+        if (showGimbal && !cluster.stick.isEmpty) {
+            Box(Modifier.operatorFrame(cluster.stick).alpha(if (capturePresented) 0f else 1f)
+                .monitorChromeEditStroke(editing, true)) {
+                LiveGimbalStick(enabled = !capturePresented && !locked && shell.cover == null && interactive,
+                    onMove = source.stick.move, onRelease = source.stick.release,
+                    onRecenter = source.stick.recenter, onFlip = source.stick.flip)
+            }
+        }
+        if (!capturePresented && showGimbal && interactive && !locked && shell.cover == null) {
+            LiveGimbalOverlay(source.host, layout, layout.onFeed, locked, cluster.stick,
+                if (capabilities.zoom && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
+                else MonitorRect(0f, 0f, 0f, 0f))
+        }
+        if (!locked && interactive && focusResetAvailable) {
+            Box(Modifier.operatorFrame(layout.focusReset)) { LiveFocusResetButton(onClick = resetFocus) }
+        }
+    }
+}
+
+private fun Modifier.operatorFrame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
+
 private fun Modifier.frame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
+
+internal fun operatorChromeHost(session: com.opencapture.opencine.appkit.MonitorOperatorSessionModel):
+    com.opencapture.opencine.appkit.ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode> =
+    object : com.opencapture.opencine.appkit.ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode> {
+        override val chromeEditSections = MonitorDisplaySection.entries
+        override fun chromeSectionTitle(section: MonitorDisplaySection) = section.title
+        override fun chromeSectionID(section: MonitorDisplaySection) = section.key
+        override fun chromeModeTitle(mode: MonitorDisplayMode) = mode.title
+        override fun isChromeConfigurable(section: MonitorDisplaySection, mode: MonitorDisplayMode) =
+            section in chromeEditSections
+        override fun isChromeVisible(section: MonitorDisplaySection, mode: MonitorDisplayMode) = session.chrome(mode).isVisible(section)
+        override fun toggleChrome(section: MonitorDisplaySection, mode: MonitorDisplayMode) = session.toggle(section, mode)
+        override fun endChromeEditing() = session.finishEditing()
+    }
+
+private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSource<Host>, layout: LiveMonitorLayout,
+    status: CameraStatus, capabilities: MonitorLayoutCapabilities, fps: String, bars: Int,
+    duration: Boolean, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
+    where Host : CaptureSheetHost, Host : GimbalChromeHost {
+    val field = checkNotNull(layout.field)
+    fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
+        MonitorOperatorLiveReadout(sheet.name, title, value, section)
+    val labels = source.host.labelProfile
+    val sheet = CaptureShutterPolicy.portraitSetupSheet(status.shootingMode)
+    val format = if (source.session.mounts(MonitorDisplaySection.FORMAT) && !CameraCommands.isPhotoMode(status.shootingMode))
+        listOf(row(LiveSheet.FORMAT, "Recording format", CaptureLists.recFormatChipLabel(status), MonitorDisplaySection.FORMAT)) else emptyList()
+    return MonitorOperatorLiveStatus(source.capture.control.statusPresentation(status.recordElapsedSec),
+        CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && capabilities.timecode && source.session.mounts(MonitorDisplaySection.TIMECODE),
+        CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
+        if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
+            CaptureLists.storageLabel(status, if (field.portrait) false else duration).substringBefore(" ·"), MonitorDisplaySection.STORAGE,
+            action = { if (!field.portrait) toggleStorage() }, icon = com.opencapture.monitorui.MonitorIcon.CARD_SIM) else null,
+        format, fps, bars, MonitorDisplaySection.BATTERIES,
+        portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
+            CaptureShutterPolicy.portraitSetupLabel(status)),
+        portraitCaption = CaptureShutterPolicy.portraitSetupCaption(status, source.host.camera?.family.orEmpty(), labels),
+        color = if (!field.portrait && source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
+            row(LiveSheet.COLOR, "Color mode", CameraCommands.colorLabel(status.colorMode, source.host.camera?.family.orEmpty(), labels), MonitorDisplaySection.COLOR) else null,
+        mode = if (!field.portrait && source.session.mounts(MonitorDisplaySection.FORMAT))
+            row(LiveSheet.MODE, "Shooting mode", CameraCommands.shootingModeLabel(status.shootingMode, source.host.camera?.name, labels)) else null,
+        recordingSection = MonitorDisplaySection.REC_READOUT, timecodeSection = MonitorDisplaySection.TIMECODE)
+}
+
+private val MONITOR_OPERATOR_USAGE_SEED = mapOf("PEAK" to 6, "FALSE" to 5, "ZEBRA" to 4,
+    "LUT" to 4, "WAVE" to 3, "GUIDES" to 2, "GRID" to 2, "HISTO" to 2, "VECTOR" to 1,
+    "PARADE" to 1, "LIGHTS" to 1, "CROSS" to 1, "MIRROR" to 1, "AUDIO" to 1)

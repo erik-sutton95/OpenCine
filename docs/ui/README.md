@@ -58,6 +58,11 @@ it from its integration slots, [appkit](../appkit/README.md)). Android's brand i
 `MonitorPalette.accent` and the transitional `MonitorIosParity.enabled`
 (see [Android/monitor-ui/README.md](../../Android/monitor-ui/README.md)).
 
+`CamerasPage` and Compose `MonitorCameraPage` own their platform's Your Cameras frame.
+The Android page applies safe-drawing and landscape cutout clearance plus the Pocket page
+spacing itself. Deployed app shells and generated Scenes use that same renderer; native
+pairing content and route lifetime remain bounded host inputs.
+
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
 
@@ -74,13 +79,38 @@ CGRect live layout built from `FieldMonitorLayout` (`LiveMonitorLayout.fieldMoni
 `LivePopupPlacement`, `LiveChromeMetrics`, `InterfaceOrientationObserver`, `liveModuleFrame`
 and the `interfaceLocked` environment value). The Compose twin is `MonitorLiveLayout.kt`.
 
+Live app composition uses `MonitorOperatorLiveBody` in `OpenCineCameraControls` /
+`camera-controls` through the existing live surface, descriptor surface or generated-app Scene
+adapter. One owner places the canvas, status, system rail, palette, inspector and capture popup.
+The lower UI primitives continue to take values and actions; app-specific native content enters
+bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
+for adapter boundaries, capture ownership and regression guards.
+
+Portrait status measures the recording, clock and format slots, keeping an 8 point/dp
+clearance and using an intrinsic second row when needed. Rows contain the full native
+touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (normally
+48 dp, while the existing 52 dp tablet row stays larger). This platform sizing difference
+keeps Android touch expansion inside the measured header. Typed header readouts expose
+their title, optional value and presentation action as one accessible control.
+
+`MonitorFocusResetButton` owns the common circular `rotateCw` glyph and target on both
+platforms. Legacy and canonical live surfaces delegate to it; apps supply visibility
+and reset actions.
+
 ## Operator settings
+
+Android's deployed, configured and generated-session settings adapters delegate to the sole
+[`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
+That owner supplies the cover input barrier, safe-drawing clearance, page margins, Back action,
+tab dispatch and legal/LUT overlays. Existing typed settings sources supply real values and
+native content; they cannot replace the common page frame. SwiftUI uses its existing complete
+`MonitorOperatorSettingsScreen` and the same lower `MonitorSettingsPage` primitive.
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and
 content scrolling. `MonitorSettingsTab` has stable Link, Sharing, View Assist, Controls,
 Display, Storage and System identities. The host supplies brand text, connection values,
-actions and typed section composition. SwiftUI includes keyboard insets; Compose uses the
-host's window insets. Android sharing currently retains its existing placeholder.
+actions and typed section composition. SwiftUI includes keyboard insets; Compose's complete
+settings owner applies safe-drawing insets. Sharing content follows the actual optional source.
 
 The optional `tabSpacing` argument defaults to 6 points/dp, preserving existing
 callers. Swift applies it to both orientations; Compose applies it to portrait
@@ -136,9 +166,10 @@ requests and service-specific copy. Missing actions stay absent.
 Wi-Fi-code action (absent when the app passes none, for cameras whose watchers must not join
 the camera's network), passcode field, control requests and supplied priority choices. The app
 keeps relay admission/lifetime, borrowed-camera policy, keychain writes and Wi-Fi-sheet
-presentation. This is an explicit platform exception: Android currently has no implemented
-feed-sharing settings and retains its existing Coming soon content. No Android relay or
-account functionality is implied by the shared presentation.
+presentation. Android's deployed settings sources retain Coming soon content; the configured
+source renders its supplied sharing values and admitted peer actions through common rows.
+Generated session settings currently omit Sharing. This source distinction
+does not imply relay or account availability where the host supplies none.
 
 ## Import rules
 

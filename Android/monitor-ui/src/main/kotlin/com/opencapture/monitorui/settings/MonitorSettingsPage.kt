@@ -80,6 +80,7 @@ public fun MonitorSettingsPage(
     sharingSubtitle: String? = null,
     sharingRail: String? = null,
     tabSpacing: Dp = 6.dp,
+    back: (() -> Unit)? = null,
     rows: @Composable ColumnScope.(MonitorSettingsTab) -> Unit,
 ) {
     MonitorPageScaffold(
@@ -133,10 +134,15 @@ public fun MonitorSettingsPage(
                     Text(selection.title, style = MonitorTypography.text(17f, FontWeight.SemiBold), color = MonitorPalette.text)
                     Text(if (selection == MonitorSettingsTab.SHARING) sharingSubtitle ?: selection.subtitle else selection.subtitle, style = MonitorTypography.text(10.5f), color = MonitorPalette.muted, maxLines = 2)
                 }
-                Text(selection.pill.uppercase(),
-                    style = MonitorTypography.readout(10f, FontWeight.Bold).copy(letterSpacing = 0.6.sp, color = MonitorPalette.accent),
-                    modifier = Modifier.border(1.dp, MonitorPalette.accent.copy(alpha = 0.16f), CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(selection.pill.uppercase(),
+                        style = MonitorTypography.readout(10f, FontWeight.Bold).copy(letterSpacing = 0.6.sp, color = MonitorPalette.accent),
+                        modifier = Modifier.border(1.dp, MonitorPalette.accent.copy(alpha = 0.16f), CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 6.dp))
+                    back?.let { action ->
+                        MonitorSettingsActionPill("Back", modifier = Modifier.testTag("monitor.page.back"), onClick = action)
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
             key(selection) {

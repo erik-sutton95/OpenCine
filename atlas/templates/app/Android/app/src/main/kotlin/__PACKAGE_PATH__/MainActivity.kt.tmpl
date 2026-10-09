@@ -40,10 +40,12 @@ class MainActivity : ComponentActivity() {
             onPersistPlayback = { storage.edit().putStringSet("__NAME__.PlaybackAssists", it).apply() })
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
+                val playbackEffects = OperatorPlaybackEffects(assist)
                 MonitorOperatorScene(shell = shell, brand = brand,
                     actions = ShellActions(diagnostics = {}, reportProblem = {}),
                     operatorPreferences = operatorPreferences, displayPreferences = displayPreferences,
-                    assist = assist, media = media,
+                    assist = assist, media = media, playbackEffects = playbackEffects,
+                    assistHost = OperatorAssistHost(),
                     availableAssistTools = setOf(MonitorAssistTool.PEAK, MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA,
                         MonitorAssistTool.GUIDES, MonitorAssistTool.GRID, MonitorAssistTool.CROSS,
                         MonitorAssistTool.DESQ, MonitorAssistTool.MIRROR),
@@ -52,7 +54,7 @@ class MainActivity : ComponentActivity() {
                         val iso = ((snapshot.settings[SettingKey.ISO]?.value as? SettingValue.Iso)?.value as? ISOValue.Manual)?.iso
                         OperatorPicture(assist, operatorPreferences, iso)
                     }, thumbnail = { OperatorThumbnail(it) },
-                    playbackPicture = { OperatorPlaybackPicture(it, assist, operatorPreferences) })
+                    playbackPicture = { OperatorPlaybackPicture(it, assist, operatorPreferences, playbackEffects) })
             }
         }
     }

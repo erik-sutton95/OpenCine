@@ -61,41 +61,8 @@ fun capturePanelShape(fromTop: Boolean, portrait: Boolean): RoundedCornerShape {
 @Composable
 fun SheetHeader(title: String, subtitle: String, onClose: () -> Unit,
     showsClose: Boolean = true) {
-    val interactive = LocalCapturePreview.current == null
-    Row(
-        Modifier.fillMaxWidth().then(
-            if (!showsClose) Modifier.height(com.opencapture.monitorui.MonitorLayoutPolicy.CAPTURE_HEADER_HEIGHT.dp)
-            else Modifier,
-        ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            Modifier.weight(1f),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Text(
-                title,
-                style = LiveType.ui(9f, FontWeight.SemiBold).copy(letterSpacing = 1.8.sp),
-                maxLines = 1,
-            )
-            Text(
-                subtitle.uppercase(),
-                style = LiveType.ui(8.5f).copy(letterSpacing = 1.19.sp),
-                color = LiveDesign.faint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 2.dp),
-            )
-        }
-        if (showsClose) {
-            Box(Modifier.size(44.dp).chromeClickable(enabled = interactive, onClick = { if (interactive) onClose() })
-                .testTag("monitor.capture.close")
-                .semantics { contentDescription = "Close camera control" }, contentAlignment = Alignment.Center) {
-                MonitorIcon(MonitorIcon.X, null, Modifier.size(13.dp), LiveDesign.muted)
-            }
-        }
-    }
+    com.opencapture.opencine.appkit.MonitorOperatorCaptureHeader(title, subtitle, onClose,
+        showsClose, enabled = LocalCapturePreview.current == null)
 }
 
 @Composable

@@ -204,7 +204,11 @@ private struct PhysicalMigrationProbe: Decodable {
             self.answerConnectionAlerts()
             return self.app.buttons["monitor.system.settings"].isHittable
                 || self.app.buttons["cameras.pair"].isHittable
-                || self.app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Connect ")).firstMatch.isHittable
+                || self.app.buttons.matching(
+                    NSPredicate(
+                        format: "label BEGINSWITH %@ OR label BEGINSWITH %@",
+                        "Connect ", "Reconnect ")
+                ).firstMatch.isHittable
         }
         // A launch may reconnect automatically. Exercise the real saved-row
         // action anyway, after confirming idle and explicitly disconnecting.
@@ -225,13 +229,18 @@ private struct PhysicalMigrationProbe: Decodable {
             if selected && self.app.buttons["monitor.system.settings"].isHittable { return true }
             if !selected {
                 let rows = self.app.buttons.matching(
-                    NSPredicate(format: "label BEGINSWITH %@", "Connect ")
+                    NSPredicate(
+                        format: "label BEGINSWITH %@ OR label BEGINSWITH %@",
+                        "Connect ", "Reconnect ")
                 ).allElementsBoundByIndex.filter {
                     !$0.identifier.hasPrefix("pair.") && !$0.identifier.hasPrefix("cameras.setup.")
-                        && $0.isHittable && (wanted == nil || $0.label == "Connect " + wanted!)
+                        && $0.isHittable
+                        && (wanted == nil || $0.label == "Connect " + wanted!
+                            || $0.label == "Reconnect " + wanted!)
                 }
                 if rows.count == 1, let row = rows.first {
-                    self.selectedCameraName = String(row.label.dropFirst("Connect ".count))
+                    let prefix = row.label.hasPrefix("Reconnect ") ? "Reconnect " : "Connect "
+                    self.selectedCameraName = String(row.label.dropFirst(prefix.count))
                     self.evidence(savedOnly ? "saved-connect-action" : "connect-action")
                     row.tap()
                     selected = true
@@ -700,12 +709,79 @@ private struct PhysicalMigrationProbe: Decodable {
         var previous = ""
         var stableSince = Date()
         try await wait("Native gallery scroll must settle", timeout: 5) {
-            let signature = self.mediaCells().filter(\.isHittable).map {
-                $0.identifier + ":" + String(Int($0.frame.minY.rounded()))
-            }.joined(separator: "|")
+            guard let signature = self.gallerySettleSignature() else {
+                stableSince = Date(); return false
+            }
             if signature != previous { previous = signature; stableSince = Date(); return false }
             return gallery.exists && Date().timeIntervalSince(stableSince) >= 0.4
         }
+    }
+
+    private func gallerySettleSignature() -> String? {
+        func readable(_ frame: CGRect) -> Bool {
+            [frame.minX, frame.minY, frame.maxX, frame.maxY].allSatisfy { $0.isFinite }
+                && frame.width > 0 && frame.height > 0
+        }
+        @MainActor func projection() -> (
+            viewport: CGRect, frames: [String: CGRect], insideGallery: Set<String>
+        )? {
+            guard let snapshot = try? app.snapshot() else { return nil }
+            var pending = snapshot.children.map { (node: $0, insideGallery: false) }
+            var viewport: CGRect?
+            var frames: [String: CGRect] = [:]
+            var insideGallery: Set<String> = []
+            while let entry = pending.popLast() {
+                let node = entry.node
+                let isGallery = node.identifier == "monitor.media.gallery"
+                if isGallery {
+                    guard viewport == nil, node.elementType == .scrollView,
+                        readable(node.frame)
+                    else { return nil }
+                    viewport = node.frame
+                }
+                if node.identifier.hasPrefix("monitor.media.clip.") {
+                    guard frames.updateValue(node.frame, forKey: node.identifier) == nil else {
+                        return nil
+                    }
+                    if entry.insideGallery { insideGallery.insert(node.identifier) }
+                }
+                for child in node.children {
+                    pending.append((node: child, insideGallery: entry.insideGallery || isGallery))
+                }
+            }
+            guard let viewport else { return nil }
+            return (viewport, frames, insideGallery)
+        }
+        guard let before = projection() else { return nil }
+        let candidates = before.frames.keys.filter { identifier in
+            guard before.insideGallery.contains(identifier), let frame = before.frames[identifier],
+                readable(frame)
+            else { return true }
+            // Only strict separation from the known default-clipped gallery
+            // excludes a cell. Other ancestors and unknown frames stay native.
+            return !(frame.maxX < before.viewport.minX || frame.minX > before.viewport.maxX
+                || frame.maxY < before.viewport.minY || frame.minY > before.viewport.maxY)
+        }
+        // Native query order and native existence/hit-point checks remain the
+        // source of the positive selection; snapshot traversal supplies no order.
+        let cells = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "monitor.media.clip.")
+        ).matching(NSPredicate(format: "identifier IN %@", candidates))
+            .allElementsBoundByAccessibilityElement.filter(\.isHittable)
+        var seen: Set<String> = []
+        var signature: [String] = []
+        for cell in cells {
+            let identifier = cell.identifier
+            guard candidates.contains(identifier), seen.insert(identifier).inserted,
+                let frame = before.frames[identifier], readable(frame),
+                let roundedY = Int(exactly: frame.minY.rounded())
+            else { return nil }
+            signature.append(identifier + ":" + String(roundedY))
+        }
+        guard let after = projection(), before.viewport == after.viewport,
+            before.frames == after.frames, before.insideGallery == after.insideGallery
+        else { return nil }
+        return signature.joined(separator: "|")
     }
 
     private func openClip(_ identifier: String) async throws {

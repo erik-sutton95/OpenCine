@@ -2,6 +2,36 @@
     import MonitorPresentation
     import SwiftUI
 
+    /// Actual title and value supplied by the controls inside a common drawer.
+    public struct MonitorCapturePanelHeaderValues: Equatable, Sendable {
+        public let title: String
+        public let subtitle: String
+
+        public init(title: String, subtitle: String) {
+            self.title = title
+            self.subtitle = subtitle
+        }
+    }
+
+    private struct MonitorCapturePanelHeaderPreferenceKey: PreferenceKey {
+        static var defaultValue: MonitorCapturePanelHeaderValues? { nil }
+
+        static func reduce(
+            value: inout MonitorCapturePanelHeaderValues?,
+            nextValue: () -> MonitorCapturePanelHeaderValues?
+        ) {
+            if let next = nextValue() { value = next }
+        }
+    }
+
+    public extension View {
+        /// Reports controls metadata to the containing drawer's single header.
+        func monitorCapturePanelHeader(title: String, subtitle: String) -> some View {
+            preference(key: MonitorCapturePanelHeaderPreferenceKey.self,
+                value: MonitorCapturePanelHeaderValues(title: title, subtitle: subtitle))
+        }
+    }
+
     /// The camera-independent capture drawer. Details keep a close control and
     /// grabber; compact hold shows the same glass and dial without accessories.
     public struct MonitorCapturePanel<Content: View>: View {
@@ -54,6 +84,25 @@
                 CGFloat(0), maximumHeight - topPadding - headerHeight - stackSpacing - footer)
             let showsGrabber = MonitorCapturePopupChrome.showsGrabber(kind: kind, edge: edge)
             VStack(spacing: stackSpacing) {
+                Color.clear.frame(height: headerHeight).accessibilityHidden(true)
+                ScrollView(.vertical, showsIndicators: false) {
+                    content
+                        .frame(maxWidth: .infinity)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) {
+                            $0.size.height
+                        } action: {
+                            contentHeight = $0
+                        }
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDisabled(contentHeight <= available)
+                .monitorScrollFade()
+                .frame(height: min(contentHeight, available))
+            }
+            .overlayPreferenceValue(MonitorCapturePanelHeaderPreferenceKey.self, alignment: .top) { values in
+                let title = values?.title ?? self.title
+                let subtitle = values?.subtitle ?? self.subtitle
                 HStack(alignment: .center, spacing: 9) {
                     Text(title).font(MonitorTheme.font(9, weight: .semibold))
                         .tracking(1.8).foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
@@ -77,21 +126,8 @@
                     }
                 }
                 .frame(height: headerHeight)
-                ScrollView(.vertical, showsIndicators: false) {
-                    content
-                        .frame(maxWidth: .infinity)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onGeometryChange(for: CGFloat.self) {
-                            $0.size.height
-                        } action: {
-                            contentHeight = $0
-                        }
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollDisabled(contentHeight <= available)
-                .monitorScrollFade()
-                .frame(height: min(contentHeight, available))
             }
+            .transformPreference(MonitorCapturePanelHeaderPreferenceKey.self) { $0 = nil }
             .padding(.horizontal, 14)
             .padding(.top, topPadding)
             .padding(.bottom, footer)

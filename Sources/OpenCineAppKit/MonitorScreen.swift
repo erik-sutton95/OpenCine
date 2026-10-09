@@ -87,10 +87,18 @@
                 MonitorScreenSlot(content: tools)
                     .allowsHitTesting(presentation.interactive && !presentation.transientControlsHidden)
                 if presentation.statusMounted {
-                    MonitorScreenSlot(content: status)
-                        .frame(maxWidth: layout.status.width)
-                        .position(x: layout.status.midX, y: layout.status.midY)
-                        .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
+                    Group {
+                        if layout.portrait {
+                            MonitorScreenSlot(content: status)
+                                .frame(width: layout.status.width, alignment: .topLeading)
+                                .offset(x: layout.status.x, y: layout.status.y)
+                        } else {
+                            MonitorScreenSlot(content: status)
+                                .frame(maxWidth: layout.status.width)
+                                .position(x: layout.status.midX, y: layout.status.midY)
+                        }
+                    }
+                    .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
                 }
                 if presentation.powerMounted {
                     MonitorScreenSlot(content: power)

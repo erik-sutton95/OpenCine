@@ -70,7 +70,8 @@
         @Bindable var model: ShellModel
         let brand: ShellBrand
         let actions: ShellActions
-        let safeArea: (GeometryProxy) -> EdgeInsets
+        let safeArea: ((GeometryProxy) -> EdgeInsets)?
+        @Environment(\.monitorWindowGeometry) private var windowGeometry
         let extraNearby: [CameraListItem]
         let pairingFlow: IntegrationPairingFlow?
         let prePage: (EdgeInsets) -> PrePage?
@@ -78,14 +79,15 @@
         let page: (ShellModel.Cover) -> Page
         let coverPresentation: ShellCoverPresentation
 
-        /// `safeArea` turns the pages' geometry into the insets they lay out in. `extraNearby`:
+        /// Pages clear the physical window's safe areas by default. `safeArea` can override
+        /// that policy for a host's custom layout. `extraNearby`:
         /// the app's own NEARBY rows on the cameras page. `pairingFlow`: the app's own rail and
         /// actions on the pair page (`PairScreen.pairingFlow`). `prePage`: the app's own page before
         /// the shared ones (a first-pair wizard, a connect in progress), shown instead of the
         /// cameras or pair page while it returns one.
         public init(
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
-            safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
+            safeArea: ((GeometryProxy) -> EdgeInsets)? = nil,
             extraNearby: [CameraListItem] = [], pairingFlow: IntegrationPairingFlow? = nil,
             coverPresentation: ShellCoverPresentation = .monitor,
             prePage: @escaping (EdgeInsets) -> PrePage?,
@@ -114,7 +116,10 @@
                         .onAppear { model.noteHost(mounted: true) }
                         .onDisappear { model.noteHost(mounted: false) }
                 } else {
-                    GeometryReader { proxy in pages(safeArea(proxy)) }
+                    GeometryReader { proxy in
+                        pages(safeArea?(proxy) ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
+                            proxy.safeAreaInsets, window: windowGeometry.safeArea))
+                    }
                         .ignoresSafeArea()
                         .accessibilityElement(children: model.cover == nil ? .contain : .ignore)
                         .accessibilityHidden(model.cover != nil)
@@ -154,7 +159,7 @@
         /// Without pages of the app's own.
         public init(
             model: ShellModel, brand: ShellBrand, actions: ShellActions,
-            safeArea: @escaping (GeometryProxy) -> EdgeInsets = { $0.safeAreaInsets },
+            safeArea: ((GeometryProxy) -> EdgeInsets)? = nil,
             pairingFlow: IntegrationPairingFlow? = nil,
             coverPresentation: ShellCoverPresentation = .monitor,
             @ViewBuilder monitor: @escaping (ShellModel.Monitor) -> Monitor,
@@ -187,6 +192,7 @@
                 content(safe).frame(width: proxy.size.width, height: proxy.size.height)
             }
             .ignoresSafeArea()
+            .accessibilityElement(children: .contain)
             .onAppear { orientation.start() }
             .onDisappear { orientation.stop() }
         }

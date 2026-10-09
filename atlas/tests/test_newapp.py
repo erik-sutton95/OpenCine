@@ -36,6 +36,7 @@ FILES = {
     "Android/app/src/simulated/resources/simulated/simulated.mp4",
     "Android/app/src/simulated/resources/simulated/simulated.png",
     PKG.format("testSimulated", "ShellContractTest.kt"), PKG.format("androidTestSimulated", "OperatorFlowTest.kt"),
+    PKG.format("androidTestSimulated", "MonitorPortraitStatusGeometryTest.kt"),
     "Android/Play/WhatToTest.en-US.txt", "Android/Play/whatsnew/whatsnew-en-US",
 }
 SIMULATED = {"ios/Simulated/Integrations.swift", "ios/Simulated/SimulatedMedia.swift", "ios/Simulated/SimulatedLibrary.swift",

@@ -42,6 +42,7 @@ public struct MonitorFalseColorMenu<Scale: Hashable>: View {
     private let readHelp: String
     private let referenceHelp: String
     private let compact: Bool
+    private let referenceDisplayAvailable: Bool
     private let selectionFeedback: () -> Void
     private let readFeedback: () -> Void
     private let referenceFeedback: () -> Void
@@ -49,26 +50,28 @@ public struct MonitorFalseColorMenu<Scale: Hashable>: View {
     public init(scales: [Scale], scale: Binding<Scale>, referenceEnabled: Binding<Bool>,
         read709: Binding<Bool>? = nil, reference: MonitorFalseColorReferenceValues,
         title: @escaping (Scale) -> String, scaleHelp: String, readHelp: String, referenceHelp: String,
-        compact: Bool = false, selectionFeedback: @escaping () -> Void = {},
+        compact: Bool = false, referenceDisplayAvailable: Bool = true, selectionFeedback: @escaping () -> Void = {},
         readFeedback: @escaping () -> Void = {}, referenceFeedback: @escaping () -> Void = {},
         onReferenceEnabled: @escaping () -> Void = {}) {
         self.scales = scales; self._scale = scale; self._referenceEnabled = referenceEnabled
         self.read709 = read709; self.reference = reference; self.title = title
         self.scaleHelp = scaleHelp; self.readHelp = readHelp; self.referenceHelp = referenceHelp
-        self.compact = compact; self.selectionFeedback = selectionFeedback; self.readFeedback = readFeedback
+        self.compact = compact; self.referenceDisplayAvailable = referenceDisplayAvailable
+        self.selectionFeedback = selectionFeedback; self.readFeedback = readFeedback
         self.referenceFeedback = referenceFeedback; self.onReferenceEnabled = onReferenceEnabled
     }
     /// An unavailable source reference is omitted without inventing calibration values.
     public init(scales: [Scale], scale: Binding<Scale>, referenceEnabled: Binding<Bool>,
         read709: Binding<Bool>? = nil, optionalReference: MonitorFalseColorReferenceValues?,
         title: @escaping (Scale) -> String, scaleHelp: String, readHelp: String, referenceHelp: String,
-        compact: Bool = false, selectionFeedback: @escaping () -> Void = {},
+        compact: Bool = false, referenceDisplayAvailable: Bool = true, selectionFeedback: @escaping () -> Void = {},
         readFeedback: @escaping () -> Void = {}, referenceFeedback: @escaping () -> Void = {},
         onReferenceEnabled: @escaping () -> Void = {}) {
         self.scales = scales; self._scale = scale; self._referenceEnabled = referenceEnabled
         self.read709 = read709; self.reference = optionalReference; self.title = title
         self.scaleHelp = scaleHelp; self.readHelp = readHelp; self.referenceHelp = referenceHelp
-        self.compact = compact; self.selectionFeedback = selectionFeedback; self.readFeedback = readFeedback
+        self.compact = compact; self.referenceDisplayAvailable = referenceDisplayAvailable
+        self.selectionFeedback = selectionFeedback; self.readFeedback = readFeedback
         self.referenceFeedback = referenceFeedback; self.onReferenceEnabled = onReferenceEnabled
     }
     public var body: some View {
@@ -91,10 +94,12 @@ public struct MonitorFalseColorMenu<Scale: Hashable>: View {
                         .accessibilityLabel("False color reference key")
                 }
             }
-            MonitorSettingsSwitchInlineRow(title: "Reference Display", help: referenceHelp, stacked: compact,
-                isOn: referenceEnabled, feedback: referenceFeedback) {
-                referenceEnabled.toggle()
-                if referenceEnabled { onReferenceEnabled() }
+            if referenceDisplayAvailable {
+                MonitorSettingsSwitchInlineRow(title: "Reference Display", help: referenceHelp, stacked: compact,
+                    isOn: referenceEnabled, feedback: referenceFeedback) {
+                    referenceEnabled.toggle()
+                    if referenceEnabled { onReferenceEnabled() }
+                }
             }
         }
     }

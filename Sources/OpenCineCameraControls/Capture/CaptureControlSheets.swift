@@ -8,7 +8,7 @@
     import SwiftUI
     import UIKit
 
-    public enum CaptureSheet: String, Identifiable {
+    public enum CaptureSheet: String, Identifiable, Sendable {
         case iso, shutter, wb, focus, aperture, exposure, audio
         case mode
         case resolution, color

@@ -263,8 +263,8 @@ class OperatorFlowTest {
             val roots = if (includeOtherWindows) automation.windows.mapNotNull { it.root }
                 else listOfNotNull(automation.rootInActiveWindow)
             for (root in roots) {
-                val preferredMatch = preferred?.let { priority -> find(root) { priority(it) && predicate(it) } }
-                (preferredMatch ?: find(root, predicate))?.let { return it }
+                val preferredMatch = preferred?.let { priority -> findCurrent(root) { priority(it) && predicate(it) } }
+                (preferredMatch ?: findCurrent(root, predicate))?.let { return it }
             }
             runCatching { automation.waitForIdle(30, 250) }
         }
@@ -310,6 +310,13 @@ class OperatorFlowTest {
             }
         }
         File(context.getExternalFilesDir(null), "SIMULATED-flow/failure-tree.txt").writeText(tree + native)
+    }
+    // Positive lookup reads the current native owner; obsolete or unreadable nodes cannot satisfy it.
+    private fun findCurrent(node: AccessibilityNodeInfo?, predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        if (node == null || runCatching { node.refresh() }.getOrNull() != true) return null
+        if (node.isVisibleToUser && predicate(node)) return node
+        for (index in 0 until node.childCount) findCurrent(node.getChild(index), predicate)?.let { return it }
+        return null
     }
     private fun find(node: AccessibilityNodeInfo?, predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
         if (node == null) return null

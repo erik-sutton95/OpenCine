@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,23 +36,40 @@ fun MonitorTelemetry(
     showsLink: Boolean = true,
     showsPower: Boolean = true,
 ) {
-    val bars = signalBars.coerceIn(0, 4)
-    // Signal / fps stay in the accent; the bar count carries the health.
-    val linkColor = MonitorPalette.accent
-    // One link pill: tap swaps signal bars and feed fps.
+    MonitorTelemetry(signalBars, fps, listOf(
+        MonitorTelemetryPower(false, phonePercent), MonitorTelemetryPower(true, cameraPercent.takeIf { it in 0..100 })),
+        horizontal, modifier, showsLink, showsPower)
+}
+
+/** Battery facts may be percentages or an actual coarse gauge. Missing measurements remain absent. */
+public class MonitorTelemetryPower(public val camera: Boolean, public val percent: Int?,
+    public val charging: Boolean? = null, public val bars: Int? = null, public val barCount: Int = 5,
+    public val warning: Boolean = false, public val exhausted: Boolean = false)
+
+/** All operator entry points use the same link toggle and power rendering. */
+@Composable
+public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorTelemetryPower>,
+    horizontal: Boolean, modifier: Modifier = Modifier, showsLink: Boolean = true, showsPower: Boolean = true) {
     var showsFps by rememberSaveable { mutableStateOf(false) }
     val gauges: @Composable () -> Unit = {
-        if (showsLink) TelemetryGauge(if (showsFps) MonitorIcon.GAUGE else MonitorIcon.SIGNAL, linkColor, bars / 4f,
-            "Live link $signalBars of 4 delivery bars, feed $fps frames per second", horizontal,
-            // Whole frames with a unit; RECOV / LINK / the dash pass through.
-            if (showsFps) fps.toDoubleOrNull()?.let { "${Math.round(it)} fps" } ?: fps else null,
-            onClick = { showsFps = !showsFps })
-        if (showsPower) {
-        TelemetryGauge(MonitorIcon.SMARTPHONE, phonePercent?.let(::batteryTint) ?: MonitorPalette.text,
-            phonePercent?.div(100f) ?: 0f,
-            if (phonePercent != null && phonePercent >= 0) "Phone battery $phonePercent percent" else "Phone battery unavailable",
-            horizontal, phonePercent?.takeIf { it in 0..100 }?.let { "$it%" } ?: "\u2014")
-        MonitorCameraBatteryGauge(cameraPercent, stacked = horizontal)
+        if (showsLink && (signalBars != null || fps != null)) {
+            val value = if (showsFps) fps?.toDoubleOrNull()?.let { "${Math.round(it)} fps" } ?: fps ?: "\u2014"
+                else if (signalBars == null) "\u2014" else null
+            TelemetryGauge(if (showsFps) MonitorIcon.GAUGE else MonitorIcon.SIGNAL, MonitorPalette.accent,
+                signalBars?.coerceIn(0, 4)?.div(4f) ?: 0f,
+                "Live link ${signalBars?.let { "$it of 4 delivery bars" } ?: "unavailable"}, feed ${fps ?: "unavailable"} frames per second",
+                horizontal, value, onClick = { showsFps = !showsFps })
+        }
+        if (showsPower) power.forEach { reading ->
+            val percent = reading.percent?.takeIf { it in 0..100 }
+            val tint = if (reading.warning || reading.exhausted) MonitorPalette.recording
+                else percent?.let(::batteryTint) ?: MonitorPalette.text
+            val label = "${if (reading.camera) "Camera" else "Phone"} battery " +
+                (reading.bars?.let { "$it of ${reading.barCount} bars" } ?: percent?.let { "$it percent" } ?: "unavailable")
+            TelemetryGauge(if (reading.charging == true) MonitorIcon.ZAP else if (reading.camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE,
+                tint, reading.bars?.let { it.toFloat() / reading.barCount.coerceAtLeast(1) } ?: percent?.div(100f) ?: 0f,
+                label, horizontal, if (reading.bars != null) null else percent?.let { "$it%" } ?: "\u2014",
+                barCount = if (reading.bars != null) reading.barCount else 4)
         }
     }
     if (horizontal) Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) { gauges() }
@@ -83,7 +99,7 @@ private fun MonitorCameraBatteryGauge(percent: Int, stacked: Boolean = false, sh
 @Composable
 private fun TelemetryGauge(
     icon: MonitorIcon?, tint: Color, fraction: Float, label: String,
-    stacked: Boolean, value: String? = null, onClick: (() -> Unit)? = null,
+    stacked: Boolean, value: String? = null, onClick: (() -> Unit)? = null, barCount: Int = 4,
 ) {
     Row(
         Modifier
@@ -101,10 +117,10 @@ private fun TelemetryGauge(
             Text(value, color = tint, style = MonitorTypography.readout(10f, FontWeight.Bold), maxLines = 1)
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
-                repeat(4) { index ->
+                repeat(barCount.coerceAtLeast(1)) { index ->
                     Box(
                         Modifier.size(3.5.dp, 9.dp).background(
-                            tint.copy(alpha = if (fraction >= (index + 1) / 4f) 1f else .2f),
+                            tint.copy(alpha = if (fraction >= (index + 1).toFloat() / barCount.coerceAtLeast(1)) 1f else .2f),
                             RoundedCornerShape(.75.dp),
                         ),
                     )

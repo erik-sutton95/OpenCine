@@ -9,6 +9,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,8 +25,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
-import com.opencapture.opencine.media.MediaAssetID
-import com.opencapture.opencine.media.MonitorPlaybackItemToken
+import com.opencapture.opencine.media.FeedEffectsRenderPlan
+import com.opencapture.opencine.media.MonitorPlaybackSourceValues
 import com.opencapture.opencine.vocabulary.MediaLibrarySort
 import com.opencapture.opencine.vocabulary.MediaLibraryTab
 import kotlinx.coroutines.launch
@@ -39,69 +41,68 @@ public fun <P, L> MonitorOperatorMediaScreen(
     thumbnail: @Composable (MonitorMediaRecord<P>) -> Unit,
     playbackPicture: @Composable (MonitorMediaPlaybackModel<P, L>) -> Unit,
 ) {
+    MonitorOperatorMediaScreen(model, brand, close, assist = null, preferences = null,
+        availableAssistTools = emptySet(), thumbnail = thumbnail, playbackPicture = playbackPicture)
+}
+
+/** The same catalog/player owner, using the source's actual assist state and saved operator choices. */
+@Composable
+public fun <P, L> MonitorOperatorMediaScreen(
+    model: MonitorOperatorMediaModel<P, L>,
+    brand: String,
+    close: () -> Unit,
+    assist: MonitorAssistState?,
+    preferences: MonitorOperatorPreferences?,
+    assists: MonitorOperatorAssistSource? = null,
+    effects: FeedEffectsRenderPlan? = null,
+    signalOptions: MonitorOperatorSignalOptions = MonitorOperatorSignalOptions(),
+    availableAssistTools: Set<MonitorAssistTool>,
+    thumbnail: @Composable (MonitorMediaRecord<P>) -> Unit,
+    playbackPicture: @Composable (MonitorMediaPlaybackModel<P, L>) -> Unit,
+) {
     val owner by model.state.collectAsState()
     val library = model.library
     val value by library.state.collectAsState()
+    var playbackRequest by remember(model) { mutableStateOf<MonitorMediaGalleryOpen<P>?>(null) }
+    val haptics = if (preferences != null) rememberOperatorHaptics { preferences.haptics } else LocalOperatorHaptics.current
     DisposableEffect(model) { onDispose { model.closeGallery() } }
-    BackHandler(enabled = owner.playback != null) { model.closePlayback() }
+    BackHandler(enabled = playbackRequest != null) { playbackRequest = null }
     val operations = MonitorMediaGalleryOperations<P>(
         download = if (library.canTransfer) { { library.cacheOriginal(it.asset.id) } } else null,
         delete = if (library.canDelete) { { library.delete(listOf(it.asset.id)) } } else null,
     )
+    val playbackOperations = MonitorOperatorPlaybackOperations<P, L>(
+        cacheOriginal = if (library.canTransfer) { { library.cacheOriginal(it.asset.id); Unit } } else null)
     val colors = library.libraryRecords.mapNotNull { it.facts.color }.distinct().sorted().map { it to it }
-    Box(Modifier.fillMaxSize()) {
-        MonitorOperatorCatalogScreen(library, brand, library.canRefresh, operations, colorChoices = colors,
-            facts = { record -> MonitorMediaGalleryFileFacts(
-                listOfNotNull(record.facts.resolution, record.facts.format).joinToString(" · "),
-                record.asset.durationSeconds?.let(::operatorMediaClock), value.progress[record.asset.id]) },
-            begin = model::showGallery, close = close, open = { model.open(it.record.asset.id, it.admission) },
-            handlesBack = owner.playback == null, thumbnail = { context ->
-                LaunchedEffect(context.record.asset.id, context.admission) {
-                    if (context.isCurrent) library.ensureThumbnail(context.record.asset.id)
+    CompositionLocalProvider(LocalOperatorHaptics provides haptics) {
+        Box(Modifier.fillMaxSize()) {
+            MonitorOperatorCatalogScreen(library, brand, library.canRefresh, operations, colorChoices = colors,
+                facts = { record -> MonitorMediaGalleryFileFacts(
+                    listOfNotNull(record.facts.resolution, record.facts.format).joinToString(" · "),
+                    record.asset.durationSeconds?.let(::operatorMediaClock), value.progress[record.asset.id]) },
+                begin = model::showGallery, close = close, open = { request ->
+                    if (owner.galleryOpen && library.isCurrent(request.admission)) playbackRequest = request
+                }, handlesBack = playbackRequest == null, thumbnail = { context ->
+                    LaunchedEffect(context.record.asset.id, context.admission) {
+                        if (context.isCurrent) library.ensureThumbnail(context.record.asset.id)
+                    }
+                    thumbnail(context.record)
+                })
+            playbackRequest?.let { request ->
+                key(request.id) {
+                    MonitorOperatorPlaybackScreen(model = model, initial = request,
+                        assist = assist, assists = assists, usageStore = null, effects = effects,
+                        cacheOriginal = preferences?.cacheOriginals == true, deliveryPresented = false,
+                        operations = playbackOperations,
+                        source = { record -> MonitorPlaybackSourceValues(
+                            progress = value.progress[record.asset.id], colorLabel = record.asset.colorLabel) },
+                        nativeAudio = { null }, close = { playbackRequest = null }, share = null,
+                        signalOptions = signalOptions, availableAssistTools = availableAssistTools,
+                        picture = { player, _ -> playbackPicture(player) })
                 }
-                thumbnail(context.record)
-            })
-        owner.playback?.let { player -> MonitorOperatorBasicPlaybackScreen(model, player) { playbackPicture(player) } }
+            }
+        }
     }
-}
-
-@Composable
-private fun <P, L> MonitorOperatorBasicPlaybackScreen(model: MonitorOperatorMediaModel<P, L>,
-    player: MonitorMediaPlaybackModel<P, L>, picture: @Composable () -> Unit) {
-    val value by player.state.collectAsState()
-    val library by model.library.state.collectAsState()
-    val asset = value.active?.asset
-    val width = value.metadata.width ?: asset?.pixelSize?.width?.toDouble()
-    val height = value.metadata.height ?: asset?.pixelSize?.height?.toDouble()
-    val position = if (value.scrubbing) value.scrubPosition else value.position
-    val presentation = MonitorPlaybackPresentation(value.token, asset?.filename ?: "Media", "", null, emptyList(),
-        if (width != null && height != null && width > 0 && height > 0) (width / height).toFloat() else 16f / 9f,
-        value.ready, value.error, asset?.let { library.progress[it.id] }, position.toFloat(), (value.duration ?: 0.0).toFloat(),
-        operatorMediaClock(position), value.duration?.let(::operatorMediaClock) ?: "--:--",
-        value.reportedPlaying ?: value.playRequested, value.reachedEnd, value.scrubbing, value.muted, value.looping,
-        player.canGoPrevious, player.canGoNext, value.active?.favorite ?: false, value.metadata.conform, value.conformTarget,
-        shareEnabled = false)
-    fun current(token: MonitorPlaybackItemToken): Boolean = player.state.value.token == token && !player.state.value.closed
-    val actions = MonitorPlaybackActions(back = model::closePlayback,
-        play = { token, play -> if (current(token)) player.setPlaying(play) },
-        restart = { if (current(it)) player.restart() }, seekBy = { token, seconds -> if (current(token)) player.seekBy(seconds) },
-        mute = { token, muted -> if (current(token)) player.setMuted(muted) },
-        loop = { token, loop -> if (current(token)) player.setLooping(loop) },
-        conform = { token, target -> if (current(token)) player.setConformTarget(target) },
-        adjacent = { token, offset -> if (current(token)) player.goToAdjacent(offset) },
-        favorite = { token -> if (current(token)) player.state.value.active?.asset?.id?.let(model.library::toggleFavorite) },
-        share = {}, delete = null,
-        beginScrub = { if (current(it)) player.beginScrub() else null },
-        updateScrub = { token, seconds -> player.updateScrub(seconds, token) },
-        updateFrameScrub = { token, delta, width -> player.updateFrameScrub(delta, width, token) },
-        commitScrub = player::commitScrub,
-        cancelScrub = { token, reason -> player.cancelScrub(reason == MonitorEditingCancellation.INTERRUPTED, token) })
-    DisposableEffect(player) {
-        player.setPresentationActive(true)
-        onDispose { player.setPresentationActive(false) }
-    }
-    MonitorPlaybackScreen(presentation, actions, backHandler = { BackHandler(onBack = it) },
-        picture = { picture() }, feedAssists = {}, canvasAssists = {}, tools = {}, assistInspector = {})
 }
 
 private fun operatorMediaClock(seconds: Double): String {

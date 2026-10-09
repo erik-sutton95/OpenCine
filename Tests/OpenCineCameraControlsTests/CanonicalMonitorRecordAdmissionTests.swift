@@ -1,0 +1,200 @@
+#if os(iOS)
+import Foundation
+import MonitorPresentation
+import MonitorUI
+import Observation
+import OpenCineAppKit
+import OpenCineCore
+import OpenCineMedia
+import SwiftUI
+import UIKit
+import XCTest
+
+@testable import OpenCineCameraControls
+
+/// SIMULATED hosted actions enter the actual canonical body and its forwarded record service.
+/// This is the real service path for a source without a local CameraSession binding.
+@MainActor
+final class CanonicalMonitorRecordAdmissionTests: XCTestCase {
+    func testAllowedRecordActionEntersTheCapturedServiceOnce() async throws {
+        let fixture = try RecordBodyFixture()
+        defer { fixture.close() }
+        let button = try await fixture.recordElement()
+        XCTAssertEqual(fixture.probe.requests, 0, "Mounting must not start recording")
+        XCTAssertTrue(button.accessibilityActivate())
+        await fixture.waitForRequests(1)
+        XCTAssertEqual(fixture.probe.requests, 1)
+        XCTAssertEqual(fixture.probe.confirmations, 0)
+    }
+
+    func testLockedMonitorCannotEnterTheRecordService() async throws {
+        try await assertRecordRefused { $0.locked = true }
+    }
+
+    func testSessionBusyProjectionCannotEnterTheRecordService() async throws {
+        try await assertRecordRefused { $0.busy = true }
+    }
+
+    func testReadOnlyMonitorCannotEnterTheRecordService() async throws {
+        try await assertRecordRefused { $0.readOnly = true }
+    }
+
+    func testRetiredSourceCannotUseTheMountedRecordAction() async throws {
+        let fixture = try RecordBodyFixture()
+        defer { fixture.close() }
+        let button = try await fixture.recordElement()
+        fixture.probe.currentSource = .init(monitor: UUID(), camera: nil, epoch: nil, picture: "SIMULATED")
+        _ = button.accessibilityActivate()
+        await fixture.settleActions()
+        XCTAssertEqual(fixture.probe.requests, 0, "An outgoing action must not borrow the successor")
+    }
+
+    func testUnknownRecordingDoesNotBecomeAnAdmittedStart() async throws {
+        try await assertRecordRefused { $0.recording = nil }
+    }
+
+    private func assertRecordRefused(_ configure: (RecordBodyProbe) -> Void) async throws {
+        let fixture = try RecordBodyFixture(configure: configure)
+        defer { fixture.close() }
+        let button = try await fixture.recordElement()
+        _ = button.accessibilityActivate()
+        await fixture.settleActions()
+        XCTAssertEqual(fixture.probe.requests, 0)
+        XCTAssertEqual(fixture.probe.confirmations, 0)
+    }
+}
+
+@MainActor
+@Observable
+private final class RecordBodyProbe: ChromeEditHost {
+    typealias Palette = MonitorDefaultLivePalette
+    typealias ChromeSection = MonitorDisplayChrome.Section
+    typealias ChromeMode = MonitorDisplayMode
+    let identity: MonitorOperatorLiveIdentity
+    var currentSource: MonitorOperatorLiveIdentity
+    var locked = false
+    var busy = false
+    var readOnly = false
+    var recording: Bool? = false
+    var requests = 0
+    var confirmations = 0
+    var usage = MonitorToolUsage()
+    let control = MonitorControlModel()
+    let assist: MonitorAssistState<RecordBodyLooks>
+    let storage: UserDefaults
+    let storageName: String
+
+    init() throws {
+        let identity = MonitorOperatorLiveIdentity(monitor: UUID(), camera: nil, epoch: nil, picture: "SIMULATED")
+        self.identity = identity
+        currentSource = identity
+        let name = "SIMULATED.canonical-record." + UUID().uuidString
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: name))
+        storageName = name; storage = preferences
+        assist = MonitorAssistState(looks: RecordBodyLooks(), storage: preferences,
+            keys: .init(assist: "assist", cleanPins: "pins", playback: "playback"), cleanPinCases: [])
+    }
+
+    var hapticsEnabled: Bool { false }
+    var chromeEditSections: [ChromeSection] { ChromeSection.allCases }
+    func chromeSectionTitle(_ section: ChromeSection) -> String { section.title }
+    func chromeSectionID(_ section: ChromeSection) -> String { section.rawValue }
+    func chromeModeTitle(_ mode: ChromeMode) -> String { mode.title }
+    func isChromeConfigurable(_ section: ChromeSection, in mode: ChromeMode) -> Bool { false }
+    func isChromeVisible(_ section: ChromeSection, in mode: ChromeMode) -> Bool { section == .railRecord }
+    func toggleChrome(_ section: ChromeSection, for mode: ChromeMode) {}
+    func endChromeEditing() {}
+}
+
+@MainActor
+private final class RecordBodyLooks: MonitorLookProvider {
+    var selection: Int { 0 }
+    var cube: CubeLUT? { nil }
+    var transfer: MonitorTransfer { .rec709 }
+    var referenceClipByte: Int { 255 }
+    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
+}
+
+private struct RecordContractSurface: View {
+    @Bindable var probe: RecordBodyProbe
+    var body: some View {
+        let layout = FieldMonitorLayout(width: 420, height: 900, safeArea: .init(), sourceAspect: 16 / 9)
+        let inputs = MonitorOperatorCaptureInputs<SettingKey, MonitorDisplayChrome.Section, Never>(
+            readouts: [], haptics: false, open: { _ in }, dismiss: {})
+        MonitorOperatorLiveBody(host: probe, control: probe.control, identity: probe.identity,
+            current: { probe.currentSource == $0 }, layout: layout, safeArea: .init(), sourceAspect: 16 / 9,
+            sections: .init(status: .statusBar, power: .batteries, capture: .cameraValues,
+                assists: .toolBar, lock: .lockButton, settings: .railSettings, media: .railMedia,
+                record: .railRecord), mounted: [.railRecord], editing: nil,
+            locked: $probe.locked, covered: false, clean: false, command: false,
+            readOnly: probe.readOnly, recovering: false,
+            status: MonitorOperatorLiveStatus<SettingKey, MonitorDisplayChrome.Section>(
+                recording: .init(recording: probe.recording), showsTimecode: false, showsRecording: false),
+            power: [], captureInputs: inputs, settings: {}, media: {}, cycleDisplay: {},
+            displayTitle: "SIMULATED", displayIndex: nil, displayCount: 0, photo: false, confirmRecord: false,
+            externalRecord: .init(recording: probe.recording, confirmation: nil,
+                request: { probe.requests += 1 }, cancel: {}, confirm: { probe.confirmations += 1 }),
+            assist: probe.assist, tools: [], usage: $probe.usage, toggleTool: { _ in }, assistSource: nil,
+            retireEditor: {}, recordEnabled: !probe.busy,
+            picture: { Color.black }, cameraPanel: { _, _ in EmptyView() },
+            photoRelease: { _ in EmptyView() }, preview: { _ in EmptyView() }, lookMenu: { EmptyView() })
+            .frame(width: 420, height: 900).environment(\.scenePhase, .active)
+    }
+}
+
+@MainActor
+private final class RecordBodyFixture {
+    let probe: RecordBodyProbe
+    let host: UIHostingController<RecordContractSurface>
+    let window: UIWindow
+    init(configure: (RecordBodyProbe) -> Void = { _ in }) throws {
+        let probe = try RecordBodyProbe()
+        configure(probe)
+        let host = UIHostingController(rootView: RecordContractSurface(probe: probe))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 420, height: 900))
+        self.probe = probe; self.host = host; self.window = window
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.frame = window.bounds
+    }
+    func close() {
+        window.isHidden = true; window.rootViewController = nil
+        probe.control.unbind()
+        probe.storage.removePersistentDomain(forName: probe.storageName)
+    }
+    func recordElement() async throws -> NSObject {
+        for _ in 0..<200 {
+            host.view.setNeedsLayout(); host.view.layoutIfNeeded()
+            if let element = Self.leaves(host.view).first(where: { Self.identifier($0) == "monitor.system.record" }) {
+                return element
+            }
+            await Task.yield()
+        }
+        return try XCTUnwrap(Self.leaves(host.view).first { Self.identifier($0) == "monitor.system.record" },
+            "The canonical body's real record element must be mounted")
+    }
+    func waitForRequests(_ count: Int) async {
+        for _ in 0..<200 {
+            if probe.requests == count { return }
+            await Task.yield()
+        }
+    }
+    func settleActions() async {
+        for _ in 0..<50 { await Task.yield() }
+    }
+    private static func leaves(_ object: NSObject) -> [NSObject] {
+        if object.accessibilityElementsHidden { return [] }
+        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
+        if object.isAccessibilityElement { return [object] }
+        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
+            return elements.flatMap(leaves)
+        }
+        return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
+    }
+    private static func identifier(_ object: NSObject) -> String? {
+        let getter = NSSelectorFromString("accessibilityIdentifier")
+        guard object.responds(to: getter) else { return nil }
+        return object.perform(getter)?.takeUnretainedValue() as? String
+    }
+}
+#endif

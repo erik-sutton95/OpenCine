@@ -5,7 +5,6 @@ import android.content.res.Configuration
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.View
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -85,7 +84,6 @@ import com.opencapture.monitorui.settings.MonitorSettingsColorDots
 import com.opencapture.monitorui.settings.MonitorSettingsCrushClipSegmented
 import com.opencapture.monitorui.settings.MonitorSettingsDisplayToggle
 import com.opencapture.monitorui.settings.MonitorSettingsInlineRow
-import com.opencapture.monitorui.settings.MonitorSettingsPage
 import com.opencapture.monitorui.settings.MonitorSettingsPercentSlider
 import com.opencapture.monitorui.settings.MonitorSettingsRowCard
 import com.opencapture.monitorui.settings.MonitorSettingsSegmented
@@ -233,7 +231,6 @@ fun resetDispChrome(model: OperatorSetupModel, mode: MonitorDisplayMode) {
 /** Operator Setup with each app's main rows; the app supplies its model, live state and [app] values. */
 @Composable
 fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, onClose: () -> Unit) {
-    BackHandler(onBack = onClose)
     var tick by remember { mutableIntStateOf(0) }
     var lastFrames by remember { mutableIntStateOf(0) }
     var lastTickAt by remember { mutableLongStateOf(0L) }
@@ -264,46 +261,23 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
     val bars = OperatorLinkHealth.bars(isLive, sample.videoPackets, sample.hasVideoFormat, measuredFps)
     val phaseLabel = connectionPhaseLabel(state.phase, state.failure)
     val view = LocalView.current
-    var legalPage by remember { mutableStateOf<OperatorLegalPage?>(null) }
-    var showLutPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(model.chromeEditorReturnMode) {
         if (model.chromeEditorReturnMode == null) return@LaunchedEffect
         model.chromeEditorReturnMode = null
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(LiveDesign.background)
-            .pointerInput(Unit) { detectTapGestures {} }
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-    ) {
-        MonitorSettingsPage(
-            brand = app.wordmark,
-            selection = model.operatorSettingsTab,
-            onSelect = { model.operatorSettingsTab = it },
-            isLive = isLive, phaseLabel = phaseLabel, disconnect = model::disconnect,
-            feedback = { operatorHaptic(view, model.hapticsEnabled) },
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-        ) { tab ->
-            when (tab) {
-                MonitorSettingsTab.LINK -> LinkRows(model, state, app, isLive, phaseLabel, bars)
-                MonitorSettingsTab.SHARING -> SharingRows()
-                MonitorSettingsTab.ASSIST -> AssistRows(model, state, app) { showLutPicker = true }
-                MonitorSettingsTab.CONTROLS -> ControlsRows(model, state, app)
-                MonitorSettingsTab.DISPLAY -> OperatorDisplayRows(model, state, app, isLive)
-                MonitorSettingsTab.STORAGE -> StorageRows(model, app)
-                MonitorSettingsTab.SYSTEM -> SystemRows(model, app) { legalPage = it }
-            }
-        }
-        legalPage?.let { page -> app.legalPage(page) { legalPage = null } }
-        if (showLutPicker) app.lutPicker { showLutPicker = false }
-    }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
+        brand = app.wordmark, selection = model.operatorSettingsTab,
+        onSelect = { model.operatorSettingsTab = it },
+        isLive = isLive, phase = phaseLabel, close = onClose, disconnect = model::disconnect,
+        feedback = { operatorHaptic(view, model.hapticsEnabled) },
+        source = MonitorOperatorSettingsSource.Deployed(model, state, app, bars),
+    ))
 }
 
 @Composable
-private fun LinkRows(
+internal fun LinkRows(
     model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp,
     isLive: Boolean, phaseLabel: String, bars: Int,
 ) {
@@ -344,7 +318,7 @@ private fun LinkRows(
 }
 
 @Composable
-private fun SharingRows() {
+internal fun SharingRows() {
     MonitorSettingsRowCard {
         Text(
             "Coming soon...",
@@ -358,7 +332,7 @@ private fun SharingRows() {
 // View Assist: main's cards (two columns in landscape), on the settings controls.
 
 @Composable
-private fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, onOpenLut: () -> Unit) {
+internal fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, onOpenLut: () -> Unit) {
     val assist = model.assist
     val colorMode = state.colorMode
     val transfer = MonitorTransfer.fromColorMode(colorMode)
@@ -681,7 +655,7 @@ private fun ScopeGuideRows(guides: MonitorScopeGuides, onChange: (MonitorScopeGu
 }
 
 @Composable
-private fun ControlsRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp) {
+internal fun ControlsRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp) {
     val view = LocalView.current
     val context = LocalContext.current
     var gimbalGamepadStick by remember { mutableStateOf(app.prefs.gimbalGamepadStick(context)) }
@@ -801,7 +775,7 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
 }
 
 @Composable
-private fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
+internal fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
     val context = LocalContext.current
     val view = LocalView.current
     val source = app.cacheSource?.invoke(context) ?: com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
@@ -825,7 +799,7 @@ private fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
 }
 
 @Composable
-private fun SystemRows(model: OperatorSetupModel, app: OperatorSetupApp, onLegal: (OperatorLegalPage) -> Unit) {
+internal fun SystemRows(model: OperatorSetupModel, app: OperatorSetupApp, onLegal: (OperatorLegalPage) -> Unit) {
     val context = LocalContext.current
     val view = LocalView.current
     val diagnostics = app.diagnostics

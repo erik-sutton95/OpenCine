@@ -38,6 +38,9 @@ import com.opencapture.opencine.appkit.falseColorRaster
 import com.opencapture.opencine.appkit.renderToolVisible
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.opencine.media.FeedEffectsRenderPlan
+import com.opencapture.opencine.media.ScopeClipSnapshot
+import com.opencapture.opencine.cameracontrols.AssistHost
+import com.opencapture.opencine.cameracontrols.MonitorDefaultAssistHost
 import com.opencapture.opencine.media.MediaAsset
 import com.opencapture.opencine.media.MonitorPlaybackEvent
 import com.opencapture.opencine.media.MonitorPlaybackException
@@ -135,11 +138,30 @@ fun OperatorThumbnail(record: MonitorMediaRecord<MediaAsset>) {
 @Composable
 fun OperatorPlaybackPicture(playback: MonitorMediaPlaybackModel<MediaAsset, String>,
     assist: MonitorAssistState, preferences: MonitorOperatorPreferences) {
+    OperatorPlaybackPicture(playback, assist, preferences, OperatorPlaybackEffects(assist))
+}
+
+/** Declared normalized full-range RGB input, not a measured scope ceiling. */
+@Composable
+fun OperatorAssistHost(): AssistHost = remember { AssistHost(MonitorDefaultAssistHost.peakingColors,
+    MonitorDefaultAssistHost.highlightColors, MonitorDefaultAssistHost.midtoneColors,
+    ndHelp = MonitorDefaultAssistHost.ndHelp, guideMaskPolicy = MonitorDefaultAssistHost.guideMaskPolicy,
+    scopeCeiling = { ScopeClipSnapshot(MonitorTransfer.REC709, 255) },
+    rec709LookCurve = MonitorDefaultAssistHost.rec709LookCurve) }
+
+/** Borrowed by the common player and retained native picture; no second effects producer. */
+@Composable
+fun OperatorPlaybackEffects(assist: MonitorAssistState): FeedEffectsRenderPlan? = simulatedRenderPlan(assist, playback = true)
+
+@Composable
+fun OperatorPlaybackPicture(playback: MonitorMediaPlaybackModel<MediaAsset, String>,
+    assist: MonitorAssistState, preferences: MonitorOperatorPreferences, effects: FeedEffectsRenderPlan?) {
+    val plan = effects ?: return
     val native = playback.native as? SimulatedAndroidPlaybackPort ?: return
     val state by playback.state.collectAsState()
     val token = state.token
     SimulatedNativePicture(identity = token, ready = state.ready, playback = true,
-        plan = simulatedRenderPlan(assist, playback = true), preferences = preferences,
+        plan = plan, preferences = preferences,
         width = state.metadata.width?.toInt() ?: 320, height = state.metadata.height?.toInt() ?: 180,
         admission = { playback.isActive && playback.state.value.token == token },
         attach = { native.attach(it, token) }, description = "SIMULATED playback picture")

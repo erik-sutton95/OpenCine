@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -59,7 +60,11 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         Box(Modifier.frame(layout.picture).visible(presentation.visible && presentation.pictureWaiting), content = signal)
         if (layout.portrait) Box(Modifier.frame(layout.system).background(Color.Black))
         Box(Modifier.fillMaxSize().visible(commonVisible, dim).then(commonAccessibility)) { tools(commonInteractive) }
-        if (presentation.statusMounted) Box(Modifier.frame(layout.status).visible(commonVisible, dim).then(commonAccessibility)) { status(commonInteractive) }
+        if (presentation.statusMounted) {
+            val statusFrame = if (layout.portrait) Modifier.offset(layout.status.x.dp, layout.status.y.dp).width(layout.status.width.dp)
+                else Modifier.frame(layout.status)
+            Box(statusFrame.visible(commonVisible, dim).then(commonAccessibility)) { status(commonInteractive) }
+        }
         if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim).then(commonAccessibility),
             contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonInteractive) }
         if (presentation.captureMounted) Box(Modifier.frame(layout.values)

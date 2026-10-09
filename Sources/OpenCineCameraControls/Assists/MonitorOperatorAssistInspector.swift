@@ -32,7 +32,7 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
     Preview: View, LookMenu: View>: View {
     private let tool: MonitorAssistSelection
     private let assist: MonitorAssistState<Looks>
-    private let stores: AssistPanelStores
+    private let stores: AssistPanelStores?
     private let looks: FalseColorLooks
     private let haptics: OperatorHaptics
     private let transfer: MonitorTransfer
@@ -47,7 +47,7 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
     private let audioAvailable: Bool?
 
     public init(tool: MonitorAssistSelection, assist: MonitorAssistState<Looks>,
-        stores: AssistPanelStores, looks: FalseColorLooks, palette: Palette.Type,
+        stores: AssistPanelStores?, looks: FalseColorLooks, palette: Palette.Type,
         haptics: OperatorHaptics, transfer: MonitorTransfer, clipByte: Int,
         viewport: CGSize, safeArea: EdgeInsets = EdgeInsets(),
         available: Set<MonitorAssistSelection> = Set(MonitorAssistSelection.settingsCases),
@@ -105,7 +105,7 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
     LookMenu: View>: View {
     private let tool: MonitorAssistSelection
     private let assist: MonitorAssistState<Looks>
-    private let stores: AssistPanelStores
+    private let stores: AssistPanelStores?
     private let looks: FalseColorLooks
     private let haptics: OperatorHaptics
     private let transfer: MonitorTransfer
@@ -114,7 +114,7 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
     private let signalOptions: MonitorOperatorSignalOptions
 
     public init(tool: MonitorAssistSelection, assist: MonitorAssistState<Looks>,
-        stores: AssistPanelStores, looks: FalseColorLooks, palette: Palette.Type,
+        stores: AssistPanelStores?, looks: FalseColorLooks, palette: Palette.Type,
         haptics: OperatorHaptics, transfer: MonitorTransfer, clipByte: Int,
         signalOptions: MonitorOperatorSignalOptions = .init(),
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
@@ -129,23 +129,24 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
         case .falseColor:
             if let menu = signalOptions.falseColor { menu }
             else { FalseColorAssist.commonMenu(assist: assist, looks: looks,
-                haptics: haptics, transfer: transfer, clipByte: clipByte) }
+                haptics: haptics, transfer: transfer, clipByte: clipByte,
+                referenceDisplayAvailable: stores != nil && signalOptions.referenceAvailable != false) }
         case .zebra:
             if let menu = signalOptions.zebra { menu }
-            else { ZebraAssist.longPressMenu(assist: assist, stores: stores, palette: Palette.self,
+            else if let stores { ZebraAssist.longPressMenu(assist: assist, stores: stores, palette: Palette.self,
                 haptics: haptics, transfer: transfer, clipByte: clipByte) }
         case .lut: lookMenu()
-        case .waveform: WaveformAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics)
-        case .parade: ParadeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics)
-        case .histogram: HistogramAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics)
-        case .vectorscope: VectorscopeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics)
-        case .trafficLights: TrafficLightsAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics)
-        case .ndMeter: NDAssist.longPressMenu(stores: stores, haptics: haptics)
+        case .waveform: if let stores { WaveformAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
+        case .parade: if let stores { ParadeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
+        case .histogram: if let stores { HistogramAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
+        case .vectorscope: if let stores { VectorscopeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
+        case .trafficLights: if let stores { TrafficLightsAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
+        case .ndMeter: if let stores { NDAssist.longPressMenu(stores: stores, haptics: haptics) }
         case .guides: GuidesAssist.longPressMenu(assist: assist, haptics: haptics)
         case .grid: GridAssist.longPressMenu(assist: assist, haptics: haptics)
         case .crosshair: CrosshairAssist.longPressMenu(assist: assist)
         case .mirror: MirrorAssist.longPressMenu(assist: assist, haptics: haptics)
-        case .audioMeters: AudioAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics)
+        case .audioMeters: if let stores { AudioAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
         case .desqueeze: DesqueezeAssist.longPressMenu(assist: assist, haptics: haptics)
         case .level: if let menu = signalOptions.level { menu }
         case .instantReview: if let menu = signalOptions.instantReview { menu }

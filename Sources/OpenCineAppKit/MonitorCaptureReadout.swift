@@ -36,9 +36,9 @@
         public var body: some View {
             MonitorReadout(field.title, active: active) { Text(field.label ?? "--") }
                 .modifier(MonitorReadoutGesture(
-                    snapshot: MonitorReadoutSnapshot(title: field.title,
-                        options: field.choices.map(\.label), selection: field.label ?? ""),
-                    sourceIdentity: field, isEnabled: enabled && field.isEditable,
+                    snapshot: field.isEditable ? MonitorReadoutSnapshot(title: field.title,
+                        options: field.choices.map(\.label), selection: field.label ?? "") : nil,
+                    sourceIdentity: field, isEnabled: enabled,
                     ownership: $ownership, presentationOwner: presentationOwner
                 ) { event in
                     // Notify first: lift closes the passive popup before an outcome can arrive.
@@ -53,7 +53,7 @@
                 })
                 .accessibilityLabel(field.title)
                 .accessibilityValue(field.label ?? "Not set")
-                .disabled(!enabled || !field.isEditable)
+                .disabled(!enabled)
         }
     }
 

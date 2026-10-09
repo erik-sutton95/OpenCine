@@ -1,6 +1,5 @@
 package com.opencapture.opencine.cameracontrols
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -158,60 +157,18 @@ public fun MonitorOperatorSettingsScreen(
     sourceIdentity: Any? = null,
 ): Unit {
     var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
-    BackHandler(onBack = configuration.close)
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == MonitorSettingsTab.DISPLAY) borrowedDisplay.returnedFromEditor()
-    }
-    BoxWithConstraints(Modifier.fillMaxSize().background(MonitorPalette.background)
-        .pointerInput(Unit) { detectTapGestures {} }
-        .windowInsetsPadding(WindowInsets.safeDrawing)) {
-        val compact = maxWidth < 600.dp
-        MonitorSettingsPage(configuration.brand, selectedTab, { selectedTab = it }, configuration.isLive,
-            configuration.phase, configuration.disconnect, configuration.feedback,
-            modifier = Modifier.padding(start = 61.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
-            sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail) { tab ->
-            key(sourceIdentity) { when (tab) {
-                MonitorSettingsTab.LINK -> SettingsLink(configuration.link)
-                MonitorSettingsTab.SHARING -> configuration.sharing?.let { SettingsSharing(it, configuration.feedback) }
-                MonitorSettingsTab.ASSIST -> MonitorViewAssistSettings(configuration.assistSections)
-                MonitorSettingsTab.CONTROLS -> {
-                    val controls = configuration.controls
-                    MonitorOperatorSafetySettings(controls.recordConfirmation, controls.haptics, controls.keepAwake,
-                        controls.setRecordConfirmation, controls.setHaptics, controls.setKeepAwake,
-                        keepScreenAwakeHelp = controls.keepAwakeHelp, feedback = configuration.feedback)
-                    MonitorInputOrientationSettings(controls.remoteShutter, controls.setRemoteShutter,
-                        remoteTitle = controls.remoteTitle, remoteCaption = controls.remoteCaption,
-                        autoRotateFeed = controls.autoRotateFeed, onAutoRotateFeed = controls.setAutoRotateFeed,
-                        rotationTitle = controls.rotationTitle, rotationHelp = controls.rotationHelp,
-                        feedback = configuration.feedback)
-                }
-                MonitorSettingsTab.DISPLAY -> {
-                    val scroll = LocalMonitorSettingsScrollContext.current
-                    MonitorDisplaySettings(borrowedDisplay.layoutTitle, borrowedDisplay.layoutHelp,
-                        borrowedDisplay.choices, borrowedDisplay.selection, borrowedDisplay.onSelect,
-                        borrowedDisplay.expandedSection, borrowedDisplay.onExpand, borrowedDisplay.sections,
-                        borrowedDisplay.order, compact, configuration.feedback, scroll)
-                }
-                MonitorSettingsTab.STORAGE -> {
-                    configuration.account?.let { SettingsAccount(it) }
-                    configuration.cache?.let { cache ->
-                        MonitorOperatorCacheSettings(cache.source, scopeHelp = cache.scopeHelp,
-                            clearHelp = cache.clearHelp, formatBytes = cache.formatBytes, feedback = configuration.feedback,
-                            checkingLabel = cache.checking, readFailureLabel = cache.readFailure,
-                            clearFailureLabel = cache.clearFailure, confirmClear = cache.confirmClear,
-                            summaryColor = cache.summaryColor)
-                    }
-                }
-                MonitorSettingsTab.SYSTEM -> SettingsSystem(configuration.support, configuration.information, configuration.feedback)
-            } }
-        }
-        MediaCloseButton(configuration.close, modifier = Modifier.padding(start = 16.dp, top = 22.dp)
-            .testTag("monitor.page.back"))
-    }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
+        brand = configuration.brand, selection = selectedTab, onSelect = { selectedTab = it },
+        isLive = configuration.isLive, phase = configuration.phase, close = configuration.close,
+        disconnect = configuration.disconnect, feedback = configuration.feedback,
+        source = MonitorOperatorSettingsSource.Configured(configuration, borrowedDisplay),
+        sourceIdentity = sourceIdentity,
+        sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
+    ))
 }
 
 @Composable
-private fun SettingsAccount(source: MonitorSettingsAccountSource) {
+internal fun SettingsAccount(source: MonitorSettingsAccountSource) {
     val model = source.model
     val operation by model.state.collectAsState()
     androidx.compose.runtime.SideEffect { model.bind(source.actions) }
@@ -241,7 +198,7 @@ private fun SettingsReadout(source: MonitorSettingsReadoutSource, first: Boolean
     MonitorSettingsInlineRow(source.title, source.help, showTopDivider = !first) { MonitorSettingsValueText(source.value ?: "--") }
 }
 @Composable
-private fun SettingsLink(source: MonitorSettingsLinkSource) {
+internal fun SettingsLink(source: MonitorSettingsLinkSource) {
     source.score?.let { MonitorLinkHealthScale(source.healthTitle, source.healthCaption, it) }
     MonitorConnectionSettings(source.transport, source.transportHelp, source.phase, source.phaseHelp)
     if (source.choices.isNotEmpty() || source.controlHolder != null) MonitorSettingsRowCard("Picture") {
@@ -253,7 +210,7 @@ private fun SettingsLink(source: MonitorSettingsLinkSource) {
     }
 }
 @Composable
-private fun SettingsSharing(source: MonitorSettingsSharingSource, feedback: () -> Unit) {
+internal fun SettingsSharing(source: MonitorSettingsSharingSource, feedback: () -> Unit) {
     val watching = source.watching
     if (watching != null) { MonitorSettingsRowCard { SettingsReadout(watching, true) }; return }
     var draft by remember { mutableStateOf(source.passcode) }
@@ -291,7 +248,7 @@ private fun SettingsSharing(source: MonitorSettingsSharingSource, feedback: () -
     }
 }
 @Composable
-private fun SettingsSystem(source: MonitorSettingsSupportSource, information: MonitorSettingsInformationSource,
+internal fun SettingsSystem(source: MonitorSettingsSupportSource, information: MonitorSettingsInformationSource,
     feedback: () -> Unit) {
     MonitorSupportSettings(source.automaticReports, source.available, source.automaticHelp, source.unavailableHelp,
         source.setAutomaticReports, source.report, source.privacy, source.status, source.discard, feedback,

@@ -85,16 +85,20 @@ fun LiveControlSheet(
     preview: MonitorQuickPreview? = null,
     portrait: Boolean? = null,
     showsHeader: Boolean = true,
+    chromeless: Boolean = false,
+    onHeaderChanged: (String, String) -> Unit = { _, _ -> },
 ) {
     val availableStatus = CaptureLists.withEffectiveVideoFormats(
         status, host.camera,
     )
     val isPortrait = portrait ?: viewportIsPortrait()
     CompositionLocalProvider(LocalCapturePreview provides preview, LocalViewportPortrait provides isPortrait) {
-        if (sheet.isRecordingSetup && isPortrait && showsHeader) {
-            RecordingSetupPanel(sheet, host, availableStatus, locked, onDismiss, maxHeightDp)
+        val commandLocked = locked || !com.opencapture.opencine.appkit.LocalMonitorCaptureCommandEnabled.current
+        if (sheet.isRecordingSetup && isPortrait && (showsHeader || chromeless)) {
+            RecordingSetupPanel(sheet, host, availableStatus, commandLocked, onDismiss, maxHeightDp, chromeless, onHeaderChanged)
         } else {
-            LiveControlSheetContent(sheet, host, availableStatus, locked, onDismiss, maxHeightDp, showsHeader = showsHeader)
+            LiveControlSheetContent(sheet, host, availableStatus, commandLocked, onDismiss, maxHeightDp,
+                showsHeader = showsHeader && !chromeless, chromeless = chromeless, onHeaderChanged = onHeaderChanged)
         }
     }
 }
@@ -104,6 +108,7 @@ fun LiveControlSheet(
 private fun RecordingSetupPanel(
     initial: LiveSheet, host: CaptureSheetHost, status: CameraStatus, locked: Boolean,
     onDismiss: () -> Unit, maxHeightDp: Float?,
+    chromeless: Boolean = false, onHeaderChanged: (String, String) -> Unit = { _, _ -> },
 ) {
     val preview = LocalCapturePreview.current
     val enabled = !locked && preview == null
@@ -128,10 +133,11 @@ private fun RecordingSetupPanel(
         if (tab == "Mode" || tabNames == listOf("Mode")) {
             val modeScroll = rememberScrollState()
             Column(Modifier.fillMaxWidth().then(if (maxHeightDp != null) Modifier.heightIn(max = maxHeightDp.dp) else Modifier)
-                .pickerPanelGlass(capturePanelShape(fromTop = true, portrait = viewportIsPortrait()))
-                .monitorScrollFade(modeScroll).verticalScroll(modeScroll, enabled = preview == null).padding(14.dp),
+                .then(if (chromeless) Modifier else Modifier.pickerPanelGlass(capturePanelShape(fromTop = true, portrait = viewportIsPortrait()))
+                    .monitorScrollFade(modeScroll).verticalScroll(modeScroll, enabled = preview == null).padding(14.dp)),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SheetHeader("SHOOTING MODE", "Capture mode", onDismiss)
+                androidx.compose.runtime.SideEffect { onHeaderChanged("SHOOTING MODE", "Capture mode") }
+                if (!chromeless) SheetHeader("SHOOTING MODE", "Capture mode", onDismiss)
                 val bodyName = host.camera?.name
                 val labels = CaptureLists.shootingModeLabels(bodyName, status.shootingMode, host.labelProfile)
                 CaptureDrumWheel(labels, CameraCommands.shootingModeLabel(status.shootingMode, bodyName, host.labelProfile).orEmpty()
@@ -145,13 +151,14 @@ private fun RecordingSetupPanel(
                     categories()
                 }
                 if (status.isRecording) Text("Stop recording to change mode.", color = LiveDesign.muted, style = LiveType.text(11f))
-                if (com.opencapture.monitorui.MonitorLayoutPolicy.showsCaptureGrabber(preview != null, fromTop = true)) {
+                if (!chromeless && com.opencapture.monitorui.MonitorLayoutPolicy.showsCaptureGrabber(preview != null, fromTop = true)) {
                     com.opencapture.monitorui.MonitorPanelGrabber()
                 }
             }
         } else {
             LiveControlSheetContent(if (tab == "Color") LiveSheet.COLOR else LiveSheet.FORMAT,
-                host, status, locked, onDismiss, maxHeightDp, footer = categories)
+                host, status, locked, onDismiss, maxHeightDp, footer = categories,
+                showsHeader = !chromeless, chromeless = chromeless, onHeaderChanged = onHeaderChanged)
         }
     }
 }
@@ -166,6 +173,8 @@ private fun LiveControlSheetContent(
     maxHeightDp: Float?,
     footer: (@Composable () -> Unit)? = null,
     showsHeader: Boolean = true,
+    chromeless: Boolean = false,
+    onHeaderChanged: (String, String) -> Unit = { _, _ -> },
 ) {
     val commonField = remember(sheet, host) { host.captureField(sheet, status.expoMode) }
     val session = host.captureSessionState(status)
@@ -460,6 +469,10 @@ private fun LiveControlSheetContent(
     val fromTop = sheet.isTopAnchored
     val portrait = viewportIsPortrait()
     val topPadding = if (showsHeader) com.opencapture.monitorui.MonitorLayoutPolicy.captureTopPadding(fromTop, portrait, compact) else 0f
+    val headerTitle = CaptureLists.headerTitle(sheet, status.expoMode, status.shootingMode)
+    val headerSubtitle = if (compact) "drag to set" else CaptureLists.headerSubtitle(sheet, status.expoMode,
+        selectedMode, prefs.facePriorityExposure, status.shootingMode)
+    androidx.compose.runtime.SideEffect { onHeaderChanged(headerTitle, headerSubtitle) }
     // Every drum has the same 86dp viewport; the card hugs its own controls.
     val sheetScroll = rememberScrollState()
     Column(
@@ -467,14 +480,14 @@ private fun LiveControlSheetContent(
             .fillMaxWidth()
             .then(Modifier.wrapContentHeight(align = Alignment.Top))
             .then(if (cap != null) Modifier.heightIn(max = cap) else Modifier)
-            .pickerPanelGlass(capturePanelShape(fromTop, portrait))
-            .monitorScrollFade(sheetScroll)
-            .verticalScroll(sheetScroll, enabled = preview == null)
+            .then(if (chromeless) Modifier else Modifier.pickerPanelGlass(capturePanelShape(fromTop, portrait))
+                .monitorScrollFade(sheetScroll).verticalScroll(sheetScroll, enabled = preview == null))
             .pointerInput(Unit) { detectTapGestures(onTap = {}) }
-            .padding(horizontal = 14.dp)
+            .padding(horizontal = if (chromeless) 0.dp else 14.dp)
             .padding(
                 top = topPadding.dp,
                 bottom = when {
+                    chromeless -> 0.dp
                     compact -> com.opencapture.monitorui.MonitorLayoutPolicy.compactCaptureBottomPadding(
                         topPadding).dp
                     fromTop -> 14.dp
@@ -708,7 +721,7 @@ private fun LiveControlSheetContent(
                 if (com.opencapture.monitorui.MonitorLayoutPolicy.showsRecordingCategoryTabs(portrait, compact)) {
                     footer?.invoke()
                 }
-                if (com.opencapture.monitorui.MonitorLayoutPolicy.showsCaptureGrabber(compact, fromTop)) {
+                if (!chromeless && com.opencapture.monitorui.MonitorLayoutPolicy.showsCaptureGrabber(compact, fromTop)) {
                     com.opencapture.monitorui.MonitorPanelGrabber()
                 }
             }
@@ -800,7 +813,7 @@ private fun AudioBody(status: CameraStatus, enabled: Boolean, selectedMode: Int,
     refusal?.let { Text(it, color = LiveDesign.faint) }
 }
 
-private fun initialSelectedMode(
+internal fun initialSelectedMode(
     sheet: LiveSheet,
     status: CameraStatus,
     session: CaptureSessionState,
