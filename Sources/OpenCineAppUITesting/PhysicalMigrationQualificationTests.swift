@@ -706,15 +706,23 @@ private struct PhysicalMigrationProbe: Decodable {
     }
 
     private func settleGallery(_ gallery: XCUIElement) async throws {
+        let deadline = ProcessInfo.processInfo.systemUptime + 5
         var previous = ""
         var stableSince = Date()
-        try await wait("Native gallery scroll must settle", timeout: 5) {
+        let predicate: @MainActor () -> Bool = {
             guard let signature = self.gallerySettleSignature() else {
                 stableSince = Date(); return false
             }
             if signature != previous { previous = signature; stableSince = Date(); return false }
             return gallery.exists && Date().timeIntervalSince(stableSince) >= 0.4
         }
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            let settled = predicate()
+            guard ProcessInfo.processInfo.systemUptime < deadline else { break }
+            if settled { return }
+            await Task.yield()
+        }
+        throw failure("Native gallery scroll must settle" + (lastProbeFailure.map { ". " + $0 } ?? ""))
     }
 
     private func gallerySettleSignature() -> String? {
