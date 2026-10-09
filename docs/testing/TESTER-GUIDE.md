@@ -5,27 +5,39 @@ How to build OpenPocketCine, OpenInstaCine and OpenZCine against OpenCine on
 on a real camera. Which app code moved where: [RETIRED-OWNERS.md](RETIRED-OWNERS.md); what the
 apps still keep and why: [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md).
 
-Status at the 2026-10-08 verification checkpoint: locally committed candidate. Recorded shared
-checks, all three apps' native/Android gates and original full template acceptance on both
-platforms pass within their recorded scopes, with the known skips below. Root closed the original
-Pocket/Insta compatibility exits (`2415a4b7`). The fixed 46-checkpoint coding ledger and latest
-final matrix/documentation-head closure are recorded in the coordinator handoffs and
-`CODEX-RESUME-20261007/final-current-head-matrix-v2/receipt.json`. Physical qualification remains untested: the
-iPhone is locked again and awaits unlock; Android remains detached. No integration, pin move or
-publication is claimed.
+Status at the 2026-10-09 checkpoint: locally committed candidate. The common live and
+settings composition, camera-page safe area, popup presentation, capture header and circular
+focus-reset button now have one shared owner on each platform. All three apps supply values,
+admitted actions and typed hardware panels to that composition; future generated apps use it too.
+Nikon uses the normal SwiftUI app lifecycle so its shared controls receive an active scene.
 
-Qualified local product source is OpenCine `e5a804d37fa70e97228954988a4c8cd0d06a3c81`, Pocket
-`524facaefc70a413180ca9d516f681fe36f51d2c`, Insta `f2a830e3cd921c72e1deb94a9dcf06442c8b38fe`
-and Nikon `8cfe698378cc7673a5fca8c8383f868d4d995d42`. Docs-only baseline `ecf912c4` changes no
-product code. First-pass matrix `7004c896` binds these inputs, candidate receipt `f6f1ed71`,
-current SDK/consumer scopes and finite later deltas. Root records the final status-only doc head
-through a fresh candidate v2 and current-head matrix sidecar; no future result is asserted here.
+The fixed coding ledger is 44 of 46 checkpoints complete (96%). Nikon compatibility and the
+final matrix are reopened until the current combined real-camera flows and landscape edges
+are proven. Six current consumer gates passed: three full Android consumers and three iOS
+builds for testing for both simulator architectures. Current header geometry passed four cases
+on each platform, all seven hosted iOS cases passed, and the generated Android default recipe
+passed its original eight contracts and three flows plus four new geometry cases (15 total).
+These are automated scopes, not full physical qualification.
 
-The earlier revision/setup/checklist blocks and dated WIP counts below are retained unchanged;
-their historical pending wording is superseded by this current binding. No final production-line
-recensus was performed. Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved
-and excluded from the committed candidates. Only original HEAD plus physical registration was
-committed (`f1ec6039`/`b4f4c22b`); preserved working hashes are `9ed86a6c`/`70bff1f8`.
+All three current iPhone app/test bundles are built, signed and source-bound. Nikon's installed
+reference check shows the circular focus icon, working ISO popup and portrait header clearance.
+That limited reference check does not qualify recording, playback, recovery or saved relaunch.
+The complete original current camera flow remains untested for all three brands (0 of 3);
+the iPhone currently requires its passcode and the physical Android phone is detached.
+App pins, integration and publication remain unchanged.
+
+Root evidence references are the six-consumer matrix `ba1368f5`, header geometry `ee0bc90d`,
+generated Android default-15 result `f29a9858`, signed-product binding `40e5fac3`, standards
+review `63ddec16`, spec review `6174ed10` and default-recipe follow-up peer review `ad5a9560`.
+Each binds its original inputs and scope. Later generated-test setup and default-recipe changes
+are test-only; existing shipping products were rechecked byte for byte. Earlier native suites,
+original generated iOS eleven-case acceptance and golden fixtures retain their recorded scope.
+Known accessibility/reference/decoder skips, Nikon's existing formatting/privacy-fixture
+failures, historical Atlas refs and untested real multicam/performance remain explicit.
+
+Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved and excluded from
+the local commits. The dated tables and checklists below retain historical measurements and
+acceptance criteria; older pending or closed wording does not override this checkpoint.
 
 What counts as a regression:
 
@@ -50,6 +62,22 @@ Contents: [Revisions](#revisions-under-test) ·
 
 ## Revisions under test
 
+The current locally committed product revisions are:
+
+| Repository | Product revision |
+|---|---|
+| OpenCine | `9b14ac06e4265d9392f1fa89e24a0ea0424bda94` |
+| OpenPocketCine | `143f801e3097f5c5ee96b06114c7ec5785035742` |
+| OpenInstaCine | `78f656a7ed5da717059ed00cb92e34a73d4c11c2` |
+| OpenZCine | `3f46a545c139c149fd23fb55997fa42177654318` |
+
+A later docs-only SDK commit changes these three tester documents only. Current build receipts
+bind source bytes rather than the older HEAD of the frozen actual build copies. The working
+sources of all owned committed files match these product revisions; unrelated exploratory UI
+tests are disclosed separately. No source or consumer result is relabeled as a physical pass.
+
+### Historical revision setup, 2026-10-08
+
 | Repository | Working HEAD, before uncommitted changes | Parity baseline (`main`) | Pinned OpenCine (`opencine-pins.txt`) |
 |---|---|---|---|
 | OpenCine | `7a0d073150c181cad702ca1b3b749e6bb5ed37bd` | `d739bbdb` | |
@@ -57,9 +85,9 @@ Contents: [Revisions](#revisions-under-test) ·
 | OpenInstaCine | `e5e6e5e5897b7254459d2aa666d4ca0b2071dbb7` | `35b6f33b` | `400962e1` |
 | OpenZCine | `61fc7109f9a3fc699d5f97f0f174bef17de1b55a` | `9ac41387` (origin/main) | `400962e1` |
 
-The current automated checks use frozen actual consumer worktrees and source manifests under
-the coordinator's `CODEX-RESUME-20261007` evidence packet. These HEADs alone cannot reproduce
-those uncommitted inputs. Final candidate linkage is pending. Nikon's parity baseline is the
+The earlier automated checks used frozen actual consumer worktrees and source manifests under
+the coordinator's `CODEX-RESUME-20261007` evidence packet. These historical HEADs alone do not
+reproduce those working inputs. Current product linkage is listed above. Nikon's parity baseline is the
 recorded `origin/main` revision above; the older local `main` lacks Android upright-picture
 fix #382. Record all four final commits and installed build identities in every device report.
 
@@ -71,8 +99,8 @@ needs the maintainer's approval). Always build against a sibling OpenCine checko
 Production counts and their exclusions are recorded in
 [RETIRED-OWNERS.md](RETIRED-OWNERS.md#current-production-counts-candidate-wip).
 Its dated working-tree census includes nonignored new sources and excludes deleted files.
-Final commit counts are pending; line reduction alone does not qualify behavior or prove that
-an interface became simpler.
+The dated census has not been repeated for the current product revisions; line reduction alone
+does not qualify behavior or prove that an interface became simpler.
 
 ## 1. Set up
 
@@ -408,7 +436,7 @@ intended changes below before you report a difference.
 | N2 | Passive discovery | both | Keep the cameras page open for 2 minutes while another phone has a live session on the same body. | The other session survives; while browsing the app never opens the PTP/IP control port or sends a PTP byte (only mDNS and the app's relay presence port 15741) | `NikonDiscovery` (`OpenCineNikon`, `nikon`) |
 | N3 | Reconnect | both | Pull USB-C or power-cycle the body during live view; a failed first connect. | Last frame stays, marked as held, during a bounded reconnect; then Retry connection or Operator menu; first-connect failure offers Try again | Typed Nikon reconnect decision; shared frame runtime holds the frame |
 | N4 | HDMI capture | iPad, Android | Plug a UVC capture device, then unplug it. | HDMI picture shows; unplug recovers cleanly | `OpenCineApple` UVC source (iOS) |
-| N5 | DISP and framing | both | DISP 1, 2 (clean, per-tool pins), 3 (command dashboard, timecode keeps running); per-element display switches; FPS and link chip in landscape; pinch zoom with tap focus following it; vertical camera with Auto-Rotate Feed. iOS: Feed Upscaler, Feed Noise Reduction. | Same tools as `main`, in the shared chrome; the FPS and link chip shows in landscape as on `main` | Shared `MonitorScreen` with Nikon slots (`NikonCommandControls`, `CommandGrid`); `MonitorUpscaler` |
+| N5 | DISP and framing | both | DISP 1, 2 (clean, per-tool pins), 3 (command dashboard, timecode keeps running); per-element display switches; shared FPS/link telemetry in landscape; pinch zoom with tap focus following it; vertical camera with Auto-Rotate Feed. iOS: Feed Upscaler, Feed Noise Reduction. | Same tools as `main`, in the shared chrome; FPS/link values use the shared telemetry presentation in landscape | Shared `MonitorScreen` with Nikon slots (`NikonCommandControls`, `CommandGrid`); `MonitorUpscaler` |
 | N6 | Focus dial (MF strip) | both | Turn the Focus dial on in the FOCUS popup; drive focus in video and photo; release; tap to focus; focus reset. | Focus moves by wire; release does not re-AF | `MFDriveVerticalScrub` / `MFDriveStrip` in the tools slot |
 | N7 | e-VR | both | iOS: VR / e-VR panel. Android: DISP 3 tile. Try with a RAW codec. | Toggles on the body; disabled for RAW codecs | Nikon panels slot |
 | N8 | Camera settings | both | ISO (Auto ISO, R3D NE Low/High base), shutter angle, iris, WB (presets, Kelvin, fine, tint), exposure mode, codec and 8/10-bit, resolution/fps, AF mode, area and subject, metering, audio, picture control. | Pickers mirror the body; values match the body; clock syncs on connect when drift is over 5 s | Common seam for ISO, WB and record; exposure descriptors for common controls |
@@ -542,7 +570,10 @@ them on hardware.
 
 Target platforms: iOS 17+ (iPhone, iPad, Apple Watch) and Android 10+ arm64 (phone; Nikon also
 Wear OS). The following table separates the current passing scopes from checks still pending.
-Current combined physical qualification remains untested.
+Current combined full physical qualification remains untested. The October 9 current scope is
+recorded at the top of this guide; the following table retains the October 8 results.
+
+### Historical verification, 2026-10-08
 
 | Area | Recorded checks and remaining qualification | Physical |
 |---|---|---|
@@ -569,7 +600,7 @@ retained Surface hosts use synthetic pixels, and native metadata/prepare tests u
 observations. No existing exact two-decoded-picture installed selector is claimed or newly
 required. These results do not qualify camera decoding, real two/four-peer performance or hardware.
 
-Current physical readiness: Xcode reports the paired iPhone locked again and the original
+Physical readiness at that historical checkpoint: Xcode reported the paired iPhone locked again and the original
 selected physical test awaits unlock. The earlier 10:09 CEST unlocked state is historical
 readiness, not a passed test. Android remains detached; no current combined physical result
 exists. The opt-in driver keeps its original connection, raw ISO/recording, native pixels,
@@ -589,7 +620,7 @@ Decisions for you after the device run:
 - Code the apps still keep, with what blocks each item:
   [compatibility inventory follow-ups](COMPATIBILITY-INVENTORY.md#follow-ups).
 
-Known open items at this revision:
+Known open items at the October 8 revision (current status is above):
 
 - App pins are stale (see [Revisions](#revisions-under-test)); a CI checkout of an app at
   `integration/thin-app` would fetch the old pin and fail to compile.

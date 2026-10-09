@@ -2,28 +2,45 @@
 
 Retained facades, aliases, stored/wire contracts, SDK adapters and copied bodies in the current
 thin-app candidate. Companion of [RETIRED-OWNERS.md](RETIRED-OWNERS.md) and
-[TESTER-GUIDE.md](TESTER-GUIDE.md). Updated 2026-10-08 from task-owned source, actual call sites and
-frozen coordinator consumer/source captures. Status: locally committed candidate. Qualified
-product source is SDK `e5a804d3` with Pocket `524facae`, Insta `f2a830e3` and Nikon `8cfe6983`;
-`ecf912c4` is a docs-only baseline. Current physical flows remain untested; no integration or
-release is claimed.
+[TESTER-GUIDE.md](TESTER-GUIDE.md). Updated 2026-10-09.
 
-This refresh audits the retained groups in the earlier inventory; it does not certify every
-semantic line. Source-byte and call-site evidence is preserved in the documentation lane. Final
-revision and qualification binding is recorded in first-pass matrix `7004c896` and the retired-owner
-ledger. Candidate `f6f1ed71` passed all four source sets/six pairs, no missing/no baseline growth.
-Root records the final status-only docs head separately; first-pass evidence stays immutable.
-Recorded Pocket/Insta/Nikon native and Android consumer gates now pass at their own inputs with
-the known native skips. Pocket focused real-service AX v1/v2 still reach the original no-tree skip;
-its original VoiceOver assertions remain untested after the two-fragment scene setup correction.
-Current SDK tests/strict and optimized shipping Release passed; generated iOS and Android full
-v3 each passed all original eleven cases with zero failures/skips (combined receipt `b9843798`).
-The fixed original coding ledger retains 46 eligible checkpoints. Pocket/Insta compatibility is closed in `2415a4b7`; final matrix/documentation-head closure is recorded in the coordinator handoffs and `CODEX-RESUME-20261007/final-current-head-matrix-v2/receipt.json`. Nikon APK/AAB/DEX/JNI v5 passed with original
-release pruning. Current native/input/GPU/linkage scopes, local committed source/delta binding,
-preserved P/I exploratory UI residue and untested physical installation are stated in [RETIRED-OWNERS.md](RETIRED-OWNERS.md#qualification-and-final-revision-binding)
-and [TESTER-GUIDE.md](TESTER-GUIDE.md#9-what-is-verified-and-what-is-not). The original retention,
-historical measurements and follow-up criteria below remain unchanged except for the finite
-qualification status notes; source retirement does not imply final closure.
+Status at the 2026-10-09 checkpoint: locally committed candidate. The common live and
+settings composition, camera-page safe area, popup presentation, capture header and circular
+focus-reset button now have one shared owner on each platform. All three apps supply values,
+admitted actions and typed hardware panels to that composition; future generated apps use it too.
+Nikon uses the normal SwiftUI app lifecycle so its shared controls receive an active scene.
+
+The fixed coding ledger is 44 of 46 checkpoints complete (96%). Nikon compatibility and the
+final matrix are reopened until the current combined real-camera flows and landscape edges
+are proven. Six current consumer gates passed: three full Android consumers and three iOS
+builds for testing for both simulator architectures. Current header geometry passed four cases
+on each platform, all seven hosted iOS cases passed, and the generated Android default recipe
+passed its original eight contracts and three flows plus four new geometry cases (15 total).
+These are automated scopes, not full physical qualification.
+
+All three current iPhone app/test bundles are built, signed and source-bound. Nikon's installed
+reference check shows the circular focus icon, working ISO popup and portrait header clearance.
+That limited reference check does not qualify recording, playback, recovery or saved relaunch.
+The complete original current camera flow remains untested for all three brands (0 of 3);
+the iPhone currently requires its passcode and the physical Android phone is detached.
+App pins, integration and publication remain unchanged.
+
+Root evidence references are the six-consumer matrix `ba1368f5`, header geometry `ee0bc90d`,
+generated Android default-15 result `f29a9858`, signed-product binding `40e5fac3`, standards
+review `63ddec16`, spec review `6174ed10` and default-recipe follow-up peer review `ad5a9560`.
+Each binds its original inputs and scope. Later generated-test setup and default-recipe changes
+are test-only; existing shipping products were rechecked byte for byte. Earlier native suites,
+original generated iOS eleven-case acceptance and golden fixtures retain their recorded scope.
+Known accessibility/reference/decoder skips, Nikon's existing formatting/privacy-fixture
+failures, historical Atlas refs and untested real multicam/performance remain explicit.
+
+Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved and excluded from
+the local commits. The dated tables and checklists below retain historical measurements and
+acceptance criteria; older pending or closed wording does not override this checkpoint.
+
+Current product source is SDK `9b14ac06`, Pocket `143f801e`, Insta `78f656a7` and Nikon
+`3f46a545`. The three tester documents are a later docs-only delta. The retained-surface tables
+below describe bounded native/integration/storage compatibility, not alternate common UI owners.
 
 ## Retention rules
 
@@ -96,7 +113,7 @@ fixtures, not evidence that the old assist UI owner is still required.
 | Nikon protocol/property/discovery and infrastructure/USB adapters | Actual passive discovery, admission, PTP objects/raw angles/property descriptors, RAW/rating/card/codec/lens/AF/e-VR/HDMI/UVC facts. Hardware admission changes still need hardware-qualified reasons |
 | Calibration/look tables, `ExposureScale`, `FalseColor`, `FocusAssist`, `TrafficLightsMeter`, RED facts and thermal policy | Nikon-only facts and stored meaning. Generic lattice/transfer math delegates Media; native calibration/sampling bodies are preserved |
 | `OpenZCineCore.MonitorAssistTool`, stored DISP/field/panel vocabulary | Codable/stored compatibility, including retired MAG decoding and actual Nikon tool extensions. Actual UI projects into common tool/descriptor inputs; stored cases are not a copied common screen |
-| `NikonMonitorShell`, `MonitorUnified`, `MonitorScreen`, `OperatorSettingsScreen`, root cover fragments | Actual descriptor/borrowed-display and hardware/native adapters into common complete live/settings/shell owners. The old whole settings/cache/account card and copied player/catalog/photo recipes are retired; no dummy session/display or unsupported option is supplied |
+| `NikonMonitorShell`, `MonitorUnified`, `MonitorScreen`, `OperatorSettingsScreen`, root cover fragments | Actual descriptor/borrowed-display and typed hardware adapters into the same live/settings body used by Pocket, Insta and generated apps. Focus reset, headers, safe area and popup chrome have shared owners. Native panels supply controls only; normal SwiftUI lifecycle publishes active scene state. No dummy session/display or unsupported option is supplied |
 | `MonitorOverlays` legacy playback overlay/`MovablePanel`, `PaletteStrip`/scope compatibility entries | No current live/player adopter call to the old playback overlay was found. Original/developer/public helper shapes remain; actual full players/live use common scope/panel owners. Do not justify these as a required copied shipping screen |
 | Kotlin `MonitorFrameRateSampler` in `MonitorReadouts.kt`, called by `MonitorScreen.kt` | Captured follow-up `8a8e41dd` delegates the rolling algorithm to existing Media FrameRateSampler. The 15-line adapter retains ns-to-seconds and observable READY/rate label facts; 30 intervals/1 Hz and original tests stay exact. Recorded full Android v5 consumer passed; current physical readout/camera behavior untested |
 | `MediaCacheStore`, `MediaCacheObjectIdentity`, `MediaCacheSettingsState` | PTP identity and synchronous filesystem/receipt adapters over shared ProgressiveMediaCache and canonical Library directory. MainActivity constructs one actual cache adapter. Settings count/clear Tasks belong the shared cache model; there is no second app Settings scheduler |
@@ -148,8 +165,9 @@ Account/Cache owners are exercised by actual adopters. Unsupported features stay
 | X-1, X-2, X-3 | Shared shader/staging/bootstrap/tester checks and protocol probe owner references are implemented. Each app keeps pre-pin bootstrap/thin wrappers; Nikon's different TestFlight contract remains |
 
 Root closed the original Pocket/Insta compatibility exits in `2415a4b7`; this table grants no
-additional checkpoint credit. First-pass candidate/matrix evidence is bound above and final
-status-only current-head binding remains root-owned. Physical flows remain untested. The
+additional checkpoint credit. The October 9 Nikon compatibility and final matrix exits are
+reopened at 44 of 46 pending the complete current physical flows and landscape checks. Earlier
+first-pass candidate/matrix evidence retains its original scope. The
 historical pending prose below is retained as dated provenance, not current status.
 
 ## Historical compatibility snapshot and measurements

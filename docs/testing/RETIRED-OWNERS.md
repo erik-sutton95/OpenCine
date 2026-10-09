@@ -4,12 +4,42 @@ Which actual app implementations now use shared OpenCine owners, what remains in
 how much source each repository carries. Companion of [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md)
 and [TESTER-GUIDE.md](TESTER-GUIDE.md).
 
-Updated 2026-10-08. Status: locally committed candidate. Qualified product source is SDK
-`e5a804d3` with Pocket `524facae`, Insta `f2a830e3` and Nikon `8cfe6983`; docs-only baseline
-`ecf912c4` changes no product code. First-pass matrix `7004c896` records exact inputs and finite
-later deltas. Source retirement, automated scopes and physical qualification remain distinct;
-no pin move, integration or release is claimed. All dated count/history sections below remain
-unchanged; their historical pending wording is superseded by the concrete binding below.
+Updated 2026-10-09. Current product source is SDK `9b14ac06`, Pocket `143f801e`, Insta
+`78f656a7` and Nikon `3f46a545`; a later docs-only commit changes these three tester documents.
+
+Status at the 2026-10-09 checkpoint: locally committed candidate. The common live and
+settings composition, camera-page safe area, popup presentation, capture header and circular
+focus-reset button now have one shared owner on each platform. All three apps supply values,
+admitted actions and typed hardware panels to that composition; future generated apps use it too.
+Nikon uses the normal SwiftUI app lifecycle so its shared controls receive an active scene.
+
+The fixed coding ledger is 44 of 46 checkpoints complete (96%). Nikon compatibility and the
+final matrix are reopened until the current combined real-camera flows and landscape edges
+are proven. Six current consumer gates passed: three full Android consumers and three iOS
+builds for testing for both simulator architectures. Current header geometry passed four cases
+on each platform, all seven hosted iOS cases passed, and the generated Android default recipe
+passed its original eight contracts and three flows plus four new geometry cases (15 total).
+These are automated scopes, not full physical qualification.
+
+All three current iPhone app/test bundles are built, signed and source-bound. Nikon's installed
+reference check shows the circular focus icon, working ISO popup and portrait header clearance.
+That limited reference check does not qualify recording, playback, recovery or saved relaunch.
+The complete original current camera flow remains untested for all three brands (0 of 3);
+the iPhone currently requires its passcode and the physical Android phone is detached.
+App pins, integration and publication remain unchanged.
+
+Root evidence references are the six-consumer matrix `ba1368f5`, header geometry `ee0bc90d`,
+generated Android default-15 result `f29a9858`, signed-product binding `40e5fac3`, standards
+review `63ddec16`, spec review `6174ed10` and default-recipe follow-up peer review `ad5a9560`.
+Each binds its original inputs and scope. Later generated-test setup and default-recipe changes
+are test-only; existing shipping products were rechecked byte for byte. Earlier native suites,
+original generated iOS eleven-case acceptance and golden fixtures retain their recorded scope.
+Known accessibility/reference/decoder skips, Nikon's existing formatting/privacy-fixture
+failures, historical Atlas refs and untested real multicam/performance remain explicit.
+
+Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved and excluded from
+the local commits. The dated tables and checklists below retain historical measurements and
+acceptance criteria; older pending or closed wording does not override this checkpoint.
 
 ## Current source ownership
 
@@ -32,7 +62,7 @@ oracles remain qualification inputs.
 | Wrist transport/control/publication and broadcaster/nearby composition copies | Existing Relay/Watch and Apple/Android runtime owners; app aliases preserve distinct deployed monitor/watch schemas, native frames and captured command receipts | `wave-3-apple-watch-runtime-source-capture`, Android wrist/socket captures, `wave-4-unified-apple-relay-host-source-capture`, `wave-5-android-broadcaster-owner-source-capture` | Implemented; recorded shared/native checks passed; actual paired wrist/network hardware untested |
 | P/I native backdrop queue/cache/look/raster producer and duplicated visible lifecycle | Apple raster producer, Media immutable mirrored values, AppKitApple visible owner; all actual live/watch/multiview/playback builders capture source/item identity and epochs. Android uses existing NativeBackdropFeed/NativeGlBackend | Backdrop packet `57503cfb`; command-admission and backdrop predicate corrections retained separately | Implemented; eight native backdrop/pixel cases passed; current app/GPU/physical gates separate |
 | P/I inspector and multiview preview polling/assembly | One AppKitApple image-preview session over the existing renderer, common inspector preview UI and mirrored generic meaning/Compose display; actual P/I and multiview adapters supply native facts and truthful optional audio | `wave-6-inspector-preview-source-capture10` plus exact Multiview fragment and two finite corrections | Implemented; 14 controlled native preview cases passed; original renderer/sample/pixel guards retained; physical preview untested |
-| P/I and Nikon live chrome/readouts/popup/scopes/inspector/editor plus root covers and settings recipes | Existing complete live/settings/shell owners; Nikon descriptor/borrowed-display inputs express real fields, three DISP modes, photography and hardware panels. Kotlin legacy P/I and descriptor N paths use the same `MonitorOperatorLiveBody` | `wave-3-complete-live-ui-capture`, `wave-5-common-shell-cover-root-source-capture`, `wave-6c-nikon-compose-live-settings-source-capture18`, Swift live/settings captures | Implemented; current shared checks passed; complete current consumer and physical behavior separate |
+| P/I and Nikon live chrome/readouts/popup/scopes/inspector/editor plus root covers and settings recipes | One `MonitorOperatorLiveBody` and common settings body per platform serve Pocket, Insta, Nikon and generated apps. Shared owners control safe area, camera page, capture header, popups, scope/assist chrome and circular focus reset; typed native slots carry hardware controls only. Nikon retains descriptor facts, three DISP modes and photography features | Local SDK `9b14ac06` / P `143f801e` / I `78f656a7` / N `3f46a545`; six-consumer `ba1368f5`, source peers `63ddec16` / `6174ed10` | Implemented; six consumer gates and current targeted header/default-template checks passed; complete current camera flows and landscape edges untested |
 | Nikon Settings count/clear, account consent/rehost/error and stale peer grant/decline policy | Existing Cache/Account owners and common cards; captured native IO/hop cleanup remains in bounded adapters. Pending request receipts include source, peer and request revision | Swift/K cache observation captures, settings/request capture, `wave-6c-settings-cover-pointer-source-capture1` | Implemented; current shared checks passed; actual OAuth/network/cache and cover interaction untested |
 
 The common owner tables do not retire integrations' hardware behavior. DJI/Luna/Nikon protocol,
@@ -83,6 +113,11 @@ app reduction. The scoped preview retirement was 750 to 747 production lines (ap
 shared +1,032). Those moves retired copied policy owners but did not produce large net reductions.
 
 ## Qualification and final revision binding
+
+Current October 9 commits and checks are stated above. The following table and candidate
+counts preserve the October 8 verification fence and do not qualify later physical flows.
+
+### Historical verification, 2026-10-08
 
 Evidence inspected for this update is limited to immutable source/consumer receipts and current
 call sites. The documentation lane ran no compiler, build, Git operation or device check.
@@ -137,6 +172,14 @@ that failure is not the successful local candidate result. Authored refs, pins a
 were unchanged. Root records a fresh v2 candidate after the final status-only docs commit.
 
 ## Remaining completion criteria
+
+The current ledger is 44 of 46 (96%). Nikon compatibility and final matrix exits are reopened
+for current real-camera controls, landscape containment and the complete original physical
+flows. All six current consumer gates, both source reviews and generated default-15 acceptance
+passed; no current full physical flow has completed. Integration, pin moves and publication
+remain separate and require explicit authorization.
+
+### Historical closure, 2026-10-08
 
 The fixed original ledger has 47 registered IDs and 46 eligible IDs, with unsupported Insta
 multicam still excluded. Root closed `finish.template` against both original eleven-case
