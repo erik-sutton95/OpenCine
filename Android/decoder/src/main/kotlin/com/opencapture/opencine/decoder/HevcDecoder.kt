@@ -562,7 +562,7 @@ class HevcDecoder(
                                 }
                                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                     hasFormat = true
-                                    Log.i(TAG, "output ${started.outputFormat}")
+                                    Log.i(TAG, "output format changed")
                                 }
                             }
                         }
