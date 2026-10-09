@@ -10,6 +10,7 @@ import java.text.SimpleDateFormat
 import java.util.Base64
 import java.util.Locale
 import java.util.UUID
+import kotlin.coroutines.CoroutineContext
 
 /** Immutable facts captured by the app's legacy codec, fenced to the producing browse/asset. */
 public data class LunaMediaCatalogRecord(public val asset: MediaAssetID, public val file: CameraMediaItem)
@@ -164,15 +165,23 @@ internal class LunaMediaBrowse(
         finally { jobs.remove(id); if (!task.isCompleted) task.cancel() }
     }
 
-    suspend fun list(): List<MediaAsset> {
+    suspend fun list(caller: CoroutineContext): List<MediaAsset> {
+        caller.ensureActive()
         owner.request(LunaControl.accessCameraFileState(LunaControl.ALBUM_ACCESS_STATE), this, optional = true)
-        val response = owner.request(LunaControl.fileList(), this)
-            ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
-        val listing = LunaMediaFile.list(response).first
-        val metadata = owner.request(LunaControl.fileInfoList(), this, optional = true)
-            ?.let { runCatching { LunaMediaFile.infoList(it) }.getOrNull() }.orEmpty().associateBy { it.uri }
+        caller.ensureActive()
+        val storageReply = owner.request(LunaControl.storageListRequest, this, optional = true)
+        caller.ensureActive()
+        val inventory = storageReply?.let { runCatching { LunaDeviceStatus.parse(it) }.getOrNull() }
+        val sdStates = inventory?.storageList.orEmpty().filter { it.location == 3L }.map { it.cardState }
+        // Unknown inventory is not an absent card; a successful SD list is the read authority.
+        val locations = if (sdStates.isNotEmpty() && sdStates.all { it == 1L }) listOf(2L) else listOf(2L, 3L)
+        val filesByUri = linkedMapOf<String, LunaMediaFile>()
+        for (location in locations) for (file in listedFiles(location, caller)) {
+            val previous = filesByUri[file.uri]
+            if (previous == null || previous.metadata == null) filesByUri[file.uri] = file
+        }
         check()
-        val listed = listing.map { metadata[it] ?: LunaMediaFile(it) }.filterNot { it.isProxy }
+        val listed = filesByUri.values.filterNot { it.isProxy }
         val nextFiles = mutableMapOf<MediaAssetID, LunaMediaFile>()
         val nextRepresentations = mutableMapOf<MediaRepresentationID, String>()
         val assets = listed.map { file ->
@@ -184,11 +193,38 @@ internal class LunaMediaBrowse(
             }
             asset
         }
+        caller.ensureActive(); check()
         files = nextFiles; representations = nextRepresentations
         expectedSizes = assets.flatMap { it.representations }.mapNotNull { representation ->
             representation.byteCount?.let { representation.id to it }
         }.toMap()
         return assets
+    }
+
+    private suspend fun listedFiles(location: Long, caller: CoroutineContext): List<LunaMediaFile> {
+        var start = 0L
+        val uris = linkedSetOf<String>()
+        while (true) {
+            caller.ensureActive()
+            val response = owner.request(LunaControl.fileList(location = location, start = start), this)
+                ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+            caller.ensureActive()
+            val (page, total) = LunaMediaFile.list(response)
+            if (total !in 0..0xFFFF_FFFFL) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+            val previousCount = uris.size
+            uris.addAll(page)
+            // A missing/zero total retains the existing one-shot INT32_MAX response contract.
+            if (total == 0L || uris.size.toLong() >= total) break
+            val nextStart = start + page.size
+            if (uris.size <= previousCount || nextStart > 0xFFFF_FFFFL)
+                throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+            start = nextStart
+        }
+        caller.ensureActive()
+        val metadata = owner.request(LunaControl.fileInfoList(location), this, optional = true)
+            ?.let { runCatching { LunaMediaFile.infoList(it) }.getOrNull() }.orEmpty().associateBy { it.uri }
+        caller.ensureActive()
+        return uris.map { metadata[it] ?: LunaMediaFile(it) }
     }
 
     override suspend fun thumbnail(asset: MediaAssetID): ByteArray = perform {
@@ -271,8 +307,9 @@ internal class LunaMediaCursor(private val browse: LunaMediaBrowse, private val 
         browse.check()
         if (finished) return null
         if (pending != null) throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        val caller = currentCoroutineContext()
         val task = scope.async { runCatching {
-            browse.perform { MediaCatalogDelta(reset = true, upserts = browse.list(), complete = true) }
+            browse.perform { MediaCatalogDelta(reset = true, upserts = browse.list(caller), complete = true) }
         } }
         pending = task
         try {

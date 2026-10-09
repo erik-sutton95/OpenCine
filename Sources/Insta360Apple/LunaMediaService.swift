@@ -216,15 +216,23 @@ extension LunaMediaSourcePort {
         _ = try await owner.request(
             LunaProtocol.setAccessCameraFileState(LunaProtocol.albumAccessState),
             browse: self, optional: true)
-        guard let response = try await owner.request(LunaProtocol.fileListRequest(), browse: self)
-        else { throw MediaServiceError.unavailable }
-        let listing = try LunaProtocol.fileList(response: response)
-        var listed = listing.uris.map { LunaMediaFile(uri: $0) }
-        if let info = try await owner.request(LunaProtocol.fileInfoListRequest(), browse: self,
-            optional: true), let metadata = try? LunaProtocol.fileInfoList(response: info)
-        {
-            let byURI = Dictionary(metadata.map { ($0.uri, $0) }, uniquingKeysWith: { a, _ in a })
-            listed = listed.map { byURI[$0.uri] ?? $0 }
+        let storageReply = try await owner.request(LunaProtocol.storageListRequest(), browse: self,
+            optional: true)
+        let inventory = storageReply.flatMap { try? LunaDeviceStatus(response: $0) }
+        let sdStates = inventory?.storageList.filter { $0.location == 3 }.map(\.cardState) ?? []
+        // Unknown inventory is not an absent card; a successful SD list is the read authority.
+        let locations: [UInt32] = !sdStates.isEmpty && sdStates.allSatisfy { $0 == 1 } ? [2] : [2, 3]
+        var listed: [LunaMediaFile] = []
+        var positions: [String: Int] = [:]
+        for location in locations {
+            for file in try await listedFiles(location: location) {
+                if let index = positions[file.uri] {
+                    if listed[index].metadata == nil { listed[index] = file }
+                } else {
+                    positions[file.uri] = listed.count
+                    listed.append(file)
+                }
+            }
         }
         try check()
         var nextFiles: [MediaAssetID: LunaMediaFile] = [:]
@@ -245,6 +253,36 @@ extension LunaMediaSourcePort {
             representation.byteCount.map { (representation.id, $0) }
         })
         return assets
+    }
+
+    private func listedFiles(location: UInt32) async throws -> [LunaMediaFile] {
+        guard let owner else { throw MediaServiceError.retired }
+        var start: UInt32 = 0
+        var uris: [String] = []
+        var seen: Set<String> = []
+        while true {
+            guard let response = try await owner.request(
+                LunaProtocol.fileListRequest(start: start, location: location), browse: self)
+            else { throw MediaServiceError.unavailable }
+            let page = try LunaProtocol.fileList(response: response)
+            guard page.totalCount <= UInt64(UInt32.max) else { throw MediaServiceError.unavailable }
+            let previousCount = uris.count
+            for uri in page.uris where seen.insert(uri).inserted { uris.append(uri) }
+            // A missing/zero total retains the existing one-shot INT32_MAX response contract.
+            if page.totalCount == 0 || UInt64(uris.count) >= page.totalCount { break }
+            let nextStart = UInt64(start) + UInt64(page.uris.count)
+            guard uris.count > previousCount, nextStart <= UInt64(UInt32.max)
+            else { throw MediaServiceError.unavailable }
+            start = UInt32(nextStart)
+        }
+        var listed = uris.map { LunaMediaFile(uri: $0) }
+        if let info = try await owner.request(LunaProtocol.fileInfoListRequest(location: location),
+            browse: self, optional: true), let metadata = try? LunaProtocol.fileInfoList(response: info)
+        {
+            let byURI = Dictionary(metadata.map { ($0.uri, $0) }, uniquingKeysWith: { a, _ in a })
+            listed = listed.map { byURI[$0.uri] ?? $0 }
+        }
+        return listed
     }
 
     func thumbnail(_ asset: MediaAssetID) async throws -> Data {

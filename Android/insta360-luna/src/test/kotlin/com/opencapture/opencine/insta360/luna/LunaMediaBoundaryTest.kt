@@ -13,6 +13,7 @@ class LunaMediaBoundaryTest {
                 it.startsWith("import com.opencapture.opencine.media.") ||
                 it == "import com.opencapture.opencine.insta360.shell.LunaMediaTransferPort" ||
                 it == "import com.opencapture.opencine.insta360.shell.CameraMediaItem" ||
+                it == "import kotlin.coroutines.CoroutineContext" ||
                 it.startsWith("import kotlinx.coroutines.") || it.startsWith("import java.")
         }, imports.toString())
         for (forbidden in listOf("opencine.runtime", "monitorui", "opencine.appkit", "SharedPreferences")) {

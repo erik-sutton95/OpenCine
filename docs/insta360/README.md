@@ -77,6 +77,16 @@ return sequence only while its captured session, control epoch, connection and b
 current. Every protocol hop checks that authority, and commands use `LunaCameraSession`'s actual
 transport/lifetime. No ACK becomes a fresh-picture or confirmed-delete observation.
 
+Catalogues enumerate internal storage (location 2) and an inserted SD card (location 3),
+using source-fenced storage inventory and per-location listing and metadata requests. A full or
+write-protected card remains readable. Unknown or unsupported inventory probes the SD listing;
+only an explicitly absent card skips it. Paging follows the camera-reported totals, including
+proxy files, and deduplication uses complete camera URIs so identical filenames on different
+storage remain distinct. A failed, retired or cancelled query cannot publish a partial replacement.
+When inventory is unknown and the SD query fails, the refresh fails rather than presenting an
+internal-only list as complete. Kotlin checks the original caller cancellation at reply and
+publication boundaries as well as the native owner lifetime.
+
 `OpenCineMedia` defines opaque assets/representations, bounded upsert/removal pages, native staging
 sinks and optional thumbnail/transfer/delete operations. Native IO is supplied by `LunaMediaIO`
 (Swift) or the existing thumbnail codec plus `LunaMediaTransferPort` (Android). Unimplemented IO

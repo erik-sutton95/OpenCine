@@ -26,6 +26,14 @@ private class MediaPort : LunaMediaSourcePort {
         if (active) activeBrowse = binding else if (activeBrowse == binding) activeBrowse = null
     }
     var paths = listOf("/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4")
+    var sdPaths = emptyList<String>()
+    var reportedSDState: Long? = 1L
+    var malformedInventory = false
+    var failSDList = false
+    var holdSDList = false
+    var pageSize: Int? = null
+    var repeatFirstPage = false
+    var metadataByLocation = emptyMap<Long, ByteArray>()
     override suspend fun mediaRequest(request: LunaControl.Request, source: LunaMediaSourceState): ByteArray {
         if (mediaSourceState != source) throw MediaServiceException(MediaServiceFailure.RETIRED)
         requests += request
@@ -34,8 +42,32 @@ private class MediaPort : LunaMediaSourcePort {
             holdNext = null
             return CompletableDeferred<ByteArray>().also { held = it }.await()
         }
-        return if (request.code == 13) paths.fold(ByteArray(0)) { data, path -> data + LunaWire.blob(1, path.toByteArray()) }
-            else ByteArray(0)
+        if (request.code == 8) {
+            if (malformedInventory) return byteArrayOf(0x80.toByte())
+            var inventory = LunaWire.blob(176, LunaWire.integer(4, 2))
+            reportedSDState?.let { state ->
+                inventory += LunaWire.blob(176, LunaWire.integer(1, state) + LunaWire.integer(4, 3))
+            }
+            return LunaWire.blob(2, inventory)
+        }
+        if (request.code == 13) {
+            val body = LunaProto(request.body)
+            val location = body.u(4, 0)
+            if (location == 3L) {
+                if (failSDList) error("SIMULATED SD transport failure")
+                if (holdSDList) {
+                    holdSDList = false
+                    return CompletableDeferred<ByteArray>().also { held = it }.await()
+                }
+            }
+            val bank = if (location == 2L) paths else sdPaths
+            val start = if (repeatFirstPage) 0 else body.u(2, 0).toInt()
+            val page = bank.drop(start).take(pageSize ?: bank.size)
+            return page.fold(ByteArray(0)) { data, path -> data + LunaWire.blob(1, path.toByteArray()) } +
+                LunaWire.integer(2, bank.size.toLong())
+        }
+        if (request.code == 38) return metadataByLocation[LunaProto(request.body).u(1, 0)] ?: ByteArray(0)
+        return ByteArray(0)
     }
     fun release(response: ByteArray = ByteArray(0)) { val waiter = held; held = null; waiter?.complete(response) }
     override suspend fun encodeMediaThumbnail(response: ByteArray): ByteArray = error("No thumbnail implementation")
@@ -43,8 +75,159 @@ private class MediaPort : LunaMediaSourcePort {
     fun service(scope: CoroutineScope) = LunaMediaService(checkNotNull(mediaSourceState).session, this, scope)
 }
 
+// SIMULATED protocol-shaped metadata; the producer must retain the returned path verbatim.
+private fun mediaInfo(uri: String, size: Long): ByteArray =
+    LunaWire.blob(1, LunaWire.blob(1, uri.toByteArray()) + LunaWire.blob(2, LunaWire.integer(9, size)))
+
+private fun mediaLocations(requests: List<LunaControl.Request>, code: Int): List<Long> =
+    requests.filter { it.code == code }.map { LunaProto(it.body).u(if (code == 13) 4 else 1, 0) }
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class LunaMediaServiceTest {
+    @Test fun catalogCombinesInternalAndSDWithLocationMetadataAndFullURIIdentity() = runTest {
+        val port = MediaPort(); port.reportedSDState = 0
+        val inner = "/storage_internal/DCIM/Camera01/VID_same.mp4"
+        val sd = "/storage_sd/DCIM/Camera01/VID_same.mp4"
+        port.paths = listOf(inner); port.sdPaths = listOf(sd, inner)
+        port.metadataByLocation = mapOf(2L to mediaInfo(inner, 101), 3L to mediaInfo(sd, 202))
+        val service = port.service(backgroundScope)
+        try {
+            val browse = service.openBrowse(); val page = assertNotNull(browse.catalog().next())
+            assertTrue(page.reset && page.complete); assertEquals(2, page.upserts.size)
+            assertEquals(2, page.upserts.map { it.id }.toSet().size, "Same filename on two full paths is not one asset")
+            val files = page.upserts.mapNotNull { service.catalogRecord(it.id, browse.binding)?.file }
+            assertEquals(listOf(inner, sd), files.map { it.path })
+            assertEquals(listOf(101L, 202L), files.map { it.sizeBytes })
+            assertEquals(listOf(101L, 202L), page.upserts.map { it.representations[0].byteCount })
+            assertEquals(listOf(2L, 3L), mediaLocations(port.requests, 13))
+            assertEquals(listOf(2L, 3L), mediaLocations(port.requests, 38))
+        } finally { service.retire() }
+    }
+
+    @Test fun absentSDKeepsInternalAndDoesNotRequestSD() = runTest {
+        val port = MediaPort(); val service = port.service(backgroundScope)
+        try {
+            val page = assertNotNull(service.openBrowse().catalog().next())
+            assertTrue(page.complete); assertEquals(1, page.upserts.size)
+            assertEquals(listOf(2L), mediaLocations(port.requests, 13))
+            assertEquals(listOf(2L), mediaLocations(port.requests, 38))
+        } finally { service.retire() }
+    }
+
+    @Test fun fullAndWriteProtectedSDRemainReadable() = runTest {
+        for (state in listOf(2L, 4L)) {
+            val port = MediaPort(); port.reportedSDState = state
+            port.sdPaths = listOf("/storage_sd/DCIM/Camera01/IMG_readable.jpg")
+            val service = port.service(backgroundScope)
+            try {
+                val page = assertNotNull(service.openBrowse().catalog().next())
+                assertTrue(page.complete); assertEquals(2, page.upserts.size)
+                assertEquals(listOf(2L, 3L), mediaLocations(port.requests, 13))
+            } finally { service.retire() }
+        }
+    }
+
+    @Test fun unknownOrUnavailableInventoryStillProbesSD() = runTest {
+        for (condition in 0 until 3) {
+            val port = MediaPort(); port.reportedSDState = null
+            if (condition == 1) port.failNext = 8
+            if (condition == 2) port.malformedInventory = true
+            port.sdPaths = listOf("/storage_sd/DCIM/Camera01/IMG_unknown_inventory.jpg")
+            val service = port.service(backgroundScope)
+            try {
+                val page = assertNotNull(service.openBrowse().catalog().next())
+                assertTrue(page.complete); assertEquals(2, page.upserts.size)
+                assertEquals(listOf(2L, 3L), mediaLocations(port.requests, 13))
+            } finally { service.retire() }
+        }
+    }
+
+    @Test fun unavailableSDCannotReplaceCommittedCatalog() = runTest {
+        for (inventoryKnown in listOf(true, false)) {
+            val port = MediaPort(); port.reportedSDState = 0
+            port.sdPaths = listOf("/storage_sd/DCIM/Camera01/IMG_committed.jpg")
+            val service = port.service(backgroundScope)
+            try {
+                val browse = service.openBrowse(); val old = assertNotNull(browse.catalog().next())
+                val files = old.upserts.mapNotNull { service.catalogRecord(it.id, browse.binding)?.file }
+                port.reportedSDState = if (inventoryKnown) 0 else null
+                port.paths = listOf("/storage_internal/DCIM/Camera01/IMG_uncommitted.jpg")
+                port.failSDList = true
+                assertFailsWith<IllegalStateException> { browse.catalog().next() }
+                assertEquals(files, old.upserts.mapNotNull { service.catalogRecord(it.id, browse.binding)?.file })
+            } finally { service.retire() }
+        }
+    }
+
+    @Test fun catalogPagesEachStorageUntilItsAdvertisedTotal() = runTest {
+        val port = MediaPort(); port.reportedSDState = 0; port.pageSize = 1
+        port.paths = listOf("/storage_internal/DCIM/VID_A.mp4", "/storage_internal/DCIM/LRV_A.lrv", "/storage_internal/DCIM/IMG_A.jpg")
+        port.sdPaths = listOf("/storage_sd/DCIM/VID_B.mp4", "/storage_sd/DCIM/LRV_B.lrv", "/storage_sd/DCIM/IMG_B.jpg")
+        val service = port.service(backgroundScope)
+        try {
+            val page = assertNotNull(service.openBrowse().catalog().next())
+            assertTrue(page.complete); assertEquals(4, page.upserts.size, "Raw URI totals include proxy files")
+            val requests = port.requests.filter { it.code == 13 }
+            assertEquals(listOf(0L, 1L, 2L, 0L, 1L, 2L), requests.map { LunaProto(it.body).u(2, 0) })
+            assertEquals(listOf(2L, 2L, 2L, 3L, 3L, 3L), mediaLocations(requests, 13))
+        } finally { service.retire() }
+    }
+
+    @Test fun nonProgressCannotBecomeComplete() = runTest {
+        val port = MediaPort(); val service = port.service(backgroundScope)
+        try {
+            val browse = service.openBrowse(); val old = assertNotNull(browse.catalog().next())
+            port.paths = listOf("/storage_internal/DCIM/IMG_A.jpg", "/storage_internal/DCIM/IMG_B.jpg")
+            port.pageSize = 1; port.repeatFirstPage = true
+            assertEquals(MediaServiceFailure.UNAVAILABLE, assertFailsWith<MediaServiceException> { browse.catalog().next() }.failure)
+            assertTrue(service.catalogRecord(old.upserts[0].id, browse.binding)?.file?.path?.contains("VID_") == true)
+        } finally { service.retire() }
+    }
+
+    @Test fun sourceChangesAfterInventoryCannotStartFileList() = runTest {
+        val port = MediaPort(); val service = port.service(backgroundScope)
+        try {
+            val browse = service.openBrowse(); val cursor = browse.catalog()
+            port.requests.clear(); port.holdNext = 8
+            val pending = backgroundScope.async { runCatching { cursor.next() } }
+            runCurrent(); assertNotNull(port.held)
+            port.mediaSourceState = LunaMediaSourceState(browse.binding.session, browse.binding.epoch.next(), 1)
+            port.release(); runCurrent()
+            assertEquals(MediaServiceFailure.RETIRED, assertIs<MediaServiceException>(pending.await().exceptionOrNull()).failure)
+            assertEquals(listOf(118, 8), port.requests.map { it.code })
+        } finally { service.retire() }
+    }
+
+    @Test fun retirementDuringSDQueryCannotPublishOrRequestSDMetadata() = runTest {
+        val port = MediaPort(); port.reportedSDState = 0; port.holdSDList = true
+        val service = port.service(backgroundScope)
+        try {
+            val browse = service.openBrowse(); val cursor = browse.catalog()
+            val pending = backgroundScope.async { runCatching { cursor.next() } }
+            runCurrent(); assertNotNull(port.held)
+            port.mediaSourceState = LunaMediaSourceState(browse.binding.session, browse.binding.epoch.next(), 1)
+            port.release(); runCurrent()
+            assertEquals(MediaServiceFailure.RETIRED, assertIs<MediaServiceException>(pending.await().exceptionOrNull()).failure)
+            assertEquals(listOf(2L, 3L), mediaLocations(port.requests, 13))
+            assertEquals(listOf(2L), mediaLocations(port.requests, 38))
+        } finally { service.retire() }
+    }
+
+    @Test fun cancelledSDQueryCannotReplaceCommittedCatalog() = runTest {
+        val port = MediaPort(); val service = port.service(backgroundScope)
+        try {
+            val browse = service.openBrowse(); val old = assertNotNull(browse.catalog().next())
+            port.reportedSDState = 0; port.holdSDList = true
+            port.paths = listOf("/storage_internal/DCIM/IMG_uncommitted.jpg")
+            val cursor = browse.catalog(); val pending = backgroundScope.async { cursor.next() }
+            runCurrent(); assertNotNull(port.held)
+            pending.cancel(); port.release(); runCurrent()
+            assertFailsWith<CancellationException> { pending.await() }
+            assertNotNull(service.catalogRecord(old.upserts[0].id, browse.binding))
+            assertEquals(listOf(2L, 2L), mediaLocations(port.requests, 38))
+        } finally { service.retire() }
+    }
+
     @Test fun browsePauseIntentIsBoundToCurrentSourceAndLease() = runTest {
         val port = MediaPort(); val service = port.service(backgroundScope)
         val old = service.openBrowse()

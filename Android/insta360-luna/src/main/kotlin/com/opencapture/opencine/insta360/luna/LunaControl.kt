@@ -255,8 +255,14 @@ internal object LunaControl {
     val captureStatus = Request(15, ByteArray(0))
 
     /** Official shape: media type 2 (video and photo), limit INT32_MAX, card location. */
-    fun fileList(mediaType: Long = 2, location: Long = 2): Request =
-        Request(13, LunaWire.integer(1, mediaType) + LunaWire.integer(3, Int.MAX_VALUE.toLong()) + LunaWire.integer(4, location))
+    fun fileList(mediaType: Long = 2, location: Long = 2, start: Long = 0,
+        count: Long = Int.MAX_VALUE.toLong()): Request {
+        require(start in 0..0xFFFF_FFFFL && count in 0..0xFFFF_FFFFL)
+        val body = LunaWire.integer(1, mediaType) +
+            (if (start > 0) LunaWire.integer(2, start) else ByteArray(0)) +
+            LunaWire.integer(3, count) + LunaWire.integer(4, location)
+        return Request(13, body)
+    }
 
     fun fileInfoList(location: Long? = null) = Request(38, location?.let { LunaWire.integer(1, it) } ?: ByteArray(0))
 
@@ -288,6 +294,8 @@ internal object LunaControl {
 
     /** Official 1 Hz poll: battery 11, storage 20, 85, screen battery 180. */
     val statusRequest = getOptions(listOf(11, 20, 85, 180))
+    /** Official storage-list poll: repeated per-location storage176 and active location177. */
+    val storageListRequest = getOptions(listOf(176, 177))
     /** Official mode probe (41, 40, 65, 124, 132, 82, 135, 169, 173). */
     val shootingModeRequest = getOptions(listOf(41, 40, 65, 124, 132, 82, 135, 169, 173))
 
