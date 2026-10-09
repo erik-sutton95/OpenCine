@@ -23,6 +23,8 @@ open class FeedStressTests: SharedAppUITestCase {
     private var finished = false
     private var ownsApp = false
     private var identityProofOriginalLUT: Bool?
+    private var decodeProofOriginalPeaking: Bool?
+    private var originalOrientation: UIDeviceOrientation?
     private var selectedScenarios = FeedStressScenario.core
 
     override open func setUp() {
@@ -34,7 +36,7 @@ open class FeedStressTests: SharedAppUITestCase {
         if ownsApp {
             finishSafely()
             app.terminate()
-            XCUIDevice.shared.orientation = .portrait
+            if let originalOrientation { XCUIDevice.shared.orientation = originalOrientation }
         }
         super.tearDown()
     }
@@ -89,6 +91,7 @@ open class FeedStressTests: SharedAppUITestCase {
         rng = FeedStressSeed(state: seed == 0 ? 1 : seed)
         deadline = Date().addingTimeInterval(limitS)
 
+        originalOrientation = XCUIDevice.shared.orientation
         app = XCUIApplication()
         app.launchEnvironment["OPV_FEED_STRESS"] = "1"
         app.launchEnvironment["OPV_FEED_STRESS_SEED"] = "\(seed)"
@@ -864,12 +867,38 @@ open class FeedStressTests: SharedAppUITestCase {
 
     private func enablePeakingForDecodeProof() throws {
         try expandAssists()
+        defer { collapseAssists() }
         let peak = app.buttons["monitor.assist.PEAK"]
-        if peak.waitForExistence(timeout: 4), (peak.value as? String) != "On" {
+        guard peak.waitForExistence(timeout: 4), let value = peak.value as? String,
+            value == "On" || value == "Off"
+        else { throw FeedStressError.missingControl("PEAK state for decode proof") }
+        if decodeProofOriginalPeaking == nil { decodeProofOriginalPeaking = value == "On" }
+        if value != "On" {
             peak.tap()
             sleepStep(0.8)
         }
-        collapseAssists()
+    }
+
+    private func restorePeakingForDecodeProof() {
+        guard let wanted = decodeProofOriginalPeaking else { return }
+        do {
+            try expandAssists()
+            defer { collapseAssists() }
+            let peak = app.buttons["monitor.assist.PEAK"]
+            guard peak.waitForExistence(timeout: 4), let value = peak.value as? String,
+                value == "On" || value == "Off"
+            else { throw FeedStressError.missingControl("PEAK restore") }
+            if (value == "On") != wanted { peak.tap() }
+            let restored = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", wanted ? "On" : "Off"), object: peak)
+            guard XCTWaiter.wait(for: [restored], timeout: 3) == .completed else {
+                throw FeedStressError.halted("PEAK state did not restore")
+            }
+        } catch {
+            let message = "restore decode proof mode: \(error)"
+            failures.append(message)
+            XCTFail(message)
+        }
     }
 
     private func waitForHealthyBaseline(minimum: TimeInterval, boundedByRun: Bool = false) throws {
@@ -1001,7 +1030,8 @@ open class FeedStressTests: SharedAppUITestCase {
         // Run after the existing runtime restore: its baseline is captured on
         // the HUD timer and may race the first UI setup toggle.
         restoreIdentityProofMode()
-        XCUIDevice.shared.orientation = .portrait
+        restorePeakingForDecodeProof()
+        if let originalOrientation { XCUIDevice.shared.orientation = originalOrientation }
     }
 
     private func waitProgress(
