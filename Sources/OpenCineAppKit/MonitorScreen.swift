@@ -98,7 +98,8 @@
                                 .position(x: layout.status.midX, y: layout.status.midY)
                         }
                     }
-                    .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
+                    .allowsHitTesting(presentation.statusInteractive)
+                    .accessibilityHidden(!presentation.statusInteractive || !presentation.visible || presentation.transientControlsHidden)
                 }
                 if presentation.powerMounted {
                     MonitorScreenSlot(content: power)

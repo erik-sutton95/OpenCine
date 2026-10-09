@@ -40,6 +40,17 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
         }
     }
 
+    func testStatusOnlyAdmissionLeavesOtherChromeExposed() async throws {
+        let inputs = ProbeInputs()
+        inputs.statusInteractive = false
+        let exposed = try await exposedProbes(inputs)
+
+        XCTAssertFalse(exposed.contains("probe.status"), "Exposed: \(exposed.sorted())")
+        XCTAssertTrue(ProbeInputs.slotProbes.subtracting(["probe.status"]).isSubset(of: exposed),
+            "Exposed: \(exposed.sorted())")
+        XCTAssertFalse(exposed.contains("probe.tools.selfHidden"))
+    }
+
     private func exposedProbes(_ inputs: ProbeInputs) async throws -> Set<String> {
         let host = UIHostingController(rootView: ProbeScreen(inputs: inputs))
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 874, height: 402))
@@ -96,6 +107,7 @@ private final class ProbeInputs {
 
     var visible = true
     var transientControlsHidden = false
+    var statusInteractive = true
     let control = MonitorControlModel()
 }
 
@@ -113,7 +125,7 @@ private struct ProbeScreen: View {
         let layout = FieldMonitorLayout(width: 874, height: 402)
         return MonitorScreen(control: inputs.control, layout: layout, sourceAspect: 16 / 9,
             presentation: MonitorScreenPresentation(visible: inputs.visible,
-                transientControlsHidden: inputs.transientControlsHidden)) {
+                transientControlsHidden: inputs.transientControlsHidden, statusInteractive: inputs.statusInteractive)) {
             Color.gray
         } assists: {
             EmptyView()

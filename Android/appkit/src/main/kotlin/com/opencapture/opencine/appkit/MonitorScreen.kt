@@ -32,6 +32,8 @@ public data class MonitorScreenPresentation(
     public val captureHidden: Boolean = false, public val captureInteractive: Boolean = true, public val locked: Boolean = false,
     public val popupInteractive: Boolean = false, public val capturePresented: Boolean = false,
     public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
+    /** Keeps status telemetry mounted while excluding an occluded status slot from input and accessibility. */
+    public val statusInteractive: Boolean = true,
 )
 
 /** Fixed picture/assist hosts and common chrome placement survive rotation and coverage. */
@@ -63,7 +65,10 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         if (presentation.statusMounted) {
             val statusFrame = if (layout.portrait) Modifier.offset(layout.status.x.dp, layout.status.y.dp).width(layout.status.width.dp)
                 else Modifier.frame(layout.status)
-            Box(statusFrame.visible(commonVisible, dim).then(commonAccessibility)) { status(commonInteractive) }
+            val statusAccessibility = if (presentation.statusInteractive) commonAccessibility else Modifier.clearAndSetSemantics {}
+            Box(statusFrame.visible(commonVisible, dim).then(statusAccessibility)) {
+                status(commonInteractive && presentation.statusInteractive)
+            }
         }
         if (presentation.powerMounted) Box(Modifier.frame(layout.gauges).visible(commonVisible, dim).then(commonAccessibility),
             contentAlignment = if (layout.portrait && !layout.tablet) Alignment.TopEnd else Alignment.TopStart) { power(commonInteractive) }

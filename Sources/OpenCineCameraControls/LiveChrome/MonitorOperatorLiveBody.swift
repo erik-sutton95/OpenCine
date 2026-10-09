@@ -303,7 +303,7 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
                 dimmed: dimmed, transientControlsHidden: transientControlsHidden, pictureWaiting: pictureWaiting,
                 statusMounted: mounted.contains(sections.status), powerMounted: mounted.contains(sections.power),
                 captureMounted: mounted.contains(sections.capture) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
-                locked: locked, popupInteractive: editing == nil && interactionEnabled, capturePresented: transient, panelsRaised: panelsRaised, recovering: recovering),
+                locked: locked, popupInteractive: editing == nil && interactionEnabled, capturePresented: transient, panelsRaised: panelsRaised, recovering: recovering, statusInteractive: !assistInspectorPresented),
             picture: { picture().opacity(pictureWaiting ? 0 : 1).transaction { $0.animation = nil } },
             assists: { feedMarks.opacity(pictureWaiting ? 0 : 1) },
             signal: { if pictureWaiting { MonitorOperatorWaitingPicture<Host.Palette>(waiting: pictureWaiting, camera: identity.camera) } },
@@ -361,8 +361,6 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
             mode: { if layout.viewport.width >= 800, let mode = status.mode { headerReadout(mode, alwaysAccent: true) } },
             link: { telemetry(horizontal: true, showsLink: true, showsPower: false) })
             .modifier(ChromeEditableModifier<Host>(section: sections.status, mode: editing))
-            .allowsHitTesting(!assistInspectorPresented)
-            .accessibilityHidden(assistInspectorPresented)
     }
     private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Host.ChromeSection>) -> some View {
         Button {

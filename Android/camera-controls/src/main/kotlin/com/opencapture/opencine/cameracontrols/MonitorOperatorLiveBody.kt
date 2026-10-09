@@ -33,7 +33,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -224,11 +223,12 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
         powerMounted = sections.power in mounted, captureMounted = sections.capture in mounted && !command,
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
-        capturePresented = panel != null || state.preview != null || assist.configureTool != null, recovering = recovering),
+        capturePresented = panel != null || state.preview != null || assist.configureTool != null, recovering = recovering,
+        statusInteractive = !assistInspectorPresented),
         modifier, picture = picture,
         status = {
             MonitorStatusChrome(layout, status.recording, status.showsTimecode, status.showsRecording,
-                edit(sections.status).then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier),
+                edit(sections.status),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
                 storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false) } },
