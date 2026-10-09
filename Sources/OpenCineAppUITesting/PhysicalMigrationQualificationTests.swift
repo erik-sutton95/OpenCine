@@ -796,8 +796,19 @@ private struct PhysicalMigrationProbe: Decodable {
         let gallery = app.scrollViews["monitor.media.gallery"]
         try require(gallery.exists, "Clip selection requires the public camera catalogue")
         let clip = app.descendants(matching: .any)[identifier].firstMatch
-        for _ in 0..<160 where !clip.isHittable { gallery.swipeDown(); try await settleGallery(gallery) }
-        try require(clip.isHittable, "New qualification clip must be publicly reachable")
+        func artworkTargetIsReachable() -> Bool {
+            guard clip.isHittable else { return false }
+            let cell = clip.frame, viewport = gallery.frame
+            guard [cell.minX, cell.minY, cell.width, cell.height,
+                   viewport.minX, viewport.minY, viewport.width, viewport.height].allSatisfy({ $0.isFinite }),
+                cell.width > 0, cell.height > 0, viewport.width > 0, viewport.height > 0
+            else { return false }
+            // A visible caption can make a clipped cell hittable while its artwork is above the gallery.
+            let point = CGPoint(x: cell.minX + cell.width * 0.5, y: cell.minY + cell.height * 0.35)
+            return viewport.contains(point)
+        }
+        for _ in 0..<160 where !artworkTargetIsReachable() { gallery.swipeDown(); try await settleGallery(gallery) }
+        try require(artworkTargetIsReachable(), "New qualification clip artwork must be publicly reachable in its gallery")
         let filenames = Set(clip.staticTexts.allElementsBoundByIndex.map(\.label).filter {
             $0.range(of: #"^.+\.[A-Za-z][A-Za-z0-9]{1,7}$"#, options: .regularExpression) != nil
         })
@@ -809,6 +820,7 @@ private struct PhysicalMigrationProbe: Decodable {
         }
         qualificationClipFilename = filename
         evidence("qualification-clip-selected")
+        try require(artworkTargetIsReachable(), "The qualification artwork tap must remain inside its gallery")
         clip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
         try await wait("Native player for the selected qualification filename", timeout: 45) {
             self.app.buttons["monitor.playback.back"].isHittable && self.app.staticTexts[filename].firstMatch.exists
