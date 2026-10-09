@@ -279,6 +279,9 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
     private var presentationAdmitted: Bool { exposed && !locked && editing == nil && interactionEnabled }
     private var admitted: Bool { presentationAdmitted && !readOnly }
     private var transient: Bool { panel != nil || captureState.preview != nil || assist.configureTool != nil }
+    private var assistInspectorPresented: Bool {
+        assist.configureTool != nil && presentationAdmitted && assistSource != nil && stores != nil
+    }
     private var context: MonitorInteractionContext {
         .init(locked: locked, covered: covered, editing: editing != nil, clean: clean,
             toolbarMounted: mounted.contains(sections.assists), transientPanelPresented: transient,
@@ -358,6 +361,8 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
             mode: { if layout.viewport.width >= 800, let mode = status.mode { headerReadout(mode, alwaysAccent: true) } },
             link: { telemetry(horizontal: true, showsLink: true, showsPower: false) })
             .modifier(ChromeEditableModifier<Host>(section: sections.status, mode: editing))
+            .allowsHitTesting(!assistInspectorPresented)
+            .accessibilityHidden(assistInspectorPresented)
     }
     private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Host.ChromeSection>) -> some View {
         Button {
@@ -555,7 +560,7 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
         }
     }
     @ViewBuilder private var panelsChrome: some View {
-        if let tool = assist.configureTool, presentationAdmitted, let assistSource, let stores {
+        if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
             let transfer = assistSource.readTransfer()
             MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores, looks: assistSource.looks,
                 palette: Host.Palette.self, haptics: assistSource.haptics, transfer: transfer,

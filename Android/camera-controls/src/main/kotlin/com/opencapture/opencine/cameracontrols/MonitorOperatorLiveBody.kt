@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -161,6 +162,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
     val admitted = interactive && !readOnly
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
     val inspectorTools = palette.filter { it.hasOptions }.mapNotNull { it.tool }
+    val assistInspectorPresented = interactive && assist.configureTool?.let { it in inspectorTools } == true
     LaunchedEffect(assist.configureTool, clean, command, locked, resumed, inspectorTools, mounted) {
         if (clean || command || locked || !resumed || sections.assists !in mounted ||
             assist.configureTool !in inspectorTools) assist.configureTool = null
@@ -199,11 +201,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
             }
         }
         if (opens) com.opencapture.opencine.appkit.MonitorOperatorCaptureHeaderReadout(captureInputs, control,
-            state, source, value, enabled = interactive, commandEnabled = !readOnly,
+            state, source, value, enabled = interactive && !assistInspectorPresented, commandEnabled = !readOnly,
             currentSource = ::currentSource, portrait = layout.portrait, modifier = decoration,
             fromTop = true, ceilingY = if (layout.portrait) layout.status.maxY else null, content = label)
-        else Box(decoration.monitorChromeClickable(enabled = interactive && value.action != null) {
-            if (interactive && currentSource()) value.action?.invoke()
+        else Box(decoration.monitorChromeClickable(enabled = interactive && !assistInspectorPresented && value.action != null) {
+            if (interactive && !assistInspectorPresented && currentSource()) value.action?.invoke()
         }.semantics { contentDescription = value.title }) { label() }
     }
     val context = MonitorInteractionContext(locked, covered, editing != null, clean,
@@ -225,7 +227,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
         capturePresented = panel != null || state.preview != null || assist.configureTool != null, recovering = recovering),
         modifier, picture = picture,
         status = {
-            MonitorStatusChrome(layout, status.recording, status.showsTimecode, status.showsRecording, edit(sections.status),
+            MonitorStatusChrome(layout, status.recording, status.showsTimecode, status.showsRecording,
+                edit(sections.status).then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
                 storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false) } },
@@ -354,7 +357,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
                 safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom) { key, frame, top ->
                 cameraPanel(key, frame, top, state)
             }
-            assist.configureTool?.let { configured -> if (interactive && configured in inspectorTools) {
+            assist.configureTool?.let { configured -> if (assistInspectorPresented) {
                 val preview: (@Composable () -> Unit)? = assists?.preview?.let { render -> { render(configured) } }
                 AssistInspectorFrame(configured, assist, layout.viewport.width, layout.viewport.height,
                     safeLeading, safeTop, safeBottom, { assist.configureTool = null }, safeTrailing = safeTrailing,
