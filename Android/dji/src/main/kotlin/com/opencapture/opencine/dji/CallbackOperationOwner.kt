@@ -3,7 +3,7 @@ package com.opencapture.opencine.dji
 /** Identity fence for callbacks, queued starts and cancellation across reconnects. */
 class CallbackOperationOwner<Resource : Any> {
     class Token<Resource : Any> {
-        var resource: Resource? = null
+        @Volatile var resource: Resource? = null
             internal set
     }
 

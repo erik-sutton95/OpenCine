@@ -293,6 +293,15 @@ class BleLink(context: Context) {
         }
     }
 
+    /** Read-only admission from the already-owned GATT attempt; safe on the credential IO worker. */
+    internal fun captureCredentialConnection(): () -> Boolean {
+        val attempt = operations.current() ?: return { false }
+        var resource: BluetoothGatt? = null
+        operations.runIfCurrent(attempt) { resource = attempt.resource }
+        val captured = resource ?: return { false }
+        return { operations.runIfCurrent(attempt, captured) {} }
+    }
+
     fun send(bytes: ByteArray) {
         val attempt = operations.current() ?: return
         handler.post {

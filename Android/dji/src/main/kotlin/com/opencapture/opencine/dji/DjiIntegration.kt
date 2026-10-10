@@ -139,11 +139,21 @@ object DjiFailures {
  */
 class DjiIntegration(
     private val port: DjiConnectPort,
+    private val forgetCredentialsAsync: (suspend (cameraId: String) -> Unit)?,
     private val loadNetwork: (ssid: String, hotspot: Boolean) -> MultiviewNetworkStore.Network? = { _, _ -> null },
     private val saveNetwork: (ssid: String, password: String, hotspot: Boolean) -> Unit = { _, _, _ -> },
     private val forgetCredentials: (cameraId: String) -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) : CameraIntegration {
+    /** Original constructor, including its JVM/default signature and trailing clock lambda. */
+    constructor(
+        port: DjiConnectPort,
+        loadNetwork: (ssid: String, hotspot: Boolean) -> MultiviewNetworkStore.Network? = { _, _ -> null },
+        saveNetwork: (ssid: String, password: String, hotspot: Boolean) -> Unit = { _, _, _ -> },
+        forgetCredentials: (cameraId: String) -> Unit = {},
+        now: () -> Long = System::currentTimeMillis,
+    ) : this(port, null, loadNetwork, saveNetwork, forgetCredentials, now)
+
     override val id = DjiCameraSessionAdapter.INTEGRATION
 
     /** The verified bodies (Swift `CameraModel.byId`). Bodies that list in Multiview add Wi-Fi and hotspot setups. */
@@ -313,7 +323,8 @@ class DjiIntegration(
     }
 
     override suspend fun forget(camera: SavedCamera) {
-        forgetCredentials(camera.id)
+        val async = forgetCredentialsAsync
+        if (async != null) async(camera.id) else forgetCredentials(camera.id)
     }
 
     private fun progress(attempt: ConnectionAttemptID, phase: ConnectionPhase, steps: List<ConnectionStep>, route: SavedRoute?): ConnectionEvent.Progress? {

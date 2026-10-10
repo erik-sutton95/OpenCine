@@ -1085,6 +1085,7 @@ class PocketCameraSession(
         publishPhase(ConnectionPhase.CONNECTING_GATT)
         startFrameRouter()
         ble.connect(camera)
+        val credentialSourceCurrent = ble.captureCredentialConnection()
 
         pairingHold.clear()
         inflight.clear()
@@ -1108,13 +1109,13 @@ class PocketCameraSession(
         publishPhase(ConnectionPhase.READING_WIFI_CREDS)
         val restored = restoreAccessPoint
         if (restored) restoreCameraAccessPoint()
-        val credsFromCache = wifiCache.load(camera.id) != null
+        val credsFromCache = withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.load(camera.id) } != null
         val skipApSettle = !restored && joiner.isProcessBound() && credsFromCache
         if (!skipApSettle) delay(200)
         ble.send(DjiNative.command(DjiNative.CMD_SESSION_5310, 0x8053))
         runCatching { waitFrame(0x53, 0x10, 2_000) }
         if (!skipApSettle) delay(600)
-        val (ssid, pass) = wifiCredsAfterPairing(camera)
+        val (ssid, pass) = wifiCredsAfterPairing(camera, credentialSourceCurrent)
         DjiLog.log(
             "info",
             "session",
@@ -1135,7 +1136,7 @@ class PocketCameraSession(
                         "creds",
                         "creds: join failed with cached creds — dropping cache",
                     )
-                    wifiCache.remove(camera.id)
+                    withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.remove(camera.id) }
                 }
                 error(
                     "couldn't join camera Wi-Fi — tap the system Join prompt if Android asked. " +
@@ -1144,7 +1145,7 @@ class PocketCameraSession(
             }
         }
         // Known good only once the join worked.
-        wifiCache.save(camera.id, ssid, pass)
+        withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.save(camera.id, ssid, pass) }
         joinedSSID = ssid
         wifiLock.acquire()
 
@@ -1153,8 +1154,15 @@ class PocketCameraSession(
         startKeepalive(ssid)
     }
 
-    private suspend fun wifiCredsAfterPairing(camera: FoundCamera): Pair<String, String> {
-        val cached = wifiCache.load(camera.id)
+    /** Explicit forget uses this session's cache and caller Job, independently of its GATT attempt. */
+    suspend fun forgetWifiCredentials(cameraId: String) {
+        withCredentialIO({ true }, transaction = wifiCache.ioTransaction) { wifiCache.remove(cameraId) }
+    }
+
+    private suspend fun wifiCredsAfterPairing(
+        camera: FoundCamera, credentialSourceCurrent: () -> Boolean,
+    ): Pair<String, String> {
+        val cached = withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.load(camera.id) }
         if (cached != null) {
             val resolved =
                 CameraWifiResolution.resolve(
