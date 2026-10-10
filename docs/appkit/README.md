@@ -193,6 +193,38 @@ actual title, subtitle and panel kind; the common popup owns header, placement, 
 material and reveal. Native content consumes the common command-enabled environment, retaining
 its existing option lists, locks and write callbacks.
 
+Movie-format panels use the common `CaptureFormatPicker`,
+`CaptureFormatPickerState`, `CaptureFormatChoice` and `CaptureFormatGroup` in
+`OpenCineCameraControls` / `camera-controls`. Pocket's existing
+[`CaptureControlSheets`][grouped-format-1] and
+[`LiveControlSheets`][grouped-format-2] project their advertised `VideoFormat`
+inventory through `CaptureVideoFormatChoices`. A reported current-only pair
+remains visible but uneditable. Nikon's app `LadderPicker` adapters instead
+supply complete original tokens and integration-owned
+[`NikonRecordingFormatPresentation`][grouped-format-3] ([Compose-side
+projection][grouped-format-4]) facts. Both use the same grouped controls; codec
+stays separate and the shared picker constructs no new camera tuple or
+image-area command.
+
+Hosts provide `current`, `enabled`, `sourceIdentity`, `isCurrent` and
+`onSelect`, and retain native option validation, command dispatch, refusal and
+reported readback. The optional `followsReadback` keeps existing pinned-format
+behavior; source or inventory changes reseat local presentation. Grouping never
+supplies missing capability facts or grants control authority. Mirrored
+[`CaptureFormatPickerTests`][grouped-format-5] ([Kotlin][grouped-format-6])
+cover sparse tuples, separate image area/aspect, inert current-only values and
+ambiguous-rate refusal. Source adoption and automated checks are separate from
+physical format write/readback and restoration qualification; see [the tester
+guide][grouped-format-7].
+
+[grouped-format-1]: ../../Sources/OpenCineCameraControls/Capture/CaptureControlSheets.swift
+[grouped-format-2]: ../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/LiveControlSheets.kt
+[grouped-format-3]: ../../Sources/OpenCineNikon/NikonRecordingFormatPresentation.swift
+[grouped-format-4]: ../../Android/nikon/src/main/kotlin/com/opencapture/opencine/nikon/NikonRecordingFormatPresentation.kt
+[grouped-format-5]: ../../Tests/OpenCineCameraControlsTests/CaptureFormatPickerTests.swift
+[grouped-format-6]: ../../Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/CaptureFormatPickerTest.kt
+[grouped-format-7]: ../testing/TESTER-GUIDE.md
+
 `control.captureField(key)` projects ISO, shutter, white-balance, exposure-compensation and focus descriptors into typed
 `MonitorCaptureChoice` detents and an immutable editor. Missing reports have no selection, even
 when the drum visually centers a legal option. `MonitorCaptureReadout` (Compose
@@ -366,6 +398,13 @@ staging path and destination lease. Clear invalidates writers and retires the di
 yielding, preserves the supplied metadata files and deletes only captured retired trees. An old
 writer/finally cannot recreate the live root, commit over B or erase B's progress. Filesystem IO
 uses Foundation on Swift and JVM `java.io` on Kotlin, with no native-runtime dependency.
+
+Bulk writes and stream close hold only the individual writer's IO lock, outside
+the namespace arbitration lock. Retirement invalidates a writer and unlinks only
+its registered staging path before closing outside namespace arbitration. A held
+write therefore cannot stall Main retirement or successor writes. Catalog and
+atomic directory publication still use namespace arbitration; this is not a claim
+that all filesystem operations are nonblocking.
 
 `MonitorMediaOriginalEligibility` keeps the platform's explicit existing policy (minimum fraction
 or exact size) separate from native stream completion. Thumbnail/original/proxy paths come from

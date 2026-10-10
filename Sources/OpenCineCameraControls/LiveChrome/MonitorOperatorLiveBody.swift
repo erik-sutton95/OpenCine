@@ -355,7 +355,7 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
                 if layout.portrait, let value = status.portraitFormat {
                     headerReadout(value, portrait: true, caption: status.portraitCaption)
                 } else {
-                    HStack(spacing: 8) { ForEach(status.format) { headerReadout($0) } }
+                    HStack(spacing: layout.tablet ? 24 : 8) { ForEach(status.format) { headerReadout($0) } }
                 }
             }, color: { if let color = status.color { headerReadout(color) } },
             mode: { if layout.viewport.width >= 800, let mode = status.mode { headerReadout(mode, alwaysAccent: true) } },
@@ -497,8 +497,9 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
         }
         if mounted.contains(sections.assists), !command {
             let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
-            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.displaySettingsTitle,
-                enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || ($0 == .instantReview && signalOptions.instantReview != nil)) }, layout: metrics,
+            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
+                enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || ($0 == .instantReview && signalOptions.instantReview != nil),
+                accessibilityLabel: $0.title) }, layout: metrics,
                 usageSeed: usageSeed, usage: $usage, expanded: paletteExpanded,
                 onToggle: { id in
                     if presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) {
@@ -506,7 +507,7 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
                         if presentationAdmitted { toggleTool(tool) }
                     }
                 }, onOptions: openOptions) { id in
-                    if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool) }
+                    if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool, size: nil) }
                     else { MonitorIcon.image }
                 }.modifier(ChromeEditableModifier<Host>(section: sections.assists, mode: editing))
                 .opacity(locked ? 0.4 : 1).allowsHitTesting(!locked).position(x: frame.midX, y: frame.midY).zIndex(6)

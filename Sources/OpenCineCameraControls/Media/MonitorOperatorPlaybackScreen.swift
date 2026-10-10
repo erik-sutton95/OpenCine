@@ -328,12 +328,12 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             let tools = availableTools
             let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(context.presentation,
                 toolCount: tools.count, safeTop: context.safeTop)
-            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.displaySettingsTitle,
-                    enabled: assist.isPlaybackVisible($0), hasOptions: hasOptions($0)) },
+            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
+                    enabled: assist.isPlaybackVisible($0), hasOptions: hasOptions($0), accessibilityLabel: $0.title) },
                 layout: metrics, usageSeed: MonitorToolUsage.fieldMonitorSeed, usage: $usage,
                 expanded: context.expanded, onToggle: { if let tool = MonitorAssistSelection(rawValue: $0) { assist.togglePlayback(tool) } },
                 onOptions: { if let tool = MonitorAssistSelection(rawValue: $0) { options(tool) } }) { id in
-                    if let tool = MonitorAssistSelection(rawValue: id), let glyph = tool.sharedTool { MonitorAssistToolGlyph(tool: glyph, size: 18) }
+                    if let tool = MonitorAssistSelection(rawValue: id), let glyph = tool.sharedTool { MonitorAssistToolGlyph(tool: glyph, size: nil) }
                 }
                 .background { GeometryReader { proxy in
                     Color.clear.onAppear { toolbarFrame = proxy.frame(in: .global) }

@@ -351,8 +351,9 @@
             MonitorAssistPalette(
                 tools: tools.map {
                     MonitorToolItem(
-                        id: $0.rawValue, title: $0.displaySettingsTitle,
-                        enabled: host.assist.isOn($0), hasOptions: $0.hasConfiguration)
+                        id: $0.rawValue, title: $0.rawValue,
+                        enabled: host.assist.isOn($0), hasOptions: $0.hasConfiguration,
+                        accessibilityLabel: $0.title)
                 },
                 layout: metrics, usageSeed: MonitorToolUsage.fieldMonitorSeed,
                 usage: $host.assistToolUsage, expanded: $expanded,

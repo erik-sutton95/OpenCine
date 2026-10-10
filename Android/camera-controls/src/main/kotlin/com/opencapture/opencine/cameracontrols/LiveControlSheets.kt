@@ -664,19 +664,24 @@ private fun LiveControlSheetContent(
                             applyDrum(it)
                         },
                     )
-                LiveSheet.FORMAT ->
-                    androidx.compose.runtime.key(selectedMode) {
-                        CaptureDrumWheel(
-                            options = CaptureLists.formatDrumLabels(status, selectedMode, selectedAspect),
-                            selection = drumSelection,
-                            interactive = enabled && CaptureLists.formatPickerEditable(status),
-
-                            onSelect = {
-                                drumSelection = it
-                                applyDrum(it)
-                            },
-                        )
+                LiveSheet.FORMAT -> {
+                    if (CameraCommands.isPhotoMode(status.shootingMode)) {
+                        CaptureDrumWheel(listOf(CaptureLists.PHOTO_FORMAT_READOUT), drumSelection, interactive = false, onSelect = {})
+                    } else {
+                        val formats = CaptureLists.effectiveVideoFormats(status, host.camera)
+                        CaptureFormatPicker(
+                            choices = CaptureVideoFormatChoices.make(formats, VideoFormat.current(status)),
+                            current = VideoFormat.current(status),
+                            enabled = enabled && formats.isNotEmpty(), sourceIdentity = commonField ?: host,
+                            followsReadback = !session.formatPinned,
+                            isCurrent = { enabled },
+                        ) { choice ->
+                            if (enabled && choice.value in formats && choice.value != VideoFormat.current(status)) {
+                                host.commit(CaptureSetting.Format(choice.value), commonField, status)
+                            }
+                        }
                     }
+                }
                 LiveSheet.MODE -> {
                     val labels = CaptureLists.shootingModeLabels(bodyName, status.shootingMode, host.labelProfile)
                     CaptureDrumWheel(
@@ -694,19 +699,7 @@ private fun LiveControlSheetContent(
                 }
             }
             if (!compact) {
-                if (sheet == LiveSheet.FORMAT && formatAspects.size > 1 &&
-                    CaptureLists.formatPickerEditable(status)
-                ) {
-                    ModeBar(
-                        tabs = formatAspects.map { it.label },
-                        selected = formatAspects.indexOf(selectedAspect).coerceAtLeast(0),
-                        enabled = enabled,
-                        uppercase = false,
-                    ) { index ->
-                        formatAspects.getOrNull(index)?.let(::handleAspectChange)
-                    }
-                }
-                if (tabs.isNotEmpty()) {
+                if (sheet != LiveSheet.FORMAT && tabs.isNotEmpty()) {
                     ModeBar(
                         tabs = tabs,
                         selected = selectedMode,

@@ -235,7 +235,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
                 format = {
                     if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
-                    } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    } else Row(horizontalArrangement = Arrangement.spacedBy(if (layout.tablet) 24.dp else 8.dp)) {
                         status.format.filter { it.section == null || it.section in mounted }.forEach { Readout(it) }
                     }
                 }, color = { status.color?.let { if (it.section == null || it.section in mounted) Readout(it) } },
@@ -311,8 +311,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
                     }
                 }
                 if (sections.assists in mounted && assist.configureTool == null) MonitorAssistPalette(palette,
-                    layout.portrait, !interactive, { it.isOn }, { it.title },
-                    { it.tool?.displaySettingsTitle ?: it.title }, { it.hasOptions },
+                    layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
+                    { it.tool?.chipLabel ?: it.label }, { it.hasOptions },
                     onToggle = { if (interactive && currentSource()) it.toggle() },
                     onOptions = { if (interactive && currentSource()) assist.configureTool = it.tool },
                     glyph = { item, tint, decoration ->

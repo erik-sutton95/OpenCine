@@ -228,10 +228,7 @@
                         }
                     } else {
                         content
-                        if sheet == .resolution, !isPhoto, formatAspects.count > 1 {
-                            aspectBar
-                        }
-                        if !modeTabs.isEmpty { modeBar }
+                        if sheet != .resolution, !modeTabs.isEmpty { modeBar }
                         if let onSelectRecordingCategory,
                             recordingCategories.count > 1,
                             MonitorCapturePopupChrome.showsRecordingCategoryTabs(
@@ -554,11 +551,7 @@
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Photo")
                 } else {
-                    CaptureDrumWheel<Host>(
-                        options: formatRates.map(\.drumLabel), selection: $drumSelection,
-                        isInteractive: !pickerVideoFormats.isEmpty
-                    )
-                    .id(selectedMode)
+                    formatPicker
                 }
             case .color:
                 CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection)
@@ -652,6 +645,30 @@
                 isOn: Binding(
                     get: { host.nativeISOHopEnabled },
                     set: { if canApplyDrum { host.nativeISOHopEnabled = $0 } }))
+        }
+
+        private struct FormatSource: Hashable {
+            let camera: UUID?
+            let phase: String
+            let snapshot: CaptureQuickSnapshot.SourceIdentity?
+        }
+
+        private var formatSource: AnyHashable {
+            AnyHashable(FormatSource(camera: host.connectedCameraID, phase: host.sessionPhaseLabel,
+                snapshot: host.quickSnapshot(.resolution)?.sourceIdentity))
+        }
+
+        private var formatPicker: some View {
+            let source = formatSource
+            return CaptureFormatPicker(
+                choices: CaptureVideoFormatChoices.make(available: pickerVideoFormats, current: currentVideoFormat),
+                current: currentVideoFormat, enabled: canApplyDrum && !pickerVideoFormats.isEmpty,
+                haptics: host.hapticsEnabled, sourceIdentity: source, followsReadback: !host.formatPinActive,
+                isCurrent: { canApplyDrum && formatSource == source }
+            ) { choice in
+                guard canApplyDrum, formatSource == source, pickerVideoFormats.contains(choice.value) else { return }
+                applyVideoFormat(resolution: choice.value.resolution, frameRate: choice.value.frameRate)
+            }
         }
 
         private var aspectBar: some View {

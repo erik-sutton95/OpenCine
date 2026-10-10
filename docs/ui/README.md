@@ -86,6 +86,29 @@ The lower UI primitives continue to take values and actions; app-specific native
 bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
 for adapter boundaries, capture ownership and regression guards.
 
+Grouped movie-format controls live in `OpenCineCameraControls` /
+`camera-controls`, above the lower UI primitives. [`CaptureFormatPicker` and
+`CaptureFormatPickerState`][grouped-format-1] ([Compose][grouped-format-2])
+consume exact `CaptureFormatChoice` values and optional `CaptureFormatGroup`
+facts supplied by the host's capability inventory. Image area, such as FX/DX, is
+separate from recording aspect. Area, aspect and resolution groups filter the
+eligible frame-rate drum; sparse inventories never become all possible
+combinations. Changing a group retains the selected rate when an editable tuple
+allows it, otherwise choosing the first supplied editable tuple. Unknown
+grouping facts stay absent; their exact choices remain visible in the
+unclassified bucket.
+
+A drum label shared by multiple distinct values in the current bucket is
+ambiguous and submits nothing. Empty, disabled, read-only and removed choices
+likewise submit nothing. Codec remains its separate existing control. The picker
+owns presentation and local selection, not wire encoding, write authority or
+camera readback. See [capture composition][grouped-format-3] for actual host
+adapters and source admission.
+
+[grouped-format-1]: ../../Sources/OpenCineCameraControls/Capture/CaptureFormatPicker.swift
+[grouped-format-2]: ../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/CaptureFormatPicker.kt
+[grouped-format-3]: ../appkit/README.md#monitor-composition-and-capture
+
 Portrait status measures the recording, clock and format slots, keeping an 8 point/dp
 clearance and using an intrinsic second row when needed. Rows contain the full native
 touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (normally
@@ -339,7 +362,10 @@ overflow heights and busy progress; Nikon hosted UIKit actions exercise popup
 admission, request values and progress controls at portrait and compact
 landscape geometries. Physical delivery and Android input remain untested.
 
-The expanded View Assist palette reserves two lines for full tool names, including
-Anamorphic Desqueeze. Wider catalog cells scroll horizontally in landscape and vertically
-in portrait; the collapsed favorites keep the common system-button size. Icons keep their
-size through the reveal, and label space grows with the palette on both platforms.
+The expanded View Assist palette uses the same short toolbar labels on both platforms,
+including PEAK, FALSE, WAVE, HISTO, VECTOR, LIGHTS and DE-SQ. Full tool names remain in
+inspectors, settings and accessibility. Catalog cells scroll horizontally in landscape
+and vertically in portrait; the collapsed favorites keep the common system-button size.
+Expanded cells keep the collapsed square size (48 points in SwiftUI; 48 dp on phones
+and 52 dp on tablets in Compose), with the same palette-sized icons and single-line
+captions through the reveal.

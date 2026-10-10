@@ -55,7 +55,7 @@ fun MonitorAssistCluster(usageStore: MonitorToolUsagePreferences?, portrait: Boo
     val tools = catalog.filter { (showsAudio || it != MonitorAssistTool.AUDIO) && (availableTools?.contains(it) != false) }
     com.opencapture.monitorui.MonitorAssistPalette(
         tools = tools, usageSeed = ASSIST_USAGE_SEED,
-        portrait = portrait, locked = locked, isOn = isOn, title = { it.title }, label = { it.displaySettingsTitle },
+        portrait = portrait, locked = locked, isOn = isOn, title = { it.title }, label = { it.chipLabel },
         hasOptions = hasOptions, onToggle = onToggle, onOptions = onLongPress,
         glyph = { tool, tint, iconModifier -> AssistToolGlyph(tool, tint, iconModifier, evFontSize = 17f) },
         chevron = { expanded, vertical ->

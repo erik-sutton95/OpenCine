@@ -191,7 +191,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val tools = MonitorAssistTool.settingsCases.filter {
         it != MonitorAssistTool.AUDIO || capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
     }
-    val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.displaySettingsTitle,
+    val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
         tool, assist.isOn(tool), { assist.toggle(tool) }, tool.hasConfiguration) }
     val native = MonitorOperatorBodyViews(
         focusMarks = {
