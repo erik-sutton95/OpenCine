@@ -104,6 +104,8 @@ class FeedEffectsGlProgram(
         upscale: Boolean = !look,
         /** A one-pass look reconstructs the magnified raster before grading (Bitmap surface). */
         onePassUpscale: Boolean = false,
+        /** Vertical presentation flip, independent from the source texture's input convention. */
+        mirroredVertical: Boolean = false,
     ) {
         val mask =
             if (look && plan.peaking) {
@@ -130,6 +132,7 @@ class FeedEffectsGlProgram(
             program.setFloatsUniform("uFeedUpscale", flag(false))
             program.setFloatsUniform("uFeedOnePassUpscale", flag(onePassUpscale))
             program.setFloatsUniform("uMirror", flag(mirrored))
+            program.setFloatsUniform("uMirrorVertical", flag(mirroredVertical))
         } else {
             program.setFloatsUniform("uLutSize", floatArrayOf(0f))
             program.setFloatsUniform("uLimitsOn", flag(false))
@@ -138,6 +141,7 @@ class FeedEffectsGlProgram(
             program.setFloatsUniform("uZebraMidtoneOn", flag(false))
             program.setFloatsUniform("uSplitOn", flag(false))
             program.setFloatsUniform("uMirror", flag(false))
+            program.setFloatsUniform("uMirrorVertical", flag(false))
             program.setFloatsUniform("uFeedOnePassUpscale", flag(false))
             program.setFloatsUniform(
                 "uFeedUpscale",

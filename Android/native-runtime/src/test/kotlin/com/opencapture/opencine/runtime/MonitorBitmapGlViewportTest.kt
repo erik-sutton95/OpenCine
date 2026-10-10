@@ -16,4 +16,19 @@ class MonitorBitmapGlViewportTest {
         )
         assertNull(monitorBitmapGlViewport(0, 600, 1_920, 1_080, aspectFill = true))
     }
+
+    @Test fun mirrorAxesUseTheirExistingUniformSlotsWithoutChangingSourceOrEffectValues() {
+        val original = bitmapVulkanUniforms(null, aspectFill = true, mirrored = false)
+        assertEquals(40, original.size)
+        assertEquals(0f, original[39])
+        for (horizontal in listOf(false, true)) for (vertical in listOf(false, true)) {
+            val transformed = bitmapVulkanUniforms(null, true, horizontal, vertical)
+            assertEquals(if (horizontal) 1f else 0f, transformed[23])
+            assertEquals(if (vertical) 1f else 0f, transformed[39])
+            for (index in original.indices.filter { it != 23 && it != 39 }) {
+                assertEquals(original[index], transformed[index], "Uniform $index must retain the source/effect value")
+            }
+        }
+    }
+
 }

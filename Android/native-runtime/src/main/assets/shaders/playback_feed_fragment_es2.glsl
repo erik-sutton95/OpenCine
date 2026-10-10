@@ -10,6 +10,8 @@ uniform float uFlipInputY;
 // Horizontal flip for a camera pointed back at the operator: 1 mirrors, 0 does not. Folds the
 // SAMPLING coordinate, so the picture and every effect read through it flip together.
 uniform float uMirror;
+// Operator-selected top-to-bottom flip, separate from uFlipInputY.
+uniform float uMirrorVertical;
 uniform float uLutSize;
 // 50/50 Log-vs-LUT comparison: 1 = on, and 1 = a vertical boundary (Log left, LUT right)
 // against a horizontal one (Log top, LUT bottom). See `SplitComparison` in shared core.
@@ -268,7 +270,7 @@ void main() {
     // lands for the operator, and the zebra stripe is screen geometry.
     vec2 sourceCoordinate = vec2(
         mix(vTexSamplingCoord.x, 1.0 - vTexSamplingCoord.x, uMirror),
-        vTexSamplingCoord.y
+        mix(vTexSamplingCoord.y, 1.0 - vTexSamplingCoord.y, uMirrorVertical)
     );
     vec3 source = sampleSource(sourceCoordinate);
     vec3 displaySource = sampleSourceForDisplay(sourceCoordinate);

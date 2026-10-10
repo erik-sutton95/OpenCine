@@ -147,6 +147,7 @@ class MonitorBitmapGlesSession {
     private var plan: FeedEffectsRenderPlan? = null
     private var aspectFill: Boolean = false
     private var mirrored: Boolean = false
+    private var mirroredVertical: Boolean = false
     private val lifecycleResumed = AtomicBoolean(false)
 
     var renderFailed: Boolean = false
@@ -170,14 +171,15 @@ class MonitorBitmapGlesSession {
         surface.get()?.let(::drainFrameTo)
     }
 
-    fun update(plan: FeedEffectsRenderPlan, aspectFill: Boolean, mirrored: Boolean) {
+    fun update(plan: FeedEffectsRenderPlan, aspectFill: Boolean, mirrored: Boolean, mirroredVertical: Boolean = false) {
         if (disposed.get()) return
         val changed = this.plan !== plan
         this.plan = plan
         this.aspectFill = aspectFill
         this.mirrored = mirrored
+        this.mirroredVertical = mirroredVertical
         if (changed) renderFailed = false
-        surface.get()?.update(plan, aspectFill, mirrored)
+        surface.get()?.update(plan, aspectFill, mirrored, mirroredVertical)
         if (changed) onFailureStateChanged?.invoke(false)
     }
 
@@ -201,7 +203,7 @@ class MonitorBitmapGlesSession {
             }
         }
         val currentPlan = plan
-        if (currentPlan != null) next.update(currentPlan, aspectFill, mirrored)
+        if (currentPlan != null) next.update(currentPlan, aspectFill, mirrored, mirroredVertical)
         if (lifecycleResumed.get()) {
             next.onResume()
             drainFrameTo(next)
@@ -282,10 +284,11 @@ open class MonitorBitmapGlesSurface(context: Context, glFactory: (Context) -> Na
         requestRender()
     }
 
-    fun update(plan: FeedEffectsRenderPlan, aspectFill: Boolean, mirrored: Boolean) {
+    fun update(plan: FeedEffectsRenderPlan, aspectFill: Boolean, mirrored: Boolean, mirroredVertical: Boolean = false) {
         feedRenderer.plan.set(plan)
         feedRenderer.aspectFill = aspectFill
         feedRenderer.mirrored = mirrored
+        feedRenderer.mirroredVertical = mirroredVertical
         requestRender()
     }
 
@@ -306,6 +309,7 @@ private class MonitorBitmapGlesRenderer(
 
     @Volatile var aspectFill: Boolean = false
     @Volatile var mirrored: Boolean = false
+    @Volatile var mirroredVertical: Boolean = false
     var onFailure: ((FeedEffectsRenderPlan, Throwable) -> Unit)? = null
 
     private var surfaceWidth = 0
@@ -364,6 +368,7 @@ private class MonitorBitmapGlesRenderer(
                 viewport.height.toFloat(),
                 mirrored,
                 onePassUpscale = true,
+                mirroredVertical = mirroredVertical,
             )
             GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight)
         } catch (error: Exception) {

@@ -33,4 +33,42 @@ class MonitorFocusGestureTest {
         assertEquals(MonitorFocusCoordinate(0, 499), source.copy(mirrored = true).cameraCoordinateAt(MonitorFocusPixelPoint(100f, 50f)))
         assertNull(source.cameraCoordinateAt(MonitorFocusPixelPoint(101f, 50f)))
     }
+
+    @Test fun bothAxesInverseMapPresentedCoordinatesWithoutChangingHitBounds() {
+        val source = MonitorFocusGeometry(MonitorRect(20f, 30f, 200f, 100f),
+            MonitorRect(20f, 30f, 200f, 100f), 401, 201, 7)
+        for (horizontal in listOf(false, true)) for (vertical in listOf(false, true)) {
+            val geometry = source.copy(mirrored = horizontal, mirroredVertical = vertical)
+            assertEquals(MonitorFocusCoordinate(if (horizontal) 400 else 0, if (vertical) 200 else 0),
+                geometry.cameraCoordinateAt(MonitorFocusPixelPoint(20f, 30f)))
+            assertEquals(MonitorFocusCoordinate(if (horizontal) 300 else 100, if (vertical) 150 else 50),
+                geometry.cameraCoordinateAt(MonitorFocusPixelPoint(70f, 55f)))
+            assertEquals(source.hitBounds, geometry.hitBounds)
+            assertNull(geometry.cameraCoordinateAt(MonitorFocusPixelPoint(19f, 55f)))
+        }
+    }
+
+    @Test fun changingEitherAxisRetiresThePointerEvenWhenTheOriginalAxesReturn() {
+        val original = context()
+        val source = requireNotNull(original.geometry)
+        val point = MonitorFocusPixelPoint(25f, 10f)
+        for ((horizontal, vertical) in listOf(true to false, false to true, true to true)) {
+            val changed = original.copy(geometry = source.copy(
+                mirrored = horizontal, mirroredVertical = vertical))
+            assertNotEquals(source.signature, requireNotNull(changed.geometry).signature)
+            val down = reduceMonitorFocusGesture(MonitorFocusGestureState.Idle,
+                MonitorFocusGestureEvent.Down(point, 0), original)
+            val changedLift = reduceMonitorFocusGesture(down.state,
+                MonitorFocusGestureEvent.Up(point, 100), changed)
+            assertNull(changedLift.action)
+            val retired = reduceMonitorFocusGesture(down.state,
+                MonitorFocusGestureEvent.ContextChanged, changed)
+            assertEquals(MonitorFocusGestureState.Idle, retired.state)
+            assertNull(reduceMonitorFocusGesture(retired.state,
+                MonitorFocusGestureEvent.HoldTimeout(300), original).action)
+            assertNull(reduceMonitorFocusGesture(retired.state,
+                MonitorFocusGestureEvent.Up(point, 400), original).action)
+        }
+    }
+
 }

@@ -41,7 +41,7 @@ layout(set = 0, binding = 2) uniform Params {
     float highlightMaximum;
     float zebraBias;
     float midtoneHalf;
-    float processingPad;
+    float mirrorVertical;
 } u;
 
 const vec3 LUMA709 = vec3(0.2126, 0.7152, 0.0722);
@@ -149,11 +149,10 @@ void main() {
     // boundary deliberately does not: it reads raw `vUv` because it is a question about where the
     // pixel lands for the operator, not about the picture.
     //
-    // Do not invert Y. Bitmap row 0 is the top of the frame and Vulkan samples v=0 at the top of
-    // the image. `vUv.y` is already 0 at the top of the viewport (clip y = -1). The GLES path
-    // flips because GL's texture v=0 is the bottom; copying that flip here turns the picture
-    // upside down, and a 180° body rotation then looks like it "fixes" it.
-    vec2 uv = vec2(mix(vUv.x, 1.0 - vUv.x, u.mirror), vUv.y);
+    // Bitmap and Vulkan both place row 0 at the top. Only the operator's selected vertical
+    // assist folds Y; there is no implicit source-orientation conversion.
+    vec2 uv = vec2(mix(vUv.x, 1.0 - vUv.x, u.mirror),
+        mix(vUv.y, 1.0 - vUv.y, u.mirrorVertical));
     vec3 source = texture(uFeed, uv).rgb;
     vec3 color = splitIsGradedSide(vUv) ? grade(source) : source;
 

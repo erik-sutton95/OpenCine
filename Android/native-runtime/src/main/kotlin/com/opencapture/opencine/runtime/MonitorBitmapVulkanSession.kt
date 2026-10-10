@@ -25,6 +25,7 @@ class MonitorBitmapVulkanSession(
     private var uploaded: FeedEffectsRenderPlan? = null
     private var uploadedFill = false
     private var uploadedMirror = false
+    private var uploadedMirrorVertical = false
     var failed = false
         private set
 
@@ -72,18 +73,19 @@ class MonitorBitmapVulkanSession(
         OpcVulkan.nativeDetachWindow(native)
     }
 
-    fun updatePlan(plan: FeedEffectsRenderPlan?, aspectFill: Boolean, mirrored: Boolean) {
+    fun updatePlan(plan: FeedEffectsRenderPlan?, aspectFill: Boolean, mirrored: Boolean, mirroredVertical: Boolean = false) {
         checkThread()
         if (closed || failed) return
-        if (plan === uploaded && aspectFill == uploadedFill && mirrored == uploadedMirror) return
+        if (plan === uploaded && aspectFill == uploadedFill && mirrored == uploadedMirror && mirroredVertical == uploadedMirrorVertical) return
         uploaded = plan
         uploadedFill = aspectFill
         uploadedMirror = mirrored
+        uploadedMirrorVertical = mirroredVertical
         if (plan == null) {
             OpcVulkan.nativeClearBitmapPlan(native)
             return
         }
-        val controls = bitmapVulkanUniforms(plan, aspectFill, mirrored)
+        val controls = bitmapVulkanUniforms(plan, aspectFill, mirrored, mirroredVertical)
         if (!OpcVulkan.nativeConfigureBitmap(
                 native, controls,
                 plan?.lutCube?.size ?: 0, plan?.lutCube?.rgba,
@@ -133,6 +135,7 @@ class MonitorBitmapVulkanSession(
 /** Exact std140 packing for the native typed Bitmap graph. No source interpretation here. */
 fun bitmapVulkanUniforms(
     plan: FeedEffectsRenderPlan?, aspectFill: Boolean, mirrored: Boolean,
+    mirroredVertical: Boolean = false,
 ): FloatArray {
     val p = plan ?: FeedEffectsRenderPlan.IDENTITY
     val result = FloatArray(40)
@@ -157,6 +160,7 @@ fun bitmapVulkanUniforms(
     result[36] = if (p.zebraMaskPolicy.highlightMeasure == MonitorZebraMaskPolicy.HighlightMeasure.MAXIMUM_COMPONENT) 1f else 0f
     result[37] = p.zebraMaskPolicy.rampBias.toFloat()
     result[38] = p.zebraMidtoneHalf
+    result[39] = if (mirroredVertical) 1f else 0f
     return result
 }
 

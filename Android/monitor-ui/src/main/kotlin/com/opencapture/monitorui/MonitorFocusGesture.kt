@@ -25,6 +25,8 @@ data class MonitorFocusGeometrySignature(
     val hitBounds: MonitorRect,
     val coordinateWidth: Int?,
     val coordinateHeight: Int?,
+    val mirrored: Boolean = false,
+    val mirroredVertical: Boolean = false,
 )
 
 /**
@@ -43,6 +45,8 @@ data class MonitorFocusGeometry(
     val generation: Long,
     /** Mirror assist is on, so what the operator points at is the horizontally flipped picture. */
     val mirrored: Boolean = false,
+    /** Presentation flips top-to-bottom; camera coordinates retain their source orientation. */
+    val mirroredVertical: Boolean = false,
 ) {
     init {
         require(presentedFeed.hasFinitePositiveSize())
@@ -64,6 +68,8 @@ data class MonitorFocusGeometry(
                 hitBounds = hitBounds,
                 coordinateWidth = coordinateWidth,
                 coordinateHeight = coordinateHeight,
+                mirrored = mirrored,
+                mirroredVertical = mirroredVertical,
             )
 
     /** Whether [point] lands on the visible rendered feed, independent of AF metadata. */
@@ -85,7 +91,8 @@ data class MonitorFocusGeometry(
         // The camera's coordinate space is the unflipped picture, so a tap on the mirrored image
         // has to be folded back before it becomes an AF point.
         val normalizedX = if (mirrored) 1f - tapped else tapped
-        val normalizedY = ((point.y - presentedFeed.minY) / presentedFeed.height).coerceIn(0f, 1f)
+        val tappedY = ((point.y - presentedFeed.minY) / presentedFeed.height).coerceIn(0f, 1f)
+        val normalizedY = if (mirroredVertical) 1f - tappedY else tappedY
         return MonitorFocusCoordinate(
             x =
                 (normalizedX * (width - 1))

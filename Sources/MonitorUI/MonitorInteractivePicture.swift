@@ -19,6 +19,7 @@ import SwiftUI
 public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
     private let source: Source
     private let size: CGSize
+    private let presentationScale: CGSize
     private let enabled: Bool
     private let focus: MonitorPictureFocusInteraction?
     private let swipe: ((MonitorPlaybackChromeSwipe) -> Void)?
@@ -35,12 +36,25 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
     @GestureState private var pinching = false
     @GestureState private var panning = false
 
+    /// Retains the original initializer for callers with no presentation transform.
     public init(source: Source, size: CGSize, maximumZoom: CGFloat = MonitorPlaybackZoom.maxScale,
         enabled: Bool = true, focus: MonitorPictureFocusInteraction? = nil,
         swipe: ((MonitorPlaybackChromeSwipe) -> Void)? = nil,
         @ViewBuilder picture: @escaping (CGFloat) -> Picture) {
+        self.init(source: source, size: size, maximumZoom: maximumZoom, enabled: enabled,
+            focus: focus, swipe: swipe, presentationScale: CGSize(width: 1, height: 1),
+            picture: picture)
+    }
+
+    /// Retires captured gestures when the displayed source changes its transform.
+    public init(source: Source, size: CGSize, maximumZoom: CGFloat = MonitorPlaybackZoom.maxScale,
+        enabled: Bool = true, focus: MonitorPictureFocusInteraction? = nil,
+        swipe: ((MonitorPlaybackChromeSwipe) -> Void)? = nil,
+        presentationScale: CGSize,
+        @ViewBuilder picture: @escaping (CGFloat) -> Picture) {
         self.source = source; self.size = size; self.enabled = enabled
         self.focus = focus; self.swipe = swipe; self.picture = picture
+        self.presentationScale = presentationScale
         _zoom = State(initialValue: MonitorPlaybackZoom(maximumScale: maximumZoom))
     }
     private var transform: MonitorPlaybackZoom {
@@ -75,6 +89,7 @@ public struct MonitorInteractivePicture<Source: Hashable, Picture: View>: View {
             .onChange(of: source) { _, _ in retire(reset: true) }
             .onChange(of: enabled) { _, active in if !active { retire(reset: false) } }
             .onChange(of: size) { _, _ in retire(reset: false) }
+            .onChange(of: presentationScale) { _, _ in retire(reset: false) }
             .onChange(of: pinching) { _, active in if !active, !pinch.isEditing { _ = pinch.end() } }
             .onChange(of: panning) { _, active in if !active, !pan.isEditing { _ = pan.end() } }
             .onDisappear { retire(reset: true) }
