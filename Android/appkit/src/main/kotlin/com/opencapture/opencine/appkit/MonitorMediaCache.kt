@@ -9,6 +9,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.coroutines.EmptyCoroutineContext
 
 public enum class MonitorMediaCacheFailure { RETIRED, INVALID_ADDRESS, EMPTY, INVALID_RECEIPT }
 public class MonitorMediaCacheException(public val failure: MonitorMediaCacheFailure) : IOException(failure.name)
@@ -109,7 +111,41 @@ public class MonitorMediaCacheDirectory(public val root: File,
     internal val lock = Any()
     internal var revision: Long = 0
     internal val current = mutableMapOf<String, UUID>()
-    internal data class Resource(val stream: FileOutputStream, val temporary: File)
+    internal class Resource(val stream: FileOutputStream, val temporary: File) {
+        private val io = ReentrantLock()
+        private val closing = Any()
+        private var closeRequested = false
+        // Owned by io, including a deferred close.
+        private var closed = false
+        fun <T> withIO(body: () -> T): T {
+            io.lock()
+            try { return body() }
+            finally {
+                val shouldClose = synchronized(closing) {
+                    if (closeRequested) true else {
+                        // Release under closing so a later request cannot miss both owners.
+                        io.unlock(); false
+                    }
+                }
+                if (shouldClose) {
+                    try { runCatching { close() } } finally { io.unlock() }
+                }
+            }
+        }
+        fun close() {
+            if (!closed) { stream.close(); closed = true }
+        }
+        fun requestClose() {
+            synchronized(closing) { closeRequested = true }
+            Dispatchers.IO.dispatch(EmptyCoroutineContext, Runnable {
+                // A busy owner observes closeRequested on release. Never wait on an
+                // IO worker or close concurrently with FileOutputStream.write.
+                if (io.tryLock()) {
+                    try { runCatching { close() } } finally { io.unlock() }
+                }
+            })
+        }
+    }
     internal val resources = mutableMapOf<UUID, Resource>()
     public val generation: Long get() = synchronized(lock) { revision }
     public fun file(address: String): File {
@@ -121,36 +157,53 @@ public class MonitorMediaCacheDirectory(public val root: File,
     }
     public fun read(address: String): ByteArray = file(address).readBytes()
     public fun write(bytes: ByteArray, address: String) {
-        synchronized(lock) {
-            val writer = beginWrite(address)
-            try { writer.writeNow(bytes); writer.commit(MediaTransferReceipt(bytes.size.toLong())) }
-            finally { writer.abort() }
-        }
+        val writer = beginWrite(address)
+        try { writer.writeNow(bytes); writer.commit(MediaTransferReceipt(bytes.size.toLong())) }
+        finally { writer.abort() }
     }
     public fun existing(address: String): File? = runCatching { file(address).takeIf { it.isFile && it.length() > 0 } }.getOrNull()
-    public fun beginWrite(address: String): MonitorMediaCacheWrite = synchronized(lock) {
-        val destination = file(address)
-        if (destination.parentFile?.let { it.isDirectory || it.mkdirs() } != true) throw IOException("Cannot create cache directory")
-        val id = UUID.randomUUID(); val temporary = File(destination.parentFile, "$id.part")
-        val stream = FileOutputStream(temporary)
-        current[destination.path]?.let { previous -> resources.remove(previous)?.let { runCatching { it.stream.close() }; it.temporary.delete() } }
-        current[destination.path] = id; resources[id] = Resource(stream, temporary)
-        MonitorMediaCacheWrite(this, id, revision, destination, temporary, stream)
+    public fun beginWrite(address: String): MonitorMediaCacheWrite =
+        beginWrite(address) { stream, bytes -> stream.write(bytes) }
+    // Internal real-I/O seam. Public callers keep the original FileOutputStream operation.
+    internal fun beginWrite(address: String,
+        writeOperation: (FileOutputStream, ByteArray) -> Unit,
+    ): MonitorMediaCacheWrite {
+        var retired: Resource? = null
+        try {
+            return synchronized(lock) {
+                val destination = file(address)
+                if (destination.parentFile?.let { it.isDirectory || it.mkdirs() } != true) throw IOException("Cannot create cache directory")
+                val id = UUID.randomUUID(); val temporary = File(destination.parentFile, "$id.part")
+                val stream = FileOutputStream(temporary)
+                current[destination.path]?.let { previous ->
+                    resources.remove(previous)?.let { retired = it; it.temporary.delete() }
+                }
+                val resource = Resource(stream, temporary)
+                current[destination.path] = id; resources[id] = resource
+                MonitorMediaCacheWrite(this, id, revision, destination, resource, writeOperation)
+            }
+        } finally { retired?.requestClose() }
     }
     /** Fence old writers/catalog captures while retaining files owned by resumable transfers. */
-    public fun retireWrites(): Unit = synchronized(lock) {
-        revision += 1
-        current.clear()
-        resources.values.forEach {
-            runCatching { it.stream.close() }
-            it.temporary.delete()
+    public fun retireWrites() {
+        val retired = synchronized(lock) {
+            revision += 1; current.clear()
+            val values = resources.values.toList()
+            values.forEach { it.temporary.delete() }
+            resources.clear()
+            values
         }
-        resources.clear()
+        retired.forEach { it.requestClose() }
     }
     public suspend fun clear(preserving: List<String>) {
-        val pending = synchronized(lock) {
+        var retired: List<Resource> = emptyList()
+        val pending = try { synchronized(lock) {
             revision += 1; current.clear()
-            resources.values.forEach { runCatching { it.stream.close() } }; resources.clear()
+            retired = resources.values.toList(); resources.clear()
+            // A preserved parent must not carry an active old stream into the new root.
+            retired.forEach {
+                if (it.temporary.exists() && !it.temporary.delete()) throw IOException("Cannot retire active cache staging file")
+            }
             if (root.exists()) {
                 val suffix = "${root.name}-${UUID.randomUUID()}"
                 val retired = File(root.parentFile, ".retiring-$suffix")
@@ -176,7 +229,7 @@ public class MonitorMediaCacheDirectory(public val root: File,
                 }
             }
             retiredRoots(includeUnprepared = false)
-        }
+        } } finally { retired.forEach { it.requestClose() } }
         withContext(Dispatchers.IO) {
             pending.forEach { if (it.exists() && !it.deleteRecursively()) throw IOException("Cannot delete retired cache") }
         }
@@ -202,7 +255,8 @@ public class MonitorMediaCacheDirectory(public val root: File,
 /** Abort only removes its unique staging path. A retired writer can never commit into a new root. */
 public class MonitorMediaCacheWrite internal constructor(
     private val directory: MonitorMediaCacheDirectory, private val id: UUID, private val generation: Long,
-    private val destination: File, private val temporary: File, private val stream: FileOutputStream,
+    private val destination: File, private val resource: MonitorMediaCacheDirectory.Resource,
+    private val writeOperation: (FileOutputStream, ByteArray) -> Unit,
 ) : MediaByteSink, AutoCloseable {
     private var bytes = 0L
     private var finished = false
@@ -211,23 +265,40 @@ public class MonitorMediaCacheWrite internal constructor(
             throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
         }
     }
-    internal fun writeNow(chunk: ByteArray) = synchronized(directory.lock) { check(); stream.write(chunk); bytes += chunk.size }
+    internal fun writeNow(chunk: ByteArray) = resource.withIO {
+        synchronized(directory.lock) { check() }
+        writeOperation(resource.stream, chunk)
+        synchronized(directory.lock) { check() }
+        bytes += chunk.size
+    }
     override suspend fun write(chunk: ByteArray) { currentCoroutineContext().ensureActive(); writeNow(chunk) }
-    public fun commit(receipt: MediaTransferReceipt): File = synchronized(directory.lock) {
-        check()
+    public fun commit(receipt: MediaTransferReceipt): File = resource.withIO {
+        synchronized(directory.lock) { check() }
         if (bytes <= 0) throw MonitorMediaCacheException(MonitorMediaCacheFailure.EMPTY)
         if (bytes != receipt.byteCount) throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_RECEIPT)
-        stream.close()
-        if (destination.exists() && !destination.delete()) throw IOException("Cannot replace cache file")
-        if (!temporary.renameTo(destination)) throw IOException("Cannot commit cache file")
-        finished = true; directory.current.remove(destination.path); directory.resources.remove(id)
-        destination
-    }
-    public fun abort(): Unit = synchronized(directory.lock) {
-        if (!finished) {
-            finished = true; runCatching { stream.close() }; temporary.delete(); directory.resources.remove(id)
-            if (directory.current[destination.path] == id) directory.current.remove(destination.path)
+        resource.close()
+        synchronized(directory.lock) {
+            // Close may have blocked while retirement invalidated this lease.
+            check()
+            if (destination.exists() && !destination.delete()) throw IOException("Cannot replace cache file")
+            if (!resource.temporary.renameTo(destination)) throw IOException("Cannot commit cache file")
+            finished = true; directory.current.remove(destination.path); directory.resources.remove(id)
+            destination
         }
+    }
+    public fun abort() {
+        val retired = synchronized(directory.lock) {
+            if (finished) null else {
+                finished = true
+                val owned = directory.resources.remove(id)
+                // Clear/supersession removed the registration before rebinding the root.
+                // Never use that old staging URL against a later live directory.
+                owned?.temporary?.delete()
+                if (directory.current[destination.path] == id) directory.current.remove(destination.path)
+                owned
+            }
+        }
+        retired?.requestClose()
     }
     override fun close() { abort() }
 }

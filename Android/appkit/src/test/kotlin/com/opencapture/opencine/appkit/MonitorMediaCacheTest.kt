@@ -2,11 +2,80 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.media.MediaTransferReceipt
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
+import java.io.FileOutputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.io.File
 import java.util.UUID
 import kotlin.test.*
 
 class MonitorMediaCacheTest {
+    @Test fun heldRealWriteDoesNotBlockAdmissionOrSuccessorRetire() = runTest {
+        heldRealWriteDoesNotBlockAdmissionOrSuccessor(CacheWriterRetirement.RETIRE)
+    }
+    @Test fun heldRealWriteDoesNotBlockAdmissionOrSuccessorReplace() = runTest {
+        heldRealWriteDoesNotBlockAdmissionOrSuccessor(CacheWriterRetirement.REPLACE)
+    }
+    @Test fun heldRealWriteDoesNotBlockAdmissionOrSuccessorAbort() = runTest {
+        heldRealWriteDoesNotBlockAdmissionOrSuccessor(CacheWriterRetirement.ABORT)
+    }
+    @Test fun heldRealWriteDoesNotBlockAdmissionOrSuccessorClear() = runTest {
+        heldRealWriteDoesNotBlockAdmissionOrSuccessor(CacheWriterRetirement.CLEAR)
+    }
+    private suspend fun heldRealWriteDoesNotBlockAdmissionOrSuccessor(retirement: CacheWriterRetirement) {
+        val (parent, directory) = directory()
+        val control = ControlledCacheWrite()
+        val worker = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "opencine-cache-test-write").apply { isDaemon = true }
+        }
+        var old: MonitorMediaCacheWrite? = null
+        var successor: MonitorMediaCacheWrite? = null
+        try {
+            val metadata = "{\"unknown\":19}".toByteArray()
+            directory.write(metadata, "index.json")
+            directory.write(byteArrayOf(42), "camera-object.part")
+            val generation = directory.generation
+            val captured = directory.beginWrite("files/take.mov", control::write)
+            old = captured
+            val operation = worker.submit<Unit> { runBlocking { captured.write(byteArrayOf(1, 2)) } }
+            assertTrue(control.waitUntilEntered())
+            // RED waits here for the independent controller. GREEN must finish admission
+            // AND publish the exact successor before the held FileOutputStream can write.
+            assertEquals(generation, directory.generation)
+            when (retirement) {
+                CacheWriterRetirement.RETIRE -> directory.retireWrites()
+                CacheWriterRetirement.REPLACE -> Unit
+                CacheWriterRetirement.ABORT -> captured.abort()
+                CacheWriterRetirement.CLEAR -> directory.clear(listOf("index.json", "camera-object.part", "files"))
+            }
+            if (retirement == CacheWriterRetirement.RETIRE || retirement == CacheWriterRetirement.CLEAR) assertNotEquals(generation, directory.generation)
+            val current = directory.beginWrite("files/take.mov")
+            successor = current
+            current.write(byteArrayOf(7, 8, 9))
+            val committed = current.commit(MediaTransferReceipt(3))
+            assertTrue(control.admissionFinishedBeforeRelease())
+            val rejected = assertIs<MonitorMediaCacheException>(
+                assertFailsWith<ExecutionException> { operation.get(5, TimeUnit.SECONDS) }.cause)
+            assertEquals(MonitorMediaCacheFailure.RETIRED, rejected.failure)
+            assertEquals(MonitorMediaCacheFailure.RETIRED,
+                assertFailsWith<MonitorMediaCacheException> { captured.commit(MediaTransferReceipt(2)) }.failure)
+            captured.abort()
+            assertContentEquals(byteArrayOf(7, 8, 9), committed.readBytes())
+            assertContentEquals(metadata, directory.read("index.json"))
+            assertContentEquals(byteArrayOf(42), directory.read("camera-object.part"))
+            assertEquals(listOf("take.mov"), File(directory.root, "files").list()?.toList())
+            assertFalse(control.hitFailureDeadline)
+        } finally {
+            control.release(); old?.abort(); successor?.abort()
+            worker.shutdown()
+            assertTrue(worker.awaitTermination(5, TimeUnit.SECONDS))
+            parent.deleteRecursively()
+        }
+    }
+
     @Test fun retiringWritesPreservesResumableFilesAndFencesOldFinally() = runTest {
         val (parent, directory) = directory()
         try {
@@ -130,5 +199,42 @@ class MonitorMediaCacheTest {
                 assertEquals(MonitorMediaCacheFailure.INVALID_ADDRESS, assertFailsWith<MonitorMediaCacheException> { directory.beginWrite(address) }.failure)
             }
         } finally { parent.deleteRecursively() }
+    }
+}
+
+private enum class CacheWriterRetirement { RETIRE, REPLACE, ABORT, CLEAR }
+// This is a real FileOutputStream write, paused only at its internal operation seam.
+// The independent deadline releases RED/teardown. Success depends on ordering, not time.
+private class ControlledCacheWrite {
+    private val state = Any()
+    private val entered = CountDownLatch(1)
+    private val release = CountDownLatch(1)
+    private val admitted = CountDownLatch(1)
+    private var released = false
+    private var deadlineHit = false
+    init {
+        Thread({
+            val finished = admitted.await(5, TimeUnit.SECONDS)
+            synchronized(state) {
+                deadlineHit = !finished
+                released = true
+                release.countDown()
+            }
+        }, "opencine-cache-test-controller").apply { isDaemon = true }.start()
+    }
+    fun write(stream: FileOutputStream, bytes: ByteArray) {
+        entered.countDown()
+        release.await()
+        stream.write(bytes)
+    }
+    fun waitUntilEntered(): Boolean = entered.await(5, TimeUnit.SECONDS)
+    fun admissionFinishedBeforeRelease(): Boolean = synchronized(state) {
+        val ordered = entered.count == 0L && !released
+        admitted.countDown()
+        ordered
+    }
+    val hitFailureDeadline: Boolean get() = synchronized(state) { deadlineHit }
+    fun release() = synchronized(state) {
+        released = true; release.countDown(); admitted.countDown()
     }
 }

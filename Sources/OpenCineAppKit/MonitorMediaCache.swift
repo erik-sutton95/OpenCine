@@ -222,13 +222,15 @@ public struct MonitorMediaCacheEntry: Sendable {
     public func read(_ address: String) throws -> Data { try Data(contentsOf: url(address)) }
     public func write(_ data: Data, at address: String) throws {
         let destination = try url(address)
+        var retired: MediaCacheWrites.Resource?
+        defer { retired?.requestClose() }
         try writes.withLock {
             try manager.createDirectory(
                 at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             if let previous = writes.current.removeValue(forKey: destination.path),
                 let resource = writes.resources.removeValue(forKey: previous)
             {
-                try? resource.handle.close()
+                retired = resource
                 try? manager.removeItem(at: resource.temporary)
             }
             try data.write(to: destination, options: .atomic)
@@ -248,7 +250,15 @@ public struct MonitorMediaCacheEntry: Sendable {
             .uint64Value ?? 0
     }
     public func beginWrite(at address: String) throws -> MonitorMediaCacheWrite {
+        try beginWrite(at: address, writeOperation: { try $0.write(contentsOf: $1) })
+    }
+    // Internal real-I/O seam. Public callers retain the original FileHandle operation.
+    func beginWrite(at address: String,
+        writeOperation: @escaping @Sendable (FileHandle, Data) throws -> Void
+    ) throws -> MonitorMediaCacheWrite {
         let destination = try url(address)
+        var retired: MediaCacheWrites.Resource?
+        defer { retired?.requestClose() }
         return try writes.withLock {
             try manager.createDirectory(
                 at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -262,28 +272,30 @@ public struct MonitorMediaCacheEntry: Sendable {
             if let previous = writes.current[destination.path],
                 let resource = writes.resources.removeValue(forKey: previous)
             {
-                try? resource.handle.close()
+                retired = resource
                 try? manager.removeItem(at: resource.temporary)
             }
+            let resource = MediaCacheWrites.Resource(handle: handle, temporary: temporary)
             writes.current[destination.path] = id
-            writes.resources[id] = .init(handle: handle, temporary: temporary)
+            writes.resources[id] = resource
             return MonitorMediaCacheWrite(
                 id: id, generation: writes.generation, destination: destination,
-                temporary: temporary, handle: handle, writes: writes, manager: manager)
+                resource: resource, writes: writes, manager: manager,
+                writeOperation: writeOperation)
         }
     }
 
     /// Fence old writers and catalog captures while retaining resumable transfer files.
     public func retireWrites() {
-        writes.withLock {
+        let retired = writes.withLock {
             writes.generation &+= 1
             writes.current.removeAll()
-            for resource in writes.resources.values {
-                try? resource.handle.close()
-                try? manager.removeItem(at: resource.temporary)
-            }
+            let resources = Array(writes.resources.values)
+            for resource in resources { try? manager.removeItem(at: resource.temporary) }
             writes.resources.removeAll()
+            return resources
         }
+        for resource in retired { resource.requestClose() }
     }
 
     /// Invalidate writers and retire the directory before yielding. Deletion sees captured retired
@@ -291,11 +303,17 @@ public struct MonitorMediaCacheEntry: Sendable {
     public func clear(preserving names: [String]) async throws {
         let root = root
         let manager = manager
+        var retired: [MediaCacheWrites.Resource] = []
+        defer { for resource in retired { resource.requestClose() } }
         let pending: [URL] = try writes.withLock {
             writes.generation &+= 1
             writes.current.removeAll()
-            for resource in writes.resources.values { try? resource.handle.close() }
+            retired = Array(writes.resources.values)
             writes.resources.removeAll()
+            // A preserved parent must not carry an active old handle into the new root.
+            for resource in retired where manager.fileExists(atPath: resource.temporary.path) {
+                try manager.removeItem(at: resource.temporary)
+            }
             if manager.fileExists(atPath: root.path) {
                 let suffix = root.lastPathComponent + "-" + UUID().uuidString
                 let retired = root.deletingLastPathComponent().appendingPathComponent(
@@ -413,9 +431,49 @@ public struct MonitorMediaCacheEntry: Sendable {
 private struct MediaCacheFileAccess: @unchecked Sendable { let manager: FileManager }
 
 private final class MediaCacheWrites: @unchecked Sendable {
-    struct Resource {
+    final class Resource: @unchecked Sendable {
         let handle: FileHandle
         let temporary: URL
+        private let io = NSLock()
+        private let closing = NSLock()
+        private var closeRequested = false
+        // Accessed only while io is owned, including the deferred close.
+        private var closed = false
+        init(handle: FileHandle, temporary: URL) {
+            self.handle = handle; self.temporary = temporary
+        }
+        func withIO<T>(_ body: () throws -> T) rethrows -> T {
+            io.lock()
+            defer {
+                closing.lock()
+                if closeRequested {
+                    closing.unlock()
+                    try? close()
+                    io.unlock()
+                } else {
+                    // Release under closing so a later request cannot miss both owners.
+                    io.unlock()
+                    closing.unlock()
+                }
+            }
+            return try body()
+        }
+        func close() throws {
+            guard !closed else { return }
+            try handle.close()
+            closed = true
+        }
+        func requestClose() {
+            closing.lock(); closeRequested = true; closing.unlock()
+            Task.detached(priority: .utility) { self.closeIfIdle() }
+        }
+        private func closeIfIdle() {
+            // A busy owner observes closeRequested when it releases I/O. Never wait
+            // on a cooperative worker or close concurrently with FileHandle.write.
+            guard io.try() else { return }
+            defer { io.unlock() }
+            try? close()
+        }
     }
     private let lock = NSLock()
     var generation: UInt64 = 0
@@ -432,21 +490,24 @@ private final class MediaCacheWrites: @unchecked Sendable {
 /// abort removes only this lease's unique staging path, never a successor destination.
 public final class MonitorMediaCacheWrite: MediaByteSink, @unchecked Sendable {
     private let id: UUID, generation: UInt64
-    private let destination: URL, temporary: URL
-    private let handle: FileHandle, writes: MediaCacheWrites, manager: FileManager
+    private let destination: URL
+    private let resource: MediaCacheWrites.Resource
+    private let writes: MediaCacheWrites, manager: FileManager
+    private let writeOperation: @Sendable (FileHandle, Data) throws -> Void
     private var bytes: UInt64 = 0
     private var finished = false
     fileprivate init(
-        id: UUID, generation: UInt64, destination: URL, temporary: URL,
-        handle: FileHandle, writes: MediaCacheWrites, manager: FileManager
+        id: UUID, generation: UInt64, destination: URL, resource: MediaCacheWrites.Resource,
+        writes: MediaCacheWrites, manager: FileManager,
+        writeOperation: @escaping @Sendable (FileHandle, Data) throws -> Void
     ) {
         self.id = id
         self.generation = generation
         self.destination = destination
-        self.temporary = temporary
-        self.handle = handle
+        self.resource = resource
         self.writes = writes
         self.manager = manager
+        self.writeOperation = writeOperation
     }
     private func check() throws {
         guard !finished, writes.generation == generation, writes.current[destination.path] == id
@@ -456,38 +517,46 @@ public final class MonitorMediaCacheWrite: MediaByteSink, @unchecked Sendable {
     }
     public func write(_ chunk: Data) async throws {
         try Task.checkCancellation()
-        try writes.withLock {
-            try check()
-            try handle.write(contentsOf: chunk)
+        try resource.withIO {
+            try writes.withLock { try check() }
+            try writeOperation(resource.handle, chunk)
+            try writes.withLock { try check() }
             bytes += UInt64(chunk.count)
         }
     }
     public func commit(_ receipt: MediaTransferReceipt) throws -> URL {
         try Task.checkCancellation()
-        return try writes.withLock {
-            try check()
+        return try resource.withIO {
+            try writes.withLock { try check() }
             guard bytes > 0 else { throw MonitorMediaCacheError.empty }
             guard bytes == receipt.byteCount else { throw MonitorMediaCacheError.invalidReceipt }
-            try handle.close()
-            if manager.fileExists(atPath: destination.path) {
-                try manager.removeItem(at: destination)
+            try resource.close()
+            return try writes.withLock {
+                // Close may have blocked while retirement invalidated this lease.
+                try check()
+                if manager.fileExists(atPath: destination.path) {
+                    try manager.removeItem(at: destination)
+                }
+                try manager.moveItem(at: resource.temporary, to: destination)
+                finished = true
+                writes.current[destination.path] = nil
+                writes.resources[id] = nil
+                return destination
             }
-            try manager.moveItem(at: temporary, to: destination)
-            finished = true
-            writes.current[destination.path] = nil
-            writes.resources[id] = nil
-            return destination
         }
     }
     public func abort() {
-        writes.withLock {
-            if finished { return }
+        let retired: MediaCacheWrites.Resource? = writes.withLock {
+            if finished { return nil }
             finished = true
-            try? handle.close()
-            try? manager.removeItem(at: temporary)
-            writes.resources[id] = nil
+            let owned = writes.resources.removeValue(forKey: id)
+            // Clear/supersession already removed this registration. Never use its old
+            // URL after the live root may have been replaced by a successor.
+            if let owned { try? manager.removeItem(at: owned.temporary) }
             if writes.current[destination.path] == id { writes.current[destination.path] = nil }
+            return owned
         }
+        retired?.requestClose()
     }
     deinit { abort() }
 }

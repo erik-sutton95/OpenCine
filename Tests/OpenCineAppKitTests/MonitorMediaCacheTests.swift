@@ -1,9 +1,49 @@
 import Foundation
-import OpenCineAppKit
+@testable import OpenCineAppKit
 import OpenCineMedia
 import Testing
 
 @MainActor @Suite struct MonitorMediaCacheTests {
+    @Test(arguments: CacheWriterRetirement.allCases)
+    func heldRealWriteDoesNotBlockAdmissionOrSuccessor(_ retirement: CacheWriterRetirement) async throws {
+        let (parent, directory) = directory()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let metadata = Data("{\"unknown\":19}".utf8)
+        try directory.write(metadata, at: "index.json")
+        try directory.write(Data([42]), at: "camera-object.part")
+        let generation = directory.generation
+        let control = ControlledCacheWrite()
+        let old = try directory.beginWrite(at: "files/take.mov", writeOperation: { handle, bytes in
+            try control.write(handle, bytes)
+        })
+        defer { control.release(); old.abort() }
+        let operation = Task.detached { try await old.write(Data([1, 2])) }
+        #expect(await control.waitUntilEntered())
+        // RED blocks here until the independent controller releases old I/O. GREEN must
+        // finish admission AND publish the exact successor while old I/O is still held.
+        #expect(directory.generation == generation)
+        switch retirement {
+        case .retire: directory.retireWrites()
+        case .replace: break
+        case .abort: old.abort()
+        case .clear: try await directory.clear(preserving: ["index.json", "camera-object.part", "files"])
+        }
+        if retirement == .retire || retirement == .clear { #expect(directory.generation != generation) }
+        let successor = try directory.beginWrite(at: "files/take.mov")
+        defer { successor.abort() }
+        try await successor.write(Data([7, 8, 9]))
+        let committed = try successor.commit(.init(byteCount: 3))
+        #expect(control.admissionFinishedBeforeRelease())
+        await #expect(throws: MonitorMediaCacheError.retired) { try await operation.value }
+        #expect(throws: MonitorMediaCacheError.retired) { try old.commit(.init(byteCount: 2)) }
+        old.abort()
+        #expect(try Data(contentsOf: committed) == Data([7, 8, 9]))
+        #expect(try directory.read("index.json") == metadata)
+        #expect(try directory.read("camera-object.part") == Data([42]))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.root.appendingPathComponent("files").path) == ["take.mov"])
+        #expect(!control.hitFailureDeadline)
+    }
+
     @Test func retiringWritesPreservesResumableFilesAndFencesOldFinally() async throws {
         let (parent, directory) = directory()
         defer { try? FileManager.default.removeItem(at: parent) }
@@ -124,5 +164,70 @@ import Testing
         for address in ["../other", "/other", "files/../other", "files\\other", ""] {
             #expect(throws: MonitorMediaCacheError.invalidAddress) { try directory.beginWrite(at: address) }
         }
+    }
+}
+
+// The real writer is paused just before its real FileHandle operation. No sleep or
+// timing-based success assertion: admission is recorded before any release. The only
+// deadline lets the unchanged implementation report RED instead of deadlocking MainActor.
+enum CacheWriterRetirement: CaseIterable, Sendable { case retire, replace, abort, clear }
+private final class ControlledCacheWrite: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var entered = false
+    private var released = false
+    private var admissionFinished = false
+    private var deadlineHit = false
+    private var waiters: [CheckedContinuation<Bool, Never>] = []
+    init() {
+        Thread.detachNewThread { [self] in
+            let deadline = Date().addingTimeInterval(5)
+            condition.lock()
+            while !admissionFinished && !released {
+                if !condition.wait(until: deadline) {
+                    deadlineHit = true
+                    break
+                }
+            }
+            released = true
+            let pending = waiters; waiters.removeAll()
+            let didEnter = entered
+            condition.broadcast(); condition.unlock()
+            for waiter in pending { waiter.resume(returning: didEnter) }
+        }
+    }
+    func write(_ handle: FileHandle, _ bytes: Data) throws {
+        condition.lock(); entered = true
+        let pending = waiters; waiters.removeAll(); condition.unlock()
+        for waiter in pending { waiter.resume(returning: true) }
+        condition.lock()
+        while !released { condition.wait() }
+        condition.unlock()
+        try handle.write(contentsOf: bytes)
+    }
+    func waitUntilEntered() async -> Bool {
+        await withCheckedContinuation { waiter in
+            condition.lock()
+            if entered || released {
+                let didEnter = entered
+                condition.unlock(); waiter.resume(returning: didEnter)
+            } else { waiters.append(waiter); condition.unlock() }
+        }
+    }
+    func admissionFinishedBeforeRelease() -> Bool {
+        condition.lock()
+        let ordered = entered && !released
+        admissionFinished = true
+        condition.broadcast(); condition.unlock()
+        return ordered
+    }
+    var hitFailureDeadline: Bool {
+        condition.lock(); defer { condition.unlock() }; return deadlineHit
+    }
+    func release() {
+        condition.lock(); released = true
+        let pending = waiters; waiters.removeAll()
+        let didEnter = entered
+        condition.broadcast(); condition.unlock()
+        for waiter in pending { waiter.resume(returning: didEnter) }
     }
 }
