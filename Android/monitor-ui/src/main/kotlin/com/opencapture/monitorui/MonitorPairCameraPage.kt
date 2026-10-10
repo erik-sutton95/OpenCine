@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -137,7 +138,7 @@ fun MonitorPairCameraPage(
     onTerms: (() -> Unit)?,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
-    BoxWithConstraints(modifier.fillMaxSize().background(MonitorPalette.background)) {
+    BoxWithConstraints(modifier.fillMaxSize().background(MonitorPalette.background).navigationBarsPadding()) {
         val portrait = maxHeight > maxWidth
         val tablet = minOf(maxWidth, maxHeight) >= 600.dp
         val railWidth = if (tablet) 268.dp else 210.dp

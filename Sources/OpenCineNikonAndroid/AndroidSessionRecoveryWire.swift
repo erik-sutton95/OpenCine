@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCameraVocabulary
 import OpenCineNikon
 
 /// Serializes the Android monitor's reconnect decisions through the shared

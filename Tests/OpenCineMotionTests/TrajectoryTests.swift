@@ -52,6 +52,86 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
             == GimbalWaypoint(yawDeg: 225, pitchDeg: -44, zoom: 2, nativePitchDeg: 12))
         #expect(GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 0.2).zoom == 1)
     }
+
+    // The waypoint overlay at the 84 degree field of view these numbers were taken with.
+    @Test func overlayIsRectilinearOnTheSphere() {
+        let live = GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1)
+        let point = GimbalWaypoint(yawDeg: 30, pitchDeg: 0, zoom: 1)
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b, live: live, aspect: 16 / 9)
+        let expected = 0.5 + tan(30 * .pi / 180) / (2 * tan(42 * .pi / 180))
+        #expect(abs(mark.nx - expected) < 1e-9)
+        #expect(mark.onScreen)
+    }
+
+    @Test func overlayFollowsLiveYawOnTheSphere() {
+        let point = GimbalWaypoint(yawDeg: 20, pitchDeg: 0, zoom: 1)
+        let atOrigin = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b,
+            live: GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        let afterPan = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b,
+            live: GimbalWaypoint(yawDeg: 20, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        #expect(atOrigin.nx > 0.5)
+        #expect(abs(afterPan.nx - 0.5) < 1e-9)
+    }
+
+    @Test func overlayKeepsDistinctCapturedAnglesBeyondTheFormerPanClamp() {
+        let point = GimbalWaypoint(yawDeg: GimbalWaypoint.unwrapYaw(68.9, in: reach), pitchDeg: -13.7, zoom: 1)
+        let live = GimbalWaypoint(yawDeg: GimbalWaypoint.unwrapYaw(78.2, in: reach), pitchDeg: -13.7, zoom: 1)
+        let mark = GimbalWaypointOverlay.project(waypoint: point, slot: .b, live: live, aspect: 16 / 9)
+        #expect(mark.nx < 0.5)
+        #expect(mark.onScreen)
+        let back = GimbalWaypointOverlay.project(waypoint: point, slot: .b, live: point, aspect: 16 / 9)
+        #expect(abs(back.nx - 0.5) < 1e-9)
+        #expect(abs(back.ny - 0.5) < 1e-9)
+    }
+
+    @Test func overlayZoomScalesTheTangent() {
+        let live = GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 2)
+        let point = GimbalWaypoint(yawDeg: 10, pitchDeg: 0, zoom: 1)
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: point, slot: .b, live: live, aspect: 16 / 9)
+        let expected = 0.5 + tan(10 * .pi / 180) / (2 * tan(42 * .pi / 180) / 2)
+        #expect(abs(mark.nx - expected) < 1e-9)
+    }
+
+    @Test func overlayDrawsLookUpAboveCenter() {
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: GimbalWaypoint(yawDeg: 0, pitchDeg: 10, zoom: 1),
+            slot: .b, live: GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        #expect(mark.ny < 0.5)
+    }
+
+    @Test func overlayBehindTheCameraIsOffScreen() {
+        let mark = GimbalWaypointOverlay.project(
+            waypoint: GimbalWaypoint(yawDeg: -170, pitchDeg: 0, zoom: 1),
+            slot: .b, live: GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1), aspect: 16 / 9)
+        #expect(!mark.onScreen)
+        #expect(abs(mark.nx) < 1e-9)
+    }
+
+    // Moved from the Insta app's LunaShellMappingTests.testProgrammedMovePathInterpolatesLegsAndCurve.
+    @Test func posePathInterpolatesLegsAndCurve() throws {
+        let a = GimbalWaypoint(yawDeg: 0, pitchDeg: 0, zoom: 1)
+        let b = GimbalWaypoint(yawDeg: 40, pitchDeg: 10, zoom: 1)
+        let c = GimbalWaypoint(yawDeg: 40, pitchDeg: 30, zoom: 1)
+        var take = GimbalProgram(a: a, b: b, durationAB: 4, durationBC: 2)
+        #expect(take.duration == 4)
+        #expect(abs((take.pose(at: 1)?.yawDeg ?? .nan) - 10) < 1e-9)
+        #expect(take.pose(at: 9) == b)
+        take.c = c
+        take.smoothness = 0
+        #expect(take.duration == 6)
+        #expect(abs((take.pose(at: 5)?.pitchDeg ?? .nan) - 20) < 1e-9)
+        #expect(take.pose(at: 6) == c)
+        // Smoothness rounds the B corner: the path no longer passes through B.
+        take.smoothness = 1
+        let corner = try #require(take.pose(at: 4))
+        #expect(GimbalPath.angularDistance(corner, b) > 1)
+        #expect(take.pose(at: 6) == c)
+        #expect(GimbalProgram(a: a).pose(at: 1) == nil)
+    }
 }
 
 @Suite struct GimbalProgramCurveTests {
@@ -88,6 +168,62 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         }
     }
 
+    // The engine streams the smoothed curve as 0.1 s targets and stops a stalled scheduler.
+    @Test func curveStreamsThroughBAndSchedulesFinalTargetBeforeDeadline() {
+        var engine = GimbalMoveEngine()
+        let started = engine.start(program: program(1), live: a)
+        #expect(started)
+        var live = a
+        var start = a
+        var target = a
+        var motionAt = 0.0
+        var sends: [(Double, GimbalWaypoint)] = []
+        for step in 1...800 {
+            let now = Double(step) * 0.01
+            live = GimbalMoveEngine.lerp(start, target, u: (now - motionAt) / 0.1)
+            guard let out = engine.tick(dt: 0.01, live: live) else { break }
+            if let next = out.target {
+                #expect(out.duration == 0.1)
+                sends.append((now, next))
+                start = live
+                target = next
+                motionAt = now
+            }
+            if out.finished { break }
+        }
+        #expect(engine.failure == nil)
+        #expect(engine.readout(live: live)?.phase == "DONE")
+        #expect(sends.count == 99)
+        if let first = sends.first, let last = sends.last {
+            #expect(abs(last.0 - first.0 - 4.9) < 1e-8)
+            #expect(last.1 == c)
+            for pair in zip(sends, sends.dropFirst()) {
+                #expect(abs(pair.1.0 - pair.0.0 - 0.05) < 1e-8)
+            }
+        }
+        #expect(!sends.contains { $0.1 == b })
+    }
+
+    @Test func schedulerCannotSkipTheFinalCCommand() {
+        var engine = GimbalMoveEngine()
+        let started = engine.start(program: program(1), live: a)
+        #expect(started)
+        for _ in 0..<689 { _ = engine.tick(dt: 0.01, live: a) }
+        let skipped = engine.tick(dt: 0.11, live: c)
+        #expect(skipped?.stop == true)
+        #expect(engine.failure == "Move interrupted \u{2014} waypoint dispatch was late")
+    }
+
+    @Test func curveCannotContinueAfterAStalledScheduler() {
+        var engine = GimbalMoveEngine()
+        let started = engine.start(program: program(1), live: a)
+        #expect(started)
+        for _ in 0..<200 { _ = engine.tick(dt: 0.01, live: a) }
+        let late = engine.tick(dt: 0.09, live: a)
+        #expect(late?.stop == true)
+        #expect(late?.target == nil)
+    }
+
     @Test func remainingKeepsTheEndAndStartsAtTheMeasuredPose() {
         let curve = GimbalProgramCurve(program: program(1))!
         let pose = GimbalWaypoint(yawDeg: 10, pitchDeg: 1, zoom: 1, nativePitchDeg: 174)
@@ -111,6 +247,12 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
             abs(HeadTrack.bodyLookRightDeg(liveYawDeg: -170, originYawDeg: 170) - 20) < 0.001,
             "gimbal pan wraps the same as head yaw")
         #expect(HeadTrack.bodyLookUpDeg(livePitchDeg: 25, originPitchDeg: 5) == 20)
+        #expect(
+            HeadTrack.yawDialDeg(
+                lookRightDeg: HeadTrack.bodyLookRightDeg(liveYawDeg: 90, originYawDeg: 0)) == 90)
+        #expect(
+            HeadTrack.pitchDialDeg(
+                lookUpDeg: HeadTrack.bodyLookUpDeg(livePitchDeg: 30, originPitchDeg: 0)) == 60)
     }
 
     @Test func projectClampsToControllableBox() {
@@ -136,8 +278,24 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         let look = HeadTrack.Quat.look(from: nod, origin: origin)
         #expect(abs(look.right) < 0.01, "a pure nod must not invent look-right")
         #expect(abs(look.up - 25) < 0.01)
+        let pan = HeadTrack.Quat.axisAngle(x: 0, y: 0, z: -1, deg: 25)
+        let side = HeadTrack.Quat.look(from: pan, origin: origin)
+        #expect(abs(side.up) < 0.01)
+        #expect(abs(side.right - 25) < 0.01)
         let pan90 = HeadTrack.Quat.axisAngle(x: 0, y: 0, z: -1, deg: 90)
-        #expect(abs(HeadTrack.Quat.look(from: pan90, origin: origin).right - 90) < 0.01)
+        #expect(
+            abs(HeadTrack.Quat.look(from: pan90, origin: origin).right - 90) < 0.01,
+            "a 90° head turn is 90° on the sphere")
+        let still = HeadTrack.Quat.look(from: origin, origin: origin)
+        #expect(abs(still.right) < 0.001 && abs(still.up) < 0.001)
+        let roll = HeadTrack.Quat.axisAngle(x: 0, y: 1, z: 0, deg: 40)
+        let rolled = HeadTrack.Quat.look(from: roll, origin: origin)
+        #expect(abs(rolled.right) < 1, "yaw is not roll")
+        #expect(abs(rolled.up) < 1)
+        let nodDown = HeadTrack.Quat.axisAngle(x: -1, y: 0, z: 0, deg: 25)
+        let down = HeadTrack.Quat.look(from: nodDown, origin: origin)
+        #expect(abs(down.right) < 0.01, "a nod down must not invent look-right")
+        #expect(abs(down.up + 25) < 0.01, "nod down is negative look-up")
         let yawed = HeadTrack.Quat.axisAngle(x: 0, y: 0, z: -1, deg: 30)
         let nodAfter = yawed.multiply(HeadTrack.Quat.axisAngle(x: 1, y: 0, z: 0, deg: 40))
         let kept = HeadTrack.look(current: nodAfter, origin: origin)
@@ -150,6 +308,27 @@ let reach = MotionBounds(pan: -48...225, tilt: -44...70)
         #expect(HeadTrack.wrapDeg(-190) == 170)
         #expect(abs(HeadTrack.wrapDeg(180)) == 180)
         #expect(HeadTrack.wrapDeg(20) == 20)
+    }
+
+    // Moved from the Insta app's LunaShellMappingTests.testHeadTrackReferenceFitsRateAndAcceleration
+    // (the app's fit window, 0.3 s).
+    @Test func referenceFitsRateAndAcceleration() {
+        #expect(HeadTrack.reference([], at: 1, fitWindow: 0.3) == nil)
+        // yaw = 5 + 30 t + 20 t² (rate 30 + 40 t, accel 40), still pitch, every 40 ms.
+        let samples = (0..<7).map { i -> HeadTrack.Sample in
+            let t = Double(i) * 0.04
+            return HeadTrack.Sample(t: 10 + t, yaw: 5 + 30 * t + 20 * t * t, pitch: 3)
+        }
+        let head = HeadTrack.reference(samples, at: 10.24 + 0.05, fitWindow: 0.3)
+        #expect(abs((head?.yawRate ?? 0) - (30 + 40 * 0.24)) < 1e-6)
+        #expect(abs((head?.yawAccel ?? 0) - 40) < 1e-6)
+        let expectedYaw: Double = 5 + 30 * 0.29 + 20 * 0.29 * 0.29
+        #expect(abs((head?.yaw ?? 0) - expectedYaw) < 1e-6)
+        #expect(abs(head?.pitchRate ?? 1) < 1e-9)
+        // Two samples: a straight line. A stale head holds, with no rate to feed forward.
+        let line = [HeadTrack.Sample(t: 1, yaw: 0, pitch: 0), HeadTrack.Sample(t: 1.04, yaw: 2, pitch: 0)]
+        #expect(abs((HeadTrack.reference(line, at: 1.14, fitWindow: 0.3)?.yaw ?? 0) - (2 + 50 * 0.1)) < 1e-6)
+        #expect(HeadTrack.reference(line, at: 9, fitWindow: 0.3) == HeadTrack.Reference(yaw: 2, pitch: 0))
     }
 }
 

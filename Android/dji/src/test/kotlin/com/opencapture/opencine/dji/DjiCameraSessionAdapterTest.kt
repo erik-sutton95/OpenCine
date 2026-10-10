@@ -22,10 +22,17 @@ import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.WhiteBalanceValue
+import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.MotionAxis
-import com.opencapture.opencine.motion.GimbalWaypoint as MotionWaypoint
 
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.EvComp
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -99,6 +106,22 @@ class DjiCameraSessionAdapterTest {
         assertEquals(CommandStage.Confirmed, seam.receipt(receipt.operation)?.stage)
     }
 
+    /** A control model that binds after the session changed starts from it, as on iOS. */
+    @Test
+    fun lateFollowerStartsFromTheSessionAsItIsNow() = runTest {
+        val port = FakePort()
+        val seam = adapter(port)
+        port.state = port.state.copy(isoIndex = 0x06)
+        seam.sessionDidChange() // nobody follows yet: nothing is rebuilt
+        val seen = mutableListOf<CameraSnapshot>()
+        val follower = launch(start = CoroutineStart.UNDISPATCHED) { seam.snapshots.collect { seen += it } }
+        val first = seen.first()
+        assertEquals(ConnectionState.Ready, first.connection)
+        assertNotNull(first.capabilities[SettingKey.ISO], "The first snapshot describes the camera")
+        assertEquals(seam.current.value(SettingKey.ISO), first.value(SettingKey.ISO))
+        follower.cancel()
+    }
+
     @Test
     fun actualZoomReportCanConfirmBeforeAnAck() = runTest {
         val port = capturePort()
@@ -141,7 +164,7 @@ class DjiCameraSessionAdapterTest {
     fun captureUnknownsStayNilAndMechanicalIrisIsReadOnly() = runTest {
         val port = capturePort()
         val model = CameraModel(name = "Osmo Action 6", family = "other",
-            supportsFocusMode = false, supportsZoom = false, hasGimbal = false)
+            supportsFocusMode = false, supportsZoom = false, hasGimbal = false, supportsAperture = true)
         port.state = port.state.copy(model = model)
         port.capture = DjiCaptureControlState(CameraStatus(), model)
         val seam = adapter(port)
@@ -158,7 +181,7 @@ class DjiCameraSessionAdapterTest {
 
     private fun capturePort(): FakePort {
         val port = FakePort()
-        val model = CameraModel(name = "Osmo Pocket 3")
+        val model = djiBodyProfile("Osmo Pocket 3")
         port.state = port.state.copy(model = model)
         port.capture = DjiCaptureControlState(CameraStatus(
             expoMode = CameraCommands.EXPO_MANUAL, shutterDenom = 50,
@@ -387,8 +410,8 @@ class DjiCameraSessionAdapterTest {
     fun pocketGimbalReportsPoseInsideItsReach() {
         assertEquals(SupportStatus.SUPPORTED, pocketGimbal.pose)
         assertEquals(setOf(MotionAxis.PAN, MotionAxis.TILT, MotionAxis.ZOOM), pocketGimbal.axes)
-        assertNull(pocketGimbal.target(MotionWaypoint(226.0, 0.0, 1.0)))
-        assertNotNull(pocketGimbal.target(MotionWaypoint(225.0, 70.0, 1.0)))
+        assertNull(pocketGimbal.target(GimbalWaypoint(226.0, 0.0, 1.0)))
+        assertNotNull(pocketGimbal.target(GimbalWaypoint(225.0, 70.0, 1.0)))
     }
 
     @Test

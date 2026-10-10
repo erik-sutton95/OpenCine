@@ -139,37 +139,19 @@ public struct WatcherRelayControlToken: Codable, Equatable, Sendable {
 
 public enum WatcherRelayFrameBlob: Sendable {
     public static func encode(metadata: WatcherRelayFrameMetadata, hevc: Data) throws -> Data {
-        let meta = try JSONEncoder().encode(metadata)
-        let n = UInt32(meta.count)
-        var out = Data(capacity: 4 + meta.count + hevc.count)
-        out.append(contentsOf: [
-            UInt8(truncatingIfNeeded: n >> 24),
-            UInt8(truncatingIfNeeded: n >> 16),
-            UInt8(truncatingIfNeeded: n >> 8),
-            UInt8(truncatingIfNeeded: n),
-        ])
-        out.append(meta)
-        out.append(hevc)
-        return out
+        try RelayFrameBlob.encode(metadata: metadata, image: hevc)
     }
 
     public static func decode(_ payload: Data) throws -> (WatcherRelayFrameMetadata, Data) {
-        guard payload.count >= 4 else {
-            throw WatcherRelayFraming.DecodeError.payloadTooLarge(declared: payload.count)
+        do {
+            let decoded = try RelayFrameBlob.decode(WatcherRelayFrameMetadata.self, from: payload)
+            return (decoded.metadata, decoded.image)
+        } catch let error as RelayFrameBlob.DecodeError {
+            switch error {
+            case .truncated(let declared):
+                throw WatcherRelayFraming.DecodeError.payloadTooLarge(declared: declared)
+            }
         }
-        let n =
-            Int(payload[payload.startIndex]) << 24
-            | Int(payload[payload.startIndex + 1]) << 16
-            | Int(payload[payload.startIndex + 2]) << 8
-            | Int(payload[payload.startIndex + 3])
-        guard n >= 0, 4 + n <= payload.count else {
-            throw WatcherRelayFraming.DecodeError.payloadTooLarge(declared: n)
-        }
-        let meta = try JSONDecoder().decode(
-            WatcherRelayFrameMetadata.self,
-            from: payload.subdata(in: (payload.startIndex + 4)..<(payload.startIndex + 4 + n)))
-        let hevc = payload.subdata(in: (payload.startIndex + 4 + n)..<payload.endIndex)
-        return (meta, hevc)
     }
 }
 
@@ -180,14 +162,18 @@ public enum WatcherRelayJoin: Sendable {
     public static func hostAccepts(
         hello: WatcherRelayHello, requiredPasscode: String, versionMismatchReason: String
     ) -> Result<Void, WatcherRelayJoinDenied> {
-        guard hello.version == WatcherRelayProtocol.version else {
-            return .failure(
-                WatcherRelayJoinDenied(reason: versionMismatchReason, passcodeRequired: false))
-        }
         let need = requiredPasscode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !need.isEmpty else { return .success(()) }
-        if hello.passcode == need { return .success(()) }
-        return .failure(
-            WatcherRelayJoinDenied(reason: "Wrong passcode.", passcodeRequired: true))
+        if let refusal = RelayJoinPolicy.refusal(
+            hello: RelayPeerHello(
+                version: hello.version, hostName: hello.hostName,
+                cameraName: hello.cameraName, passcode: hello.passcode, watcherID: hello.watcherID),
+            profile: .sharedMonitor, requiredPasscode: need,
+            versionMismatchReason: versionMismatchReason, passcodeReason: "Wrong passcode.")
+        {
+            return .failure(
+                WatcherRelayJoinDenied(
+                    reason: refusal.reason, passcodeRequired: refusal.passcodeRequired))
+        }
+        return .success(())
     }
 }

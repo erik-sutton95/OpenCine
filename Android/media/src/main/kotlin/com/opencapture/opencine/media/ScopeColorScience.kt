@@ -18,6 +18,10 @@ enum class MonitorTransfer {
     DLOG2,
     DLOGM,
     ILOG,
+    /** Display-referred stills curve (IEC 61966-2-1). */
+    SRGB,
+    NLOG,
+    LOG3G10,
     ;
 
     val peakLinear: Double
@@ -29,6 +33,9 @@ enum class MonitorTransfer {
                 DLOG2 -> DLog2.PEAK_LINEAR
                 DLOGM -> DLogM.decode(1.0)
                 ILOG -> ILog.PEAK_LINEAR
+                SRGB -> 1.0
+                NLOG -> NLog.PEAK_LINEAR
+                LOG3G10 -> Log3G10.PEAK_LINEAR
             }
 
     val middleGrayEncoded: Double
@@ -180,11 +187,29 @@ object WaveformIre {
         transfer: MonitorTransfer,
         iso: Int? = null,
         ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
-    ): IntArray {
+    ): IntArray = ScopeLevelAxis.of(transfer, iso, ceiling).remapHistogram(bins)
+
+    fun levelTable(transfer: MonitorTransfer, iso: Int? = null, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): FloatArray {
+        return FloatArray(256) { ire(it / 255.0, transfer, iso, ceiling).toFloat() }
+    }
+
+    fun middleGrayIRE(transfer: MonitorTransfer): Double = transfer.middleGrayPaperIRE
+}
+
+/**
+ * Where each tap code lands on the 0..100 WAVE axis, and where the mid-grey guide sits. A shared
+ * transfer builds it from its anchors; a source that owns a measured placement supplies the table
+ * and grey line itself. iOS `ScopeLevelAxis`.
+ */
+class ScopeLevelAxis(val table: FloatArray, val middleGrayIre: Double) {
+    init {
+        require(table.size == 256) { "ScopeLevelAxis needs one IRE per tap code" }
+    }
+
+    /** Native-code histogram counts onto this axis. Conserves total count. */
+    fun remapHistogram(bins: IntArray): IntArray {
         val out = IntArray(256)
-        val table = levelTable(transfer, iso, ceiling)
-        val limit = minOf(bins.size, 256)
-        for (code in 0 until limit) {
+        for (code in 0 until minOf(bins.size, 256)) {
             val count = bins[code]
             if (count == 0) continue
             val bucket = round(table[code] / 100.0 * 255).toInt().coerceIn(0, 255)
@@ -193,11 +218,19 @@ object WaveformIre {
         return out
     }
 
-    fun levelTable(transfer: MonitorTransfer, iso: Int? = null, ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED): FloatArray {
-        return FloatArray(256) { ire(it / 255.0, transfer, iso, ceiling).toFloat() }
-    }
+    override fun equals(other: Any?): Boolean =
+        other is ScopeLevelAxis && middleGrayIre == other.middleGrayIre && table.contentEquals(other.table)
 
-    fun middleGrayIRE(transfer: MonitorTransfer): Double = transfer.middleGrayPaperIRE
+    override fun hashCode(): Int = 31 * table.contentHashCode() + middleGrayIre.hashCode()
+
+    companion object {
+        fun of(
+            transfer: MonitorTransfer,
+            iso: Int? = null,
+            ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
+        ): ScopeLevelAxis =
+            ScopeLevelAxis(WaveformIre.levelTable(transfer, iso, ceiling), WaveformIre.middleGrayIRE(transfer))
+    }
 }
 
 data class ScopeChannelLight(
@@ -330,6 +363,7 @@ object ScopeTrafficLights {
 }
 
 object LiveColorScience {
+    const val SCENE_STOP_DEFAULT_CLIP = 10.5
     fun linearize(encoded: Double, transfer: MonitorTransfer): Double {
         val linear = decode(clamp01(encoded), transfer)
         if (!linear.isFinite()) return 0.0
@@ -355,8 +389,12 @@ object LiveColorScience {
 
     fun lumaWeights(transfer: MonitorTransfer): Triple<Double, Double, Double> =
         when (transfer) {
-            MonitorTransfer.REC709, MonitorTransfer.DLOG, MonitorTransfer.DLOGM -> Triple(0.2126, 0.7152, 0.0722)
-            MonitorTransfer.HDR, MonitorTransfer.DLOG2, MonitorTransfer.ILOG -> Triple(0.2627, 0.6780, 0.0593)
+            MonitorTransfer.REC709, MonitorTransfer.DLOG, MonitorTransfer.DLOGM, MonitorTransfer.SRGB ->
+                Triple(0.2126, 0.7152, 0.0722)
+            MonitorTransfer.HDR, MonitorTransfer.DLOG2, MonitorTransfer.ILOG, MonitorTransfer.NLOG ->
+                Triple(0.2627, 0.6780, 0.0593)
+            // REDWideGamutRGB luminance row.
+            MonitorTransfer.LOG3G10 -> Triple(0.286694, 0.842979, -0.129673)
         }
 
     fun monitorIRE(encoded: Double, transfer: MonitorTransfer, iso: Int? = null): Double {
@@ -373,6 +411,9 @@ object LiveColorScience {
             MonitorTransfer.DLOG2 -> DLog2.decode(encoded)
             MonitorTransfer.DLOGM -> DLogM.decode(encoded)
             MonitorTransfer.ILOG -> ILog.decode(encoded)
+            MonitorTransfer.SRGB -> Srgb.decode(encoded)
+            MonitorTransfer.NLOG -> NLog.decode(encoded)
+            MonitorTransfer.LOG3G10 -> Log3G10.decode(encoded)
         }
 
     private fun encodeRaw(linear: Double, transfer: MonitorTransfer): Double =
@@ -383,6 +424,9 @@ object LiveColorScience {
             MonitorTransfer.DLOG2 -> DLog2.encode(linear)
             MonitorTransfer.DLOGM -> DLogM.encode(linear)
             MonitorTransfer.ILOG -> ILog.encode(linear)
+            MonitorTransfer.SRGB -> Srgb.encode(linear)
+            MonitorTransfer.NLOG -> NLog.encode(linear)
+            MonitorTransfer.LOG3G10 -> Log3G10.encode(linear)
         }
 
     private fun clamp01(x: Double): Double = x.coerceIn(0.0, 1.0)
@@ -505,4 +549,46 @@ object ILog {
     fun encode(linear: Double): Double =
         if (linear <= LINEAR_CUT) SLOPE * linear + BLACK
         else LOG_OFFSET + LOG_SCALE * log10(linear + TOE_OFFSET)
+}
+
+/** IEC 61966-2-1 sRGB. Display-referred: linear 1.0 is display white and anything above clips. */
+object Srgb {
+    fun decode(encoded: Double): Double {
+        val e = encoded.coerceIn(0.0, 1.0)
+        return if (e <= 0.04045) e / 12.92 else ((e + 0.055) / 1.055).pow(2.4)
+    }
+
+    fun encode(linear: Double): Double {
+        val l = linear.coerceIn(0.0, 1.0)
+        return if (l <= 0.003_130_8) 12.92 * l else 1.055 * l.pow(1 / 2.4) - 0.055
+    }
+}
+
+/** Nikon N-Log specification 1.0.0, on the 10-bit code divided by 1023. Gamut is BT.2020. */
+object NLog {
+    val PEAK_LINEAR = decode(1.0)
+
+    fun decode(encoded: Double): Double {
+        val code = encoded * 1023
+        return if (code < 452) (code / 650).pow(3) - 0.0075 else exp((code - 619) / 150)
+    }
+
+    fun encode(linear: Double): Double =
+        if (linear < 0.328) 650 * maxOf(0.0, linear + 0.0075).pow(1.0 / 3.0) / 1023
+        else (150 * ln(linear) + 619) / 1023
+}
+
+/** RED Log3G10 (white paper 915-0187 Rev C). Gamut is REDWideGamutRGB. */
+object Log3G10 {
+    private const val A = 0.224282
+    private const val B = 155.975327
+    private const val C = 0.01
+    private const val G = 15.1927
+    val PEAK_LINEAR = decode(1.0)
+
+    fun decode(encoded: Double): Double =
+        if (encoded < 0) encoded / G - C else (10.0.pow(encoded / A) - 1) / B - C
+
+    fun encode(linear: Double): Double =
+        if (linear <= -C) (linear + C) * G else A * log10((linear + C) * B + 1)
 }

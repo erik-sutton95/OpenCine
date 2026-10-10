@@ -441,6 +441,7 @@ class LunaBackend(
             readSettings = ::refreshSettings,
             readCapture = ::refreshCapture,
             scope = scope,
+            noteGimbalCommand = { gimbalCommandAt = android.os.SystemClock.elapsedRealtime() },
         )
         next.configureLens(zoomRange)
         session = next

@@ -16,6 +16,7 @@
         private let media: () -> Media
         private let record: () -> Record
         private let display: () -> Display
+        @Environment(\.monitorPresentationIsVisible) private var presentationIsVisible
 
         public init(
             layout: FieldMonitorLayout, visibility: MonitorSystemControlsVisibility,
@@ -47,13 +48,13 @@
                     place(layout.settings, content: settings)
                         .opacity(navigationHidden ? 0 : 1)
                         .allowsHitTesting(!navigationHidden)
-                        .accessibilityHidden(navigationHidden || !visible)
+                        .accessibilityHidden(navigationHidden || !exposed)
                 }
                 if visibility.media {
                     place(layout.media, content: media)
                         .opacity(navigationHidden ? 0 : 1)
                         .allowsHitTesting(!navigationHidden)
-                        .accessibilityHidden(navigationHidden || !visible)
+                        .accessibilityHidden(navigationHidden || !exposed)
                 }
                 // Constant structural positions preserve confirmation and display state while
                 // a popup enters. Their z-index allows Stop and DISP above the capture backdrop.
@@ -67,9 +68,13 @@
             .allowsHitTesting(interactive && visible)
         }
 
+        /// Each control's explicit AX attachment beats zero opacity, so a covered screen must
+        /// hide it here even when the app leaves `visible` at its default.
+        private var exposed: Bool { visible && presentationIsVisible }
+
         private func place<Content: View>(_ rect: MonitorRect, @ViewBuilder content: () -> Content) -> some View {
             content()
-                .accessibilityHidden(!visible)
+                .accessibilityHidden(!exposed)
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
         }
@@ -96,13 +101,27 @@
     }
 
     public struct MonitorDisplayButton: View {
-        private let clean: Bool
+        private let selectedIndex: Int?
+        private let modeCount: Int
+        private let title: String
+        private let mutedLabel: Bool
         private let size: CGSize
         private let enabled: Bool
         private let action: () -> Void
 
         public init(clean: Bool, size: CGSize, enabled: Bool = true, action: @escaping () -> Void) {
-            self.clean = clean
+            self.init(selectedIndex: clean ? 1 : 0, modeCount: 2,
+                title: clean ? "DISP 2 clean" : "DISP 1 live", size: size, enabled: enabled,
+                mutedLabel: !clean, action: action)
+        }
+
+        /// The source supplies admitted mode count and selection; unknown selection lights no dash.
+        public init(selectedIndex: Int?, modeCount: Int, title: String,
+            size: CGSize, enabled: Bool = true, mutedLabel: Bool = false, action: @escaping () -> Void) {
+            self.selectedIndex = selectedIndex
+            self.modeCount = max(0, modeCount)
+            self.title = title
+            self.mutedLabel = mutedLabel
             self.size = size
             self.enabled = enabled
             self.action = action
@@ -114,14 +133,16 @@
                     Text("DISP").font(MonitorTheme.font(CGFloat(MonitorCapturePopupChrome.dispSize), weight: .bold))
                         .tracking(CGFloat(MonitorCapturePopupChrome.dispTracking))
                     HStack(spacing: 3) {
-                        Capsule().fill(clean ? MonitorTheme.faint.opacity(0.5) : MonitorTheme.accent).frame(width: 14, height: 3)
-                        Capsule().fill(clean ? MonitorTheme.accent : MonitorTheme.faint.opacity(0.5)).frame(width: 14, height: 3)
+                        ForEach(0..<modeCount, id: \.self) { index in
+                            Capsule().fill(selectedIndex == index ? MonitorTheme.accent : MonitorTheme.faint.opacity(0.5))
+                                .frame(width: 14, height: 3)
+                        }
                     }
-                }.foregroundStyle(clean ? MonitorTheme.text : MonitorTheme.muted)
+                }.foregroundStyle(mutedLabel ? MonitorTheme.muted : MonitorTheme.text)
             }
             .disabled(!enabled)
-            .sensoryFeedback(.selection, trigger: clean)
-            .accessibilityValue(clean ? "DISP 2 clean" : "DISP 1 live")
+            .sensoryFeedback(.selection, trigger: selectedIndex)
+            .accessibilityValue(title)
             .accessibilityIdentifier("monitor.system.display")
         }
     }

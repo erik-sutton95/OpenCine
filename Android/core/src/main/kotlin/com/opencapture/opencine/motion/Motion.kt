@@ -1,7 +1,8 @@
 // Kotlin twin of the Swift OpenCineMotion seam: the declared capabilities, reachable targets,
 // pose feedback validity, the service interface and its layout projection. A package of :core
-// rather than its own module; nothing in com.opencapture.opencine.core imports it. The Swift
-// trajectory math (programs, curves, head-look) has no Kotlin twin yet.
+// rather than its own module; nothing in com.opencapture.opencine.core imports it. Programs,
+// curves and the waypoint overlay are in GimbalProgram.kt. The Kotlin move engine stays with the
+// integration that runs it; head-look math has no Kotlin twin yet.
 package com.opencapture.opencine.motion
 
 import com.opencapture.opencine.core.CapabilitySnapshot
@@ -44,6 +45,9 @@ public data class MotionBounds(
 
     public operator fun contains(pose: GimbalWaypoint): Boolean =
         pose.yawDeg.isFinite() && pose.pitchDeg.isFinite() && pose.yawDeg in pan && pose.pitchDeg in tilt
+
+    /** The middle of the unreachable pan gap: a raw angle below it belongs at `raw + 360`. */
+    public val gapMidDeg: Double get() = (pan.endInclusive + pan.start - 360.0) / 2
 }
 
 /**
@@ -66,6 +70,29 @@ public class GimbalWaypoint(
     override fun hashCode(): Int = listOf(yawDeg, pitchDeg, zoom, nativePitchDeg).hashCode()
 
     override fun toString(): String = "GimbalWaypoint(yaw=$yawDeg, pitch=$pitchDeg, zoom=$zoom, nativePitch=$nativePitchDeg)"
+
+    public fun copy(
+        yawDeg: Double = this.yawDeg,
+        pitchDeg: Double = this.pitchDeg,
+        zoom: Double = this.zoom,
+        nativePitchDeg: Double? = this.nativePitchDeg,
+    ): GimbalWaypoint = GimbalWaypoint(yawDeg, pitchDeg, zoom, nativePitchDeg)
+
+    public fun clamped(bounds: MotionBounds): GimbalWaypoint = GimbalWaypoint(
+        yawDeg.coerceIn(bounds.pan.start, bounds.pan.endInclusive),
+        pitchDeg.coerceIn(bounds.tilt.start, bounds.tilt.endInclusive),
+        zoom,
+        nativePitchDeg,
+    )
+
+    public companion object {
+        /**
+         * Raw yaw (plus or minus 180) onto the reachable pan arc so A to B is plain subtraction
+         * and a straight line cannot cross the gap. Measurements in the gap are preserved.
+         */
+        public fun unwrapYaw(rawDeg: Double, bounds: MotionBounds): Double =
+            if (rawDeg < bounds.gapMidDeg) rawDeg + 360.0 else rawDeg
+    }
 }
 
 /**
@@ -90,6 +117,17 @@ public data class MotionCapabilities(
         if (!axes.containsAll(listOf(MotionAxis.PAN, MotionAxis.TILT)) || !pose.zoom.isFinite()) return null
         if (pose !in bounds || pose.nativePitchDeg?.isFinite() == false) return null
         return MotionTarget(pose)
+    }
+
+    /** Swift admits: every point is reachable, zoom needs its axis, and declared rates bound each leg. */
+    public fun admits(program: GimbalProgram): Boolean {
+        val a = program.a ?: return false
+        val b = program.b ?: return false
+        if (listOfNotNull(a, b, program.c).any { target(it) == null } ||
+            (program.changesZoom && MotionAxis.ZOOM !in axes)) return false
+        val rate = maxRateDegPerSec ?: return true
+        if (!(GimbalPath.angularDistance(a, b) <= rate * program.durationAB)) return false
+        return program.c?.let { GimbalPath.angularDistance(b, it) <= rate * program.durationBC } ?: true
     }
 
     /**

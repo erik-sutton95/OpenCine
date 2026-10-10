@@ -58,16 +58,88 @@ it from its integration slots, [appkit](../appkit/README.md)). Android's brand i
 `MonitorPalette.accent` and the transitional `MonitorIosParity.enabled`
 (see [Android/monitor-ui/README.md](../../Android/monitor-ui/README.md)).
 
+`CamerasPage` and Compose `MonitorCameraPage` own their platform's Your Cameras frame.
+The Android page applies safe-drawing and landscape cutout clearance plus the Pocket page
+spacing itself. Deployed app shells and generated Scenes use that same renderer; native
+pairing content and route lifetime remain bounded host inputs.
+
 Resources load through `Bundle.module`; consumers copy no fonts or icons and add no
 `Info.plist` font entries.
 
+App views share the 44 pt hit-target helpers (`.buttonStyle(.monitorTapTarget)`,
+`minTapTarget`) and the solid page surface (`liquidGlass(in:)`, `glassCapsule`, `glassCircle`;
+floating monitor chrome uses `monitorGlass`). Corner radius is `MonitorTheme.radius`, the page
+backdrop `MonitorTheme.background`. SwiftUI only: Compose uses its own minimum touch target.
+Text uses `MonitorTheme.font(size, weight:)` directly.
+
+Live chrome geometry is shared as well. `MonitorPresentation` holds the layout policy
+(`MonitorEdgeInsets`, `MonitorDeviceOrientation`, `MonitorHorizontalLayoutDirection`,
+`MonitorLayoutRegion`, `StartupSideCutoutAvoidance`, `GimbalCluster`); `MonitorUI` holds the
+CGRect live layout built from `FieldMonitorLayout` (`LiveMonitorLayout.fieldMonitor`,
+`LivePopupPlacement`, `LiveChromeMetrics`, `InterfaceOrientationObserver`, `liveModuleFrame`
+and the `interfaceLocked` environment value). The Compose twin is `MonitorLiveLayout.kt`.
+
+Live app composition uses `MonitorOperatorLiveBody` in `OpenCineCameraControls` /
+`camera-controls` through the existing live surface, descriptor surface or generated-app Scene
+adapter. One owner places the canvas, status, system rail, palette, inspector and capture popup.
+The lower UI primitives continue to take values and actions; app-specific native content enters
+bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
+for adapter boundaries, capture ownership and regression guards.
+
+Grouped movie-format controls live in `OpenCineCameraControls` /
+`camera-controls`, above the lower UI primitives. [`CaptureFormatPicker` and
+`CaptureFormatPickerState`][grouped-format-1] ([Compose][grouped-format-2])
+consume exact `CaptureFormatChoice` values and optional `CaptureFormatGroup`
+facts supplied by the host's capability inventory. Image area, such as FX/DX, is
+separate from recording aspect. Area, aspect and resolution groups filter the
+eligible frame-rate drum; sparse inventories never become all possible
+combinations. Changing a group retains the selected rate when an editable tuple
+allows it, otherwise choosing the first supplied editable tuple. Unknown
+grouping facts stay absent; their exact choices remain visible in the
+unclassified bucket.
+
+A drum label shared by multiple distinct values in the current bucket is
+ambiguous and submits nothing. Empty, disabled, read-only and removed choices
+likewise submit nothing. Codec remains its separate existing control. The picker
+owns presentation and local selection, not wire encoding, write authority or
+camera readback. See [capture composition][grouped-format-3] for actual host
+adapters and source admission.
+
+[grouped-format-1]: ../../Sources/OpenCineCameraControls/Capture/CaptureFormatPicker.swift
+[grouped-format-2]: ../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/CaptureFormatPicker.kt
+[grouped-format-3]: ../appkit/README.md#monitor-composition-and-capture
+
+Portrait status measures the recording, clock and format slots, keeping an 8 point/dp
+clearance and using an intrinsic second row when needed. Rows contain the full native
+touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (normally
+48 dp, while the existing 52 dp tablet row stays larger). This platform sizing difference
+keeps Android touch expansion inside the measured header. Typed header readouts expose
+their title, optional value and presentation action as one accessible control.
+
+`MonitorFocusResetButton` owns the common circular `rotateCw` glyph and target on both
+platforms. Legacy and canonical live surfaces delegate to it; apps supply visibility
+and reset actions.
+
 ## Operator settings
+
+Android's deployed, configured and generated-session settings adapters delegate to the sole
+[`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
+That owner supplies the cover input barrier, safe-drawing clearance, page margins, Back action,
+tab dispatch and legal/LUT overlays. Existing typed settings sources supply real values and
+native content; they cannot replace the common page frame. SwiftUI uses its existing complete
+`MonitorOperatorSettingsScreen` and the same lower `MonitorSettingsPage` primitive.
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and
 content scrolling. `MonitorSettingsTab` has stable Link, Sharing, View Assist, Controls,
 Display, Storage and System identities. The host supplies brand text, connection values,
-actions and typed section composition. SwiftUI includes keyboard insets; Compose uses the
-host's window insets. Android sharing currently retains its existing placeholder.
+actions and typed section composition. SwiftUI includes keyboard insets; Compose's complete
+settings owner applies safe-drawing insets. Sharing content follows the actual optional source.
+
+The optional `tabSpacing` argument defaults to 6 points/dp, preserving existing
+callers. Swift applies it to both orientations; Compose applies it to portrait
+tabs and keeps its already joined landscape column. A host can supply zero
+for joined edges in both orientations without replacing the page owner.
+Pocket uses this policy; other current consumers keep their defaults.
 
 Common `MonitorSettings` controls own row, help, switch, reset and card presentation.
 `MonitorOperatorSafetySettings` and `MonitorPanelSettings` accept values/bindings and actions;
@@ -114,11 +186,13 @@ on both platforms, with optional sign-in/sign-out actions. Apps keep credentials
 requests and service-specific copy. Missing actions stay absent.
 
 `MonitorFeedSharingSettings` owns the actual Apple relay-host settings rows: share switch,
-Wi-Fi-code action, passcode field, control requests and supplied priority choices. The app
+Wi-Fi-code action (absent when the app passes none, for cameras whose watchers must not join
+the camera's network), passcode field, control requests and supplied priority choices. The app
 keeps relay admission/lifetime, borrowed-camera policy, keychain writes and Wi-Fi-sheet
-presentation. This is an explicit platform exception: Android currently has no implemented
-feed-sharing settings and retains its existing Coming soon content. No Android relay or
-account functionality is implied by the shared presentation.
+presentation. Android's deployed settings sources retain Coming soon content; the configured
+source renders its supplied sharing values and admitted peer actions through common rows.
+Generated session settings currently omit Sharing. This source distinction
+does not imply relay or account availability where the host supplies none.
 
 ## Import rules
 
@@ -238,11 +312,21 @@ summaries. Apps provide interpreted values and explanatory content; missing netw
 optional, and stable saved-camera identifiers retain each row's help state. Pairing, credentials,
 transport health scoring and device-specific processing choices remain with their owners.
 
+The common playback screen owns the fixed video canvas, transport, metadata/conform panels,
+clean-view chrome and native zoom/scrub gestures. It takes immutable accepted item facts and
+item/edit-token actions, with fixed native-picture, feed-assist, canvas-assist and tool positions.
+Apps retain native factories, source calibration, audio, deletion and delivery transactions. The
+picture stays mounted while controls, panels and orientation change. Kotlin retains the existing
+separate native control window; the app supplies its platform back handler without a new package
+edge. UI edit ownership is retired before calling the host, so a delayed cancellation cannot take
+a successor edit on the same item. The existing playback owner decides seeking and resume policy.
+
 ## Checks
 
 ```sh
 swift build && swift test --filter MonitorPresentationTests   # macOS
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
+xcodebuild test -scheme OpenCine-Package -destination <private simulator> -only-testing:MonitorUITests
 python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iOS + Android)
 ```
 
@@ -250,7 +334,6 @@ python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iO
 
 Apache 2.0 ([LICENSE](../../LICENSE), [NOTICE](../../NOTICE)). Bundled fonts and icons:
 [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
-
 
 Assist identities, scope modes/guide selections, audio orientation/readout, resolved false-color
 reference values and the exact normalized-center Codable fields belong to Foundation-only
@@ -260,3 +343,28 @@ CoreGraphics import or retroactive conformances. Kotlin separates the same actua
 from native view files in its existing package; native APIs and persisted identifiers are unchanged.
 The existing Swift Codable versus Android caller-owned codec and native absent-audio label/rounding
 differences remain explicit in the mirrored value-contract scenarios.
+
+Delivery composition lives in `MonitorMediaDeliveryPanel` on SwiftUI and Compose. Its mirrored
+immutable value supplies destination eligibility, optional export controls, project or internet
+service facts, and the footer action. Typed actions return to the host; the only view slot is
+destination artwork. Missing controls stay absent. Hosts keep credentials, project requests,
+network handoffs, file ownership, native sharing and export tasks. SwiftUI keeps the header and
+footer visible while the content scrolls at constrained card heights. Compact progress receives
+busy and known-progress visibility independently, so network switching can retain a reported
+progress bar. Optional compact expansion is distinct from cancellation and
+defaults to absent; expanded progress receives optional filename and destination
+details plus typed Collapse/Cancel actions. Project labels prefer a supplied
+choice ID match, then an optional known selected label without adding an
+unlisted choice. The original four-argument Kotlin compact call with trailing
+destination artwork remains supported. Actual Insta popup renders exercise both
+overflow heights and busy progress; Nikon hosted UIKit actions exercise popup
+admission, request values and progress controls at portrait and compact
+landscape geometries. Physical delivery and Android input remain untested.
+
+The expanded View Assist palette uses the same short toolbar labels on both platforms,
+including PEAK, FALSE, WAVE, HISTO, VECTOR, LIGHTS and DE-SQ. Full tool names remain in
+inspectors, settings and accessibility. Catalog cells scroll horizontally in landscape
+and vertically in portrait; the collapsed favorites keep the common system-button size.
+Expanded cells keep the collapsed square size (48 points in SwiftUI; 48 dp on phones
+and 52 dp on tablets in Compose), with the same palette-sized icons and single-line
+captions through the reveal.

@@ -1,7 +1,7 @@
 import CoreBluetooth
 import Foundation
-import OpenCineCore
 import Insta360Protocol
+import OpenCineCore
 
 @MainActor
 // CoreBluetooth delegates are explicitly delivered on DispatchQueue.main. The
@@ -9,6 +9,8 @@ import Insta360Protocol
 final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     @preconcurrency CBPeripheralDelegate
 {
+    /// The operator-facing app name in the Bluetooth permission copy.
+    private let appName: String
     var onCamera: ((MonitorCamera) -> Void)?
     var onData: ((Data) -> Void)?
     var onDisconnect: ((String) -> Void)?
@@ -32,6 +34,13 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     private let service = CBUUID(string: LunaProtocol.bluetoothServiceUUID)
     private let writeID = CBUUID(string: LunaProtocol.bluetoothWriteUUID)
     private let notifyID = CBUUID(string: LunaProtocol.bluetoothNotifyUUID)
+    var commandSource: LunaNativeCommandSource {
+        .init(transport: self, epoch: epoch, endpoint: peripheral, member: writeCharacteristic)
+    }
+
+    init(appName: String) {
+        self.appName = appName
+    }
 
     func startScan() async throws {
         try await waitForPower()
@@ -60,8 +69,7 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                     seconds: 15,
                     failure: .luna(
                         .radioOff(.bluetooth), "bluetooth.unavailable",
-                        "Bluetooth did not become available. Enable Bluetooth in Settings.",
-                        actions: [.openSettings, .retry]))
+                        "Bluetooth is not ready yet. Try again in a moment."))
             }
         } onCancel: {
             Task { @MainActor [weak self] in
@@ -77,7 +85,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         let found = peripherals[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first
         guard let found else {
             throw ConnectionFailure.luna(
-                .notFound, "bluetooth.not-nearby", "The camera is no longer nearby. Scan again with the camera powered on.",
+                .notFound, "bluetooth.not-nearby",
+                "The camera is no longer nearby. Scan again with the camera powered on.",
                 phase: .link)
         }
         // cancelPeripheralConnection completes asynchronously. Do not reuse this object
@@ -90,7 +99,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         guard !disconnecting.contains(id) else {
             throw ConnectionFailure.luna(
                 .other, "bluetooth.closing",
-                "The previous camera Bluetooth connection is still closing. Try connecting again.", phase: .link)
+                "The previous camera Bluetooth connection is still closing. Try connecting again.",
+                phase: .link)
         }
         try Task.checkCancellation()
         let token = epoch
@@ -121,6 +131,24 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         central.stopScan()
     }
     func write(_ data: Data) async throws {
+        try await write(data, firstDispatch: nil, didDispatch: nil)
+    }
+    func write(
+        _ data: Data, admission: LunaCommandAdmission, source: LunaNativeCommandSource,
+        didDispatch: @escaping LunaCommandDidDispatch
+    ) async throws {
+        try admission.requireCurrent()
+        guard source.member != nil, source.admits(commandSource) else {
+            throw LunaCommandAdmissionError.expired
+        }
+        try await write(
+            data, firstDispatch: .init(admission: admission, source: source),
+            didDispatch: didDispatch)
+    }
+    private func write(
+        _ data: Data, firstDispatch supplied: LunaCommandFirstDispatch?,
+        didDispatch: LunaCommandDidDispatch?
+    ) async throws {
         guard let peripheral, let characteristic = writeCharacteristic,
             peripheral.state == .connected
         else {
@@ -131,9 +159,11 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
             peripheral.maximumWriteValueLength(for: .withResponse))
         guard size > 0 else {
             throw ConnectionFailure.luna(
-                .other, "bluetooth.write-size", "The camera did not provide a Bluetooth write size.", phase: .link)
+                .other, "bluetooth.write-size",
+                "The camera did not provide a Bluetooth write size.", phase: .link)
         }
         var offset = 0
+        var firstDispatch = supplied
         while offset < data.count {
             try Task.checkCancellation()
             let end = min(data.count, offset + size)
@@ -143,14 +173,27 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<Void, Error>) in
-                    writeOperation = operation
-                    writeWaiter = continuation
-                    setDeadline(
-                        seconds: 10,
-                        failure: .luna(
-                            .timedOut, "bluetooth.write-timeout", "The camera did not acknowledge a Bluetooth command.",
-                            phase: .link))
-                    peripheral.writeValue(chunk, for: characteristic, type: .withResponse)
+                    let write = {
+                        self.writeOperation = operation
+                        self.writeWaiter = continuation
+                        self.setDeadline(
+                            seconds: 10,
+                            failure: .luna(
+                                .timedOut, "bluetooth.write-timeout",
+                                "The camera did not acknowledge a Bluetooth command.",
+                                phase: .link))
+                        peripheral.writeValue(chunk, for: characteristic, type: .withResponse)
+                    }
+                    if var first = firstDispatch {
+                        do {
+                            guard let didDispatch else { throw LunaCommandAdmissionError.expired }
+                            try first.perform(
+                                current: { self.commandSource }, native: write, didDispatch: didDispatch)
+                            firstDispatch = first
+                        } catch { continuation.resume(throwing: error) }
+                    } else {
+                        write()
+                    }
                 }
             } onCancel: {
                 Task { @MainActor [weak self] in
@@ -207,17 +250,20 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     }
     private func powerFailure(_ state: CBManagerState) -> ConnectionFailure? {
         switch state {
+        // Only the permission needs Settings; off and not ready ask to try again.
         case .poweredOff:
             .luna(
-                .radioOff(.bluetooth), "bluetooth.off", "Bluetooth is off. Turn it on in Settings to find your camera.",
-                actions: [.openSettings, .retry])
+                .radioOff(.bluetooth), "bluetooth.off",
+                "Bluetooth is off. Turn it on in Control Center or Settings, then try again.")
         case .unauthorized:
             .luna(
                 .permission(.bluetooth), "bluetooth.denied",
-                "Bluetooth access is disabled for this app. Enable it in Settings → Privacy & Security → Bluetooth.",
+                "\(appName) needs Bluetooth access to find the camera. Open Settings, turn on Bluetooth for \(appName), then try again.",
                 actions: [.openSettings, .retry])
         case .unsupported:
-            .luna(.unsupported, "bluetooth.unsupported", "Bluetooth camera discovery is unavailable on this device.")
+            .luna(
+                .unsupported, "bluetooth.unsupported",
+                "Bluetooth camera discovery is unavailable on this device.")
         default: nil
         }
     }
@@ -259,7 +305,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         failPending(
             error
                 ?? ConnectionFailure.luna(
-                    .linkLost, "bluetooth.connect-failed", "The camera could not connect over Bluetooth.", phase: .link))
+                    .linkLost, "bluetooth.connect-failed",
+                    "The camera could not connect over Bluetooth.", phase: .link))
     }
     func centralManager(
         _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?
@@ -281,7 +328,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
             failPending(
                 ConnectionFailure.luna(
                     .unsupported, "bluetooth.service-missing",
-                    "This camera did not expose the supported Insta360 Bluetooth service.", phase: .link))
+                    "This camera did not expose the supported Insta360 Bluetooth service.",
+                    phase: .link))
             return
         }
         peripheral.discoverCharacteristics([writeID, notifyID], for: service)
@@ -300,7 +348,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         else {
             failPending(
                 ConnectionFailure.luna(
-                    .unsupported, "bluetooth.channels-missing", "The camera's Bluetooth command channels were not found.",
+                    .unsupported, "bluetooth.channels-missing",
+                    "The camera's Bluetooth command channels were not found.",
                     phase: .link))
             return
         }
@@ -318,7 +367,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         guard characteristic.isNotifying else {
             failPending(
                 ConnectionFailure.luna(
-                    .other, "bluetooth.notify-failed", "Camera Bluetooth notifications could not be enabled.",
+                    .other, "bluetooth.notify-failed",
+                    "Camera Bluetooth notifications could not be enabled.",
                     phase: .link))
             return
         }

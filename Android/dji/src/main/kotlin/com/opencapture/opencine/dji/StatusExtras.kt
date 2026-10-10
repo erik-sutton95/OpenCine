@@ -1,5 +1,14 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.vocabulary.ApertureStrategy
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.FocusTrackMode
+import com.opencapture.opencine.vocabulary.VideoFormat
+import com.opencapture.opencine.vocabulary.VideoResolution
+
 /**
  * Overlay fields the JNI status JSON does not yet carry, parsed from the same
  * subscribe pushes / GET replies the camera already sends.
@@ -67,7 +76,7 @@ object StatusExtras {
             }
         }
         if (value.size > 5) {
-            next = next.copy(isoIndex = value[5].toInt() and 0xFF)
+            next = next.copy(isoIndex = CameraCommands.djiIsoIndex(value[5].toInt() and 0xFF))
         }
         if (value[7].toInt() == CameraCommands.EXPO_AUTO) {
             // The manual setting stays fixed in Auto. Never use it as a fallback.
@@ -102,10 +111,10 @@ object StatusExtras {
         CameraCommands.fpsFromSubscribeIndex(fpsIdx)?.let { fps ->
             next = next.copy(fps = fps, fpsIndex = fpsIdx)
         }
-        VideoResolution.fromRaw(resRaw)?.let { res ->
+        VideoResolution.fromDjiRaw(resRaw)?.let { res ->
             next = next.copy(resolutionCode = res.rawValue)
         }
-        VideoFormat.parse(resRaw, fpsIdx)?.let { format ->
+        VideoFormat.parseDji(resRaw, fpsIdx)?.let { format ->
             next =
                 next.copy(
                     resolutionCode = format.resolution.rawValue,

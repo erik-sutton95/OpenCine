@@ -38,7 +38,12 @@ public class IntegrationSlots(
     public val addRoute: (@Composable (camera: SavedCamera, done: (RouteDraft?) -> Unit) -> Unit)? = null,
     /** Renders an integration prompt; without it the prompt's text shows. */
     public val prompt: (@Composable (IntegrationPrompt) -> Unit)? = null,
+    /** The app's words for a nearby camera's card and pair-page row; null keeps the shell's. */
+    public val nearbyCard: ((NearbyCamera) -> NearbyCardCopy)? = null,
 )
+
+/** A nearby camera's name, subtitle and status as the app words them (a camera held by another device keeps the shell's status). */
+public data class NearbyCardCopy(val name: String, val subtitle: String, val status: String)
 
 /**
  * The shared connection flow over the app's integrations (Swift `CamerasModel`): saved cameras,
@@ -55,7 +60,17 @@ public class CamerasModel(
     public val entries: List<AppIntegration>,
     private val store: SavedCamerasStore,
     private val scope: CoroutineScope,
+    private val routePolicy: RoutePolicy = RoutePolicy.PREFERRED,
 ) {
+    /** The saved route a camera's card shows and a tap connects when no attempt or failure names one. */
+    public enum class RoutePolicy {
+        /** The camera's preferred route, else its first. */
+        PREFERRED,
+
+        /** The first route a sighting reaches ([NearbyCamera.routeKey]), else [PREFERRED]. */
+        PREFER_REACHABLE,
+    }
+
     /** A camera one integration sees now. */
     public data class Sighting(public val integration: IntegrationID, public val camera: NearbyCamera) {
         public val id: String get() = camera.id
@@ -164,10 +179,19 @@ public class CamerasModel(
 
     // Connecting
 
-    /** Connects a saved camera over [route], else its preferred route, else its first. */
+    /** Connects a saved camera over [route], else its [defaultRoute]. */
     public fun connect(camera: SavedCamera, route: ConnectionRouteID? = null) {
-        val chosen = route ?: camera.preferredRoute ?: camera.routes.firstOrNull()?.id ?: return
+        val chosen = route ?: defaultRoute(camera) ?: return
         start(ConnectTarget.Saved(camera, chosen), camera.integration)
+    }
+
+    /** The route a tap connects, by the app's [RoutePolicy]. */
+    public fun defaultRoute(camera: SavedCamera): ConnectionRouteID? {
+        if (routePolicy == RoutePolicy.PREFER_REACHABLE) {
+            val reached = mutable.value.nearby.filter { CamerasMapping.matches(it, camera) }.mapNotNull { it.camera.routeKey }
+            camera.routes.firstOrNull { it.key in reached }?.let { return it.id }
+        }
+        return camera.preferredRoute ?: camera.routes.firstOrNull()?.id
     }
 
     public fun connect(sighting: Sighting) {
@@ -189,6 +213,11 @@ public class CamerasModel(
 
     public fun cancelAll() {
         for (cameraID in mutable.value.attempts.keys.toList()) cancel(cameraID)
+    }
+
+    /** Clears a camera's last failure without connecting (a pair page back to choosing). */
+    public fun dismissFailure(cameraID: String) {
+        update { it.copy(failures = it.failures - cameraID) }
     }
 
     /** The app closed the live session, or it ended: discovery resumes. */

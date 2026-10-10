@@ -75,6 +75,18 @@ public struct GimbalProgram: Equatable, Sendable {
 
     public var canRun: Bool { a != nil && b != nil }
 
+    /// One pass: A to B, then B to C when C is set.
+    public var duration: TimeInterval { durationAB + (c == nil ? 0 : durationBC) }
+
+    /// Target pose `time` seconds into a pass streamed as plain targets: the rounded-corner
+    /// curve for A·B·C with smoothness, straight legs otherwise. `nil` until A and B are set.
+    public func pose(at time: TimeInterval) -> GimbalWaypoint? {
+        guard let a, let b else { return nil }
+        if let curve = GimbalProgramCurve(program: self) { return curve.position(at: time) }
+        guard let c, time >= durationAB else { return GimbalPath.lerp(a, b, u: time / durationAB) }
+        return GimbalPath.lerp(b, c, u: (time - durationAB) / durationBC)
+    }
+
     public var changesZoom: Bool {
         let zooms = [a, b, c].compactMap { $0?.zoom }
         return zip(zooms, zooms.dropFirst()).contains { abs($0 - $1) > 1e-6 }

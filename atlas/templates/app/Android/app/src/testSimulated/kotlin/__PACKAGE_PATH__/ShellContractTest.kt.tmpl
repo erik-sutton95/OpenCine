@@ -1,0 +1,311 @@
+package __APP_ID__
+
+import com.opencapture.opencine.appkit.AppIntegration
+import com.opencapture.opencine.appkit.MonitorControlModel
+import com.opencapture.opencine.appkit.MonitorMediaCacheStorage
+import com.opencapture.opencine.appkit.MonitorMediaFavoritesStore
+import com.opencapture.opencine.appkit.MonitorMediaPlaybackModel
+import com.opencapture.opencine.appkit.MonitorOperatorMediaModel
+import com.opencapture.opencine.appkit.MonitorPlaybackCandidate
+import com.opencapture.opencine.appkit.ShellModel
+import com.opencapture.opencine.appkit.StoredString
+import com.opencapture.opencine.core.CommandStage
+import com.opencapture.opencine.core.CommandRejection
+import com.opencapture.opencine.core.ConnectedCamera
+import com.opencapture.opencine.core.ControlAuthority
+import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.SettingKey
+import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.MediaAsset
+import com.opencapture.opencine.media.MediaServiceException
+import com.opencapture.opencine.media.MediaServiceFailure
+import com.opencapture.opencine.media.MonitorPlaybackEvent
+import com.opencapture.opencine.media.MonitorPlaybackException
+import com.opencapture.opencine.media.MonitorPlaybackFailure
+import com.opencapture.opencine.media.MonitorPlaybackItem
+import com.opencapture.opencine.media.MonitorPlaybackItemToken
+import com.opencapture.opencine.media.MonitorPlaybackMetadata
+import com.opencapture.opencine.media.MonitorPlaybackPort
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
+import kotlin.time.Duration
+
+/**
+ * SIMULATED contract test (OpenCine's fake integration, no hardware): this app's shell
+ * composition pairs the fake camera, shows it on the monitor and returns to the cameras page with
+ * the camera saved. Swift twin: `ShellContract`.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class ShellContractTest {
+    private class Memory : StoredString {
+        private var value: String? = null
+        override fun read(): String? = value
+        override fun write(value: String) {
+            this.value = value
+        }
+    }
+
+    @Test
+    fun theFakeCameraConnectsAndCloses() = runTest {
+        val shell = makeShell(Memory(), backgroundScope)
+        runCurrent()
+        assertEquals(ShellModel.Route.PAIR, shell.route, "nothing saved yet")
+        shell.cameras.connect(shell.cameras.state.value.nearby.first())
+        runCurrent()
+        assertEquals(ShellModel.Route.MONITOR, shell.route)
+        shell.close()
+        runCurrent()
+        assertEquals(ShellModel.Route.CAMERAS, shell.route, "the camera stays saved")
+    }
+
+    @Test
+    fun theActualSharedControlsEditISOAndConfirmRecordAndStop() = runTest {
+        val (shell, fake) = connected()
+        val editor = assertNotNull(shell.control.edit(SettingKey.ISO))
+        assertTrue(shell.control.commit(SettingValue.Iso(ISOValue.Manual(400)), editor, "ISO"))
+        runCurrent()
+        assertEquals(SettingValue.Iso(ISOValue.Manual(400)), shell.control.state.value.snapshot?.value(SettingKey.ISO)?.value)
+        assertTrue(shell.control.state.value.pending.isEmpty())
+        assertEquals(CommandStage.Confirmed, shell.control.recordAndWait(true)?.stage)
+        runCurrent()
+        assertEquals(true, shell.control.isRecording)
+        assertEquals(CommandStage.Confirmed, shell.control.recordAndWait(false)?.stage)
+        runCurrent()
+        assertEquals(false, shell.control.isRecording)
+        assertEquals(3, fake.sessions.first().commands.size)
+        shell.close()
+    }
+
+    @Test
+    fun replacementRejectsOldEditorsAndLateCameraReports() = runTest {
+        val (shell, fake) = connected()
+        val old = fake.sessions.first()
+        val editor = assertNotNull(shell.control.edit(SettingKey.ISO))
+        old.holdNextReport = true
+        assertTrue(shell.control.commit(SettingValue.Iso(ISOValue.Manual(400)), editor, "ISO"))
+        runCurrent()
+        assertEquals(1, old.commands.size)
+        val next = SimulatedCameraSession(fake.id)
+        shell.present(ConnectedCamera(assertNotNull(shell.state.value.monitor).camera.saved, next))
+        runCurrent()
+        assertEquals(1, old.closes)
+        old.reportHeldCommand()
+        assertFalse(shell.control.commit(SettingValue.Iso(ISOValue.Manual(800)), editor, "ISO"))
+        assertEquals(SettingValue.Iso(ISOValue.Manual(200)), shell.control.state.value.snapshot?.value(SettingKey.ISO)?.value)
+        assertTrue(shell.control.state.value.pending.isEmpty())
+        assertTrue(next.commands.isEmpty())
+        shell.close()
+    }
+
+    @Test
+    fun aCapabilityChangeRetiresTheEditorAndPictureOnlyCannotRecord() = runTest {
+        val (shell, fake) = connected()
+        val editor = assertNotNull(shell.control.edit(SettingKey.ISO))
+        val camera = fake.sessions.first()
+        camera.reportCapabilities(iso = false)
+        runCurrent()
+        assertEquals(SupportStatus.UNSUPPORTED, shell.control.state.value.snapshot?.capabilities?.support(SettingKey.ISO))
+        assertFalse(shell.control.commit(SettingValue.Iso(ISOValue.Manual(400)), editor, "ISO"))
+        camera.reportCapabilities(iso = false, pictureOnly = true)
+        runCurrent()
+        assertEquals(ControlAuthority.ReadOnly, shell.control.state.value.snapshot?.authority)
+        assertEquals(CommandStage.Rejected(CommandRejection.NoAuthority), shell.control.recordAndWait(true)?.stage)
+        assertTrue(camera.commands.isEmpty())
+        shell.close()
+    }
+
+    @Test
+    fun savedConnectSurvivesRelaunchAndSeparateAppStorageIsEmpty() = runTest {
+        val document = Memory()
+        val (shell, fake) = connected(document)
+        shell.close()
+        runCurrent()
+        assertEquals(1, fake.sessions.first().closes)
+        val restored = makeShell(document, backgroundScope)
+        runCurrent()
+        assertEquals(ShellModel.Route.CAMERAS, restored.route)
+        assertEquals(1, restored.cameras.state.value.saved.size)
+        val other = makeShell(Memory(), backgroundScope)
+        assertTrue(other.cameras.state.value.saved.isEmpty())
+        assertEquals(ShellModel.Route.PAIR, other.route)
+        restored.cameras.connect(restored.cameras.state.value.saved.first())
+        runCurrent()
+        assertEquals(ShellModel.Route.MONITOR, restored.route)
+        restored.close()
+    }
+
+    @Test
+    fun settingsAndMediaBorrowOneSessionAndCachedClipOpensOffline() = runTest {
+        val (shell, fake) = connected()
+        val monitor = assertNotNull(shell.state.value.monitor)
+        shell.open(ShellModel.Cover.SETTINGS)
+        assertEquals(monitor.id, shell.state.value.monitor?.id)
+        shell.dismissCover()
+        shell.open(ShellModel.Cover.MEDIA)
+        assertEquals(monitor.id, shell.state.value.monitor?.id)
+        val source = assertNotNull(monitor.camera.services.get<CameraMediaService>())
+        val root = Files.createTempDirectory("template-media-").toFile()
+        val storage = MonitorMediaCacheStorage()
+        val favorites = MemoryFavorites()
+        val library = makeSimulatedLibrary(root, storage, favorites, backgroundScope, source)
+        try {
+            library.begin()
+            runCurrent()
+            assertEquals(1, library.state.value.records.size)
+            assertFalse(library.state.value.fetching)
+            val record = library.state.value.records.first()
+            val file = library.cacheRepresentation(record.asset.representations.first().id, record.asset.id)
+            assertEquals(86_527L, file.length())
+            val lifetime = library.state.value.lifetimeToken
+            library.begin()
+            assertEquals(lifetime, library.state.value.lifetimeToken)
+            library.close()
+            shell.dismissCover()
+            assertEquals(monitor.id, shell.state.value.monitor?.id)
+            assertEquals(0, fake.sessions.first().closes)
+            val offline = makeSimulatedLibrary(root, storage, favorites, backgroundScope)
+            offline.begin()
+            assertEquals(1, offline.state.value.records.size)
+            assertTrue(offline.state.value.entries[record.asset.id]?.isPlayableOffline == true)
+            assertFalse(offline.canRefresh)
+            offline.dispose()
+        } finally {
+            library.dispose()
+            shell.close()
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun replacingTheCameraRetiresCapturedMediaTransfers() = runTest {
+        val (shell, fake) = connected()
+        val monitor = assertNotNull(shell.state.value.monitor)
+        val browse = assertNotNull(monitor.camera.services.get<CameraMediaService>()).openBrowse()
+        val cursor = browse.catalog()
+        val next = SimulatedCameraSession(fake.id)
+        shell.present(ConnectedCamera(monitor.camera.saved, next))
+        runCurrent()
+        assertEquals(1, fake.sessions.first().closes)
+        assertEquals(MediaServiceFailure.RETIRED, assertFailsWith<MediaServiceException> { cursor.next() }.failure)
+        assertEquals(MediaServiceFailure.RETIRED, assertFailsWith<MediaServiceException> { browse.thumbnails?.thumbnail(SimulatedAssets.asset.id) }.failure)
+        cursor.close()
+        browse.close()
+        assertTrue(next.commands.isEmpty())
+        shell.close()
+    }
+
+    @Test
+    fun sharedMediaOwnerReopensWithFreshPlaybackAndRejectsRetiredCallbacks() = runTest {
+        val (shell, fake) = connected()
+        val root = Files.createTempDirectory("template-player-").toFile()
+        val library = makeSimulatedLibrary(root, MonitorMediaCacheStorage(), MemoryFavorites(), backgroundScope)
+        val ports = mutableListOf<ScriptedPlaybackPort>()
+        var localItem: MonitorPlaybackItem? = null
+        val media = MonitorOperatorMediaModel<MediaAsset, String>(library) { activeLibrary ->
+            val port = ScriptedPlaybackPort().also { ports += it }
+            MonitorMediaPlaybackModel(activeLibrary, port, backgroundScope,
+                candidates = { listOf(MonitorPlaybackCandidate.Cached(assertNotNull(localItem))) })
+        }
+        try {
+            media.bind(shell.state.value.monitor?.camera)
+            media.showGallery()
+            runCurrent()
+            val record = library.state.value.records.first()
+            val file = library.cacheRepresentation(record.asset.representations.first().id, record.asset.id)
+            localItem = MonitorPlaybackItem(file.toURI(), "video/mp4", record.asset.id.rawValue)
+            val staleAction = library.actionToken
+            assertTrue(media.open(record.asset.id, staleAction))
+            runCurrent()
+            val previous = assertNotNull(media.state.value.playback)
+            assertTrue(previous.state.value.ready)
+            val oldToken = previous.state.value.token
+            val oldCallback = assertNotNull(ports.first().onEvent)
+            media.closeGallery()
+            assertTrue(previous.state.value.closed)
+            assertEquals(1, ports.first().closes)
+            media.showGallery()
+            runCurrent()
+            assertFalse(media.open(record.asset.id, staleAction))
+            assertTrue(media.open(record.asset.id, library.actionToken))
+            runCurrent()
+            val current = assertNotNull(media.state.value.playback)
+            assertTrue(current.state.value.ready)
+            assertTrue(current !== previous)
+            assertEquals(2, ports.size)
+            oldCallback(oldToken, MonitorPlaybackEvent.Failed("retired native callback"))
+            oldCallback(oldToken, MonitorPlaybackEvent.Ended)
+            assertTrue(current.state.value.ready)
+            assertNull(current.state.value.error)
+            assertFalse(current.state.value.reachedEnd)
+            assertEquals(0.0, current.state.value.position)
+            shell.present(ConnectedCamera(assertNotNull(shell.state.value.monitor).camera.saved, SimulatedCameraSession(fake.id)))
+            media.bind(shell.state.value.monitor?.camera)
+            assertTrue(current.state.value.closed)
+            assertNull(media.state.value.playback)
+            assertFalse(media.state.value.galleryOpen)
+            oldCallback(oldToken, MonitorPlaybackEvent.Playing(true))
+            assertTrue(shell.control.isRecording != true)
+        } finally {
+            media.closeGallery()
+            library.dispose()
+            shell.close()
+            root.deleteRecursively()
+        }
+    }
+
+    private fun TestScope.connected(document: Memory = Memory()): Pair<ShellModel, FakeIntegration> {
+        val fake = FakeIntegration()
+        val shell = makeShell(document, backgroundScope, listOf(AppIntegration(fake)),
+            MonitorControlModel(backgroundScope, coalescingMs = 0, delay = {}))
+        runCurrent()
+        shell.cameras.connect(shell.cameras.state.value.nearby.first())
+        runCurrent()
+        assertEquals(fake.sessions.last().id, shell.control.state.value.snapshot?.session)
+        return shell to fake
+    }
+
+    private class MemoryFavorites : MonitorMediaFavoritesStore {
+        private var keys: Set<String> = emptySet()
+        override fun favorites(): Set<String> = keys
+        override fun saveFavorites(keys: Set<String>) { this.keys = keys.toSet() }
+    }
+
+    /** SIMULATED native boundary for unit tests. Installed tests use Android's MediaPlayer. */
+    private class ScriptedPlaybackPort : MonitorPlaybackPort {
+        override var onEvent: ((MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Unit)? = null
+        private var token: MonitorPlaybackItemToken? = null
+        var closes = 0
+            private set
+        override fun retireItem(token: MonitorPlaybackItemToken) { this.token = token }
+        override suspend fun prepare(item: MonitorPlaybackItem, token: MonitorPlaybackItemToken,
+            readyTimeout: Duration?): MonitorPlaybackMetadata {
+            if (this.token != token) throw MonitorPlaybackException(MonitorPlaybackFailure.RETIRED)
+            onEvent?.invoke(token, MonitorPlaybackEvent.ItemInstalled)
+            return MonitorPlaybackMetadata(3.0, 320.0, 180.0)
+        }
+        override fun play(rate: Double, token: MonitorPlaybackItemToken) { onEvent?.invoke(token, MonitorPlaybackEvent.Playing(true)) }
+        override fun pause(token: MonitorPlaybackItemToken) { onEvent?.invoke(token, MonitorPlaybackEvent.Playing(false)) }
+        override suspend fun seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken): Boolean {
+            if (this.token != token) return false
+            onEvent?.invoke(token, MonitorPlaybackEvent.Position(seconds)); return true
+        }
+        override fun setMuted(muted: Boolean, token: MonitorPlaybackItemToken) = Unit
+        override fun close(token: MonitorPlaybackItemToken) {
+            val current = this.token ?: return
+            if (current.owner != token.owner || token.revision < current.revision) return
+            closes += 1; this.token = null; onEvent = null
+        }
+    }
+}

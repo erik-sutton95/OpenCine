@@ -20,10 +20,11 @@ class SharedUIRulesTest {
 
     /**
      * Process-wide mutable state a brand or app could switch on, each with a reason: the brand
-     * accent (a theme value) and the iOS parity switch until both apps accept the iOS look. The
+     * accent (a theme value), the iOS parity switch until both apps accept the iOS look, and the
+     * compact-phone live chrome scale the live view sets from the display width. The
      * set must match exactly, so removing a global also removes it here.
      */
-    private val allowedGlobals = setOf("MonitorPalette.accent", "MonitorIosParity.enabled")
+    private val allowedGlobals = setOf("MonitorPalette.accent", "MonitorIosParity.enabled", "LiveChromeMetrics.scale")
 
     /** The shared UI and the app shell (`Android/appkit`). */
     private val sources = listOf(File("src/main"), File("../appkit/src/main"))

@@ -27,17 +27,29 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
 @Composable
-fun MonitorAspectGuideFrames(selected: Set<MonitorGuideAspect>, feed: MonitorScopeRect, maskEnabled: Boolean = false) {
+fun MonitorAspectGuideFrames(
+    selected: Set<MonitorGuideAspect>, feed: MonitorScopeRect, maskEnabled: Boolean = false,
+    maskPolicy: MonitorGuideMaskPolicy = MonitorGuideMaskPolicy.UNION,
+) {
     val frames =
         selected.sortedBy { it.ratio }.map { it to MonitorGuideGeometry.rectForRatio(feed, it.ratio) }
-    val union = remember(frames) {
-        frames.map { (_, rect) -> Path().apply { addRect(Rect(rect.minX, rect.minY, rect.maxX, rect.maxY)) } }
-            .reduceOrNull { accumulated, next -> Path.combine(PathOperation.Union, accumulated, next) }
+    val maskPath = remember(frames, maskPolicy) {
+        when (maskPolicy) {
+            MonitorGuideMaskPolicy.UNION ->
+                frames.map { (_, rect) -> Path().apply { addRect(Rect(rect.minX, rect.minY, rect.maxX, rect.maxY)) } }
+                    .reduceOrNull { accumulated, next -> Path.combine(PathOperation.Union, accumulated, next) }
+            MonitorGuideMaskPolicy.ENVELOPE -> if (frames.isEmpty()) null else {
+                Path().apply {
+                    addRect(Rect(frames.minOf { it.second.minX }, frames.minOf { it.second.minY },
+                        frames.maxOf { it.second.maxX }, frames.maxOf { it.second.maxY }))
+                }
+            }
+        }
     }
     Canvas(Modifier.fillMaxSize()) {
-        if (maskEnabled && union != null) {
+        if (maskEnabled && maskPath != null) {
             val mask = Color.Black.copy(alpha = 0.6f)
-            clipPath(union, clipOp = ClipOp.Difference) {
+            clipPath(maskPath, clipOp = ClipOp.Difference) {
                 drawRect(mask, Offset(feed.minX, feed.minY), Size(feed.width, feed.height))
             }
         }

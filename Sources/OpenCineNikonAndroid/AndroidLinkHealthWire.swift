@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 import OpenCineNikon
 
 /// Stable numeric values carried from the Android shell into the shared link-health scorer.

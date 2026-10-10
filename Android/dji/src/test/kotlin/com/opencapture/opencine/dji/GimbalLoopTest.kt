@@ -1,5 +1,8 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalProgramCurve
+import com.opencapture.opencine.motion.GimbalWaypoint
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,5 +1,12 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalProgramCurve
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.motion.GimbalWaypointSlot
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.GimbalMode
+import com.opencapture.opencine.vocabulary.GimbalSpeed
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.tan
@@ -370,7 +377,7 @@ class GimbalProgramTest {
         assertEquals(program.a, wide.position(0.0))
         assertEquals(program.c, wide.position(5.0))
         assertTrue(GimbalMoveEngine.angularDistance(wide.position(3.0), program.b!!) >
-            GimbalMoveEngine.angularDistance(tight.position(3.0), program.b))
+            GimbalMoveEngine.angularDistance(tight.position(3.0), program.b!!))
         assertEquals(27.5, wide.position(3.0).yawDeg, 1e-9)
         assertEquals(2.5, wide.position(3.0).pitchDeg, 1e-9)
         assertTrue(wide.samples().all { it == it.clamped() })

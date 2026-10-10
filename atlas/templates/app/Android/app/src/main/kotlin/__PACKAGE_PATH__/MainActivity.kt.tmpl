@@ -1,0 +1,61 @@
+package __APP_ID__
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.opencapture.opencine.core.SettingKey
+import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.ISOValue
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.lifecycle.lifecycleScope
+import com.opencapture.opencine.appkit.MonitorAssistState
+import com.opencapture.monitorui.MonitorAssistTool
+import com.opencapture.opencine.appkit.MonitorDisplayPreferences
+import com.opencapture.opencine.appkit.MonitorOperatorPreferences
+import com.opencapture.opencine.cameracontrols.MonitorOperatorScene
+import com.opencapture.opencine.appkit.ShellActions
+import com.opencapture.opencine.appkit.stored
+
+/** Brand, storage values and bounded native adapters over the complete shared operator scene. */
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val shell = makeShell(getSharedPreferences("__NAME__.cameras", MODE_PRIVATE).stored("document"), lifecycleScope,
+            integrationList = appIntegrations(this))
+        val media = makeOperatorMedia(this, lifecycleScope)
+        val storage = getSharedPreferences("__NAME__.operator", MODE_PRIVATE)
+        val operatorPreferences = MonitorOperatorPreferences(storage,
+            MonitorOperatorPreferences.Keys("__NAME__.KeepScreenAwake", "__NAME__.HDRDisplay", "__NAME__.RecordConfirmation",
+                "__NAME__.Haptics", "__NAME__.CacheOriginals"))
+        val displayPreferences = MonitorDisplayPreferences(storage,
+            MonitorDisplayPreferences.Keys("__NAME__.Display.Live", "__NAME__.Display.Clean"))
+        val assist = MonitorAssistState(encoded = storage.getString("__NAME__.Assists", null),
+            pinnedNames = storage.getStringSet("__NAME__.CleanPins", setOf("LUT", "PEAK", "MIRROR", "DESQ"))!!.toSet(),
+            onPersist = { storage.edit().putString("__NAME__.Assists", it).apply() },
+            onPersistPins = { storage.edit().putStringSet("__NAME__.CleanPins", it).apply() },
+            playbackNames = storage.getStringSet("__NAME__.PlaybackAssists", emptySet())!!.toSet(),
+            onPersistPlayback = { storage.edit().putStringSet("__NAME__.PlaybackAssists", it).apply() })
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                val playbackEffects = OperatorPlaybackEffects(assist)
+                MonitorOperatorScene(shell = shell, brand = brand,
+                    actions = ShellActions(diagnostics = {}, reportProblem = {}),
+                    operatorPreferences = operatorPreferences, displayPreferences = displayPreferences,
+                    assist = assist, media = media, playbackEffects = playbackEffects,
+                    assistHost = OperatorAssistHost(),
+                    availableAssistTools = setOf(MonitorAssistTool.PEAK, MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA,
+                        MonitorAssistTool.GUIDES, MonitorAssistTool.GRID, MonitorAssistTool.CROSS,
+                        MonitorAssistTool.DESQ, MonitorAssistTool.MIRROR),
+                    picture = { live ->
+                        val snapshot by live.camera.session.snapshots.collectAsState()
+                        val iso = ((snapshot.settings[SettingKey.ISO]?.value as? SettingValue.Iso)?.value as? ISOValue.Manual)?.iso
+                        OperatorPicture(assist, operatorPreferences, iso)
+                    }, thumbnail = { OperatorThumbnail(it) },
+                    playbackPicture = { OperatorPlaybackPicture(it, assist, operatorPreferences, playbackEffects) })
+            }
+        }
+    }
+}

@@ -85,6 +85,23 @@ public protocol NikonControlDriver: AnyObject {
     ) -> Int
     /// Queues an explicit record start (`true`) or stop for the next safe point.
     func queueRecord(start: Bool, operation: OperationID)
+    /// Supplied authority is always bound to the driver's actual established link.
+    func admits(_ admission: NikonCommandAdmission) -> Bool
+    func queueSettingWrites(
+        _ label: String, for setting: NikonControlSetting, operation: OperationID?,
+        admission: NikonCommandAdmission
+    ) -> Int
+    func queueRecord(start: Bool, operation: OperationID, admission: NikonCommandAdmission)
+}
+
+extension NikonControlDriver {
+    public func admits(_ admission: NikonCommandAdmission) -> Bool { false }
+    public func queueSettingWrites(
+        _ label: String, for setting: NikonControlSetting, operation: OperationID?,
+        admission: NikonCommandAdmission
+    ) -> Int { 0 }
+    public func queueRecord(start: Bool, operation: OperationID, admission: NikonCommandAdmission) {
+    }
 }
 
 /// One Nikon monitor lifetime as an `OpenCineCore.CameraSession`. A replacement link during
@@ -156,6 +173,17 @@ public final class NikonCameraSession: CameraSession {
     }
 
     public func submit(_ command: CameraCommand) -> CommandReceipt {
+        submit(command, suppliedAdmission: nil)
+    }
+
+    public func submit(_ command: CameraCommand, admission: NikonCommandAdmission) -> CommandReceipt
+    {
+        submit(command, suppliedAdmission: admission)
+    }
+
+    private func submit(_ command: CameraCommand, suppliedAdmission: NikonCommandAdmission?)
+        -> CommandReceipt
+    {
         let operation = command.operation
         if let known = receipts[operation] { return known }
         let snapshot = refresh()
@@ -163,7 +191,16 @@ public final class NikonCameraSession: CameraSession {
             operation: operation, session: id, intent: command.intent,
             confirmation: snapshot.capabilities[command.intent.key]?.semantics.confirmation
                 ?? .readback)
-        if let rejection = snapshot.rejection(of: command, at: now()) {
+        var operationSnapshot = snapshot
+        if let admission = suppliedAdmission {
+            guard driver?.admits(admission) == true else {
+                return transition(operation, .rejected(.authorityExpired))
+            }
+            // This explicit holder receipt admits one operation while the local operator's
+            // controls remain surrendered. It never changes the published camera authority.
+            operationSnapshot.authority = .owner
+        }
+        if let rejection = operationSnapshot.rejection(of: command, at: now()) {
             return transition(operation, .rejected(rejection))
         }
         transition(operation, .admitted)
@@ -172,7 +209,13 @@ public final class NikonCameraSession: CameraSession {
             guard let (setting, label) = Self.settingValue(for: value), let driver else {
                 return transition(operation, .failed(.notSent))
             }
-            let writes = driver.queueSettingWrites(label, for: setting, operation: operation)
+            let writes: Int
+            if let admission = suppliedAdmission {
+                writes = driver.queueSettingWrites(
+                    label, for: setting, operation: operation, admission: admission)
+            } else {
+                writes = driver.queueSettingWrites(label, for: setting, operation: operation)
+            }
             guard writes > 0 else { return transition(operation, .failed(.notSent)) }
             owedWrites[operation] = writes
             return receipts[operation]!
@@ -186,7 +229,11 @@ public final class NikonCameraSession: CameraSession {
             }
             guard let driver else { return transition(operation, .failed(.notSent)) }
             recordTargets[operation] = start
-            driver.queueRecord(start: start, operation: operation)
+            if let admission = suppliedAdmission {
+                driver.queueRecord(start: start, operation: operation, admission: admission)
+            } else {
+                driver.queueRecord(start: start, operation: operation)
+            }
             return receipts[operation]!
         case .focusPoint:
             // Not advertised, so admission already rejected it as `.supportUnknown`.
@@ -233,6 +280,25 @@ public final class NikonCameraSession: CameraSession {
     /// The operator acting on what the camera reports right now.
     public func request(_ intent: CameraCommandIntent) -> CommandReceipt {
         submit(CameraCommand(intent, preconditions: CommandPreconditions(refresh())))
+    }
+
+    public func request(_ intent: CameraCommandIntent, admission: NikonCommandAdmission)
+        -> CommandReceipt
+    {
+        submit(
+            CameraCommand(intent, preconditions: CommandPreconditions(refresh())),
+            admission: admission)
+    }
+
+    /// No new wire work is sent. An earlier accepted part of a multi-write operation may remain.
+    public func commandAdmissionExpired(_ operation: OperationID) {
+        guard let receipt = receipts[operation], !receipt.isFinished else { return }
+        switch receipt.stage {
+        case .accepted, .awaitingObservation:
+            finish(operation, .outcomeUnknown)
+        default:
+            finish(operation, .rejected(.authorityExpired))
+        }
     }
 
     /// The safe point is putting this operation's command on the wire.

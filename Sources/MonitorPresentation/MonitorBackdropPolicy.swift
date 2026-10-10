@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 
 /// Reference backdrop parameters, in logical display points and encoded RGB.
 /// Blur, saturation and tint are independent; these are not material opacities.
@@ -39,11 +40,11 @@ public enum MonitorGlassDensity: CaseIterable, Hashable, Sendable {
 }
 
 public enum MonitorBackdropPolicy {
-    public static let maximumDimension = 320
+    public static let maximumDimension = MonitorBackdropRenderValues.maximumDimension
     /// Display-locked cap. Live SoftAP is ~25 fps; one job in flight is the
     /// real limiter. Do not sample a second decoder or a window capture.
-    public static let minimumInterval: Double = 1.0 / 60.0
-    public static let minimumIntervalNanoseconds: UInt64 = 16_666_667
+    public static let minimumInterval: Double = MonitorBackdropRenderValues.minimumInterval
+    public static let minimumIntervalNanoseconds: UInt64 = MonitorBackdropRenderValues.minimumIntervalNanoseconds
     // No thermal multiplier: glass behind the picture follows every source
     // frame. Lagging glass is distracting, and the GPU blur is cheap.
 }

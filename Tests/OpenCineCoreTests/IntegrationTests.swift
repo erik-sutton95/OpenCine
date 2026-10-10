@@ -122,6 +122,14 @@ import Testing
         #expect(connected.saved.routes.map(\.kind) == [.cameraAccessPoint, .infrastructureNetwork])
     }
 
+    @Test func anAttemptHandlerAnswersEveryConnect() async {
+        let integration = FakeIntegration()
+        integration.onAttempt = { $0.connect(session: FakeCameraSession.lunaLike()) }
+        let nearby = NearbyCamera(id: "n1", name: "CAM-1", model: "Test Body", routes: [.cameraAccessPoint])
+        #expect(await collect(integration.connect(.nearby(nearby))).map(summary) == ["connected n1"])
+        #expect(integration.attempts.map(\.end) == [.connected])
+    }
+
     @Test func forgetReachesTheIntegration() async {
         let integration = FakeIntegration()
         await integration.forget(camera)

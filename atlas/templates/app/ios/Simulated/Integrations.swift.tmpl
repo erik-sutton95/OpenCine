@@ -1,0 +1,177 @@
+import Foundation
+import OpenCineAppKit
+import OpenCineCore
+import OpenCineMedia
+
+/// SIMULATED public-contract sample; no vendor protocol, harness or test-fixture product.
+/// Camera observations and media bytes are scripted here. Shared owners handle the operator UI.
+@MainActor final class FakeIntegration: CameraIntegration {
+    nonisolated let id = IntegrationID("__APP_ID__.simulated")
+    nonisolated let profiles = [CameraProfile(id: "simulated.body", title: "SIMULATED Camera", routes: [.infrastructureNetwork])]
+    nonisolated let discoveryModes: Set<DiscoveryMode> = [.passive, .active]
+    private(set) var sessions: [SimulatedCameraSession] = []
+    var pictureOnly = false
+    var dropISOAfterEdit = false
+
+    func discover(_ mode: DiscoveryMode) -> AsyncStream<[NearbyCamera]> {
+        AsyncStream { output in
+            output.yield([NearbyCamera(id: "simulated-camera", name: "SIMULATED CAMERA", model: "Scripted Body", routes: [.infrastructureNetwork])])
+            output.finish()
+        }
+    }
+
+    func connect(_ target: ConnectTarget) -> AsyncStream<ConnectionEvent> {
+        let session = SimulatedCameraSession(integration: id, pictureOnly: pictureOnly, dropISOAfterEdit: dropISOAfterEdit)
+        sessions.append(session)
+        var services = CameraServices()
+        if !pictureOnly { services.register(SimulatedMediaService(session: session), as: (any CameraMediaService).self) }
+        let saved: SavedCamera
+        switch target {
+        case .saved(let camera, _), .addRoute(let camera, _): saved = camera
+        case .nearby(let camera):
+            saved = SavedCamera(id: camera.savedID ?? camera.id, integration: id,
+                advertisedName: camera.name, model: camera.model,
+                routes: [SavedRoute(key: "simulated-network", kind: .infrastructureNetwork)])
+        }
+        return AsyncStream { output in
+            output.yield(.connected(ConnectedCamera(saved: saved, session: session, services: services)))
+            output.finish()
+        }
+    }
+
+    func forget(_ camera: SavedCamera) async {}
+}
+
+@MainActor func integrations() -> [AppIntegration] {
+    let fake = FakeIntegration()
+    fake.pictureOnly = ProcessInfo.processInfo.arguments.contains("--simulated-picture-only")
+    fake.dropISOAfterEdit = ProcessInfo.processInfo.arguments.contains("--simulated-drop-iso-after-edit")
+    return [AppIntegration(fake)]
+}
+
+/// A small scripted device over the public session contract, not a production session.
+/// Reports normally confirm immediately; tests can hold one report to exercise replacement.
+@MainActor final class SimulatedCameraSession: CameraSession {
+    nonisolated let id = CameraSessionID()
+    private(set) var current: CameraSnapshot
+    private(set) var commands: [CameraCommand] = []
+    private(set) var closes = 0
+    var holdNextReport = false
+    private var held: CameraCommand?
+    private let dropISOAfterEdit: Bool
+    private var receipts: [OperationID: CommandReceipt] = [:]
+    private var observations: [UUID: AsyncStream<CameraSnapshot>.Continuation] = [:]
+    private var results: [OperationID: [UUID: AsyncStream<CommandReceipt>.Continuation]] = [:]
+
+    init(integration: IntegrationID, pictureOnly: Bool = false, dropISOAfterEdit: Bool = false) {
+        self.dropISOAfterEdit = dropISOAfterEdit
+        current = CameraSnapshot(session: id, epoch: .init(1), device: .provisional(integration: integration), connection: .ready, authority: .owner)
+        current.mode = .init(CaptureMode(role: .video, id: "simulated.video", title: "Video"), origin: .cameraReported, at: .now())
+        current.recording = .init(.idle, origin: .cameraReported, at: .now())
+        current.settings[.iso] = .init(.iso(.manual(200)), origin: .cameraReported, at: .now())
+        current.settings[.shutter] = .init(.shutter(.duration(Rational(1, 50))), origin: .cameraReported, at: .now())
+        current.settings[.frameRate] = .init(.frameRate(Rational(24)), origin: .cameraReported, at: .now())
+        reportCapabilities(iso: true, pictureOnly: pictureOnly)
+    }
+
+    func reportCapabilities(iso: Bool, pictureOnly: Bool = false) {
+        guard current.connection == .ready else { return }
+        var descriptors = pictureOnly ? [] : [SettingDescriptor(.recording)]
+        if iso && !pictureOnly {
+            descriptors.append(SettingDescriptor(.iso, domain: .init(choices: [100, 200, 400, 800].map { .iso(.manual($0)) })))
+        }
+        current.capabilities = CapabilitySnapshot(revision: current.capabilities.revision.next(),
+            descriptors: descriptors, unsupported: Set([SettingKey.aperture, .focusPoint, .whiteBalance, .zoom, .exposureCompensation])
+                .union(iso && !pictureOnly ? [] : [.iso]).union(pictureOnly ? [.recording] : []))
+        current.authority = pictureOnly ? .readOnly : .owner
+        publish()
+    }
+
+    func snapshots() async -> AsyncStream<CameraSnapshot> {
+        let key = UUID()
+        let (stream, output) = AsyncStream.makeStream(of: CameraSnapshot.self, bufferingPolicy: .bufferingNewest(1))
+        output.yield(current)
+        if case .disconnected = current.connection { output.finish() }
+        else {
+            observations[key] = output
+            output.onTermination = { [weak self] _ in Task { @MainActor in self?.observations[key] = nil } }
+        }
+        return stream
+    }
+
+    func submit(_ command: CameraCommand) async -> CommandReceipt {
+        if let known = receipts[command.operation] { return known }
+        let rejection = current.rejection(of: command, at: .now())
+        let receipt = CommandReceipt(operation: command.operation, session: id, intent: command.intent,
+            stage: rejection.map { .rejected($0) } ?? .awaitingObservation)
+        receipts[command.operation] = receipt
+        guard rejection == nil else { return receipt }
+        commands.append(command)
+        if holdNextReport {
+            holdNextReport = false
+            held = command
+        } else { report(command) }
+        return receipts[command.operation]!
+    }
+
+    func reportHeldCommand() {
+        guard let command = held else { return }
+        held = nil
+        report(command)
+    }
+
+    func outcome(of operation: OperationID) async -> CommandReceipt? {
+        guard let known = receipts[operation] else { return nil }
+        if known.isFinished { return known }
+        let key = UUID()
+        let (stream, output) = AsyncStream.makeStream(of: CommandReceipt.self, bufferingPolicy: .bufferingNewest(1))
+        results[operation, default: [:]][key] = output
+        defer { results[operation]?[key] = nil }
+        for await receipt in stream { if receipt.isFinished { return receipt } }
+        return receipts[operation]
+    }
+
+    func receipt(of operation: OperationID) async -> CommandReceipt? { receipts[operation] }
+
+    func close(_ reason: SessionCloseReason) async {
+        guard current.connection == .ready else { return }
+        closes += 1
+        current.connection = .disconnected(reason)
+        current.authority = .unavailable(.link)
+        for operation in Array(receipts.keys) where receipts[operation]?.isFinished == false {
+            finish(operation, stage: .outcomeUnknown)
+        }
+        publish()
+        for output in observations.values { output.finish() }
+        observations.removeAll()
+    }
+
+    private func report(_ command: CameraCommand) {
+        guard current.connection == .ready, receipts[command.operation]?.isFinished == false else { return }
+        switch command.intent {
+        case .set(let value): current.settings[value.key] = .init(value, origin: .cameraReported, at: .now())
+        case .startRecording: current.recording = .init(.recording, origin: .cameraReported, at: .now())
+        case .stopRecording: current.recording = .init(.idle, origin: .cameraReported, at: .now())
+        case .focusPoint: break
+        }
+        publish()
+        finish(command.operation, stage: .confirmed)
+        if dropISOAfterEdit, case .set(let value) = command.intent, value.key == .iso {
+            reportCapabilities(iso: false)
+        }
+    }
+
+    private func finish(_ operation: OperationID, stage: CommandStage) {
+        guard var receipt = receipts[operation] else { return }
+        receipt.stage = stage
+        receipts[operation] = receipt
+        if let pending = results[operation] {
+            for output in pending.values { output.yield(receipt); output.finish() }
+        }
+    }
+
+    private func publish() {
+        current.revision = current.revision.next()
+        for output in observations.values { output.yield(current) }
+    }
+}

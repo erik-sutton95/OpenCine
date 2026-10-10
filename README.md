@@ -1,127 +1,159 @@
+<div align="center">
+
 # OpenCine
 
-The shared platform of the OpenCapture camera apps (OpenPocketCine, OpenInstaCine, OpenZCine):
-camera contracts, media math and runtime, the UI 2.0 design system, the multicam engine and the
-DJI, Nikon and Insta360 integrations, for iOS (Swift package) and Android (one Gradle build),
-plus the atlas that maps the portfolio. One repository, one version.
+**The shared camera platform behind OpenCapture.**
 
-Status: candidate. Automated checks pass; nothing here is hardware-qualified on its own (apps
-qualify behavior on physical cameras). Not yet published.
+Camera contracts, native monitoring and media, one operator interface, and camera integrations
+for Swift on iOS and Kotlin on Android.
 
-## What lives here
+[![CI](https://github.com/erik-sutton95/OpenCine/actions/workflows/ci.yml/badge.svg)](https://github.com/erik-sutton95/OpenCine/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-| Path | What |
-|---|---|
-| `Package.swift`, `Sources/`, `Tests/` | One Swift package, `OpenCine`: every product below plus the developer-only harness targets |
-| `Fixtures/` | Data shared by Swift and Kotlin tests (`live-video-nal-vectors.tsv`, `camfov-vectors.tsv`, `saved-cameras/`) |
-| `Android/` | One Gradle build: modules `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `appkit`, `multicam`, `dji`, `nikon`, `insta360-shell`, `insta360-luna` |
-| `scripts/` | `android-vulkan-sync-test.sh` (Vulkan present regression, host CPU), `vendor-lucide-icons.py` |
-| `docs/<area>/` | Per-area guides moved from the former repositories: [core](docs/core/README.md), [ui](docs/ui/README.md), [appkit](docs/appkit/README.md), [multicam](docs/multicam/README.md), [dji](docs/dji/README.md), [nikon](docs/nikon/README.md), [insta360](docs/insta360/README.md), [harness](docs/harness/README.md) |
-| `atlas/` | OpenCapture atlas: repository registry, routing docs, compatibility records, publish tooling, navigation evals ([atlas/README.md](atlas/README.md)) |
+[Developer guide](AGENTS.md) · [Atlas](atlas/README.md) · [Shared issues](https://github.com/erik-sutton95/OpenCine/issues)
 
-## Products
+</div>
 
-Swift products keep the module names the apps already import. Android modules keep their
-coordinates `com.opencapture.opencine:<module>`.
+OpenCine powers [OpenPocketCine](https://github.com/erik-sutton95/OpenPocketCine),
+[OpenInstaCine](https://github.com/erik-sutton95/OpenInstaCine) and
+[OpenZCine](https://github.com/erik-sutton95/OpenZCine). It also provides the template for new
+camera apps. Apps supply their integrations, real camera observations and optional services;
+shared code owns the common operator experience.
 
-| Area | Swift products | Android modules | Depends on |
-|---|---|---|---|
-| Core | `OpenCineCore` | `core` | nothing (Foundation; Kotlin stdlib, coroutines) |
-| Core | `OpenCineMedia` | `media` | `OpenCineCore` / `core` |
-| Core | | [`platform`](docs/platform/README.md) (Android Keystore and configured credential storage) | Android framework only |
-| Core | | `decoder` (MediaCodec live-view decoder) | `media` |
-| Core | `OpenCineFrameIO` (optional) | | nothing |
-| Core | `OpenCineMotion` (optional) | | `OpenCineCore` |
-| Core | `OpenCineRelay` (optional) | | nothing |
-| Core | `OpenCineApple` | `vulkan` (native renderer) | `OpenCineCore`, `OpenCineMedia` |
-| Core | `OpenCineCoreTestSupport` (tests only) | `core` test fixtures | `OpenCineCore` |
-| Android JNI | `OpenCineJNISupport` (JNI copy helpers for Swift Android libraries; re-exports C target `OpenCineJNI`) | | `OpenCineJNI` |
-| UI | `MonitorPresentation`, `MonitorUI` | `monitor-ui` | nothing |
-| App shell | `OpenCineAppKit` (saved cameras, connection model, cameras and pair screens, root and monitor lifetime, common controls) | `appkit` | `OpenCineCore` / `core` |
-| Multicam | `OpenCineMulticam` | `multicam` | `OpenCineCore` / `core` |
-| DJI | `OpenCineDJI`, `OpenCineDJIAndroid` (Swift side of `DjiNative`, + C target `OpenCineJNI`) | `dji` (JNI facade `DjiNative`) | `OpenCineCore`, `OpenCineMedia` / `core`, `media`, `decoder`, `platform` |
-| Nikon | `OpenCineNikon`, `OpenCineNikonAndroid` (Swift side of `NikonNative`: Android session layer and JNI exports) | `nikon` (JNI facade `NikonNative`) | `OpenCineCore`, `OpenCineJNISupport` / `core` |
-| Insta360 | `Insta360Protocol`, `Insta360Apple` (+ C target `CKcp`), `Insta360AppleTestSupport` (tests only) | `insta360-shell`, `insta360-luna` | `OpenCineCore` / `core` |
-| Harness | none (targets `HarnessEngine`, `HarnessComposition`, `HarnessTests`; SIMULATED, never ships) | | everything above except UI |
+**Status: source candidate.** Shared checks, consumer verification, app pin updates and
+releases have separate scopes. SIMULATED scenarios and successful builds do not qualify camera
+behavior on hardware; that evidence belongs to the app and the tested camera.
 
-The package has no third-party dependencies, so linking one product resolves nothing else.
+## What you can build with it
 
-## Which app uses what
+- Camera connections, saved-camera records, setting descriptors and observed values.
+- A common monitor, capture controls, assist inspectors, cameras page and operator settings.
+- Native live picture and clip playback, media delivery, calibration and effects processing.
+- Multicam policy, relay and watch components, with explicit ownership and optional services.
+- UI-free DJI, Nikon and Insta360 integrations, composed by each app.
 
-| App | Swift products | Android modules |
-|---|---|---|
-| OpenPocketCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineDJI`, `OpenCineDJIAndroid` (Android .so) | `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `multicam`, `dji` |
-| OpenInstaCine | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineMotion`, `OpenCineRelay`, `OpenCineApple`, `Insta360Protocol`, `Insta360Apple` (+ `Insta360AppleTestSupport` in tests) | `core`, `media`, `platform`, `decoder`, `vulkan`, `monitor-ui`, `insta360-shell`, `insta360-luna` |
-| OpenZCine (`opencine/integration`) | `MonitorUI`, `MonitorPresentation`, `OpenCineCore`, `OpenCineMedia`, `OpenCineFrameIO`, `OpenCineApple`, `OpenCineMulticam`, `OpenCineNikon`, `OpenCineNikonAndroid` and `OpenCineJNISupport` (Android .so) | `core`, `monitor-ui`, `multicam`, `nikon` |
-| OpenZCine engine-port candidate | `MonitorUI`, `MonitorPresentation` | `monitor-ui` |
+Features follow the connected camera's capabilities and services. Unsupported or unknown values
+remain absent: unknown is `nil`, not a guessed `false`, zero or empty string. Integration-specific
+controls enter through typed, bounded content; they do not replace shared screen composition.
 
-Each app pins one commit of this repository in its `opencine-pins.txt` (`OpenCine <sha>`);
-`scripts/checkout-opencine.sh` in the app checks it out next to the app in CI.
+## Start here
 
-## Work on every app from here
-
-Open this repository in your editor or agent and work on all three apps from it: the atlas
-clones missing app checkouts next to it (`python3 atlas/tools/atlas.py ensure`), lists the open
-issues of every repository (`issues`), shows which apps use a symbol or file and where
-(`impact <symbol or path>`) and turns an issue into a task folder with one worktree per repository
-(`task start <repo>#<n>`). The workflow and rules are in [AGENTS.md](AGENTS.md); agent skills for
-issues, triage and propagating a shared change are in `.claude/skills/`.
-
-## Develop locally with an app
-
-Check this repository out next to the app (`~/Work/OpenCine` beside `~/Work/OpenPocketCine`).
-The app's candidate branch already points here:
-
-- Swift: the app's root `Package.swift` has `.package(path: "../OpenCine")` and
-  `ios/project.yml` (or the Runner project) has one local package `../../OpenCine`; both name the
-  same directory, so Xcode sees one package.
-- Android: the app's `settings.gradle.kts` includes this build once, by name:
-
-  ```kotlin
-  includeBuild("../../../OpenCine/Android") {
-      name = "opencine"
-      dependencySubstitution {
-          substitute(module("com.opencapture.opencine:core")).using(project(":core"))
-          // ...one line per module the app uses
-      }
-  }
-  ```
-
-Edit here, then run the app's own checks against the change. Local paths bypass versions, so a
-release is validated again without them ([atlas/docs/PUBLISH.md](atlas/docs/PUBLISH.md)).
-
-## Build and test
+For the shared Swift package, use a compatible Swift toolchain and Xcode on macOS. The manifest
+declares Swift tools 6.0; CI selects the latest stable Xcode. Android CI uses JDK 21 with the
+Android SDK and the checked-in Gradle wrapper. Its Java/Kotlin bytecode target is a separate
+setting. Python 3 runs the atlas without additional Python dependencies.
 
 ```sh
-swift build && swift test                     # macOS host: every Swift test target
+git clone https://github.com/erik-sutton95/OpenCine.git
+cd OpenCine
+swift build --build-tests
+swift test
+python3 atlas/tools/atlas.py check
+```
+
+To work with the camera apps, the atlas checks and creates sibling checkouts:
+
+```sh
+python3 atlas/tools/atlas.py ensure --check
+python3 atlas/tools/atlas.py ensure
+python3 atlas/tools/atlas.py locate openpocketcine
+python3 atlas/tools/atlas.py impact OpenCineMedia
+```
+
+An app's `opencine-pins.txt` records its shared source commit. Candidate checkouts use a sibling
+Swift package and Gradle composite build; app CI checks out the pinned commit. Run the app's own
+checks after changing shared behavior. [AGENTS.md](AGENTS.md) describes task worktrees and
+[atlas/docs/PUBLISH.md](atlas/docs/PUBLISH.md) describes publishing and reviewed app pin moves.
+
+## Architecture
+
+```mermaid
+flowchart TD
+  Apps[Camera apps] --> Composition[Shared app composition and controls]
+  Apps --> Integrations[UI-free camera integrations]
+  Composition --> UI[Shared SwiftUI and Compose presentation]
+  Composition --> Values[Core and portable media values]
+  Integrations --> Values
+  UI --> Values
+```
+
+This is a layer overview. [Package.swift](Package.swift) and
+[Android/settings.gradle.kts](Android/settings.gradle.kts) list the products and modules;
+their target dependencies and the area guides define the precise allowed edges.
+
+| Area | Guide |
+| --- | --- |
+| Contracts and portable media | [Core](docs/core/README.md) |
+| Monitor presentation and native runtime | [UI](docs/ui/README.md), [native runtime](docs/native-runtime/README.md) |
+| App composition and shared controls | [AppKit](docs/appkit/README.md) |
+| Multicam | [Multicam](docs/multicam/README.md) |
+| Camera integrations | [DJI](docs/dji/README.md), [Nikon](docs/nikon/README.md), [Insta360](docs/insta360/README.md) |
+| SIMULATED developer harness | [Harness](docs/harness/README.md) |
+| Repository routing and compatibility | [Atlas](atlas/README.md) |
+
+The Swift package declares no external package dependencies. Existing Android dependencies are
+specified in its version catalog. Shared UI and app composition never import an integration or
+branch on a manufacturer; apps compose the integration and supply values and actions.
+
+## Build and verify
+
+Run these from the repository root:
+
+```sh
+swift build --build-tests
+swift test
+swift build --build-tests -Xswiftc -strict-concurrency=complete
 xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
 xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
 xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
-cd Android && ./gradlew test lint assembleRelease   # JDK 17+, Android SDK (ANDROID_HOME or local.properties)
-scripts/android-vulkan-sync-test.sh           # NDK Vulkan headers needed
-python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py check
+(cd Android && ./gradlew test lint assembleRelease)
+scripts/android-vulkan-sync-test.sh
+python3 -m unittest discover -s atlas/tests
+python3 atlas/tools/atlas.py check
 ```
 
-CI runs the same set ([.github/workflows/ci.yml](.github/workflows/ci.yml)), plus a strict
-concurrency build of the Core and Multicam areas with warnings as errors.
+The Vulkan host regression needs NDK Vulkan headers. The CI workflow also checks Core and
+Multicam with warnings as errors and runs the generated-app SIMULATED checks.
+Build and test results apply to the checked source; they are not a claim that every app or
+hardware feature is currently qualified. See the [device testing guide](docs/testing/TESTER-GUIDE.md)
+for app-specific verification, and [retired owners](docs/testing/RETIRED-OWNERS.md) for the shared
+source migration record.
 
-## Versioning and releases
+## Navigate with the atlas
 
-- One version for everything: every Swift product and Android module ships together under one
-  semantic version and one tag (`0.1.0` first). Artifacts record the source SHA.
-- During `0.x` an incompatible interface change bumps the minor version (`0.1` to `0.2`);
-  compatible fixes are patch releases. Apps pin an exact version and commit their lock files.
-- A shared change lands here first; each app moves its pin in its own reviewed update and is
-  verified there (operator-visible UI on a physical device) before it ships.
-- Native/JNI schema, relay wire and app versions are tracked separately from this version.
-- Publishing (one repository, one tag, app pins) is scripted and rehearsed in
-  `atlas/tools/publish.py`; steps and pending decisions are in
-  [atlas/docs/PUBLISH.md](atlas/docs/PUBLISH.md).
+The atlas routes issues, identifies consumers and records compatibility. An optional
+[Graphify](https://github.com/Graphify-Labs/graphify) adapter builds navigation graphs:
 
-## License
+```sh
+python3 atlas/tools/atlas.py graph build --all --local-only
+```
 
-Apache License 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). Bundled third-party resources
-(Sora, Lucide, Tabler-derived glyphs, KCP, Luna protocol reference):
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). DJI, Nikon, Insta360 and Luna are
-trademarks of their owners, used for identification only; this project is not affiliated with
-or endorsed by them.
+The inspected adapter requires `graphifyy==0.9.11` and the macOS sandbox. It exports code from
+Git and runs AST extraction with network access denied, without model calls. Graph edges are
+search hints; current source, manifests and exercised evidence remain authoritative.
+Graphify is a developer tool, not a product dependency. See [atlas/README.md](atlas/README.md).
+
+## Contribute and report
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Report app setup or camera behavior in the app's tracker;
+report confirmed shared-code problems [in OpenCine issues](https://github.com/erik-sutton95/OpenCine/issues/new/choose).
+Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
+
+## Support
+
+Optional [Buy Me a Coffee](https://buymeacoffee.com/eriksutton) contributions support
+OpenCapture development. Using the apps, reporting a clear issue and contributing a patch
+are welcome too.
+
+## Versions and license
+
+Shared products use one semantic version and tag. Shared changes land here first; each app moves
+its pin in a reviewed update and verifies the behavior before shipping. Below 1.0, incompatible
+interfaces require a minor version increment. The [publish guide](atlas/docs/PUBLISH.md) records
+the release process.
+
+Apache License 2.0: [LICENSE](LICENSE), [NOTICE](NOTICE) and
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Bundled resources retain their own notices.
+DJI, Nikon, Insta360 and Luna names identify their respective owners; this project is not
+affiliated with or endorsed by them.

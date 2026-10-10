@@ -10,11 +10,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -30,6 +35,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -45,7 +52,7 @@ data class MonitorCameraSection<T>(
     val note: String = "",
 )
 
-/** The shell supplies identities, availability and actions; this page owns only layout. */
+/** The shell supplies identities, availability and actions; this page owns layout and window clearance. */
 @Composable
 fun <T> MonitorCameraPage(
     brand: String,
@@ -64,7 +71,22 @@ fun <T> MonitorCameraPage(
     val tablet = minOf(config.screenWidthDp, config.screenHeightDp) >= 600
     val landscape = config.screenWidthDp > config.screenHeightDp
     val fullLabels = landscape || tablet
-    Column(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    // Landscape mirrors the larger physical cutout so the list stays centered.
+    val windowFrame = if (landscape) {
+        val side = with(density) {
+            MonitorLayoutPolicy.pageSideInsets(
+                landscape = true,
+                safeLeading = WindowInsets.safeDrawing.getLeft(this, layoutDirection).toDp().value,
+                safeTrailing = WindowInsets.safeDrawing.getRight(this, layoutDirection).toDp().value,
+            ).first.dp
+        }
+        Modifier.padding(start = side, end = side)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
+    } else Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+    Column(modifier.fillMaxSize().then(windowFrame).padding(vertical = 16.dp)
+        .padding(start = 18.dp, end = 18.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

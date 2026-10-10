@@ -3,6 +3,8 @@ package com.opencapture.opencine.dji
 import com.opencapture.opencine.core.CameraIntegration
 import com.opencapture.opencine.core.CameraProfile
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.CameraServices
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectedCamera
 import com.opencapture.opencine.core.ConnectionAttemptID
@@ -11,12 +13,15 @@ import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.core.ConnectionProgress
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionStep
+import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.DiscoveryMode
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
+import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.FoundCamera
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,8 +33,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import com.opencapture.opencine.core.ConnectionPhase as CorePhase
 
-/** Common route kind, separate from optional saved network facts (Swift DJIConnectionRoute). */
-public typealias DjiConnectionRoute = RouteKind
+/** The common session identity exposed through DJI's downward integration boundary. */
+public typealias DJICameraSessionID = CameraSessionID
+
+/** The common control epoch exposed through DJI's downward integration boundary. */
+public typealias DJIControlEpoch = ControlEpoch
 
 /**
  * What [DjiIntegration] needs from the DJI session (Swift `DJIConnectPort`): Bluetooth discovery,
@@ -45,6 +53,8 @@ interface DjiConnectPort {
     val failureDetail: StateFlow<ConnectionFailure?>
     val joinedSSID: String?
     val control: CameraSession
+    /** Actual source-owned optional services; older ports keep no advertised defaults. */
+    val services: CameraServices get() = CameraServices()
     fun startScan()
     fun stopScan()
     fun useSetup(setup: CameraConnectionSetup, network: MultiviewNetworkStore.Network?, restoreAccessPoint: Boolean)
@@ -93,9 +103,11 @@ object DjiFailures {
             error is StationJoin.Failure.UnsupportedRole || error is StationJoin.Failure.RoleRefused ->
                 failure(ConnectionFailure.Reason.Unsupported, "station.role-refused", message, core)
             error is StationJoin.Failure -> failure(ConnectionFailure.Reason.TimedOut, "station.silent", message, core)
+            // Try again only, as the Android cards have always offered: the pair page's
+            // Nearby devices action is the way to the permission.
             error is SecurityException -> failure(
                 ConnectionFailure.Reason.Permission(ConnectionFailure.Permission.NEARBY_DEVICES), "bluetooth.denied", message, core,
-            ).copy(actions = listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry))
+            )
             phase == ConnectionPhase.AWAITING_APPROVAL || "pairing timed out" in lower ->
                 failure(ConnectionFailure.Reason.NotApproved, "approval.timeout", message, CorePhase.AWAITING_APPROVAL)
             "password is missing" in lower -> failure(ConnectionFailure.Reason.CredentialsRejected, "station.password-missing", message, core)
@@ -127,11 +139,21 @@ object DjiFailures {
  */
 class DjiIntegration(
     private val port: DjiConnectPort,
+    private val forgetCredentialsAsync: (suspend (cameraId: String) -> Unit)?,
     private val loadNetwork: (ssid: String, hotspot: Boolean) -> MultiviewNetworkStore.Network? = { _, _ -> null },
     private val saveNetwork: (ssid: String, password: String, hotspot: Boolean) -> Unit = { _, _, _ -> },
     private val forgetCredentials: (cameraId: String) -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) : CameraIntegration {
+    /** Original constructor, including its JVM/default signature and trailing clock lambda. */
+    constructor(
+        port: DjiConnectPort,
+        loadNetwork: (ssid: String, hotspot: Boolean) -> MultiviewNetworkStore.Network? = { _, _ -> null },
+        saveNetwork: (ssid: String, password: String, hotspot: Boolean) -> Unit = { _, _, _ -> },
+        forgetCredentials: (cameraId: String) -> Unit = {},
+        now: () -> Long = System::currentTimeMillis,
+    ) : this(port, null, loadNetwork, saveNetwork, forgetCredentials, now)
+
     override val id = DjiCameraSessionAdapter.INTEGRATION
 
     /** The verified bodies (Swift `CameraModel.byId`). Bodies that list in Multiview add Wi-Fi and hotspot setups. */
@@ -162,6 +184,9 @@ class DjiIntegration(
         val MOVING_ROUTES = setOf(RouteKind.INFRASTRUCTURE_NETWORK, RouteKind.PHONE_HOTSPOT)
         const val APPROVE = "Approve on the camera"
         const val LOOKING = "Looking for the camera"
+        /** The Wi-Fi step's caption while the session reports no setup progress (the apps' phase labels). */
+        const val READING = "Reading Wi-Fi credentials…"
+        const val JOINING = "Joining camera Wi-Fi…"
 
         /** The connect card's plan: camera Wi-Fi, or moving the camera to a Wi-Fi or hotspot setup. */
         fun steps(route: SavedRoute?): List<ConnectionStep> {
@@ -277,7 +302,7 @@ class DjiIntegration(
                 // shared StateFlow of the owner would end it at once if a card ever lingers.
                 if (current != attempt) return@first true
                 when (phase) {
-                    ConnectionPhase.LIVE -> outcome = ConnectionEvent.Connected(ConnectedCamera(record(target, camera, route), port.control))
+                    ConnectionPhase.LIVE -> outcome = ConnectionEvent.Connected(ConnectedCamera(record(target, camera, route), port.control, port.services))
                     ConnectionPhase.FAILED -> port.failureDetail.value?.let { outcome = ConnectionEvent.Failed(withRouteActions(it, camera, route)) }
                     ConnectionPhase.IDLE -> return@first true
                     else -> {
@@ -298,7 +323,8 @@ class DjiIntegration(
     }
 
     override suspend fun forget(camera: SavedCamera) {
-        forgetCredentials(camera.id)
+        val async = forgetCredentialsAsync
+        if (async != null) async(camera.id) else forgetCredentials(camera.id)
     }
 
     private fun progress(attempt: ConnectionAttemptID, phase: ConnectionPhase, steps: List<ConnectionStep>, route: SavedRoute?): ConnectionEvent.Progress? {
@@ -315,7 +341,7 @@ class DjiIntegration(
         }
         val note = when {
             phase == ConnectionPhase.SCANNING -> LOOKING
-            step == 1 -> port.setupProgress.value
+            step == 1 -> port.setupProgress.value ?: if (phase == ConnectionPhase.READING_WIFI_CREDS) READING else JOINING
             else -> null
         }
         return ConnectionEvent.Progress(ConnectionProgress(attempt, corePhase, steps, step, note), prompt)

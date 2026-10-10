@@ -25,4 +25,6 @@ kotlin {
 dependencies {
     api(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(testFixtures(project(":core")))
 }

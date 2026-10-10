@@ -1,0 +1,290 @@
+package __APP_ID__
+
+import android.content.pm.ActivityInfo
+import android.graphics.Rect
+import android.os.Build
+import android.os.SystemClock
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect as ComposeRect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.opencapture.monitorui.MonitorFieldLayout
+import com.opencapture.monitorui.MonitorLayoutPolicy
+import com.opencapture.monitorui.MonitorPalette
+import com.opencapture.monitorui.MonitorStatusChrome
+import com.opencapture.monitorui.MonitorStatusPresentation
+import com.opencapture.monitorui.MonitorTypography
+import com.opencapture.opencine.appkit.MonitorCaptureSourceIdentity
+import com.opencapture.opencine.appkit.MonitorControlModel
+import com.opencapture.opencine.appkit.MonitorOperatorCaptureHeaderReadout
+import com.opencapture.opencine.appkit.MonitorOperatorCaptureInputs
+import com.opencapture.opencine.appkit.MonitorOperatorCaptureState
+import com.opencapture.opencine.appkit.MonitorOperatorLiveReadout
+import com.opencapture.opencine.appkit.MonitorScreen
+import com.opencapture.opencine.appkit.MonitorScreenPresentation
+import java.io.File
+import java.util.UUID
+import kotlin.math.abs
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** SIMULATED public native frames of the real shared status and screen, using the existing app carrier. */
+@RunWith(AndroidJUnit4::class)
+class MonitorPortraitStatusGeometryTest {
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val automation = instrumentation.uiAutomation
+
+    @Test fun observedSeparateReadoutsKeepTheirFullValuesAndEightPointClearance() = withHeader(440f) { value ->
+        assertEquals(412f, value.status.width / value.density, 0.6f)
+        assertEquals(48f, value.status.height / value.density, 0.6f)
+        clear(value.clock.left - value.recording.right, value)
+        clear(value.format.left - value.clock.right, value)
+        clear(assertNotNull(value.codec).left - value.format.right, value)
+        contained(value)
+    }
+
+    @Test fun compactReadoutPreservesThePreferredCenteredClock() = withHeader(440f, compact = true) { value ->
+        assertEquals(null, value.codec)
+        assertEquals(48f, value.status.height / value.density, 0.6f)
+        assertTrue(abs(value.clock.exactCenterX() - value.status.center.x) <= 1f)
+        clear(value.clock.left - value.recording.right, value)
+        clear(value.format.left - value.clock.right, value)
+        contained(value)
+    }
+
+    @Test fun narrowViewportUsesAnIntrinsicSecondRowWithoutMovingTheScreenTopAnchor() = withHeader(320f) { value ->
+        assertEquals(292f, value.status.width / value.density, 0.6f)
+        assertEquals(value.expectedTop, value.status.top / value.density, 0.6f)
+        assertTrue(value.status.height / value.density > 48f)
+        clear(value.clock.left - value.recording.right, value)
+        clear(value.format.top - maxOf(value.recording.bottom, value.clock.bottom), value)
+        val codec = assertNotNull(value.codec)
+        assertTrue(abs(codec.exactCenterY() - value.format.exactCenterY()) <= 1f)
+        clear(codec.left - value.format.right, value)
+        contained(value)
+    }
+
+    @Test fun rightToLeftKeepsTheSameValuesAndLogicalSideSeparation() = withHeader(440f, rightToLeft = true) { value ->
+        assertEquals(48f, value.status.height / value.density, 0.6f)
+        clear(value.recording.left - value.clock.right, value)
+        clear(value.clock.left - value.format.right, value)
+        clear(value.format.left - assertNotNull(value.codec).right, value)
+        contained(value)
+    }
+
+    private data class Measurement(val status: ComposeRect, val recording: Rect, val clock: Rect,
+        val format: Rect, val codec: Rect?, val density: Float, val expectedTop: Float)
+    private data class FrameSample(val revision: Long, val screen: ComposeRect, val measurement: Measurement)
+    private class Probe {
+        @Volatile var geometryRevision = 0L
+        @Volatile var status: ComposeRect? = null
+        @Volatile var density = 0f
+        @Volatile var screen: ComposeRect? = null
+        @Volatile var opened: String? = null
+        @Volatile var expectedTop = 0f
+    }
+    private fun clear(pixels: Int, value: Measurement) {
+        assertTrue(pixels >= 8f * value.density - 1f, "Expected 8dp native clearance, got ${pixels / value.density}dp")
+    }
+    private fun contained(value: Measurement) {
+        for (frame in listOfNotNull(value.recording, value.clock, value.format, value.codec)) {
+            assertTrue(frame.left >= value.status.left - 1f && frame.right <= value.status.right + 1f &&
+                frame.top >= value.status.top - 1f && frame.bottom <= value.status.bottom + 1f,
+                "Native frame $frame outside actual status ${value.status}")
+        }
+    }
+    private fun withHeader(width: Float, compact: Boolean = false, rightToLeft: Boolean = false,
+        verify: (Measurement) -> Unit) {
+        val probe = Probe()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            var previousOrientation: Int? = null
+            try {
+                scenario.onActivity { activity ->
+                    previousOrientation = activity.requestedOrientation
+                    if (width >= 440f) activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    val control = MonitorControlModel(activity.lifecycleScope)
+                    activity.setContent {
+                        MaterialTheme(colorScheme = darkColorScheme()) {
+                            CompositionLocalProvider(LocalLayoutDirection provides
+                                if (rightToLeft) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+                                StatusSurface(width, compact, control, probe)
+                            }
+                        }
+                    }
+                }
+                val names = listOf("Standby", "Timecode 14:34:52", if (compact) "Recording options" else "Format") +
+                    if (compact) emptyList() else listOf("Codec")
+                val deadline = SystemClock.uptimeMillis() + 5_000
+                var nodes: Map<String, AccessibilityNodeInfo>? = null
+                var previous: FrameSample? = null
+                var stable: FrameSample? = null
+                do {
+                    nodes?.values?.forEach { it.recycle() }
+                    instrumentation.waitForIdleSync()
+                    val revision = probe.geometryRevision
+                    val status = probe.status
+                    val screen = probe.screen
+                    val density = probe.density
+                    val expectedTop = probe.expectedTop
+                    if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
+                    nodes = nativeNodes(names)
+                    val actual = nodes
+                    val candidate = if (actual != null && status != null && screen != null && density > 0f &&
+                        abs(screen.width / density - width) <= 0.6f) {
+                        fun bounds(name: String): Rect = Rect().also { actual.getValue(name).getBoundsInScreen(it) }
+                        FrameSample(revision, screen, Measurement(status, bounds("Standby"), bounds("Timecode 14:34:52"),
+                            bounds(if (compact) "Recording options" else "Format"), if (compact) null else bounds("Codec"),
+                            density, expectedTop + screen.top / density))
+                    } else null
+                    val current = candidate?.takeIf { probe.geometryRevision == revision }
+                    stable = current?.takeIf { it == previous }
+                    previous = current
+                } while (stable == null && SystemClock.uptimeMillis() < deadline)
+                if (stable == null) {
+                    nodes?.values?.forEach { it.recycle() }
+                    nodes = null
+                }
+                val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize")
+                val actual = assertNotNull(nodes, "Actual shared header native elements must render")
+                val density = ready.measurement.density
+                assertTrue(density > 0f)
+                assertEquals(width, ready.screen.width / density, 0.6f,
+                    "The existing carrier must provide the full requested canvas width; use a wide host")
+                try {
+                    assertEquals("Timecode 14:34:52", actual.getValue("Timecode 14:34:52").contentDescription?.toString())
+                    val format = actual.getValue(if (compact) "Recording options" else "Format")
+                    assertEquals(if (compact) "4K50" else "[FX] 6K · 25p", AccessibilityNodeInfoCompat.wrap(format).stateDescription?.toString())
+                    if (!compact) assertEquals("R3D NE", AccessibilityNodeInfoCompat.wrap(actual.getValue("Codec")).stateDescription?.toString())
+                    val measurement = ready.measurement
+                    for (frame in listOfNotNull(measurement.recording, measurement.clock, measurement.format, measurement.codec)) {
+                        assertTrue(frame.width() > 0 && frame.height() > 0)
+                    }
+                    verify(measurement)
+                    assertTrue(format.performAction(AccessibilityNodeInfo.ACTION_CLICK), "Actual header retains its presentation action")
+                    instrumentation.waitForIdleSync()
+                    assertEquals("format", probe.opened)
+                    val bitmap = assertNotNull(automation.takeScreenshot(), "Require a real application-window screenshot")
+                    val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "status-geometry").apply { mkdirs() }
+                    File(directory, "SIMULATED-${width.toInt()}-${if (compact) "compact" else "separate"}-${if (rightToLeft) "RTL" else "LTR"}.png")
+                        .outputStream().use { assertTrue(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) }
+                    bitmap.recycle()
+                } finally { actual.values.forEach { it.recycle() } }
+            } finally {
+                previousOrientation?.let { orientation ->
+                    scenario.onActivity { it.requestedOrientation = orientation }
+                }
+            }
+        }
+    }
+    private fun nativeNodes(names: List<String>): Map<String, AccessibilityNodeInfo>? {
+        val found = mutableMapOf<String, AccessibilityNodeInfo>()
+        val duplicates = mutableSetOf<String>()
+        var visited = 0
+        fun visit(node: AccessibilityNodeInfo) {
+            try {
+                if (++visited > 512 || !node.refresh()) return
+                val label = node.contentDescription?.toString()
+                if (label in names && node.isVisibleToUser) {
+                    val key = requireNotNull(label)
+                    if (key in found) duplicates += key else found[key] = AccessibilityNodeInfo.obtain(node)
+                }
+                for (i in 0 until node.childCount) {
+                    if (visited >= 512) break
+                    node.getChild(i)?.let(::visit)
+                }
+            } finally { node.recycle() }
+        }
+        automation.rootInActiveWindow?.let(::visit)
+        if (duplicates.isNotEmpty() || found.keys != names.toSet()) {
+            found.values.forEach { it.recycle() }
+            return null
+        }
+        return found
+    }
+
+    @Composable private fun StatusSurface(width: Float, compact: Boolean, control: MonitorControlModel, probe: Probe) {
+        val layout = remember(width) { MonitorLayoutPolicy.fieldMonitor(width, 900f, safeTop = 62f) }
+        val density = LocalDensity.current.density
+        val view = LocalView.current
+        val state = remember { MonitorOperatorCaptureState<String, Nothing>() }
+        val source = remember { MonitorCaptureSourceIdentity(null, null, null, monitor = UUID.randomUUID(), picture = "SIMULATED status geometry") }
+        val inputs = remember { MonitorOperatorCaptureInputs<String, String, Nothing>(emptyList(),
+            open = { probe.opened = it }, dismiss = {}) }
+        probe.density = density
+        probe.expectedTop = layout.status.y
+        fun screenBounds(bounds: ComposeRect): ComposeRect {
+            val inScreen = IntArray(2); val inWindow = IntArray(2)
+            view.getLocationOnScreen(inScreen); view.getLocationInWindow(inWindow)
+            val x = (inScreen[0] - inWindow[0]).toFloat(); val y = (inScreen[1] - inWindow[1]).toFloat()
+            return ComposeRect(bounds.left + x, bounds.top + y, bounds.right + x, bounds.bottom + y)
+        }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+            MonitorScreen(control, layout, MonitorScreenPresentation(powerMounted = false, captureMounted = false),
+                Modifier.size(width.dp, 900.dp).onGloballyPositioned {
+                    probe.screen = screenBounds(it.boundsInWindow())
+                    probe.geometryRevision += 1L
+                },
+                picture = { Box(Modifier.fillMaxSize().background(Color.Black)) },
+                status = {
+                    MonitorStatusChrome(layout, MonitorStatusPresentation(false, timecode = "14:34:52"),
+                        modifier = Modifier.onGloballyPositioned {
+                            probe.status = screenBounds(it.boundsInWindow())
+                            probe.geometryRevision += 1L
+                        },
+                        recordingModifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L },
+                        clockModifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L },
+                        format = {
+                            if (compact) HeaderReadout("format", "Recording options", "4K50", true, layout, control, state, source, inputs, probe)
+                            else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                HeaderReadout("format", "Format", "[FX] 6K · 25p", false, layout, control, state, source, inputs, probe)
+                                HeaderReadout("codec", "Codec", "R3D NE", false, layout, control, state, source, inputs, probe)
+                            }
+                        })
+                })
+        }
+    }
+    @Composable private fun HeaderReadout(id: String, title: String, value: String, large: Boolean,
+        layout: MonitorFieldLayout, control: MonitorControlModel, state: MonitorOperatorCaptureState<String, Nothing>,
+        source: MonitorCaptureSourceIdentity, inputs: MonitorOperatorCaptureInputs<String, String, Nothing>, probe: Probe) {
+        MonitorOperatorCaptureHeaderReadout(inputs, control, state, source,
+            MonitorOperatorLiveReadout<String, String>(id, title, value), enabled = true, commandEnabled = false,
+            currentSource = { true }, portrait = layout.portrait,
+            modifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L }
+                .semantics(mergeDescendants = true) { contentDescription = title }) {
+            Text(value, style = MonitorTypography.readout(if (large) 23f else 16f, FontWeight.Medium),
+                color = MonitorPalette.text, maxLines = 1, softWrap = false)
+        }
+    }
+}

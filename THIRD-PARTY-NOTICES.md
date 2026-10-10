@@ -78,7 +78,7 @@ SOFTWARE.
 ## KCP (ikcp)
 
 `Sources/CKcp/ikcp.c` and `Sources/CKcp/ikcp.h` are KCP by Lin Wei (skywind3000),
-https://github.com/skywind3000/kcp, under the MIT License reproduced in full in
+<https://github.com/skywind3000/kcp>, under the MIT License reproduced in full in
 `Sources/CKcp/LICENSE` (Copyright (c) 2017 Lin Wei). `luna_kcp.c` and `luna_ifaddr.c` are this
 project's own thin shims (Apache 2.0).
 
@@ -113,4 +113,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-

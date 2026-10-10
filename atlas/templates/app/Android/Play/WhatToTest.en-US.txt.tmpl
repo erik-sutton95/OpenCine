@@ -1,0 +1,13 @@
+New and changed
+
+- __NAME__ composes OpenCine's complete shared operator flow.
+- The developer variant is visibly SIMULATED and decodes a packaged moving source. It cannot qualify camera hardware.
+
+What to test
+
+- Discover and connect the SIMULATED camera; confirm moving pixels, edit ISO to 400, then confirm record start and stop.
+- Open settings and return; open media, play the clip, return and reopen. The live picture keeps its owner; reopened playback gets a fresh owner.
+- Rotate, disconnect, play the cached clip offline, relaunch and connect the saved camera.
+- Check descriptor removal retires an open ISO editor and picture-only mode has no record control.
+- Run scripts/check-simulated.sh on a private simulator or explicitly selected Android target. Preserve its raw reports/screenshots/manifest. The companion app starts without this app's saved camera.
+- The shipping variant needs a real configured integration and physical platform/camera checks before qualification.

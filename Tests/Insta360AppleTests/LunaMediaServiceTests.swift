@@ -22,6 +22,14 @@ import Testing
         else if activeBrowse == binding { activeBrowse = nil }
     }
     var paths = ["/storage_internal/DCIM/Camera01/VID_20260916_124229_002.mp4"]
+    var sdPaths: [String] = []
+    var reportedSDState: UInt64? = 1
+    var malformedInventory = false
+    var failSDList = false
+    var holdSDList = false
+    var pageSize: Int?
+    var repeatFirstPage = false
+    var metadataByLocation: [UInt64: Data] = [:]
 
     func mediaRequest(_ request: LunaRequest, source: LunaMediaSourceState) async throws -> Data {
         guard mediaSourceState == source else { throw MediaServiceError.retired }
@@ -33,8 +41,36 @@ import Testing
             holdNext = nil
             return try await withCheckedThrowingContinuation { held = $0 }
         }
+        if request.command == .getOptions {
+            if malformedInventory { return Data([0x80]) }
+            let inner = try ProtoMessage.integer(field: 4, value: 2)
+            var inventory = try ProtoMessage.blob(field: 176, value: inner)
+            if let state = reportedSDState {
+                let sd = try ProtoMessage.integer(field: 1, value: state)
+                    + ProtoMessage.integer(field: 4, value: 3)
+                inventory += try ProtoMessage.blob(field: 176, value: sd)
+            }
+            return try ProtoMessage.blob(field: 2, value: inventory)
+        }
         if request.command == .getFileList {
-            return try paths.reduce(Data()) { try $0 + ProtoMessage.blob(field: 1, value: Data($1.utf8)) }
+            let body = try ProtoMessage(request.body)
+            let location = try body.unsigned(4)
+            if location == 3 {
+                if failSDList { throw URLError(.cannotConnectToHost) }
+                if holdSDList {
+                    holdSDList = false
+                    return try await withCheckedThrowingContinuation { held = $0 }
+                }
+            }
+            let bank = location == 2 ? paths : sdPaths
+            let start = repeatFirstPage ? 0 : Int(try body.unsigned(2, default: 0))
+            let page = bank.dropFirst(start).prefix(pageSize ?? bank.count)
+            let uris = try page.reduce(Data()) { try $0 + ProtoMessage.blob(field: 1, value: Data($1.utf8)) }
+            return try uris + ProtoMessage.integer(field: 2, value: UInt64(bank.count))
+        }
+        if request.command == .getFileInfoList {
+            let location = try ProtoMessage(request.body).unsigned(1, default: 0)
+            return metadataByLocation[location] ?? Data()
         }
         return Data()
     }
@@ -59,7 +95,153 @@ private actor MediaSink: MediaByteSink {
     func write(_ chunk: Data) { chunks.append(chunk) }
 }
 
+// SIMULATED protocol-shaped metadata; the producer must retain the returned path verbatim.
+private func mediaInfo(uri: String, size: UInt64) throws -> Data {
+    let file = try ProtoMessage.blob(field: 1, value: Data(uri.utf8))
+        + ProtoMessage.blob(field: 2, value: ProtoMessage.integer(field: 9, value: size))
+    return try ProtoMessage.blob(field: 1, value: file)
+}
+
+@MainActor private func mediaLocations(_ requests: [LunaRequest], command: LunaCommand) throws -> [UInt64] {
+    try requests.filter { $0.command == command }.map {
+        try ProtoMessage($0.body).unsigned(command == .getFileList ? 4 : 1)
+    }
+}
+
 @MainActor @Suite struct LunaMediaServiceTests {
+    @Test func catalogCombinesInternalAndSDWithLocationMetadataAndFullURIIdentity() async throws {
+        let port = MediaPort(); port.reportedSDState = 0
+        let inner = "/storage_internal/DCIM/Camera01/VID_same.mp4"
+        let sd = "/storage_sd/DCIM/Camera01/VID_same.mp4"
+        port.paths = [inner]; port.sdPaths = [sd, inner]
+        port.metadataByLocation = [2: try mediaInfo(uri: inner, size: 101),
+            3: try mediaInfo(uri: sd, size: 202)]
+        let service = port.service(); defer { service.retire() }
+        let browse = try await service.openBrowse()
+        let page = try #require(try await (try await browse.catalog()).next())
+        #expect(page.reset && page.complete && page.upserts.count == 2)
+        #expect(Set(page.upserts.map(\.id)).count == 2, "same filename on two full paths is not one asset")
+        let files = page.upserts.compactMap { service.catalogRecord($0.id, binding: browse.binding)?.file }
+        #expect(files.map(\.uri) == [inner, sd])
+        #expect(files.map { $0.metadata?.fileSize } == [101, 202])
+        #expect(page.upserts.map { $0.representations[0].byteCount } == [101, 202])
+        #expect(try mediaLocations(port.requests, command: .getFileList) == [2, 3])
+        #expect(try mediaLocations(port.requests, command: .getFileInfoList) == [2, 3])
+    }
+
+    @Test func absentSDKeepsInternalAndDoesNotRequestSD() async throws {
+        let port = MediaPort(); let service = port.service(); defer { service.retire() }
+        let browse = try await service.openBrowse()
+        let page = try #require(try await (try await browse.catalog()).next())
+        #expect(page.complete && page.upserts.count == 1)
+        #expect(try mediaLocations(port.requests, command: .getFileList) == [2])
+        #expect(try mediaLocations(port.requests, command: .getFileInfoList) == [2])
+    }
+
+    @Test func fullAndWriteProtectedSDRemainReadable() async throws {
+        for state in [UInt64(2), UInt64(4)] {
+            let port = MediaPort(); port.reportedSDState = state
+            port.sdPaths = ["/storage_sd/DCIM/Camera01/IMG_readable.jpg"]
+            let service = port.service(); defer { service.retire() }
+            let page = try #require(try await (try await (try await service.openBrowse()).catalog()).next())
+            #expect(page.complete && page.upserts.count == 2)
+            #expect(try mediaLocations(port.requests, command: .getFileList) == [2, 3])
+        }
+    }
+
+    @Test func unknownOrUnavailableInventoryStillProbesSD() async throws {
+        for condition in 0..<3 {
+            let port = MediaPort(); port.reportedSDState = nil
+            if condition == 1 { port.failNext = .getOptions }
+            if condition == 2 { port.malformedInventory = true }
+            port.sdPaths = ["/storage_sd/DCIM/Camera01/IMG_unknown_inventory.jpg"]
+            let service = port.service(); defer { service.retire() }
+            let page = try #require(try await (try await (try await service.openBrowse()).catalog()).next())
+            #expect(page.complete && page.upserts.count == 2)
+            #expect(try mediaLocations(port.requests, command: .getFileList) == [2, 3])
+        }
+    }
+
+    @Test func unavailableSDCannotReplaceCommittedCatalog() async throws {
+        for inventoryKnown in [true, false] {
+            let port = MediaPort(); port.reportedSDState = 0
+            port.sdPaths = ["/storage_sd/DCIM/Camera01/IMG_committed.jpg"]
+            let service = port.service(); defer { service.retire() }
+            let browse = try await service.openBrowse()
+            let old = try #require(try await (try await browse.catalog()).next())
+            let oldFiles = old.upserts.compactMap { service.catalogRecord($0.id, binding: browse.binding)?.file }
+            port.reportedSDState = inventoryKnown ? 0 : nil
+            port.paths = ["/storage_internal/DCIM/Camera01/IMG_uncommitted.jpg"]
+            port.failSDList = true
+            let failed = try await browse.catalog()
+            await #expect(throws: URLError.self) { try await failed.next() }
+            #expect(old.upserts.compactMap { service.catalogRecord($0.id, binding: browse.binding)?.file } == oldFiles)
+        }
+    }
+
+    @Test func catalogPagesEachStorageUntilItsAdvertisedTotal() async throws {
+        let port = MediaPort(); port.reportedSDState = 0; port.pageSize = 1
+        port.paths = ["/storage_internal/DCIM/VID_A.mp4", "/storage_internal/DCIM/LRV_A.lrv", "/storage_internal/DCIM/IMG_A.jpg"]
+        port.sdPaths = ["/storage_sd/DCIM/VID_B.mp4", "/storage_sd/DCIM/LRV_B.lrv", "/storage_sd/DCIM/IMG_B.jpg"]
+        let service = port.service(); defer { service.retire() }
+        let page = try #require(try await (try await (try await service.openBrowse()).catalog()).next())
+        #expect(page.complete && page.upserts.count == 4, "raw URI totals include proxy files")
+        let requests = port.requests.filter { $0.command == .getFileList }
+        let starts = try requests.map { try ProtoMessage($0.body).unsigned(2, default: 0) }
+        #expect(starts == [0, 1, 2, 0, 1, 2])
+        #expect(try mediaLocations(requests, command: .getFileList) == [2, 2, 2, 3, 3, 3])
+    }
+
+    @Test func nonProgressCannotBecomeComplete() async throws {
+        let port = MediaPort(); let service = port.service(); defer { service.retire() }
+        let browse = try await service.openBrowse()
+        let old = try #require(try await (try await browse.catalog()).next())
+        port.paths = ["/storage_internal/DCIM/IMG_A.jpg", "/storage_internal/DCIM/IMG_B.jpg"]
+        port.pageSize = 1; port.repeatFirstPage = true
+        let failed = try await browse.catalog()
+        await #expect(throws: MediaServiceError.unavailable) { try await failed.next() }
+        #expect(service.catalogRecord(old.upserts[0].id, binding: browse.binding)?.file.uri.contains("VID_") == true)
+    }
+
+    @Test func sourceChangesAfterInventoryCannotStartFileList() async throws {
+        let port = MediaPort(); let service = port.service(); defer { service.retire() }
+        let browse = try await service.openBrowse(); let cursor = try await browse.catalog()
+        port.requests.removeAll(); port.holdNext = .getOptions
+        let pending = Task { try await cursor.next() }
+        #expect(await eventually { port.held != nil })
+        port.mediaSourceState = .init(session: browse.binding.session, epoch: browse.binding.epoch.next(), connection: 1)
+        port.release()
+        await #expect(throws: MediaServiceError.retired) { try await pending.value }
+        #expect(port.requests.map(\.command) == [.setAccessCameraFileState, .getOptions])
+    }
+
+    @Test func retirementDuringSDQueryCannotPublishOrRequestSDMetadata() async throws {
+        let port = MediaPort(); port.reportedSDState = 0; port.holdSDList = true
+        let service = port.service(); defer { service.retire() }
+        let browse = try await service.openBrowse(); let cursor = try await browse.catalog()
+        let pending = Task { try await cursor.next() }
+        #expect(await eventually { port.held != nil })
+        port.mediaSourceState = .init(session: browse.binding.session, epoch: browse.binding.epoch.next(), connection: 1)
+        port.release()
+        await #expect(throws: MediaServiceError.retired) { try await pending.value }
+        #expect(try mediaLocations(port.requests, command: .getFileList) == [2, 3])
+        #expect(try mediaLocations(port.requests, command: .getFileInfoList) == [2])
+    }
+
+    @Test func cancelledSDQueryCannotReplaceCommittedCatalog() async throws {
+        let port = MediaPort(); let service = port.service(); defer { service.retire() }
+        let browse = try await service.openBrowse()
+        let old = try #require(try await (try await browse.catalog()).next())
+        port.reportedSDState = 0; port.holdSDList = true
+        port.paths = ["/storage_internal/DCIM/IMG_uncommitted.jpg"]
+        let cursor = try await browse.catalog(); let pending = Task { try await cursor.next() }
+        #expect(await eventually { port.held != nil })
+        pending.cancel(); port.release()
+        await #expect(throws: CancellationError.self) { try await pending.value }
+        #expect(service.catalogRecord(old.upserts[0].id, binding: browse.binding) != nil)
+        #expect(try mediaLocations(port.requests, command: .getFileInfoList) == [2, 2])
+    }
+
     @Test func browsePauseIntentIsBoundToCurrentSourceAndLease() async throws {
         let port = MediaPort(); let service = port.service()
         let old = try await service.openBrowse()

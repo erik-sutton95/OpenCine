@@ -9,9 +9,10 @@ OpenZCine `Sources/OpenZCineCore` without behavior change (plan work package VEN
   object header, capability profiles, still capture, ISO and white-balance policy, raw crop,
   clock sync, busy hold, R3D clip index/header and Nikon media file naming.
 - Discovery (passive listing, infrastructure scan plan), Wi-Fi SSID and screen parsing,
-  credential handoff, camera paths, connect progress and diagnostics, saved camera records and
+  camera paths, connect progress and diagnostics, saved camera records and
   path groups, per-setup stream settings (`LiveViewStreamPreset`, `LiveViewQualityBias`), session
-  recovery, reconnect backoff, link health, throughput, signal bars, poll pacing and watchdog.
+  recovery, reconnect backoff, throughput, poll pacing and watchdog. Link health scoring and signal
+  bars are shared in `OpenCineMedia`.
 - `NikonCameraSession`: OpenCineCore's `CameraSession` for ISO, white balance and record over a
   `NikonControlDriver` the app's control service implements (OpenZCine: `NativeAppModel`).
   Settings need no picture; record keeps its live-view preflight.
@@ -24,7 +25,7 @@ OpenZCine `Sources/OpenZCineCore` without behavior change (plan work package VEN
   `ResourceBudget(qualifiedEntries:)`. `NikonMulticamTests` run 2, 3 and 4 bodies through
   OpenCineMulticam (test-only dependency).
 
-Depends only on `OpenCineCore` (same package; root `Package.swift`). No UI
+Depends on `OpenCineCore` and neutral `OpenCineMedia` (same package; root `Package.swift`). No UI
 and no app types. OpenZCine re-exports this module from `OpenZCineCore`, so its iOS app and
 Android JNI facade keep their imports.
 
@@ -153,3 +154,55 @@ single-camera monitor, settings and media composition are later shell slices.
 Scripted tests cover queues, bootstrap order, held recovery, cover/header
 transitions and late-reader retirement; physical Nikon behavior remains
 untested.
+
+## Camera media catalog producer
+
+`NikonMediaService` implements the existing neutral `CameraMediaService`; apps forward the
+same producer through `NikonConnection.services` and their direct shell connection. Source
+policy lives here: Apple full-handle reconciliation, cached-content probes, category reads,
+R3D metadata and bounded pull pages; Android uses the existing owner-keyed native cursor
+through the same shared pager that preserves the original app parser/paging golden tests.
+Native identity, common session, epoch, browse lease and cursor retirement qualify output.
+Android begin/exit transitions serialize on one reused producer, outside its state lock.
+Cancellation drains a returned native cursor and cancels that exact handle.
+
+Apple `mediaHandleSnapshot` distinguishes a confirmed empty card from refusal, transport
+failure and malformed datasets with the existing transactions. Only authoritative cards
+can remove prior content; a failed card cannot claim completed enumeration. The legacy
+method remains for other callers. Format queries that cannot establish storage authority
+fall back to full unknown-content enumeration. No extra PTP probes or JNI methods were added.
+
+Opaque source IDs remain separate from app filenames, grouped multi-card identities and
+cache paths. Apple includes known size in content identity. Android's unchanged removal
+wire supplies storage, handle, civil date and filename only, so its identity uses those
+exact fields. Same-location same-date same-name Android size replacement is not an
+independent content-identity proof. The existing Android cursor completion also retains
+its legacy best-effort per-card policy because its wire has no failed-card authority field.
+An empty Android storage list remains unknown; Apple can publish known empty storage after
+confirmed discovery. PTP civil dates do not invent a UTC timestamp.
+
+The locally applied adopter passed shared/app portable and strict checks, both iOS simulator
+architecture builds and 20 SIMULATED native cases. Shared Android checks (1070 cases, two
+known Core skips) and the actual Android consumer (966 cases), JNI73, Vulkan and package
+coexistence passed. The generated app library matches staging exactly; SDK runtime libraries
+retain staged-to-merged-to-stripped APK byte linkage. Physical behavior is untested; this
+local candidate has no new app pin or publication. Catalog migration does not qualify the
+whole gallery exit. Thumbnail, transfer, delete, rating, cache and delivery ownership remain
+in their current owners.
+
+Apple catalog reconciliation: a successful authoritative storage list also retires
+cached records on absent cards, while failed/unknown card discovery cannot do so. Capture
+invalidates category coverage even outside the standalone gallery. Storage capacity reads
+retain the original per-appearance cadence, including local gallery appearances; accepted
+facts are qualified by the actual native/common source and epoch, and pending or superseded
+reads cannot expose old capacities. Every cached row supplies location-independent R3D
+pairing context, including downloaded files without camera handles. Accepted metadata-only
+proxy backfills update the exact existing legacy store/grid row while preserving its bytes,
+flags and absent hardware location. Apple cached pairing remains an explicit source-policy
+exception to Android's unchanged native fresh-cursor algorithm. These corrections and their deterministic
+scenarios passed the local automated qualification above; physical behavior remains untested.
+
+The existing video fallback census also includes downloaded cached filenames even when
+their rows have no hardware location; the host supplies those exact storage retention facts
+through its unchanged download predicate. Removed remote-only metadata cannot manufacture
+a local survivor or trigger a replacement probe. No new native wire command is introduced.

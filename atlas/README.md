@@ -43,8 +43,8 @@ map). Candidate entries and edges are never live dependencies.
 ## Tool
 
 `tools/atlas.py` is a Python 3 standard-library CLI. Every command except `ensure` (clones
-missing checkouts), `task start` (task worktrees and a brief), `dupes --write-baseline`,
-`graph build`/`graph merge` and `compat run` is read-only. Run it from this folder as below, or
+missing checkouts), `task start` (task worktrees and a brief), `new-app` (a new app folder),
+`dupes --write-baseline`, `graph build`/`graph merge` and `compat run` is read-only. Run it from this folder as below, or
 from the repository root with an `atlas/` prefix (`python3 atlas/tools/atlas.py check`, as CI does).
 
 ```sh
@@ -54,6 +54,8 @@ python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call site
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
 python3 tools/atlas.py graph build --all --local-only                   # every repo, merged view
 python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json
+python3 tools/atlas.py dupes --candidate opencine-thin-app  # apps at a candidate's consumer commits
+python3 tools/atlas.py new-app OpenFooCine  # a thin app next to OpenCine from templates/app (below)
 python3 tools/atlas.py doctor              # registry, local paths, tooling, snapshots
 python3 tools/atlas.py locate openzcine    # verified path, branch, commit, dirty, worktrees
 python3 tools/atlas.py deps openinstacine  # typed edges with evidence
@@ -67,3 +69,33 @@ python3 tools/publish.py                   # publish plan, dry run (docs/PUBLISH
 python3 tools/rehearse_publish.py          # the whole publish against file:// remotes on disposable clones
 python3 -m unittest discover -s tests
 ```
+
+## New-app template
+
+`atlas new-app <Name> [--id <bundle id>] [--dest <folder>]` (SHELL-05) writes a thin app next to
+this OpenCine checkout from [templates/app](templates/app) and touches nothing else:
+
+- `ios/project.yml` (XcodeGen) and `Android/` (Gradle, OpenCine's version catalog and an
+  `includeBuild` of `../OpenCine/Android`): `App.swift` / `MainActivity.kt` compose `AppShell`
+  with the brand (`ShellBrand`), the integration list and the monitor and cover slots.
+- Two variants. The shipping one (`<Name>` target, `camera` flavor) lists the app's integrations
+  and starts empty. The SIMULATED one (`<Name>Simulated`, `simulated` flavor) lists OpenCine's
+  `FakeIntegration` from its test support, so the shell runs and the contract test
+  (`ShellContract`, `ShellContractTest`) passes without hardware. It is developer-only: the
+  release workflow builds neither, and the `simulated` flavor has no release build.
+- Entitlements, `opencine-pins.txt` (this checkout's commit), `scripts/checkout-opencine.sh`,
+  tester notes (`ios/TestFlight/`, `Android/Play/`), `.github/workflows/ci.yml` and a manual
+  `release.yml` (unsigned shipping builds; signing and upload are the app's).
+
+`--integration` takes `fake` only: the DJI, Nikon and Luna integrations still need a connect port
+that lives in their apps, so a real one is listed by hand (the generated README says where).
+Template files end in `.tmpl` so no build or `atlas dupes` reads them as code; placeholders are
+`__NAME__`, `__APP_ID__`, `__PACKAGE_PATH__` and `__OPENCINE_SHA__`.
+
+Checks: `tests/test_newapp.py` generates an app into a temporary folder and checks its structure,
+that the fake stays in the SIMULATED variants and that no file or function matches OpenCine's
+(`atlas dupes --app <folder>` reports the same for any app folder).
+`scripts/template-app-check.sh [ios|android]` (repository root) generates one next to OpenCine,
+builds both iOS targets, runs the contract test and a screenshot on a private simulator, then the
+Android unit tests, lint and both assemblies; CI runs it on every change. After registering a new
+app, continue with [AGENTS.md](../AGENTS.md#adding-an-app).

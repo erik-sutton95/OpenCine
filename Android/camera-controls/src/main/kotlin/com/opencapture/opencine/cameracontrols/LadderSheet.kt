@@ -1,0 +1,485 @@
+package com.opencapture.opencine.cameracontrols
+
+import android.graphics.Paint as AndroidPaint
+import android.graphics.Rect as AndroidRect
+import android.graphics.Typeface
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.opencapture.monitorui.MonitorIcon
+import com.opencapture.monitorui.MonitorLayoutPolicy
+import com.opencapture.opencine.appkit.LocalOperatorHaptics
+import com.opencapture.opencine.appkit.LocalMonitorCaptureCommandEnabled
+import com.opencapture.opencine.appkit.MonitorCaptureDrum
+import com.opencapture.opencine.appkit.MonitorCaptureField
+import com.opencapture.opencine.appkit.MonitorControlModel
+import com.opencapture.opencine.vocabulary.CaptureLadder
+import com.opencapture.opencine.vocabulary.CaptureLock
+import com.opencapture.opencine.vocabulary.CaptureTint
+import kotlin.math.roundToInt
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** One write the sheet asks the host to make: the host's own key and a camera label. */
+data class LadderWrite<K>(val key: K, val value: String)
+
+/**
+ * A button beside the drum's selected value (Kelvin -10/+10, a codec's two bit depths).
+ * [value] null disables the button. [lands] true means the written value becomes the drum's value.
+ */
+data class LadderStep(
+    val label: String,
+    val value: String?,
+    val description: String,
+    val selected: Boolean = false,
+    val lands: Boolean = false,
+)
+
+/** One tab: a typed core field (drawn by MonitorCaptureDrum) or a label ladder (MonitorValueDrum). */
+data class LadderTab<K>(
+    val label: String,
+    val key: K,
+    val ladder: CaptureLadder,
+    val detail: String? = null,
+    val activate: LadderWrite<K>? = null,
+    val applyOnActivate: Boolean = true,
+    val disabled: Boolean = false,
+    val field: MonitorCaptureField? = null,
+    val tint: CaptureTint? = null,
+    val values: ((landed: String) -> List<String>)? = null,
+    val steps: ((selected: String) -> Pair<LadderStep, LadderStep>?)? = null,
+)
+
+data class LadderSheetPresentation<K>(
+    val title: String,
+    val subtitle: String,
+    val tabs: List<LadderTab<K>>,
+    val initialTab: Int = 0,
+    val lock: CaptureLock? = null,
+    val lockBanner: String? = null,
+)
+
+/** Whether the tabs and the drum accept input, and whether the lock line is showing. */
+internal data class LadderGates(
+    val tabsEnabled: Boolean,
+    val drumEnabled: Boolean,
+    val showBanner: Boolean,
+)
+
+/** [RECORDING] and [CAMERA_CONTROL] freeze the whole sheet. [AUTO] and [EXPOSURE_PROGRAM] freeze the drum. */
+internal fun ladderGates(sheetLock: CaptureLock?, tabLock: CaptureLock?, enabled: Boolean): LadderGates {
+    val sheetFrozen = sheetLock?.freezesSheet == true || tabLock?.freezesSheet == true
+    val drumFrozen = sheetFrozen || sheetLock != null || tabLock != null
+    return LadderGates(
+        tabsEnabled = enabled && !sheetFrozen,
+        drumEnabled = enabled && !drumFrozen,
+        showBanner = sheetLock != null || tabLock != null,
+    )
+}
+
+/** Writes fired when [tab] becomes the active tab. A blank landed value is not written. */
+internal fun <K> ladderActivationWrites(tab: LadderTab<K>, landed: String): List<LadderWrite<K>> {
+    val writes = mutableListOf<LadderWrite<K>>()
+    tab.activate?.let { writes += it }
+    if (tab.applyOnActivate && landed.isNotBlank()) writes += LadderWrite(tab.key, landed)
+    return writes
+}
+
+/** Labels on the drum: a host-grown ladder when the tab has one, otherwise the camera's list. */
+internal fun <K> ladderOptions(tab: LadderTab<K>, landed: String): List<String> =
+    tab.values?.invoke(landed) ?: tab.ladder.values
+
+/**
+ * Label-ladder sheet. Typed tabs draw [MonitorCaptureDrum] and commit through [control].
+ * Label tabs draw the shared horizontal drum and report writes through [onWrite].
+ * Apps that already have a typed sheet do not construct this.
+ */
+@Composable
+fun <K> LadderSheet(
+    presentation: LadderSheetPresentation<K>,
+    enabled: Boolean,
+    onWrite: (LadderWrite<K>) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    control: MonitorControlModel? = null,
+    fromTop: Boolean = false,
+    chromeless: Boolean = false,
+    error: String? = null,
+    unavailable: String? = null,
+    onHold: (() -> Unit)? = null,
+    tintLabel: (CaptureTint) -> String = { "" },
+    tintHelp: String? = null,
+    footer: @Composable (LadderTab<K>) -> Unit = {},
+) {
+    if (presentation.tabs.isEmpty()) return
+    val haptics = LocalOperatorHaptics.current
+    val portrait = viewportIsPortrait()
+    val last = presentation.tabs.lastIndex
+    var selected by remember { mutableIntStateOf(presentation.initialTab.coerceIn(0, last)) }
+    val index = selected.coerceIn(0, last)
+    val tab = presentation.tabs[index]
+    val landed = remember {
+        mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
+    }
+    val applied = remember {
+        mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
+    }
+    val commandEnabled = LocalMonitorCaptureCommandEnabled.current
+    val gates = ladderGates(presentation.lock, tab.ladder.lock, enabled && commandEnabled)
+    val hold = onHold.takeIf { commandEnabled }
+    val shown = when {
+        tab.ladder.lock != null -> tab.ladder.current.orEmpty()
+        else -> landed.getOrElse(index) { tab.ladder.current.orEmpty() }
+    }
+    val options = ladderOptions(tab, shown)
+    val holdTimeout = maxOf(LocalViewConfiguration.current.longPressTimeoutMillis, 450L)
+    val top = MonitorLayoutPolicy.captureTopPadding(fromTop, portrait, compact = false)
+    Column(
+        modifier
+            .then(if (chromeless) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
+            .testTag("ladder_sheet")
+            .then(if (chromeless) Modifier else Modifier.pickerPanelGlass(capturePanelShape(fromTop, portrait)))
+            .then(
+                if (hold == null) Modifier else Modifier.pointerInput(holdTimeout, hold) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        val released = withTimeoutOrNull(holdTimeout) { waitForUpOrCancellation() }
+                        if (released == null) {
+                            hold()
+                            waitForUpOrCancellation()
+                        }
+                    }
+                },
+            )
+            .pointerInput(Unit) { detectTapGestures(onTap = {}) }
+            .padding(horizontal = if (chromeless) 0.dp else 14.dp)
+            .padding(top = if (chromeless) 0.dp else top.dp, bottom = if (chromeless) 0.dp else if (fromTop) 14.dp else 11.dp)
+            .semantics { contentDescription = "${presentation.title}. ${presentation.subtitle}" },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (!chromeless) SheetHeader(presentation.title, presentation.subtitle, onClose)
+        if (!error.isNullOrBlank()) {
+            Text(error, style = LiveType.ui(11f, FontWeight.Medium), color = LiveDesign.destructive, maxLines = 2)
+        }
+        if (!unavailable.isNullOrBlank()) {
+            Text(unavailable, style = LiveType.ui(11f, FontWeight.Medium), color = LiveDesign.muted, maxLines = 2)
+        }
+        if (gates.showBanner && !presentation.lockBanner.isNullOrBlank()) {
+            Row(
+                Modifier.fillMaxWidth().background(LiveDesign.accentDim, ChromeShape).padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MonitorIcon(MonitorIcon.LOCK, null, Modifier.size(14.dp), LiveDesign.accent.copy(alpha = 0.9f))
+                Text(
+                    presentation.lockBanner,
+                    style = LiveType.ui(11.5f, FontWeight.Medium),
+                    color = LiveDesign.accent.copy(alpha = 0.9f),
+                    maxLines = 2,
+                )
+            }
+        }
+        Box(Modifier.fillMaxWidth().then(if (chromeless) Modifier else Modifier.weight(1f)), contentAlignment = Alignment.Center) {
+            val core = tab.field?.takeIf { tab.tint == null && control != null }
+            when {
+                tab.tint != null -> TintPad(
+                    tint = tab.tint,
+                    enabled = gates.drumEnabled,
+                    labelOf = tintLabel,
+                    help = tintHelp,
+                    onChange = { next ->
+                        val text = tintLabel(next)
+                        if (gates.drumEnabled && text.isNotBlank()) onWrite(LadderWrite(tab.key, text))
+                    },
+                )
+                core != null && control != null -> {
+                    val offered = options.toSet()
+                    val choices = core.choices.filter { it.label in offered }.ifEmpty { core.choices }
+                    MonitorCaptureDrum(
+                        control, core, enabled = gates.drumEnabled, modifier = Modifier.fillMaxWidth(),
+                        choices = choices, marked = tab.ladder.marked, onDetent = { haptics.confirm() },
+                        onCommitted = { value ->
+                            val label = choices.firstOrNull { it.value == value }?.label ?: return@MonitorCaptureDrum
+                            if (index in landed.indices) landed[index] = label
+                        },
+                    )
+                }
+                else -> LabelDrum(
+                    options = options,
+                    selection = shown.ifBlank { options.firstOrNull().orEmpty() },
+                    marked = tab.ladder.marked,
+                    enabled = gates.drumEnabled,
+                    steps = tab.steps?.invoke(shown),
+                    onSelect = { value ->
+                        if (!gates.drumEnabled || value.isBlank()) return@LabelDrum
+                        if (index in landed.indices) landed[index] = value
+                        if (applied.getOrNull(index) != value) {
+                            if (index in applied.indices) applied[index] = value
+                            onWrite(LadderWrite(tab.key, value))
+                        }
+                    },
+                    onStep = { step ->
+                        val value = step.value ?: return@LabelDrum
+                        if (!gates.drumEnabled) return@LabelDrum
+                        if (step.lands && index in landed.indices) {
+                            landed[index] = value
+                            if (index in applied.indices) applied[index] = value
+                        }
+                        onWrite(LadderWrite(tab.key, value))
+                    },
+                )
+            }
+        }
+        if (presentation.tabs.size > 1) {
+            ModeBar(
+                tabs = presentation.tabs.map { it.label },
+                selected = index,
+                enabled = gates.tabsEnabled,
+                details = presentation.tabs.map { it.detail },
+                disabled = presentation.tabs.mapIndexedNotNull { i, candidate -> if (candidate.disabled) i else null }.toSet(),
+            ) { next ->
+                val candidate = presentation.tabs.getOrNull(next) ?: return@ModeBar
+                if (next == index || candidate.disabled || !gates.tabsEnabled) return@ModeBar
+                selected = next
+                val landedValue = when {
+                    candidate.ladder.lock != null -> candidate.ladder.current.orEmpty()
+                    else -> landed.getOrElse(next) { candidate.ladder.current.orEmpty() }
+                }
+                ladderActivationWrites(candidate, landedValue).forEach { write ->
+                    if (write.key == candidate.key && next in applied.indices) applied[next] = write.value
+                    onWrite(write)
+                }
+            }
+        }
+        footer(tab)
+    }
+}
+
+@Composable
+private fun LabelDrum(
+    options: List<String>,
+    selection: String,
+    marked: Set<String>,
+    enabled: Boolean,
+    steps: Pair<LadderStep, LadderStep>?,
+    onSelect: (String) -> Unit,
+    onStep: (LadderStep) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (steps != null) StepButton(steps.first, enabled, onStep)
+        Box(Modifier.weight(1f)) {
+            CaptureDrumWheel(options, selection, markedValues = marked, interactive = enabled, onSelect = onSelect)
+        }
+        if (steps != null) StepButton(steps.second, enabled, onStep)
+    }
+}
+
+@Composable
+private fun StepButton(step: LadderStep, enabled: Boolean, onStep: (LadderStep) -> Unit) {
+    val live = enabled && step.value != null
+    Column(
+        Modifier
+            .widthIn(min = 52.dp)
+            .heightIn(min = 44.dp)
+            .alpha(if (live) 1f else 0.35f)
+            .background(if (step.selected) LiveDesign.accentDim else LiveDesign.surface, ChromeShape)
+            .border(1.dp, if (step.selected) LiveDesign.accent else LiveDesign.hairline, ChromeShape)
+            .chromeClickable(enabled = live) { if (live) onStep(step) }
+            .semantics { contentDescription = step.description }
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            step.label,
+            style = LiveType.ui(11f, FontWeight.SemiBold),
+            color = if (step.selected) LiveDesign.accent else LiveDesign.text,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Two-axis fine tune. [CaptureTint.amberBlue] null is a green/magenta-only pad. */
+@Composable
+private fun TintPad(
+    tint: CaptureTint,
+    enabled: Boolean,
+    labelOf: (CaptureTint) -> String,
+    help: String?,
+    onChange: (CaptureTint) -> Unit,
+) {
+    val density = LocalDensity.current
+    val sidePx = with(density) { 108.dp.toPx() }
+    val range = tint.range
+    val horizontal = tint.amberBlue != null
+    var ab by remember(tint.amberBlue, tint.greenMagenta) { mutableIntStateOf(tint.amberBlue ?: 0) }
+    var gm by remember(tint.amberBlue, tint.greenMagenta) { mutableIntStateOf(tint.greenMagenta) }
+    fun emit(nextAb: Int, nextGm: Int) {
+        val clampedAb = nextAb.coerceIn(range.first, range.last)
+        val clampedGm = nextGm.coerceIn(range.first, range.last)
+        ab = clampedAb
+        gm = clampedGm
+        onChange(CaptureTint(clampedGm, if (horizontal) clampedAb else null, range))
+    }
+    val shown = labelOf(CaptureTint(gm, if (horizontal) ab else null, range)).ifBlank { " " }
+    Row(
+        Modifier.fillMaxWidth().wrapContentHeight().alpha(if (enabled) 1f else 0.45f)
+            .semantics { contentDescription = "Tint $shown" },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (horizontal) {
+                TintArrow(MonitorIcon.CHEVRON_LEFT, enabled, "Shift toward blue") { emit(ab - 1, gm) }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TintArrow(MonitorIcon.CHEVRON_UP, enabled, "Shift toward green") { emit(ab, gm + 1) }
+                Box(
+                    Modifier.size(108.dp)
+                        .background(LiveDesign.surface, RoundedCornerShape(12.dp))
+                        .border(1.dp, LiveDesign.hairline, RoundedCornerShape(12.dp))
+                        .pointerInput(enabled, horizontal) {
+                            if (!enabled) return@pointerInput
+                            detectTapGestures(onDoubleTap = { emit(0, 0) })
+                        }
+                        .pointerInput(enabled, horizontal, range) {
+                            if (!enabled) return@pointerInput
+                            detectDragGestures(
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    val x = (change.position.x / sidePx).coerceIn(0f, 1f)
+                                    val y = (change.position.y / sidePx).coerceIn(0f, 1f)
+                                    if (horizontal) ab = cellFromNormalized(x, range)
+                                    gm = cellFromNormalized(1f - y, range)
+                                },
+                                onDragEnd = { emit(ab, gm) },
+                                onDragCancel = { emit(ab, gm) },
+                            )
+                        },
+                ) {
+                    Canvas(Modifier.fillMaxSize()) { drawTintCrosshair() }
+                    val thumbX = if (horizontal) thumbOffset(ab, range, sidePx) else sidePx / 2f
+                    val thumbY = sidePx - thumbOffset(gm, range, sidePx)
+                    val half = with(density) { 6.5.dp.toPx() }
+                    Box(
+                        Modifier.offset { IntOffset((thumbX - half).roundToInt(), (thumbY - half).roundToInt()) }
+                            .size(13.dp)
+                            .shadow(3.dp, CircleShape)
+                            .background(LiveDesign.accent, CircleShape),
+                    )
+                }
+                TintArrow(MonitorIcon.CHEVRON_DOWN, enabled, "Shift toward magenta") { emit(ab, gm - 1) }
+            }
+            if (horizontal) {
+                TintArrow(MonitorIcon.CHEVRON_RIGHT, enabled, "Shift toward amber") { emit(ab + 1, gm) }
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                shown,
+                style = LiveType.ui(17f, FontWeight.SemiBold),
+                color = if (shown == "Neutral") LiveDesign.muted else LiveDesign.accent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!help.isNullOrBlank()) {
+                Text(help, style = LiveType.ui(11f), color = LiveDesign.muted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TintArrow(icon: MonitorIcon, enabled: Boolean, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(28.dp).background(LiveDesign.glassBright, CircleShape)
+            .chromeClickable(enabled = enabled, onClick = { if (enabled) onClick() })
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        MonitorIcon(icon, null, Modifier.size(18.dp), LiveDesign.text)
+    }
+}
+
+private fun DrawScope.drawTintCrosshair() {
+    val stroke = 1.dp.toPx()
+    val inset = 18.dp.toPx()
+    val edge = 10.dp.toPx()
+    drawLine(LiveDesign.hairline, Offset(size.width / 2f, inset), Offset(size.width / 2f, size.height - inset), stroke)
+    drawLine(LiveDesign.hairline, Offset(inset, size.height / 2f), Offset(size.width - inset, size.height / 2f), stroke)
+    drawAxisLetter("G", Color.Green.copy(alpha = 0.85f), size.width / 2f, edge)
+    drawAxisLetter("M", Color(0xFFFF2D95).copy(alpha = 0.85f), size.width / 2f, size.height - edge)
+    drawAxisLetter("B", Color.Blue.copy(alpha = 0.85f), edge, size.height / 2f)
+    drawAxisLetter("A", Color(0xFFFF9500).copy(alpha = 0.85f), size.width - edge, size.height / 2f)
+}
+
+private fun DrawScope.drawAxisLetter(letter: String, color: Color, x: Float, y: Float) {
+    val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+        this.color = color.toArgb()
+        textSize = 9.sp.toPx()
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = AndroidPaint.Align.CENTER
+    }
+    val bounds = AndroidRect()
+    paint.getTextBounds(letter, 0, letter.length, bounds)
+    val baseline = y - (bounds.top + bounds.bottom) / 2f
+    drawContext.canvas.nativeCanvas.drawText(letter, x, baseline, paint)
+}
+
+private fun thumbOffset(value: Int, range: IntRange, sidePx: Float): Float {
+    val span = (range.last - range.first).toFloat().coerceAtLeast(1f)
+    return (value.coerceIn(range.first, range.last) - range.first) / span * sidePx
+}
+
+private fun cellFromNormalized(t: Float, range: IntRange): Int {
+    val clamped = t.coerceIn(0f, 1f)
+    val value = range.first + clamped * (range.last - range.first)
+    return value.roundToInt().coerceIn(range.first, range.last)
+}

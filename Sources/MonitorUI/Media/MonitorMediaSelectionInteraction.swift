@@ -350,72 +350,13 @@
         }
     }
 
-    /// Retained native owner for a catalog's selection host and mounted anchors.
-    @MainActor public final class MonitorMediaSelectionState {
-        fileprivate let interaction = MonitorMediaSelectionInteraction()
-        public init() {}
-    }
-
-    /// Native selection input placed inside the actual scrolling catalog. The
-    /// app supplies stable displayed IDs and retains its own cells and actions.
-    public struct MonitorMediaSelectionHost: View {
-        private let state: MonitorMediaSelectionState
-        private let ids: [String]
-        private let selected: Set<String>
-        private let selecting: Bool
-        private let context: String
-        private let configuration: MonitorMediaSelectionConfiguration
-        private let feedback: (MonitorMediaSelectionFeedback) -> Void
-        private let publish: (Set<String>) -> Void
-        @Environment(\.scenePhase) private var scenePhase
-
-        public init(
-            state: MonitorMediaSelectionState, ids: [String], selected: Set<String>,
-            selecting: Bool, context: String,
-            configuration: MonitorMediaSelectionConfiguration = .standard,
-            feedback: @escaping (MonitorMediaSelectionFeedback) -> Void = { _ in },
-            publish: @escaping (Set<String>) -> Void
-        ) {
-            self.state = state
-            self.ids = ids
-            self.selected = selected
-            self.selecting = selecting
-            self.context = context
-            self.configuration = configuration
-            self.feedback = feedback
-            self.publish = publish
-        }
-
-        public var body: some View {
-            MonitorMediaSelectionBridge(
-                interaction: state.interaction, ids: ids, selected: selected,
-                selecting: selecting, context: context, configuration: configuration,
-                feedback: feedback, publish: publish
-            )
-            .onChange(of: scenePhase) { _, phase in
-                if phase != .active { state.interaction.cancel() }
-            }
-            .onDisappear { state.interaction.cancel() }
-        }
-    }
-
     /// A mounted cell's native bounds. Lazy retirement removes only that view's
     /// anchor, so an older layout cannot evict its replacement with the same ID.
-    public struct MonitorMediaSelectionAnchor: View {
-        private let id: String
-        private let interaction: MonitorMediaSelectionInteraction
+    struct MonitorMediaSelectionAnchor: View {
+        let id: String
+        let interaction: MonitorMediaSelectionInteraction
 
-        public init(id: String, state: MonitorMediaSelectionState) {
-            self.id = id
-            interaction = state.interaction
-        }
-
-        init(id: String, interaction: MonitorMediaSelectionInteraction) {
-            self.id = id
-            self.interaction = interaction
-        }
-
-        public var body: some View {
+        var body: some View {
             MonitorMediaSelectionAnchorView(id: id, interaction: interaction)
         }
     }

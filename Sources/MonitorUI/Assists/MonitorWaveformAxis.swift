@@ -109,6 +109,14 @@ public enum MonitorWaveformAxis {
     public static func guideStrokes(
         clip: Bool, crush: Bool, middle: Bool, transfer: MonitorTransfer
     ) -> [GuideStroke] {
+        guideStrokes(
+            clip: clip, crush: crush, middle: middle,
+            middleGrayIRE: middleGrayIRE(transfer: transfer))
+    }
+
+    public static func guideStrokes(
+        clip: Bool, crush: Bool, middle: Bool, middleGrayIRE grayIRE: Double
+    ) -> [GuideStroke] {
         var strokes = [
             GuideStroke(ire: 0, dashed: false, usesCrushClipColor: false),
             GuideStroke(ire: 100, dashed: false, usesCrushClipColor: false),
@@ -122,10 +130,7 @@ public enum MonitorWaveformAxis {
                 GuideStroke(ire: 100 - bufferIRE, dashed: true, usesCrushClipColor: true))
         }
         if middle {
-            strokes.append(
-                GuideStroke(
-                    ire: middleGrayIRE(transfer: transfer), dashed: false,
-                    usesCrushClipColor: false))
+            strokes.append(GuideStroke(ire: grayIRE, dashed: false, usesCrushClipColor: false))
         }
         return strokes
     }

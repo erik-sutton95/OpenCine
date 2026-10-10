@@ -93,8 +93,9 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     expansionAccessibilityIdentifier: String = "monitor.assists.expand",
     cellSize: Float? = null,
     maxExpandedHeight: Float? = null,
-    onBoundsInRootChanged: (Rect?) -> Unit = {}) {
+    onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L) {
     var expanded by remember { mutableStateOf(false) }
+    var previousCollapseRevision by remember { mutableStateOf(collapseRevision) }
     var dragging by remember { mutableStateOf(false) }
     var pinnedIds by remember { mutableStateOf<List<String>>(emptyList()) }
     val progress = remember { Animatable(0f) }
@@ -138,7 +139,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     val available = MonitorLayoutPolicy.assistAvailableWidth(
         config.screenWidthDp.toFloat(), portrait, tablet).dp
     val compactW = buttonSize + if (portrait) 8.dp else horizontalInsets
-    val compactH = if (portrait) buttonSize + 35.dp else buttonSize * 2 + 11.dp
+    val compactH = if (portrait) buttonSize + 35.dp else buttonSize * 2 + (MonitorLayoutPolicy.ASSIST_SPACING + 8).dp
     val fullW = if (portrait) buttonSize + 8.dp else minOf(available, maxOf(buttonSize + horizontalInsets, catalogWidth))
     val fullH = if (portrait) minOf((config.screenHeightDp * .62f).dp,
         buttonSize * tools.size + (maxOf(0, tools.size - 1) * MonitorLayoutPolicy.ASSIST_SPACING + 35).dp,
@@ -153,6 +154,14 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     LaunchedEffect(requestExpand) { if (requestExpand) { expanded = true; onExpansionHandled() } }
     LaunchedEffect(locked) {
         if (locked) { expanded = false; dragging = false; scrub = 0f; progress.snapTo(0f) }
+    }
+    LaunchedEffect(collapseRevision) {
+        if (previousCollapseRevision == collapseRevision) return@LaunchedEffect
+        previousCollapseRevision = collapseRevision
+        expanded = false
+        dragging = false
+        scrub = 0f
+        progress.snapTo(0f)
     }
     LaunchedEffect(expanded) {
         if (!dragging) progress.animateTo(if (expanded) 1f else 0f, settle)

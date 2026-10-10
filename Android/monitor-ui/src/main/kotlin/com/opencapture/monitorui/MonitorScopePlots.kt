@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.opencapture.opencine.media.ScopeAssistBundle
 import com.opencapture.opencine.media.ScopeChroma
 import com.opencapture.opencine.media.MonitorTransfer
+import com.opencapture.opencine.media.ScopeLevelAxis
 import com.opencapture.opencine.media.WaveformIre
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -84,7 +85,16 @@ private val VectorFaint = Color(220 / 255f, 235 / 255f, 225 / 255f, 0.30f)
 @Composable
 fun MonitorWaveformScopePlot(bundle: ScopeAssistBundle, transfer: MonitorTransfer, table: FloatArray,
     mode: MonitorWaveformMode = MonitorWaveformMode.RGB, intensity: Double = 0.25,
+    guides: MonitorScopeGuides = MonitorScopeGuides(), modifier: Modifier = Modifier) =
+    MonitorWaveformScopePlot(bundle, ScopeLevelAxis(table, WaveformIre.middleGrayIRE(transfer)), mode,
+        intensity, guides, modifier)
+
+/** A source with its own measured code placement passes its axis directly. */
+@Composable
+fun MonitorWaveformScopePlot(bundle: ScopeAssistBundle, axis: ScopeLevelAxis,
+    mode: MonitorWaveformMode = MonitorWaveformMode.RGB, intensity: Double = 0.25,
     guides: MonitorScopeGuides = MonitorScopeGuides(), modifier: Modifier = Modifier) {
+    val table = axis.table
     val measurer = rememberTextMeasurer()
     var trace by remember { mutableStateOf<ImageBitmap?>(null) }
     val layers = remember { MonitorScopeTraceRaster.TraceLayers() }
@@ -101,7 +111,7 @@ fun MonitorWaveformScopePlot(bundle: ScopeAssistBundle, transfer: MonitorTransfe
     Canvas(modifier.fillMaxSize()) {
         val livePlot = MonitorScopeGeometry.waveformPlot(this.size.width, this.size.height, this.density)
         blitScopePlot(trace, livePlot)
-        drawWaveGuides(livePlot, guides, transfer, this.density)
+        drawWaveGuides(livePlot, guides, axis.middleGrayIre, this.density)
         drawScopeTitle(measurer, "WAVE", mode.label.uppercase())
     }
 }
@@ -109,7 +119,15 @@ fun MonitorWaveformScopePlot(bundle: ScopeAssistBundle, transfer: MonitorTransfe
 @Composable
 fun MonitorParadeScopePlot(bundle: ScopeAssistBundle, transfer: MonitorTransfer, table: FloatArray,
     mode: MonitorParadeMode = MonitorParadeMode.RGB, intensity: Double = 1.0,
+    guides: MonitorScopeGuides = MonitorScopeGuides(), modifier: Modifier = Modifier) =
+    MonitorParadeScopePlot(bundle, ScopeLevelAxis(table, WaveformIre.middleGrayIRE(transfer)), mode,
+        intensity, guides, modifier)
+
+@Composable
+fun MonitorParadeScopePlot(bundle: ScopeAssistBundle, axis: ScopeLevelAxis,
+    mode: MonitorParadeMode = MonitorParadeMode.RGB, intensity: Double = 1.0,
     guides: MonitorScopeGuides = MonitorScopeGuides(), modifier: Modifier = Modifier) {
+    val table = axis.table
     val measurer = rememberTextMeasurer()
     var trace by remember { mutableStateOf<ImageBitmap?>(null) }
     val layers = remember { MonitorScopeTraceRaster.TraceLayers() }
@@ -127,7 +145,7 @@ fun MonitorParadeScopePlot(bundle: ScopeAssistBundle, transfer: MonitorTransfer,
         val livePlot = MonitorScopeGeometry.waveformPlot(this.size.width, this.size.height, this.density)
         blitScopePlot(trace, livePlot)
         // iOS ParadeOverlay does not paint lane letters or vertical dividers.
-        drawWaveGuides(livePlot, guides, transfer, this.density)
+        drawWaveGuides(livePlot, guides, axis.middleGrayIre, this.density)
         drawScopeTitle(measurer, "PARADE", mode.label.uppercase())
     }
 }
@@ -194,10 +212,9 @@ fun MonitorVectorscopeScopePlot(bundle: ScopeAssistBundle,
     }
 }
 
-private fun DrawScope.drawWaveGuides(plot: MonitorScopeRect, guides: MonitorScopeGuides, transfer: MonitorTransfer, density: Float) {
-    val gray = WaveformIre.middleGrayIRE(transfer)
+private fun DrawScope.drawWaveGuides(plot: MonitorScopeRect, guides: MonitorScopeGuides, gray: Double, density: Float) {
     val dash = floatArrayOf(floatArrayOf(3f, 3f)[0] * density, floatArrayOf(3f, 3f)[1] * density)
-    for (stroke in guideStrokes(guides, transfer)) {
+    for (stroke in guideStrokes(guides, gray)) {
         val y = MonitorScopeGeometry.plotY(stroke.ire, plot, density)
         val isGray = kotlin.math.abs(stroke.ire - gray) < 0.05
         val color = if (stroke.crushClip) ClipColor else if (isGray) MiddleColor else Boundary
@@ -239,11 +256,11 @@ private fun DrawScope.drawScopeTitle(measurer: TextMeasurer, title: String, chip
 }
 
 private data class GuideStroke(val ire: Double, val dashed: Boolean, val crushClip: Boolean)
-private fun guideStrokes(guides: MonitorScopeGuides, transfer: MonitorTransfer): List<GuideStroke> = buildList {
+private fun guideStrokes(guides: MonitorScopeGuides, gray: Double): List<GuideStroke> = buildList {
     add(GuideStroke(0.0, false, false)); add(GuideStroke(100.0, false, false))
     if (guides.crush) add(GuideStroke(5.0, true, true))
     if (guides.clip) add(GuideStroke(95.0, true, true))
-    if (guides.middle) add(GuideStroke(WaveformIre.middleGrayIRE(transfer), false, false))
+    if (guides.middle) add(GuideStroke(gray, false, false))
 }
 
 object MonitorVectorscopeGraticule {

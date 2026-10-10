@@ -2,6 +2,7 @@ import Foundation
 import OpenCineCore
 import OpenCineCoreTestSupport
 import OpenCineNikon
+import OpenCineMedia
 import Testing
 
 /// A scripted Nikon pipeline: it records discovery modes, connects, cancels and forgets, holds each
@@ -117,6 +118,45 @@ final class FakeNikonPort: NikonConnectPort {
         #expect(list.map(\.routes) == [[.infrastructureNetwork], [.infrastructureNetwork], [.infrastructureNetwork], [.usb]])
     }
 
+    @Test func sightingsNameTheSetupTheyReach() async {
+        port.savedRecords = Self.records + [
+            PTPIPSavedCameraRecord(
+                host: "usb:0x10", displayName: "ZR_3001234", transport: "USB-C", lastSeenAt: Self.when,
+                serialNumber: "3001234", path: .usbC)
+        ]
+        let nikon = NikonIntegration(port: port)
+        var iterator = nikon.discover(.passive).makeAsyncIterator()
+        #expect(await iterator.next() == [])
+        port.onSightings?([
+            // Its Studio setup's address; the access point's (no proof off its network); a cable; elsewhere.
+            DiscoveredCamera(ip: "192.168.50.23", source: .liveness),
+            DiscoveredCamera(ip: "192.168.1.1", name: "ZR_3001234", source: .bonjour),
+            DiscoveredCamera(ip: "usb:0x77", name: "ZR_3001234", source: .usb),
+            DiscoveredCamera(ip: "10.1.1.7", name: "ZR_3001234", source: .bonjour),
+        ])
+        let list = await iterator.next() ?? []
+        #expect(list.map(\.savedID) == Array(repeating: "serial:3001234", count: 4))
+        #expect(list.map(\.routeKey) == ["infrastructure|Studio", nil, "usbC", nil])
+    }
+
+    @Test func connectedServicesPreserveExactInstanceAndDefaultEmpty() async throws {
+        let nikon = integration()
+        let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
+        let studio = try #require(camera.routes.first { $0.key == "infrastructure|Studio" })
+        let native = FakeCameraSession.nikonLike()
+        let marker = IntegrationMediaMarker(sessionID: native.id)
+        var services = CameraServices(); services.register(marker, as: (any CameraMediaService).self)
+        let defaults = NikonConnection(session: native, host: "192.168.50.23", path: .infrastructure)
+        #expect(defaults.services[(any CameraMediaService).self] == nil)
+        let events = nikon.connect(.saved(camera, route: studio.id))
+        #expect(await eventually { port.connects.count == 1 })
+        port.finish(.success(.init(session: native, host: "192.168.50.23", path: .infrastructure, services: services)))
+        let (_, _, end) = await outcome(events)
+        guard case .connected(let camera) = end else { Issue.record("not connected"); return }
+        #expect(camera.services[(any CameraMediaService).self] === marker)
+        #expect(camera.session.id == marker.sessionID)
+    }
+
     @Test func aSavedSetupConnectsThroughTheAppFunnel() async throws {
         let nikon = integration()
         let camera = try #require(NikonSavedRecordsV0.cameras(from: Self.records).first)
@@ -228,4 +268,10 @@ final class FakeNikonPort: NikonConnectPort {
 func eventually(_ condition: () -> Bool) async -> Bool {
     for _ in 0..<10_000 where !condition() { await Task.yield() }
     return condition()
+}
+
+@MainActor private final class IntegrationMediaMarker: CameraMediaService {
+    let sessionID: CameraSessionID
+    init(sessionID: CameraSessionID) { self.sessionID = sessionID }
+    func openBrowse() async throws -> any CameraMediaBrowse { throw MediaServiceError.unavailable }
 }

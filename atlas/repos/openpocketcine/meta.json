@@ -110,6 +110,7 @@
         "OpenCineFrameIO",
         "OpenCineMotion",
         "OpenCineRelay",
+        "OpenCineRelayApple",
         "OpenCineApple",
         "MonitorPresentation",
         "MonitorUI",

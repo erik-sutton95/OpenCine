@@ -1,6 +1,12 @@
 import Foundation
 import OpenCineCore
 
+/// The common session identity exposed through DJI's downward integration boundary.
+public typealias DJICameraSessionID = CameraSessionID
+
+/// The common control epoch exposed through DJI's downward integration boundary.
+public typealias DJIControlEpoch = ControlEpoch
+
 /// Source name for the common route kind used by DJI connection execution. It adds no
 /// manufacturer-specific route and keeps optional network facts separate from route intent.
 public typealias DJIConnectionRoute = RouteKind
@@ -44,14 +50,20 @@ public enum DJISetup: Equatable, Sendable {
 
 public struct DJIConnection: Sendable {
     public var session: any CameraSession
+    /// Actual source-owned optional services belonging to this connection.
+    public var services: CameraServices
     /// The camera network this phone joined (camera Wi-Fi), when known.
     public var joinedNetwork: String?
     /// The camera as the pipeline connected it: its advertised name and model id, saved with the
     /// record (a sighting's name is the list title).
     public var camera: DJISighting?
 
-    public init(session: any CameraSession, joinedNetwork: String? = nil, camera: DJISighting? = nil) {
+    public init(
+        session: any CameraSession, joinedNetwork: String? = nil, camera: DJISighting? = nil,
+        services: CameraServices = .init()
+    ) {
         self.session = session
+        self.services = services
         self.joinedNetwork = joinedNetwork
         self.camera = camera
     }
@@ -70,7 +82,8 @@ public protocol DJIConnectPort: AnyObject {
     /// Throws a `ConnectionFailure` for a failure (another error reads as `.other`) and
     /// `CancellationError` when cancelled. `restoreAccessPoint`: the camera may still be in
     /// station role from a setup that moved it.
-    func connect(cameraID: String, setup: DJISetup, restoreAccessPoint: Bool) async throws -> DJIConnection
+    func connect(cameraID: String, setup: DJISetup, restoreAccessPoint: Bool) async throws
+        -> DJIConnection
     func disconnect()
     /// Drops the camera's saved Wi-Fi. Never the per-install pairing state.
     func forget(cameraID: String)
@@ -86,10 +99,13 @@ public final class DJIIntegration: CameraIntegration {
     public nonisolated let profiles: [CameraProfile] = CameraModel.byId.sorted { $0.key < $1.key }
         .filter { $0.value.verified && !$0.value.isDrone }
         .map { key, model in
-            let moving: Set<RouteKind> = MulticamSupport.appears(model) ? [.infrastructureNetwork, .phoneHotspot] : []
+            let moving: Set<RouteKind> =
+                MulticamSupport.appears(model) ? [.infrastructureNetwork, .phoneHotspot] : []
             return CameraProfile(
-                id: "\(DJICameraSessionAdapter.integration.rawValue).model.\(String(format: "0x%04x", key))",
-                title: model.name, routes: moving.union([.cameraAccessPoint]), addableRoutes: moving)
+                id:
+                    "\(DJICameraSessionAdapter.integration.rawValue).model.\(String(format: "0x%04x", key))",
+                title: model.name, routes: moving.union([.cameraAccessPoint]), addableRoutes: moving
+            )
         }
     public nonisolated let discoveryModes: Set<DiscoveryMode> = [.passive]
 
@@ -103,6 +119,9 @@ public final class DJIIntegration: CameraIntegration {
 
     static let approve = "Approve on the camera"
     static let looking = "Looking for the camera"
+    /// The Wi-Fi step's caption while the app reports no setup progress (the apps' phase labels).
+    static let reading = "Reading Wi-Fi credentials…"
+    static let joining = "Joining camera Wi-Fi…"
 
     private let port: any DJIConnectPort
     private let now: () -> Date
@@ -120,7 +139,10 @@ public final class DJIIntegration: CameraIntegration {
         var task: Task<Void, Never>?
         var last: ConnectionProgress?
 
-        init(target: ConnectTarget, route: SavedRoute?, continuation: AsyncStream<ConnectionEvent>.Continuation) {
+        init(
+            target: ConnectTarget, route: SavedRoute?,
+            continuation: AsyncStream<ConnectionEvent>.Continuation
+        ) {
             self.target = target
             self.route = route
             self.steps = DJIIntegration.steps(route)
@@ -141,7 +163,8 @@ public final class DJIIntegration: CameraIntegration {
         let network = route?.network ?? (route?.kind == .phoneHotspot ? "Hotspot" : "Wi-Fi")
         return [
             ConnectionStep(title: "Connecting over Bluetooth"),
-            ConnectionStep(title: moving ? "Moving the camera to \(network)" : "Joining camera Wi-Fi"),
+            ConnectionStep(
+                title: moving ? "Moving the camera to \(network)" : "Joining camera Wi-Fi"),
             ConnectionStep(title: moving ? "Finding the camera" : "Opening the video link"),
             ConnectionStep(title: "Starting the picture"),
         ]
@@ -152,7 +175,8 @@ public final class DJIIntegration: CameraIntegration {
     public func discover(_ mode: DiscoveryMode) -> AsyncStream<[NearbyCamera]> {
         guard discoveryModes.contains(mode) else { return AsyncStream { $0.finish() } }
         let key = UUID()
-        let (stream, continuation) = AsyncStream.makeStream(of: [NearbyCamera].self, bufferingPolicy: .bufferingNewest(1))
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: [NearbyCamera].self, bufferingPolicy: .bufferingNewest(1))
         let first = listeners.isEmpty
         listeners[key] = continuation
         continuation.onTermination = { [weak self] _ in
@@ -174,7 +198,9 @@ public final class DJIIntegration: CameraIntegration {
     }
 
     private func nearby(_ sighting: DJISighting) -> NearbyCamera {
-        NearbyCamera(id: sighting.id, name: sighting.name, model: sighting.model.name, routes: [.cameraAccessPoint])
+        NearbyCamera(
+            id: sighting.id, name: sighting.name, model: sighting.model.name,
+            routes: [.cameraAccessPoint])
     }
 
     // MARK: Connecting
@@ -190,16 +216,24 @@ public final class DJIIntegration: CameraIntegration {
             route = camera.routes.first { $0.id == routeID }
             setup = Self.setup(route, password: nil)
             restore = Self.mayBeInStationRole(camera)
-            if let route, Self.moves(route.kind) { saveRecord(Self.stamping(camera, movingTo: route.kind)) }
+            if let route, Self.moves(route.kind) {
+                saveRecord(Self.stamping(camera, movingTo: route.kind))
+            }
         case .nearby: break
         case .addRoute(let camera, let draft):
-            guard draft.kind == .infrastructureNetwork || draft.kind == .phoneHotspot, let network = draft.network else {
-                continuation.yield(.failed(Self.failure(.unsupported, "route.unsupported", "This setup cannot be added.")))
+            guard draft.kind == .infrastructureNetwork || draft.kind == .phoneHotspot,
+                let network = draft.network
+            else {
+                continuation.yield(
+                    .failed(
+                        Self.failure(
+                            .unsupported, "route.unsupported", "This setup cannot be added.")))
                 continuation.finish()
                 return stream
             }
             let added = SavedRoute(
-                key: draft.kind == .phoneHotspot ? "hotspot" : "wifi", kind: draft.kind, title: draft.title,
+                key: draft.kind == .phoneHotspot ? "hotspot" : "wifi", kind: draft.kind,
+                title: draft.title,
                 network: network, bluetooth: true)
             route = added
             setup = Self.setup(added, password: draft.secret)
@@ -221,7 +255,8 @@ public final class DJIIntegration: CameraIntegration {
             // Replaced before it started: never dial the older camera.
             if let self, self.current !== attempt { return }
             do {
-                let connection = try await port.connect(cameraID: cameraID, setup: setup, restoreAccessPoint: restore)
+                let connection = try await port.connect(
+                    cameraID: cameraID, setup: setup, restoreAccessPoint: restore)
                 self?.connected(attempt, connection)
             } catch {
                 self?.failed(attempt, error)
@@ -241,7 +276,9 @@ public final class DJIIntegration: CameraIntegration {
         }
     }
 
-    private static func moves(_ kind: RouteKind) -> Bool { kind == .infrastructureNetwork || kind == .phoneHotspot }
+    private static func moves(_ kind: RouteKind) -> Bool {
+        kind == .infrastructureNetwork || kind == .phoneHotspot
+    }
 
     /// `camera` remembering that a setup of `kind` may move it to station role: that route
     /// becomes preferred, or without one the legacy `lastSetup` stays in `extras`. Camera Wi-Fi
@@ -260,7 +297,9 @@ public final class DJIIntegration: CameraIntegration {
     }
 
     /// The iOS save rule (D9): a network another saved camera owns, or of another body family.
-    static func ownedElsewhere(_ network: String, by camera: SavedCamera, among saved: [SavedCamera]) -> Bool {
+    static func ownedElsewhere(
+        _ network: String, by camera: SavedCamera, among saved: [SavedCamera]
+    ) -> Bool {
         func same(_ value: String?) -> Bool {
             value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 == network.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -295,13 +334,15 @@ public final class DJIIntegration: CameraIntegration {
         let (phase, step, prompt, note): (ConnectionPhase, Int, ConnectionPrompt?, String?) =
             switch stage {
             case .scanning: (.link, 0, nil, Self.looking)
-            case .connectingBluetooth, .pairing, .readingWiFi: (.link, stage == .readingWiFi ? 1 : 0, nil, nil)
+            case .connectingBluetooth, .pairing: (.link, 0, nil, nil)
+            case .readingWiFi: (.link, 1, nil, text ?? Self.reading)
             case .awaitingApproval: (.awaitingApproval, 0, .approveOnCamera(Self.approve), nil)
-            case .joiningWiFi: (.joiningNetwork, 1, nil, text)
+            case .joiningWiFi: (.joiningNetwork, 1, nil, text ?? Self.joining)
             case .findingCamera: (.joiningNetwork, 2, nil, text)
             case .openingDatalink: (.negotiating, 2, nil, nil)
             }
-        let progress = ConnectionProgress(attempt: attempt.id, phase: phase, steps: attempt.steps, current: step, note: note)
+        let progress = ConnectionProgress(
+            attempt: attempt.id, phase: phase, steps: attempt.steps, current: step, note: note)
         guard progress != attempt.last else { return }
         attempt.last = progress
         attempt.continuation.yield(.progress(progress, prompt: prompt))
@@ -311,7 +352,10 @@ public final class DJIIntegration: CameraIntegration {
         guard current === attempt else { return }
         current = nil
         attempt.continuation.yield(
-            .connected(ConnectedCamera(saved: record(attempt, connection), session: connection.session)))
+            .connected(
+                ConnectedCamera(
+                    saved: record(attempt, connection), session: connection.session,
+                    services: connection.services)))
         attempt.continuation.finish()
     }
 
@@ -321,21 +365,28 @@ public final class DJIIntegration: CameraIntegration {
         if !(error is CancellationError) {
             var failure =
                 error as? ConnectionFailure
-                ?? Self.failure(.other, "connect.failed", (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+                ?? Self.failure(
+                    .other, "connect.failed",
+                    (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             failure.phase = failure.phase ?? attempt.last?.phase
             attempt.continuation.yield(.failed(withRouteActions(failure, attempt)))
         }
         attempt.continuation.finish()
     }
 
-    static func failure(_ reason: ConnectionFailure.Reason, _ code: String, _ message: String) -> ConnectionFailure {
+    static func failure(_ reason: ConnectionFailure.Reason, _ code: String, _ message: String)
+        -> ConnectionFailure
+    {
         ConnectionFailure(
-            reason: reason, title: "Couldn’t connect over Camera Wi-Fi", message: message, actions: [.retry],
+            reason: reason, title: "Couldn’t connect over Camera Wi-Fi", message: message,
+            actions: [.retry],
             code: "\(DJICameraSessionAdapter.integration.rawValue).\(code)")
     }
 
     /// Route actions: edit the setup that failed, or fall back to the camera's own Wi-Fi.
-    private func withRouteActions(_ failure: ConnectionFailure, _ attempt: Attempt) -> ConnectionFailure {
+    private func withRouteActions(_ failure: ConnectionFailure, _ attempt: Attempt)
+        -> ConnectionFailure
+    {
         guard let route = attempt.route, route.kind != .cameraAccessPoint else { return failure }
         var failure = failure
         let camera: SavedCamera? =
@@ -344,8 +395,10 @@ public final class DJIIntegration: CameraIntegration {
             case .nearby: nil
             }
         let ap = camera?.routes.first { $0.kind == .cameraAccessPoint }
-        failure.title = "Couldn’t connect over \(route.title ?? route.network ?? (route.kind == .phoneHotspot ? "Hotspot" : "Wi-Fi"))"
-        failure.actions = failure.actions.filter { $0 != .retry } + [.editRoute(route.id), .retry]
+        failure.title =
+            "Couldn’t connect over \(route.title ?? route.network ?? (route.kind == .phoneHotspot ? "Hotspot" : "Wi-Fi"))"
+        failure.actions =
+            failure.actions.filter { $0 != .retry } + [.editRoute(route.id), .retry]
             + (ap.map { [.useRoute($0.id)] } ?? [])
         return failure
     }
@@ -365,10 +418,12 @@ public final class DJIIntegration: CameraIntegration {
             }
         case .nearby(let nearby):
             camera = SavedCamera(
-                id: nearby.savedID ?? nearby.id, integration: id, advertisedName: nearby.name, model: nearby.model)
+                id: nearby.savedID ?? nearby.id, integration: id, advertisedName: nearby.name,
+                model: nearby.model)
         }
         if !camera.routes.contains(where: { $0.kind == .cameraAccessPoint }) {
-            camera.routes.insert(SavedRoute(key: "ap", kind: .cameraAccessPoint, bluetooth: true), at: 0)
+            camera.routes.insert(
+                SavedRoute(key: "ap", kind: .cameraAccessPoint, bluetooth: true), at: 0)
         }
         let identity = connection.camera ?? sightings.first { $0.id == camera.id }
         if let name = connection.camera?.name, !name.isEmpty { camera.advertisedName = name }

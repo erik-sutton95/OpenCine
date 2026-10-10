@@ -1,0 +1,81 @@
+#if os(iOS)
+import MonitorPresentation
+import MonitorUI
+import OpenCineCore
+import OpenCineCoreTestSupport
+import SwiftUI
+import UIKit
+import XCTest
+
+@testable import OpenCineAppKit
+
+/// SIMULATED hosted defaults use the same physical-window input as a live app.
+/// Explicit host callbacks, including intentional zero insets, retain precedence.
+@MainActor
+final class MonitorShellSafeAreaContractTests: XCTestCase {
+    func testDefaultPagesUsePhysicalWindowInsetsWhenTheHostIgnoresSafeArea() async throws {
+        let physical = EdgeInsets(top: 59, leading: 7, bottom: 34, trailing: 3)
+        let sample = try await pageInsets(windowInsets: physical)
+        XCTAssertEqual(sample, physical)
+    }
+
+    func testExplicitHostInsetsTakePrecedenceOverPhysicalWindowFallback() async throws {
+        let physical = EdgeInsets(top: 59, leading: 7, bottom: 34, trailing: 3)
+        let supplied = EdgeInsets(top: 11, leading: 19, bottom: 23, trailing: 31)
+        let sample = try await pageInsets(windowInsets: physical, explicit: supplied)
+        XCTAssertEqual(sample, supplied)
+    }
+
+    func testExplicitZeroInsetsRemainAnIntentionalHostValue() async throws {
+        let sample = try await pageInsets(windowInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            explicit: EdgeInsets())
+        XCTAssertEqual(sample, EdgeInsets())
+    }
+
+    private func pageInsets(windowInsets: EdgeInsets, explicit: EdgeInsets? = nil) async throws -> EdgeInsets {
+        let store = SavedCamerasStore(document: Defaults([:]).at("contract.cameras"))
+        let model = ShellModel(cameras: CamerasModel(integrations: [], store: store))
+        let probe = ShellSafeAreaProbe()
+        let actions = ShellActions(diagnostics: {}, reportProblem: {})
+        let windowGeometry = MonitorWindowGeometry(size: CGSize(width: 393, height: 852), safeArea: windowInsets)
+        let shell: AnyView
+        if let explicit {
+            shell = AnyView(AppShell(model: model, brand: ShellBrand(name: "SIMULATED"), actions: actions,
+                safeArea: { _ in explicit },
+                prePage: { insets in ShellSafeAreaSample(insets: insets, probe: probe) },
+                monitor: { _ in EmptyView() }, page: { _ in EmptyView() }))
+        } else {
+            shell = AnyView(AppShell(model: model, brand: ShellBrand(name: "SIMULATED"), actions: actions,
+                prePage: { insets in ShellSafeAreaSample(insets: insets, probe: probe) },
+                monitor: { _ in EmptyView() }, page: { _ in EmptyView() }))
+        }
+        let host = UIHostingController(rootView: shell.environment(\.monitorWindowGeometry, windowGeometry))
+        host.safeAreaRegions = []
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        host.view.frame = window.bounds
+        defer { window.isHidden = true; window.rootViewController = nil }
+        for _ in 0..<200 {
+            host.view.setNeedsLayout(); host.view.layoutIfNeeded()
+            if let sample = probe.sample { return sample }
+            await Task.yield()
+        }
+        return try XCTUnwrap(probe.sample, "The actual shared page must publish its received safe area")
+    }
+}
+
+@MainActor
+private final class ShellSafeAreaProbe {
+    var sample: EdgeInsets?
+}
+
+private struct ShellSafeAreaSample: View {
+    let insets: EdgeInsets
+    let probe: ShellSafeAreaProbe
+    var body: some View {
+        Color.clear.onAppear { probe.sample = insets }
+            .onChange(of: insets) { _, value in probe.sample = value }
+    }
+}
+#endif

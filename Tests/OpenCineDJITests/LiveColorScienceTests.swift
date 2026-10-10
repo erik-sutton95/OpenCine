@@ -1,6 +1,10 @@
 import Testing
 
-@testable import OpenCineDJI
+@testable import OpenCineCameraVocabulary
+import OpenCineMedia
+import OpenCineDJI
+
+private typealias ScopeExposureCeiling = DJIScopeExposureCeiling
 
 /// DJI integration side of the color science: `ColorMode` → curve, the tap fingerprint, the
 /// per-source live-tap ceiling (ISO + ratchet), the official Rec.709 look curves and the

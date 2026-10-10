@@ -550,7 +550,7 @@
                             }
                         }
                         .accessibilityLabel("Connect \(item.name) over \(setup.title)")
-                        .accessibilityIdentifier("cameras.setup.\(setup.id)")
+                        .accessibilityIdentifier("cameras.setup.\(setup.kind ?? setup.id)")
                     }
                     if item.canAddSetup, let add = actions.addSetup {
                         Button {

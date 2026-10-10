@@ -98,7 +98,7 @@ import Testing
                     default: .other
                     }
                 }()
-                let model = CameraModel(name: row[1])
+                let model = CameraModel.resolve(modelId: nil, name: row[1])
                 // Kotlin carries `family` as a field; Swift derives it from the
                 // name. The fixture pins both readings to the same answer.
                 #expect(model.family == family, "family \(row[1])")

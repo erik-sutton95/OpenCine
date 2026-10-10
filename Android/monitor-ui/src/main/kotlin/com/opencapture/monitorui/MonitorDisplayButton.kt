@@ -32,18 +32,31 @@ import androidx.compose.ui.unit.sp
 fun MonitorDisplayButton(clean: Boolean, width: Float, height: Float,
     modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null) {
+    MonitorDisplayButton(activeIndex = if (clean) 1 else 0, modeCount = 2,
+        description = if (clean) "DISP 2 clean" else "DISP 1 live", width = width, height = height,
+        modifier = modifier, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
+}
+
+/** Admitted mode order is a source value; an absent selection lights no dash. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MonitorDisplayButton(activeIndex: Int?, modeCount: Int, description: String,
+    width: Float, height: Float, modifier: Modifier = Modifier, enabled: Boolean = true,
+    onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
     Column(modifier.width(width.dp).height(height.dp)
         .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(14.dp))
         .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
-        .semantics { contentDescription = if (clean) "DISP 2 clean" else "DISP 1 live"; role = Role.Button },
+        .semantics { contentDescription = description; role = Role.Button },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
         Text("DISP", color = MonitorPalette.muted,
             style = MonitorTypography.text(MonitorLayoutPolicy.DISP_SIZE, FontWeight.Bold)
                 .copy(letterSpacing = MonitorLayoutPolicy.DISP_TRACKING.sp))
         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            for (active in listOf(!clean, clean)) Box(Modifier.size(14.dp, 3.dp).clip(CircleShape)
-                .background(if (active) MonitorPalette.accent else Color.White.copy(alpha = .10f)))
+            repeat(modeCount.coerceAtLeast(0)) { index ->
+                Box(Modifier.size(14.dp, 3.dp).clip(CircleShape)
+                    .background(if (activeIndex == index) MonitorPalette.accent else Color.White.copy(alpha = .10f)))
+            }
         }
     }
 }

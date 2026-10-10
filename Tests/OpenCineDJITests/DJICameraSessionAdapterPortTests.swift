@@ -218,6 +218,19 @@ import Testing
         #expect(seam.current.value(of: .iso).value == .iso(.manual(800)))
     }
 
+    /// A control model that binds after the session changed starts from it (Kotlin twin).
+    @Test func lateFollowerStartsFromTheSessionAsItIsNow() async throws {
+        let port = FakePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        port.status.isoIndex = .iso800
+        seam.sessionDidChange()  // nobody follows yet: nothing is rebuilt
+        var follower = seam.snapshots().makeAsyncIterator()
+        let first = try #require(await follower.next())
+        #expect(first.connection == .ready)
+        #expect(first.capabilities[.iso] != nil, "The first snapshot describes the camera")
+        #expect(first.value(of: .iso).value == .iso(.manual(800)))
+    }
+
     @Test func cameraRefusalIsRejected() {
         let port = FakePort()
         let seam = DJICameraSessionAdapter(session: port)

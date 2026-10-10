@@ -78,6 +78,28 @@ class NikonDiscoveryTest {
     }
 
     @Test
+    fun directedProbesDialOnlyDialableHostsOnThisPhonesSubnets() = runTest {
+        val dialer = FakeDialer().apply { open = setOf("192.168.1.246", "192.168.129.246") }
+        val found = discovery(dialer).search(
+            DiscoveryMode.ACTIVE,
+            // A travel router's sibling setup, a USB device key, a pending access-point key, a duplicate, nothing.
+            listOf("192.168.1.246", "192.168.129.246", "usb:00000030-3030", "ap:NIKON_ZR_02199", " 192.168.1.246", ""),
+        )
+        assertEquals(listOf("192.168.1.246"), dialer.controlDials)
+        assertEquals(listOf("192.168.1.246"), found.openHosts)
+    }
+
+    @Test
+    fun onlyAnAnswerProvesOccupancy() {
+        // A dial the OS refused, or one that exhausted this device, says nothing about the host.
+        assertEquals(listOf(HostProbeVerdict.OPEN, HostProbeVerdict.REFUSED), HostProbeVerdict.entries.filter { it.isOccupied })
+        assertEquals(
+            listOf(HostProbeVerdict.TIMEOUT, HostProbeVerdict.NO_ROUTE, HostProbeVerdict.NO_NETWORK),
+            HostProbeVerdict.entries.filter { it.isSilence },
+        )
+    }
+
+    @Test
     fun theSweepIsMuteBeforeItIdentifies() = runTest {
         val dialer = FakeDialer().apply { open = setOf("192.168.1.55") }
         val found = discovery(dialer).search(DiscoveryMode.ACTIVE)

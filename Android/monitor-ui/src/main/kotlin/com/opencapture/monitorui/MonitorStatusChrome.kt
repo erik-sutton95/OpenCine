@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
@@ -54,14 +57,13 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
     recordingModifier: Modifier = Modifier, clockModifier: Modifier = Modifier,
     storage: @Composable () -> Unit = {}, format: @Composable () -> Unit,
     color: @Composable () -> Unit = {}, mode: @Composable () -> Unit = {}, link: @Composable () -> Unit = {}) {
-    Box(modifier.fillMaxWidth().height(layout.status.height.dp)) {
+    Box(modifier.fillMaxWidth().then(if (layout.portrait) Modifier else Modifier.height(layout.status.height.dp))) {
         if (layout.portrait) {
-            if (showsTimecode) MonitorClock(status.timecode, layout.tablet, Modifier.align(Alignment.Center).then(clockModifier))
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                if (showsRecording) MonitorRecordingReadout(status, recordingModifier)
-                Spacer(Modifier.weight(1f))
-                format()
-            }
+            MonitorPortraitStatusRow(
+                maxOf(layout.status.height, LocalViewConfiguration.current.minimumTouchTargetSize.height.value),
+                recording = { if (showsRecording) MonitorRecordingReadout(status, recordingModifier) },
+                clock = { if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier) },
+                format = format)
         } else {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -77,6 +79,41 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
         if (layout.portrait) Row(Modifier.offset(y = ((if (layout.tablet) 52f else layout.gauges.y) - layout.status.y).dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             storage(); if (!layout.tablet) link()
+        }
+    }
+}
+
+/** Measures each native slot once, preserving values and actions as the format moves to a second row. */
+@Composable
+private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composable () -> Unit,
+    clock: @Composable () -> Unit, format: @Composable () -> Unit) {
+    Layout(content = { Box { recording() }; Box { clock() }; Box { format() } }, modifier = Modifier.fillMaxWidth()) {
+            measurables, constraints ->
+        val gap = 8.dp.roundToPx()
+        val intrinsic = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val needed = intrinsic.sum() + (intrinsic.count { it > 0 } - 1).coerceAtLeast(0) * gap
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else needed.coerceAtLeast(1)
+        val childConstraints = Constraints(maxWidth = width)
+        val children = measurables.map { it.measure(childConstraints) }
+        val rec = children[0]; val time = children[1]; val values = children[2]
+        val secondRow = needed > width && values.width > 0 && (rec.width > 0 || time.width > 0)
+        val separatesClock = rec.width > 0 && time.width > 0 && rec.width + gap + time.width > width
+        val firstHeight = maxOf(minimumHeight.dp.roundToPx(), rec.height,
+            if (separatesClock) 0 else time.height, if (secondRow) 0 else values.height)
+        val clockY = if (separatesClock) firstHeight + gap else (firstHeight - time.height) / 2
+        val clockFloor = if (separatesClock) clockY + time.height else firstHeight
+        val formatRowHeight = if (secondRow) maxOf(minimumHeight.dp.roundToPx(), values.height) else values.height
+        val formatY = if (secondRow) clockFloor + gap + (formatRowHeight - values.height) / 2
+            else (firstHeight - values.height) / 2
+        val lower = if (rec.width > 0 && !separatesClock) rec.width + gap else 0
+        val upper = width - time.width - if (values.width > 0 && !secondRow) values.width + gap else 0
+        val clockX = if (time.width > 0) maxOf(lower, minOf((width - time.width) / 2, upper)) else 0
+        val formatFloor = if (secondRow) clockFloor + gap + formatRowHeight else formatY + values.height
+        val height = maxOf(firstHeight, clockFloor, formatFloor)
+        layout(width, height) {
+            rec.placeRelative(0, (firstHeight - rec.height) / 2)
+            time.placeRelative(clockX, clockY)
+            values.placeRelative(width - values.width, formatY)
         }
     }
 }

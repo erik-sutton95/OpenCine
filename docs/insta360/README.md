@@ -77,12 +77,63 @@ return sequence only while its captured session, control epoch, connection and b
 current. Every protocol hop checks that authority, and commands use `LunaCameraSession`'s actual
 transport/lifetime. No ACK becomes a fresh-picture or confirmed-delete observation.
 
+Catalogues enumerate internal storage (location 2) and an inserted SD card (location 3),
+using source-fenced storage inventory and per-location listing and metadata requests. A full or
+write-protected card remains readable. Unknown or unsupported inventory probes the SD listing;
+only an explicitly absent card skips it. Paging follows the camera-reported totals, including
+proxy files, and deduplication uses complete camera URIs so identical filenames on different
+storage remain distinct. A failed, retired or cancelled query cannot publish a partial replacement.
+When inventory is unknown and the SD query fails, the refresh fails rather than presenting an
+internal-only list as complete. Kotlin checks the original caller cancellation at reply and
+publication boundaries as well as the native owner lifetime.
+
 `OpenCineMedia` defines opaque assets/representations, bounded upsert/removal pages, native staging
 sinks and optional thumbnail/transfer/delete operations. Native IO is supplied by `LunaMediaIO`
 (Swift) or the existing thumbnail codec plus `LunaMediaTransferPort` (Android). Unimplemented IO
 is absent; source requests/addressing stay in the integration. The runtime preparation callback
 must independently validate the captured native/session owner. The source never imports the
 neutral Apple runtime, AppKit or UI. Current native camera/device behavior remains untested.
+
+## Deep Track and tap focus
+
+`LunaSubjectTracking` (Swift) owns one connection's Deep Track boxes and tap focus. It reads the
+camera's 0x85 track frames and 8315 notifications, and sends cmd 237, the tracking cancel and the
+tap-focus ROI only through `LunaCameraSession` while that session is ready and owned. Control
+admission, notes and face boxes stay in the app. Kotlin `LunaSubjectTracking` (insta360-luna) is its
+twin over the backend's `CameraControls`, which builds the wire rectangles; the Android app keeps its
+start policy (ignore the previous subject until one near the new box).
+
+Requests the common model does not describe yet (gimbal, clock sync, keyframe and photography
+options) use `LunaCameraSession.control(_:timeout:)`, which sends only while the session is ready
+and owned and passes the caller's timeout to the backend. On iOS the app sends nothing through
+the backend directly; a DEBUG-only lab probe is the one exception.
+
+## Gimbal motion
+
+`LunaMotionService` (Swift) is the Luna gimbal on the session's control path: the held stick
+repeats cmd 226 MOVE every 50 ms (a held stick at rest keeps repeating MOVE 0, 0, which is the
+release request itself), single steering MOVEs, release, recenter, flip, SET_ANGLE with yaw wrapped
+and pitch kept inside `LunaCameraSession.motion`, and GET_ANGLE as `latestPose`. It implements the
+shared `MotionService` over those requests; `move(to:over:)` accepts only `over: nil`, because the
+camera plans each SET as its own move. The app runs aim until arrival, head tracking and
+programmed moves against its live state, on shared math: `LunaMotionService.hasReached` (arrival
+within the declared tolerance on each axis), `LunaHeadTrackSteering` (the stick toward the AirPods
+head from GET_ANGLE and a model of the sent stick), OpenCineMotion's `HeadTrack.reference` (the
+head's fitted angle, rate and acceleration) and `GimbalProgram.pose(at:)`. Kotlin `LunaMotionService` (insta360-luna) is its twin over the backend's
+`CameraControls` (the stick stream at 50 ms, release, recenter, flip, SET_ANGLE, GET_ANGLE as `poses`,
+and `hasReached`); the Android app keeps its aim, level and programmed-move loops the same way,
+on core motion's `GimbalProgram.pose` and `duration`.
+
+## Clock and timecode
+
+The Luna's timecode is time of day from its own clock, which the phone sets.
+`LunaCameraSession.syncClock()` sends the official app's clock SET (options 12, 13 and 175), then
+cmd 214 twice, each stamped at send, on the control path (Android: `LunaBackend.syncClock`).
+`LunaFrameTimecode` turns live frame stamps into that timecode: the frame clock does not follow
+the camera's time of day, so frames are pinned to the phone clock by their earliest arrival (less
+90 ms of capture latency), and a new value is reported once a second. Kotlin
+`LunaFrameTimecode` (insta360-luna) is its twin, in Android's millisecond clock with the zone
+offset taken at the frame's time of day.
 
 ## Common lens controls
 

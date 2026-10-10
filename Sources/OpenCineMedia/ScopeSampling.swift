@@ -1,5 +1,7 @@
 import Foundation
 
+public enum MonitorScopeByteLayout: Equatable, Sendable { case bgra, rgba }
+
 /// Ready-to-display scope data and one-pass encoded-source analysis.
 public struct ScopePoint: Equatable, Sendable {
     public var xRatio: Double
@@ -8,10 +10,13 @@ public struct ScopePoint: Equatable, Sendable {
     public var green: UInt8
     public var blue: UInt8
     public var luma: UInt8
+    public var sampleX: Int?
+    public var sampleY: Int?
 
-    public init(xRatio: Double, yRatio: Double, red: UInt8, green: UInt8, blue: UInt8, luma: UInt8) {
+    public init(xRatio: Double, yRatio: Double, red: UInt8, green: UInt8, blue: UInt8, luma: UInt8, sampleX: Int? = nil, sampleY: Int? = nil) {
         self.xRatio = xRatio; self.yRatio = yRatio
         self.red = red; self.green = green; self.blue = blue; self.luma = luma
+        self.sampleX = sampleX; self.sampleY = sampleY
     }
 }
 
@@ -74,15 +79,18 @@ public struct ScopeAssistBundle: Equatable, Sendable {
     /// The source's live-tap clip byte for `transfer` once this tap was measured. WAVE /
     /// PARADE place the points on it, so a bundle carries its own ceiling (STATE-01).
     public var clipByte = 255
+    /// Optional measured code placement supplied by the source that produced these samples.
+    public var levelAxis: ScopeLevelAxis?
 
     public init(revision: UInt64 = 0, samples: ScopeSamples = .empty, vectorscopePoints: [ScopePoint] = [],
         trailSamples: ScopeSamples = .empty, trailVectorscopePoints: [ScopePoint] = [],
         traffic: ScopeTrafficLightsReading = .none, histogramDisplay: ScopeHistogramDisplay = .empty,
-        transfer: MonitorTransfer = .rec709, clipByte: Int = 255) {
+        transfer: MonitorTransfer = .rec709, clipByte: Int = 255, levelAxis: ScopeLevelAxis? = nil) {
         self.revision = revision; self.samples = samples; self.vectorscopePoints = vectorscopePoints
         self.trailSamples = trailSamples; self.trailVectorscopePoints = trailVectorscopePoints
         self.traffic = traffic; self.histogramDisplay = histogramDisplay
         self.transfer = transfer; self.clipByte = clipByte
+        self.levelAxis = levelAxis
     }
 
     public static let empty = ScopeAssistBundle()
@@ -104,24 +112,25 @@ public enum ScopeSampler {
         return base * thermalMultiplier
     }
 
-    /// The one walk. 200-wide tap × stride 2 ≈ 5,600 pixels per tick.
-    public static func sample(
-        bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int,
-        transfer: MonitorTransfer, clipByte: Int, includePoints: Bool,
-        includeVectorPoints: Bool = false,
-        look: CubeLUT?,
-        trafficThreshold: Double = ScopeTrafficLights.defaultThreshold,
-        previous: ScopeAssistBundle
-    ) -> ScopeAssistBundle {
+    /// One neutral raw-buffer walk. Existing bundle sampling keeps BGRA and stride2 on Apple.
+    public static func sampleRaw(bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int,
+        transfer: MonitorTransfer, includePoints: Bool, layout: MonitorScopeByteLayout = .bgra,
+        stride: Int = pointStride, includeSampleCoordinates: Bool = false,
+        requireCompleteRows: Bool = false) -> ScopeSamples {
+        guard stride > 0 else { return .empty }
+        if requireCompleteRows {
+            guard width > 0, height > 0, width <= Int.max / 4,
+                bytesPerRow >= width * 4, height <= Int.max / bytesPerRow,
+                bytes.count >= bytesPerRow * height else { return .empty }
+        }
         var histY = [Int](repeating: 0, count: 256)
         var histR = [Int](repeating: 0, count: 256)
         var histG = [Int](repeating: 0, count: 256)
         var histB = [Int](repeating: 0, count: 256)
         var points = [ScopePoint]()
-        let needsPoints = includePoints || includeVectorPoints
-        if needsPoints {
-            let columns = (width + pointStride - 1) / pointStride
-            let rows = (height + pointStride - 1) / pointStride
+        if includePoints {
+            let columns = (width + stride - 1) / stride
+            let rows = (height + stride - 1) / stride
             points.reserveCapacity(max(0, columns * rows))
         }
         let widthDivisor = Double(max(width, 1))
@@ -134,9 +143,9 @@ public enum ScopeSampler {
             while x < width {
                 let i = rowStart + x * 4
                 guard i + 2 < bytes.count else { break }
-                let b = bytes[i]
+                let r = bytes[i + (layout == .rgba ? 0 : 2)]
                 let g = bytes[i + 1]
-                let r = bytes[i + 2]
+                let b = bytes[i + (layout == .rgba ? 2 : 0)]
                 // Rounded, not floored  -  floor pushed pure white off the top bin.
                 let lumaValue =
                     lumaW.red * Double(r) + lumaW.green * Double(g) + lumaW.blue * Double(b)
@@ -145,17 +154,37 @@ public enum ScopeSampler {
                 histR[Int(r)] += 1
                 histG[Int(g)] += 1
                 histB[Int(b)] += 1
-                if needsPoints {
+                if includePoints {
                     points.append(
                         ScopePoint(
                             xRatio: Double(x) / widthDivisor,
                             yRatio: Double(y) / heightDivisor,
-                            red: r, green: g, blue: b, luma: luma))
+                            red: r, green: g, blue: b, luma: luma,
+                            sampleX: includeSampleCoordinates ? x : nil,
+                            sampleY: includeSampleCoordinates ? y : nil))
                 }
-                x += pointStride
+                x += stride
             }
-            y += pointStride
+            y += stride
         }
+        return ScopeSamples(histogramLuma: histY, histogramRed: histR, histogramGreen: histG,
+            histogramBlue: histB, points: points)
+    }
+
+    /// The one walk. 200-wide tap × stride 2 ≈ 5,600 pixels per tick.
+    public static func sample(
+        bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int,
+        transfer: MonitorTransfer, clipByte: Int, includePoints: Bool,
+        includeVectorPoints: Bool = false,
+        look: CubeLUT?,
+        trafficThreshold: Double = ScopeTrafficLights.defaultThreshold,
+        previous: ScopeAssistBundle
+    ) -> ScopeAssistBundle {
+        let raw = sampleRaw(bytes: bytes, width: width, height: height, bytesPerRow: bytesPerRow,
+            transfer: transfer, includePoints: includePoints || includeVectorPoints)
+        let histY = raw.histogramLuma, histR = raw.histogramRed
+        let histG = raw.histogramGreen, histB = raw.histogramBlue
+        let points = raw.points
         let samples = ScopeSamples(
             histogramLuma: histY, histogramRed: histR, histogramGreen: histG,
             histogramBlue: histB, points: includePoints ? points : [])
@@ -199,7 +228,7 @@ public enum ScopeSampler {
                 red: displayByte(red),
                 green: displayByte(green),
                 blue: displayByte(blue),
-                luma: displayByte(luma))
+                luma: displayByte(luma), sampleX: point.sampleX, sampleY: point.sampleY)
         }
     }
 
@@ -213,8 +242,16 @@ public enum ScopeSampler {
         samples: ScopeSamples, previous: ScopeHistogramDisplay, transfer: MonitorTransfer,
         clipByte: Int
     ) -> ScopeHistogramDisplay {
+        histogramDisplay(
+            samples: samples, previous: previous,
+            axis: ScopeLevelAxis(transfer: transfer, clipByte: clipByte))
+    }
+
+    public static func histogramDisplay(
+        samples: ScopeSamples, previous: ScopeHistogramDisplay, axis: ScopeLevelAxis
+    ) -> ScopeHistogramDisplay {
         func channel(_ native: [Int], _ previous: [Float]) -> [Float] {
-            displayChannel(native, previous: previous, transfer: transfer, clipByte: clipByte)
+            displayChannel(native, previous: previous, axis: axis)
         }
         return ScopeHistogramDisplay(
             luma: channel(samples.histogramLuma, previous.luma),
@@ -227,7 +264,14 @@ public enum ScopeSampler {
     public static func displayChannel(
         _ native: [Int], previous: [Float], transfer: MonitorTransfer, clipByte: Int
     ) -> [Float] {
-        let remapped = WaveformIre.remapHistogram(native, transfer: transfer, clipByte: clipByte)
+        displayChannel(
+            native, previous: previous, axis: ScopeLevelAxis(transfer: transfer, clipByte: clipByte))
+    }
+
+    public static func displayChannel(
+        _ native: [Int], previous: [Float], axis: ScopeLevelAxis
+    ) -> [Float] {
+        let remapped = axis.remapHistogram(native)
         var blended = [Float](repeating: 0, count: 256)
         let hasPrevious = previous.count == 256
         for i in 0..<256 {

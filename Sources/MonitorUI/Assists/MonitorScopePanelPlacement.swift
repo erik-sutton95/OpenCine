@@ -27,10 +27,10 @@ public enum MonitorScopePanelPlacement {
         bounds.width >= gripExtent + gripInterior && bounds.height >= gripExtent + gripInterior
     }
 
-    public static func fittedSize(_ preferred: CGSize, in bounds: CGRect) -> CGSize {
+    public static func fittedSize(_ preferred: CGSize, in bounds: CGRect, resizable: Bool = true) -> CGSize {
         let scale = min(
             1, max(1, bounds.width) / max(1, preferred.width),
-            max(1, bounds.height - gripBottomExtent) / max(1, preferred.height))
+            max(1, bounds.height - (resizable ? gripBottomExtent : 0)) / max(1, preferred.height))
         return CGSize(
             width: max(1, floor(preferred.width * scale)),
             height: max(1, floor(preferred.height * scale)))
@@ -41,12 +41,15 @@ public enum MonitorScopePanelPlacement {
         return fittedSize(preferred, in: bounds(in: canvas, clearance: clearance))
     }
 
-    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect) -> CGPoint {
+    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect,
+        resizable: Bool = true) -> CGPoint {
         let minX = bounds.minX + size.width / 2
-        let minY = bounds.minY + max(size.height / 2, gripTopInterior - size.height / 2)
+        let minY = bounds.minY + max(size.height / 2,
+            (resizable ? gripTopInterior : 0) - size.height / 2)
         return CGPoint(
             x: min(max(minX, point.x), max(minX, bounds.maxX - size.width / 2)),
-            y: min(max(minY, point.y), max(minY, bounds.maxY - size.height / 2 - gripBottomExtent)))
+            y: min(max(minY, point.y), max(minY,
+                bounds.maxY - size.height / 2 - (resizable ? gripBottomExtent : 0))))
     }
 }
 
@@ -91,16 +94,54 @@ public struct MonitorScopePanelLayout: Equatable {
     public let scale: Double
     public let canvas: CGRect
     public let movementBounds: CGRect
+    public let resizable: Bool
     public init(baseSize: CGSize, preferredSize: CGSize, center: CGPoint, scale: Double,
-        canvas: CGRect, movementBounds: CGRect) {
+        canvas: CGRect, movementBounds: CGRect, resizable: Bool = true) {
         self.baseSize = baseSize; self.scale = scale; self.canvas = canvas
         self.movementBounds = movementBounds
-        size = MonitorScopePanelPlacement.fittedSize(preferredSize, in: movementBounds)
-        self.center = MonitorScopePanelPlacement.clamp(center, size: size, in: movementBounds)
+        self.resizable = resizable
+        size = MonitorScopePanelPlacement.fittedSize(preferredSize, in: movementBounds, resizable: resizable)
+        self.center = MonitorScopePanelPlacement.clamp(center, size: size, in: movementBounds,
+            resizable: resizable)
     }
 }
 
 public enum MonitorScopePanelMove {
     case began(CGPoint), changed(CGPoint), ended, cancelled(canvas: CGRect)
+}
+
+/// Where a movable scope panel starts before fitting: its base size times the operator scale,
+/// and the session, saved or default centre kept wholly inside the overlay bounds.
+public enum MonitorScopePanelCentering {
+    /// Operator scale of the meter panels (traffic lights, ND); scopes clamp through their options.
+    public static let scaleRange: ClosedRange<Double> = 0.6...1.6
+
+    public static func clampedScale(_ value: Double) -> Double {
+        min(max(value, scaleRange.lowerBound), scaleRange.upperBound)
+    }
+
+    public static func panelSize(_ baseSize: CGSize, scale: Double) -> CGSize {
+        CGSize(width: (baseSize.width * scale).rounded(), height: (baseSize.height * scale).rounded())
+    }
+
+    public static func clamp(_ point: CGPoint, size: CGSize, in bounds: CGRect) -> CGPoint {
+        let halfWidth = size.width / 2
+        let halfHeight = size.height / 2
+        return CGPoint(
+            x: min(max(bounds.minX + halfWidth, point.x), bounds.maxX - halfWidth),
+            y: min(max(bounds.minY + halfHeight, point.y), bounds.maxY - halfHeight))
+    }
+
+    /// Unplaced panels start at the canvas centre; saved and session centres win later.
+    public static func defaultCenter(size: CGSize, bounds: CGRect) -> CGPoint {
+        clamp(CGPoint(x: bounds.midX, y: bounds.midY), size: size, in: bounds)
+    }
+
+    public static func resolvedCenter(
+        session: CGPoint?, stored: MonitorScopeStoredCenter?, defaultCenter: CGPoint,
+        size: CGSize, bounds: CGRect
+    ) -> CGPoint {
+        clamp(session ?? stored?.center(in: bounds) ?? defaultCenter, size: size, in: bounds)
+    }
 }
 #endif

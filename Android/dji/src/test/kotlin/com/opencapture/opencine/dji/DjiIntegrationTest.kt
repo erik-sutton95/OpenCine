@@ -1,6 +1,7 @@
 package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraServices
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectionEvent
 import com.opencapture.opencine.core.ConnectionFailure
@@ -14,6 +15,9 @@ import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
 import com.opencapture.opencine.core.testing.FakeCameraSession
 import com.opencapture.opencine.core.testing.djiLike
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.FoundCamera
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +41,7 @@ private class FakeDjiPort : DjiConnectPort {
     override val failureDetail = MutableStateFlow<ConnectionFailure?>(null)
     override var joinedSSID: String? = null
     override val control: CameraSession = FakeCameraSession.djiLike()
+    override var services = CameraServices()
     var scans = 0
     var scanStops = 0
     var disconnects = 0
@@ -58,10 +63,14 @@ private class FakeDjiPort : DjiConnectPort {
     }
 }
 
+/** SIMULATED registration fact; no camera operation or fabricated readiness. */
+private class RegisteredDjiService
+private class UnregisteredDjiService
+
 /** Swift suite `DJIIntegrationTests`, same method names. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DjiIntegrationTest {
-    private val pocket = FoundCamera("cam-1", "AA:BB", "OsmoPocket3-AAAA", CameraModel(name = "Osmo Pocket 3"), 0x20)
+    private val pocket = FoundCamera("cam-1", "AA:BB", "OsmoPocket3-AAAA", djiBodyProfile("Osmo Pocket 3"), 0x20)
     private val ap = SavedRoute(key = "ap", kind = RouteKind.CAMERA_ACCESS_POINT, network = "OsmoPocket3-AAAA", bluetooth = true)
     private val wifi = SavedRoute(key = "wifi", kind = RouteKind.INFRASTRUCTURE_NETWORK, network = "studio", bluetooth = true)
     private val saved = SavedCamera(
@@ -83,6 +92,40 @@ class DjiIntegrationTest {
         val seen = mutableListOf<ConnectionEvent>()
         backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { events.collect { seen += it } }
         return seen
+    }
+
+    @Test
+    fun connectedForwardsOptionalServicesAndKeepsSessionOwner() = runTest {
+        val port = FakeDjiPort()
+        val service = RegisteredDjiService()
+        port.services = CameraServices().plus(RegisteredDjiService::class, service)
+        port.found.value = listOf(pocket)
+        val events = collect(integration(port).connect(ConnectTarget.Nearby(NearbyCamera(
+            "cam-1", name = "OsmoPocket3-AAAA", model = "Osmo Pocket 3",
+            routes = setOf(RouteKind.CAMERA_ACCESS_POINT),
+        ))))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val camera = assertIs<ConnectionEvent.Connected>(events.last()).camera
+        assertEquals(port.control.id, camera.session.id)
+        assertTrue(camera.services.get<RegisteredDjiService>() === service)
+        assertEquals(null, camera.services.get<UnregisteredDjiService>())
+    }
+
+    @Test
+    fun legacyConnectionKeepsOptionalServicesAbsent() = runTest {
+        val port = FakeDjiPort()
+        port.found.value = listOf(pocket)
+        val events = collect(integration(port).connect(ConnectTarget.Nearby(NearbyCamera(
+            "cam-1", name = "OsmoPocket3-AAAA", model = "Osmo Pocket 3",
+            routes = setOf(RouteKind.CAMERA_ACCESS_POINT),
+        ))))
+        runCurrent()
+        port.phaseFlow.value = ConnectionPhase.LIVE
+        runCurrent()
+        val camera = assertIs<ConnectionEvent.Connected>(events.last()).camera
+        assertEquals(null, camera.services.get<RegisteredDjiService>())
     }
 
     @Test
@@ -109,7 +152,7 @@ class DjiIntegrationTest {
         val events = collect(integration(port).connect(ConnectTarget.Nearby(NearbyCamera("cam-1", name = "OsmoPocket3-AAAA", model = "Osmo Pocket 3", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
         runCurrent()
         assertEquals(CameraConnectionSetup.CAMERA_WIFI, port.setups.single().first)
-        for (phase in listOf(ConnectionPhase.PAIRING, ConnectionPhase.AWAITING_APPROVAL, ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK)) {
+        for (phase in listOf(ConnectionPhase.PAIRING, ConnectionPhase.AWAITING_APPROVAL, ConnectionPhase.READING_WIFI_CREDS, ConnectionPhase.JOINING_WIFI, ConnectionPhase.OPENING_DATALINK)) {
             port.phaseFlow.value = phase
             runCurrent()
         }
@@ -117,9 +160,13 @@ class DjiIntegrationTest {
         port.phaseFlow.value = ConnectionPhase.LIVE
         runCurrent()
         val progress = events.filterIsInstance<ConnectionEvent.Progress>()
+        // The Wi-Fi step's caption is the phase label main showed when the session reports no progress.
         assertEquals(
-            listOf("LINK 0 -", "AWAITING_APPROVAL 0 Approve on the camera", "JOINING_NETWORK 1 -", "NEGOTIATING 2 -"),
-            progress.map { "${it.progress.phase} ${it.progress.current} ${it.prompt?.text ?: "-"}" },
+            listOf(
+                "LINK 0 - -", "AWAITING_APPROVAL 0 Approve on the camera -", "LINK 1 - Reading Wi-Fi credentials…",
+                "JOINING_NETWORK 1 - Joining camera Wi-Fi…", "NEGOTIATING 2 - -",
+            ),
+            progress.map { "${it.progress.phase} ${it.progress.current} ${it.prompt?.text ?: "-"} ${it.progress.note ?: "-"}" },
         )
         assertEquals(
             listOf("Connecting over Bluetooth", "Joining camera Wi-Fi", "Opening the video link", "Starting the picture"),
@@ -177,7 +224,8 @@ class DjiIntegrationTest {
         assertEquals("The camera ended the link.", DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "the camera ended the link").message)
         assertEquals(DjiFailures.HOTSPOT_OFF, DjiFailures.classify(null, ConnectionPhase.JOINING_WIFI, "no hotspot", hotspotOff = true).message)
         val denied = DjiFailures.classify(SecurityException("no"), ConnectionPhase.SCANNING, "no")
-        assertEquals(listOf(RecoveryAction.OpenSettings, RecoveryAction.Retry), denied.actions)
+        // Android main's cards offered Try again only (SavedCameraSetupPresentation.failure).
+        assertEquals(listOf(RecoveryAction.Retry), denied.actions)
         assertEquals("org.opencapture.openpocketcine.dji.datalink.silent", silent.code)
 
         val port = FakeDjiPort()
@@ -290,7 +338,7 @@ class DjiIntegrationTest {
         val port = FakeDjiPort()
         val dji = integration(port)
         dji.savedCameras = { listOf(saved.copy(id = "cam-2")) }
-        port.found.value = listOf(FoundCamera("cam-3", "CC", "OsmoPocket3-CCCC", CameraModel(name = "Osmo Pocket 3"), 0x20))
+        port.found.value = listOf(FoundCamera("cam-3", "CC", "OsmoPocket3-CCCC", djiBodyProfile("Osmo Pocket 3"), 0x20))
         val owned = collect(dji.connect(ConnectTarget.Nearby(NearbyCamera("cam-3", name = "Osmo Pocket 3", model = "Osmo Pocket 3", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
         runCurrent()
         port.joinedSSID = "OsmoPocket3-AAAA"
@@ -300,7 +348,7 @@ class DjiIntegrationTest {
         assertEquals(listOf<String?>(null), first.routes.map { it.network }, "the other camera's access point is not saved here")
         assertTrue(first.advertisedName == "OsmoPocket3-CCCC" && first.extras["modelId"] == "32")
 
-        port.found.value = listOf(FoundCamera("cam-4", "DD", "OsmoNano-DDDD", CameraModel(name = "Osmo Nano", family = "nano"), 0x19))
+        port.found.value = listOf(FoundCamera("cam-4", "DD", "OsmoNano-DDDD", djiBodyProfile("Osmo Nano", family = "nano"), 0x19))
         val crossed = collect(dji.connect(ConnectTarget.Nearby(NearbyCamera("cam-4", name = "Osmo Nano", model = "Osmo Nano", routes = setOf(RouteKind.CAMERA_ACCESS_POINT)))))
         runCurrent()
         port.joinedSSID = "OsmoPocket3-EEEE"

@@ -49,11 +49,15 @@ class NativeBackdropFeed(context: Context,
     fun acquire(producer: Any, nowNs: Long) = gate.acquire(producer, nowNs)
     fun cancel(ticket: BackdropFrameAdmission.Ticket?) { if (ticket != null) gate.complete(ticket) }
 
-    fun submit(ticket: BackdropFrameAdmission.Ticket, frame: InspectorPreviewFrame, plan: FeedEffectsRenderPlan) {
+    fun submit(ticket: BackdropFrameAdmission.Ticket, frame: InspectorPreviewFrame, plan: FeedEffectsRenderPlan) =
+        submit(ticket, frame, plan, admission = { true })
+
+    fun submit(ticket: BackdropFrameAdmission.Ticket, frame: InspectorPreviewFrame, plan: FeedEffectsRenderPlan,
+        admission: () -> Boolean) {
         executor.execute {
             var posted = false
             try {
-                if (!gate.isCurrent(ticket)) return@execute
+                if (!gate.accepts(ticket) { !closed && admission() && !closed }) return@execute
                 val nextImage = if (plan.hasPlaybackLook) {
                     val gl = renderer ?: InspectorPreviewRenderer(glFactory).also { renderer = it }
                     gl.render(app, plan, frame)
@@ -70,7 +74,7 @@ class NativeBackdropFeed(context: Context,
                 }
                 posted = main.post {
                     try {
-                        if (gate.isCurrent(ticket)) {
+                        if (gate.accepts(ticket) { !closed && admission() && !closed }) {
                             this@NativeBackdropFeed.image = nextImage
                             receive(nextImage)
                         }
@@ -78,7 +82,7 @@ class NativeBackdropFeed(context: Context,
                 }
             } catch (error: Exception) {
                 synchronized(this) {
-                    if (gate.isCurrent(ticket)) {
+                    if (gate.accepts(ticket) { !closed && admission() && !closed }) {
                         failed = true
                         gate.setActive(false)
                         clear()

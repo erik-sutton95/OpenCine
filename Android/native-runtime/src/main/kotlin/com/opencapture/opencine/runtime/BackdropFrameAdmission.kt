@@ -1,7 +1,9 @@
 package com.opencapture.opencine.runtime
 
+import com.opencapture.opencine.media.MonitorBackdropRenderValues
+
 /** Admission is retained across visibility, source and look changes, including unfinished jobs. */
-class BackdropFrameAdmission(private val minimumIntervalNs: Long = 16_666_667L) {
+class BackdropFrameAdmission(private val minimumIntervalNs: Long = MonitorBackdropRenderValues.MINIMUM_INTERVAL_NS) {
     class Ticket internal constructor(val producer: Any, val epoch: Long)
     private var producer: Any? = null
     private var active = false
@@ -27,5 +29,11 @@ class BackdropFrameAdmission(private val minimumIntervalNs: Long = 16_666_667L) 
         return Ticket(value, epoch).also { busy = it; lastCaptureNs = nowNs }
     }
     @Synchronized fun isCurrent(ticket: Ticket): Boolean = hasDemand(ticket.producer) && epoch == ticket.epoch
+    /** Source predicates may synchronously replace/retire a producer. Never hold this lock across one. */
+    fun accepts(ticket: Ticket, admission: () -> Boolean): Boolean {
+        if (!isCurrent(ticket)) return false
+        val accepted = admission()
+        return accepted && isCurrent(ticket)
+    }
     @Synchronized fun complete(ticket: Ticket) { if (busy === ticket) busy = null }
 }

@@ -67,6 +67,16 @@ CI_COMMENT = [
     "repository: the Android build includes its Gradle build until Maven artifacts exist. Apple",
     "builds resolve the same version from Package.swift and Package.resolved.",
 ]
+CI_SHARED_TEST_COMMENT = [
+    "The OpenCine platform at the released tag in opencine-pins.txt, checked out next to the",
+    "repository for just core-test's shared integration tests. Apple application builds resolve",
+    "the same version from Package.swift and Package.resolved.",
+]
+CI_SHARED_NOTES_COMMENT = [
+    "The OpenCine platform at the released tag in opencine-pins.txt, checked out next to the",
+    "repository for shared TestFlight and Play notes validators. Application builds resolve",
+    "the same version from Package.swift and Package.resolved.",
+]
 
 
 class Stop(Exception):
@@ -262,8 +272,8 @@ CHECKOUT_RUN = re.compile(r"^\s*(?:-\s+)?run:\s*(?:sh\s+)?(?:\./)?scripts/checko
 
 
 def rewrite_workflow(text, keep_for_android):
-    """Steps running scripts/checkout-opencine.sh: keep them (fresh comment) in jobs that run
-    Gradle when siblings are still needed for Android; drop them, with their comment, elsewhere."""
+    """Keep pinned siblings for shared core tests, notes validators and Android Gradle;
+    drop the checkout and its comment from ordinary remote Swift/iOS jobs."""
     lines = text.split("\n")
     i = len(lines)
     while i > 0:
@@ -282,7 +292,15 @@ def rewrite_workflow(text, keep_for_android):
             k -= 1
         start = next((n for n in range(j, -1, -1) if re.match(r"^  [\w-]+:\s*$", lines[n])), 0)
         stop = next((n for n in range(i + 1, len(lines)) if re.match(r"^  [\w-]+:\s*$", lines[n])), len(lines))
-        if keep_for_android and "gradlew" in "\n".join(lines[start:stop]):
+        job = "\n".join(lines[start:stop])
+        shared_core_tests = re.search(r"(?m)^\s*run:\s*just\s+core-test(?:\s|$)", job)
+        shared_notes = re.search(
+            r"(?m)^\s*(?:run:\s*)?(?:\./)?scripts/(?:ios|android)-release-notes-(?:check|test)\.sh(?:\s|$)", job)
+        if shared_core_tests:
+            lines[k:j] = [f"{indent}# {c}" for c in CI_SHARED_TEST_COMMENT]
+        elif shared_notes:
+            lines[k:j] = [f"{indent}# {c}" for c in CI_SHARED_NOTES_COMMENT]
+        elif keep_for_android and "gradlew" in job:
             lines[k:j] = [f"{indent}# {c}" for c in CI_COMMENT]
         else:
             del lines[k:end]

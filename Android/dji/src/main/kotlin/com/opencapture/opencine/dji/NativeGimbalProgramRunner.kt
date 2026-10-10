@@ -1,5 +1,11 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
@@ -26,10 +32,11 @@ internal data class NativeProgramZoomObservation(val status: CameraStatus = Came
             "cam_fov" -> status.zoomLens < 0 && (CamFov.rawAt0(item.value) ?: 0) != 0
             else -> false
         }
-        if (!measured || !now.isFinite() || now <= (receivedAt ?: Double.NEGATIVE_INFINITY) || next.zoomFactor == null) {
+        val zoomFactor = next.zoomFactor
+        if (!measured || !now.isFinite() || now <= (receivedAt ?: Double.NEGATIVE_INFINITY) || zoomFactor == null) {
             return copy(status = next)
         }
-        val lens = CamFov.pinchLens(next.zoomFactor)
+        val lens = CamFov.pinchLens(zoomFactor)
         val gap = receivedAt?.let { now - it } ?: Double.POSITIVE_INFINITY
         val maximumGap = if (CameraModel.looksLikePocket4Pro(model.name)) 0.85 else 0.3
         val changed = (stableLens == null || gap > maximumGap || abs(stableLens - lens) > 1) && (pausedAt == null || now > pausedAt)

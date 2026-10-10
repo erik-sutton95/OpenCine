@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
 import kotlin.math.abs
 
 /** Initial preparation is separate from the timed linear tracking samples. */

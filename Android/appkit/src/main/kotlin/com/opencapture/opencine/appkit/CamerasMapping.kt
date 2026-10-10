@@ -63,7 +63,7 @@ public object CamerasMapping {
             val failure = state.failures[camera.id]
             val nearby = sighting(camera, state) != null
             val addable = addableRoutes(camera, model)
-            val active = attempt?.route ?: failure?.let { route(it.target) } ?: camera.preferredRoute ?: camera.routes.firstOrNull()?.id
+            val active = attempt?.route ?: failure?.let { route(it.target) } ?: model.defaultRoute(camera)
             val network = camera.routes.firstOrNull { it.id == active }?.network
             CameraItem(
                 id = camera.id,
@@ -82,9 +82,13 @@ public object CamerasMapping {
                 isBusy = attempt != null,
                 isAvailable = nearby,
                 setups = camera.routes.map {
-                    MonitorSetupChip(it.id.text, title(it), it.id == active, it.kind in addable && camera.routes.size > 1)
+                    MonitorSetupChip(
+                        it.id.text, title(it), it.id == active, it.kind in addable && camera.routes.size > 1,
+                        setupKind(it.kind),
+                    )
                 },
-                canAddSetup = addable.isNotEmpty(),
+                // As on main: Add only while an addable kind is still missing.
+                canAddSetup = (addable - camera.routes.map { it.kind }.toSet()).isNotEmpty(),
                 steps = attempt?.let(::steps).orEmpty(),
                 failure = failure?.let { failure(it.failure, camera) },
             )
@@ -94,7 +98,7 @@ public object CamerasMapping {
     /** Sightings that are not saved cameras. */
     public fun nearby(model: CamerasModel): List<CameraItem> {
         val state = model.state.value
-        return state.nearby.filter { sighting -> state.saved.none { matches(sighting, it) } }.map { device(it, state) }
+        return state.nearby.filter { sighting -> state.saved.none { matches(sighting, it) } }.map { device(it, state, model) }
     }
 
     /** The chip title: the operator's setup name, else the shell's name for the kind. */
@@ -104,6 +108,13 @@ public object CamerasMapping {
         RouteKind.PHONE_HOTSPOT -> "Hotspot"
         RouteKind.USB -> "USB-C"
         RouteKind.CAPTURE_DEVICE -> "HDMI"
+    }
+
+    /** The chip's accessibility name: the setup names the apps' tests have always used. */
+    internal fun setupKind(kind: RouteKind): String = when (kind) {
+        RouteKind.CAMERA_ACCESS_POINT -> "cameraWiFi"
+        RouteKind.INFRASTRUCTURE_NETWORK -> "wifi"
+        RouteKind.PHONE_HOTSPOT, RouteKind.USB, RouteKind.CAPTURE_DEVICE -> kind.rawValue
     }
 
     /** The attempt's plan as card steps; the running step carries the one live caption. */
@@ -216,15 +227,16 @@ public object CamerasMapping {
         )
     }
 
-    internal fun device(sighting: CamerasModel.Sighting, state: CamerasModel.State): CameraItem {
+    internal fun device(sighting: CamerasModel.Sighting, state: CamerasModel.State, model: CamerasModel): CameraItem {
         val camera = sighting.camera
         val held = camera.availability != Availability.Available
+        val copy = model.entries.firstOrNull { it.integration.id == sighting.integration }?.slots?.nearbyCard?.invoke(camera)
         return CameraItem(
             id = camera.id,
-            name = camera.name,
-            subtitle = if (camera.model.isEmpty()) "nearby" else "${camera.model} · nearby",
+            name = copy?.name ?: camera.name,
+            subtitle = copy?.subtitle ?: if (camera.model.isEmpty()) "nearby" else "${camera.model} · nearby",
             badge = if (held) "IN USE" else "NEW",
-            status = if (held) "In use by another device" else "Ready to pair",
+            status = if (held) "In use by another device" else copy?.status ?: "Ready to pair",
             actionTitle = "Pair",
             isPrimary = state.selection == camera.id,
             isBusy = ConnectTarget.Nearby(camera).cameraID in state.attempts,

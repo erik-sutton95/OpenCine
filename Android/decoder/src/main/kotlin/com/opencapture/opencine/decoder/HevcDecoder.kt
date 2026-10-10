@@ -67,6 +67,9 @@ class HevcDecoder(
     /** Native MediaCodec output callback clock, not GLES present. */
     @Volatile var lastDecoderOutputAt: Long? = null
         private set
+    /** Successful synchronous MediaCodec input admission, before any output callback. */
+    @Volatile var lastDecoderAcceptedAt: Long? = null
+        private set
     /** Last accepted IRAP. Tells the watchdog an enable was already answered. */
     @Volatile var lastIrapAt: Long? = null
         private set
@@ -440,6 +443,7 @@ class HevcDecoder(
         nalTypesSeen = ""
         lastKeyframeAt = null
         lastDecoderOutputAt = null
+        lastDecoderAcceptedAt = null
         hasSeenNativeOutput = false
         presentedClock.reset(System.nanoTime())
         _hasPicture.value = false
@@ -562,7 +566,7 @@ class HevcDecoder(
                                 }
                                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                     hasFormat = true
-                                    Log.i(TAG, "output ${started.outputFormat}")
+                                    Log.i(TAG, "output format changed")
                                 }
                             }
                         }
@@ -599,6 +603,7 @@ class HevcDecoder(
             val pts = LiveViewPresentTiming.ptsUs(SystemClock.elapsedRealtimeNanos(), ptsUs)
             ptsUs = pts
             decoder.queueInputBuffer(index, 0, accessUnit.size, pts, flags)
+            lastDecoderAcceptedAt = SystemClock.elapsedRealtime()
             cadence.note(LivePipelineCadence.Stage.SUBMIT)
             framesEnqueued.incrementAndGet()
             true

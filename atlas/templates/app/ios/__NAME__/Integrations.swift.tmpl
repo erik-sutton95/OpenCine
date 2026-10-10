@@ -1,0 +1,20 @@
+import Foundation
+import OpenCineAppKit
+import OpenCineMedia
+import SwiftUI
+
+/// The integrations this app ships, in the order the pair page lists them: each an OpenCine
+/// integration with the app's typed slots, for example
+/// `AppIntegration(integration, slots: IntegrationSlots(pairing: { AnyView(PairingTips()) }))`.
+/// Empty until the app has one; `__NAME__Simulated` lists the fake instead (Simulated/).
+@MainActor func integrations() -> [AppIntegration] { [] }
+
+@MainActor func appDefaults() -> UserDefaults { .standard }
+@MainActor func makeOperatorMedia(defaults: UserDefaults, preferences: MonitorOperatorPreferences) -> MonitorOperatorMediaModel<MediaAsset, String>? { nil }
+
+/// Bounded native adapters are supplied when a real integration is registered. No source or
+/// media service is advertised by this empty shipping integration list.
+@MainActor func operatorPicture(effects: MonitorFrameEffects, preferences: MonitorOperatorPreferences) -> some View { Color.black }
+@MainActor func operatorThumbnail(_ record: MonitorMediaRecord<MediaAsset>) -> some View { Color.clear }
+@MainActor func operatorPlaybackPicture(_ model: MonitorMediaPlaybackModel<MediaAsset, String>, effects: MonitorFrameEffects,
+    preferences: MonitorOperatorPreferences) -> some View { Color.black }

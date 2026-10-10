@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.vocabulary.*
+
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -105,7 +107,8 @@ class CamFovVectorTest {
                 "activeZoomStops" -> {
                     // Swift derives `family` from the name; Kotlin carries it as
                     // a field. The fixture pins both readings to the same answer.
-                    val model = CameraModel(name = row[1], family = row[2])
+                    val value = CameraModel(name = row[1], family = row[2], zoomStops = CameraModel.zoomStopsFor(row[1], row[2]))
+                    val model = value.copy(captureProfile = DjiCaptureCapabilityProfile.make(value))
                     val got =
                         model.activeZoomStops(
                             resolution(row[3])?.rawValue ?: -1,

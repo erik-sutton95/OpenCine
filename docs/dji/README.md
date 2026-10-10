@@ -56,6 +56,14 @@ datalink owners preserve their main-actor callback ordering; background assembly
 own value state. A queue with no pending item has an unknown age (`nil`), while known empty
 counts and bytes are zero. Legacy incident schemas may map that age in their app adapter.
 
+`DjiAppleDatalink.incidentIngress` supplies generation-fenced raw receive facts
+before video admission, fault injection and assembly. The neutral Media snapshot
+keeps these facts optional for legacy producers. Native owners collect fixed-size
+counts and monotonic ages without per-packet logging; apps sample them on the
+existing incident timeline. Local registration counts cover successfully
+submitted app-presence frames, not peer confirmation. Retirement clears the
+counter epoch before late callbacks can reach a replacement.
+
 The package remains resolvable on other platforms through iOS source guards. The Pocket app
 adopts these owners with configured aliases and host callbacks; its remaining camera-session
 orchestration is a separate migration. Import-rule and callback/assembly tests live in
@@ -223,3 +231,108 @@ integration-level names are source aliases of the existing JVM types
 private fields and runtime owner remain in use. Legacy callers and compiled
 entry points remain compatible; retirement of the old names belongs to a later
 minor release after all consumers migrate. JNI class/member names are unchanged.
+
+## Native Apple media browse producer
+
+`DjiAppleMediaService` owns playback entry retries, wire-ordered SD/trigger/internal
+catalog queries, assembler collection, paged cursors and the finite live-return
+loop. `DjiAppleMediaPort` supplies primitive IO, actual captured connection facts
+and admission through the genuine picture-recovery owner. Thumbnail, transfer and
+delete services remain absent until their real owners migrate.
+
+Raw UDP reception captures a query/browse/source ingress ticket before actor
+queueing. Endpoint replacement retires catalog admission while preserving the
+same-session return authority, including a nil-driver recovery gap. Closing a
+retired connection sends no return command. Fixed wire counters do not provide
+remote packet correlation; the ticket fences locally queued input.
+
+No-response catalog work throws unavailable; it never publishes a known-empty
+catalog. An actual completed empty reply publishes known empty. Gallery-open
+refusal and newest-page fallback after failed playback entry remain intact.
+
+Swift and Kotlin connection records forward supplied optional services, preserving
+legacy absent defaults. `DJICameraSessionID` and `DJIControlEpoch` alias the exact
+Core identity types through the declared DJI dependency; the Apple target adds
+no dependency or direct Core import.
+
+The local Pocket adopter passes portable/strict/repository checks, both simulator
+architecture builds, all 16 selected native recovery/cache/port methods, Android
+native staging, full shared/consumer checks and JNI/package validation. Shared
+manual-clock owner and mirrored registration scenarios pass. Physical camera
+listing/gallery/live return remains untested. The browse producer is Apple-only;
+Android retains its existing media owner. Full library/cache/player migration
+and app pin moves remain separate work.
+
+## Native Apple subject tracking
+
+`DjiAppleSubjectTracking` owns one actual ActiveTrack workflow: request IDs, pending
+operator-box acceptance, live/poll report handling, smoothing, polling and local
+clear history. Its snapshot is committed before host notifications. The host
+supplies the actual datalink/control-generation binding, its existing low-level
+command admission and native face/focus presentation. No app or UI is imported.
+
+The captured binding and generation retire stale acknowledgement/poll work. A
+captured publication authority fences synchronous native preparation after
+reentrant replacement. Local stop/reset sends no camera command. Existing DJI
+wire/math policies and operator conditional CLEAR remain unchanged. Manual timing
+can be injected without sleeping or creating a camera. This Apple-only source
+candidate is uncompiled and unexecuted; Android keeps its current integration
+owner, and physical camera tracking remains untested.
+
+`DjiAppleCameraSettings` owns the actual camera-settings FIFO and coherent GET/SET
+workflows. It consumes low-level native request IO and captured typed audio/glamour
+facts, and emits typed native presentation outcomes. The host retains optimistic
+pins, control notes, logging and real packet admission. The owner does not call a
+host's old whole workflow, invent raw blobs or change shared command contracts.
+Tracking publication also uses its original committed revision across callbacks;
+a local clear during notification cannot send an outgoing SET afterward. All
+paired source scenarios remain uncompiled/unexecuted and physical untested.
+
+`DjiAppleTapFocus` is a source-only Apple candidate that owns the complete independent tap
+request task. It sends the original untracked PREPARE before point ACK admission, then
+uses the existing native request primitive for point, hint and commit with 800 ms deadlines.
+The actual endpoint/control generation and local task identity fence every continuation
+and synchronous native/diagnostic callback. Point refusal stops; hint refusal still commits.
+The owner sends no command on retirement and never joins the settings FIFO. Native focus
+presentation and diagnostic copy remain explicit host policy. Portable command builders
+and Kotlin behavior are unchanged; platform and physical qualification remain untested.
+
+### Apple first-picture format and zoom-color ownership candidate
+
+A source-only DJIApple candidate owns the complete first-picture format kick/restore task,
+its original50ms pin wait and0.8s settle floors, actual binding/task admission and local reset.
+The host supplies only the existing single-format pin/shutter-rematch primitive and live-view
+request primitive. No nil transport is converted into readiness.
+
+The same candidate owns color-hop deadlines, camera-status D-Log confirmation, captured
+pending zoom/stage accounting, actual mailbox command descriptors/options and parked-wide
+restoration. Its flush sends the shared slider recipe directly; it never invokes the app's
+old whole slider workflow. Native HUD/pins/logging/ISO preference and gesture presentation
+remain host policy. Captured endpoint/control ownership fences callbacks and pending writes;
+committed snapshot revisions fence synchronous publication reentry. Android's existing
+integration remains unchanged. Candidate cases and actual native host fixtures have not been
+compiled or executed; physical behavior is untested.
+
+## Native Apple gimbal control
+
+`DjiAppleGimbalControl` owns the Pocket gimbal over the native datalink: the stick stream
+(ramp, invert, rest), mode and speed SETs with their `CameraValuePin` readback pins, the
+`GimbalStickMapping` pose (Flip, TT180, body face), the limit watch, Double-tap Level
+(`WorldLevelSnap`), head-tracking target tokens and programmed moves (countdown, native
+take, pause, cancel). It reads session facts through `DjiAppleGimbalHost` when it decides
+and writes the observable gimbal state the host publishes; picture flip, zoom retirement
+and the journal stay host policy. `DjiAppleGimbalLink` is the datalink surface, so the
+owner tests run on manual clocks with a fake link. Cancellation re-checks the caller's
+`ifCurrent` after every published write. `GimbalRampFilter` moved into OpenCineDJI next to
+its Kotlin mirror in `Android/dji`. `CameraValuePin` is OpenCineCore's and the world level
+math OpenCineMotion's (Kotlin: `core` and `motion`); OpenCineDJI keeps the `0x04/0x05`
+attitude decode, `LevelReading.ingest(_:now:)` over a push and the `0x04/0x14` snap frame
+(`WorldLevelSnap.plan`).
+`GimbalMoveEngine`, `GimbalOverlayMotion` and the program zoom demand are shared in
+OpenCineMotion; `GimbalMoveEngine()` binds them to `.pocketGimbal` and
+`NativeProgramZoomCommand.frame` encodes the demand. On Android the waypoint, program, curve,
+path math and overlay projection are core `motion`'s; `Android/dji` keeps the Kotlin
+`GimbalMoveEngine`, the zoom path and native zoom demand, and binds the Pocket reach
+(`GimbalWaypoint.PAN_MIN_DEG` and the rest, `unwrapYaw(raw)`, `from`, `clamped()`) and the 84°
+overlay field of view (`GimbalWaypointOverlay.project(waypoint, live, aspect)`). Physical
+behavior is untested.

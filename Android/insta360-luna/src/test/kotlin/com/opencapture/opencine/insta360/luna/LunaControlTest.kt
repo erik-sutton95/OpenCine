@@ -6,6 +6,13 @@ import org.junit.Test
 
 /** Fixtures copied from Adapters/Insta360Protocol LunaControlTests / ProtocolTests (captured official-app bytes). */
 class LunaControlTest {
+    /** SIMULATED encoding of source-backed paging; original captured request fixtures stay exact. */
+    @Test fun storageInventoryAndPagingWire() {
+        assertEquals("0802103218322003", hex(LunaControl.fileList(location = 3, start = 50, count = 50).body))
+        assertEquals("0803", hex(LunaControl.fileInfoList(3).body))
+        assertEquals("0a04b001b101", hex(LunaControl.storageListRequest.body))
+    }
+
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
     private fun f(bits: Int) = java.lang.Float.intBitsToFloat(bits).toDouble()
 

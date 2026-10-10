@@ -39,6 +39,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.MonitorCameraAction
@@ -78,6 +79,8 @@ public fun MonitorSettingsPage(
     modifier: Modifier = Modifier,
     sharingSubtitle: String? = null,
     sharingRail: String? = null,
+    tabSpacing: Dp = 6.dp,
+    back: (() -> Unit)? = null,
     rows: @Composable ColumnScope.(MonitorSettingsTab) -> Unit,
 ) {
     MonitorPageScaffold(
@@ -96,7 +99,7 @@ public fun MonitorSettingsPage(
                             .monitorScrollFade(scroll, vertical = false).horizontalScroll(scroll)
                             .monitorTabStrip().testTag("monitor.settings.tabs"),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(tabSpacing),
                     ) {
                         tabs.forEach { tab ->
                             SettingsTab(tab, selection, onSelect, feedback, tab != tabs.first(),
@@ -131,10 +134,15 @@ public fun MonitorSettingsPage(
                     Text(selection.title, style = MonitorTypography.text(17f, FontWeight.SemiBold), color = MonitorPalette.text)
                     Text(if (selection == MonitorSettingsTab.SHARING) sharingSubtitle ?: selection.subtitle else selection.subtitle, style = MonitorTypography.text(10.5f), color = MonitorPalette.muted, maxLines = 2)
                 }
-                Text(selection.pill.uppercase(),
-                    style = MonitorTypography.readout(10f, FontWeight.Bold).copy(letterSpacing = 0.6.sp, color = MonitorPalette.accent),
-                    modifier = Modifier.border(1.dp, MonitorPalette.accent.copy(alpha = 0.16f), CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(selection.pill.uppercase(),
+                        style = MonitorTypography.readout(10f, FontWeight.Bold).copy(letterSpacing = 0.6.sp, color = MonitorPalette.accent),
+                        modifier = Modifier.border(1.dp, MonitorPalette.accent.copy(alpha = 0.16f), CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 6.dp))
+                    back?.let { action ->
+                        MonitorSettingsActionPill("Back", modifier = Modifier.testTag("monitor.page.back"), onClick = action)
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
             key(selection) {

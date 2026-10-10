@@ -1,7 +1,7 @@
 #if os(iOS)
     import SwiftUI
 
-    /// A settings card accepts an existing common tool menu, never an arbitrary page view.
+    /// A settings card accepts a common tool menu or its bounded source-calibrated menu slot.
     /// The host owns the menu bindings, source calibration and optional reset action.
     @MainActor public struct MonitorAssistSettingsSection: Identifiable {
         public let tool: MonitorAssistTool
@@ -22,6 +22,16 @@
         public static func zebra<Unit: Hashable, Paint: Hashable>(
             _ menu: MonitorZebraMenu<Unit, Paint>, reset: (() -> Void)? = nil
         ) -> Self { Self(tool: .zebra, menu: menu, reset: reset) }
+
+        /// A calibrated menu supplied through the existing false-color source slot.
+        public static func falseColor(_ menu: AnyView, reset: (() -> Void)? = nil) -> Self {
+            Self(tool: .falseColor, menu: menu, reset: reset)
+        }
+
+        /// A calibrated menu supplied through the existing zebra source slot.
+        public static func zebra(_ menu: AnyView, reset: (() -> Void)? = nil) -> Self {
+            Self(tool: .zebra, menu: menu, reset: reset)
+        }
 
         public static func waveform<Mode: Hashable>(
             _ menu: MonitorScopeTraceMenu<Mode>, reset: (() -> Void)? = nil

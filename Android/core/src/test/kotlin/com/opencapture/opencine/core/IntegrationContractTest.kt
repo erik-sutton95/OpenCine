@@ -147,6 +147,16 @@ class IntegrationContractTest {
     }
 
     @Test
+    fun anAttemptHandlerAnswersEveryConnect() = scenario {
+        val integration = FakeIntegration()
+        integration.onAttempt = { it.connect(FakeCameraSession.lunaLike()) }
+        val nearby = NearbyCamera("n1", name = "CAM-1", model = "Test Body", routes = setOf(RouteKind.CAMERA_ACCESS_POINT))
+        val events = integration.connect(ConnectTarget.Nearby(nearby)).toList()
+        assertEquals(listOf("connected n1"), events.map(::summary))
+        assertEquals(listOf(FakeAttempt.End.CONNECTED), integration.attempts.map { it.end })
+    }
+
+    @Test
     fun forgetReachesTheIntegration() = scenario {
         val integration = FakeIntegration()
         integration.forget(camera)

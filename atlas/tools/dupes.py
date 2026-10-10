@@ -10,6 +10,11 @@ Sources: OpenCine from its working tree (what you are about to commit, and what 
 app at the commit of the ref it builds OpenCine on (its registry edge), else its baseline, read
 from Git objects. A missing checkout or commit is reported, never counted as zero.
 
+`--app DIR` also measures an unregistered folder (an app `atlas new-app` just wrote) against every
+repository; it never writes the baseline. `--candidate ID` reads each consumer of that
+compat/candidates.json record at its recorded commit instead of the registry ref (the duplication
+exit of a candidate before any pin or edge moves); it never writes the baseline either.
+
 compat/dupes-baseline.json holds the numbers per pair. `--check` fails when a pair has more
 duplicated lines than the baseline; `--write-baseline` records the current numbers (do it in the
 change that explains why they moved, for example an extraction before the app drops its copy).
@@ -114,15 +119,16 @@ def commit_files(path, commit):
     return out
 
 
-def gather(reg, root):
-    """{repo: (source label, files)} and {repo: reason} for what could not be read."""
+def gather(reg, root, refs=None):
+    """{repo: (source label, files)} and {repo: reason} for what could not be read. `refs`
+    ({repo: ref}) replaces a repository's registry ref."""
     pid, top = atlas.enclosing_platform(root, reg)
     sources, missing = {}, {}
     for rid, m in sorted(reg.items()):
         if rid == pid:
             sources[rid] = (f"working tree at {resolver.git(top, 'rev-parse', 'HEAD')}", working_tree_files(top))
             continue
-        ref = hub.primary_ref(m, pid)
+        ref = (refs or {}).get(rid) or hub.primary_ref(m, pid)
         res = resolver.resolve(m, root)
         if not ref:
             missing[rid] = "no registered ref"
@@ -135,8 +141,24 @@ def gather(reg, root):
     return sources, missing
 
 
-def measure(reg, root):
-    sources, missing = gather(reg, root)
+def directory_files(top):
+    """Code files of a folder that need not be a Git checkout (a freshly generated app)."""
+    return [(str(f.relative_to(top)), f.read_text(errors="replace")) for f in sorted(Path(top).rglob("*"))
+            if f.is_file() and code_path(str(f.relative_to(top)))]
+
+
+def candidate_refs(root, cid):
+    """{consumer repo: ref at its recorded commit} of a compat/candidates.json record, or None."""
+    import compat  # noqa: PLC0415
+    cand = next((c for c in compat.load(root)["candidates"] if c.get("id") == cid), None)
+    return cand and {c["repo"]: {"name": f"candidate {cid} {c.get('ref')}", "commit": c["commit"]} for c in cand.get("consumers", [])}
+
+
+def measure(reg, root, app=None, refs=None):
+    """`app`: also measure this unregistered folder (`--app`) against every repository."""
+    sources, missing = gather(reg, root, refs) if refs else gather(reg, root)
+    if app:
+        sources[f"app:{Path(app).name}"] = (f"folder {Path(app).name}", directory_files(app))
     names = sorted({n for m in reg.values() for n in (m["display_name"], m["local_dir"])}, key=len, reverse=True)
     app_names = re.compile("|".join(re.escape(n) for n in names), re.I)
     idx = {rid: index(files, app_names) for rid, (_, files) in sources.items()}
@@ -161,7 +183,15 @@ def measure(reg, root):
 def run(args, reg, root):
     import time  # noqa: PLC0415
     started = time.monotonic()
-    cur = measure(reg, root)
+    candidate = getattr(args, "candidate", None)  # callers that build their own Namespace predate it
+    if (args.app or candidate) and args.write_baseline:
+        print("--app and --candidate measure outside the registry refs; they never write the baseline", file=sys.stderr)
+        return FAIL
+    refs = candidate and candidate_refs(root, candidate)
+    if candidate and not refs:
+        print(f"no candidate {candidate!r} with consumers in compat/candidates.json", file=sys.stderr)
+        return FAIL
+    cur = measure(reg, root, args.app, refs)
     path = root / BASELINE
     base = json.loads(path.read_text()) if path.is_file() else None
     grew = []

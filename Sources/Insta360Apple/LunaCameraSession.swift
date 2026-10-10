@@ -60,6 +60,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     public nonisolated let id: CameraSessionID
+    public nonisolated let commandOwner = LunaCommandOwner()
     public private(set) var current: CameraSnapshot
     /// Recording colour profile (photography option 35) as a namespaced id. Camera-reported or
     /// unknown; never inferred from the preview. Lives here until `CameraSnapshot` has a slot.
@@ -72,6 +73,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     private let send: @MainActor (LunaRequest) async throws -> Data
+    private let sendWithin: (@MainActor (LunaRequest, Duration) async throws -> Data)?
+    private let sendAdmitted: LunaAdmittedCommandSend?
+    private let sendAdmittedWithin: LunaAdmittedCommandSendWithin?
     private let functionMode: @MainActor () -> UInt32
     private let readSettings: @MainActor () async -> Void
     private let readCapture: @MainActor () async -> Void
@@ -91,19 +95,27 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     private var pump: Task<Void, Never>?
     private var closed = false
 
-    /// `send` returns the camera's 200 body and throws on a 500 or a lost link. `readSettings`
-    /// and `readCapture` ask the camera to report again; answers arrive through `ingest`.
+    /// `send` returns the camera's 200 body and throws on a 500 or a lost link; `sendWithin` does
+    /// the same within a caller timeout (`control(_:timeout:)`), else a timeout falls back to
+    /// `send`. `readSettings` and `readCapture` ask the camera to report again; answers arrive
+    /// through `ingest`.
     public init(
         send: @escaping @MainActor (LunaRequest) async throws -> Data,
+        sendWithin: (@MainActor (LunaRequest, Duration) async throws -> Data)? = nil,
         functionMode: @escaping @MainActor () -> UInt32,
         readSettings: @escaping @MainActor () async -> Void,
         readCapture: @escaping @MainActor () async -> Void,
+        sendAdmitted: LunaAdmittedCommandSend? = nil,
+        sendAdmittedWithin: LunaAdmittedCommandSendWithin? = nil,
         timing: Timing = .luna,
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         let id = CameraSessionID()
         self.id = id
         self.send = send
+        self.sendWithin = sendWithin
+        self.sendAdmitted = sendAdmitted
+        self.sendAdmittedWithin = sendAdmittedWithin
         self.functionMode = functionMode
         self.readSettings = readSettings
         self.readCapture = readCapture
@@ -137,6 +149,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             return
         case .idle:
             guard current.connection == .ready else { return }
+            commandOwner.replaceSource()
             endInFlight()
             current.connection = .recovering(ConnectionAttemptID())
             current.authority = .unavailable(.link)
@@ -145,6 +158,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         case .readingWiFi, .joiningWiFi: connecting(.joiningNetwork)
         case .openingVideo: connecting(.link)
         case .streaming:
+            commandOwner.replaceSource()
             if let serial, !serial.isEmpty {
                 current.device = .durable(serial, integration: Self.integration)
             }
@@ -290,6 +304,22 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     public func submit(_ command: CameraCommand) async -> CommandReceipt {
+        await submit(command, suppliedAdmission: nil)
+    }
+
+    public func submit(_ command: CameraCommand, admission: LunaCommandAdmission) async
+        -> CommandReceipt
+    {
+        await submit(command, suppliedAdmission: admission)
+    }
+
+    private struct DeferredCommandRejection: Error { let rejection: CommandRejection }
+
+    private func submit(
+        _ command: CameraCommand, suppliedAdmission admission: LunaCommandAdmission?
+    )
+        async -> CommandReceipt
+    {
         let operation = command.operation
         if let known = receipts[operation] { return known }
         let key = command.intent.key
@@ -297,6 +327,9 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             operation: operation, session: id, intent: command.intent,
             confirmation: current.capabilities[key]?.semantics.confirmation ?? .readback)
         if closed { return transition(operation, .rejected(.sessionClosed)) }
+        if let admission, !admission.admits(commandOwner) {
+            return transition(operation, .rejected(.authorityExpired))
+        }
         if let rejection = current.rejection(of: command, at: now()) {
             return transition(operation, .rejected(rejection))
         }
@@ -315,20 +348,50 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         } catch {
             return transition(operation, .rejected(.outOfDomain))
         }
-        if case .set(let value) = command.intent {
-            // An older unfinished write to the same setting may or may not have landed before
-            // this one; only the newest receipt can confirm.
-            if let older = targets[key]?.operation { transition(older, .failed(.superseded)) }
-            targets[key] = (operation, value)
-        }
-        transition(operation, .sent)
         do {
-            _ = try await send(request)
+            if let admission {
+                guard let sendAdmitted else { throw LunaCommandAdmissionError.expired }
+                let epoch = current.epoch
+                _ = try await sendAdmitted(
+                    { [self] in
+                        try admission.require(owner: commandOwner)
+                        guard !closed, current.epoch == epoch,
+                            receipts[operation]?.isFinished == false
+                        else { throw LunaCommandAdmissionError.expired }
+                        if let rejection = current.rejection(of: command, at: now()) {
+                            throw DeferredCommandRejection(rejection: rejection)
+                        }
+                        do {
+                            guard let built = try self.request(for: command.intent) else {
+                                throw DeferredCommandRejection(rejection: .unsupported)
+                            }
+                            return built
+                        } catch let error as DeferredCommandRejection { throw error } catch {
+                            throw DeferredCommandRejection(rejection: .outOfDomain)
+                        }
+                    }, admission,
+                    { [self] in
+                        // The SDK already entered. Later receipt expiry cannot retract this write.
+                        guard !closed, current.epoch == epoch,
+                            receipts[operation]?.isFinished == false
+                        else { return }
+                        commitDispatch(command)
+                    })
+            } else {
+                commitDispatch(command)
+                _ = try await send(request)
+            }
+        } catch let error as DeferredCommandRejection {
+            return transition(operation, .rejected(error.rejection))
+        } catch LunaCommandAdmissionError.expired {
+            let entered = receipts[operation]?.stage != .admitted
+            return transition(operation, entered ? .outcomeUnknown : .rejected(.authorityExpired))
         } catch LunaProtocolError.cameraRejectedRequest {
             return transition(operation, .rejected(.cameraRefused))
         } catch {
             // Timeout or dropped link: the camera may have acted.
-            return transition(operation, .outcomeUnknown)
+            let unsent = admission != nil && receipts[operation]?.stage == .admitted
+            return transition(operation, unsent ? .failed(.notSent) : .outcomeUnknown)
         }
         // The link dropped or the session closed while the write was out.
         if let finished = receipts[operation], finished.isFinished { return finished }
@@ -344,17 +407,87 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         return receipts[operation]!
     }
 
+    private func commitDispatch(_ command: CameraCommand) {
+        if case .set(let value) = command.intent {
+            // An older unfinished write may have landed. Supersede it only when this
+            // supplied successor actually enters; the original direct call enters here first.
+            if let older = targets[value.key]?.operation { transition(older, .failed(.superseded)) }
+            targets[value.key] = (command.operation, value)
+        }
+        transition(command.operation, .sent)
+    }
+
     /// Integration-owned media commands share the actual session lifetime and transport path.
     /// No result from a replaced epoch can authorize a subsequent browse/return command.
     func mediaRequest(_ request: LunaRequest, epoch: ControlEpoch) async throws -> Data {
         try Task.checkCancellation()
         guard !closed, current.connection == .ready, current.authority == .owner,
-            current.epoch == epoch else { throw CancellationError() }
+            current.epoch == epoch
+        else { throw CancellationError() }
         let reply = try await send(request)
         try Task.checkCancellation()
         guard !closed, current.connection == .ready, current.authority == .owner,
-            current.epoch == epoch else { throw CancellationError() }
+            current.epoch == epoch
+        else { throw CancellationError() }
         return reply
+    }
+
+    /// Whether `control(_:timeout:)` sends now: the session is open, ready and owned.
+    public var admitsControl: Bool {
+        !closed && current.connection == .ready && current.authority == .owner
+    }
+
+    /// Luna requests the common model does not describe (Deep Track, tap focus, gimbal, clock and
+    /// photography options) go out on this session's link only while it admits control. The
+    /// camera's 200 body is success; `timeout` bounds the wait when the backend supports it.
+    public func control(_ request: LunaRequest, timeout: Duration? = nil) async throws -> Data {
+        guard admitsControl else { throw CancellationError() }
+        if let timeout, let sendWithin { return try await sendWithin(request, timeout) }
+        return try await send(request)
+    }
+
+    public func control(
+        _ request: LunaRequest, admission: LunaCommandAdmission,
+        timeout: Duration? = nil
+    ) async throws -> Data {
+        try admission.require(owner: commandOwner)
+        guard admitsControl else { throw LunaCommandAdmissionError.expired }
+        if let timeout, let sendAdmittedWithin {
+            return try await sendAdmittedWithin({ request }, admission, timeout, {})
+        }
+        guard let sendAdmitted else { throw LunaCommandAdmissionError.expired }
+        return try await sendAdmitted({ request }, admission, {})
+    }
+
+    /// Backend retirement publishes before native cancellation, without changing link policy.
+    func retireCommandSource() { commandOwner.replaceSource() }
+
+    /// The function mode (bank) a photography SET is built for now.
+    var requestFunctionMode: UInt32 { functionMode() }
+
+    /// The Luna's timecode is time of day from its own clock, which the phone is expected to set.
+    /// Sets it like the official app on connect (options 12/13/175), then to the millisecond with
+    /// cmd 214 twice, each stamped at send (a GET round trip on the camera AP is about 4 ms; the
+    /// clock SET takes about 220 ms of camera processing). False when the camera refused the SET.
+    /// Android: `LunaBackend.syncClock`.
+    @discardableResult
+    public func syncClock(zone: TimeZone = .current, now: () -> Date = Date.init) async -> Bool {
+        let date = now()
+        guard
+            let request = try? LunaProtocol.setClockRequest(
+                unixSeconds: UInt64(date.timeIntervalSince1970),
+                timeZoneSeconds: Int32(zone.secondsFromGMT(for: date)), zone: zone.identifier),
+            (try? await control(request, timeout: .seconds(2))) != nil
+        else { return false }
+        for count: UInt32 in 0..<2 {
+            let milliseconds = UInt64((now().timeIntervalSince1970 * 1000).rounded())
+            if let request = try? LunaProtocol.syncTimeAccurateRequest(
+                unixMilliseconds: milliseconds, count: count)
+            {
+                _ = try? await control(request, timeout: .seconds(2))
+            }
+        }
+        return true
     }
 
     public func outcome(of operation: OperationID) async -> CommandReceipt? {
@@ -375,6 +508,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     /// Never sends a camera command; in particular it never stops a recording.
     public func close(_ reason: SessionCloseReason) {
         guard !closed else { return }
+        commandOwner.retire()
         endInFlight()
         closed = true
         pump?.cancel()
@@ -502,6 +636,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         case .connecting(let existing, _), .recovering(let existing):
             attempt = existing
         default:
+            commandOwner.replaceSource()
             endInFlight()
             attempt = ConnectionAttemptID()
         }

@@ -41,6 +41,16 @@ data class MonitorRect(val x: Float, val y: Float, val width: Float, val height:
     }
 }
 
+/**
+ * `FieldMonitorLayout`: a vertical camera is shown whole, resting on the bottom of the well.
+ * Height-only sizing overflowed narrow phones and clipped both sides.
+ */
+fun portraitVerticalPicture(well: MonitorRect): MonitorRect {
+    val height = minOf(well.height, well.width * 16f / 9f)
+    val width = height * 9f / 16f
+    return MonitorRect(well.midX - width / 2f, well.maxY - height, width, height)
+}
+
 data class MonitorPortraitLayout(
     val status: MonitorRect,
     val picture: MonitorRect,

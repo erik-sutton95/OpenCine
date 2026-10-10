@@ -26,6 +26,8 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.FoundCamera
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -289,6 +291,15 @@ class BleLink(context: Context) {
                 }
             }
         }
+    }
+
+    /** Read-only admission from the already-owned GATT attempt; safe on the credential IO worker. */
+    internal fun captureCredentialConnection(): () -> Boolean {
+        val attempt = operations.current() ?: return { false }
+        var resource: BluetoothGatt? = null
+        operations.runIfCurrent(attempt) { resource = attempt.resource }
+        val captured = resource ?: return { false }
+        return { operations.runIfCurrent(attempt, captured) {} }
     }
 
     fun send(bytes: ByteArray) {

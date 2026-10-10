@@ -43,4 +43,9 @@ import Testing
     @Test func freezeThresholdMatchesWatchdogStall() {
         #expect(FeedPresentPolicy.freezeThreshold == FeedWatchdog.stallThreshold)
     }
+
+    /// The incident stall bound is neutral now; it must stay the DJI watchdog stall.
+    @Test func incidentStallMatchesWatchdogStall() {
+        #expect(FeedIncidentBounds.stallThreshold == FeedWatchdog.stallThreshold)
+    }
 }

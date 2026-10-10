@@ -1,0 +1,14 @@
+import Foundation
+import OpenCineAppKit
+
+/// Brand configuration: what the shared shell shows of this app. Brand variation is values only.
+let brand = ShellBrand(name: "__NAME__")
+
+/// The app's root: OpenCine's cameras model over this build's `integrations()` (the shipping list,
+/// or the SIMULATED one in `__NAME__Simulated`) and the shell over it. Saved cameras live in this
+/// app's own defaults key.
+@MainActor func makeShell(defaults: UserDefaults = .standard, integrationList: [AppIntegration]? = nil,
+    control: MonitorControlModel = MonitorControlModel()) -> ShellModel {
+    let store = SavedCamerasStore(document: .userDefaults(defaults, key: "__NAME__.Cameras"))
+    return ShellModel(cameras: CamerasModel(integrations: integrationList ?? integrations(), store: store), control: control)
+}

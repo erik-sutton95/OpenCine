@@ -123,10 +123,28 @@ public struct MonitorControllerSettings: View {
     }
 }
 
+/// An optional native processing choice uses the common settings row and segmented control.
+public struct MonitorProcessingSettings: View {
+    private let choice: MonitorMotionChoiceSetting
+    public init(choice: MonitorMotionChoiceSetting) { self.choice = choice }
+    public var body: some View {
+        MonitorSettingsRowCard(title: "Processing") {
+            MonitorSettingsInlineRow(title: "Feed Upscaler", help: choice.help, showTopDivider: false) {
+                MotionChoiceControl(setting: choice)
+            }
+        }
+    }
+}
+
 private struct MotionChoiceControl: View {
     let setting: MonitorMotionChoiceSetting
+    @State private var revision = 0
+    private var selection: Binding<String> {
+        Binding(get: { setting.selection.wrappedValue }, set: { setting.selection.wrappedValue = $0; revision += 1 })
+    }
     var body: some View {
-        MonitorSegmentedControl(options: setting.options, selection: setting.selection,
+        let _ = revision
+        MonitorSegmentedControl(options: setting.options, selection: selection,
             compact: true, title: { $0 }, onSelectionFeedback: setting.feedback)
             .buttonStyle(MonitorSettingsButtonStyle())
     }

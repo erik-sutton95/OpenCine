@@ -24,6 +24,10 @@ failed sealing writes nothing, unreadable ciphertext is retained, and repeated `
 safe. Existing compatibility wrappers retain their original namespaces and public paths
 while consumers migrate explicitly.
 
+`LocalVPNProbe.isActive(context)` reports whether any network carries `TRANSPORT_VPN`;
+`noteIfActive(context, log)` hands the caller's journal the VPN notice once per process. The
+operator copy and the live-feed hint policy are Core's `LocalVPNFilter`.
+
 No credential value, encrypted envelope or key material belongs in logs. Unit tests use
 synthetic values and injected preferences/crypto; installed upgrade checks use synthetic
 fixtures in the actual app UID, because Keystore access is owned by that UID.

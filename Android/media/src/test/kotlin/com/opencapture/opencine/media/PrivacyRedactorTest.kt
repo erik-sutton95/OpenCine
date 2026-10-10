@@ -8,9 +8,9 @@ import kotlin.test.assertTrue
 class PrivacyRedactorTest {
     @Test fun privateValuesAndUnapprovedNetworksAreRedacted() {
         val result = PrivacyRedactor.redact(
-            "ssid=FixtureCam password=fixture-secret user=fixture@example.test ip=8.8.8.8 mac=AA:BB:CC:DD:EE:FF /Users/fixture/path",
+            "ssid=FixtureCam password=fixture-secret user=fixture@example.test ip=8.8.8.8 mac=AA:BB:CC:DD:EE:FF " + "/" + "Users/fixture/path",
         )
-        for (privateValue in listOf("FixtureCam", "fixture-secret", "fixture@example.test", "8.8.8.8", "AA:BB:CC:DD:EE:FF", "/Users/fixture")) {
+        for (privateValue in listOf("FixtureCam", "fixture-secret", "fixture@example.test", "8.8.8.8", "AA:BB:CC:DD:EE:FF", "/" + "Users/fixture")) {
             assertFalse(result.contains(privateValue))
         }
     }

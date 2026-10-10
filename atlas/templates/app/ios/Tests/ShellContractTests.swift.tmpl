@@ -1,0 +1,242 @@
+import Foundation
+import OpenCineAppKit
+import OpenCineCore
+import OpenCineMedia
+import Testing
+
+/// SIMULATED contract test (OpenCine's fake integration, no hardware): this app's shell
+/// composition pairs the fake camera, shows it on the monitor and returns to the cameras page
+/// with the camera saved. Kotlin twin: `ShellContractTest`.
+@MainActor
+@Suite struct ShellContract {
+    @Test func theFakeCameraConnectsAndCloses() async throws {
+        let shell = makeShell(defaults: try #require(UserDefaults(suiteName: "contract-\(UUID())")))
+        #expect(shell.route == .pair, "nothing saved yet")
+        let camera = try #require(await settled { shell.cameras.nearby.first })
+        shell.cameras.connect(camera)
+        #expect(await settled { shell.route == .monitor ? true : nil } == true)
+        shell.close()
+        #expect(shell.route == .cameras, "the camera stays saved")
+    }
+
+    @Test func theActualSharedControlsEditISOAndConfirmRecordAndStop() async throws {
+        let context = try await connected()
+        defer { context.shell.close() }
+        let editor = try #require(context.shell.control.edit(.iso))
+        #expect(context.shell.control.commit(.iso(.manual(400)), from: editor, label: "ISO"))
+        #expect(await settled { context.shell.control.snapshot?.value(of: .iso).value == .iso(.manual(400)) ? true : nil } == true)
+        #expect(context.shell.control.pending.isEmpty)
+        #expect(await context.shell.control.recordAndWait(start: true)?.stage == .confirmed)
+        #expect(await settled { context.shell.control.isRecording == true ? true : nil } == true)
+        #expect(await context.shell.control.recordAndWait(start: false)?.stage == .confirmed)
+        #expect(await settled { context.shell.control.isRecording == false ? true : nil } == true)
+        #expect(context.fake.sessions[0].commands.map(\.intent) == [.set(.iso(.manual(400))), .startRecording, .stopRecording])
+    }
+
+    @Test func replacementRejectsOldEditorsAndLateCameraReports() async throws {
+        let context = try await connected()
+        defer { context.shell.close() }
+        let old = context.fake.sessions[0]
+        let editor = try #require(context.shell.control.edit(.iso))
+        old.holdNextReport = true
+        #expect(context.shell.control.commit(.iso(.manual(400)), from: editor, label: "ISO"))
+        #expect(await settled { old.commands.count == 1 ? true : nil } == true)
+        let saved = try #require(context.shell.monitor?.camera.saved)
+        let next = SimulatedCameraSession(integration: context.fake.id)
+        context.shell.present(.init(saved: saved, session: next))
+        #expect(await settled { context.shell.control.snapshot?.session == next.id && old.closes == 1 ? true : nil } == true)
+        old.reportHeldCommand()
+        #expect(!context.shell.control.commit(.iso(.manual(800)), from: editor, label: "ISO"))
+        #expect(context.shell.control.snapshot?.value(of: .iso).value == .iso(.manual(200)))
+        #expect(context.shell.control.pending.isEmpty)
+        #expect(next.commands.isEmpty)
+    }
+
+    @Test func aCapabilityChangeRetiresTheEditorAndPictureOnlyCannotRecord() async throws {
+        let context = try await connected()
+        defer { context.shell.close() }
+        let editor = try #require(context.shell.control.edit(.iso))
+        let camera = context.fake.sessions[0]
+        camera.reportCapabilities(iso: false)
+        #expect(await settled { context.shell.control.snapshot?.capabilities.support(of: .iso) == .unsupported ? true : nil } == true)
+        #expect(!context.shell.control.commit(.iso(.manual(400)), from: editor, label: "ISO"))
+        camera.reportCapabilities(iso: false, pictureOnly: true)
+        #expect(await settled { context.shell.control.snapshot?.authority == .readOnly ? true : nil } == true)
+        #expect(await context.shell.control.recordAndWait(start: true)?.stage == .rejected(.noAuthority))
+        #expect(camera.commands.isEmpty)
+    }
+
+    @Test func savedConnectSurvivesRelaunchAndSeparateAppStorageIsEmpty() async throws {
+        let key = "template-storage-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: key))
+        defer { defaults.removePersistentDomain(forName: key) }
+        let context = try await connected(defaults: defaults)
+        context.shell.close()
+        #expect(await settled { context.fake.sessions[0].closes == 1 ? true : nil } == true)
+        let restored = makeShell(defaults: defaults)
+        #expect(restored.route == .cameras)
+        #expect(restored.cameras.saved.count == 1)
+        let otherKey = key + "-other-app"
+        let other = try #require(UserDefaults(suiteName: otherKey))
+        defer { other.removePersistentDomain(forName: otherKey) }
+        #expect(makeShell(defaults: other).cameras.saved.isEmpty)
+        #expect(makeShell(defaults: other).route == .pair)
+        let saved = try #require(restored.cameras.saved.first)
+        restored.cameras.connect(saved)
+        #expect(await settled { restored.route == .monitor ? true : nil } == true)
+        restored.close()
+    }
+
+    @Test func settingsAndMediaBorrowOneSessionAndCachedClipOpensOffline() async throws {
+        let context = try await connected()
+        defer { context.shell.close() }
+        let id = try #require(context.shell.monitor?.id)
+        context.shell.open(.settings)
+        #expect(context.shell.monitor?.id == id)
+        context.shell.dismissCover()
+        context.shell.open(.media)
+        #expect(context.shell.monitor?.id == id)
+        let source = try #require(context.shell.monitor?.camera.services[(any CameraMediaService).self])
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("template-media-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = MonitorMediaCacheStorage()
+        let library = makeSimulatedLibrary(root: root, defaults: context.defaults, storage: storage, service: source)
+        library.begin()
+        #expect(await settled { library.records.count == 1 && library.fetching == false ? true : nil } == true)
+        let record = try #require(library.records.first)
+        let file = try await library.cacheRepresentation(record.asset.representations[0].id, asset: record.asset.id)
+        #expect(try Data(contentsOf: file).count == 86_527)
+        let before = library.lifetimeToken
+        library.begin() // A nested cover/rotation borrows the same gallery lifetime.
+        #expect(library.lifetimeToken == before)
+        library.close()
+        context.shell.dismissCover()
+        #expect(context.shell.monitor?.id == id)
+        #expect(context.fake.sessions[0].closes == 0)
+        let offline = makeSimulatedLibrary(root: root, defaults: context.defaults, storage: storage)
+        offline.begin()
+        #expect(offline.records.count == 1)
+        #expect(offline.entries[record.asset.id]?.isPlayableOffline == true)
+        #expect(offline.canRefresh == false)
+        await library.dispose()
+        await offline.dispose()
+    }
+
+    @Test func replacingTheCameraRetiresCapturedMediaTransfers() async throws {
+        let context = try await connected()
+        defer { context.shell.close() }
+        let source = try #require(context.shell.monitor?.camera.services[(any CameraMediaService).self])
+        let browse = try await source.openBrowse()
+        let cursor = try await browse.catalog()
+        let thumbnails = try #require(browse.thumbnails)
+        let saved = try #require(context.shell.monitor?.camera.saved)
+        let next = SimulatedCameraSession(integration: context.fake.id)
+        context.shell.present(.init(saved: saved, session: next))
+        #expect(await settled { context.fake.sessions[0].closes == 1 ? true : nil } == true)
+        await #expect(throws: MediaServiceError.retired) { try await cursor.next() }
+        await #expect(throws: MediaServiceError.retired) { try await thumbnails.thumbnail(SimulatedAssets.asset.id) }
+        cursor.close()
+        await browse.close()
+        #expect(next.commands.isEmpty)
+    }
+
+    @Test func sharedMediaOwnerReopensWithFreshPlaybackAndRejectsRetiredCallbacks() async throws {
+        let context = try await connected()
+        defer { context.shell.close() }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("template-player-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = makeSimulatedLibrary(root: root, defaults: context.defaults, storage: MonitorMediaCacheStorage())
+        var ports: [ScriptedPlaybackPort] = []
+        var localItem: MonitorPlaybackItem?
+        let media = MonitorOperatorMediaModel<MediaAsset, String>(library: library) { library in
+            let port = ScriptedPlaybackPort()
+            ports.append(port)
+            return MonitorMediaPlaybackModel(library: library, native: port, candidates: { record in
+                localItem.map { [.cached($0)] } ?? []
+            })
+        }
+        media.bind(context.shell.monitor?.camera)
+        media.showGallery()
+        #expect(await settled { library.records.count == 1 && !library.fetching ? true : nil } == true)
+        let record = try #require(library.records.first)
+        // Complete the real source IO before exercising the scripted native owner.
+        let file = try await library.cacheRepresentation(record.asset.representations[0].id, asset: record.asset.id)
+        localItem = MonitorPlaybackItem(url: file, mimeType: "video/mp4", sourceKey: record.asset.id.rawValue)
+        let staleAction = library.actionToken
+        #expect(media.open(record.asset.id, admitted: staleAction))
+        let previous = try #require(media.playback)
+        #expect(await settled { previous.ready ? true : nil } == true)
+        let oldToken = previous.token
+        let oldCallback = try #require(ports[0].onEvent)
+        media.closeGallery()
+        #expect(previous.closed)
+        #expect(ports[0].closes == 1)
+        media.showGallery()
+        #expect(await settled { library.records.count == 1 && !library.fetching ? true : nil } == true)
+        #expect(!media.open(record.asset.id, admitted: staleAction))
+        #expect(media.open(record.asset.id, admitted: library.actionToken))
+        let current = try #require(media.playback)
+        #expect(await settled { current.ready ? true : nil } == true)
+        #expect(current !== previous)
+        #expect(ports.count == 2)
+        oldCallback(oldToken, .failed("retired native callback"))
+        oldCallback(oldToken, .ended)
+        #expect(current.ready && current.error == nil && !current.reachedEnd)
+        #expect(current.position == 0)
+        let next = SimulatedCameraSession(integration: context.fake.id)
+        let saved = try #require(context.shell.monitor?.camera.saved)
+        context.shell.present(.init(saved: saved, session: next))
+        media.bind(context.shell.monitor?.camera)
+        #expect(current.closed)
+        #expect(media.playback == nil && !media.galleryOpen)
+        oldCallback(oldToken, .playing(true))
+        #expect(context.shell.control.isRecording != true)
+        await library.dispose()
+    }
+
+    private func connected(defaults: UserDefaults? = nil) async throws -> (shell: ShellModel, fake: FakeIntegration, defaults: UserDefaults) {
+        let defaults = try #require(defaults ?? UserDefaults(suiteName: "contract-\(UUID())"))
+        let fake = FakeIntegration()
+        let shell = makeShell(defaults: defaults, integrationList: [AppIntegration(fake)],
+            control: MonitorControlModel(coalescing: .zero, sleep: { _ in }))
+        let nearby = try #require(await settled { shell.cameras.nearby.first })
+        shell.cameras.connect(nearby)
+        #expect(await settled { shell.control.snapshot?.session == fake.sessions.last?.id && shell.control.snapshot != nil ? true : nil } == true)
+        return (shell, fake, defaults)
+    }
+
+    /// Lets the shell's tasks run until `value` has one; never sleeps.
+    private func settled<T>(_ value: () -> T?) async -> T? {
+        for _ in 0..<1_000 {
+            if let found = value() { return found }
+            await Task.yield()
+        }
+        return nil
+    }
+}
+
+/// SIMULATED native boundary for unit tests; UI tests use the actual AVPlayer adapter.
+@MainActor private final class ScriptedPlaybackPort: MonitorPlaybackPort {
+    var onEvent: (@MainActor @Sendable (MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Void)?
+    private var token: MonitorPlaybackItemToken?
+    private(set) var closes = 0
+    func retireItem(for token: MonitorPlaybackItemToken) { self.token = token }
+    func prepare(_ item: MonitorPlaybackItem, token: MonitorPlaybackItemToken,
+        readyTimeout: Duration?) async throws -> MonitorPlaybackMetadata {
+        guard self.token == token else { throw MonitorPlaybackError.retired }
+        onEvent?(token, .itemInstalled)
+        return MonitorPlaybackMetadata(duration: 3, width: 320, height: 180)
+    }
+    func play(rate: Double, token: MonitorPlaybackItemToken) { onEvent?(token, .playing(true)) }
+    func pause(token: MonitorPlaybackItemToken) { onEvent?(token, .playing(false)) }
+    func seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken) async -> Bool {
+        guard self.token == token else { return false }
+        onEvent?(token, .position(seconds)); return true
+    }
+    func setMuted(_ muted: Bool, token: MonitorPlaybackItemToken) {}
+    func close(token: MonitorPlaybackItemToken) {
+        guard let current = self.token, current.owner == token.owner,
+            token.revision >= current.revision else { return }
+        closes += 1; self.token = nil; onEvent = nil
+    }
+}

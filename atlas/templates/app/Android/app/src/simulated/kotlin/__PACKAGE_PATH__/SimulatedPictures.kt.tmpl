@@ -1,0 +1,338 @@
+package __APP_ID__
+
+import android.app.Activity
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.graphics.SurfaceTexture
+import android.media.MediaPlayer
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.view.Choreographer
+import android.view.Surface
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import com.opencapture.opencine.appkit.MonitorAssistState
+import com.opencapture.opencine.appkit.MonitorMediaCacheStorage
+import com.opencapture.opencine.appkit.MonitorMediaPlaybackModel
+import com.opencapture.opencine.appkit.MonitorMediaPreferences
+import com.opencapture.opencine.appkit.MonitorMediaRecord
+import com.opencapture.opencine.appkit.MonitorOperatorMediaModel
+import com.opencapture.opencine.appkit.MonitorOperatorPreferences
+import com.opencapture.opencine.appkit.MonitorPlaybackCandidate
+import com.opencapture.opencine.appkit.renderPlan
+import com.opencapture.opencine.appkit.falseColorRaster
+import com.opencapture.opencine.appkit.renderToolVisible
+import com.opencapture.monitorui.MonitorAssistTool
+import com.opencapture.opencine.media.FeedEffectsRenderPlan
+import com.opencapture.opencine.media.ScopeClipSnapshot
+import com.opencapture.opencine.cameracontrols.AssistHost
+import com.opencapture.opencine.cameracontrols.MonitorDefaultAssistHost
+import com.opencapture.opencine.media.MediaAsset
+import com.opencapture.opencine.media.MonitorPlaybackEvent
+import com.opencapture.opencine.media.MonitorPlaybackException
+import com.opencapture.opencine.media.MonitorPlaybackFailure
+import com.opencapture.opencine.media.MonitorPlaybackItem
+import com.opencapture.opencine.media.MonitorPlaybackItemToken
+import com.opencapture.opencine.media.MonitorPlaybackMetadata
+import com.opencapture.opencine.media.MonitorPlaybackPort
+import com.opencapture.opencine.media.MonitorTransfer
+import com.opencapture.opencine.runtime.InspectorPreviewPipeline
+import com.opencapture.opencine.runtime.MonitorHDRDisplay
+import com.opencapture.opencine.runtime.MonitorTexturePictureHost
+import com.opencapture.opencine.runtime.MonitorTexturePictureProgram
+import com.opencapture.opencine.runtime.NativeGlBackend
+import com.opencapture.opencine.runtime.NativeGlesFeedSession
+import com.opencapture.opencine.runtime.ScopeSampleBus
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import java.io.File
+import java.util.UUID
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration
+
+/** SIMULATED SDK construction and per-install values only. Gallery/cache/item policy is shared. */
+fun makeOperatorMedia(context: Context, scope: CoroutineScope): MonitorOperatorMediaModel<MediaAsset, String>? {
+    val favorites = MonitorMediaPreferences(context.getSharedPreferences("__NAME__.media", Context.MODE_PRIVATE),
+        "__NAME__.Media.Favorites", "__NAME__.Media.LastCamera", "\n")
+    val library = makeSimulatedLibrary(File(context.filesDir, "Media"), MonitorMediaCacheStorage(), favorites, scope)
+    return MonitorOperatorMediaModel(library) { library ->
+        MonitorMediaPlaybackModel(library, SimulatedAndroidPlaybackPort(context), scope, candidates = { record ->
+            buildList {
+                library.state.value.entries[record.asset.id]?.original?.let {
+                    add(MonitorPlaybackCandidate.Cached(MonitorPlaybackItem(it.toURI(), "video/mp4", record.asset.id.rawValue)))
+                }
+                addAll(record.asset.representations.map {
+                    MonitorPlaybackCandidate.Representation(it.id, "video/mp4", record.asset.id.rawValue)
+                })
+            }
+        })
+    }
+}
+
+/** The OS source is retained; assists and actual picture/surface ownership belong to OpenCine. */
+@Composable
+fun OperatorPicture(assist: MonitorAssistState, preferences: MonitorOperatorPreferences, iso: Int?) {
+    val context = LocalContext.current
+    val source = remember { SimulatedLiveSource(context) }
+    val ready by source.ready.collectAsState()
+    DisposableEffect(source) { onDispose { source.close() } }
+    SimulatedNativePicture(identity = source.identity, ready = ready, playback = false,
+        plan = simulatedRenderPlan(assist, iso = iso), preferences = preferences,
+        width = 320, height = 180, admission = { !source.closed }, attach = source::attach,
+        description = "SIMULATED live picture")
+}
+
+/** Sample source selection and framework player construction; no page/control/assist policy. */
+private class SimulatedLiveSource(context: Context) {
+    val identity: UUID = UUID.randomUUID()
+    private val player = MediaPlayer()
+    private val preparation = MutableStateFlow(false)
+    val ready = preparation.asStateFlow()
+    var closed = false
+        private set
+    init {
+        context.assets.openFd("simulated.mp4").use {
+            player.setDataSource(it.fileDescriptor, it.startOffset, it.length)
+        }
+        player.isLooping = true
+        player.setOnPreparedListener {
+            if (!closed) { preparation.value = true; it.start() }
+        }
+        player.prepareAsync()
+    }
+    fun attach(surface: Surface) { if (!closed) player.setSurface(surface) }
+    fun close() {
+        if (closed) return
+        closed = true; player.setOnPreparedListener(null); player.release(); preparation.value = false
+    }
+}
+
+@Composable
+fun OperatorThumbnail(record: MonitorMediaRecord<MediaAsset>) {
+    val bytes = remember(record.asset.id) {
+        if (record.asset.id == SimulatedAssets.asset.id) SimulatedAssets.open("png").use { it.readBytes() } else null
+    }
+    val bitmap = remember(bytes) { bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } }
+    if (bitmap != null) Image(bitmap.asImageBitmap(), "SIMULATED clip", Modifier.fillMaxSize())
+}
+
+@Composable
+fun OperatorPlaybackPicture(playback: MonitorMediaPlaybackModel<MediaAsset, String>,
+    assist: MonitorAssistState, preferences: MonitorOperatorPreferences) {
+    OperatorPlaybackPicture(playback, assist, preferences, OperatorPlaybackEffects(assist))
+}
+
+/** Declared normalized full-range RGB input, not a measured scope ceiling. */
+@Composable
+fun OperatorAssistHost(): AssistHost = remember { AssistHost(MonitorDefaultAssistHost.peakingColors,
+    MonitorDefaultAssistHost.highlightColors, MonitorDefaultAssistHost.midtoneColors,
+    ndHelp = MonitorDefaultAssistHost.ndHelp, guideMaskPolicy = MonitorDefaultAssistHost.guideMaskPolicy,
+    scopeCeiling = { ScopeClipSnapshot(MonitorTransfer.REC709, 255) },
+    rec709LookCurve = MonitorDefaultAssistHost.rec709LookCurve) }
+
+/** Borrowed by the common player and retained native picture; no second effects producer. */
+@Composable
+fun OperatorPlaybackEffects(assist: MonitorAssistState): FeedEffectsRenderPlan? = simulatedRenderPlan(assist, playback = true)
+
+@Composable
+fun OperatorPlaybackPicture(playback: MonitorMediaPlaybackModel<MediaAsset, String>,
+    assist: MonitorAssistState, preferences: MonitorOperatorPreferences, effects: FeedEffectsRenderPlan?) {
+    val plan = effects ?: return
+    val native = playback.native as? SimulatedAndroidPlaybackPort ?: return
+    val state by playback.state.collectAsState()
+    val token = state.token
+    SimulatedNativePicture(identity = token, ready = state.ready, playback = true,
+        plan = plan, preferences = preferences,
+        width = state.metadata.width?.toInt() ?: 320, height = state.metadata.height?.toInt() ?: 180,
+        admission = { playback.isActive && playback.state.value.token == token },
+        attach = { native.attach(it, token) }, description = "SIMULATED playback picture")
+}
+
+/** The GLES decoder supplies normalized full-range RGB. All option/color projection is shared. */
+@Composable
+private fun simulatedRenderPlan(assist: MonitorAssistState, iso: Int? = null, playback: Boolean = false): FeedEffectsRenderPlan {
+    val visible = assist.renderToolVisible(MonitorAssistTool.FALSE, playback)
+    val raster = remember(assist.falseColorScale, assist.falseColorRec709, visible, playback) {
+        assist.falseColorRaster(transfer = MonitorTransfer.REC709, clipByte = 255, playback = playback)
+    }
+    return assist.renderPlan(transfer = MonitorTransfer.REC709, iso = iso, playback = playback, raster = raster)
+}
+
+/** A bounded native view over the existing retained renderer, not a monitor or media page. */
+@Composable
+private fun SimulatedNativePicture(identity: Any, ready: Boolean, playback: Boolean,
+    plan: FeedEffectsRenderPlan, preferences: MonitorOperatorPreferences, width: Int, height: Int,
+    admission: () -> Boolean, attach: (Surface) -> Unit, description: String) {
+    val context = LocalContext.current
+    var presented by remember(identity) { mutableStateOf(false) }
+    var failed by remember(identity) { mutableStateOf(false) }
+    val scopeBus = remember(identity) { ScopeSampleBus() }
+    val preview = remember(identity) { InspectorPreviewPipeline(scopeBus, { NativeGlBackend.create(it) }) }
+    val runtime = remember(identity) {
+        NativeGlesFeedSession(context, scopeBus, preview, { NativeGlBackend.create(it) },
+            onDecoderSurface = attach, onGpuFailed = { failed = true },
+            onFirstFrame = { if (admission()) presented = true },
+            letterboxSource = true, notifySurfaceOnMain = true, playback = playback)
+    }
+    runtime.setSourceAdmission { it == identity && admission() }
+    runtime.configurePreviewSource(identity, ready)
+    val program = remember(runtime) {
+        object : MonitorTexturePictureProgram {
+            override fun attach(texture: SurfaceTexture, width: Int, height: Int) = runtime.attachDisplay(texture, width, height)
+            override fun resize(width: Int, height: Int) = runtime.resize(width, height)
+            override fun detach() = runtime.detachDisplay()
+        }
+    }
+    DisposableEffect(runtime) { onDispose { runtime.close(); preview.close() } }
+    LaunchedEffect(runtime, plan) { runtime.updatePlan(plan) }
+    LaunchedEffect(runtime, width, height) { runtime.setSourceSize(width, height) }
+    key(runtime) {
+        AndroidView(modifier = Modifier.fillMaxSize(), factory = { MonitorTexturePictureHost(it, program) }, update = {
+            MonitorHDRDisplay.apply(context as? Activity, preferences.hdrDisplay)
+            val status = if (failed) "Failed" else if (presented) "Decoded" else "Waiting"
+            val owner = (identity as? MonitorPlaybackItemToken)?.owner ?: identity
+            it.contentDescription = "$description $status $owner"
+        })
+    }
+}
+
+/** SIMULATED framework-only native port, confined to Main. It translates OS callbacks and holds
+ * no gallery, cache, recording, editor, source-selection or page policy. */
+class SimulatedAndroidPlaybackPort(context: Context) : MonitorPlaybackPort {
+    private val context = context.applicationContext
+    override var onEvent: ((MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Unit)? = null
+    private var token: MonitorPlaybackItemToken? = null
+    private var player: MediaPlayer? = null
+    private var surface: android.view.Surface? = null
+    private var surfaceToken: MonitorPlaybackItemToken? = null
+    private var ready: CancellableContinuation<MonitorPlaybackMetadata>? = null
+    private var seeking: CancellableContinuation<Boolean>? = null
+    private var closed = false
+    private val frameClock = Choreographer.getInstance()
+    private val clock = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            val current = token ?: return
+            val native = player ?: return
+            if (closed || !native.isPlaying) return
+            onEvent?.invoke(current, MonitorPlaybackEvent.Position(native.currentPosition / 1000.0))
+            if (!closed && player === native && token == current) frameClock.postFrameCallback(this)
+        }
+    }
+    fun attach(surface: android.view.Surface, captured: MonitorPlaybackItemToken) {
+        if (closed || token != captured) return
+        this.surface = surface; surfaceToken = captured
+        player?.setSurface(surface)
+    }
+    private fun current(native: MediaPlayer, token: MonitorPlaybackItemToken): Boolean = !closed && player === native && this.token == token
+    private fun retireNative() {
+        frameClock.removeFrameCallback(clock)
+        ready?.let { if (it.isActive) it.resumeWithException(MonitorPlaybackException(MonitorPlaybackFailure.RETIRED)) }
+        ready = null
+        seeking?.let { if (it.isActive) it.resume(false) }; seeking = null
+        val previous = player; player = null
+        previous?.setOnPreparedListener(null); previous?.setOnCompletionListener(null)
+        previous?.setOnErrorListener(null); previous?.setOnInfoListener(null); previous?.setOnSeekCompleteListener(null)
+        previous?.release()
+    }
+    override fun retireItem(token: MonitorPlaybackItemToken) {
+        if (closed || (this.token != null && token.revision != 0L &&
+                (this.token?.owner != token.owner || token.revision < (this.token?.revision ?: 0)))) return
+        this.token = token; retireNative()
+    }
+    override suspend fun prepare(item: MonitorPlaybackItem, token: MonitorPlaybackItemToken,
+        readyTimeout: Duration?): MonitorPlaybackMetadata {
+        if (closed || this.token != token) throw MonitorPlaybackException(MonitorPlaybackFailure.RETIRED)
+        val prepare: suspend () -> MonitorPlaybackMetadata = {
+            suspendCancellableCoroutine { continuation ->
+                val native = MediaPlayer(); player = native; ready = continuation
+                native.setSurface(surface.takeIf { surfaceToken == token })
+                native.setOnPreparedListener {
+                    if (current(it, token) && continuation.isActive) {
+                        ready = null
+                        continuation.resume(MonitorPlaybackMetadata(it.duration / 1000.0, it.videoWidth.toDouble(), it.videoHeight.toDouble()))
+                    }
+                }
+                native.setOnCompletionListener { if (current(it, token)) onEvent?.invoke(token, MonitorPlaybackEvent.Ended) }
+                native.setOnSeekCompleteListener {
+                    if (current(it, token)) {
+                        onEvent?.invoke(token, MonitorPlaybackEvent.Position(it.currentPosition / 1000.0))
+                        seeking?.let { value -> if (value.isActive) value.resume(true) }; seeking = null
+                    }
+                }
+                native.setOnErrorListener { value, what, extra ->
+                    if (current(value, token)) {
+                        ready = null
+                        retireNative()
+                        if (continuation.isActive) continuation.resumeWithException(MonitorPlaybackException(MonitorPlaybackFailure.NATIVE_FAILURE))
+                        onEvent?.invoke(token, MonitorPlaybackEvent.Failed("Native playback failed ($what/$extra)."))
+                    }
+                    true
+                }
+                continuation.invokeOnCancellation {
+                    Handler(Looper.getMainLooper()).post { if (current(native, token)) retireNative() }
+                }
+                try {
+                    native.setDataSource(context, Uri.parse(item.url.toString()))
+                    native.prepareAsync()
+                    onEvent?.invoke(token, MonitorPlaybackEvent.ItemInstalled)
+                } catch (error: Exception) {
+                    ready = null
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                }
+            }
+        }
+        return if (readyTimeout == null) prepare() else withTimeout(readyTimeout) { prepare() }
+    }
+    override fun play(rate: Double, token: MonitorPlaybackItemToken) {
+        val native = player ?: return
+        if (!current(native, token) || !rate.isFinite() || rate <= 0) return
+        native.playbackParams = native.playbackParams.setSpeed(rate.toFloat())
+        native.start(); onEvent?.invoke(token, MonitorPlaybackEvent.Playing(true))
+        frameClock.removeFrameCallback(clock); frameClock.postFrameCallback(clock)
+    }
+    override fun pause(token: MonitorPlaybackItemToken) {
+        val native = player ?: return
+        if (!current(native, token) || ready != null) return
+        if (native.isPlaying) native.pause()
+        frameClock.removeFrameCallback(clock)
+        onEvent?.invoke(token, MonitorPlaybackEvent.Playing(false))
+    }
+    override suspend fun seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken): Boolean {
+        val native = player ?: return false
+        if (!current(native, token) || !seconds.isFinite()) return false
+        seeking?.let { if (it.isActive) it.resume(false) }
+        return suspendCancellableCoroutine { continuation ->
+            seeking = continuation
+            continuation.invokeOnCancellation { if (seeking === continuation) seeking = null }
+            native.seekTo((seconds.coerceAtLeast(0.0) * 1000).toLong(), MediaPlayer.SEEK_CLOSEST)
+        }
+    }
+    override fun setMuted(muted: Boolean, token: MonitorPlaybackItemToken) {
+        val native = player ?: return
+        if (current(native, token)) native.setVolume(if (muted) 0f else 1f, if (muted) 0f else 1f)
+    }
+    override fun close(token: MonitorPlaybackItemToken) {
+        val current = this.token ?: return
+        if (closed || current.owner != token.owner || token.revision < current.revision) return
+        closed = true; this.token = null; retireNative(); surface = null; surfaceToken = null; onEvent = null
+    }
+}

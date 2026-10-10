@@ -7,8 +7,8 @@ module `com.opencapture.opencine:appkit`.
 
 ## Boundaries
 
-- Builds on `OpenCineCore`, `OpenCineMedia`, `OpenCineMulticam` and the shared UI; never an integration or an
-  app. Apps list their integrations and fill the typed slots (`AppKitRules`, Kotlin
+- Builds on `OpenCineCore`, `OpenCineMedia`, `OpenCineMulticam` and the shared UI (plus the system zlib);
+  never an integration or an app. Apps list their integrations and fill the typed slots (`AppKitRules`, Kotlin
   `AppKitRulesTest`).
 - Names no brand, product or app, and keeps no unlisted mutable global (the shared UI rules scan
   it: `SharedUIRulesTests`, Kotlin `SharedUIRulesTest`).
@@ -66,13 +66,20 @@ dialogs) render the model. Each app entry is `AppIntegration(integration, slots)
 are `pairing` (pair-page content while choosing), `addRoute` (builds a `RouteDraft`) and `prompt`
 (renders an `IntegrationPrompt`). Shared code never asks which integration an entry is.
 
+The deployed apps and generated Scenes reach the same cameras page through `AppShell` and
+`CamerasScreen`. Android's `MonitorCameraPage` owns safe-drawing clearance, mirrored landscape
+cutout insets and the Pocket page spacing (18 dp sides, 24 dp top, 16 dp bottom). App `pageFrame`
+adapters retain route lifetime and pairing content without adding another cameras-page frame.
+SwiftUI continues to use `CamerasPage` for that common frame.
+
 Integrations with preparation wizards pass an `IntegrationPairingFlow` to `PairScreen`: the
 current step's presentation, primary/back/selection actions and pane content. The shared page
 still owns the rail, layout, diagnostics and help controls. This replaces the ordinary chooser
 and its extra content for that render; passing `nil` (Kotlin `null`) resumes the connection
 model's progress and recovery presentation. Discovery keeps the same pairing lifecycle.
 
-Setup chips offer Rename setup even for a camera's only route. The cameras and pair pages accept
+Setup chips offer Rename setup even for a camera's only route, unless the app passes
+`ShellBrand.renamesSetups` false (Pocket and Insta, whose setup menus had Forget only). The cameras and pair pages accept
 optional `onPrivacy` and `onTerms` actions; `ShellActions.privacy` and `.terms` forward them through
 `AppShell`. Apps keep their existing URLs or in-app legal documents. These actions do not alter
 connection state or own discovery.
@@ -131,8 +138,26 @@ pages over itself.
 
 ## Monitor composition and capture
 
-`MonitorScreen` owns the stable picture/assist host positions and the common status, power,
-capture and system regions from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its
+`MonitorOperatorLiveBody` in `OpenCineCameraControls` / `camera-controls` owns one live monitor
+composition on SwiftUI and Compose. It assembles the picture canvas, status and telemetry,
+system rail, assists and palette, inspector, capture strip, header gestures and capture popup.
+The shared layout and presentation follow the existing Pocket behavior. All three entry APIs
+adapt values and actions into that body:
+
+| Entry | Source adapter |
+| --- | --- |
+| `MonitorOperatorLiveSurface` | Existing vocabulary hosts and their captured native control actions |
+| `MonitorOperatorDescriptorLiveSurface` | Reported fields, optional source facts and typed native control content; a direct body alias on Swift |
+| `MonitorOperatorScene` | Core shell and providers, including both generated future-app templates |
+
+A new app uses one of these adapters and supplies its capabilities, observations and actions.
+Native picture, focus, motion and control content have bounded typed slots. Status, rails,
+palette, inspector and popup chrome stay in the common body. Sources:
+[Swift owner](../../Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveBody.swift) and
+[Compose owner](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorLiveBody.kt).
+
+`MonitorScreen` fixes the stable picture/assist host positions and the bounded status, power,
+capture and system slots from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its
 `MonitorScreenPresentation` carries operator visibility, lock, coverage and popup state rather
 than camera telemetry. Native tools, detail panels, cover pages and recovery content have fixed
 slots; they cannot replace the picture host. Covers sit above panels and controls. A capture
@@ -152,6 +177,54 @@ recording suppresses a compatibility timer's default zero. Presentation creates 
 visibility policy keeps Lock when locked, capture/settings while recording, and hides media for
 a borrowed session. Native return and operator edit decorations stay in the control builders.
 
+The lower [AppKit capture inputs](../../Sources/OpenCineAppKit/MonitorOperatorCaptureInputs.swift)
+([Compose](../../Android/appkit/src/main/kotlin/com/opencapture/opencine/appkit/MonitorOperatorCaptureInputs.kt))
+carry reported readouts, optional common fields, actual panel metadata and typed native quick
+actions. `MonitorOperatorCaptureState` gives the strip, header and popup the same measured
+anchors, pointer ownership and preview lifetime. The vocabulary adapter retains its real native
+snapshot and release path; descriptor sources use `Never` / `Nothing` for native quick identity.
+Source identity and current-source callbacks retain camera, epoch, monitor and picture ownership.
+Battery, charging, recording and link observations remain optional when unknown.
+
+Opening a valid read-only field inspects its report under the current source and presentation
+admission. Quick edits and panel writes separately require actual command admission and a current
+captured editor or native identity. Native panel slots return controls-only content with the
+actual title, subtitle and panel kind; the common popup owns header, placement, dismissal,
+material and reveal. Native content consumes the common command-enabled environment, retaining
+its existing option lists, locks and write callbacks.
+
+Movie-format panels use the common `CaptureFormatPicker`,
+`CaptureFormatPickerState`, `CaptureFormatChoice` and `CaptureFormatGroup` in
+`OpenCineCameraControls` / `camera-controls`. Pocket's existing
+[`CaptureControlSheets`][grouped-format-1] and
+[`LiveControlSheets`][grouped-format-2] project their advertised `VideoFormat`
+inventory through `CaptureVideoFormatChoices`. A reported current-only pair
+remains visible but uneditable. Nikon's app `LadderPicker` adapters instead
+supply complete original tokens and integration-owned
+[`NikonRecordingFormatPresentation`][grouped-format-3] ([Compose-side
+projection][grouped-format-4]) facts. Both use the same grouped controls; codec
+stays separate and the shared picker constructs no new camera tuple or
+image-area command.
+
+Hosts provide `current`, `enabled`, `sourceIdentity`, `isCurrent` and
+`onSelect`, and retain native option validation, command dispatch, refusal and
+reported readback. The optional `followsReadback` keeps existing pinned-format
+behavior; source or inventory changes reseat local presentation. Grouping never
+supplies missing capability facts or grants control authority. Mirrored
+[`CaptureFormatPickerTests`][grouped-format-5] ([Kotlin][grouped-format-6])
+cover sparse tuples, separate image area/aspect, inert current-only values and
+ambiguous-rate refusal. Source adoption and automated checks are separate from
+physical format write/readback and restoration qualification; see [the tester
+guide][grouped-format-7].
+
+[grouped-format-1]: ../../Sources/OpenCineCameraControls/Capture/CaptureControlSheets.swift
+[grouped-format-2]: ../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/LiveControlSheets.kt
+[grouped-format-3]: ../../Sources/OpenCineNikon/NikonRecordingFormatPresentation.swift
+[grouped-format-4]: ../../Android/nikon/src/main/kotlin/com/opencapture/opencine/nikon/NikonRecordingFormatPresentation.kt
+[grouped-format-5]: ../../Tests/OpenCineCameraControlsTests/CaptureFormatPickerTests.swift
+[grouped-format-6]: ../../Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/CaptureFormatPickerTest.kt
+[grouped-format-7]: ../testing/TESTER-GUIDE.md
+
 `control.captureField(key)` projects ISO, shutter, white-balance, exposure-compensation and focus descriptors into typed
 `MonitorCaptureChoice` detents and an immutable editor. Missing reports have no selection, even
 when the drum visually centers a legal option. `MonitorCaptureReadout` (Compose
@@ -168,6 +241,18 @@ recording change retires that approval. Existing explicit `record(start:)` prese
 targets; `recordAndWait(start:)` shares its admission/pending gate and returns the actual terminal
 receipt only while the binding remains current.
 
+`SingleSharedMonitorCompositionContractTests`
+([Swift](../../Tests/OpenCineCameraControlsTests/SingleSharedMonitorCompositionContractTests.swift),
+[Compose](../../Android/camera-controls/src/test/kotlin/com/opencapture/opencine/cameracontrols/SingleSharedMonitorCompositionContractTest.kt))
+guards delegation from all three entries, the generated templates and unique common region
+ownership. Mirrored `SharedMonitorControlContractTests` / `SharedMonitorControlContractTest`
+and `SharedMonitorGeometryContractTests` / `SharedMonitorGeometryContractTest` cover unknown
+facts, read-only inspection, stale source/epoch rejection and common popup geometry.
+Hosted [header ownership](../../Tests/OpenCineAppKitTests/MonitorCaptureHeaderOwnershipTests.swift)
+and [record admission](../../Tests/OpenCineCameraControlsTests/CanonicalMonitorRecordAdmissionTests.swift)
+tests enter the real shared views through public native accessibility actions in SIMULATED
+fixtures. Consumer pin adoption and physical UI behavior require separate consumer verification.
+
 ## Operator preferences
 
 `MonitorOperatorPreferences` stores common awake, HDR display, record confirmation, haptic
@@ -176,6 +261,16 @@ SharedPreferences file and keys. Reads do not write missing defaults or rewrite 
 legacy awake key; explicit false survives reload, and a current awake value wins over legacy.
 Apps with an existing structured preferences document can bind its values directly to the
 shared settings views instead of changing that document's storage format.
+
+On Android, the deployed `OperatorSetupScreen`, configured `MonitorOperatorSettingsScreen` and
+Scene's session settings overload all delegate to
+[`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
+It owns the full-cover input barrier, safe-drawing clearance, Back action, page spacing, tab
+and row dispatch, and legal/LUT presentation. Typed source records carry existing preferences,
+reported values, optional services and bounded native content; they do not replace the page.
+SwiftUI retains its complete `MonitorOperatorSettingsScreen` and shared `MonitorSettingsPage`,
+including the typed borrowed-display entry. This describes source adoption; consumer checks
+and physical behavior require separate verification.
 
 `MonitorDisplayPreferences` owns saved Live/Clean visibility maps from app-supplied keys and
 storage. `MonitorDisplayMode`, `MonitorDisplayChrome` and its ordered sections keep the existing
@@ -199,6 +294,38 @@ missing or malformed data, unknown tool IDs survive, and a failed nonfinite writ
 the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
 ranking inputs, empty values, separate app/key namespaces and these codec differences.
 
+## Multiview stage
+
+One stage for every app's multicam (feature name Multiview): `MultiviewStage` (SwiftUI,
+`MultiviewStageView.swift`; Compose, `MultiviewStageView.kt`) lays the slots out with
+`MultiviewPresentationLayout` (Grid or Center stage) and draws each slot's picture (an app slot),
+identity chrome, tally, battery, readouts and options, plus close, the app's network button, the
+assist tools (`MultiviewTool`: LAYOUT, CAMERA, FIT, LUT), the program readouts, DISP and record on
+all cameras. The native canvases that keep each slot's picture host mounted live in the shared UI
+(`MultiviewStageCanvas` in MonitorUI, `MultiviewTileCanvas` in monitor-ui).
+
+Values and actions only. The app maps its cameras to `MultiviewTile` values (or uses
+`MultiviewTile(entry, summary:, snapshot:)` when its cameras report only through their
+`CameraSession`), owns sessions, sheets, its settings panel and the camera picker
+(`MultiviewCameraPicker` rows are `MultiviewPickerRow` values with the app's refusals), and
+answers `MultiviewStageActions`. Record goes through `MultiviewRecordContext`: the confirmation
+holds the plan the operator saw and re-checks it before `record(plan, slot)`; the stage never
+starts, stops or compensates a camera on its own, and closing calls `close` only. Copy follows
+`MultiviewTally` (unknown is the dash, never a guess) and `MultiviewRecordContext.refusal`; an
+app may word the confirmation question itself (`prompt`, for a plan that commands a subset).
+A camera action with `closes` closes the SwiftUI options before it runs, and the options close
+once their slot empties. A readout with `choices` opens them wherever it shows (the program row
+and Grid's inline values); `choose` gets the choice as shown, so the app writes only a value the
+camera still advertises. Qualified camera counts, routes and limits stay app parameters.
+
+Per-platform looks are kept on purpose: SwiftUI opens a centered options panel from the tile's
+ellipsis or status pill; Compose opens a per-tile menu and shows a status card whose buttons come
+from `MultiviewTileStatus.actions`. Kotlin differences: `recordingSince` is epoch milliseconds
+(Swift `Date`); selection, arrangement and fill are actions (`select`, `arrange`, `setFill`)
+where SwiftUI takes bindings; `record` returns at once where Swift is `async`, and the app launches
+the plan in a scope that outlives the stage (Live View can replace it mid-command); the SwiftUI stage takes
+a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` and `interactive`.
+
 ## Tests
 
 | Swift (`Tests/OpenCineAppKitTests`) | Kotlin (`Android/appkit/src/test`) |
@@ -212,6 +339,14 @@ ranking inputs, empty values, separate app/key namespaces and these codec differ
 | `ShellModelTests` (routes, connect A then replace with B and deliver A late, close once, disconnect during a pending edit, close while recording sends no stop, cover and reveal keep the host and connection, link loss keeps the held picture, stale record receipt, borrow and return, scene activity once per change) | `ShellModelTest`, same method names |
 | `MonitorControlModelTests` (pending over the report, coalescing, record unknown stays unknown, record from a fresh report, domain or authority change obsoletes the editor, a retired binding drops late outcomes, notes) | `MonitorControlModelTest`, same method names |
 | `ReviewScreens.reviewRootAndCoverFixturesRender` (iOS only: cameras, cover, pair, monitor slot, cover over it, revealed, closed) | not ported |
+| `MultiviewValuesTests` (tally copy never guesses, record refusals) | `MultiviewValuesTest`, same names |
+| `MultiviewStageTests` (SIMULATED two and four cameras over `FakeIntegration` and the shared engine: admission to the app's budget, unknown until reported, one confirmed group start, removing and closing sends nothing) | `MultiviewStageTest`, same names |
+| `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
+| `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |
+| `ReliabilityReportingTests` (event levels, consent and revoke purge, DSN shape, launch origin, event ID and fingerprint, original release and origin of a queued incident, queued then confirmed receipts and dedup, open checkpoints and revoked consent never capture, session summaries) | `ReliabilityReportingTest`, mostly the same names |
+| `ProblemReportingTests` (manual report kept without automatic consent, feedback schema, bounded attachment, endpoint, Retry-After, HTTP accept and retry, expiry, image normalization) | `ManualProblemReportTest`, `ManualReportImagesTest` (Kotlin's own report format) |
+| `FeedIncidentStoreTests` (interrupted not crash, retention, corrupt file, journal-free redacted export, size caps) | `FeedIncidentStoreTest` |
+| `DiagnosticJournalTests` (redacted lines, trim to the cap on its cadence) | Swift only (no Kotlin journal) |
 
 Kotlin differences: JSON is org.json from android.jar (the real artifact backs the JVM tests);
 `StoredString` (`SharedPreferences.stored(key)`) replaces `StoredData`
@@ -219,8 +354,9 @@ Kotlin differences: JSON is org.json from android.jar (the real artifact backs t
 the main actor; the model's `State` is one `StateFlow` value and `forget` suspends; slots are
 `@Composable` lambdas (Swift: closures returning `AnyView`). The shell's Kotlin models publish
 one `StateFlow` `State` each (`ShellModel.state`, `MonitorControlModel.state`) on a caller scope;
-Compose `AppShell` takes a `pageFrame` (the app's insets and back handling around the cameras and
-pair pages) where SwiftUI takes a `safeArea` function, and the Compose cameras page has no watch
+Compose `AppShell` retains `pageFrame` for route framing and back handling; `MonitorCameraPage`
+owns the cameras-page insets, while pairing retains its existing host content and framing.
+SwiftUI accepts an optional `safeArea` callback with a window-geometry fallback. The Compose cameras page has no watch
 feed entry yet (only `PairScreen` takes `ShellActions.watchFeed`).
 
 ## Assist preferences
@@ -263,6 +399,13 @@ yielding, preserves the supplied metadata files and deletes only captured retire
 writer/finally cannot recreate the live root, commit over B or erase B's progress. Filesystem IO
 uses Foundation on Swift and JVM `java.io` on Kotlin, with no native-runtime dependency.
 
+Bulk writes and stream close hold only the individual writer's IO lock, outside
+the namespace arbitration lock. Retirement invalidates a writer and unlinks only
+its registered staging path before closing outside namespace arbitration. A held
+write therefore cannot stall Main retirement or successor writes. Catalog and
+atomic directory publication still use namespace arbitration; this is not a claim
+that all filesystem operations are nonblocking.
+
 `MonitorMediaOriginalEligibility` keeps the platform's explicit existing policy (minimum fraction
 or exact size) separate from native stream completion. Thumbnail/original/proxy paths come from
 the codec, never from the opaque source identity. Source-only look resolution and OS player and
@@ -278,7 +421,6 @@ Favorites save through the exact catalog codec as well as their supplied prefere
 an unfavorited stored row cannot reappear as starred after reload. Catalog removals retire only
 operations for those removed identities; late writes and receipts cannot complete a recycled
 asset or clear a successor's progress.
-
 
 ## Borrowed video playback (SHELL-03 I5b-1)
 
@@ -325,3 +467,62 @@ exercise late native readiness/events/seeks, same-item and replacement look race
 library retirement, synchronous observer/native replacement and manual-clock pointer pacing.
 Native and
 actual consumer adoption gates remain separate from portable fake-port evidence.
+
+## Delivery lifetime
+
+`MonitorDeliveryModel` owns one delivery operation, its progress, cancellation, toast timers
+and share presentation lease. The app supplies immutable progress and completion facts and
+retains export, download, Photos, network admission and OS presentation policy. Swift uses
+MainActor and Observation; Kotlin uses the supplied owner dispatcher and a child supervisor.
+Close the Kotlin model before cancelling the supplied scope when its host is disposed.
+
+Replacement retires authority before cancelling outgoing work. Late progress and completion
+cannot replace a successor; a late share result releases only its supplied staging resource.
+State is committed before observation and callbacks, so a callback can start another operation.
+Completion callbacks may return the toast resulting from an admitted platform side effect.
+The model checks authority again before publishing a share or toast.
+
+A sheet binding captures its share ID. `clearSharePresentation(id:)` releases that matching
+lease; `completeSharePresentation(id:)` acknowledges the matching producing run once, whether
+binding dismissal or the OS callback arrived first. A newer run retires that acknowledgement.
+The app resumes its player only after an accepted acknowledgement. The supplied release callback
+never infers a cleanup path from an original or cached URL.
+
+Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
+Native adapter and physical presentation checks remain separate consumer verification.
+
+## Reliability reporting, incidents and problem reports (iOS)
+
+The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
+(Kotlin: `appkit/diagnostics`). `ReliabilityReportingGate` blocks uploads while a camera session
+is live or the camera's IPv4 path is up; the app supplies `cameraIPv4Prefix` (nil when the camera's
+network shares its prefix with home networks, so only the session blocks) and keeps one shared
+gate. `ReliabilityReportingHostPolicy` and `ReliabilityReportingNetwork.decision` forward only
+HTTPS to the DSN host and fail a refused request without an HTTP response, so the SDK keeps the
+envelope cached. `ReliabilityReportingRedirectGuard` drops redirects off the DSN host,
+`ReliabilityReportingEnvelopeID` reads the event ID from a plain or gzip envelope header with
+bounded reads, and `ReliabilityReportingBackoff` spaces retries. `ReliabilityReportingReceipts`
+keeps a queued or confirmed receipt per incident, and `FeedSessionSummaryStore` keeps the
+per-session denominators (`FeedIncidentSessionSummary`, OpenCineMedia) in the spool with the
+media JSON shape (`FeedIncidentCoding`). A receipt's file is named by its incident ID; an ID with a
+path separator or `..` is refused (Kotlin likewise).
+
+The stateful core is host-built instances, like Kotlin's: the app's one holder makes a
+`DiagnosticsHost` (names, release package, version, environment, support email, redaction),
+`ReliabilityReportingConsent` (the stored choice), `ReliabilityReportingDSN` (the build's and the
+launch environment's candidates), the gate, `FeedIncidentOrigin` (the current run's test source and
+build identity), `ReliabilityReporting` (consent epochs, SDK start and purge, typed incident and
+session-summary events, queued and confirmed receipts, idle polls and backoff), `FeedIncidentRuntime`
+(the recorder, the `FeedIncidentStore` spool and the report extras) and `ProblemReporting` (the
+operator's one-off report and its `ProblemReportImage`s), plus `DiagnosticJournal` (the redacted,
+capped journal the shared report reads). `ReliabilityReportingPrivacy` holds the
+rules for what may leave the phone. The app implements `ReliabilityReportingSink` over its SDK
+(options, start, close, flush, breadcrumbs, tags, capture of a `ReliabilityEvent`) and applies the
+privacy rules to the SDK's own events; it also keeps the URLProtocol that applies the network
+policy to the SDK's session. Nothing here links the SDK.
+
+`ProblemReportSheet` is the operator's report form over `ProblemReporting` (message, optional
+technical details, photos or screenshots, reply email, and the pending report's ID, status and
+removal) and `ReliabilityConsentSheet` the first-launch ask for automatic reports. The app supplies
+its product name, support email, accent, technical details and privacy page; a missing `onAccent`
+keeps the system's text on the accent button.

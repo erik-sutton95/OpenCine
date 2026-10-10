@@ -558,6 +558,10 @@ public enum LunaProtocol {
     public static let cancelTrackingRequest = LunaRequest(
         command: .cancelTracking, body: Data(), requiresEncryption: false)
 
+    /// IFRAME_REQUEST (105): asks the encoder for a keyframe now. Not in the command table, so it
+    /// goes out as a raw code.
+    public static let keyframeRequest = LunaRequest(code: 105, body: Data())
+
     public static func deleteFiles(_ uri: String) throws -> LunaRequest {
         guard !uri.isEmpty, uri.utf8.count <= 512 else { throw LunaProtocolError.malformedProtobuf }
         return LunaRequest(

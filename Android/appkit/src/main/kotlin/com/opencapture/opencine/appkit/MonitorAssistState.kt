@@ -47,6 +47,8 @@ public class MonitorAssistState(
     private val onPersistPins: ((Set<String>) -> Unit)? = null,
     playbackNames: Set<String> = emptySet(),
     private val onPersistPlayback: ((Set<String>) -> Unit)? = null,
+    // Explicit toggle only: live before persistence; playback after persistence.
+    private val onToggle: ((MonitorAssistTool, Boolean) -> Unit)? = null,
 ) {
     public var lutOn: Boolean by mutableStateOf(true)
         private set
@@ -337,6 +339,7 @@ public class MonitorAssistState(
             MonitorAssistTool.MIRROR -> mirror = !mirror
             MonitorAssistTool.DESQ -> desqueeze = !desqueeze
         }
+        onToggle?.invoke(tool, isOn(tool))
         if (tool in stackableScopeTools && isOn(tool)) bringToFront(tool)
         persist()
     }
@@ -355,6 +358,7 @@ public class MonitorAssistState(
         playbackVisibleTools =
             if (tool in playbackVisibleTools) playbackVisibleTools - tool else playbackVisibleTools + tool
         onPersistPlayback?.invoke(playbackVisibleTools.map { it.name }.toSet())
+        onToggle?.invoke(tool, isPlaybackVisible(tool))
     }
 
     public fun togglePin(tool: MonitorAssistTool): Unit {
@@ -458,6 +462,25 @@ public class MonitorAssistState(
     public fun setCompensation(value: MonitorCrushClipCompensation): Unit {
         crushClipCompensation = value
         persist()
+    }
+
+    /** One settings card's Reset: the shared defaults, leaving panel sizes and positions where the operator put them. */
+    public fun resetSettings(tool: MonitorAssistTool): Unit {
+        when (tool) {
+            MonitorAssistTool.PEAK -> setPeaking(MonitorPeakingColor.RED, MonitorPeakingSense.MED)
+            MonitorAssistTool.FALSE -> setFalseColor(MonitorFalseColorSelection.SCENE_STOPS, reference = true)
+            MonitorAssistTool.ZEBRA -> {
+                updateZebraUnit(MonitorZebraUnit.IRE)
+                setZebraHighlight(enabled = true, ire = 99.0, color = MonitorZebraPaint.WHITE)
+                setZebraMidtone(enabled = true, ire = 55.0, color = MonitorZebraPaint.AMBER)
+            }
+            MonitorAssistTool.WAVE -> setWaveform(MonitorWaveformMode.RGB, brightness = 100, guides = MonitorScopeGuides())
+            MonitorAssistTool.PARADE -> setParade(MonitorParadeMode.RGB, brightness = 100, guides = MonitorScopeGuides())
+            MonitorAssistTool.HISTO -> setHistogram(traffic = true, compensation = MonitorCrushClipCompensation.ZERO)
+            MonitorAssistTool.VECTOR -> setVectorscope(MonitorVectorscopeZoom.X1, brightness = 100)
+            MonitorAssistTool.LIGHTS -> setCompensation(MonitorCrushClipCompensation.ZERO)
+            else -> Unit
+        }
     }
 
     public fun updateAudioShowDB(value: Boolean): Unit { audioShowDB = value; persist() }

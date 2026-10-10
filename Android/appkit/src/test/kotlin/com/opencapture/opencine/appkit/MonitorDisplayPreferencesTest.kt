@@ -84,7 +84,7 @@ class MonitorDisplayPreferencesTest {
 }
 
 /** Real SharedPreferences calls with isolated string storage, no native test host. */
-private class DisplayPreferencesMemory {
+internal class DisplayPreferencesMemory {
     val values = mutableMapOf<String, String>()
     val storage: SharedPreferences = Proxy.newProxyInstance(
         SharedPreferences::class.java.classLoader, arrayOf(SharedPreferences::class.java),

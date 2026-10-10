@@ -44,6 +44,14 @@ public final class CamerasModel {
         public var target: ConnectTarget
     }
 
+    /// The saved route a camera's card shows and a tap connects when no attempt or failure names one.
+    public enum RoutePolicy: Sendable {
+        /// The camera's preferred route, else its first.
+        case preferred
+        /// The first route a sighting reaches (`NearbyCamera.routeKey`), else `.preferred`.
+        case preferReachable
+    }
+
     /// What a failure action asks of the app that the model cannot do itself.
     public enum Request: Equatable {
         case openSettings
@@ -69,11 +77,13 @@ public final class CamerasModel {
     @ObservationIgnored public var onConnected: (ConnectedCamera) -> Void = { _ in }
 
     @ObservationIgnored private let store: SavedCamerasStore
+    @ObservationIgnored private let routePolicy: RoutePolicy
     @ObservationIgnored private var discovery: [Int: (mode: DiscoveryMode, task: Task<Void, Never>)] = [:]
 
-    public init(integrations: [AppIntegration], store: SavedCamerasStore) {
+    public init(integrations: [AppIntegration], store: SavedCamerasStore, routePolicy: RoutePolicy = .preferred) {
         self.entries = integrations
         self.store = store
+        self.routePolicy = routePolicy
         store.load()
         saved = store.cameras
         updateDiscovery()
@@ -122,10 +132,19 @@ public final class CamerasModel {
 
     // MARK: Connecting
 
-    /// Connects a saved camera over `route`, else its preferred route, else its first.
+    /// Connects a saved camera over `route`, else its `defaultRoute(of:)`.
     public func connect(_ camera: SavedCamera, route: ConnectionRouteID? = nil) {
-        guard let route = route ?? camera.preferredRoute ?? camera.routes.first?.id else { return }
+        guard let route = route ?? defaultRoute(of: camera) else { return }
         start(.saved(camera, route: route), on: camera.integration)
+    }
+
+    /// The route a tap connects, by the app's `RoutePolicy`.
+    public func defaultRoute(of camera: SavedCamera) -> ConnectionRouteID? {
+        if routePolicy == .preferReachable {
+            let reached = Set(nearby.filter { CamerasMapping.matches($0, camera) }.compactMap(\.camera.routeKey))
+            if let route = camera.routes.first(where: { reached.contains($0.key) }) { return route.id }
+        }
+        return camera.preferredRoute ?? camera.routes.first?.id
     }
 
     public func connect(_ sighting: Sighting) {
@@ -145,6 +164,11 @@ public final class CamerasModel {
 
     public func cancelAll() {
         for cameraID in Array(attempts.keys) { cancel(cameraID) }
+    }
+
+    /// Clears a camera's last failure without connecting (a pair page back to choosing).
+    public func dismissFailure(_ cameraID: String) {
+        failures[cameraID] = nil
     }
 
     /// The app closed the live session, or it ended: discovery resumes.

@@ -15,6 +15,15 @@ struct AppKitRules {
         let allowed: Set<String> = [
             "Foundation", "Observation", "SwiftUI", "UIKit", "OpenCineCore", "OpenCineMulticam",
             "MonitorPresentation", "MonitorUI", "OpenCineMedia",
+            // The reliability network policy reads a gzip envelope header (system zlib).
+            "zlib",
+            // Reporting watches for a usable internet path (system Network); the problem report
+            // normalizes attached images (system ImageIO, UniformTypeIdentifiers, CoreTransferable).
+            "Network", "ImageIO", "UniformTypeIdentifiers", "CoreTransferable",
+            // The problem report form attaches photos and screenshots (system PhotosUI).
+            "PhotosUI",
+            // The diagnostic journal writes the unified log (system os).
+            "os",
         ]
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
@@ -27,5 +36,77 @@ struct AppKitRules {
         let target = try #require(manifest.firstMatch(of: #/\.target\(\s*name: "OpenCineAppKit",\s*dependencies: \[([^\]]*)\]/#))
         let dependencies = target.1.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: ["\""]) }
         #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: allowed))
+    }
+
+    /// The Apple composition layer sits above the app shell and the Apple runtimes only: never an
+    /// integration, an app or a third-party package.
+    @Test func appKitAppleImportsOnlyTheAppShellAndAppleLayers() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let package: Set<String> = [
+            "OpenCineAppKit", "MonitorUI", "MonitorPresentation", "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
+            "OpenCineRelay", "OpenCineRelayApple",
+        ]
+        let system: Set<String> = [
+            "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
+            "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
+        ]
+        let directory = root.appending(path: "Sources/OpenCineAppKitApple")
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        #expect(!files.isEmpty)
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+            where line.hasPrefix("import ") {
+                let module = String(line.dropFirst("import ".count))
+                #expect(package.contains(module) || system.contains(module), "\(file.lastPathComponent): \(line)")
+            }
+        }
+        let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
+        let target = try #require(
+            manifest.firstMatch(of: #/\.target\(\s*name: "OpenCineAppKitApple",\s*dependencies: \[([^\]]*)\]/#))
+        let dependencies = target.1.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: ["\""]) }
+        #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: package))
+    }
+
+    /// Camera controls are app composition over the camera vocabulary: never OpenCineDJI or another
+    /// integration, an app or a third-party package (AGENTS.md, camera controls).
+    @Test func cameraControlsImportOnlyTheVocabularyAppShellAndUI() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let package: Set<String> = [
+            "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit",
+            "OpenCineAppKitApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion",
+        ]
+        let system: Set<String> = [
+            "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",
+            "UniformTypeIdentifiers", "Vision",
+            // Scope plots accept portable Media values and configure the system MTKView.
+            "MetalKit",
+        ]
+        let directory = root.appending(path: "Sources/OpenCineCameraControls")
+        let files = (FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?
+            .allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+        #expect(!files.isEmpty)
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for line in text.split(separator: "\n") {
+                let words = line.split(separator: " ").map(String.init)
+                guard let index = words.firstIndex(of: "import"), index + 1 < words.count,
+                    words[..<index].allSatisfy({ $0.hasPrefix("@") })
+                else { continue }
+                let module = words[index + 1]
+                #expect(package.contains(module) || system.contains(module), "\(file.lastPathComponent): \(line)")
+            }
+        }
+        let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
+        let target = try #require(
+            manifest.firstMatch(of: #/\.target\(\s*name: "OpenCineCameraControls",\s*dependencies: \[([^\]]*)\]/#))
+        let dependencies = target.1.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: ["\""]) }
+            .filter { !$0.isEmpty }
+        #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: package))
     }
 }

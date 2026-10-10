@@ -60,6 +60,9 @@ public enum MonitorPlaybackError: Error, Equatable, Sendable {
 public enum MonitorPlaybackLookTiming: Sendable { case beforeNativePreparation, afterNativeReadiness }
 public enum MonitorPlaybackStartTiming: Sendable { case afterNativeItemInstallation, afterNativeReadiness }
 
+/// Whether returning from an inactive scene retains the operator's earlier play request.
+public enum MonitorPlaybackSceneLossPolicy: Sendable { case preserveRequest, clearRequest }
+
 /// AVPlayer and the existing Android player SDK vary here. No camera or UI owner crosses it.
 @MainActor public protocol MonitorPlaybackPort: AnyObject, Sendable {
     var onEvent: (@MainActor @Sendable (MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Void)? { get set }

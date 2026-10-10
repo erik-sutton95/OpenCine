@@ -92,6 +92,7 @@
             MonitorChromeButton(backLabel, size: CGSize(width: size, height: size), action: back) {
                 MonitorIcon.chevronLeft.frame(width: size * 29 / 54, height: size * 29 / 54)
             }
+            .accessibilityIdentifier("monitor.page.back")
         }
     }
 

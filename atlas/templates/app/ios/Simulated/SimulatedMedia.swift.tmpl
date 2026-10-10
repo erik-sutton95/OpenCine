@@ -1,0 +1,93 @@
+import Foundation
+import OpenCineCore
+import OpenCineMedia
+
+/// SIMULATED source bytes: three seconds of synthetic moving colour bars, never camera media.
+enum SimulatedAssets {
+    private final class ResourceMarker {}
+    static func url(_ ext: String) throws -> URL {
+        guard let url = Bundle(for: ResourceMarker.self).url(forResource: "simulated", withExtension: ext) else {
+            throw MediaServiceError.unavailable
+        }
+        return url
+    }
+    static let asset = MediaAsset(id: .init("simulated-colour-bars-v1"), filename: "SIMULATED.mp4", kind: .video,
+        durationSeconds: 3, pixelSize: .init(width: 320, height: 180), frameRate: 24,
+        representations: [.init(id: .init("simulated-colour-bars-v1.original"), role: .original, byteCount: 86_527)], deletable: false)
+}
+
+@MainActor final class SimulatedMediaService: CameraMediaService {
+    let session: SimulatedCameraSession
+    var sessionID: CameraSessionID { session.id }
+    private(set) var opened = 0
+    private(set) var closed = 0
+    init(session: SimulatedCameraSession) { self.session = session }
+
+    func openBrowse() async throws -> any CameraMediaBrowse {
+        guard session.current.connection == .ready else { throw MediaServiceError.retired }
+        opened += 1
+        return SimulatedBrowse(binding: .init(session: session.id, epoch: session.current.epoch),
+            valid: { [weak session] in session?.current.connection == .ready },
+            didClose: { [weak self] in self?.closed += 1 })
+    }
+}
+
+/// The fake supplies catalog and source I/O. Shared library/cache/playback owners own workflow.
+@MainActor private final class SimulatedBrowse: CameraMediaBrowse, CameraMediaThumbnailService, CameraMediaTransferService {
+    let binding: MediaBrowseBinding
+    var thumbnails: (any CameraMediaThumbnailService)? { self }
+    var transfers: (any CameraMediaTransferService)? { self }
+    var deletion: (any CameraMediaDeleteService)? { nil }
+    private let valid: @MainActor () -> Bool
+    private let didClose: @MainActor () -> Void
+    private var retired = false
+
+    init(binding: MediaBrowseBinding, valid: @escaping @MainActor () -> Bool, didClose: @escaping @MainActor () -> Void) {
+        self.binding = binding; self.valid = valid; self.didClose = didClose
+    }
+    private func check() throws {
+        guard !retired, valid(), !Task.isCancelled else { throw MediaServiceError.retired }
+    }
+    func catalog() async throws -> any MediaCatalogCursor {
+        try check()
+        return SimulatedCursor(valid: { [weak self] in self?.retired == false && self?.valid() == true })
+    }
+    func thumbnail(_ asset: MediaAssetID) async throws -> Data {
+        try check()
+        guard asset == SimulatedAssets.asset.id else { throw MediaServiceError.unknownAsset }
+        return try Data(contentsOf: SimulatedAssets.url("png"))
+    }
+    func transfer(_ representation: MediaRepresentationID, into sink: any MediaByteSink) async throws -> MediaTransferReceipt {
+        try check()
+        guard representation == SimulatedAssets.asset.representations[0].id else { throw MediaServiceError.unknownAsset }
+        let input = try FileHandle(forReadingFrom: SimulatedAssets.url("mp4"))
+        defer { try? input.close() }
+        var count: UInt64 = 0
+        while let chunk = try input.read(upToCount: 8_192), !chunk.isEmpty {
+            try check()
+            try await sink.write(chunk)
+            count += UInt64(chunk.count)
+        }
+        try check()
+        return MediaTransferReceipt(byteCount: count, expectedByteCount: 86_527)
+    }
+    func close() async {
+        guard !retired else { return }
+        retired = true
+        didClose()
+    }
+}
+
+@MainActor private final class SimulatedCursor: MediaCatalogCursor {
+    private let valid: @MainActor () -> Bool
+    private var delivered = false
+    private var retired = false
+    init(valid: @escaping @MainActor () -> Bool) { self.valid = valid }
+    func next() async throws -> MediaCatalogDelta? {
+        guard !retired, valid(), !Task.isCancelled else { throw MediaServiceError.retired }
+        guard !delivered else { return nil }
+        delivered = true
+        return .init(reset: true, upserts: [SimulatedAssets.asset], complete: true)
+    }
+    func close() { retired = true }
+}

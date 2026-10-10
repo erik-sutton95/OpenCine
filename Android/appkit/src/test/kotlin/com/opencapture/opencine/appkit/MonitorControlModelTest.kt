@@ -1,6 +1,9 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraCommand
+import com.opencapture.opencine.core.CameraCommandIntent
+import com.opencapture.opencine.core.CommandDispatchAdmission
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandReceipt
 import com.opencapture.opencine.core.CommandRejection
@@ -32,6 +35,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun iso(value: Int) = SettingValue.Iso(ISOValue.Manual(value))
 
@@ -63,6 +67,122 @@ class MonitorControlModelTest {
     private fun TestScope.tick() {
         advanceTimeBy(120)
         runCurrent()
+    }
+
+    @Test fun coalescedReplacementCarriesItsOwnAdmission() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val first = mutableListOf<CameraCommand>()
+        val second = mutableListOf<CameraCommand>()
+        model.set(iso(400), "First", admission(camera, AtomicBoolean(false), first))
+        model.set(iso(800), "Replacement", admission(camera, AtomicBoolean(true), second))
+        tick()
+        assertTrue(first.isEmpty())
+        assertEquals(1, second.size)
+        assertEquals(listOf("set ${iso(800)}"), camera.wire)
+        camera.advance(3.seconds)
+        runCurrent()
+        assertTrue(model.state.value.pending.isEmpty())
+        val obsolete = mutableListOf<CameraCommand>()
+        val revokedLatest = mutableListOf<CameraCommand>()
+        model.set(iso(1600), "Old current", admission(camera, AtomicBoolean(true), obsolete))
+        model.set(iso(400), "Latest revoked", admission(camera, AtomicBoolean(false), revokedLatest))
+        tick()
+        assertTrue(model.state.value.pending.isEmpty())
+        assertTrue(obsolete.isEmpty())
+        assertTrue(revokedLatest.isEmpty())
+        assertEquals(1, camera.wire.size)
+    }
+
+    @Test fun revokedWhileCoalescingAndWrongBindingSendNothing() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.lunaLike()
+        val successor = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        successor.cameraReportsStatus()
+        model.bind(camera)
+        val gate = AtomicBoolean(true)
+        val submissions = mutableListOf<CameraCommand>()
+        val captured = admission(camera, gate, submissions)
+        model.set(iso(800), "Queued", captured)
+        runCurrent()
+        advanceTimeBy(60)
+        gate.set(false)
+        advanceTimeBy(60)
+        runCurrent()
+        assertTrue(model.state.value.pending.isEmpty())
+        assertTrue(camera.wire.isEmpty())
+        assertTrue(submissions.isEmpty())
+        model.bind(successor)
+        model.set(iso(800), "Wrong owner", captured)
+        tick()
+        assertTrue(model.state.value.pending.isEmpty())
+        assertTrue(successor.wire.isEmpty())
+        assertTrue(submissions.isEmpty())
+        model.unbind()
+        assertTrue(camera.wire.isEmpty())
+        assertTrue(successor.wire.isEmpty())
+    }
+
+    @Test fun enteredAdmissionCannotClearSuccessorPending() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val gate = AtomicBoolean(true)
+        val first = mutableListOf<CameraCommand>()
+        val second = mutableListOf<CameraCommand>()
+        model.set(iso(800), "Entered", admission(camera, gate, first))
+        tick()
+        assertEquals(1, camera.wire.size)
+        gate.set(false)
+        model.set(iso(1600), "Successor", admission(camera, AtomicBoolean(true), second))
+        tick()
+        assertEquals(2, camera.wire.size)
+        assertEquals(iso(1600), model.state.value.pending[SettingKey.ISO])
+        assertEquals(1, first.size)
+        assertEquals(1, second.size)
+        camera.advance(3.seconds)
+        runCurrent()
+        assertTrue(model.state.value.pending.isEmpty())
+        assertEquals(iso(1600), camera.current.value(SettingKey.ISO).value)
+    }
+
+    @Test fun recordConfirmationReusesAdmissionAndCloseSendsNoCommand() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val gate = AtomicBoolean(true)
+        val submissions = mutableListOf<CameraCommand>()
+        val captured = admission(camera, gate, submissions)
+        assertTrue(model.commitRecord(assertNotNull(model.recordEditor()), captured))
+        gate.set(false)
+        runCurrent()
+        assertFalse(model.state.value.recordPending)
+        assertTrue(camera.wire.isEmpty())
+        assertTrue(submissions.isEmpty())
+        val current = admission(camera, AtomicBoolean(true), submissions)
+        assertTrue(model.commitRecord(assertNotNull(model.recordEditor()), current))
+        runCurrent()
+        assertEquals(1, camera.wire.size)
+        assertEquals(CameraCommandIntent.StartRecording, submissions.single().intent)
+        model.unbind()
+        camera.advance(3.seconds)
+        camera.close(SessionCloseReason.REQUESTED)
+        runCurrent()
+        assertFalse(model.state.value.recordPending)
+        assertTrue(model.state.value.pending.isEmpty())
+        assertEquals(1, camera.wire.size)
+    }
+
+    private fun admission(
+        camera: FakeCameraSession, gate: AtomicBoolean, submissions: MutableList<CameraCommand>,
+    ): CommandDispatchAdmission = CommandDispatchAdmission(camera.id, camera.current.epoch, gate::get) {
+        submissions += it
+        camera.submit(it)
     }
 
     @Test fun canceledEditCannotWakeSuccessorEarlyOrRetireOtherSetting() = runTest {
@@ -244,6 +364,22 @@ class MonitorControlModelTest {
         assertTrue(model.state.value.pending.isEmpty() && !model.state.value.recordPending)
         assertTrue(notes.isEmpty())
         assertEquals(b.id, model.state.value.session?.id)
+    }
+
+    @Test
+    fun aHostKeepsItsOwnNoteCopy() = runTest {
+        val model = model()
+        model.noteFor = { stage, label -> if (stage == CommandStage.Confirmed) null else "$label host" }
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        camera.refuseNextCommand()
+        model.set(iso(800), "ISO 800")
+        tick()
+        camera.refuseNextCommand()
+        model.record(true)
+        runCurrent()
+        assertEquals(listOf("ISO 800 host", "Record host"), notes)
     }
 
     @Test

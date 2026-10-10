@@ -29,6 +29,7 @@ android {
 dependencies {
     api(project(":core"))
     api(project(":media"))
+    api(project(":camera-vocabulary"))
     api(project(":platform"))
     api(project(":decoder"))
     implementation(libs.androidx.core.ktx)
@@ -39,9 +40,7 @@ dependencies {
     testImplementation(testFixtures(project(":core")))
 }
 
-// camfov-vectors.tsv is shared with the Swift CamFovVectorTests (Fixtures/ at the repository root).
+// Same unchanged model/zoom vectors as the Swift integration tests.
 tasks.withType<Test>().configureEach {
-    val fixtures = rootDir.resolve("../Fixtures")
-    inputs.dir(fixtures)
-    systemProperty("opencine.fixtures", fixtures.absolutePath)
+    systemProperty("opencine.fixtures", rootProject.projectDir.resolve("../Fixtures").absolutePath)
 }

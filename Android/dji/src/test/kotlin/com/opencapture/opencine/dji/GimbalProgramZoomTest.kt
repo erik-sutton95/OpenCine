@@ -1,5 +1,10 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,7 +17,7 @@ class GimbalProgramZoomTest {
     private val b = GimbalWaypoint(20.0, 0.0, 3.0, 175.0)
     private val c = GimbalWaypoint(20.0, 20.0, 2.0, 155.0)
     private val program = GimbalProgram(a, b, c, durationAB = 1.0, durationBC = 2.0, loop = true)
-    private val pro = CameraModel("Osmo Pocket 4 Pro")
+    private val pro = djiBodyProfile("Osmo Pocket 4 Pro")
     private val ready = CameraStatus(colorMode = CameraCommands.COLOR_NORMAL, zoomFactor = 1.0)
 
     @Test fun onlyDifferentSavedZoomAmountsEnableAutomaticZoom() {
@@ -126,7 +131,7 @@ class GimbalProgramZoomTest {
         assertEquals("Wait for camera color mode before a zoom move", nativeProgramZoomFailure(program, pro, ready.copy(colorMode = 0x7F)))
         assertEquals("Wait for camera zoom feedback", nativeProgramZoomFailure(program, pro, ready.copy(zoomFactor = null)))
         assertEquals("Saved zoom exceeds the current FORMAT limit",
-            nativeProgramZoomFailure(program, CameraModel("Osmo Pocket 3"), ready.copy(resolutionCode = 0x10)))
+            nativeProgramZoomFailure(program, djiBodyProfile("Osmo Pocket 3"), ready.copy(resolutionCode = 0x10)))
         assertNull(nativeProgramZoomFailure(program, pro, ready))
         assertEquals("Wait for camera zoom feedback", nativeProgramZoomFailure(program, pro,
             ready.copy(shootingMode = CameraCommands.SHOOT_SLOWMO, zoomFactor = 12.0)))
@@ -217,8 +222,8 @@ class GimbalProgramZoomTest {
         native = native.observing(lens, pro, 2.5)
         assertFalse(native.canResume(2.5), "A gap beyond 850 ms resets stability")
         val other = NativeProgramZoomObservation(ready).notePause(1.0)
-            .observing(lens, CameraModel("Osmo Pocket 3"), 1.2)
-            .observing(lens, CameraModel("Osmo Pocket 3"), 1.6)
+            .observing(lens, djiBodyProfile("Osmo Pocket 3"), 1.2)
+            .observing(lens, djiBodyProfile("Osmo Pocket 3"), 1.6)
         assertFalse(other.canResume(1.6), "Unmeasured bodies retain the previous continuity threshold")
         val stability = NativeZoomPauseStability(maximumGap = 0.85)
         stability.reset(1.0)

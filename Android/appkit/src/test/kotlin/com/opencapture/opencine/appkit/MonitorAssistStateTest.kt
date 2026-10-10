@@ -71,4 +71,59 @@ class MonitorAssistStateTest {
         assertFalse(restored.isOn(MonitorAssistTool.FALSE))
         assertTrue(restored.isPlaybackVisible(MonitorAssistTool.FALSE))
     }
+
+    @Test fun explicitToggleSideEffectPreservesLiveAndPlaybackPersistenceOrder() {
+        val events = mutableListOf<String>()
+        var persistedLive = false
+        var persistedPlayback = false
+        lateinit var state: MonitorAssistState
+        state = MonitorAssistState(
+            onPersist = { persistedLive = JSONObject(it).getJSONArray("tools").toString().contains("FALSE") },
+            onPersistPlayback = { persistedPlayback = "FALSE" in it },
+            onToggle = { tool, enabled ->
+                if (events.size < 2) {
+                    assertEquals(enabled, state.isOn(tool))
+                    assertEquals(!enabled, persistedLive)
+                } else {
+                    assertEquals(enabled, state.isPlaybackVisible(tool))
+                    assertEquals(enabled, persistedPlayback)
+                }
+                events += "${tool.name}:$enabled"
+            },
+        )
+        state.toggle(MonitorAssistTool.FALSE)
+        state.toggle(MonitorAssistTool.FALSE)
+        state.togglePlayback(MonitorAssistTool.FALSE)
+        state.togglePlayback(MonitorAssistTool.FALSE)
+        assertEquals(listOf("FALSE:true", "FALSE:false", "FALSE:true", "FALSE:false"), events)
+        state.clean = true
+        state.togglePin(MonitorAssistTool.FALSE)
+        state.togglePlayback(MonitorAssistTool.EV)
+        assertEquals(4, events.size)
+    }
+
+    @Test fun nilToggleSideEffectRetainsOriginalStorageAndScopeOrdering() {
+        val plainWrites = mutableListOf<String>()
+        val observedWrites = mutableListOf<String>()
+        val plainPlayback = mutableListOf<Set<String>>()
+        val observedPlayback = mutableListOf<Set<String>>()
+        var calls = 0
+        val plain = MonitorAssistState(onPersist = { plainWrites += it }, onPersistPlayback = { plainPlayback += it })
+        val observed = MonitorAssistState(onPersist = { observedWrites += it },
+            onPersistPlayback = { observedPlayback += it }, onToggle = { _, _ -> calls++ })
+        for (state in listOf(plain, observed)) {
+            state.toggle(MonitorAssistTool.FALSE)
+            state.toggle(MonitorAssistTool.WAVE)
+            state.togglePlayback(MonitorAssistTool.ZEBRA)
+            state.togglePlayback(MonitorAssistTool.ZEBRA)
+        }
+        assertEquals(plainWrites, observedWrites)
+        assertEquals(plainPlayback, observedPlayback)
+        assertEquals(plain.scopeStack, observed.scopeStack)
+        assertEquals(4, calls)
+        assertFalse(JSONObject(plain.encoded()).has("onToggle"))
+        plain.toggle(MonitorAssistTool.FALSE)
+        assertEquals(4, calls)
+        assertTrue(observed.falseColor)
+    }
 }

@@ -52,6 +52,83 @@ final class LunaCameraSessionTests: XCTestCase {
         }
     }
 
+    /// Requests outside the common model go out only while the session is ready and owned, with
+    /// the caller's timeout when the backend takes one.
+    func testControlRequestsNeedAReadyOwnedSessionAndKeepTheirTimeout() async throws {
+        var plain: [LunaRequest] = []
+        var timed: [(LunaRequest, Duration)] = []
+        let session = LunaCameraSession(
+            send: { plain.append($0); return Data() },
+            sendWithin: { timed.append(($0, $1)); return Data() },
+            functionMode: { LunaFunctionMode.normalVideo.rawValue },
+            readSettings: {}, readCapture: {})
+        let request = LunaProtocol.cancelTrackingRequest
+        XCTAssertFalse(session.admitsControl)
+        do {
+            _ = try await session.control(request)
+            XCTFail("a connecting session must not send")
+        } catch {}
+        session.linkChanged(.streaming, serial: "LUNA-TEST")
+        _ = try await session.control(request)
+        _ = try await session.control(request, timeout: .seconds(2))
+        XCTAssertEqual(plain, [request])
+        XCTAssertEqual(timed.map(\.0), [request])
+        XCTAssertEqual(timed.map(\.1), [.seconds(2)])
+        session.close(.requested)
+        do {
+            _ = try await session.control(request)
+            XCTFail("a closed session must not send")
+        } catch {}
+        XCTAssertEqual(plain.count + timed.count, 2)
+    }
+
+    /// The official app's clock SET, then cmd 214 twice, each stamped at send; nothing more when
+    /// the camera refuses the SET.
+    func testClockSyncSetsTheClockThenSyncsToTheMillisecondTwice() async throws {
+        var sent: [(LunaRequest, Duration)] = []
+        var refuses = false
+        let session = LunaCameraSession(
+            send: { _ in Data() },
+            sendWithin: {
+                sent.append(($0, $1))
+                if refuses { throw CancellationError() }
+                return Data()
+            },
+            functionMode: { LunaFunctionMode.normalVideo.rawValue },
+            readSettings: {}, readCapture: {})
+        // 2026-09-30 08:51:10.54 UTC, Stockholm (UTC+2).
+        let zone = try XCTUnwrap(TimeZone(identifier: "Europe/Stockholm"))
+        var stamps: [Double] = []
+        let now = { Date(timeIntervalSince1970: stamps.removeFirst()) }
+        stamps = [1_790_758_270.54]
+        let connecting = await session.syncClock(zone: zone, now: now)
+        XCTAssertFalse(connecting)
+        XCTAssertTrue(sent.isEmpty)
+
+        session.linkChanged(.streaming, serial: "LUNA-TEST")
+        stamps = [1_790_758_270.54, 1_790_758_270.761, 1_790_758_270.765]
+        let synced = await session.syncClock(zone: zone, now: now)
+        XCTAssertTrue(synced)
+        XCTAssertEqual(
+            sent.map(\.0),
+            [
+                try LunaProtocol.setClockRequest(
+                    unixSeconds: 1_790_758_270, timeZoneSeconds: 7200, zone: "Europe/Stockholm"),
+                try LunaProtocol.syncTimeAccurateRequest(
+                    unixMilliseconds: 1_790_758_270_761, count: 0),
+                try LunaProtocol.syncTimeAccurateRequest(
+                    unixMilliseconds: 1_790_758_270_765, count: 1),
+            ])
+        XCTAssertEqual(sent.map(\.1), [.seconds(2), .seconds(2), .seconds(2)])
+
+        sent = []
+        refuses = true
+        stamps = [1_790_758_280.0]
+        let refused = await session.syncClock(zone: zone, now: now)
+        XCTAssertFalse(refused)
+        XCTAssertEqual(sent.count, 1)
+    }
+
     func testAcceptedWriteThatDoesNotStickIsNotApplied() async {
         let camera = FakeLuna()
         let session = camera.connectedSession(settle: .milliseconds(600))

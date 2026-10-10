@@ -193,6 +193,7 @@ data class FeedIncidentAges(
     val decodedOutputAge: Double? = null,
     val assistOutputAge: Double? = null,
     val presentAge: Double? = null,
+    val statusAge: Double? = null,
 )
 
 data class FeedIncidentQueue(
@@ -239,6 +240,21 @@ data class FeedIncidentLifecycle(
     val presentationExpected: Boolean = true,
 )
 
+/** Observed counts for one endpoint generation, before native video admission. */
+data class FeedIncidentIngress(
+    val socketGeneration: Int,
+    val receivedDatagrams: Int,
+    val videoDatagrams: Int,
+    val videoGateDrops: Int,
+    val injectedVideoDrops: Int,
+    val registrationSubmissions: Int,
+    val receiveErrors: Int,
+    val lastDatagramAge: Double? = null,
+    val lastVideoDatagramAge: Double? = null,
+    val lastRegistrationSubmissionAge: Double? = null,
+    val videoGateOpen: Boolean,
+)
+
 data class FeedIncidentSnapshot(
     val monotonicNow: Double,
     val wallClockMs: Long = 0L,
@@ -250,6 +266,7 @@ data class FeedIncidentSnapshot(
     val watchdogAction: String = "none",
     val diagnoserFailure: String = "none",
     val diagnoserRepair: String = "none",
+    val ingress: FeedIncidentIngress? = null,
 )
 
 data class FeedIncidentBreadcrumb(

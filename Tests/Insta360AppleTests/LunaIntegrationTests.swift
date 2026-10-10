@@ -89,17 +89,16 @@ import Testing
             switch event {
             case .progress(let progress, let prompt):
                 #expect(progress.steps == LunaIntegration.steps)
-                seen.append("\(progress.phase) \(progress.current) \(prompt.map(describe) ?? "-")")
+                seen.append("\(progress.phase) \(progress.current) \(prompt.map(describe) ?? "-") \(progress.note ?? "-")")
             case .connected(let camera): connected = camera
             case .failed(let failure): Issue.record("failed: \(failure.code)")
             }
         }
         #expect(
             seen == [
-                "link 0 -", "negotiating 0 -", "awaitingApproval 0 approve: Approve on the camera",
-                "joiningNetwork 1 join LUNA-1A2B: Tap Join when iOS asks to join the camera network",
-                "joiningNetwork 1 join LUNA-1A2B: If this takes long, open Settings › Wi-Fi and join “LUNA-1A2B”.",
-                "link 2 -", "link 3 -",
+                // The Wi-Fi step reads its phase; a backend note never replaces it (main's caption).
+                "link 0 - -", "negotiating 0 - -", "awaitingApproval 0 approve: Approve on the camera -",
+                "joiningNetwork 1 - Reading Wi-Fi credentials…", "link 2 - -", "link 3 - -",
             ])
         let saved = try #require(connected?.saved)
         #expect(saved.id == camera.uuidString && saved.integration == luna.id)
@@ -122,6 +121,23 @@ import Testing
         for await case .connected(let camera) in events { record = camera.saved }
         #expect(record?.name == "A cam" && record?.routes == [ap] && record?.extras == ["lastSetup": "wifi"])
         #expect(record?.device == nil, "no serial was read")
+    }
+
+    /// A legacy hotspot setup (main's records could carry one) is no dead chip: Luna dials the
+    /// camera over its own Wi-Fi, keeps the setup, and makes the camera Wi-Fi preferred again.
+    @Test func aLegacyHotspotSetupConnectsOverCameraWiFi() async throws {
+        let luna = integration()
+        let ap = SavedRoute(key: "ap", kind: .cameraAccessPoint, network: "LUNA-1A2B", bluetooth: true)
+        let hotspot = SavedRoute(key: "hotspot", kind: .phoneHotspot, network: "Rig iPhone")
+        let saved = SavedCamera(
+            id: camera.uuidString, integration: luna.id, advertisedName: "Luna 1A2B", model: LunaProtocol.model,
+            routes: [ap, hotspot], preferredRoute: hotspot.id)
+        let events = luna.connect(.saved(saved, route: hotspot.id))
+        #expect(await eventually { port.connects.map(\.id) == [camera] })
+        port.finishConnect()
+        var record: SavedCamera?
+        for await case .connected(let camera) in events { record = camera.saved }
+        #expect(record?.routes == [ap, hotspot] && record?.preferredRoute == ap.id)
     }
 
     @Test func typedFailuresKeepTheirCopy() async throws {

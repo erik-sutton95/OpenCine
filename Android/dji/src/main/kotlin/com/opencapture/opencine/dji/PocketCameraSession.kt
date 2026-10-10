@@ -1,5 +1,22 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.core.CameraValuePin
+import com.opencapture.opencine.media.RecoveryAction
+import com.opencapture.opencine.media.RecoveryEffect
+import com.opencapture.opencine.media.RecoveryReason
+import com.opencapture.opencine.media.RecoveryEffectLog
+import com.opencapture.opencine.media.FeedDecoderErrorOrigin
+import com.opencapture.opencine.media.FeedIncidentAges
+import com.opencapture.opencine.media.FeedIncidentBreadcrumb
+import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
+import com.opencapture.opencine.media.FeedIncidentDecoder
+import com.opencapture.opencine.media.FeedIncidentLifecycle
+import com.opencapture.opencine.media.FeedIncidentQueue
+import com.opencapture.opencine.media.FeedIncidentRates
+import com.opencapture.opencine.media.FeedIncidentSessionContext
+import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedRepairPhase
+import com.opencapture.opencine.media.FeedRepairRecord
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
@@ -7,9 +24,79 @@ import android.view.Surface
 import com.opencapture.opencine.media.SerialSessionGate
 import com.opencapture.opencine.decoder.HevcDecoder
 import android.os.Build
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.motion.GimbalWaypointSlot
+import com.opencapture.opencine.motion.LevelReading
+import com.opencapture.opencine.motion.SnapOutcome
+import com.opencapture.opencine.motion.WorldLevelSnap
+import com.opencapture.opencine.platform.LocalVPNProbe
+import com.opencapture.opencine.vocabulary.AudioPin
+import com.opencapture.opencine.vocabulary.AutoExposureLock
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CaptureWheels
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraFocusPolicy
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
+import com.opencapture.opencine.vocabulary.ColorPin
+import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.ControlHud
+import com.opencapture.opencine.vocabulary.EvComp
+import com.opencapture.opencine.vocabulary.ExpoPin
+import com.opencapture.opencine.vocabulary.FaceAFPolicy
+import com.opencapture.opencine.vocabulary.FacePriorityExposure
+import com.opencapture.opencine.vocabulary.FaceTrackHold
+import com.opencapture.opencine.vocabulary.FaceTrackTap
+import com.opencapture.opencine.vocabulary.FeedDoubleTapTrack
+import com.opencapture.opencine.vocabulary.FocusOverlay
+import com.opencapture.opencine.vocabulary.FocusOverlayPolicy
+import com.opencapture.opencine.vocabulary.FocusPin
+import com.opencapture.opencine.vocabulary.FocusResetPolicy
+import com.opencapture.opencine.vocabulary.FocusTrackMode
+import com.opencapture.opencine.vocabulary.FormatPin
+import com.opencapture.opencine.vocabulary.FoundCamera
+import com.opencapture.opencine.vocabulary.GamepadFaceTrack
+import com.opencapture.opencine.vocabulary.GamepadOperatorAction
+import com.opencapture.opencine.vocabulary.GamepadShutterSync
+import com.opencapture.opencine.vocabulary.GimbalDoubleTap
+import com.opencapture.opencine.vocabulary.GimbalHudCopy
+import com.opencapture.opencine.vocabulary.GimbalLimitContact
+import com.opencapture.opencine.vocabulary.GimbalLimitWatch
+import com.opencapture.opencine.vocabulary.GimbalMode
+import com.opencapture.opencine.vocabulary.GimbalRamp
+import com.opencapture.opencine.vocabulary.GimbalSpeed
+import com.opencapture.opencine.vocabulary.GimbalStickMapping
+import com.opencapture.opencine.vocabulary.IsoLimitPin
+import com.opencapture.opencine.vocabulary.LiveChromeThrottle
+import com.opencapture.opencine.vocabulary.LiveFeedTapPolicy
+import com.opencapture.opencine.vocabulary.RecoveryPictureProof
+import com.opencapture.opencine.vocabulary.SceneFacePolicy
+import com.opencapture.opencine.vocabulary.SessionDropStormGuard
+import com.opencapture.opencine.vocabulary.SessionRecoveryDecision
+import com.opencapture.opencine.vocabulary.SessionRecoveryPolicy
+import com.opencapture.opencine.vocabulary.SessionRecoveryTrigger
+import com.opencapture.opencine.vocabulary.SessionRecoveryUi
+import com.opencapture.opencine.vocabulary.ShootingModePin
+import com.opencapture.opencine.vocabulary.ShutterAngle
+import com.opencapture.opencine.vocabulary.TrackingBox
+import com.opencapture.opencine.vocabulary.TrackingBoxSmoothing
+import com.opencapture.opencine.vocabulary.TrackingClearPolicy
+import com.opencapture.opencine.vocabulary.TrackingHud
+import com.opencapture.opencine.vocabulary.TrackingStartPolicy
+import com.opencapture.opencine.vocabulary.VideoFormat
+import com.opencapture.opencine.vocabulary.WhiteBalancePin
+import com.opencapture.opencine.vocabulary.recoverAfterAdvertisement
+import com.opencapture.opencine.vocabulary.withinAutomaticRecoveryBudget
 import java.util.UUID
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.MediaServiceException
+import com.opencapture.opencine.media.MediaServiceFailure
+import com.opencapture.opencine.core.CameraServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -385,7 +472,10 @@ class PocketCameraSession(
         set(value) {
             val replaced = field !== value
             field = value
-            if (replaced) controlSeam?.linkDidChange()
+            if (replaced) {
+                controlSeam?.linkDidChange()
+                cachedMediaService?.attachIngress(value?.mediaIngress ?: DjiAndroidMediaIngressSlot())
+            }
         }
 
     /** OpenCineCore seam for ISO, white balance and record (CORE-02). UI controls submit here. */
@@ -395,6 +485,107 @@ class PocketCameraSession(
         DjiControlSessionBinding(this, scope, onClose = { disconnect() })
     }
     private val controlSeam: DjiCameraSessionAdapter? get() = controlBinding.cached
+
+    private var cachedMediaService: DjiAndroidMediaService? = null
+    private var mediaReturnOwner: Long? = null
+    private val mediaReturnSession = com.opencapture.opencine.media.MonitorMediaReturnSession(scope)
+    private val actualMediaPort = object : DjiAndroidMediaPort {
+        override val mediaFacts: DjiAndroidMediaFacts?
+            get() {
+                val cameraID = connectedCamera?.id ?: recoveryCameraId ?: return null
+                val snapshot = control.current
+                val identity = DjiAndroidMediaIdentity(snapshot.session, snapshot.epoch, cameraID)
+                val link = datalink
+                return DjiAndroidMediaFacts(identity,
+                    _phase.value == ConnectionPhase.LIVE && controlLeaseAllows() && link != null && !link.isClosed && !link.isRebuilding,
+                    _cameraGalleryOpen.value, _status.value.inPlayback,
+                    DJIMediaSourcePolicy.observed(connectedCamera?.model, _status.value.inPlayback, _status.value.internalTotalMb))
+            }
+        private fun current(source: DjiAndroidMediaIdentity, returning: Boolean = false): Boolean {
+            val facts = mediaFacts ?: return false
+            return if (returning) facts.identity.sameConnection(source)
+                else facts.canQuery && facts.identity == source
+        }
+        override fun mediaBrowseChanged(active: Boolean, source: DjiAndroidMediaIdentity) {
+            if (!current(source, returning = !active)) return
+            val owner = markBrowsingMedia(active, resumePending = !active)
+            mediaReturnOwner = if (active) null else owner
+        }
+        override fun setMediaWireHeld(held: Boolean, source: DjiAndroidMediaIdentity) {
+            if (current(source, returning = !held)) setMediaTransportBrowsing(held)
+        }
+        override fun writeMedia(set: Int, command: Int, payload: ByteArray, source: DjiAndroidMediaIdentity) {
+            if (!current(source)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+            datalink?.sendDuml(set, command, payload) ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+        }
+        override fun enterMediaPlayback(source: DjiAndroidMediaIdentity) {
+            if (!current(source)) throw MediaServiceException(MediaServiceFailure.RETIRED)
+            val link = datalink ?: throw MediaServiceException(MediaServiceFailure.UNAVAILABLE)
+            if (DjiNative.isAvailable) link.sendCommand(DjiNative.CMD_ENTER_PLAYBACK)
+            else link.sendDuml(MediaCommands.SET_CAMERA, MediaCommands.CMD_PLAYBACK, MediaCommands.enterPlaybackPayload())
+        }
+        override fun claimMediaReturn(source: DjiAndroidMediaIdentity, operation: suspend (DjiAndroidMediaReturnAuthority) -> Unit): kotlinx.coroutines.Deferred<Unit>? {
+            val owner = mediaReturnOwner ?: return null
+            if (!current(source, returning = true) || !ownsMediaReturnContext(owner)) return null
+            // The shared scheduler belongs to the native session, independent of gallery collectors.
+            mediaReturnSession.start(
+                ifCurrent = { current(source, returning = true) && ownsMediaReturnContext(owner) },
+                operation = {
+                withMediaLiveResumeOwner(owner) {
+                    val startedAt = SystemClock.elapsedRealtime()
+                    fun admitted(): Boolean = current(source, returning = true) && ownsMediaLiveResume(owner)
+                    val authority = DjiAndroidMediaReturnAuthority(
+                        isCurrent = ::admitted,
+                        inPlayback = { _status.value.inPlayback },
+                        pictureFresh = { hasRecoveryPicture(startedAt) },
+                        writeExit = {
+                            if (admitted()) datalink?.sendDuml(MediaCommands.SET_CAMERA, MediaCommands.CMD_PLAYBACK, MediaCommands.exitPlaybackPayload())
+                        },
+                        enableLiveView = { admitted() && restartLiveViewAfterMedia() },
+                        completed = { result ->
+                            if (admitted() && result == MediaLiveResumeRunner.Result.EXHAUSTED) mediaLiveResumeExhausted(owner)
+                        })
+                    operation(authority)
+                }
+            })
+            return mediaReturnSession.task
+        }
+    }
+    /** Real connection identity remains available during a same-session driver-repair gap. */
+    val mediaConnectionIdentity: DjiAndroidMediaIdentity? get() = actualMediaPort.mediaFacts?.identity
+
+    /** Presentation authority is independent of camera readiness and driver presence. */
+    fun claimMediaGalleryCover(): DjiAndroidMediaGalleryCover {
+        val source = actualMediaPort.mediaFacts?.identity
+        val nativeSession = control.id
+        cachedMediaService?.retire()
+        mediaReturnOwner = null
+        if (actualMediaPort.mediaFacts?.canQuery != true) setMediaTransportBrowsing(false)
+        return DjiAndroidMediaGalleryCover.claim(
+            mark = { markBrowsingMedia(true) },
+            owns = { owner ->
+                val currentSource = actualMediaPort.mediaFacts?.identity
+                val sameConnection = if (source == null) currentSource == null else currentSource?.sameConnection(source) == true
+                control.id == nativeSession && sameConnection && owner == mediaPictureGeneration && isBrowsingMedia
+            },
+            release = {
+                val canReturn = source != null && actualMediaPort.mediaFacts?.identity?.sameConnection(source) == true &&
+                    _phase.value == ConnectionPhase.LIVE
+                val owner = markBrowsingMedia(false, resumePending = canReturn)
+                if (canReturn && source != null) {
+                    mediaReturnOwner = owner
+                    (services.get<CameraMediaService>() as DjiAndroidMediaService).returnFromGalleryCover(source)
+                } else setMediaTransportBrowsing(false)
+            })
+    }
+    override val services: CameraServices
+        get() {
+            val service = cachedMediaService ?: DjiAndroidMediaService(control.id, actualMediaPort,
+                DjiAndroidMediaTiming(SystemClock::elapsedRealtime) { kotlinx.coroutines.delay(it) },
+                datalink?.mediaIngress ?: DjiAndroidMediaIngressSlot()).also { cachedMediaService = it }
+            return CameraServices().plus(CameraMediaService::class, service)
+        }
+
     private var reportedCapture = CameraStatus()
 
     // Camera-reported values for the seam. [status] carries optimistic HUD values; these never do.
@@ -563,6 +754,9 @@ class PocketCameraSession(
 
     fun startScan(reconnect: String?) {
         if (reconnect != null && !holdsMonitor) {
+            cachedMediaService?.retire()
+            cachedMediaService = null
+            mediaReturnOwner = null
             controlBinding.beginConnection()
             reportedCapture = CameraStatus()
         }
@@ -615,6 +809,9 @@ class PocketCameraSession(
             }
         }
         if (!holdsMonitor) {
+            cachedMediaService?.retire()
+            cachedMediaService = null
+            mediaReturnOwner = null
             controlBinding.beginConnection()
             reportedCapture = CameraStatus()
         }
@@ -622,7 +819,7 @@ class PocketCameraSession(
         _connectionTargetId.value = camera.id
         _isReconnecting.value = false
         appHost.setCameraSessionActive(true)
-        LocalVPNFilter.noteIfActive(appContext)
+        LocalVPNProbe.noteIfActive(appContext) { DjiLog.log("notice", "session", "vpn", it) }
         connectJob?.cancel()
         if (!holdsMonitor) publishPhase(ConnectionPhase.CONNECTING_GATT)
         connectJob =
@@ -670,6 +867,9 @@ class PocketCameraSession(
     fun updateMultiview(camera: FoundCamera?, driver: DatalinkDriver?, status: CameraStatus) {
         if (!isMultiviewBorrowed) return
         if (connectedCamera?.id != camera?.id) {
+            cachedMediaService?.retire()
+            cachedMediaService = null
+            mediaReturnOwner = null
             controlBinding.beginConnection()
             reportedCapture = CameraStatus()
         }
@@ -700,6 +900,9 @@ class PocketCameraSession(
     fun releaseMultiview() {
         formatPin = null
         if (!isMultiviewBorrowed) return
+        cachedMediaService?.retire()
+        cachedMediaService = null
+        mediaReturnOwner = null
         controlBinding.retire(com.opencapture.opencine.core.SessionCloseReason.REQUESTED)
         reportedCapture = CameraStatus()
         controlLease?.invalidate()
@@ -722,10 +925,15 @@ class PocketCameraSession(
     }
 
     override fun disconnect() {
+        cachedMediaService?.retire()
+        mediaReturnOwner = null
         if (isMultiviewBorrowed) {
             releaseMultiview()
             return
         }
+        cachedMediaService?.retire()
+        cachedMediaService = null
+        mediaReturnOwner = null
         controlBinding.retire(com.opencapture.opencine.core.SessionCloseReason.REQUESTED)
         reportedCapture = CameraStatus()
         appHost.setCameraSessionActive(false)
@@ -769,6 +977,7 @@ class PocketCameraSession(
         isBrowsingMedia = false
         mediaPictureGeneration += 1
         mediaReturnPending = false
+        mediaReturnSession.cancel()
         _phase.value = ConnectionPhase.IDLE
         _status.value = CameraStatus()
         reportedIsoIndex = null
@@ -876,6 +1085,7 @@ class PocketCameraSession(
         publishPhase(ConnectionPhase.CONNECTING_GATT)
         startFrameRouter()
         ble.connect(camera)
+        val credentialSourceCurrent = ble.captureCredentialConnection()
 
         pairingHold.clear()
         inflight.clear()
@@ -899,13 +1109,13 @@ class PocketCameraSession(
         publishPhase(ConnectionPhase.READING_WIFI_CREDS)
         val restored = restoreAccessPoint
         if (restored) restoreCameraAccessPoint()
-        val credsFromCache = wifiCache.load(camera.id) != null
+        val credsFromCache = withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.load(camera.id) } != null
         val skipApSettle = !restored && joiner.isProcessBound() && credsFromCache
         if (!skipApSettle) delay(200)
         ble.send(DjiNative.command(DjiNative.CMD_SESSION_5310, 0x8053))
         runCatching { waitFrame(0x53, 0x10, 2_000) }
         if (!skipApSettle) delay(600)
-        val (ssid, pass) = wifiCredsAfterPairing(camera)
+        val (ssid, pass) = wifiCredsAfterPairing(camera, credentialSourceCurrent)
         DjiLog.log(
             "info",
             "session",
@@ -926,7 +1136,7 @@ class PocketCameraSession(
                         "creds",
                         "creds: join failed with cached creds — dropping cache",
                     )
-                    wifiCache.remove(camera.id)
+                    withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.remove(camera.id) }
                 }
                 error(
                     "couldn't join camera Wi-Fi — tap the system Join prompt if Android asked. " +
@@ -935,7 +1145,7 @@ class PocketCameraSession(
             }
         }
         // Known good only once the join worked.
-        wifiCache.save(camera.id, ssid, pass)
+        withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.save(camera.id, ssid, pass) }
         joinedSSID = ssid
         wifiLock.acquire()
 
@@ -944,8 +1154,15 @@ class PocketCameraSession(
         startKeepalive(ssid)
     }
 
-    private suspend fun wifiCredsAfterPairing(camera: FoundCamera): Pair<String, String> {
-        val cached = wifiCache.load(camera.id)
+    /** Explicit forget uses this session's cache and caller Job, independently of its GATT attempt. */
+    suspend fun forgetWifiCredentials(cameraId: String) {
+        withCredentialIO({ true }, transaction = wifiCache.ioTransaction) { wifiCache.remove(cameraId) }
+    }
+
+    private suspend fun wifiCredsAfterPairing(
+        camera: FoundCamera, credentialSourceCurrent: () -> Boolean,
+    ): Pair<String, String> {
+        val cached = withCredentialIO(credentialSourceCurrent, transaction = wifiCache.ioTransaction) { wifiCache.load(camera.id) }
         if (cached != null) {
             val resolved =
                 CameraWifiResolution.resolve(
@@ -1520,6 +1737,7 @@ class PocketCameraSession(
 
     private fun noteFeedIncidentSnapshot(window: LivePipelineCadence.Window?) {
         val now = SystemClock.elapsedRealtime()
+        val ingressSource = datalink
         fun ageSec(at: Long?): Double? = at?.let { ((now - it).coerceAtLeast(0)).toDouble() / 1000.0 }
         val hz = window?.hz
         appHost.incidents.ingestSnapshot(
@@ -1531,7 +1749,7 @@ class PocketCameraSession(
                         packetHz = hz?.get(LivePipelineCadence.Stage.VIDEO) ?: 0.0,
                         accessUnitHz = hz?.get(LivePipelineCadence.Stage.AU) ?: 0.0,
                         decodeSubmitHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
-                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.OUTPUT) ?: 0.0,
+                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
                         decodedOutputHz = hz?.get(LivePipelineCadence.Stage.OUTPUT) ?: 0.0,
                         // Scopes tap presented GLES frames; there is no independent assist-output stage.
                         assistOutputHz = 0.0,
@@ -1542,10 +1760,11 @@ class PocketCameraSession(
                     FeedIncidentAges(
                         packetAge = ageSec(datalink?.lastVideoPacketAt),
                         accessUnitAge = ageSec(datalink?.lastAccessUnitAt),
-                        decodeAcceptAge = ageSec(decoder.lastDecoderOutputAt),
+                        decodeAcceptAge = decoder.lastDecoderAcceptedAt?.takeIf { it <= now }?.let(::ageSec),
                         decodedOutputAge = ageSec(decoder.lastDecoderOutputAt),
                         assistOutputAge = null,
                         presentAge = ageSec(decoder.lastPresentedAt),
+                        statusAge = ingressSource?.lastStatusAt?.takeIf { it <= now }?.let { (now - it) / 1000.0 },
                     ),
                 queue =
                     FeedIncidentQueue(
@@ -1591,6 +1810,7 @@ class PocketCameraSession(
                         outputObservable = decoder.decoderOutputExpected,
                         presentationExpected = decoder.isPresentationReady && decoder.lastPresentedAt != null,
                     ),
+                ingress = ingressSource?.ingressSnapshot(now / 1000.0),
             ),
         )
         appHost.incidents.noteDecoderGeneration(decoder.randomAccess.generation)
@@ -3692,6 +3912,7 @@ class PocketCameraSession(
         mediaPictureGeneration += 1
         isBrowsingMedia = browsing
         mediaReturnPending = resumePending && !browsing
+        mediaReturnSession.cancel()
         if (coreWatchdog != 0L && DjiNative.isAvailable) DjiNative.feedWatchdogReset(coreWatchdog)
         feedWatchdog.reset()
         return mediaPictureGeneration
@@ -3771,7 +3992,12 @@ class PocketCameraSession(
 
     fun endMediaBrowse() {
         val owner = markBrowsingMedia(false, resumePending = true)
-        scope.launch {
+        val source = mediaConnectionIdentity
+        mediaReturnSession.start(ifCurrent = {
+            val currentSource = mediaConnectionIdentity
+            ownsMediaReturnContext(owner) && if (source == null) currentSource == null
+                else currentSource?.sameConnection(source) == true
+        }, operation = {
             withMediaLiveResumeOwner(owner) {
                 val startedAt = SystemClock.elapsedRealtime()
                 val result = MediaLiveResumeRunner.run(
@@ -3789,7 +4015,7 @@ class PocketCameraSession(
                     mediaLiveResumeExhausted(owner)
                 }
             }
-        }
+        })
     }
 
     fun listMedia() {
@@ -4191,7 +4417,7 @@ class PocketCameraSession(
         fireKind(
             DjiNative.CMD_SET_COLOR_MODE,
             colorModeExtra(mode),
-            CameraCommands.colorLabel(mode, family),
+            CameraCommands.colorLabel(mode, family, connectedCamera?.model?.captureProfile?.labels ?: com.opencapture.opencine.vocabulary.CameraLabelProfile.standard),
             onFail = { colorPin = null },
         )
         hopNativeISO(from, mode, hopEnabled)

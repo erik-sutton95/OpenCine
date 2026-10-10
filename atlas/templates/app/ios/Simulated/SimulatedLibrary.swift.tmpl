@@ -1,0 +1,35 @@
+import Foundation
+import OpenCineAppKit
+import OpenCineMedia
+
+/// SIMULATED integration's explicit content/schema mapping; cache and gallery policy is shared.
+@MainActor struct SimulatedMediaCodec: MonitorMediaCatalogCodec {
+    typealias Payload = MediaAsset
+    func capture(_ asset: MediaAsset, binding: MediaBrowseBinding) throws -> MonitorMediaRecord<MediaAsset> { try record(asset) }
+    func decode(_ bytes: Data) throws -> [MonitorMediaRecord<MediaAsset>] {
+        try JSONDecoder().decode([MediaAsset].self, from: bytes).map(record)
+    }
+    func encode(_ records: [MonitorMediaRecord<MediaAsset>]) throws -> Data {
+        try JSONEncoder().encode(records.map(\.asset))
+    }
+    private func record(_ asset: MediaAsset) throws -> MonitorMediaRecord<MediaAsset> {
+        guard asset.id == SimulatedAssets.asset.id,
+            let original = asset.representations.first,
+            original.id == SimulatedAssets.asset.representations.first?.id
+        else { throw MediaServiceError.unknownAsset }
+        return MonitorMediaRecord(asset: asset, payload: asset,
+            address: .init(thumbnail: "colour-bars-v1.png",
+                representations: [original.id: "colour-bars-v1.mp4"], favoriteKey: asset.id.rawValue),
+            facts: .init(format: "MP4", resolution: "320x180"), favoriteAuthority: .localOverlay)
+    }
+}
+
+/// Explicit per-install roots and keys. A single cache registry is supplied by app composition.
+@MainActor func makeSimulatedLibrary(root: URL, defaults: UserDefaults,
+    storage: MonitorMediaCacheStorage, service: (any CameraMediaService)? = nil) -> MonitorMediaLibraryModel<MediaAsset> {
+    let cache = MonitorMediaCache(directory: storage.directory(root: root), codec: SimulatedMediaCodec(),
+        eligibility: .exactSize, catalogAddress: "catalog.json", preservedMetadata: ["catalog.json"])
+    let favorites = MonitorMediaPreferences(storage: defaults,
+        favoriteKey: "__NAME__.Media.Favorites", lastCameraKey: "__NAME__.Media.LastCamera")
+    return MonitorMediaLibraryModel(cache: cache, favorites: favorites, service: service)
+}

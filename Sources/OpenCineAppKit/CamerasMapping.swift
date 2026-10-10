@@ -25,8 +25,7 @@ public enum CamerasMapping {
             let failure = model.failures[camera.id]
             let nearby = sighting(of: camera, in: model) != nil
             let addable = addableRoutes(of: camera, in: model)
-            let active = attempt?.route ?? failure.flatMap { route(of: $0.target) } ?? camera.preferredRoute
-                ?? camera.routes.first?.id
+            let active = attempt?.route ?? failure.flatMap { route(of: $0.target) } ?? model.defaultRoute(of: camera)
             let network = camera.routes.first { $0.id == active }?.network
             return CameraListItem(
                 id: camera.id, name: camera.displayName,
@@ -41,9 +40,10 @@ public enum CamerasMapping {
                 setups: camera.routes.map {
                     CameraSetupChip(
                         id: $0.id.description, title: title(of: $0), isActive: $0.id == active,
-                        canForget: addable.contains($0.kind) && camera.routes.count > 1)
+                        canForget: addable.contains($0.kind) && camera.routes.count > 1, kind: setupKind($0.kind))
                 },
-                canAddSetup: !addable.isEmpty,
+                // As on main: Add only while an addable kind is still missing.
+                canAddSetup: !addable.subtracting(camera.routes.map(\.kind)).isEmpty,
                 steps: attempt.map(steps) ?? [],
                 failure: failure.map { self.failure($0.failure, camera: camera) })
         }
@@ -63,6 +63,15 @@ public enum CamerasMapping {
         case .phoneHotspot: return "Hotspot"
         case .usb: return "USB-C"
         case .captureDevice: return "HDMI"
+        }
+    }
+
+    /// The chip's accessibility name: the setup names the apps' tests have always used.
+    static func setupKind(_ kind: RouteKind) -> String {
+        switch kind {
+        case .cameraAccessPoint: "cameraWiFi"
+        case .infrastructureNetwork: "wifi"
+        case .phoneHotspot, .usb, .captureDevice: kind.rawValue
         }
     }
 
@@ -159,10 +168,12 @@ public enum CamerasMapping {
     static func device(_ sighting: CamerasModel.Sighting, in model: CamerasModel, busy: Bool? = nil) -> CameraListItem {
         let camera = sighting.camera
         let held = camera.availability != .available
+        let copy = model.entries.first { $0.integration.id == sighting.integration }?.slots.nearbyCard?(camera)
         return CameraListItem(
-            id: camera.id, name: camera.name, subtitle: camera.model.isEmpty ? "nearby" : "\(camera.model) · nearby",
+            id: camera.id, name: copy?.name ?? camera.name,
+            subtitle: copy?.subtitle ?? (camera.model.isEmpty ? "nearby" : "\(camera.model) · nearby"),
             badge: held ? "IN USE" : "NEW",
-            status: held ? "In use by another device" : "Ready to pair", actionTitle: "Pair",
+            status: held ? "In use by another device" : copy?.status ?? "Ready to pair", actionTitle: "Pair",
             isPrimary: model.selection == camera.id,
             isBusy: busy ?? (model.attempts[ConnectTarget.nearby(camera).cameraID] != nil), isAvailable: !held,
             signalBars: camera.signalBars)

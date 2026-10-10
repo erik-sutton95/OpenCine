@@ -1,0 +1,187 @@
+package __APP_ID__
+
+import android.app.Activity
+import com.opencapture.opencine.appkit.AppIntegration
+import com.opencapture.opencine.core.CameraCommand
+import com.opencapture.opencine.core.CameraCommandIntent
+import com.opencapture.opencine.core.CameraDeviceID
+import com.opencapture.opencine.core.CameraIntegration
+import com.opencapture.opencine.core.CameraProfile
+import com.opencapture.opencine.core.CameraServices
+import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraSessionID
+import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CapabilitySnapshot
+import com.opencapture.opencine.core.CaptureMode
+import com.opencapture.opencine.core.CommandReceipt
+import com.opencapture.opencine.core.CommandStage
+import com.opencapture.opencine.core.ConnectTarget
+import com.opencapture.opencine.core.ConnectedCamera
+import com.opencapture.opencine.core.ConnectionEvent
+import com.opencapture.opencine.core.ConnectionState
+import com.opencapture.opencine.core.ControlAuthority
+import com.opencapture.opencine.core.ControlEpoch
+import com.opencapture.opencine.core.DiscoveryMode
+import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.MonotonicInstant
+import com.opencapture.opencine.core.NearbyCamera
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservedValue
+import com.opencapture.opencine.core.OperationID
+import com.opencapture.opencine.core.Rational
+import com.opencapture.opencine.core.RecordingState
+import com.opencapture.opencine.core.RouteKind
+import com.opencapture.opencine.core.SavedCamera
+import com.opencapture.opencine.core.SavedRoute
+import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingDescriptor
+import com.opencapture.opencine.core.SettingDomain
+import com.opencapture.opencine.core.SettingKey
+import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.core.UnavailableReason
+import com.opencapture.opencine.core.rejection
+import com.opencapture.opencine.media.CameraMediaService
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+
+/** SIMULATED public-contract sample: scripted observations/I/O, no vendor or fixture product. */
+class FakeIntegration : CameraIntegration {
+    override val id = IntegrationID("__APP_ID__.simulated")
+    override val profiles = listOf(CameraProfile("simulated.body", "SIMULATED Camera", setOf(RouteKind.INFRASTRUCTURE_NETWORK)))
+    override val discoveryModes = setOf(DiscoveryMode.PASSIVE, DiscoveryMode.ACTIVE)
+    private val connected = mutableListOf<SimulatedCameraSession>()
+    val sessions: List<SimulatedCameraSession> get() = connected.toList()
+    var pictureOnly = false
+    var dropISOAfterEdit = false
+
+    override fun discover(mode: DiscoveryMode): Flow<List<NearbyCamera>> = flowOf(
+        listOf(NearbyCamera("simulated-camera", name = "SIMULATED CAMERA", model = "Scripted Body", routes = setOf(RouteKind.INFRASTRUCTURE_NETWORK))),
+    )
+    override fun connect(target: ConnectTarget): Flow<ConnectionEvent> = flow {
+        val session = SimulatedCameraSession(id, pictureOnly, dropISOAfterEdit)
+        connected += session
+        val saved = when (target) {
+            is ConnectTarget.Saved -> target.camera
+            is ConnectTarget.AddRoute -> target.camera
+            is ConnectTarget.Nearby -> SavedCamera(
+                target.camera.savedID ?: target.camera.id, id,
+                advertisedName = target.camera.name, model = target.camera.model,
+                routes = listOf(SavedRoute(key = "simulated-network", kind = RouteKind.INFRASTRUCTURE_NETWORK)),
+            )
+        }
+        val services = if (pictureOnly) CameraServices() else CameraServices().plus(CameraMediaService::class, SimulatedMediaService(session))
+        emit(ConnectionEvent.Connected(ConnectedCamera(saved, session, services)))
+    }
+    override suspend fun forget(camera: SavedCamera) = Unit
+}
+
+fun integrations(): List<AppIntegration> = listOf(AppIntegration(FakeIntegration()))
+
+fun appIntegrations(activity: Activity): List<AppIntegration> = listOf(AppIntegration(FakeIntegration().apply {
+    pictureOnly = activity.intent.getBooleanExtra("SIMULATED_PICTURE_ONLY", false)
+    dropISOAfterEdit = activity.intent.getBooleanExtra("SIMULATED_DROP_ISO_AFTER_EDIT", false)
+}))
+
+/** A small scripted camera. Tests can hold a report to exercise the shared owner's retirement. */
+class SimulatedCameraSession(integration: IntegrationID, pictureOnly: Boolean = false,
+    private val dropISOAfterEdit: Boolean = false) : CameraSession {
+    override val id = CameraSessionID()
+    private val observed = MutableStateFlow(
+        CameraSnapshot(
+            session = id, epoch = ControlEpoch(1), device = CameraDeviceID.provisional(integration),
+            connection = ConnectionState.Ready, authority = ControlAuthority.Owner,
+            mode = fact(CaptureMode(CaptureMode.Role.VIDEO, "simulated.video", "Video")),
+            recording = fact(RecordingState.IDLE),
+            settings = mapOf(
+                SettingKey.ISO to fact(SettingValue.Iso(ISOValue.Manual(200))),
+                SettingKey.SHUTTER to fact(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50)))),
+                SettingKey.FRAME_RATE to fact(SettingValue.FrameRate(Rational(24))),
+            ),
+        ),
+    )
+    override val snapshots = observed.asStateFlow()
+    val current: CameraSnapshot get() = observed.value
+    private val sent = mutableListOf<CameraCommand>()
+    val commands: List<CameraCommand> get() = sent.toList()
+    var closes = 0
+        private set
+    var holdNextReport = false
+    private var held: CameraCommand? = null
+    private val receipts = mutableMapOf<OperationID, CommandReceipt>()
+    private val completion = mutableMapOf<OperationID, CompletableDeferred<CommandReceipt>>()
+
+    init { reportCapabilities(iso = true, pictureOnly = pictureOnly) }
+
+    fun reportCapabilities(iso: Boolean, pictureOnly: Boolean = false) {
+        if (current.connection != ConnectionState.Ready) return
+        val descriptors = buildList {
+            if (!pictureOnly) add(SettingDescriptor(SettingKey.RECORDING))
+            if (iso && !pictureOnly) add(SettingDescriptor(SettingKey.ISO,
+                domain = SettingDomain(choices = listOf(100, 200, 400, 800).map { SettingValue.Iso(ISOValue.Manual(it)) })))
+        }
+        val unsupported = setOf(SettingKey.APERTURE, SettingKey.FOCUS_POINT, SettingKey.WHITE_BALANCE, SettingKey.ZOOM, SettingKey.EXPOSURE_COMPENSATION) +
+            (if (iso && !pictureOnly) emptySet() else setOf(SettingKey.ISO)) + (if (pictureOnly) setOf(SettingKey.RECORDING) else emptySet())
+        observed.value = current.copy(
+            capabilities = CapabilitySnapshot(current.capabilities.revision.next(), descriptors, unsupported),
+            authority = if (pictureOnly) ControlAuthority.ReadOnly else ControlAuthority.Owner,
+            revision = current.revision.next(),
+        )
+    }
+
+    override suspend fun submit(command: CameraCommand): CommandReceipt {
+        receipts[command.operation]?.let { return it }
+        val refusal = current.rejection(command, MonotonicInstant.now())
+        receipts[command.operation] = CommandReceipt(command.operation, id, command.intent,
+            refusal?.let { CommandStage.Rejected(it) } ?: CommandStage.AwaitingObservation)
+        if (refusal == null) {
+            sent += command
+            completion[command.operation] = CompletableDeferred()
+            if (holdNextReport) { holdNextReport = false; held = command } else report(command)
+        }
+        return receipts.getValue(command.operation)
+    }
+    fun reportHeldCommand() { held?.let { held = null; report(it) } }
+    override suspend fun outcome(operation: OperationID): CommandReceipt? {
+        val receipt = receipts[operation] ?: return null
+        return if (receipt.isFinished) receipt else completion.getValue(operation).await()
+    }
+    override fun receipt(operation: OperationID): CommandReceipt? = receipts[operation]
+    override suspend fun close(reason: SessionCloseReason) = closeNow(reason)
+    override fun closeNow(reason: SessionCloseReason) {
+        if (current.connection != ConnectionState.Ready) return
+        closes += 1
+        observed.value = current.copy(connection = ConnectionState.Disconnected(reason),
+            authority = ControlAuthority.Unavailable(UnavailableReason.Link), revision = current.revision.next())
+        receipts.values.toList().filterNot { it.isFinished }.forEach { finish(it.operation, CommandStage.OutcomeUnknown) }
+    }
+
+    private fun report(command: CameraCommand) {
+        if (current.connection != ConnectionState.Ready || receipts[command.operation]?.isFinished != false) return
+        val intent = command.intent
+        val next = when (intent) {
+            is CameraCommandIntent.Set -> current.copy(settings = current.settings + (intent.value.key to fact(intent.value)))
+            CameraCommandIntent.StartRecording -> current.copy(recording = fact(RecordingState.RECORDING))
+            CameraCommandIntent.StopRecording -> current.copy(recording = fact(RecordingState.IDLE))
+            is CameraCommandIntent.FocusPoint -> current
+        }
+        observed.value = next.copy(revision = next.revision.next())
+        finish(command.operation, CommandStage.Confirmed)
+        if (dropISOAfterEdit && intent is CameraCommandIntent.Set && intent.value.key == SettingKey.ISO) {
+            reportCapabilities(iso = false)
+        }
+    }
+    private fun finish(operation: OperationID, stage: CommandStage) {
+        val receipt = receipts.getValue(operation).copy(stage = stage)
+        receipts[operation] = receipt
+        completion[operation]?.complete(receipt)
+    }
+    private companion object {
+        fun <T : Any> fact(value: T): ObservedValue<T> = ObservedValue(value, ObservationOrigin.CAMERA_REPORTED, MonotonicInstant.now())
+    }
+}

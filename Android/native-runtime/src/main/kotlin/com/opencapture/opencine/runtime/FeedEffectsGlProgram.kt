@@ -102,6 +102,10 @@ class FeedEffectsGlProgram(
         mirrored: Boolean = false,
         look: Boolean = true,
         upscale: Boolean = !look,
+        /** A one-pass look reconstructs the magnified raster before grading (Bitmap surface). */
+        onePassUpscale: Boolean = false,
+        /** Vertical presentation flip, independent from the source texture's input convention. */
+        mirroredVertical: Boolean = false,
     ) {
         val mask =
             if (look && plan.peaking) {
@@ -126,7 +130,9 @@ class FeedEffectsGlProgram(
         if (look) {
             bindStaticUniforms(plan)
             program.setFloatsUniform("uFeedUpscale", flag(false))
+            program.setFloatsUniform("uFeedOnePassUpscale", flag(onePassUpscale))
             program.setFloatsUniform("uMirror", flag(mirrored))
+            program.setFloatsUniform("uMirrorVertical", flag(mirroredVertical))
         } else {
             program.setFloatsUniform("uLutSize", floatArrayOf(0f))
             program.setFloatsUniform("uLimitsOn", flag(false))
@@ -135,6 +141,8 @@ class FeedEffectsGlProgram(
             program.setFloatsUniform("uZebraMidtoneOn", flag(false))
             program.setFloatsUniform("uSplitOn", flag(false))
             program.setFloatsUniform("uMirror", flag(false))
+            program.setFloatsUniform("uMirrorVertical", flag(false))
+            program.setFloatsUniform("uFeedOnePassUpscale", flag(false))
             program.setFloatsUniform(
                 "uFeedUpscale",
                 flag(
@@ -254,6 +262,8 @@ class FeedEffectsGlProgram(
         program.setFloatsUniform("uLimitsOn", flag(plan.falseColorOn))
         program.setFloatsUniform("uPeakingOn", flag(plan.peaking))
         program.setFloatsUniform("uPeakingColor", plan.peakingColor)
+        program.setFloatsUniform("uZebraMaximumComponent", flag(plan.zebraMaskPolicy.highlightMeasure == com.opencapture.opencine.media.MonitorZebraMaskPolicy.HighlightMeasure.MAXIMUM_COMPONENT))
+        program.setFloatsUniform("uZebraRampBias", floatArrayOf(plan.zebraMaskPolicy.rampBias.toFloat()))
         program.setFloatsUniform("uZebraHighlightOn", flag(plan.zebraHighlightOn))
         program.setFloatsUniform("uZebraHighlight", floatArrayOf(plan.zebraHighlightCode))
         program.setFloatsUniform("uZebraHighlightColor", plan.zebraHighlightColor)

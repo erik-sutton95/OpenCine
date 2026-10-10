@@ -24,6 +24,9 @@ public final class FakeIntegration: CameraIntegration {
     public var steps: [ConnectionStep]
     /// Hosts discovery dials.
     public var endpoints: [String]
+    /// Called with each new attempt before `connect` returns: a SIMULATED app answers every
+    /// connect here (`attempt.connect(session:)`) instead of scripting it from a test.
+    public var onAttempt: ((FakeAttempt) -> Void)?
 
     public private(set) var dials: [Dial] = []
     /// Modes discovery started with, in order.
@@ -94,6 +97,7 @@ public final class FakeIntegration: CameraIntegration {
         liveAttempt(for: target.cameraID)?.finish(.superseded)
         let attempt = FakeAttempt(integration: id, target: target, steps: steps, continuation: continuation)
         attempts.append(attempt)
+        onAttempt?(attempt)
         return stream
     }
 

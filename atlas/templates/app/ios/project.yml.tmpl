@@ -1,0 +1,118 @@
+# XcodeGen spec (`xcodegen generate` in this folder). The generated project is not committed.
+name: __NAME__
+options:
+  deploymentTarget:
+    iOS: "17.0"
+
+packages:
+  # The OpenCine platform package: the sibling checkout pinned in ../opencine-pins.txt.
+  OpenCine:
+    path: ../../OpenCine
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+    INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+    # Space-separated: a colon list becomes one invalid string.
+    INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  # The app that ships: the integrations in __NAME__/Integrations.swift.
+  __NAME__:
+    type: application
+    platform: iOS
+    sources: [__NAME__]
+    dependencies:
+      - package: OpenCine
+        product: OpenCineAppKit
+      - package: OpenCine
+        product: MonitorUI
+      - package: OpenCine
+        product: MonitorPresentation
+      - package: OpenCine
+        product: OpenCineCameraControls
+      - package: OpenCine
+        product: OpenCineMedia
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__
+        INFOPLIST_KEY_CFBundleDisplayName: __NAME__
+        CODE_SIGN_ENTITLEMENTS: __NAME__/__NAME__.entitlements
+    scheme: {}
+
+  # SIMULATED, developer-only: the same app over OpenCine's fake integration (Simulated/). Never
+  # archived or released; its small fake implements public Core and Media contracts directly.
+  __NAME__Simulated:
+    type: application
+    platform: iOS
+    sources:
+      - path: __NAME__
+        excludes: [Integrations.swift]
+      - Simulated
+    dependencies:
+      - package: OpenCine
+        product: OpenCineAppKit
+      - package: OpenCine
+        product: MonitorUI
+      - package: OpenCine
+        product: MonitorPresentation
+      - package: OpenCine
+        product: OpenCineCameraControls
+      - package: OpenCine
+        product: OpenCineCore
+      - package: OpenCine
+        product: OpenCineMedia
+      - package: OpenCine
+        product: OpenCineApple
+      - package: OpenCine
+        product: OpenCineAppKitApple
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__.simulated
+        INFOPLIST_KEY_CFBundleDisplayName: __NAME__ SIMULATED
+        CODE_SIGN_ENTITLEMENTS: __NAME__/__NAME__.entitlements
+    scheme:
+      testTargets: [__NAME__Tests, __NAME__UITests]
+
+  # SIMULATED contract test: the app's shell composition over the fake, no host app.
+  __NAME__Tests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+      - Simulated
+      - __NAME__/Shell.swift
+    dependencies:
+      - package: OpenCine
+        product: OpenCineAppKit
+      - package: OpenCine
+        product: OpenCineCore
+      - package: OpenCine
+        product: OpenCineMedia
+      - package: OpenCine
+        product: OpenCineApple
+      - package: OpenCine
+        product: OpenCineAppKitApple
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__.tests
+
+  # SIMULATED installed-app flow with actual AVPlayer decoding and retained native pictures.
+  __NAME__UITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: __NAME__Simulated
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __APP_ID__.uitests
+        TEST_TARGET_NAME: __NAME__Simulated

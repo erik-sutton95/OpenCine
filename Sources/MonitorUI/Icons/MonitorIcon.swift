@@ -11,6 +11,7 @@
         case audioLines = "audio-lines"
         case audioWaveform = "audio-waveform"
         case blend
+        case cable
         case camera
         case chartColumn = "chart-column"
         case check

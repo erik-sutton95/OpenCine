@@ -11,6 +11,8 @@ public enum NativeCameraSessionError: Error, LocalizedError {
     case noHost
     case connectionFailed(String)
     case connectionClosed
+    /// Supplied operation authority expired before the operation request reached the body.
+    case commandAuthorityExpired
     case timeout(String)
     case unexpectedPacket(expected: String, actual: PTPIPPacketType)
     case initFailed(PTPIPInitFailReason)
@@ -32,6 +34,8 @@ public enum NativeCameraSessionError: Error, LocalizedError {
             return message
         case .connectionClosed:
             return "The camera closed the connection."
+        case .commandAuthorityExpired:
+            return "Camera control expired before the command was sent."
         case .timeout(let label):
             return "\(label) timed out."
         case .unexpectedPacket(let expected, let actual):

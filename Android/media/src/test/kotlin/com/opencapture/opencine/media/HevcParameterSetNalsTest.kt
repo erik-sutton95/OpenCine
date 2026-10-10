@@ -77,4 +77,22 @@ class HevcParameterSetNalsTest {
     fun aBlobWithNoParameterSetsIsEmpty() {
         assertContentEquals(ByteArray(0), LiveAccessUnit.parameterSetNals(nal(0x06, 0x05)))
     }
+
+    @Test
+    fun privateMetadataCannotSupplyParameterSetsOrACodec() {
+        val metadata = ByteArray(25) { 0x22 }
+        byteArrayOf(0, 0, 1, 0x67, 0x42).copyInto(metadata, 4)
+        byteArrayOf(0, 0, 1, 0x40, 0x01).copyInto(metadata, 12)
+        val privateSei = byteArrayOf(0, 0, 1, 6, 0xF0.toByte(), 25) +
+            metadata + byteArrayOf(0x80.toByte())
+        assertContentEquals(ByteArray(0), LiveAccessUnit.parameterSetNals(privateSei))
+        kotlin.test.assertNull(LiveAccessUnit.detectCodec(privateSei, ""))
+        kotlin.test.assertNull(LiveAccessUnit.detectCodec(byteArrayOf(0x22, 0x22, 0x22, 0x40, 1), ""))
+        val real = nal(0x67, 0x42, 0x28) + nal(0x68, 0xCE)
+        assertContentEquals(
+            LiveAccessUnit.parameterSetNals(real),
+            LiveAccessUnit.parameterSetNals(privateSei + real),
+        )
+        kotlin.test.assertEquals(LiveVideoCodec.AVC, LiveAccessUnit.detectCodec(privateSei + real, ""))
+    }
 }

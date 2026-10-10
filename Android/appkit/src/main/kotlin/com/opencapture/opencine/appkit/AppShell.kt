@@ -8,12 +8,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /** What the shared root shows of the app's brand (Swift `ShellBrand`). Values only. */
 public data class ShellBrand(
     public val name: String,
     /** How nearby cameras are found, under NEARBY ("announcing over Bluetooth"). */
     public val nearbyNote: String = "announcing over Bluetooth",
+    /** A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped. */
+    public val renamesSetups: Boolean = true,
 )
 
 /** The app's own actions the shared pages offer (Swift `ShellActions`). `null` hides an entry. */
@@ -26,16 +29,29 @@ public class ShellActions(
     public val integrationAction: ((String, String) -> Unit)? = null,
     public val privacy: (() -> Unit)? = null,
     public val terms: (() -> Unit)? = null,
+    /** The cameras page's Pair, Media and Settings; `null` opens the shell's pair page or cover. */
+    public val pair: (() -> Unit)? = null,
+    public val media: (() -> Unit)? = null,
+    public val settings: (() -> Unit)? = null,
+    /** A tap on one of the app's own NEARBY rows ([AppShell]'s `extraNearby`), by its id. */
+    public val extraNearby: ((String) -> Unit)? = null,
 )
+
+/** Existing native hosts may retain their cover placement while their callers migrate. */
+public enum class ShellCoverPresentation { MONITOR, SHELL }
 
 /**
  * The shared root over [ShellModel] (Swift `AppShell`): the cameras or pair page, or the monitor,
  * plus the cover pages. The monitor slot is keyed by [ShellModel.Monitor.id], so one host lives for
  * one monitor lifetime: covers, rotations and recomposition never create a second one.
  *
- * Temporary (SHELL-03 I-1): [monitor] is the app's existing native monitor, which presents the
- * shell's cover over itself while it still owns placement; [page] draws the cover pages over the
- * cameras and pair pages. [pageFrame] wraps those two pages in the app's insets.
+ * [ShellCoverPresentation.SHELL] retains the keyed native monitor beneath one sibling cover;
+ * the covered monitor contributes no exposed controls. [pageFrame] wraps the camera and pair
+ * pages in the app's insets. [extraNearby]:
+ * the app's own NEARBY rows on the cameras page. [prePage]: the app's own page before the shared
+ * ones (a first-pair wizard, a connect in progress), shown instead of the cameras or pair page
+ * while it is set. [pairingFlow]: the app's own rail and actions on the pair page
+ * ([PairScreen]'s `pairingFlow`).
  */
 @Composable
 public fun AppShell(
@@ -46,6 +62,10 @@ public fun AppShell(
     page: @Composable (ShellModel.Cover) -> Unit,
     modifier: Modifier = Modifier,
     pageFrame: @Composable (route: ShellModel.Route, content: @Composable () -> Unit) -> Unit = { _, content -> content() },
+    extraNearby: List<CameraItem> = emptyList(),
+    prePage: (@Composable () -> Unit)? = null,
+    pairingFlow: IntegrationPairingFlow? = null,
+    coverPresentation: ShellCoverPresentation = ShellCoverPresentation.MONITOR,
 ) {
     val shell by model.state.collectAsState()
     val cameras by model.cameras.state.collectAsState()
@@ -57,28 +77,39 @@ public fun AppShell(
                     model.noteHost(mounted = true)
                     onDispose { model.noteHost(mounted = false) }
                 }
-                monitor(live)
+                val hidden = coverPresentation == ShellCoverPresentation.SHELL && shell.cover != null
+                Box(if (hidden) Modifier.clearAndSetSemantics { } else Modifier) { monitor(live) }
             }
         } else {
-            val route = if (shell.pairing || cameras.saved.isEmpty()) ShellModel.Route.PAIR else ShellModel.Route.CAMERAS
-            pageFrame(route) {
-                if (route == ShellModel.Route.PAIR) {
-                    PairScreen(
-                        model.cameras, onDone = model::endPairing, onDiagnostics = actions.diagnostics,
-                        onReportProblem = actions.reportProblem, onWatchFeed = actions.watchFeed,
-                        onPrivacy = actions.privacy, onTerms = actions.terms,
-                    )
-                } else {
-                    CamerasScreen(
-                        model.cameras, brand.name, onPair = model::beginPairing,
-                        onMedia = { model.open(ShellModel.Cover.MEDIA) }, onSettings = { model.open(ShellModel.Cover.SETTINGS) },
-                        nearbyNote = brand.nearbyNote, onMultiview = actions.multiview,
-                        onIntegrationAction = actions.integrationAction,
-                        onPrivacy = actions.privacy, onTerms = actions.terms,
-                    )
+            val route = if (shell.pairing || (cameras.saved.isEmpty() && !shell.camerasChosen)) {
+                ShellModel.Route.PAIR
+            } else {
+                ShellModel.Route.CAMERAS
+            }
+            if (prePage != null) {
+                prePage()
+            } else {
+                pageFrame(route) {
+                    if (route == ShellModel.Route.PAIR) {
+                        PairScreen(
+                            model.cameras, onDone = model::endPairing, onDiagnostics = actions.diagnostics,
+                            onReportProblem = actions.reportProblem, onWatchFeed = actions.watchFeed,
+                            pairingFlow = pairingFlow, onPrivacy = actions.privacy, onTerms = actions.terms,
+                        )
+                    } else {
+                        CamerasScreen(
+                            model.cameras, brand.name, onPair = actions.pair ?: model::beginPairing,
+                            onMedia = actions.media ?: { model.open(ShellModel.Cover.MEDIA) },
+                            onSettings = actions.settings ?: { model.open(ShellModel.Cover.SETTINGS) },
+                            nearbyNote = brand.nearbyNote, onMultiview = actions.multiview,
+                            onIntegrationAction = actions.integrationAction,
+                            extraNearby = extraNearby, onExtraNearby = actions.extraNearby ?: {},
+                            onPrivacy = actions.privacy, onTerms = actions.terms, renamesSetups = brand.renamesSetups,
+                        )
+                    }
                 }
             }
-            shell.cover?.let { page(it) }
         }
+        if (live == null || coverPresentation == ShellCoverPresentation.SHELL) shell.cover?.let { page(it) }
     }
 }

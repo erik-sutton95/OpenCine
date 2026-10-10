@@ -7,15 +7,15 @@ public struct MonitorMovableScopePanel<Content: View>: View {
     let enabled: Bool
     let resizeLabel: String
     let onMove: (MonitorScopePanelMove) -> Void
-    let onResize: (Double) -> Void
+    let onResize: ((Double) -> Void)?
     let onResizeEnded: () -> Void
     let onOpenOptions: ((CGRect) -> Void)?
     let onConfirm: () -> Void
     let content: () -> Content
 
-    public init(layout: MonitorScopePanelLayout, enabled: Bool = true, resizeLabel: String,
+    public init(layout: MonitorScopePanelLayout, enabled: Bool = true, resizeLabel: String = "",
         onMove: @escaping (MonitorScopePanelMove) -> Void,
-        onResize: @escaping (Double) -> Void,
+        onResize: ((Double) -> Void)? = nil,
         onResizeEnded: @escaping () -> Void = {},
         onOpenOptions: ((CGRect) -> Void)? = nil, onConfirm: @escaping () -> Void = {},
         @ViewBuilder content: @escaping () -> Content) {
@@ -26,6 +26,7 @@ public struct MonitorMovableScopePanel<Content: View>: View {
     }
     private var movementBounds: CGRect { layout.movementBounds }
     private var interfaceLocked: Bool { !enabled }
+    private var resizable: Bool { layout.resizable && onResize != nil }
     @State private var dragOrigin: CGPoint?
     @State private var dragCanvas: CGRect?
     @State private var isDragging = false
@@ -42,12 +43,12 @@ public struct MonitorMovableScopePanel<Content: View>: View {
     public var body: some View {
         let size = layout.size
         let center = layout.center
-        let gripPad = 56 - gripCornerInset
+        let gripPad = resizable ? 56 - gripCornerInset : 0
+        let gripBottom = resizable ? MonitorScopePanelPlacement.gripBottomExtent : 0
         ZStack(alignment: .topLeading) {
             content()
                 .overlay(alignment: .bottomTrailing) {
-                    resizeHandle
-                        .offset(x: gripPad, y: MonitorScopePanelPlacement.gripBottomExtent)
+                    if resizable { resizeHandle.offset(x: gripPad, y: gripBottom) }
                 }
                 .frame(width: size.width, height: size.height, alignment: .topLeading)
                 .padding(10)
@@ -70,12 +71,12 @@ public struct MonitorMovableScopePanel<Content: View>: View {
         }
         .frame(
             width: size.width + gripPad,
-            height: size.height + MonitorScopePanelPlacement.gripBottomExtent,
+            height: size.height + gripBottom,
             alignment: .topLeading
         )
         .opacity(MonitorScopePanelPlacement.isUsable(movementBounds) ? 1 : 0)
         .shadow(color: .black.opacity((isDragging || isResizing) ? 0.5 : 0), radius: 18, y: 8)
-        .position(x: center.x + gripPad / 2, y: center.y + MonitorScopePanelPlacement.gripBottomExtent / 2)
+        .position(x: center.x + gripPad / 2, y: center.y + gripBottom / 2)
         .sensoryFeedback(trigger: isDragging) { _, dragging in
             dragging ? .impact(flexibility: .rigid, intensity: 1) : nil
         }
@@ -124,7 +125,7 @@ public struct MonitorMovableScopePanel<Content: View>: View {
                     y: origin.y + drag.translation.height)
                 let size = layout.size
                 let snapped = MonitorScopePanelPlacement.clamp(
-                    Self.snap(proposed), size: size, in: movementBounds)
+                    Self.snap(proposed), size: size, in: movementBounds, resizable: resizable)
                 let cell = Self.hapticCell(snapped)
                 if cell != snapCell { snapCell = cell }
                 onMove(.changed(snapped))
@@ -167,7 +168,7 @@ public struct MonitorMovableScopePanel<Content: View>: View {
                 }
                 let reach = layout.baseSize.width + layout.baseSize.height
                 let delta = (drag.translation.width + drag.translation.height) / reach
-                onResize(resizeStartScale + delta)
+                onResize?(resizeStartScale + delta)
             }
             .onEnded { _ in
                 if resizeCancelled { resizeCancelled = false; return }

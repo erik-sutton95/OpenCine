@@ -73,7 +73,7 @@ Then, in this order (each line is one resumable step):
 | Repository | Steps |
 |---|---|
 | OpenCine (`main`) | `gh repo create` (skipped if it exists), `origin` = `git@github.com-personal:<owner>/OpenCine.git`; verify `main` in a clean clone with no local overrides (the release record's `verify`: `swift build --build-tests`, `swift test`, `cd Android && ./gradlew test`, the atlas tests and `atlas check`); annotated tag `0.1.0` on the verified commit; push `main` and the tag. The package has no package dependencies, so nothing is rewritten. |
-| OpenPocketCine, OpenInstaCine, OpenZCine (`opencine/integration` worktrees) | issue templates: the chooser (`.github/ISSUE_TEMPLATE/config.yml`) gets an OpenCine link first and the bug form an optional "only in this app, or also another?" question (existing templates are edited, nothing else changes); rewrite `Package.swift`, `ios/project.yml` (XcodeGen) or `ios/Runner.xcodeproj` (Nikon) from `../OpenCine` to `url` + exact `0.1.0`; rewrite `opencine-pins.txt` (one line, `OpenCine <tag commit>`); drop the sibling checkout from iOS CI jobs and Xcode Cloud `ci_post_clone.sh` (kept, with a corrected comment, in Gradle jobs); resolve (`just ios-resolve`, `swift package resolve`, or `xcodebuild -resolvePackageDependencies` for Nikon) and commit `Package.resolved` files; verify in a clean clone: `swift test`, the app's own Package.resolved check, `xcodebuild -resolvePackageDependencies -disableAutomaticPackageResolution` (what Xcode Cloud does), `just ios-build`, all before any sibling exists, then `scripts/checkout-opencine.sh` from the new remote and `just android-check`; push the branch to `git@github.com-personal:erik-sutton95/<App>.git`; with `--open-prs`, a draft PR whose body lists the work packages, version, evidence, notes files and the device checklist |
+| OpenPocketCine, OpenInstaCine, OpenZCine (`opencine/integration` worktrees) | issue templates: the chooser (`.github/ISSUE_TEMPLATE/config.yml`) gets an OpenCine link first and the bug form an optional "only in this app, or also another?" question (existing templates are edited, nothing else changes); rewrite `Package.swift`, `ios/project.yml` (XcodeGen) or `ios/Runner.xcodeproj` (Nikon) from `../OpenCine` to `url` + exact `0.1.0`; rewrite `opencine-pins.txt` (one line, `OpenCine <tag commit>`); retain the pinned sibling checkout in jobs running shared `just core-test` sources, notes validators or Gradle; drop it from remote iOS-only jobs and Xcode Cloud `ci_post_clone.sh`; resolve (`just ios-resolve`, `swift package resolve`, or `xcodebuild -resolvePackageDependencies` for Nikon) and commit `Package.resolved` files; verify in a clean clone: `swift test`, the app's own Package.resolved check, `xcodebuild -resolvePackageDependencies -disableAutomaticPackageResolution` (what Xcode Cloud does), `just ios-build`, all before any sibling exists, then `scripts/checkout-opencine.sh` from the new remote and `just android-check`; push the branch to `git@github.com-personal:erik-sutton95/<App>.git`; with `--open-prs`, a draft PR whose body lists the work packages, version, evidence, notes files and the device checklist |
 | GitHub project | find or create the project `OpenCapture` under the owner (Projects v2), link OpenCine and the three apps, and add every open issue of the four repositories that is not on it yet. Skipped with `--remote-base`. |
 | OpenCine atlas | set `repository.url` and the `main` ref (the tag commit) of `opencine`; app candidate refs and their `opencine` edge evidence to the pushed branches; `opencine` becomes `active` only when every app PR exists; regenerate `compat/VERSIONS.md`; `atlas check --sources`; commit on OpenCine `main` (after the tag); push `main` |
 
@@ -84,6 +84,15 @@ are ordinary files in this repository.
 
 Apps get an exact pin plus committed lock files (plan 10.1). There is no library range: the
 platform depends on no other package.
+
+Insta native CI retains the sibling because `just core-test` also tests
+shared integration sources with
+`swift test --package-path ../OpenCine --filter Insta360`. The app still
+resolves its remote package; the sibling checkout is for those source tests.
+
+Metadata jobs also retain the pinned sibling when the app's TestFlight or
+Play notes scripts delegate to shared validators. URL adoption does not
+replace those source-based checks with package-manager products.
 
 Every step that edits a repository prints its full diff in the dry run. It also lists docs in
 that repository that still describe the sibling checkout; those are not rewritten automatically.
@@ -155,13 +164,13 @@ registry commit>`.
   repository grant; a private one does (App Store Connect, Xcode Cloud settings).
 - **Atlas**: the run already passed `atlas check --sources`. Review `compat/VERSIONS.md`.
 - **Device checklists**: linked from each PR body; nothing here is hardware-qualified.
-- **OpenInstaCine sync overlay**: `scripts/apply-openpocketcine-overlays.py` injects the
-  OpenCine package path into `ios/project.yml` after a Pocket sync. Change it to the URL +
-  `exactVersion` form before the next sync.
+- **OpenInstaCine source ownership**: the former Pocket sync and overlay scripts
+  are retired. Common changes belong in OpenCine and reach Insta through a
+  reviewed dependency adoption; no overlay URL edit is needed.
 
 After an app PR merges: move that app's atlas `refs` to the merged commit, record its `opencine`
 edge as `live` with manifest evidence, remove `source-copy` edges only for paths the app no
-longer copies (for Insta, also drop them from `scripts/sync-openpocketcine.sh`), run
+longer copies, run
 `python3 atlas/tools/atlas.py check --sources` and push.
 
 For OpenInstaCine the narrowed edges are already known (RELEASE-01 sync audit): the Apple

@@ -64,17 +64,26 @@ package dependency.
 - Core (`OpenCineCore`) imports Foundation only and names no manufacturer; it never imports UI, an
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
   `OpenCineRelay` and `OpenCineApple` depend on nothing above Core; Core and Media never import
-  `OpenCineApple`.
+  `OpenCineApple`. `OpenCineRelayApple` (the relay's Bonjour, socket and encoder shell) depends on
+  `OpenCineRelay` and Apple frameworks only, never on UI, an integration or an app.
+  `OpenCineWatch` (the watch companion: the phone's WatchConnectivity relay and the wrist
+  monitor) depends on `OpenCineRelay`, on iOS also `OpenCineApple`, and Apple frameworks only,
+  never on the shared UI, an integration or an app.
 - Native monitor processing (`OpenCineApple`, Android `native-runtime`) stays below UI and app
   composition. Android runtime builds on Media and the platform Vulkan renderer; its legacy
   JNI class is the sole allowed renderer import under the old app package name.
   Before changing effects, sampling or native frame ownership, read
   [the runtime guide](docs/native-runtime/README.md).
 - Integrations (`OpenCineDJI`, `OpenCineNikon`, `Insta360*`) never import UI or an app. Their
-  neutral dependencies are Core, Media and Motion as declared in the manifests.
+  neutral dependencies are Core, Media, Motion and the camera vocabulary, as declared in the
+  manifests.
   `OpenCineDJIApple` adds iOS Bluetooth and network adapters above DJI, Media and Motion;
   it never imports UI, an app or the neutral Apple monitor runtime. App policy and secure
   storage arrive through explicit host values and callbacks.
+- `OpenCineCameraVocabulary` (the camera control vocabulary: settings, status, models and their
+  display values, shared by the apps) imports Foundation, Core, Media and Motion only: no UI,
+  integration, app or wire code. Protocol frames and parsers stay in the integration that speaks
+  them (`OpenCineDJI` adds its wire members as `*+DJIWire.swift` extensions).
 - `OpenCineMulticam` imports Foundation and `OpenCineCore` only and names no manufacturer, UI
   framework or transport.
 - UI (`MonitorPresentation`, `MonitorUI`, `monitor-ui`) never imports a camera protocol core,
@@ -82,6 +91,19 @@ package dependency.
   a native sample bus or runtime owner. Views take values and actions; brand variation is a theme value.
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Media, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
+- `OpenCineAppKitApple` (the Apple composition layer of the app shell: code both camera apps share
+  on iOS, such as head tracking) builds on `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`,
+  `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay` and `OpenCineRelayApple` only: never an
+  integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the
+  app shell; app differences arrive as host values and protocols.
+- Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome,
+  gimbal, LUT and assist views and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
+  the camera vocabulary, UI, the app shell, Core, Media and Motion, never on DJI or another
+  integration, an app or a third-party package. App differences arrive as host values (label
+  profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per
+  platform) is listed in atlas `allowed_target_edges`; UI itself still never builds on an
+  integration. Swift: `RulesTests` pins the imports and dependencies, `SharedUIRulesTests` the
+  no-brand and no-mutable-global rules.
 - The harness targets are developer-only and SIMULATED: never make them products.
 - Nothing depends on `atlas/` at build time.
 
@@ -118,6 +140,16 @@ Never grow the common command interface into an enum of vendor features.
 - Multicam: Swift and Kotlin change together (same public types and scenario names). No automatic
   compensation: only an operator-approved plan starts or stops a camera; closing never sends a
   command. App limits are parameters, not engine constants.
+- Camera vocabulary Android (`Android/camera-vocabulary`, package
+  `com.opencapture.opencine.vocabulary`): the Kotlin twin of `OpenCineCameraVocabulary`, same type
+  names. Core, Media and the motion package only, no byte code (`CameraVocabularyImportRuleTest`);
+  `dji` depends on it and keeps the wire members as extensions in its `*Wire.kt` files.
+- Camera controls Android (`Android/camera-controls`, package
+  `com.opencapture.opencine.cameracontrols`): imports and dependencies are pinned by
+  `CameraControlsRulesTest`, which also rejects manufacturer and app names. A sheet list, cycle or
+  exhaustive `when` that moves here keeps each app's main list; every app keeps a `PickerListsTest`
+  that pins them. Engines it may not import (ML Kit, the native-runtime scope bus and GPU previews,
+  Media3) stay in the apps and arrive as a backend (`FaceDetectionBackend`), a value or a slot.
 - DJI Android (`Android/dji`): keep the JNI class `com.opencapture.opencine.dji.DjiNative` and its
   member names; `Sources/OpenCineDJIAndroid` exports `Java_com_opencapture_opencine_dji_DjiNative_*`,
   so change both sides in step and compare `llvm-nm -D` of an app's `.so` with the `external fun`s.
@@ -172,9 +204,12 @@ python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py chec
 
 ## Adding an app
 
-1. The app depends on OpenCine like the others: SwiftPM `.package(path: "../OpenCine")` (one
-   identity in Xcode too), Gradle `includeBuild("../../../OpenCine/Android")` named `opencine`,
-   `opencine-pins.txt` and `scripts/checkout-opencine.sh` (copy from an existing app).
+1. Start from the template: `atlas new-app <Name>` writes `../<Name>` (brand, integration lists,
+   entitlements, CI, tester notes, release workflow, pin), composing the shared shell, with
+   OpenCine's fake integration only in its SIMULATED variants ([atlas/README.md](atlas/README.md#new-app-template)).
+   Either way the app depends on OpenCine like the others: SwiftPM `.package(path: "../OpenCine")` (one
+   identity in Xcode too), Gradle `includeBuild` of `../OpenCine/Android` named `opencine`,
+   `opencine-pins.txt` and `scripts/checkout-opencine.sh`.
 2. It composes integrations and brand configuration only; shared behavior goes here.
 3. Register it: `atlas/repos/<id>/meta.json` (layer `app`, URL, refs, a `library` edge to
    `opencine` with the ref it builds on) and a short `SUMMARY.md`; add it to the release record

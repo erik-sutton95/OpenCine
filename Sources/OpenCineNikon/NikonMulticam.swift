@@ -82,10 +82,34 @@ public enum NikonMulticamPolicy {
 /// The link a member's pump owns: one PTP session, one transaction at a time. OpenZCine's
 /// `NativeCameraSession` has exactly these calls.
 public protocol NikonControlTransport: AnyObject, Sendable {
+    /// Unknown for legacy/scripted links which do not accept supplied operation authority.
+    var commandOwner: NikonCommandOwner? { get }
     func writeCameraProperty(_ write: PTPCameraPropertyWrite) async throws
+    func writeCameraProperty(_ write: PTPCameraPropertyWrite, admission: NikonCommandAdmission)
+        async throws
     func readCameraProperty(_ property: PTPPropertyCode) async throws -> Data
     func startRecording() async throws
+    func startRecording(admission: NikonCommandAdmission) async throws
     func stopRecording() async throws
+    func stopRecording(admission: NikonCommandAdmission) async throws
+}
+
+extension NikonControlTransport {
+    public var commandOwner: NikonCommandOwner? { nil }
+    public func writeCameraProperty(
+        _ write: PTPCameraPropertyWrite, admission: NikonCommandAdmission
+    ) async throws {
+        try admission.require(owner: commandOwner)
+        try await writeCameraProperty(write)
+    }
+    public func startRecording(admission: NikonCommandAdmission) async throws {
+        try admission.require(owner: commandOwner)
+        try await startRecording()
+    }
+    public func stopRecording(admission: NikonCommandAdmission) async throws {
+        try admission.require(owner: commandOwner)
+        try await stopRecording()
+    }
 }
 
 /// The command side of one Nikon control pump that the app's single-camera model does not own (a

@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import kotlinx.coroutines.delay
+
 /**
  * Leave camera playback and bring live view back; Mimo's "Back to live view".
  *
@@ -46,13 +48,15 @@ object MediaLiveResume {
 
 /** The production media-return loop; the session claims its one repair slot before calling. */
 object MediaLiveResumeRunner {
+    private val defaultSleep: suspend (Long) -> Unit = { delay(it) }
+
     enum class Result { RESTORED, EXHAUSTED, SUPERSEDED }
 
     /** Link absence during an existing negotiation is not loss of the media-return owner. */
     suspend fun awaitRepairSlot(
         isCurrent: () -> Boolean,
         repairBusy: () -> Boolean,
-        sleep: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) },
+        sleep: suspend (Long) -> Unit = defaultSleep,
     ): Boolean {
         while (isCurrent() && repairBusy()) sleep(100)
         return isCurrent()
@@ -66,7 +70,7 @@ object MediaLiveResumeRunner {
         pictureFresh: () -> Boolean,
         exitPlayback: suspend () -> Boolean,
         enableLiveView: () -> Boolean,
-        sleep: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) },
+        sleep: suspend (Long) -> Unit = defaultSleep,
     ): Result {
         val startedAt = nowMs()
         var attempt = 1

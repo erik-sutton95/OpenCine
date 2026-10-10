@@ -48,10 +48,11 @@ internal object Values {
         scope: CoroutineScope,
         saved: List<SavedCamera> = listOf(camera),
         defaults: Defaults = Defaults(emptyMap()),
+        routePolicy: CamerasModel.RoutePolicy = CamerasModel.RoutePolicy.PREFERRED,
     ): CamerasModel {
         val store = SavedCamerasStore(defaults.at("document"))
         store.save(saved)
-        return CamerasModel(integrations.map { AppIntegration(it) }, store, scope)
+        return CamerasModel(integrations.map { AppIntegration(it) }, store, scope, routePolicy)
     }
 }
 
@@ -107,6 +108,26 @@ class CamerasModelTest {
         runCurrent()
         assertEquals(listOf(DiscoveryMode.PASSIVE), fake.liveDiscoveries)
         assertTrue(model.now.scanning)
+    }
+
+    @Test
+    fun aReachableRouteBeatsThePreferredOneOnlyWhenTheAppPrefersIt() = runTest {
+        // The camera prefers its access point; a sighting reaches it over Wi-Fi.
+        val reaching = NearbyCamera(
+            "n1", savedID = Values.camera.id, name = "CAM-1", model = "Test Body",
+            routes = setOf(RouteKind.INFRASTRUCTURE_NETWORK), routeKey = Values.wifi.key,
+        )
+        for ((policy, expected) in listOf(CamerasModel.RoutePolicy.PREFERRED to Values.ap, CamerasModel.RoutePolicy.PREFER_REACHABLE to Values.wifi)) {
+            val fake = FakeIntegration(id = IntegrationID("test.cameras"))
+            val model = Values.model(listOf(fake), backgroundScope, routePolicy = policy)
+            runCurrent()
+            assertEquals(Values.ap.id, model.defaultRoute(Values.camera), "$policy")
+            fake.publish(listOf(reaching))
+            runCurrent()
+            assertEquals(listOf(expected.id.text), CamerasMapping.paired(model)[0].setups.filter { it.active }.map { it.id }, "$policy")
+            model.connect(Values.camera)
+            assertEquals(listOf<ConnectTarget>(ConnectTarget.Saved(Values.camera, expected.id)), fake.attempts.map { it.target }, "$policy")
+        }
     }
 
     @Test

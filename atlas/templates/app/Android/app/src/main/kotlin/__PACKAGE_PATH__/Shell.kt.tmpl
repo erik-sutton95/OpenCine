@@ -1,0 +1,22 @@
+package __APP_ID__
+
+import com.opencapture.opencine.appkit.CamerasModel
+import com.opencapture.opencine.appkit.AppIntegration
+import com.opencapture.opencine.appkit.MonitorControlModel
+import com.opencapture.opencine.appkit.SavedCamerasStore
+import com.opencapture.opencine.appkit.ShellBrand
+import com.opencapture.opencine.appkit.ShellModel
+import com.opencapture.opencine.appkit.StoredString
+import kotlinx.coroutines.CoroutineScope
+
+/** Brand configuration: what the shared shell shows of this app. Brand variation is values only. */
+val brand = ShellBrand("__NAME__")
+
+/**
+ * The app's root (Swift `makeShell`): OpenCine's cameras model over this flavor's [integrations]
+ * (the shipping list, or the SIMULATED one) and the shell over it. Saved cameras live in
+ * [document], a key in this app's own preferences.
+ */
+fun makeShell(document: StoredString, scope: CoroutineScope, integrationList: List<AppIntegration> = integrations(),
+    control: MonitorControlModel = MonitorControlModel(scope)): ShellModel =
+    ShellModel(CamerasModel(integrationList, SavedCamerasStore(document), scope), control)

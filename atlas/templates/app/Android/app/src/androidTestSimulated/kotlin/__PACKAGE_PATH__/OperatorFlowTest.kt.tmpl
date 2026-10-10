@@ -1,0 +1,365 @@
+package __APP_ID__
+
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.pm.ActivityInfo
+import android.content.ComponentName
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Rect
+import android.os.Bundle
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import com.opencapture.opencine.runtime.MonitorTexturePictureHost
+import java.io.File
+import org.junit.Test
+import org.junit.runner.RunWith
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/** SIMULATED installed-app acceptance over the actual shared scene and MediaPlayer decoder. */
+@RunWith(AndroidJUnit4::class)
+class OperatorFlowTest {
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val automation = instrumentation.uiAutomation
+    private val context = instrumentation.targetContext
+    init {
+        // Playback controls use a focused Popup window; its native picture stays in the app window.
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+    }
+
+    @Test
+    fun capabilityChangeHidesISOAndRetiresItsOpenEditor() {
+        resetSimulatedInstall()
+        val intent = Intent(context, MainActivity::class.java).putExtra("SIMULATED_DROP_ISO_AFTER_EDIT", true)
+        ActivityScenario.launch<MainActivity>(intent).use {
+            click("pair.device.simulated-camera", "Connect SIMULATED CAMERA")
+            click("Continue")
+            decoded("SIMULATED live picture")
+            click("monitor.capture.iso", "ISO")
+            val drum = awaitNode { it.rangeInfo != null && it.contentDescription?.toString() == "200" }
+            awaitNode { matches(it, "Close camera control") && it.isEnabled }
+            assertTrue(drum.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id,
+                Bundle().apply { putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, 2f) }))
+            awaitGone("monitor.capture.iso")
+            awaitGone("Close camera control")
+            awaitNode { matches(it, "monitor.system.record", "Record") && it.isEnabled }
+            picturePixels(decoded("SIMULATED live picture"), "capability-change-native")
+        }
+    }
+
+    @Test
+    fun pictureOnlyShowsNativePictureWithoutISOOrRecord() {
+        resetSimulatedInstall()
+        val intent = Intent(context, MainActivity::class.java).putExtra("SIMULATED_PICTURE_ONLY", true)
+        ActivityScenario.launch<MainActivity>(intent).use {
+            click("pair.device.simulated-camera", "Connect SIMULATED CAMERA")
+            click("Continue")
+            val picture = decoded("SIMULATED live picture")
+            assertFalse(find(automation.rootInActiveWindow) { matches(it, "monitor.capture.iso", "ISO") } != null)
+            assertFalse(find(automation.rootInActiveWindow) { matches(it, "monitor.system.record", "Record") } != null)
+            picturePixels(picture, "picture-only-native")
+        }
+    }
+
+    @Test
+    fun sharedOperatorFlowNativePixelsCoversPlaybackOfflineAndRelaunch() {
+        resetSimulatedInstall()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            click("pair.device.simulated-camera", "Connect SIMULATED CAMERA")
+            click("Continue")
+            val live = decoded("SIMULATED live picture")
+            val owner = live.contentDescription.toString()
+            val before = picturePixels(live, "01-live-native")
+
+            click("monitor.capture.iso", "ISO")
+            val drum = awaitNode { it.rangeInfo != null && it.contentDescription?.toString() == "200" }
+            val arguments = Bundle().apply { putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, 2f) }
+            assertTrue(drum.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id, arguments), "The real shared drum accepts its next value")
+            awaitNode { it.rangeInfo != null && it.contentDescription?.toString() == "400" }
+            click("Close camera control")
+            awaitNode { matches(it, "monitor.capture.iso", "ISO") && visibleText(it).contains("400") }
+
+            click("monitor.system.record", "Record")
+            awaitNode { it.text?.toString() == "Start recording?" }
+            click("Start")
+            awaitNode { matches(it, "monitor.system.record", "Stop recording") && visibleText(it).contains("Stop", true) }
+            click("monitor.system.record", "Stop recording")
+            awaitNode { it.text?.toString() == "Stop recording?" }
+            click("Stop")
+            awaitNode { matches(it, "monitor.system.record", "Record") && visibleText(it).contains("Record", true) }
+
+            click("monitor.system.settings", "Settings")
+            awaitNode { it.viewIdResourceName?.endsWith("monitor.settings.tabs") == true || visibleText(it) == "DISPLAY" }
+            screenshot("02-settings")
+            selectSettingsTab("View Assist")
+            click("monitor.assist.FALSE")
+            click("monitor.page.back", "Back")
+            awaitProcessedPicture(before, "02-false-colour-native")
+            assertEquals(owner, decoded("SIMULATED live picture").contentDescription.toString(), "Settings and native assists borrow the live owner")
+            click("monitor.system.settings", "Settings")
+            selectSettingsTab("View Assist")
+            click("monitor.assist.FALSE")
+            click("monitor.page.back", "Back")
+
+            click("monitor.system.media", "Media")
+            val clip = "monitor.media.clip.simulated-colour-bars-v1"
+            click(clip, "SIMULATED.mp4")
+            startLoopingPlayback()
+            val firstPlayer = decoded("SIMULATED playback picture")
+            val firstOwner = firstPlayer.contentDescription.toString()
+            picturePixels(firstPlayer, "03-playback-native")
+            click("Pause")
+            awaitNode { matches(it, "Play") && it.isEnabled }
+            click("Play")
+            awaitNode { matches(it, "Pause") && it.isEnabled }
+            click("monitor.playback.back", "Back to media")
+            click(clip, "SIMULATED.mp4")
+            val reopened = decoded("SIMULATED playback picture")
+            assertNotEquals(firstOwner, reopened.contentDescription.toString(), "Reopening creates a fresh shared player")
+            picturePixels(reopened, "04-reopened-playback-native")
+            click("monitor.playback.back", "Back to media")
+            click("monitor.page.back", "Back")
+            val returned = decoded("SIMULATED live picture")
+            assertEquals(owner, returned.contentDescription.toString(), "Media and playback preserve the live owner")
+            assertFalse(before.contentEquals(picturePixels(returned, "05-live-returned-native")), "The moving source kept advancing")
+
+            scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+            val landscape = decoded("SIMULATED live picture")
+            assertEquals(owner, landscape.contentDescription.toString(), "Rotation preserves the live owner")
+            picturePixels(landscape, "06-live-landscape-native")
+            scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+            click("monitor.page.back", "Back")
+            click("cameras.media", "Media library")
+            click(clip, "SIMULATED.mp4")
+            picturePixels(decoded("SIMULATED playback picture"), "07-offline-native")
+            click("monitor.playback.back", "Back to media")
+            click("monitor.page.back", "Back")
+        }
+        ActivityScenario.launch(MainActivity::class.java).use {
+            val setup = awaitNode {
+                (it.viewIdResourceName?.contains("cameras.setup.") == true ||
+                    visibleText(it).startsWith("Connect SIMULATED CAMERA over ")) &&
+                    clickableAncestor(it) != null
+            }
+            assertTrue(assertNotNull(clickableAncestor(setup)).performAction(AccessibilityNodeInfo.ACTION_CLICK),
+                "The actual saved-camera card reconnects the captured setup")
+            picturePixels(decoded("SIMULATED live picture"), "08-saved-connect-native")
+            click("monitor.page.back", "Back")
+        }
+        val companionPackage = "__APP_ID__.companion.simulated"
+        instrumentation.runOnMainSync {
+            context.startActivity(Intent().setComponent(ComponentName(companionPackage, "__APP_ID__.companion.MainActivity"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        awaitNode { it.packageName?.toString() == companionPackage && matches(it, "pair.device.simulated-camera", "Connect SIMULATED CAMERA") }
+        assertFalse(find(automation.rootInActiveWindow) {
+            it.packageName?.toString() == companionPackage && matches(it, "cameras.media", "Media library")
+        } != null, "The second generated app has no saved camera")
+        screenshot("09-second-generated-app")
+    }
+
+    private fun click(vararg names: String) {
+        val matched = awaitNode(preferred = { node ->
+            names.any { node.viewIdResourceName?.endsWith(it) == true }
+        }) { node ->
+            matches(node, *names) && clickableAncestor(node) != null
+        }
+        val target = assertNotNull(clickableAncestor(matched))
+        assertTrue(target.performAction(AccessibilityNodeInfo.ACTION_CLICK), "Could not activate ${names.joinToString()}")
+    }
+    private fun selectSettingsTab(title: String) {
+        val identifier = "monitor.settings.tab.$title"
+        val tab = awaitNode { it.viewIdResourceName?.endsWith(identifier) == true }
+        // Compose exposes an already selected tab without a redundant click action.
+        if (!tab.isSelected) click(identifier, title)
+        awaitNode { it.viewIdResourceName?.endsWith(identifier) == true && it.isSelected }
+    }
+    private fun startLoopingPlayback() {
+        // Pixel capture can outlast the short golden clip. Exercise the public loop action.
+        click("Loop clip")
+        val transport = awaitNode {
+            matches(it, "Pause", "Play", "Restart clip") && clickableAncestor(it) != null
+        }
+        if (!matches(transport, "Pause")) click("Play", "Restart clip")
+        awaitNode { matches(it, "Pause") && it.isEnabled }
+    }
+    private fun clickableAncestor(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node
+        while (current != null) {
+            if (current.isVisibleToUser && current.isEnabled && current.isClickable) return current
+            current = current.parent
+        }
+        return null
+    }
+    private fun resetSimulatedInstall() {
+        assertTrue(context.packageName.endsWith(".simulated"), "Only the isolated SIMULATED test installation may be reset")
+        listOf("__NAME__.cameras", "__NAME__.operator", "__NAME__.media").forEach {
+            context.getSharedPreferences(it, 0).edit().clear().commit()
+        }
+        File(context.filesDir, "Media").deleteRecursively()
+    }
+    // A playing native clip has continuous frame callbacks. Poll the actual state with
+    // bounded waits instead of requiring global main-queue idleness.
+    private fun awaitGone(identifier: String) {
+        val deadline = SystemClock.uptimeMillis() + 10_000
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (find(automation.rootInActiveWindow) { matches(it, identifier) } == null) return
+            runCatching { automation.waitForIdle(30, 250) }
+        }
+        throw AssertionError("Retired shared control remained visible: $identifier")
+    }
+    private fun matches(node: AccessibilityNodeInfo, vararg names: String): Boolean = names.any {
+        node.viewIdResourceName?.endsWith(it) == true || node.contentDescription?.toString() == it || node.text?.toString() == it
+    }
+    private fun visibleText(node: AccessibilityNodeInfo): String =
+        listOfNotNull(node.text, node.contentDescription).joinToString(" ") + (0 until node.childCount).joinToString(" ") { index ->
+            node.getChild(index)?.let(::visibleText).orEmpty()
+        }
+    private fun decoded(prefix: String): AccessibilityNodeInfo {
+        val deadline = SystemClock.uptimeMillis() + 15_000
+        while (SystemClock.uptimeMillis() < deadline) {
+            var picture: AccessibilityNodeInfo? = null
+            instrumentation.runOnMainSync {
+                fun visit(view: View) {
+                    if (!view.isShown || picture != null) return
+                    if (view is MonitorTexturePictureHost && view.isAttachedToWindow &&
+                        view.contentDescription?.toString()?.let {
+                            it.startsWith(prefix) && it.contains("Decoded")
+                        } == true) {
+                        picture = view.createAccessibilityNodeInfo()
+                    } else if (view is ViewGroup) {
+                        for (index in 0 until view.childCount) visit(view.getChildAt(index))
+                    }
+                }
+                // The focused playback Popup excludes the transparent underlying Activity from
+                // UiAutomation windows. Inspect its actual retained native view without mutating it.
+                ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+                    .forEach { visit(it.window.decorView) }
+            }
+            picture?.let { return it }
+            runCatching { automation.waitForIdle(30, 250) }
+        }
+        screenshot("failure")
+        writeFailureTree()
+        throw AssertionError("The actual retained native host did not present its captured decoded owner: $prefix")
+    }
+    private fun awaitNode(preferred: ((AccessibilityNodeInfo) -> Boolean)? = null,
+        includeOtherWindows: Boolean = false, predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo {
+        val deadline = SystemClock.uptimeMillis() + 15_000
+        while (SystemClock.uptimeMillis() < deadline) {
+            val roots = if (includeOtherWindows) automation.windows.mapNotNull { it.root }
+                else listOfNotNull(automation.rootInActiveWindow)
+            for (root in roots) {
+                val preferredMatch = preferred?.let { priority -> findCurrent(root) { priority(it) && predicate(it) } }
+                (preferredMatch ?: findCurrent(root, predicate))?.let { return it }
+            }
+            runCatching { automation.waitForIdle(30, 250) }
+        }
+        screenshot("failure")
+        writeFailureTree()
+        throw AssertionError("Expected visible shared control or decoded native picture did not arrive")
+    }
+    private fun writeFailureTree() {
+        val tree = buildString {
+            var visited = 0
+            fun walk(node: AccessibilityNodeInfo?, depth: Int) {
+                if (node == null || depth > 40 || visited >= 500) return
+                visited += 1
+                if (node.isVisibleToUser) {
+                    val bounds = Rect().also(node::getBoundsInScreen)
+                    val range = node.rangeInfo?.let { "${it.type}:${it.min}..${it.max} current=${it.current}" }
+                    fun field(value: CharSequence?): String = value?.toString()?.take(240)?.replace("\n", "\\n").orEmpty()
+                    append("  ".repeat(depth))
+                    append("id=${field(node.viewIdResourceName)} text=${field(node.text)} description=${field(node.contentDescription)} ")
+                    append("enabled=${node.isEnabled} clickable=${node.isClickable} range=$range bounds=$bounds\n")
+                }
+                for (index in 0 until node.childCount) walk(node.getChild(index), depth + 1)
+            }
+            automation.windows.forEach { window ->
+                append("Window id=${window.id} type=${window.type} active=${window.isActive} focused=${window.isFocused}\n")
+                walk(window.root, 0)
+            }
+            append("Visited $visited nodes (limit 500, depth 40).\n")
+        }
+        val native = buildString {
+            instrumentation.runOnMainSync {
+                var count = 0
+                fun walk(view: View, depth: Int) {
+                    if (depth > 40 || count++ >= 500) return
+                    if (view is MonitorTexturePictureHost) {
+                        val bounds = Rect().also { view.getGlobalVisibleRect(it) }
+                        append("Native ${view.javaClass.simpleName} shown=${view.isShown} attached=${view.isAttachedToWindow} description=${view.contentDescription} bounds=$bounds\n")
+                    }
+                    if (view is ViewGroup) for (index in 0 until view.childCount) walk(view.getChildAt(index), depth + 1)
+                }
+                ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
+                    .forEach { walk(it.window.decorView, 0) }
+            }
+        }
+        File(context.getExternalFilesDir(null), "SIMULATED-flow/failure-tree.txt").writeText(tree + native)
+    }
+    // Positive lookup reads the current native owner; obsolete or unreadable nodes cannot satisfy it.
+    private fun findCurrent(node: AccessibilityNodeInfo?, predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        if (node == null || runCatching { node.refresh() }.getOrNull() != true) return null
+        if (node.isVisibleToUser && predicate(node)) return node
+        for (index in 0 until node.childCount) findCurrent(node.getChild(index), predicate)?.let { return it }
+        return null
+    }
+    private fun find(node: AccessibilityNodeInfo?, predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isVisibleToUser && predicate(node)) return node
+        for (index in 0 until node.childCount) find(node.getChild(index), predicate)?.let { return it }
+        return null
+    }
+    private fun screenshot(name: String): Bitmap {
+        val bitmap = assertNotNull(automation.takeScreenshot())
+        val directory = File(context.getExternalFilesDir(null), "SIMULATED-flow").apply { mkdirs() }
+        File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        return bitmap
+    }
+    private fun awaitProcessedPicture(before: IntArray, name: String) {
+        val deadline = SystemClock.uptimeMillis() + 10_000
+        var attempt = 0
+        while (SystemClock.uptimeMillis() < deadline) {
+            val after = picturePixels(decoded("SIMULATED live picture"), "$name-${attempt++}")
+            if (!before.copyOfRange(0, before.size / 2).contentEquals(after.copyOfRange(0, after.size / 2))) return
+            runCatching { automation.waitForIdle(30, 250) }
+        }
+        throw AssertionError("The static upper colour bars did not change through the actual shared false-colour renderer")
+    }
+    private fun picturePixels(node: AccessibilityNodeInfo, name: String): IntArray {
+        var bitmap = screenshot(name)
+        val bounds = Rect().also(node::getBoundsInScreen)
+        assertTrue(bounds.intersect(0, 0, bitmap.width, bitmap.height) && bounds.width() > 32 && bounds.height() > 32)
+        val pixels = IntArray(bounds.width() * bounds.height())
+        val pixelDeadline = SystemClock.uptimeMillis() + 10_000
+        var colored: Int
+        do {
+            bitmap.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top, bounds.width(), bounds.height())
+            colored = pixels.count {
+                val rgb = listOf(Color.red(it), Color.green(it), Color.blue(it))
+                rgb.max() - rgb.min() > 60 && rgb.max() > 100
+            }
+            if (colored > pixels.size / 20 || SystemClock.uptimeMillis() >= pixelDeadline) break
+            runCatching { automation.waitForIdle(30, 250) }
+            bitmap = screenshot(name)
+        } while (true)
+        assertTrue(colored > pixels.size / 20, "Real native source must occupy the bounded picture ($colored/${pixels.size})")
+        File(context.getExternalFilesDir(null), "SIMULATED-flow/$name-pixels.txt")
+            .writeText("SIMULATED $name: bounds=$bounds width=${bounds.width()} height=${bounds.height()} coloredPixels=$colored\n")
+        return pixels
+    }
+}

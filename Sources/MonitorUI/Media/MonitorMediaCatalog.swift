@@ -3,8 +3,12 @@
     import SwiftUI
 
     /// The complete shared gallery. The thumbnail slot is the sole image-loading seam;
-    /// actions remain intents so another camera storefront supplies its own I/O.
-    public struct MonitorMediaCatalog<Thumbnail: View, Empty: View, Filters: View>: View {
+    /// actions remain intents so another camera storefront supplies its own I/O. The sidebar
+    /// (landscape navigation, under the library status) and the accessory (under the header)
+    /// are optional camera slots.
+    public struct MonitorMediaCatalog<
+        Thumbnail: View, Empty: View, Filters: View, Sidebar: View, Accessory: View
+    >: View {
         private let brand: String
         private let safeArea: EdgeInsets
         private let items: [MonitorMediaItem]
@@ -22,6 +26,8 @@
         private let thumbnail: (MonitorMediaItem) -> Thumbnail
         private let empty: Empty
         private let filters: Filters
+        private let sidebar: Sidebar
+        private let accessory: Accessory
         private let tablet: Bool
         @State private var selectionInteraction = MonitorMediaSelectionInteraction()
         @Environment(\.scenePhase) private var scenePhase
@@ -33,7 +39,8 @@
             selectedIDs: Set<String>, selecting: Bool, refreshing: Bool, canRefresh: Bool,
             tablet: Bool, action: @escaping (MonitorMediaAction) -> Void,
             @ViewBuilder thumbnail: @escaping (MonitorMediaItem) -> Thumbnail,
-            @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters
+            @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters,
+            @ViewBuilder sidebar: () -> Sidebar, @ViewBuilder accessory: () -> Accessory
         ) {
             self.brand = brand
             self.safeArea = safeArea
@@ -53,6 +60,8 @@
             self.thumbnail = thumbnail
             self.empty = empty()
             self.filters = filters()
+            self.sidebar = sidebar()
+            self.accessory = accessory()
         }
 
         public var body: some View {
@@ -65,6 +74,7 @@
             } detail: { portrait in
                 VStack(alignment: .leading, spacing: 8) {
                     header(portrait: portrait)
+                    accessory
                     gallery
                     if selecting { selectionTray }
                     if portrait { displayControls }
@@ -99,6 +109,7 @@
                     }
                     .padding(9).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                    sidebar
                 }
                 if !portrait { displayControls }
             }
@@ -205,68 +216,26 @@
         }
 
         private func gridCard(_ item: MonitorMediaItem) -> some View {
-            VStack(alignment: .leading, spacing: 0) {
-                thumbnail(item)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit).clipped()
-                    .overlay(alignment: .topLeading) {
-                        if selecting { selectButton(item).padding(2) }
-                    }
-                    .overlay(alignment: .topTrailing) { favoriteButton(item).padding(2) }
-                    .overlay(alignment: .bottomLeading) { stateTag(item).padding(6) }
-                    .overlay(alignment: .bottomTrailing) { durationTag(item).padding(6) }
-                    .overlay(alignment: .bottom) { progressBar(item) }
-                    .contentShape(Rectangle())
-                    .onTapGesture { action(selecting ? .select(item.id) : .open(item.id)) }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.filename).font(MonitorTheme.font(10.5, weight: .semibold))
-                        .foregroundStyle(MonitorTheme.text)
-                    Text(item.metadata).font(MonitorTheme.font(9)).foregroundStyle(
-                        MonitorTheme.faint)
-                }
-                .lineLimit(1).padding(.horizontal, 9).padding(.vertical, 8)
-            }
-            .background(MonitorTheme.surface).clipShape(RoundedRectangle(cornerRadius: 11))
-            .overlay { selectedOverlay(item, radius: 11) }
-            .background(MonitorMediaSelectionAnchor(id: item.id, interaction: selectionInteraction))
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("monitor.media.clip.\(item.id)")
-            .accessibilityAction(named: selecting ? "Toggle selection" : "Select clip") {
-                action(.select(item.id))
-            }
+            cell(item, layout: .grid)
         }
 
         private func listRow(_ item: MonitorMediaItem) -> some View {
-            HStack(spacing: 10) {
-                if selecting { selectButton(item) }
-                thumbnail(item).frame(width: tablet ? 96 : 76, height: tablet ? 54 : 43)
-                    .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(alignment: .bottomTrailing) { durationTag(item) }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.filename).font(MonitorTheme.font(11.5, weight: .semibold))
-                        .foregroundStyle(MonitorTheme.text)
-                    Text(item.metadata).font(MonitorTheme.font(9.5)).foregroundStyle(
-                        MonitorTheme.faint)
-                }
-                .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                if tablet {
-                    Text(item.format).font(MonitorTheme.font(10.5)).frame(
-                        width: 100, alignment: .leading)
-                    Text(item.color).font(MonitorTheme.font(9, weight: .bold)).frame(width: 70)
-                    stateTag(item)
-                }
-                favoriteButton(item)
-            }
-            .padding(.horizontal, 8).padding(.vertical, 8)
-            .foregroundStyle(MonitorTheme.secondary)
-            .contentShape(Rectangle())
-            .onTapGesture { action(selecting ? .select(item.id) : .open(item.id)) }
-            .overlay { selectedOverlay(item, radius: 0) }
-            .background(MonitorMediaSelectionAnchor(id: item.id, interaction: selectionInteraction))
-            .accessibilityElement(children: .contain)
+            cell(item, layout: .list)
+        }
+
+        private func cell(_ item: MonitorMediaItem, layout: MonitorMediaLayout) -> some View {
+            MonitorMediaCell(
+                clip: MonitorClipValue(item: item), layout: layout, tablet: tablet,
+                selecting: selecting, selected: selectedIDs.contains(item.id),
+                favoriteEnabled: item.permissions.contains(.favorite),
+                sourceTint: item.availability == .original ? MonitorTheme.color(0x3FD3A3) : MonitorTheme.muted,
+                onOpen: { action(.open(item.id)) }, onSelect: { action(.select(item.id)) },
+                onFavorite: { action(.favorite(item.id)) }
+            ) { thumbnail(item) }
+            // On the cell's own element, before the selection anchor joins it: after it, both
+            // carried the identifier and a clip no longer resolved to one element.
             .accessibilityIdentifier("monitor.media.clip.\(item.id)")
-            .accessibilityAction(named: selecting ? "Toggle selection" : "Select clip") {
-                action(.select(item.id))
-            }
+            .background(MonitorMediaSelectionAnchor(id: item.id, interaction: selectionInteraction))
         }
 
         private var selectedItems: [MonitorMediaItem] {
@@ -345,77 +314,25 @@
             .buttonStyle(MonitorButtonStyle()).accessibilityLabel(label)
         }
 
-        private func selectButton(_ item: MonitorMediaItem) -> some View {
-            Button {
-                action(.select(item.id))
-            } label: {
-                (selectedIDs.contains(item.id) ? MonitorIcon.circleCheck : .circle)
-                    .frame(width: 22, height: 22).foregroundStyle(
-                        selectedIDs.contains(item.id) ? MonitorTheme.accent : .white.opacity(0.7)
-                    )
-                    .background(.black.opacity(0.4), in: Circle()).frame(width: 44, height: 44)
-            }
-            .buttonStyle(MonitorButtonStyle())
-            .accessibilityLabel(
-                selectedIDs.contains(item.id)
-                    ? "Deselect \(item.filename)" : "Select \(item.filename)")
-        }
+    }
 
-        private func favoriteButton(_ item: MonitorMediaItem) -> some View {
-            Button {
-                action(.favorite(item.id))
-            } label: {
-                MonitorIcon.star.view(filled: item.favorite).frame(width: 13, height: 13)
-                    .foregroundStyle(
-                        item.favorite ? MonitorTheme.color(0xE9C35A) : .white.opacity(0.7)
-                    )
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(MonitorButtonStyle()).disabled(!item.permissions.contains(.favorite))
-            .accessibilityLabel(item.favorite ? "Remove favorite" : "Add favorite")
-        }
-
-        private func stateTag(_ item: MonitorMediaItem) -> some View {
-            Text(item.stateLabel).font(MonitorTheme.font(8, weight: .bold)).tracking(0.4)
-                .foregroundStyle(
-                    item.progress != nil
-                        ? MonitorTheme.accent
-                        : item.availability == .original
-                            ? MonitorTheme.color(0x3FD3A3) : MonitorTheme.muted
-                )
-                .padding(.horizontal, 5).padding(.vertical, 3)
-                .background(.black.opacity(0.66), in: RoundedRectangle(cornerRadius: 4))
-        }
-
-        private func durationTag(_ item: MonitorMediaItem) -> some View {
-            Text(item.duration).font(MonitorTheme.font(9.5, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(.white).padding(.horizontal, 5).padding(.vertical, 3)
-                .background(
-                    item.duration.isEmpty ? .clear : .black.opacity(0.66),
-                    in: RoundedRectangle(cornerRadius: 4))
-        }
-
-        @ViewBuilder private func progressBar(_ item: MonitorMediaItem) -> some View {
-            if let progress = item.progress {
-                GeometryReader { proxy in
-                    Rectangle().fill(MonitorTheme.accent)
-                        .frame(width: proxy.size.width * min(1, max(0, progress)))
-                }
-                .frame(height: 3).background(.black.opacity(0.5))
-            }
-        }
-
-        @ViewBuilder private func selectedOverlay(_ item: MonitorMediaItem, radius: CGFloat)
-            -> some View
-        {
-            if selectedIDs.contains(item.id) {
-                RoundedRectangle(cornerRadius: radius).fill(MonitorTheme.accent.opacity(0.14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: radius).strokeBorder(
-                            MonitorTheme.accent, lineWidth: 2)
-                    )
-                    .allowsHitTesting(false)
-            }
+    extension MonitorMediaCatalog where Sidebar == EmptyView, Accessory == EmptyView {
+        public init(
+            brand: String, safeArea: EdgeInsets, items: [MonitorMediaItem],
+            categories: [MonitorMediaCategory], category: String, layout: MonitorMediaLayout,
+            thumbnailSize: MonitorThumbnailSize, sortTitle: String, status: String,
+            selectedIDs: Set<String>, selecting: Bool, refreshing: Bool, canRefresh: Bool,
+            tablet: Bool, action: @escaping (MonitorMediaAction) -> Void,
+            @ViewBuilder thumbnail: @escaping (MonitorMediaItem) -> Thumbnail,
+            @ViewBuilder empty: () -> Empty, @ViewBuilder filters: () -> Filters
+        ) {
+            self.init(
+                brand: brand, safeArea: safeArea, items: items, categories: categories,
+                category: category, layout: layout, thumbnailSize: thumbnailSize,
+                sortTitle: sortTitle, status: status, selectedIDs: selectedIDs,
+                selecting: selecting, refreshing: refreshing, canRefresh: canRefresh,
+                tablet: tablet, action: action, thumbnail: thumbnail, empty: empty,
+                filters: filters, sidebar: { EmptyView() }, accessory: { EmptyView() })
         }
     }
 #endif

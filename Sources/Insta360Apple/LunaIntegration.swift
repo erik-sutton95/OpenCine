@@ -82,7 +82,8 @@ public final class LunaIntegration: CameraIntegration {
         ConnectionStep(title: "Opening the video link"), ConnectionStep(title: "Starting the picture"),
     ]
     static let approve = "Approve on the camera"
-    static let join = "Tap Join when iOS asks to join the camera network"
+    static let reading = "Reading Wi-Fi credentials…"
+    static let joining = "Joining camera Wi-Fi…"
 
     private let port: any LunaConnectPort
     private let now: () -> Date
@@ -240,12 +241,7 @@ public final class LunaIntegration: CameraIntegration {
             }
             for continuation in listeners.values { continuation.yield(sightings) }
         case .phase(let phase):
-            if let attempt = current, Self.apply(phase, to: attempt, network: port.joinedNetwork) { report(attempt) }
-        case .note(let text):
-            if let attempt = current, case .acceptNetworkJoin(let network, _) = attempt.prompt {
-                attempt.prompt = .acceptNetworkJoin(network: network, text)
-                report(attempt)
-            }
+            if let attempt = current, Self.apply(phase, to: attempt) { report(attempt) }
         default: break
         }
         onEvent?(event)
@@ -283,7 +279,7 @@ public final class LunaIntegration: CameraIntegration {
 
     /// The backend's link phase as the attempt's phase, step and prompt (the same phases
     /// `LunaCameraSession` reports). `false` for phases that are not progress (`idle`).
-    private static func apply(_ phase: CameraConnectionPhase, to attempt: Attempt, network: String?) -> Bool {
+    private static func apply(_ phase: CameraConnectionPhase, to attempt: Attempt) -> Bool {
         attempt.note = nil
         switch phase {
         case .idle: return false
@@ -294,10 +290,9 @@ public final class LunaIntegration: CameraIntegration {
         case .awaitingApproval:
             (attempt.phase, attempt.step, attempt.prompt) = (.awaitingApproval, 0, .approveOnCamera(approve))
         case .readingWiFi, .joiningWiFi:
-            (attempt.phase, attempt.step) = (.joiningNetwork, 1)
-            if case .acceptNetworkJoin = attempt.prompt {} else {
-                attempt.prompt = .acceptNetworkJoin(network: network ?? "", join)
-            }
+            // The Wi-Fi step's caption is its phase, as the app has always shown it.
+            (attempt.phase, attempt.step, attempt.prompt) = (.joiningNetwork, 1, nil)
+            attempt.note = phase == .readingWiFi ? reading : joining
         case .openingVideo: (attempt.phase, attempt.step, attempt.prompt) = (.link, 2, nil)
         case .streaming: (attempt.phase, attempt.step, attempt.prompt) = (.link, 3, nil)
         }

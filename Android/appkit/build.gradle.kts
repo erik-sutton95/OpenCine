@@ -29,7 +29,12 @@ dependencies {
     api(project(":core"))
     api(project(":media"))
     api(project(":monitor-ui"))
+    api(project(":multicam"))
     implementation(libs.kotlinx.coroutines.android)
+    // AndroidX (catalog versions = the apps'): ContextCompat's not-exported battery receiver and
+    // FileProvider for media sharing; the photo picker launcher of the problem report form.
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
     testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)

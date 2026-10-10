@@ -19,6 +19,14 @@ private func blob(_ field: Int, _ value: Data) throws -> Data { try ProtoMessage
 private func float(_ bits: UInt32) -> Double { Double(Float(bitPattern: bits)) }
 
 final class LunaOfficialSetTests: XCTestCase {
+    // SIMULATED encoding of source-backed paging; original captured request fixtures stay exact.
+    func testStorageInventoryAndPagingWire() throws {
+        XCTAssertEqual(try LunaProtocol.fileListRequest(start: 50, count: 50, location: 3).body,
+                       hex("0802103218322003"))
+        XCTAssertEqual(try LunaProtocol.fileInfoListRequest(location: 3).body, hex("0803"))
+        XCTAssertEqual(try LunaProtocol.storageListRequest().body, hex("0a04b001b101"))
+    }
+
     func testPhotographySetsMatchOfficialBytes() throws {
         let cases: [(LunaRequest, String)] = [
             (try LunaProtocol.setGimbalFollowSpeed(.fast), "0a015b1211a20100aa0100f80101c00501da050210031807"),
@@ -209,6 +217,8 @@ final class LunaOfficialSetTests: XCTestCase {
         XCTAssertEqual(track.command, .openTracking)
         XCTAssertEqual(track.body, hex("089ff3fbcf8a3415823c053f2590a7043e2da709683e"))
         XCTAssertEqual(LunaProtocol.cancelTrackingRequest.body, Data())
+        XCTAssertEqual(LunaProtocol.keyframeRequest.wireCode, 105)
+        XCTAssertEqual(LunaProtocol.keyframeRequest.body, Data())
         XCTAssertEqual(try LunaProtocol.takePicture(mode: .gimbalPano).body, hex("0805"))
         XCTAssertEqual(try LunaProtocol.takePicture(mode: .normal).body, Data())
         XCTAssertEqual(LunaProtocol.stopLiveRequest.body, Data())

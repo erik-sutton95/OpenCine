@@ -130,6 +130,7 @@ object MonitorScopePanelMath {
     }
 
     fun clampWithGrip(point: MonitorScopePoint, size: MonitorScopeSize, bounds: MonitorScopeRect, grip: Float): MonitorScopePoint {
+        if (grip <= 0f) return clamp(point, size, bounds)
         val density = grip / GRIP_EXTERIOR_DP
         val bottomGrip = GRIP_BOTTOM_EXTERIOR_DP * density
         val hit = gripHitSize(size.width / density, size.height / density) * density

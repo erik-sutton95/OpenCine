@@ -22,7 +22,8 @@ import com.opencapture.opencine.media.MonitorPeakingSense
 sealed class MonitorAssistSettingsSection private constructor(
     val tool: MonitorAssistTool, internal val reset: (() -> Unit)?,
 ) {
-    @Composable internal abstract fun Menu(): Unit
+    /** The card body alone, for an inspector that shows the same controls as Settings. */
+    @Composable public abstract fun Menu(): Unit
 
     class FalseColor<Scale>(
         scales: List<Scale>, private val scale: Scale, private val onScale: (Scale) -> Unit,

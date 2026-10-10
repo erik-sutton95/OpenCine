@@ -179,6 +179,8 @@
             #expect(CMSampleBufferGetPresentationTimeStamp(first) == CMTime(value: 1, timescale: 60_000))
             #expect(CMSampleBufferGetPresentationTimeStamp(second) == CMTime(value: 2, timescale: 60_000))
             #expect(CMSampleBufferGetDuration(first) == CMTime(value: 1, timescale: 60_000))
+            // Moved from both iOS apps' EncoderFormatChangeTests: live presents never pace at 30 fps.
+            #expect(CMTimeGetSeconds(LiveViewPresentTiming.sampleTiming(frameIndex: 1).duration) < 1.0 / 50.0)
             for sample in [first, second] {
                 let attachments = try #require(
                     CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false)

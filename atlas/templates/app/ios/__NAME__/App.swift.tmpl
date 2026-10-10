@@ -1,0 +1,54 @@
+import Foundation
+import MonitorPresentation
+import MonitorUI
+import OpenCineAppKit
+import OpenCineCameraControls
+import OpenCineMedia
+import SwiftUI
+
+@main
+struct __NAME__App: App {
+    @State private var shell: ShellModel
+    @State private var media: MonitorOperatorMediaModel<MediaAsset, String>?
+    @State private var assist: MonitorAssistState<IdentityLooks>
+    private let operatorPreferences: MonitorOperatorPreferences
+    private let displayPreferences: MonitorDisplayPreferences
+
+    init() {
+        let defaults = appDefaults()
+        _shell = State(initialValue: makeShell(defaults: defaults))
+        _assist = State(initialValue: MonitorAssistState(looks: IdentityLooks(), storage: defaults,
+            keys: .init(assist: "__NAME__.Assists", cleanPins: "__NAME__.CleanPins", playback: "__NAME__.PlaybackAssists"),
+            cleanPinCases: MonitorAssistSelection.allCases))
+        operatorPreferences = MonitorOperatorPreferences(storage: defaults,
+            keys: .init(keepScreenAwake: "__NAME__.KeepScreenAwake", hdrDisplay: "__NAME__.HDRDisplay",
+                recordConfirmation: "__NAME__.RecordConfirmation", haptics: "__NAME__.Haptics", cacheOriginals: "__NAME__.CacheOriginals"))
+        _media = State(initialValue: makeOperatorMedia(defaults: defaults, preferences: operatorPreferences))
+        displayPreferences = MonitorDisplayPreferences(storage: defaults,
+            keys: .init(live: "__NAME__.Display.Live", clean: "__NAME__.Display.Clean"))
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            MonitorOperatorScene(shell: shell, brand: brand,
+                actions: ShellActions(diagnostics: {}, reportProblem: {}),
+                operatorPreferences: operatorPreferences, displayPreferences: displayPreferences,
+                assist: assist, media: media,
+                availableAssistTools: [.peaking, .falseColor, .zebra, .guides, .grid, .crosshair, .desqueeze, .mirror],
+                picture: { _ in operatorPicture(effects: assist.effects, preferences: operatorPreferences) },
+                thumbnail: operatorThumbnail,
+                playbackPicture: { operatorPlaybackPicture($0, effects: assist.playbackEffects, preferences: operatorPreferences) })
+                .observeMonitorWindowGeometry().preferredColorScheme(.dark)
+        }
+    }
+}
+
+/// Initial source/catalog facts. A real integration composes its own typed look provider.
+/// The shared assist state owns LUT preparation and all operator options.
+@MainActor private final class IdentityLooks: MonitorLookProvider {
+    let selection = "Identity"
+    let cube: CubeLUT? = nil
+    let transfer = MonitorTransfer.rec709
+    let referenceClipByte = 235
+    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
+}

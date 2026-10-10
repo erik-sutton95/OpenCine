@@ -150,7 +150,9 @@ import Testing
 }
 
 /// Optional means optional: no other Core product imports OpenCineRelay, and it imports
-/// Foundation only and names no manufacturer or app.
+/// Foundation only and names no manufacturer or app. Its Apple shell, OpenCineRelayApple,
+/// adds Apple networking and encoding frameworks and nothing else; the watch companion,
+/// OpenCineWatch, adds WatchConnectivity, the watch and phone UI frameworks and OpenCineApple.
 @Suite struct RelayImportRules {
     @Test func relayIsOptionalAndNeutral() throws {
         let root = URL(fileURLWithPath: #filePath)
@@ -169,6 +171,69 @@ import Testing
                         #expect(line == "import Foundation", "\(name): \(line)")
                     }
                     #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
+                } else if target == "OpenCineRelayApple" {
+                    var allowed: Set<String> = [
+                        "Foundation", "OpenCineRelay", "Network", "Observation", "CoreMedia",
+                        "CoreVideo", "VideoToolbox", "os",
+                        // The relay passcodes live in the Keychain.
+                        "Security",
+                    ]
+                    if name == "RelayAppleImageEncoder.swift" || name == "RelayAppleImageDecoder.swift"
+                        || name == "RelayAppleBroadcastPipeline.swift"
+                    {
+                        allowed.insert("CoreGraphics")
+                    }
+                    if name == "RelayAppleImageDecoder.swift" {
+                        allowed.insert("CoreImage")
+                    }
+                    for line in text.split(separator: "\n") {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("import ") else { continue }
+                        let module = String(trimmed.dropFirst(7))
+                        #expect(allowed.contains(module), "\(name): \(trimmed)")
+                    }
+                    #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
+                    let first = text.split(separator: "\n").first.map(String.init) ?? ""
+                    #expect(
+                        first.hasPrefix("#if canImport("), "\(name) is not gated to its platform")
+                    #expect(!text.contains("\u{2014}"), "\(name) has an em dash")
+                } else if target == "OpenCineWatch" {
+                    var allowed: Set<String> = [
+                        "Foundation", "OpenCineRelay", "OpenCineApple", "WatchConnectivity", "SwiftUI",
+                        "WatchKit", "UIKit", "CoreImage", "CoreVideo", "VideoToolbox", "os",
+                    ]
+                    if name == "WatchMonitorPresentation.swift" {
+                        allowed = ["Foundation"]
+                    } else if name == "WatchUIImagePreviewEncoder.swift" {
+                        allowed.formUnion(["ImageIO", "UniformTypeIdentifiers"])
+                    }
+                    for line in text.split(separator: "\n") {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("import ") else { continue }
+                        let module = String(trimmed.dropFirst(7))
+                        #expect(allowed.contains(module), "\(name): \(trimmed)")
+                    }
+                    #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
+                    let first = text.split(separator: "\n").first.map(String.init) ?? ""
+                    if name == "WatchMonitorPresentation.swift" {
+                        #expect(first == "import Foundation", "\(name) is not portable presentation")
+                    } else {
+                        #expect(first.hasPrefix("#if os("), "\(name) is not gated to its platform")
+                    }
+                    #expect(!text.contains("\u{2014}"), "\(name) has an em dash")
+                } else if target == "OpenCineAppKitApple", name == "MonitorWatcherSource.swift" {
+                    let allowed: Set<String> = [
+                        "Foundation", "Network", "Observation", "MonitorPresentation",
+                        "OpenCineRelay", "OpenCineRelayApple", "OpenCineApple",
+                    ]
+                    for line in text.split(separator: "\n") {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("import ") else { continue }
+                        #expect(allowed.contains(String(trimmed.dropFirst(7))), "\(name): \(trimmed)")
+                    }
+                    #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
+                    #expect(text.hasPrefix("#if os(iOS)"), "\(name) is not platform-gated")
+                    #expect(!text.contains("\u{2014}"), "\(name) has an em dash")
                 } else {
                     #expect(!text.contains("OpenCineRelay"), "\(target)/\(name) uses OpenCineRelay")
                 }

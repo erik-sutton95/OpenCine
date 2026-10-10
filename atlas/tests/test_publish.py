@@ -223,6 +223,79 @@ class Rewriters(unittest.TestCase):
         self.assertNotIn("Same pinned", android)
         self.assertEqual(publish.rewrite_workflow(out, keep_for_android=True), out)
 
+    def test_workflow_keeps_shared_core_tests_after_remote_ios_conversion(self):
+        # The actual Insta core-test recipe also runs swift test --package-path ../OpenCine.
+        # Its source tests need the sibling after application dependencies become remote.
+        native = """
+  native:
+    name: Native Swift/iOS
+    steps:
+      # Candidate SDK sibling, removed only when no source tests need it.
+      - name: Check out pinned OpenCine next to the repository
+        run: scripts/checkout-opencine.sh
+      - name: Swift packages
+        run: just core-test
+      - name: iOS unit tests
+        run: just ios-test -only-testing:OpenInstaCineTests
+"""
+        workflow = WORKFLOW.replace("\n  android:", native + "\n  android:")
+        for keep_android in (True, False):
+            with self.subTest(keep_android=keep_android):
+                out = publish.rewrite_workflow(workflow, keep_for_android=keep_android)
+                swift, tail = out.split("  native:")
+                native_job, android = tail.split("  android:")
+                self.assertNotIn("checkout-opencine", swift)
+                self.assertIn("run: swift test", swift)
+                self.assertIn("run: scripts/checkout-opencine.sh", native_job)
+                self.assertIn("just core-test's shared integration tests", native_job)
+                self.assertIn("run: just core-test", native_job)
+                self.assertIn("run: just ios-test -only-testing:OpenInstaCineTests", native_job)
+                self.assertNotIn("Candidate SDK sibling", native_job)
+                self.assertEqual("checkout-opencine" in android, keep_android)
+                self.assertEqual(publish.rewrite_workflow(out, keep_for_android=keep_android), out)
+        urls = {"OpenCine": "https://github.com/o/OpenCine"}
+        package = 'let package = Package(dependencies: [.package(path: "../OpenCine")])\n'
+        remote = publish.rewrite_package_swift(package, urls, 'exact: "0.1.0"')
+        self.assertIn('.package(url: "https://github.com/o/OpenCine", exact: "0.1.0")', remote)
+        self.assertNotIn('.package(path: "../OpenCine")', remote)
+        project = "packages:\n  OpenCine:\n    path: ../../OpenCine\n"
+        self.assertIn("url: https://github.com/o/OpenCine\n    exactVersion: 0.1.0", publish.rewrite_project_yml(project, urls, "0.1.0"))
+        self.assertNotIn("checkout-opencine", publish.drop_checkout_from_script(POST_CLONE))
+
+    def test_workflow_keeps_meta_checkout_for_shared_notes(self):
+        # Pocket/Insta's scripts delegate to ../OpenCine even after remote URL adoption.
+        meta = """
+  meta:
+    steps:
+      # The app's release-note scripts delegate to the pinned shared validators.
+      - name: Check out pinned OpenCine for shared metadata checks
+        run: scripts/checkout-opencine.sh
+      - name: TestFlight notes
+        run: |
+          ./scripts/ios-release-notes-check.sh
+          ./scripts/ios-release-notes-test.sh
+      - name: Play notes
+        run: |
+          ./scripts/android-release-notes-check.sh
+          ./scripts/android-release-notes-test.sh
+"""
+        workflow = WORKFLOW.replace("jobs:\n", "jobs:\n" + meta)
+        for keep_android in (True, False):
+            with self.subTest(keep_android=keep_android):
+                out = publish.rewrite_workflow(workflow, keep_for_android=keep_android)
+                meta_job, tail = out.split("  test:")
+                swift_job, android = tail.split("  android:")
+                self.assertIn("run: scripts/checkout-opencine.sh", meta_job)
+                self.assertIn("shared TestFlight and Play notes validators", meta_job)
+                for command in ("ios-release-notes-check", "ios-release-notes-test",
+                                "android-release-notes-check", "android-release-notes-test"):
+                    self.assertIn(f"          ./scripts/{command}.sh", meta_job)
+                self.assertNotIn("checkout-opencine", swift_job)
+                self.assertIn("run: swift test", swift_job)
+                self.assertEqual("checkout-opencine" in android, keep_android)
+                self.assertEqual(publish.rewrite_workflow(out, keep_for_android=keep_android), out)
+        self.assertNotIn("checkout-opencine", publish.drop_checkout_from_script(POST_CLONE))
+
     def test_workflow_drop_everywhere(self):
         out = publish.rewrite_workflow(WORKFLOW, keep_for_android=False)
         self.assertNotIn("checkout-opencine", out)

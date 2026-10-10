@@ -249,4 +249,29 @@ class NikonSavedRecordsTest {
         assertEquals(listOf("10.0.0.7", "10.0.0.7#2"), two.map { it.id })
         assertNull(codec.patched(shared, two))
     }
+
+    /** One row per body: a nickname on any setup names it, a blank one is none, a generic name groups nothing. */
+    @Test
+    fun aNicknameOnOneSetupNamesTheBodyAndGenericNamesStaySeparate() {
+        fun record(host: String, name: String, transport: String, seen: Long) =
+            JSONObject().put("host", host).put("camera-name", name).put("transport", transport).put("last-seen-at", seen)
+        val records = JSONArray()
+            .put(record("172.20.10.8", "ZR_6002199", "phone-hotspot", 10).put("custom-name", "A-cam"))
+            .put(record("usb:zr", "ZR_6002199", "usb-c", 20))
+            .put(record("10.0.0.2", "Nikon ZR", "infrastructure", 1).put("custom-name", "  "))
+            .put(record("172.20.10.9", "Nikon ZR", "phone-hotspot", 2))
+        val cameras = codec.cameras(records.toString())!!.map { it.camera }
+        assertEquals(3, cameras.size)
+        assertEquals(listOf(RouteKind.USB, RouteKind.PHONE_HOTSPOT), cameras[0].routes.map { it.kind })
+        assertEquals("A-cam", cameras[0].name)
+        assertEquals(listOf<String?>(null, null), cameras.drop(1).map { it.name })
+    }
+
+    @Test
+    fun genericAndPlaceholderNamesIdentifyNoBody() {
+        for (generic in listOf("", " Camera ", "Nikon Camera", "NIKON ZR", "Nikon Corporation ZR", "PTP-IP Camera", "Camera 192.168.1.5")) {
+            assertNull(nikonAssignedName(generic), generic)
+        }
+        assertEquals("zr_6002199", nikonAssignedName(" ZR_6002199 "))
+    }
 }

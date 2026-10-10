@@ -71,6 +71,7 @@ Run these when the trigger happens; there is no scheduler.
 | Navigation graph needed for a repo | `atlas graph plan <repo>@<ref>`, then `atlas graph build <repo>@<ref> --local-only`, one repo at a time. Commit the snapshot folder only. |
 | Cross-repo navigation view needed | `atlas graph build --all --local-only`: each repository at the ref it builds OpenCine on (else its baseline), then a merged view of only those in `graphify-out/` that `atlas impact <symbol>` reads for call-site hints. About two minutes. Without Graphify it exits 3 and `impact` uses source search. |
 | Shared code extracted, or an app dropped a copy | `atlas dupes --top 5` compares duplicated lines per repository pair with `compat/dupes-baseline.json`. After an authorized merge lowers them, `atlas dupes --write-baseline` and commit it. An extraction that raises an OpenCine/app pair until the app's pin moves records the higher number in the same change, with the reason in its commit message. |
+| The shell API an app composes changed (`AppShell`, `ShellModel`, `CamerasModel`, `SavedCamerasStore`, `FakeIntegration`) | Update `templates/app` in the same change; `scripts/template-app-check.sh` (CI job `template-*`) must pass. |
 | Community labels need better names | Edit `repos/<id>/snapshots/<sha>/graphify_labels.json`; rebuilds start from that file and keep existing names. No model labeling exists. |
 
 ## Graph provenance

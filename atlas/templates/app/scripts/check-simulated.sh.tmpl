@@ -1,0 +1,269 @@
+#!/bin/sh
+# Complete generated-artifact acceptance. SIMULATED camera data on a real OS decoder.
+# Usage: scripts/check-simulated.sh [ios|android|all]
+# Android: set ANDROID_SERIAL to the explicitly selected target, or TEMPLATE_EMULATOR=1
+# to provision a private CI emulator. No default connected device is selected.
+set -eu
+template_app=$(cd "$(dirname "$0")/.." && pwd)
+template_core="$(dirname "$template_app")/OpenCine"
+template_platform=${1:-all}
+template_out=${OUT:-$template_app/build/SIMULATED-$(date -u +%Y%m%dT%H%M%SZ)}
+template_jobs=${BUILD_JOBS:-2}
+template_companion_name=$(printf '%s' '__NAME__' | cut -c1-28)Companion
+template_companion="$(dirname "$template_app")/$template_companion_name"
+template_companion_owned=0
+template_udid=
+template_emulator_pid=
+template_serial=${ANDROID_SERIAL:-}
+case "$template_platform" in ios|android|all) ;; *) echo 'Expected ios, android or all' >&2; exit 2 ;; esac
+mkdir -p "$template_out"
+python3 - "$template_out" <<'PY'
+import sys
+from pathlib import Path
+assert not any(Path(sys.argv[1]).iterdir()), 'Use an empty fresh OUT directory; existing files are preserved'
+PY
+
+template_cleanup() {
+    if [ -n "$template_udid" ]; then xcrun simctl delete "$template_udid" || true; fi
+    if [ -n "$template_emulator_pid" ]; then
+        adb -s "$template_serial" emu kill >/dev/null 2>&1 || true
+        kill "$template_emulator_pid" >/dev/null 2>&1 || true
+    fi
+    if [ "$template_companion_owned" = 1 ]; then rm -rf "$template_companion"; fi
+}
+trap template_cleanup EXIT
+trap 'exit 130' HUP INT TERM
+template_step() {
+    template_log=$1; shift
+    printf '%s\n' "$*" > "$template_out/$template_log.command"
+    if "$@" > "$template_out/$template_log" 2>&1; then
+        printf 'ok   %s\n' "$template_log"
+    else
+        tail -60 "$template_out/$template_log"
+        printf 'FAIL %s\n' "$template_log" >&2
+        exit 1
+    fi
+}
+template_manifest() {
+    python3 - "$template_out" "$template_core" "$template_app" "$template_companion" "$@" <<'PY'
+import hashlib, json, shutil, subprocess, sys
+from pathlib import Path
+out, core, app, companion = map(Path, sys.argv[1:5])
+stage, *artifacts = sys.argv[5:]
+digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+def git(*args):
+    return subprocess.check_output(['git', '-C', str(core), *args]).decode().strip()
+def files(root):
+    return {str(p.relative_to(root)): digest(p) for p in sorted(root.rglob('*'))
+            if p.is_file() and not {'.git', '.build', 'build', '.gradle', '.kotlin', 'DerivedData', '__pycache__'}.intersection(p.relative_to(root).parts)}
+if stage == 'sources':
+    head = git('rev-parse', 'HEAD')
+    pin = (app / 'opencine-pins.txt').read_text().splitlines()[-1].split()[-1]
+    assert pin == head, 'The actual shared checkout must match the generated pin'
+    shared_paths = git('ls-files', '--cached', '--others', '--exclude-standard').splitlines()
+    shared = {p: digest(core / p) for p in shared_paths if (core / p).is_file()
+              and (p.startswith(('Sources/', 'Android/', 'atlas/templates/app/')) or p == 'Package.swift')}
+    record = {'mode': 'SIMULATED', 'cameraHardwareQualification': False, 'sharedCommit': head,
+              'sharedWorkingDiffSHA256': hashlib.sha256(subprocess.check_output(['git', '-C', str(core), 'diff', 'HEAD', '--'])).hexdigest(),
+              'sharedSourceSHA256': shared, 'generatedSourceSHA256': files(app),
+              'companionSourceSHA256': files(companion), 'artifacts': {}}
+    for label, root in (('primary', app), ('companion', companion)):
+        for relative in files(root):
+            target = out / 'generated-source' / label / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(root / relative, target)
+else:
+    record = json.loads((out / 'source-manifest.json').read_text())
+    assert git('rev-parse', 'HEAD') == record['sharedCommit'], 'Shared revision changed during acceptance'
+    for relative, expected in record['sharedSourceSHA256'].items():
+        assert digest(core / relative) == expected, 'Shared input changed during acceptance: ' + relative
+    for root, field in ((app, 'generatedSourceSHA256'), (companion, 'companionSourceSHA256')):
+        for relative, expected in record[field].items():
+            assert digest(root / relative) == expected, 'Generated input changed during acceptance: ' + relative
+    def key(path):
+        for label, root in (('primary', app), ('companion', companion), ('buildOutput', out)):
+            if path.is_relative_to(root): return label + '/' + str(path.relative_to(root))
+        raise ValueError('Artifact outside declared build roots')
+    built = [Path(p) for p in artifacts]
+    built = [file for path in built for file in (path.rglob('*') if path.is_dir() else [path]) if file.is_file()]
+    assert built, 'Acceptance must retain the actual built artifacts'
+    record['artifacts'].update({key(p): digest(p) for p in built})
+    reports = list(out.glob('*.log')) + list(out.glob('*device.txt')) + list(out.glob('*mode.txt'))
+    reports += list(out.glob('*summary.json')) + list(out.rglob('*-pixels.txt'))
+    reports += list((out / 'ios-attachments').rglob('*')) + list((out / 'android-screenshots').rglob('*'))
+    reports += list((out / 'android-unit-results').rglob('*'))
+    record['reportsSHA256'] = {str(p.relative_to(out)): digest(p) for p in reports if p.is_file()}
+    record.setdefault('completedStages', []).append(stage)
+    record['phoneRuntimeEvidence'] = {str(p.relative_to(out)): p.read_text() for p in out.glob('*device.txt')}
+    record['phoneRuntimeEvidence'].update({str(p.relative_to(out)): p.read_text() for p in out.glob('*mode.txt')})
+(out / 'source-manifest.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
+PY
+}
+
+# A second actual generated bundle/package verifies OS storage isolation. It is always created
+# fresh and only this owned sibling is cleaned. No Git initialization or registry edits occur.
+template_step companion-generate.log python3 "$template_core/atlas/tools/atlas.py" new-app "$template_companion_name" \
+    --id '__APP_ID__.companion' --integration fake --dest "$(dirname "$template_app")"
+template_companion_owned=1
+template_manifest sources
+
+if [ "$template_platform" != android ]; then
+    template_step ios-project.log xcodegen generate --spec "$template_app/ios/project.yml" --project "$template_app/ios"
+    template_step ios-companion-project.log xcodegen generate --spec "$template_companion/ios/project.yml" --project "$template_companion/ios"
+    template_project="$template_app/ios/__NAME__.xcodeproj"
+    template_dd="$template_out/DerivedData"
+    template_step ios-toolchain.log xcodebuild -version
+    for template_config in Debug Release; do
+        for template_scheme in '__NAME__' '__NAME__Simulated'; do
+            template_step "ios-$template_scheme-$template_config.log" xcodebuild -project "$template_project" -scheme "$template_scheme" \
+                -configuration "$template_config" -destination 'generic/platform=iOS Simulator' \
+                -derivedDataPath "$template_dd" -jobs "$template_jobs" CODE_SIGNING_ALLOWED=NO build
+        done
+    done
+    template_step ios-companion-build.log xcodebuild -project "$template_companion/ios/$template_companion_name.xcodeproj" \
+        -scheme "${template_companion_name}Simulated" -configuration Debug -destination 'generic/platform=iOS Simulator' \
+        -derivedDataPath "$template_out/CompanionDerivedData" -jobs "$template_jobs" CODE_SIGNING_ALLOWED=NO build
+    template_udid=$(xcrun simctl create 'opc-__NAME__-SIMULATED' 'iPhone 16 Pro')
+    template_step ios-boot.log xcrun simctl boot "$template_udid"
+    template_step ios-bootstatus.log xcrun simctl bootstatus "$template_udid" -b
+    template_step ios-companion-install.log xcrun simctl install "$template_udid" \
+        "$template_out/CompanionDerivedData/Build/Products/Debug-iphonesimulator/${template_companion_name}Simulated.app"
+    printf 'SIMULATED; private simulator %s; no camera hardware\n' "$template_udid" > "$template_out/ios-device.txt"
+    template_step ios-tests.log xcodebuild -project "$template_project" -scheme '__NAME__Simulated' -configuration Debug \
+        -destination "platform=iOS Simulator,id=$template_udid" -derivedDataPath "$template_dd" \
+        -resultBundlePath "$template_out/ios-tests.xcresult" -parallel-testing-enabled NO -jobs "$template_jobs" CODE_SIGNING_ALLOWED=NO test
+    template_step ios-attachments.log xcrun xcresulttool export attachments --path "$template_out/ios-tests.xcresult" \
+        --output-path "$template_out/ios-attachments"
+    xcrun xcresulttool get test-results summary --path "$template_out/ios-tests.xcresult" > "$template_out/ios-summary.json"
+    python3 - "$template_out/ios-summary.json" <<'PY'
+import json, sys
+from pathlib import Path
+report = json.loads(Path(sys.argv[1]).read_text())
+assert report['passedTests'] == 11 and report['totalTestCount'] == 11, 'All 8 contracts and 3 installed scenarios must execute'
+assert report['failedTests'] == 0 and report['skippedTests'] == 0 and report['expectedFailures'] == 0, report
+PY
+    template_sim_binary="$template_dd/Build/Products/Debug-iphonesimulator/__NAME__Simulated.app/__NAME__Simulated"
+    if [ -f "$template_sim_binary.debug.dylib" ]; then template_sim_binary="$template_sim_binary.debug.dylib"; fi
+    nm -g "$template_sim_binary" | xcrun swift-demangle > "$template_out/ios-native-symbols.txt"
+    python3 - "$template_out/ios-native-symbols.txt" "$template_dd/Build/Products/Release-iphonesimulator/__NAME__.app" <<'PY'
+import sys
+from pathlib import Path
+symbols = Path(sys.argv[1]).read_text().splitlines()
+for owner in ('MonitorApplePlaybackOwner', 'MonitorPlaybackFeedSession'):
+    expected = 'type metadata for OpenCineApple.' + owner
+    assert sum(line.endswith(expected) for line in symbols) == 1, 'Expected one compiled shared native owner: ' + owner
+assert not list(Path(sys.argv[2]).rglob('simulated.mp4')), 'SIMULATED media must not ship'
+PY
+    mkdir -p "$template_out/built-artifacts/ios"
+    for template_config in Debug Release; do
+        for template_scheme in '__NAME__' '__NAME__Simulated'; do
+            cp -R "$template_dd/Build/Products/$template_config-iphonesimulator/$template_scheme.app" \
+                "$template_out/built-artifacts/ios/$template_scheme-$template_config.app"
+        done
+    done
+    cp -R "$template_out/CompanionDerivedData/Build/Products/Debug-iphonesimulator/${template_companion_name}Simulated.app" \
+        "$template_out/built-artifacts/ios/Companion-Debug.app"
+    template_manifest ios-passed "$template_out/built-artifacts/ios"
+    rm -rf "$template_dd" "$template_out/CompanionDerivedData"
+fi
+
+if [ "$template_platform" != ios ]; then
+    template_step android-build.log "$template_app/Android/gradlew" -p "$template_app/Android" --max-workers "$template_jobs" \
+        test lint assembleSimulatedDebug assembleSimulatedDebugAndroidTest assembleCameraRelease
+    template_step android-companion-build.log "$template_companion/Android/gradlew" -p "$template_companion/Android" \
+        --max-workers "$template_jobs" assembleSimulatedDebug
+    python3 - "$template_app/Android/app/build/test-results/testSimulatedDebugUnitTest" "$template_out" <<'PY'
+import shutil, sys, xml.etree.ElementTree as ET
+from pathlib import Path
+root, out = map(Path, sys.argv[1:])
+reports = list(root.glob('TEST-*.xml'))
+assert reports, 'Missing actual generated-app unit reports'
+totals = {key: 0 for key in ('tests', 'failures', 'errors', 'skipped')}
+for report in reports:
+    suite = ET.parse(report).getroot()
+    for key in totals: totals[key] += int(suite.get(key, '0'))
+assert totals == {'tests': 8, 'failures': 0, 'errors': 0, 'skipped': 0}, totals
+shutil.copytree(root, out / 'android-unit-results')
+PY
+    if [ "${TEMPLATE_EMULATOR:-0}" = 1 ]; then
+        [ -z "$template_serial" ] || { echo 'Select ANDROID_SERIAL or a private emulator, not both.' >&2; exit 2; }
+        template_sdk=${ANDROID_HOME:?ANDROID_HOME is required for private emulator provisioning}
+        template_image='system-images;android-36;google_apis;x86_64'
+        yes | template_step android-sdk-licenses.log sdkmanager --licenses
+        template_step android-emulator-tools.log sdkmanager emulator platform-tools "$template_image"
+        mkdir -p "$template_out/avd"
+        printf 'no\n' | template_step android-avd.log env ANDROID_AVD_HOME="$template_out/avd" avdmanager create avd \
+            --name 'opc-__NAME__-SIMULATED' --package "$template_image" --device pixel_6
+        template_serial=emulator-5556
+        env ANDROID_AVD_HOME="$template_out/avd" "$template_sdk/emulator/emulator" -avd 'opc-__NAME__-SIMULATED' \
+            -port 5556 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect \
+            > "$template_out/android-emulator.log" 2>&1 &
+        template_emulator_pid=$!
+        template_step android-boot.log python3 - "$template_serial" <<'PY'
+import subprocess, sys, time
+deadline = time.monotonic() + 180
+while time.monotonic() < deadline:
+    try: result = subprocess.run(['adb', '-s', sys.argv[1], 'shell', 'getprop', 'sys.boot_completed'], capture_output=True, timeout=10)
+    except subprocess.TimeoutExpired: continue
+    if result.returncode == 0 and result.stdout.strip() == b'1': break
+    time.sleep(1)
+else: raise SystemExit('Private SIMULATED emulator did not boot')
+print('Private SIMULATED emulator booted:', sys.argv[1])
+PY
+    fi
+    [ -n "$template_serial" ] || { echo 'Set ANDROID_SERIAL explicitly, or TEMPLATE_EMULATOR=1 for private CI runtime.' >&2; exit 2; }
+    template_step android-target-ready.log python3 - "$template_serial" <<'PYREADY'
+import subprocess, sys, time
+serial = sys.argv[1]
+deadline = time.monotonic() + 45
+last = 'unknown'
+while time.monotonic() < deadline:
+    try:
+        result = subprocess.run(['adb', '-s', serial, 'shell', 'getprop', 'sys.boot_completed'],
+                                capture_output=True, timeout=5)
+        last = result.stderr.decode(errors='replace').strip()
+        if result.returncode == 0 and result.stdout.strip() == b'1':
+            print('Selected target ready:', serial)
+            break
+    except subprocess.TimeoutExpired:
+        last = 'selected target readiness command timed out'
+    time.sleep(0.5)
+else:
+    raise SystemExit('Selected target did not become ready: ' + serial + ': ' + last)
+PYREADY
+    template_step android-device.log adb -s "$template_serial" shell getprop
+    template_phone_mode=physical-Android-target
+    if [ "$(adb -s "$template_serial" shell getprop ro.kernel.qemu | tr -d '\r')" = 1 ]; then
+        template_phone_mode=Android-emulator
+    fi
+    printf 'SIMULATED camera; phone runtime %s; selected serial %s; no camera qualification\n' \
+        "$template_phone_mode" "$template_serial" > "$template_out/android-mode.txt"
+    template_apk="$template_app/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk"
+    template_test_apk="$template_app/Android/app/build/outputs/apk/androidTest/simulated/debug/app-simulated-debug-androidTest.apk"
+    template_release_apk="$template_app/Android/app/build/outputs/apk/camera/release/app-camera-release-unsigned.apk"
+    template_step android-install.log adb -s "$template_serial" install -r "$template_apk"
+    template_step android-tests-install.log adb -s "$template_serial" install -r "$template_test_apk"
+    template_step android-companion-install.log adb -s "$template_serial" install -r \
+        "$template_companion/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk"
+    template_step android-instrumentation.log adb -s "$template_serial" shell am instrument -w -r \
+        -e class '__APP_ID__.OperatorFlowTest,__APP_ID__.MonitorPortraitStatusGeometryTest' '__APP_ID__.simulated.test/androidx.test.runner.AndroidJUnitRunner'
+    python3 - "$template_out/android-instrumentation.log" "$template_release_apk" <<'PY'
+import re, sys, zipfile
+from pathlib import Path
+report = Path(sys.argv[1]).read_text()
+assert re.search(r'OK \(7 tests\)', report), 'All three installed SIMULATED scenarios and four portrait geometry cases must pass'
+assert not re.search(r'FAILURES|INSTRUMENTATION_FAILED|Process crashed', report), report
+with zipfile.ZipFile(sys.argv[2]) as apk:
+    assert not any(name.endswith(('simulated.mp4', 'simulated.png')) for name in apk.namelist()), 'SIMULATED media must not ship'
+PY
+    template_step android-screenshots.log adb -s "$template_serial" pull \
+        '/sdcard/Android/data/__APP_ID__.simulated/files/SIMULATED-flow' "$template_out/android-screenshots"
+    mkdir -p "$template_out/built-artifacts/android"
+    cp "$template_apk" "$template_out/built-artifacts/android/primary-simulated-debug.apk"
+    cp "$template_test_apk" "$template_out/built-artifacts/android/primary-simulated-tests.apk"
+    cp "$template_release_apk" "$template_out/built-artifacts/android/primary-camera-release.apk"
+    cp "$template_companion/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk" \
+        "$template_out/built-artifacts/android/companion-simulated-debug.apk"
+    template_manifest android-passed "$template_out/built-artifacts/android"
+fi
+printf 'SIMULATED generated acceptance passed; raw evidence: %s\n' "$template_out"

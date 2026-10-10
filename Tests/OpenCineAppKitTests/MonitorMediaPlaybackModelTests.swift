@@ -17,6 +17,7 @@ import Testing
     var onPause: (@MainActor () -> Void)?
     var emitsInstallation = false
     var onRetire: (@MainActor (MonitorPlaybackItemToken) -> Void)?
+    var onSeekReturn: (@MainActor (MonitorPlaybackItemToken) -> Void)?
     func retireItem(for token: MonitorPlaybackItemToken) { retired.append(token); onRetire?(token) }
     func prepare(_ item: MonitorPlaybackItem, token: MonitorPlaybackItemToken, readyTimeout: Duration?) async throws -> MonitorPlaybackMetadata {
         try await withCheckedThrowingContinuation {
@@ -28,7 +29,9 @@ import Testing
     func play(rate: Double, token: MonitorPlaybackItemToken) { played.append(token) }
     func pause(token: MonitorPlaybackItemToken) { onPause?() }
     func seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken) async -> Bool {
-        await withCheckedContinuation { seeks.append(.init(token: token, target: seconds, tolerance: tolerance, continuation: $0)) }
+        let completed: Bool = await withCheckedContinuation { seeks.append(.init(token: token, target: seconds, tolerance: tolerance, continuation: $0)) }
+        onSeekReturn?(token)
+        return completed
     }
     func finishSeek(_ index: Int, completed: Bool = true) { seeks[index].continuation.resume(returning: completed) }
     func setMuted(_ muted: Bool, token: MonitorPlaybackItemToken) {}
@@ -82,6 +85,16 @@ import Testing
 }
 @MainActor private final class PlaybackTestClock { var instant = MonotonicInstant(.seconds(100)) }
 @MainActor private final class PlaybackReplacement { var fired = false }
+@MainActor private final class PlaybackResumeProbe {
+    var observing = false
+    var observations = 0
+    var reentered = false
+    var atObservation: (@MainActor (Int) -> Void)?
+    func current() -> Bool {
+        if observing { observations += 1; atObservation?(observations) }
+        return true
+    }
+}
 
 @MainActor @Suite struct MonitorMediaPlaybackModelTests {
     private func record(_ id: String) -> MonitorMediaRecord<String> {
@@ -93,6 +106,8 @@ import Testing
         lookTiming: MonitorPlaybackLookTiming = .afterNativeReadiness,
         startTiming: MonitorPlaybackStartTiming = .afterNativeReadiness,
         records: [MonitorMediaRecord<String>] = [], service: (any CameraMediaService)? = nil,
+        seekEndClearance: Double = 0.05,
+        sceneLossPolicy: MonitorPlaybackSceneLossPolicy = .preserveRequest,
         candidate: (@MainActor @Sendable (MonitorMediaRecord<String>) -> [MonitorPlaybackCandidate])? = nil,
         resolveLook: @escaping @MainActor @Sendable (MonitorMediaRecord<String>, MonitorPlaybackItem) async -> MonitorPlaybackLook<String>? = { _, _ in nil }) ->
         (URL, MonitorMediaLibraryModel<String>, PlaybackTestPort, MonitorMediaPlaybackModel<String, String>) {
@@ -106,12 +121,169 @@ import Testing
         let port = native ?? PlaybackTestPort()
         let model = MonitorMediaPlaybackModel<String, String>(library: library, native: port, lookTiming: lookTiming, startTiming: startTiming,
             candidates: candidate ?? { [.cached(.init(url: URL(fileURLWithPath: "/" + $0.payload + ".mov"), mimeType: "video/mp4", sourceKey: $0.payload))] },
-            resolveLook: resolveLook, now: { clock.instant })
+            resolveLook: resolveLook, now: { clock.instant }, seekEndClearance: seekEndClearance,
+            sceneLossPolicy: sceneLossPolicy)
         return (root, library, port, model)
     }
     private func eventually(_ predicate: () -> Bool) async -> Bool {
         for _ in 0..<500 { if predicate() { return true }; await Task.yield() }; return predicate()
     }
+    @available(macOS 14, *) private func resumeProbe(
+        _ model: MonitorMediaPlaybackModel<String, String>, _ port: PlaybackTestPort
+    ) -> PlaybackResumeProbe {
+        let probe = PlaybackResumeProbe()
+        model.setItemAdmission { _ in MonitorPlaybackAdmission { probe.current() } }
+        port.onSeekReturn = { _ in probe.observing = true }
+        return probe
+    }
+
+    @Test func pendingLoopSeekCompletionCannotOverrideOperatorPause() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("loop")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        model.setLooping(true); port.onEvent?(item, .ended)
+        #expect(await eventually { port.seeks.count == 1 })
+        model.setPlaying(false)
+        #expect(!model.playRequested && port.seeks.count == 1)
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(!model.playRequested && port.played == [item])
+        #expect(port.seeks[0].token == item && port.seeks[0].target == 0 && port.seeks[0].tolerance == 0)
+        #expect(model.ready && model.token == item && port.closes == 0 && library.browsing)
+    }
+
+    @Test func pendingRestartSeekCompletionCannotOverrideRepeatedPause() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("restart")
+        model.load(row, playlist: [row], play: false); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready })
+        let item = model.token
+        model.restart(); #expect(await eventually { port.seeks.count == 1 })
+        model.setPlaying(false)
+        #expect(!model.playRequested)
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(!model.playRequested && port.played.isEmpty)
+        #expect(model.ready && model.token == item && port.seeks[0].token == item && port.closes == 0)
+    }
+
+    @Test func explicitRestartWhilePausedStillResumesPlayback() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("restart")
+        model.load(row, playlist: [row], play: false); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready })
+        let item = model.token
+        model.restart(); #expect(await eventually { port.seeks.count == 1 })
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(model.playRequested && port.played == [item] && model.token == item)
+        #expect(port.seeks[0].target == 0 && port.seeks[0].tolerance == 0 && port.closes == 0)
+    }
+
+    @Test func unrelatedPublicationDoesNotInvalidatePendingRestart() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("restart")
+        model.load(row, playlist: [row], play: false); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready })
+        let item = model.token
+        model.restart(); #expect(await eventually { port.seeks.count == 1 })
+        model.setMuted(true); port.onEvent?(item, .playing(false)); port.onEvent?(item, .position(42))
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(model.playRequested && port.played == [item] && model.muted)
+        #expect(model.position == 42 && model.reportedPlaying == false && model.token == item)
+    }
+
+    @Test func lateLoopEndAfterPauseCannotRequestPlayback() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("loop")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        model.setLooping(true); model.setPlaying(false); port.onEvent?(item, .ended)
+        #expect(await eventually { port.seeks.count == 1 })
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(!model.playRequested && model.looping && port.played == [item])
+        #expect(port.seeks[0].target == 0 && port.seeks[0].token == item && model.token == item)
+    }
+
+    @Test func restartAdmissionPauseCannotBeOverriddenByCompletion() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("restart")
+        model.load(row, playlist: [row], play: false); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready })
+        probe.atObservation = { _ in
+            probe.atObservation = nil; probe.reentered = true; model.setPlaying(false)
+        }
+        probe.observing = true; model.restart(); probe.observing = false; probe.observations = 0
+        #expect(probe.reentered)
+        #expect(await eventually { port.seeks.count == 1 })
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(!model.playRequested && port.played.isEmpty && model.ready)
+    }
+
+    @Test func resumeAdmissionPauseCannotStartNativeTransport() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("restart")
+        model.load(row, playlist: [row], play: false); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready })
+        model.restart(); #expect(await eventually { port.seeks.count == 1 })
+        probe.atObservation = { _ in
+            if model.playRequested {
+                probe.atObservation = nil; probe.reentered = true; model.setPlaying(false)
+            }
+        }
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(probe.reentered && !model.playRequested && port.played.isEmpty)
+    }
+
+    @Test func clearRequestSceneLossDuringResumeAdmissionCannotStartNativeTransport() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation, sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("restart")
+        model.load(row, playlist: [row], play: false); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready })
+        let item = model.token
+        model.restart(); #expect(await eventually { port.seeks.count == 1 })
+        probe.atObservation = { _ in
+            if model.playRequested {
+                probe.atObservation = nil; probe.reentered = true
+                model.setSceneActive(false); model.setSceneActive(true)
+            }
+        }
+        port.finishSeek(0); #expect(await eventually { probe.observations > 0 })
+        #expect(probe.reentered && !model.playRequested && port.played.isEmpty)
+        #expect(model.ready && model.token == item && port.closes == 0 && library.browsing)
+    }
+
+    @Test func interruptedScrubDeferredResumeCannotOverrideLaterPause() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(lookTiming: .beforeNativePreparation)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let probe = resumeProbe(model, port), row = record("scrub")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        #expect(model.beginScrub() != nil)
+        model.cancelScrub(interrupted: true); model.setPlaying(false); probe.observing = true
+        #expect(await eventually { probe.observations > 0 })
+        #expect(!model.scrubbing && !model.playRequested && port.played == [item])
+        #expect(model.token == item && port.seeks.isEmpty && port.closes == 0 && library.browsing)
+    }
+
     @available(macOS 14, *) @Test func replacementRejectsLateReadyAndTimeFromPreviousItem() async {
         let (root, library, port, model) = fixture()
         defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
@@ -525,5 +697,113 @@ import Testing
         #expect(model.scrubbing && model.scrubPosition == 55)
         model.commitScrub(admitted: kept)
         #expect(await eventually { port.seeks.count == 3 }); port.finishSeek(2)
+    }
+    @Test func sourceSeekClearancePreservesStrict250msTailAndDefault50msTail() async {
+        guard #available(macOS 14, *) else { return }
+        for clearance in [0.25, 0.05] {
+            let (root, library, port, model) = fixture(seekEndClearance: clearance)
+            defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+            let row = record("tail")
+            model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+            port.release(0, facts: .init(duration: 10)); #expect(await eventually { model.ready })
+            let token = model.token
+            let cases: [(Double, Bool)] = clearance == 0.25
+                ? [(-0.1, true), (-0.2, true), (-0.25, true), (-0.251, false)]
+                : [(-0.025, true), (-0.05, true), (-0.051, false)]
+            for (index, value) in cases.enumerated() {
+                port.onEvent?(token, .ended); #expect(model.reachedEnd)
+                model.seek(by: value.0); #expect(model.reachedEnd == value.1)
+                #expect(await eventually { port.seeks.count == index + 1 }); port.finishSeek(index)
+                await Task.yield()
+            }
+        }
+    }
+
+    @Test func sourceScrubClearanceRetainsTailUntilStrictBoundaryAndRejectsRetiredEdit() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(seekEndClearance: 0.25)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("tail"), b = record("next")
+        model.load(a, playlist: [a, b]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0, facts: .init(duration: 10)); #expect(await eventually { model.ready })
+        port.onEvent?(model.token, .ended)
+        guard let edit = model.beginScrub() else { Issue.record("Missing ready scrub"); return }
+        model.updateScrub(seconds: 9.8, admitted: edit); #expect(model.reachedEnd)
+        model.updateScrub(seconds: 9.75, admitted: edit); #expect(model.reachedEnd)
+        model.updateScrub(seconds: 9.749, admitted: edit); #expect(!model.reachedEnd)
+        #expect(await eventually { port.seeks.count == 1 }); port.finishSeek(0)
+        model.load(b, playlist: [a, b]); #expect(await eventually { port.preparations.count == 2 })
+        port.release(1, facts: .init(duration: 10)); #expect(await eventually { model.ready })
+        port.onEvent?(model.token, .ended)
+        model.updateScrub(seconds: 0, admitted: edit)
+        #expect(model.reachedEnd && model.active?.asset.id == b.asset.id && !model.scrubbing)
+    }
+
+    @Test func clearingSceneRequestCancelsInterruptedScrubWithoutAutomaticResume() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("scene")
+        model.load(row, playlist: [row]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let item = model.token
+        guard let edit = model.beginScrub() else { Issue.record("Missing ready scrub"); return }
+        model.updateScrub(seconds: 30, admitted: edit)
+        #expect(await eventually { port.seeks.count == 1 })
+        model.cancelScrub(interrupted: true)
+        model.setSceneActive(false)
+        port.finishSeek(0)
+        for _ in 0..<20 { await Task.yield() }
+        model.setSceneActive(true)
+        #expect(model.ready && model.token == item && !model.scrubbing && !model.playRequested)
+        #expect(port.played == [item] && port.closes == 0 && library.browsing)
+        model.setPlaying(true)
+        #expect(model.playRequested && port.played == [item, item])
+    }
+
+    @Test func clearingSceneRequestCannotClearReplacementFromStatePublication() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("A"), b = record("B")
+        model.load(a, playlist: [a, b]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let old = model.token
+        withObservationTracking { _ = model.playRequested } onChange: {
+            MainActor.assumeIsolated { model.load(b, playlist: [a, b], play: true) }
+        }
+        model.setSceneActive(false)
+        #expect(model.active?.payload == "B" && model.playRequested && model.token != old)
+        #expect(await eventually { port.preparations.count == 2 })
+        port.release(1); #expect(await eventually { model.ready })
+        let current = model.token
+        #expect(port.played == [old])
+        model.setSceneActive(true)
+        #expect(model.playRequested && port.played == [old, current] && !model.closed)
+    }
+
+    @Test func outgoingSceneLossCannotBorrowReplacementFromSourcePredicate() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture(sceneLossPolicy: .clearRequest)
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("A"), b = record("B")
+        let replacement = PlaybackReplacement()
+        model.setItemAdmission { row in
+            MonitorPlaybackAdmission {
+                if row.payload == "A", replacement.fired {
+                    replacement.fired = false
+                    model.load(b, playlist: [a, b], play: true)
+                }
+                return true
+            }
+        }
+        model.load(a, playlist: [a, b]); #expect(await eventually { port.preparations.count == 1 })
+        port.release(0); #expect(await eventually { model.ready && port.played.count == 1 })
+        let old = model.token
+        replacement.fired = true; model.setSceneActive(false)
+        #expect(model.active?.payload == "B" && model.playRequested && model.token != old)
+        #expect(await eventually { port.preparations.count == 2 })
+        port.release(1); #expect(await eventually { model.ready && port.played.count == 2 })
+        #expect(port.played == [old, model.token] && !model.closed && library.browsing)
     }
 }

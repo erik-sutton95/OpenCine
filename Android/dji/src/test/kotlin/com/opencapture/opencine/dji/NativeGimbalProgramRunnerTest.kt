@@ -1,5 +1,11 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.motion.GimbalProgram
+import com.opencapture.opencine.motion.GimbalWaypoint
+import com.opencapture.opencine.vocabulary.CamFov
+import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraStatus
 import java.util.PriorityQueue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -395,7 +401,7 @@ class NativeGimbalProgramRunnerTest {
             for (changeColor in listOf(false, true)) {
                 val tx = Tx()
                 var status = CameraStatus(colorMode = CameraCommands.COLOR_NORMAL, zoomFactor = 1.0, isRecording = recording)
-                val model = CameraModel("Osmo Pocket 4 Pro")
+                val model = djiBodyProfile("Osmo Pocket 4 Pro")
                 val program = GimbalProgram(a, a.copy(zoom = 6.0), durationAB = 2.0)
                 val zooms = mutableListOf<Int>()
                 val updates = mutableListOf<NativeGimbalProgramRunner.Progress>()
@@ -445,7 +451,7 @@ class NativeGimbalProgramRunnerTest {
     @Test fun rawColorChangeBeforeFinalVerificationCompletesStillInvalidatesTake() {
         val tx = Tx()
         var status = CameraStatus(colorMode = CameraCommands.COLOR_NORMAL, zoomFactor = 1.0)
-        val model = CameraModel("Osmo Pocket 4 Pro")
+        val model = djiBodyProfile("Osmo Pocket 4 Pro")
         val updates = mutableListOf<NativeGimbalProgramRunner.Progress>()
         val runner = NativeGimbalProgramRunner({ tx.now }, tx::schedule,
             { NativeGimbalFeedback(a, tx.now) }, { _, _ -> true }, {},

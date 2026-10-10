@@ -1,0 +1,215 @@
+import CoreGraphics
+import UIKit
+import XCTest
+
+/// SIMULATED installed-app acceptance. Uses the complete production shared scene and real
+/// AVPlayer frames, independently of the scripted native port in unit tests.
+@MainActor final class OperatorFlowTests: XCTestCase {
+    override func setUp() { continueAfterFailure = false }
+
+    func testCapabilityChangeHidesISOAndRetiresItsOpenEditor() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--simulated-reset", "--simulated-drop-iso-after-edit"]
+        app.launch()
+        tap(app, "pair.device.simulated-camera")
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5) && continueButton.isEnabled && continueButton.isHittable)
+        continueButton.tap()
+        waitDecoded(element(app, "simulated.live.picture"))
+        tap(app, "monitor.capture.iso")
+        let drum = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Value'")).firstMatch
+        XCTAssertTrue(drum.waitForExistence(timeout: 5))
+        XCTAssertLessThan(drum.frame.maxY, element(app, "monitor.system.record").frame.minY,
+            "The exposed capture drum must clear the usable record rail")
+        XCTAssertTrue(element(app, "monitor.capture.close").waitForExistence(timeout: 5))
+        // Finger travel uses a 56-point detent; the upper row is clear of system controls.
+        let origin = drum.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+        origin.press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: -56, dy: 0)))
+        waitGone(element(app, "monitor.capture.iso"))
+        waitGone(element(app, "monitor.capture.close"))
+        XCTAssertTrue(element(app, "monitor.system.record").isEnabled)
+        _ = try picturePixels(element(app, "simulated.live.picture"), name: "capability-change-native")
+    }
+
+    func testPictureOnlyShowsNativePictureWithoutISOOrRecord() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--simulated-reset", "--simulated-picture-only"]
+        app.launch()
+        tap(app, "pair.device.simulated-camera")
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5) && continueButton.isEnabled && continueButton.isHittable)
+        continueButton.tap()
+        waitDecoded(element(app, "simulated.live.picture"))
+        XCTAssertFalse(element(app, "monitor.capture.iso").exists)
+        XCTAssertFalse(element(app, "monitor.system.record").exists)
+        _ = try picturePixels(element(app, "simulated.live.picture"), name: "picture-only-native")
+    }
+
+    func testSharedOperatorFlowNativePixelsCoversPlaybackOfflineAndRelaunch() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--simulated-reset"]
+        app.launch()
+        tap(app, "pair.device.simulated-camera")
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5) && continueButton.isEnabled && continueButton.isHittable)
+        continueButton.tap()
+        let live = element(app, "simulated.live.picture")
+        waitDecoded(live)
+        let liveOwner = try pictureOwner(live)
+        let firstPixels = try picturePixels(live, name: "01-live-native")
+
+        tap(app, "monitor.capture.iso")
+        let drum = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Value'")).firstMatch
+        XCTAssertTrue(drum.waitForExistence(timeout: 5))
+        XCTAssertLessThan(drum.frame.maxY, element(app, "monitor.system.record").frame.minY,
+            "The exposed capture drum must clear the usable record rail")
+        // Finger travel uses a 56-point detent; the upper row is clear of system controls.
+        let origin = drum.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+        origin.press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: -56, dy: 0)))
+        waitValue(drum, contains: "400")
+        tap(app, "monitor.capture.close")
+        XCTAssertTrue((element(app, "monitor.capture.iso").value as? String)?.contains("400") == true)
+
+        tap(app, "monitor.system.record")
+        XCTAssertTrue(app.staticTexts["Start recording?"].waitForExistence(timeout: 5))
+        let confirmStart = app.buttons["Start"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+        waitLabel(element(app, "monitor.system.record"), contains: "Stop")
+        tap(app, "monitor.system.record")
+        XCTAssertTrue(app.staticTexts["Stop recording?"].waitForExistence(timeout: 5))
+        let confirmStop = app.buttons["Stop"]
+        XCTAssertTrue(confirmStop.waitForExistence(timeout: 5))
+        confirmStop.tap()
+        waitLabel(element(app, "monitor.system.record"), contains: "Start recording")
+
+        tap(app, "monitor.system.settings")
+        XCTAssertTrue(element(app, "monitor.settings.tabs").waitForExistence(timeout: 5))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "monitor.page.back").count, 1,
+            "Only the presented page exposes its Back control while the native live owner stays mounted")
+        attach(app.screenshot(), name: "02-settings")
+        tap(app, "monitor.settings.tab.View Assist")
+        tap(app, "monitor.assist.FALSE")
+        tap(app, "monitor.page.back")
+        waitValue(live, contains: "Processed")
+        let falseColor = try picturePixels(live, name: "02-false-colour-native")
+        XCTAssertNotEqual(Array(firstPixels.prefix(firstPixels.count / 2)), Array(falseColor.prefix(falseColor.count / 2)),
+            "The static upper colour bars must change through the actual shared false-colour renderer")
+        XCTAssertEqual(try pictureOwner(live), liveOwner, "settings and native assists borrow the same live owner")
+        tap(app, "monitor.system.settings")
+        tap(app, "monitor.settings.tab.View Assist")
+        tap(app, "monitor.assist.FALSE")
+        tap(app, "monitor.page.back")
+        waitDecoded(live)
+
+        tap(app, "monitor.system.media")
+        let clip = "monitor.media.clip.simulated-colour-bars-v1"
+        tap(app, clip)
+        let playback = element(app, "simulated.playback.picture")
+        waitDecoded(playback)
+        let firstPlayer = try pictureOwner(playback)
+        _ = try picturePixels(playback, name: "03-playback-native")
+        tap(app, "monitor.playback.back")
+        tap(app, clip)
+        waitDecoded(playback)
+        XCTAssertNotEqual(try pictureOwner(playback), firstPlayer, "reopening creates a fresh shared playback owner")
+        _ = try picturePixels(playback, name: "04-reopened-playback-native")
+        tap(app, "monitor.playback.back")
+        tap(app, "monitor.page.back")
+        waitDecoded(live)
+        XCTAssertEqual(try pictureOwner(live), liveOwner, "media and playback preserve the live owner")
+        let afterCovers = try picturePixels(live, name: "05-live-returned-native")
+        XCTAssertNotEqual(firstPixels, afterCovers, "the moving native source continued advancing")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        waitDecoded(live)
+        XCTAssertEqual(try pictureOwner(live), liveOwner, "rotation preserves the live owner")
+        _ = try picturePixels(live, name: "06-live-landscape-native")
+        XCUIDevice.shared.orientation = .portrait
+        tap(app, "monitor.page.back")
+        XCTAssertTrue(element(app, "cameras.media").waitForExistence(timeout: 5))
+        tap(app, "cameras.media")
+        tap(app, clip)
+        waitDecoded(playback)
+        _ = try picturePixels(playback, name: "07-offline-native")
+        tap(app, "monitor.playback.back")
+        tap(app, "monitor.page.back")
+
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        XCTAssertTrue(element(app, "cameras.media").waitForExistence(timeout: 5))
+        let setup = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cameras.setup.'")).firstMatch
+        XCTAssertTrue(setup.waitForExistence(timeout: 5))
+        setup.tap()
+        waitDecoded(live)
+        _ = try picturePixels(live, name: "08-saved-connect-native")
+        tap(app, "monitor.page.back")
+        app.terminate()
+        let companion = XCUIApplication(bundleIdentifier: "__APP_ID__.companion.simulated")
+        companion.launchArguments = ["--simulated-reset"]
+        companion.launch()
+        XCTAssertTrue(element(companion, "pair.device.simulated-camera").waitForExistence(timeout: 5))
+        XCTAssertFalse(element(companion, "cameras.media").exists, "the second generated app has no saved camera")
+        attach(companion.screenshot(), name: "09-second-generated-app")
+    }
+
+    private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+    private func tap(_ app: XCUIApplication, _ identifier: String) {
+        let target = element(app, identifier)
+        XCTAssertTrue(target.waitForExistence(timeout: 10), "Missing \(identifier)")
+        if !target.isHittable {
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "SIMULATED-blocked-\(identifier)-accessibility"
+            tree.lifetime = .keepAlways; add(tree)
+            attach(app.screenshot(), name: "blocked-\(identifier)")
+        }
+        XCTAssertTrue(target.isHittable, "Covered or disabled \(identifier)")
+        target.tap()
+    }
+    private func pictureOwner(_ element: XCUIElement) throws -> String {
+        String(try XCTUnwrap((element.value as? String)?.split(separator: " ").last))
+    }
+    private func waitDecoded(_ element: XCUIElement) { waitValue(element, contains: "Decoded") }
+    private func waitGone(_ element: XCUIElement) {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 10), .completed)
+    }
+    private func waitValue(_ element: XCUIElement, contains value: String) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { object, _ in
+            (object as? XCUIElement)?.value as? String != nil &&
+                ((object as? XCUIElement)?.value as? String)?.contains(value) == true
+        }, object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed, "Expected native value \(value)")
+    }
+    private func waitLabel(_ element: XCUIElement, contains value: String) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", value), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+    private func attach(_ screenshot: XCUIScreenshot, name: String) {
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "SIMULATED-\(name)"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    private func picturePixels(_ element: XCUIElement, name: String) throws -> [UInt8] {
+        let screenshot = element.screenshot()
+        attach(screenshot, name: name)
+        let image = try XCTUnwrap(screenshot.image.cgImage)
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        try bytes.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        }
+        let colored = stride(from: 0, to: bytes.count, by: 4).filter { offset in
+            let rgb = [Int(bytes[offset]), Int(bytes[offset + 1]), Int(bytes[offset + 2])]
+            return (rgb.max() ?? 0) - (rgb.min() ?? 0) > 60 && (rgb.max() ?? 0) > 100
+        }.count
+        XCTAssertGreaterThan(colored, image.width * image.height / 20, "Real native source must occupy the bounded picture")
+        let metrics = XCTAttachment(string: "SIMULATED \(name): width=\(image.width) height=\(image.height) coloredPixels=\(colored)")
+        metrics.name = "SIMULATED-\(name)-pixels"; metrics.lifetime = .keepAlways; add(metrics)
+        return bytes
+    }
+}

@@ -946,6 +946,13 @@ public interface CameraSession {
     @Throws(CameraRecordingException::class)
     public suspend fun setRecording(recording: Boolean)
 
+    /** Explicit authority is checked again by native implementations at their queued boundary. */
+    @Throws(CameraRecordingException::class)
+    public suspend fun setRecording(recording: Boolean, admission: CameraCommandAdmission) {
+        if (!admission.admits(this)) throw CameraRecordingException.CommandRejected
+        setRecording(recording)
+    }
+
     /**
      * Applies one human-readable [label] for a typed [control] on the connected
      * camera.
@@ -958,6 +965,15 @@ public interface CameraSession {
     @Throws(CameraControlException::class)
     public suspend fun applyControl(control: CameraControl, label: String) {
         throw CameraControlException.UnsupportedSelection
+    }
+
+    /** Source-bound counterpart of [applyControl]; direct consumers retain the original API. */
+    @Throws(CameraControlException::class)
+    public suspend fun applyControl(
+        control: CameraControl, label: String, admission: CameraCommandAdmission,
+    ) {
+        if (!admission.admits(this)) throw CameraControlException.CommandRejected
+        applyControl(control, label)
     }
 
     /**
@@ -1044,6 +1060,15 @@ public interface CameraSession {
     @Throws(CameraFocusException::class)
     public suspend fun changeAfArea(point: CameraFocusPoint): Boolean {
         throw CameraFocusException.Unavailable
+    }
+
+    /** Refuses an expired source receipt before moving autofocus on another source. */
+    @Throws(CameraFocusException::class)
+    public suspend fun changeAfArea(
+        point: CameraFocusPoint, admission: CameraCommandAdmission,
+    ): Boolean {
+        if (!admission.admits(this)) throw CameraFocusException.CommandRejected
+        return changeAfArea(point)
     }
 
     /**

@@ -63,6 +63,8 @@ public data class NearbyCamera(
     public val signalBars: Int? = null,
     /** `Unavailable(Busy)`: another device holds the camera. */
     public val availability: Availability = Availability.Available,
+    /** The [SavedRoute.key] of the saved camera's route this sighting reaches, when the integration knows. */
+    public val routeKey: String? = null,
 )
 
 /**

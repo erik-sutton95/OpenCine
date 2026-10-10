@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCameraVocabulary
 import OpenCineCore
 
 /// The established Nikon link the monitor pumps. Production uses NativeCameraSession;
@@ -29,6 +30,11 @@ public protocol NikonMonitorLink: NikonControlTransport {
     func shutdown() async
 }
 
+/// Optional real GetEventEx support; pushed event-socket draining remains a separate owner.
+@MainActor public protocol NikonDeviceEventPollLink: AnyObject, Sendable {
+    func pollDeviceEvents() async -> [PTPEvent]
+}
+
 /// Nikon monitor wire ownership: the common command queue and one control lifetime, retained
 /// across replacement links. Its caller publishes images and chrome; this module sends and
 /// confirms camera commands only at the pump's safe point.
@@ -54,6 +60,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     private var previewGeneration = 0
     private var keepAliveTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
+    private var deviceEventPoll: (ticket: UUID, task: Task<Void, Never>)?
     private var startFailures = 0
     private var propertyBootstrap: NikonPropertyBootstrap?
     private var backgroundRetirement: Task<Void, Never>?
@@ -68,8 +75,12 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     private var link: (any NikonMonitorLink)?
     private var generation = 0
     private var closed = false
-    private var writes: [(write: PTPCameraPropertyWrite, operation: OperationID?)] = []
-    private var record: (start: Bool, operation: OperationID)?
+    private var writes:
+        [(
+            write: PTPCameraPropertyWrite, operation: OperationID?,
+            admission: NikonCommandAdmission?
+        )] = []
+    private var record: (start: Bool, operation: OperationID, admission: NikonCommandAdmission?)?
     private let recoveryAttempt = ConnectionAttemptID()
 
     /// `ownsLink` is false for a multicam loan; closing then retires only this monitor runtime.
@@ -95,7 +106,9 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         let connection = nikonControlFacts.connection
         // App projection resets during replacement are not new camera observations.
         if case .recovering = connection { return }
-        if nikonControlFacts.holdsControl, !facts.holdsControl { dropCommands() }
+        if nikonControlFacts.holdsControl, !facts.holdsControl {
+            dropCommands(preservingAdmitted: true)
+        }
         nikonControlFacts = facts
         nikonControlFacts.connection = connection
         common.refresh()
@@ -137,9 +150,20 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         let current = generation
         if let request = record {
             record = nil
+            if let admission = request.admission, !admits(admission) {
+                common.commandAdmissionExpired(request.operation)
+                onRecordCommand(request.start, false)
+                return true
+            }
             common.operationSent(request.operation)
             do {
-                if request.start {
+                if let admission = request.admission {
+                    if request.start {
+                        try await link.startRecording(admission: admission)
+                    } else {
+                        try await link.stopRecording(admission: admission)
+                    }
+                } else if request.start {
                     try await link.startRecording()
                 } else {
                     try await link.stopRecording()
@@ -149,15 +173,26 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 onRecordCommand(request.start, true)
             } catch {
                 guard generation == current, !closed else { return true }
-                common.commandFailed(
-                    request.operation,
-                    cameraRefused: NativeCameraSessionError.isCameraRefusal(error))
+                if case NativeCameraSessionError.commandAuthorityExpired = error {
+                    common.commandAdmissionExpired(request.operation)
+                } else {
+                    common.commandFailed(
+                        request.operation,
+                        cameraRefused: NativeCameraSessionError.isCameraRefusal(error))
+                }
                 onRecordCommand(request.start, false)
             }
             return true
         }
         guard allowWrites, !writes.isEmpty else { return false }
-        let (write, operation) = writes.removeFirst()
+        let (write, operation, admission) = writes.removeFirst()
+        if let admission, !admits(admission) {
+            if let operation {
+                common.commandAdmissionExpired(operation)
+                writes.removeAll { $0.operation == operation }
+            }
+            return true
+        }
         // Movie exposure can wait behind another safe-point operation. The body's selector,
         // shutter convention, lock and advertised domain must still admit it before wire I/O.
         // Legacy writes retain their existing native admission path.
@@ -173,7 +208,11 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         }
         if let operation { common.operationSent(operation) }
         do {
-            try await link.writeCameraProperty(write)
+            if let admission {
+                try await link.writeCameraProperty(write, admission: admission)
+            } else {
+                try await link.writeCameraProperty(write)
+            }
             let readback = try? await link.readCameraProperty(write.property)
             guard generation == current, !closed else { return true }
             if let readback {
@@ -186,8 +225,13 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         } catch {
             guard generation == current, !closed else { return true }
             if let operation {
-                common.commandFailed(
-                    operation, cameraRefused: NativeCameraSessionError.isCameraRefusal(error))
+                if case NativeCameraSessionError.commandAuthorityExpired = error {
+                    common.commandAdmissionExpired(operation)
+                    writes.removeAll { $0.operation == operation }
+                } else {
+                    common.commandFailed(
+                        operation, cameraRefused: NativeCameraSessionError.isCameraRefusal(error))
+                }
             }
             onReadback(write, nil)
         }
@@ -409,6 +453,41 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         }
     }
 
+    /// The exact existing GetEventEx cadence at an admitted app/control safe point.
+    /// A ticket belongs to one link/runtime generation; late results cannot publish or clear a successor.
+    @discardableResult
+    public func pollDeviceEventsAtSafePoint(
+        frameCounter: Int,
+        framePeriodMilliseconds: Double, roundTripMilliseconds: Double?,
+        receive: @escaping @MainActor (PTPEvent) -> Void
+    ) -> Bool {
+        guard !closed, let link, let polling = link as? any NikonDeviceEventPollLink,
+            deviceEventPoll == nil
+        else { return false }
+        let stride = LiveViewPollPacing.eventPollStride(
+            roundTripMilliseconds: roundTripMilliseconds,
+            framePeriodMilliseconds: framePeriodMilliseconds)
+        guard frameCounter.isMultiple(of: stride) else { return false }
+        let ticket = UUID()
+        let capturedGeneration = generation
+        let capturedLink = ObjectIdentifier(link)
+        let task = Task { [weak self] in
+            defer { if self?.deviceEventPoll?.ticket == ticket { self?.deviceEventPoll = nil } }
+            guard let self, deviceEventPoll?.ticket == ticket, generation == capturedGeneration,
+                !closed, !Task.isCancelled, self.link.map(ObjectIdentifier.init) == capturedLink
+            else { return }
+            let events = await polling.pollDeviceEvents()
+            for event in events {
+                guard deviceEventPoll?.ticket == ticket, generation == capturedGeneration,
+                    !closed, !Task.isCancelled, self.link.map(ObjectIdentifier.init) == capturedLink
+                else { return }
+                receive(event)
+            }
+        }
+        deviceEventPoll = (ticket, task)
+        return true
+    }
+
     /// Drains every kept-link reader before returning a borrowed session to its member.
     @discardableResult
     public func retirePumps() -> Task<Void, Never>? { stopBackgroundTasks() }
@@ -417,16 +496,22 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     private func stopBackgroundTasks() -> Task<Void, Never>? {
         let keepAlive = keepAliveTask
         let events = eventTask
+        let polledEvents = deviceEventPoll?.task
+        deviceEventPoll = nil
+        polledEvents?.cancel()
         keepAliveTask = nil
         eventTask = nil
         keepAlive?.cancel()
         events?.cancel()
         let preview = stopPreview()
         let earlier = backgroundRetirement
-        guard keepAlive != nil || events != nil || preview != nil else { return earlier }
+        guard keepAlive != nil || events != nil || polledEvents != nil || preview != nil else {
+            return earlier
+        }
         let retirement = Task {
             await keepAlive?.value
             await events?.value
+            await polledEvents?.value
             await preview?.value
             await earlier?.value
         }
@@ -444,7 +529,26 @@ public final class NikonMonitorRuntime: NikonControlDriver {
     public func queueSettingWrites(
         _ label: String, for setting: NikonControlSetting, operation: OperationID?
     ) -> Int {
+        queueSettingWrites(label, for: setting, operation: operation, suppliedAdmission: nil)
+    }
+
+    public func admits(_ admission: NikonCommandAdmission) -> Bool {
+        !closed && admission.admits(link?.commandOwner)
+    }
+
+    public func queueSettingWrites(
+        _ label: String, for setting: NikonControlSetting, operation: OperationID?,
+        admission: NikonCommandAdmission
+    ) -> Int {
+        queueSettingWrites(label, for: setting, operation: operation, suppliedAdmission: admission)
+    }
+
+    private func queueSettingWrites(
+        _ label: String, for setting: NikonControlSetting, operation: OperationID?,
+        suppliedAdmission: NikonCommandAdmission?
+    ) -> Int {
         guard !closed, link != nil else { return 0 }
+        if let admission = suppliedAdmission, !admits(admission) { return 0 }
         let encoded = PTPCameraPropertyWrite.requests(
             control: setting.cameraControl, label: label, snapshot: nikonControlFacts.reported)
         for write in encoded {
@@ -454,26 +558,45 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 }
             }
             writes.removeAll { $0.write.property == write.property }
-            writes.append((write, operation))
+            writes.append((write, operation, suppliedAdmission))
         }
         return encoded.count
     }
 
     /// Queues the explicit record target; a newer queued target supersedes the earlier one.
     public func queueRecord(start: Bool, operation: OperationID) {
+        queueRecord(start: start, operation: operation, suppliedAdmission: nil)
+    }
+
+    public func queueRecord(start: Bool, operation: OperationID, admission: NikonCommandAdmission) {
+        queueRecord(start: start, operation: operation, suppliedAdmission: admission)
+    }
+
+    private func queueRecord(
+        start: Bool, operation: OperationID, suppliedAdmission: NikonCommandAdmission?
+    ) {
         guard !closed, link != nil else { return common.operationDropped(operation) }
+        if let admission = suppliedAdmission, !admits(admission) {
+            return common.commandAdmissionExpired(operation)
+        }
         if let earlier = record { common.operationDropped(earlier.operation, superseded: true) }
-        record = (start, operation)
+        record = (start, operation, suppliedAdmission)
         onRecordQueued(start)
     }
 
-    private func dropCommands() {
-        for write in writes {
+    private func dropCommands(preservingAdmitted: Bool = false) {
+        writes.removeAll { write in
+            if preservingAdmitted, let admission = write.admission, admits(admission) {
+                return false
+            }
             if let operation = write.operation { common.operationDropped(operation) }
+            return true
         }
-        writes.removeAll()
-        if let record { common.operationDropped(record.operation) }
-        record = nil
+        if let record {
+            if preservingAdmitted, let admission = record.admission, admits(admission) { return }
+            common.operationDropped(record.operation)
+            self.record = nil
+        }
     }
 
     private func closeLink(_ reason: SessionCloseReason) {
@@ -497,7 +620,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
 }
 
 #if canImport(Darwin) && canImport(os)
-    extension NativeCameraSession: NikonMonitorLink {
+    extension NativeCameraSession: NikonMonitorLink, NikonDeviceEventPollLink {
         /// Serial reported during the session's identity exchange.
         public nonisolated var serialNumber: String { identity.serialNumber }
     }

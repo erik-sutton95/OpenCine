@@ -39,6 +39,22 @@ public struct MonitorZebraSpec: Equatable, Sendable {
     }
 }
 
+/// Resolved encoded-code zones, captured with one source frame's processing settings.
+/// Color names and threshold calibration stay with the source adapter.
+public struct MonitorCodeZebraSpec: Equatable, Sendable {
+    public var thresholds: MonitorZebraCodeThresholds
+    public var highlightColor: MonitorRGB
+    public var midtoneColor: MonitorRGB
+    public var maskPolicy: MonitorZebraMaskPolicy
+    public init(thresholds: MonitorZebraCodeThresholds, highlightColor: MonitorRGB,
+        midtoneColor: MonitorRGB, maskPolicy: MonitorZebraMaskPolicy = .init()) {
+        self.thresholds = thresholds
+        self.highlightColor = highlightColor
+        self.midtoneColor = midtoneColor
+        self.maskPolicy = maskPolicy
+    }
+}
+
 /// One complete false-color paint and weight snapshot, already qualified by its source owner.
 public struct MonitorOverlayMaps: Equatable, Sendable {
     public var dimension: Int

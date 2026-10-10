@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Swift suite `CamerasMappingTests`: the same golden values. */
@@ -43,10 +44,10 @@ class CamerasMappingTest {
                 id = "camera-1", name = "CAM-1", subtitle = "Test Body · CAM-1", badge = "CONNECTING",
                 status = "Joining CAM-1", actionTitle = "Connect", isPrimary = true, isBusy = true, isAvailable = true,
                 setups = listOf(
-                    MonitorSetupChip(Values.ap.id.text, "Camera Wi-Fi", active = true),
-                    MonitorSetupChip(Values.wifi.id.text, "Wi-Fi · studio", active = false, canForget = true),
+                    MonitorSetupChip(Values.ap.id.text, "Camera Wi-Fi", active = true, kind = "cameraWiFi"),
+                    MonitorSetupChip(Values.wifi.id.text, "Wi-Fi · studio", active = false, canForget = true, kind = "wifi"),
                 ),
-                canAddSetup = true,
+                canAddSetup = false,
                 steps = listOf(
                     MonitorConnectStep("Link", "", MonitorConnectStep.State.DONE),
                     MonitorConnectStep("Approve", "", MonitorConnectStep.State.DONE),
@@ -61,10 +62,10 @@ class CamerasMappingTest {
                 id = "camera-0", name = "B cam", subtitle = "Test Body · studio", badge = "NOT CONNECTED",
                 status = "Not found. Power it on to reconnect", actionTitle = "Reconnect", isAvailable = false,
                 setups = listOf(
-                    MonitorSetupChip(Values.ap.id.text, "Camera Wi-Fi", active = false),
-                    MonitorSetupChip(Values.wifi.id.text, "Wi-Fi · studio", active = true, canForget = true),
+                    MonitorSetupChip(Values.ap.id.text, "Camera Wi-Fi", active = false, kind = "cameraWiFi"),
+                    MonitorSetupChip(Values.wifi.id.text, "Wi-Fi · studio", active = true, canForget = true, kind = "wifi"),
                 ),
-                canAddSetup = true,
+                canAddSetup = false,
                 failure = MonitorConnectFailure(
                     "Bluetooth is off", "Turn on Bluetooth for this app.",
                     listOf(
@@ -89,6 +90,15 @@ class CamerasMappingTest {
         fake.publish(listOf(NearbyCamera("n9", name = "CAM-9", model = "", routes = setOf(RouteKind.INFRASTRUCTURE_NETWORK))))
         runCurrent()
         assertEquals(listOf("nearby"), CamerasMapping.nearby(model).map { it.subtitle })
+    }
+
+    @Test
+    fun addIsOfferedOnlyWhileAnAddableKindIsMissing() = runTest {
+        val fake = FakeIntegration(id = IntegrationID("test.cameras"))
+        val missing = Values.camera.copy(routes = listOf(Values.ap), preferredRoute = Values.ap.id)
+        assertTrue(CamerasMapping.paired(Values.model(listOf(fake), backgroundScope, listOf(missing)))[0].canAddSetup)
+        val full = Values.camera.copy(routes = listOf(Values.ap, Values.wifi), preferredRoute = Values.ap.id)
+        assertFalse(CamerasMapping.paired(Values.model(listOf(fake), backgroundScope, listOf(full)))[0].canAddSetup)
     }
 
     @Test

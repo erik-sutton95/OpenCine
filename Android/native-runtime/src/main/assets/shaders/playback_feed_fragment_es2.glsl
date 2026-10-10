@@ -10,6 +10,8 @@ uniform float uFlipInputY;
 // Horizontal flip for a camera pointed back at the operator: 1 mirrors, 0 does not. Folds the
 // SAMPLING coordinate, so the picture and every effect read through it flip together.
 uniform float uMirror;
+// Operator-selected top-to-bottom flip, separate from uFlipInputY.
+uniform float uMirrorVertical;
 uniform float uLutSize;
 // 50/50 Log-vs-LUT comparison: 1 = on, and 1 = a vertical boundary (Log left, LUT right)
 // against a horizontal one (Log top, LUT bottom). See `SplitComparison` in shared core.
@@ -22,6 +24,8 @@ uniform vec2 uSourceSize;
 uniform vec2 uDisplaySize;
 // 1 = Fast (Catmull-Rom), 0 = Off (plain bilinear). Matches iOS Off / Fast.
 uniform float uFeedUpscale;
+// 1 = one-pass Bitmap look: Catmull-Rom whenever either axis magnifies, lower clamp only.
+uniform float uFeedOnePassUpscale;
 
 uniform float uPeakingOn;
 uniform vec3 uPeakingColor;
@@ -30,6 +34,8 @@ uniform vec3 uPeakingColor;
 // it is a separate pass and not an inline block here.
 uniform sampler2D uPeakingMask;
 
+uniform float uZebraMaximumComponent;
+uniform float uZebraRampBias;
 uniform float uZebraHighlightOn;
 uniform float uZebraHighlight;
 uniform vec3 uZebraHighlightColor;
@@ -135,6 +141,10 @@ vec3 sampleSourceReconstructed(vec2 coordinate, vec2 sourceSize) {
         + sampleSourceAt(vec2(centre3.x, centre3.y), sourceSize) * w3.x;
 
     vec3 reconstructed = row0 * w0.y + row12 * w12.y + row3 * w3.y;
+    // The one-pass look keeps its original lower-only clamp.
+    if (uFeedOnePassUpscale > 0.5) {
+        return max(reconstructed, vec3(0.0));
+    }
     // RGB cubic overshoot is colour fringing. Clamp both ends.
     return clamp(reconstructed, 0.0, 1.0);
 }
@@ -145,6 +155,13 @@ vec3 sampleSourceReconstructed(vec2 coordinate, vec2 sourceSize) {
 // floor device pays nothing for this.
 vec3 sampleSourceForDisplay(vec2 coordinate) {
     vec2 sourceSize = max(uSourceSize, vec2(1.0));
+    // The one-pass look gates here, exactly as its original program did.
+    if (uFeedOnePassUpscale > 0.5) {
+        if (uDisplaySize.x <= sourceSize.x && uDisplaySize.y <= sourceSize.y) {
+            return sampleSource(coordinate);
+        }
+        return sampleSourceReconstructed(coordinate, sourceSize);
+    }
     // Kotlin already gated Fast to magnification (`shouldReconstructToDisplay`).
     if (uFeedUpscale < 0.5) {
         return sampleSource(coordinate);
@@ -253,7 +270,7 @@ void main() {
     // lands for the operator, and the zebra stripe is screen geometry.
     vec2 sourceCoordinate = vec2(
         mix(vTexSamplingCoord.x, 1.0 - vTexSamplingCoord.x, uMirror),
-        vTexSamplingCoord.y
+        mix(vTexSamplingCoord.y, 1.0 - vTexSamplingCoord.y, uMirrorVertical)
     );
     vec3 source = sampleSource(sourceCoordinate);
     vec3 displaySource = sampleSourceForDisplay(sourceCoordinate);
@@ -295,11 +312,10 @@ void main() {
             fract((displayCoordinate.x + displayCoordinate.y) / STRIPE_PITCH)
         );
         if (uZebraHighlightOn > 0.5) {
-            // Highlight reads the max channel - the byte WAVE draws at 100 (#136).
-            // +1 matches iOS `thresholdMask` so code == threshold paints.
-            float hot = max(source.r, max(source.g, source.b));
+            // The captured processing policy selects the source measurement and ramp.
+            float hot = uZebraMaximumComponent > 0.5 ? max(source.r, max(source.g, source.b)) : luma;
             float highlightMask = clamp(
-                (hot - uZebraHighlight) * ZEBRA_GAIN + 1.0,
+                (hot - uZebraHighlight) * ZEBRA_GAIN + uZebraRampBias,
                 0.0,
                 1.0
             );
@@ -309,12 +325,12 @@ void main() {
             float halfWidth = max(uZebraMidtoneHalf, 1e-6);
             float midtoneMask =
                 clamp(
-                    (luma - (uZebraMidtone - halfWidth)) * ZEBRA_GAIN + 1.0,
+                    (luma - (uZebraMidtone - halfWidth)) * ZEBRA_GAIN + uZebraRampBias,
                     0.0,
                     1.0
                 )
                 * clamp(
-                    ((uZebraMidtone + halfWidth) - luma) * ZEBRA_GAIN + 1.0,
+                    ((uZebraMidtone + halfWidth) - luma) * ZEBRA_GAIN + uZebraRampBias,
                     0.0,
                     1.0
                 );

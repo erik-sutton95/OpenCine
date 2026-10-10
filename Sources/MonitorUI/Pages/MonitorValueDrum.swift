@@ -66,12 +66,11 @@
                     action: { commit(option) })
             }
             Self.drawing(rows: rows, position: currentPosition, cellWidth: metrics.cellWidth)
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: DrumCanvasWidthKey.self, value: proxy.size.width)
-                    }
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.size.width
+                } action: {
+                    canvasWidth = $0
                 }
-                .onPreferenceChange(DrumCanvasWidthKey.self) { canvasWidth = $0 }
                 .contentShape(Rectangle())
                 .highPriorityGesture(
                     DragGesture(minimumDistance: 0)
@@ -231,13 +230,6 @@
                 context.stroke(ticks, with: .color(.white.opacity(0.22)), lineWidth: 1)
             }
             .allowsHitTesting(false).accessibilityHidden(true)
-        }
-    }
-
-    private struct DrumCanvasWidthKey: PreferenceKey {
-        static var defaultValue: CGFloat { 0 }
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = nextValue()
         }
     }
 

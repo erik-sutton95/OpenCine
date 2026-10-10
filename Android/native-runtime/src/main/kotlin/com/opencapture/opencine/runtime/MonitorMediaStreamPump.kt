@@ -2,6 +2,7 @@ package com.opencapture.opencine.runtime
 
 import com.opencapture.opencine.media.MediaByteSink
 import com.opencapture.opencine.media.MediaTransferReceipt
+import com.opencapture.opencine.media.MediaTransferProgressSink
 import kotlinx.coroutines.*
 import java.io.InputStream
 import java.io.IOException
@@ -55,6 +56,7 @@ public class MonitorMediaStreamPump(private val chunkBytes: Int = 64 * 1024) {
                 stream.status?.let { if (it !in 200..299) throw MonitorMediaStreamException.Status(it) }
                 expected = stream.contentLength?.takeIf { it > 0 } ?: expected
                 if ((expected ?: 0) > maximum) throw MonitorMediaStreamException.Limit()
+                (sink as? MediaTransferProgressSink)?.expectedByteCount(expected)
                 val buffer = ByteArray(chunkBytes)
                 while (true) {
                     currentCoroutineContext().ensureActive()

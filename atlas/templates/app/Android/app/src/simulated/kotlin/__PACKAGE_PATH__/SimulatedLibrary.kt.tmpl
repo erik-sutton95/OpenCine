@@ -1,0 +1,50 @@
+package __APP_ID__
+
+import com.opencapture.opencine.appkit.MonitorMediaCache
+import com.opencapture.opencine.appkit.MonitorMediaCacheAddress
+import com.opencapture.opencine.appkit.MonitorMediaCacheStorage
+import com.opencapture.opencine.appkit.MonitorMediaCatalogCodec
+import com.opencapture.opencine.appkit.MonitorMediaFavoriteAuthority
+import com.opencapture.opencine.appkit.MonitorMediaFavoritesStore
+import com.opencapture.opencine.appkit.MonitorMediaFilterFacts
+import com.opencapture.opencine.appkit.MonitorMediaLibraryModel
+import com.opencapture.opencine.appkit.MonitorMediaOriginalEligibility
+import com.opencapture.opencine.appkit.MonitorMediaRecord
+import com.opencapture.opencine.media.CameraMediaService
+import com.opencapture.opencine.media.MediaAsset
+import com.opencapture.opencine.media.MediaBrowseBinding
+import kotlinx.coroutines.CoroutineScope
+import org.json.JSONArray
+import java.io.File
+
+/** SIMULATED immutable fixture schema. Gallery, catalog persistence and cache policy are shared. */
+class SimulatedMediaCodec : MonitorMediaCatalogCodec<MediaAsset> {
+    override fun capture(asset: MediaAsset, binding: MediaBrowseBinding): MonitorMediaRecord<MediaAsset> = record(asset)
+    override fun decode(bytes: ByteArray): List<MonitorMediaRecord<MediaAsset>> {
+        val ids = JSONArray(bytes.toString(Charsets.UTF_8))
+        return (0 until ids.length()).map {
+            require(ids.getString(it) == SimulatedAssets.asset.id.rawValue) { "Unknown simulated asset" }
+            record(SimulatedAssets.asset)
+        }
+    }
+    override fun encode(records: List<MonitorMediaRecord<MediaAsset>>): ByteArray =
+        JSONArray(records.map { it.asset.id.rawValue }).toString().toByteArray(Charsets.UTF_8)
+
+    private fun record(asset: MediaAsset): MonitorMediaRecord<MediaAsset> {
+        require(asset == SimulatedAssets.asset) { "Unknown simulated asset" }
+        return MonitorMediaRecord(asset, asset,
+            MonitorMediaCacheAddress("colour-bars-v1.png",
+                mapOf(asset.representations.first().id to "colour-bars-v1.mp4"), asset.id.rawValue),
+            facts = MonitorMediaFilterFacts(format = "MP4", resolution = "320x180"),
+            favoriteAuthority = MonitorMediaFavoriteAuthority.LOCAL_OVERLAY)
+    }
+}
+
+/** Explicit per-install storage, keys and dispatcher supplied by the app or its test. */
+fun makeSimulatedLibrary(root: File, storage: MonitorMediaCacheStorage,
+    favorites: MonitorMediaFavoritesStore, scope: CoroutineScope,
+    service: CameraMediaService? = null): MonitorMediaLibraryModel<MediaAsset> {
+    val cache = MonitorMediaCache(storage.directory(root), SimulatedMediaCodec(),
+        MonitorMediaOriginalEligibility.ExactSize, "catalog.json", listOf("catalog.json"))
+    return MonitorMediaLibraryModel(cache, favorites, service, scope)
+}
