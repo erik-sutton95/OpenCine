@@ -30,8 +30,16 @@ absent source observation rather than invoking a fabricated sample.
 `MonitorPlaybackAudioMeterRuntime` owns the actual Apple audio tap, cancellable
 track query and meter polling. Android `MonitorPcmAudioInput` owns prepared PCM
 sampling; the app maps its player SDK encodings into `MonitorPcmFormat` and keeps
-the SDK player/factory. Audio-session and conform-preview mute policies remain
-application actions. Neither owner introduces a player SDK dependency.
+the SDK player/factory. Conform-preview mute policies remain application actions.
+Neither owner introduces a player SDK dependency.
+
+`MonitorPlaybackAudioSession` serializes Apple's synchronous audio-session setup
+and release on its worker queue. Each app model retains one service across player
+presentations. Leases keep the existing playback category, movie mode and
+notification policy; host callbacks remain on Main. Retirement cannot block Main
+on an entered audio RPC, and an old completion cannot release or report an error
+for a successor lease. This Apple service changes scheduling, not the app's audio
+policy; Android retains its existing native audio owner.
 
 Each audio producer captures a source lease, and each format preparation captures
 a sampling writer. Replacement and reprepare clear measured peaks and reject late
