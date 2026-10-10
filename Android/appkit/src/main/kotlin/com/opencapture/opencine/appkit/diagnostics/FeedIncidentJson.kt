@@ -11,6 +11,7 @@ import com.opencapture.opencine.media.FeedIncidentDecoder
 import com.opencapture.opencine.media.FeedIncidentErrorCount
 import com.opencapture.opencine.media.FeedIncidentFailingStage
 import com.opencapture.opencine.media.FeedIncidentHeader
+import com.opencapture.opencine.media.FeedIncidentIngress
 import com.opencapture.opencine.media.FeedIncidentKind
 import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentOutcome
@@ -128,6 +129,8 @@ public object FeedIncidentJson {
                     .put("awaitingIrap", snap.decoder.awaitingIrap)
                     .put("hasDecodableReferences", snap.decoder.hasDecodableReferences)
                     .also { obj ->
+                        snap.decoder.lastStatus?.let { obj.put("lastStatus", it) }
+                        snap.decoder.lastFlags?.let { obj.put("lastFlags", it) }
                         snap.decoder.errorClass?.let { obj.put("errorClass", it) }
                         snap.decoder.errorAge?.let { obj.put("errorAge", it) }
                         snap.decoder.lastIrapAge?.let { obj.put("lastIrapAge", it) }
@@ -154,6 +157,47 @@ public object FeedIncidentJson {
             .put("watchdogAction", snap.watchdogAction)
             .put("diagnoserFailure", snap.diagnoserFailure)
             .put("diagnoserRepair", snap.diagnoserRepair)
+            .also { obj -> snap.ingress?.let { obj.put("ingress", ingressJson(it)) } }
+
+    private fun ingressJson(ingress: FeedIncidentIngress): JSONObject =
+        JSONObject()
+            .put("socketGeneration", ingress.socketGeneration)
+            .put("receivedDatagrams", ingress.receivedDatagrams)
+            .put("videoDatagrams", ingress.videoDatagrams)
+            .put("videoGateDrops", ingress.videoGateDrops)
+            .put("injectedVideoDrops", ingress.injectedVideoDrops)
+            .put("registrationSubmissions", ingress.registrationSubmissions)
+            .put("receiveErrors", ingress.receiveErrors)
+            .put("videoGateOpen", ingress.videoGateOpen)
+            .also { obj ->
+                ingress.lastDatagramAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { obj.put("lastDatagramAge", it) }
+                ingress.lastVideoDatagramAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { obj.put("lastVideoDatagramAge", it) }
+                ingress.lastRegistrationSubmissionAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { obj.put("lastRegistrationSubmissionAge", it) }
+            }
+
+    private fun parseIngress(json: JSONObject): FeedIncidentIngress? {
+        val generation = json.optIntOrNull("socketGeneration")?.takeIf { it >= 0 } ?: return null
+        val received = json.optIntOrNull("receivedDatagrams")?.takeIf { it >= 0 } ?: return null
+        val video = json.optIntOrNull("videoDatagrams")?.takeIf { it >= 0 } ?: return null
+        val gated = json.optIntOrNull("videoGateDrops")?.takeIf { it >= 0 } ?: return null
+        val injected = json.optIntOrNull("injectedVideoDrops")?.takeIf { it >= 0 } ?: return null
+        val registrations = json.optIntOrNull("registrationSubmissions")?.takeIf { it >= 0 } ?: return null
+        val errors = json.optIntOrNull("receiveErrors")?.takeIf { it >= 0 } ?: return null
+        val gateOpen = json.opt("videoGateOpen") as? Boolean ?: return null
+        return FeedIncidentIngress(
+            socketGeneration = generation,
+            receivedDatagrams = received,
+            videoDatagrams = video,
+            videoGateDrops = gated,
+            injectedVideoDrops = injected,
+            registrationSubmissions = registrations,
+            receiveErrors = errors,
+            lastDatagramAge = json.optDoubleOrNull("lastDatagramAge")?.takeIf { it >= 0.0 },
+            lastVideoDatagramAge = json.optDoubleOrNull("lastVideoDatagramAge")?.takeIf { it >= 0.0 },
+            lastRegistrationSubmissionAge = json.optDoubleOrNull("lastRegistrationSubmissionAge")?.takeIf { it >= 0.0 },
+            videoGateOpen = gateOpen,
+        )
+    }
 
     private fun breadcrumbArray(items: List<FeedIncidentBreadcrumb>): JSONArray {
         val array = JSONArray()
@@ -192,12 +236,13 @@ public object FeedIncidentJson {
 
     private fun agesJson(ages: FeedIncidentAges): JSONObject {
         val json = JSONObject()
-        ages.packetAge?.let { json.put("packetAge", it) }
-        ages.accessUnitAge?.let { json.put("accessUnitAge", it) }
-        ages.decodeAcceptAge?.let { json.put("decodeAcceptAge", it) }
-        ages.decodedOutputAge?.let { json.put("decodedOutputAge", it) }
-        ages.assistOutputAge?.let { json.put("assistOutputAge", it) }
-        ages.presentAge?.let { json.put("presentAge", it) }
+        ages.packetAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("packetAge", it) }
+        ages.accessUnitAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("accessUnitAge", it) }
+        ages.decodeAcceptAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("decodeAcceptAge", it) }
+        ages.decodedOutputAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("decodedOutputAge", it) }
+        ages.assistOutputAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("assistOutputAge", it) }
+        ages.presentAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("presentAge", it) }
+        ages.statusAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("statusAge", it) }
         return json
     }
 
@@ -268,12 +313,13 @@ public object FeedIncidentJson {
                     ),
                 ages =
                     FeedIncidentAges(
-                        packetAge = ages.optDoubleOrNull("packetAge"),
-                        accessUnitAge = ages.optDoubleOrNull("accessUnitAge"),
-                        decodeAcceptAge = ages.optDoubleOrNull("decodeAcceptAge"),
-                        decodedOutputAge = ages.optDoubleOrNull("decodedOutputAge"),
-                        assistOutputAge = ages.optDoubleOrNull("assistOutputAge"),
-                        presentAge = ages.optDoubleOrNull("presentAge"),
+                        packetAge = ages.optDoubleOrNull("packetAge")?.takeIf { it >= 0.0 },
+                        accessUnitAge = ages.optDoubleOrNull("accessUnitAge")?.takeIf { it >= 0.0 },
+                        decodeAcceptAge = ages.optDoubleOrNull("decodeAcceptAge")?.takeIf { it >= 0.0 },
+                        decodedOutputAge = ages.optDoubleOrNull("decodedOutputAge")?.takeIf { it >= 0.0 },
+                        assistOutputAge = ages.optDoubleOrNull("assistOutputAge")?.takeIf { it >= 0.0 },
+                        presentAge = ages.optDoubleOrNull("presentAge")?.takeIf { it >= 0.0 },
+                        statusAge = ages.optDoubleOrNull("statusAge")?.takeIf { it >= 0.0 },
                     ),
                 queue =
                     FeedIncidentQueue(
@@ -290,6 +336,8 @@ public object FeedIncidentJson {
                         codec = decoder.optString("codec", "hevc"),
                         width = decoder.optInt("width"),
                         height = decoder.optInt("height"),
+                        lastStatus = decoder.optIntOrNull("lastStatus"),
+                        lastFlags = decoder.optLongOrNull("lastFlags"),
                         origin = FeedDecoderErrorOrigin.fromWire(decoder.optString("origin", "none")),
                         errorClass = decoder.optStringOrNull("errorClass"),
                         errorCount = decoder.optInt("errorCount"),
@@ -320,6 +368,7 @@ public object FeedIncidentJson {
                 watchdogAction = json.optString("watchdogAction", "none"),
                 diagnoserFailure = json.optString("diagnoserFailure", "none"),
                 diagnoserRepair = json.optString("diagnoserRepair", "none"),
+                ingress = json.optJSONObject("ingress")?.let(::parseIngress),
             )
         }
     }
@@ -366,6 +415,18 @@ public object FeedIncidentJson {
         if (!has(key) || isNull(key)) return null
         val value = optString(key)
         return value.takeIf { it.isNotEmpty() && it != "null" }
+    }
+
+    private fun JSONObject.optIntOrNull(key: String): Int? =
+        optLongOrNull(key)?.takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+
+    private fun JSONObject.optLongOrNull(key: String): Long? {
+        val value = opt(key)
+        return when (value) {
+            is Int -> value.toLong()
+            is Long -> value
+            else -> null
+        }
     }
 
     private fun JSONObject.optDoubleOrNull(key: String): Double? {

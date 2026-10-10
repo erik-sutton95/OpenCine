@@ -59,6 +59,10 @@ struct DJIAppleDatalinkLifetimeTests {
         try await driver.open()
         await peer.waitForPresence(count: 1)
         let baseline = peer.snapshot.presences
+        let before = driver.incidentIngress
+        #expect(before.receivedDatagrams > 0)
+        #expect(before.registrationSubmissions > 0)
+        #expect(before.lastRegistrationSubmissionAge != nil)
         let actual = DjiAppleHeartbeatEndpoint(datalink: driver)
         var wakes: [@MainActor @Sendable () -> Void] = []
         var time: TimeInterval = 0
@@ -72,6 +76,7 @@ struct DJIAppleDatalinkLifetimeTests {
         #expect(bleFrames.isEmpty)
         wakes.removeFirst()()
         await peer.waitForPresence(count: baseline + 1)
+        #expect(driver.incidentIngress.registrationSubmissions > before.registrationSubmissions)
         #expect(bleFrames.count == 1)
         #expect(bleFrames.first?.cmdSet == 0 && bleFrames.first?.cmdId == 0x2b)
         #expect(bleFrames.first?.payload == [1, 1])

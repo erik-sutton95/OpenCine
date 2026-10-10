@@ -412,6 +412,8 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
     public var watchdogAction: String
     public var diagnoserFailure: String
     public var diagnoserRepair: String
+    /// Absent on legacy records and producers without socket-level observation.
+    public var ingress: FeedIncidentIngress?
 
     public init(
         monotonicNow: TimeInterval,
@@ -435,6 +437,27 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
         self.watchdogAction = FeedIncidentPrivacy.token(watchdogAction, max: 32)
         self.diagnoserFailure = FeedIncidentPrivacy.token(diagnoserFailure, max: 32)
         self.diagnoserRepair = FeedIncidentPrivacy.token(diagnoserRepair, max: 32)
+        self.ingress = nil
+    }
+
+    public init(
+        monotonicNow: TimeInterval,
+        wallClock: Date = Date(timeIntervalSince1970: 0),
+        rates: FeedIncidentRates = FeedIncidentRates(),
+        ages: FeedIncidentAges = FeedIncidentAges(),
+        queue: FeedIncidentQueue = FeedIncidentQueue(),
+        decoder: FeedIncidentDecoder = FeedIncidentDecoder(),
+        lifecycle: FeedIncidentLifecycle = FeedIncidentLifecycle(),
+        watchdogAction: String = "none",
+        diagnoserFailure: String = "none",
+        diagnoserRepair: String = "none",
+        ingress: FeedIncidentIngress?
+    ) {
+        self.init(monotonicNow: monotonicNow, wallClock: wallClock, rates: rates,
+                  ages: ages, queue: queue, decoder: decoder, lifecycle: lifecycle,
+                  watchdogAction: watchdogAction, diagnoserFailure: diagnoserFailure,
+                  diagnoserRepair: diagnoserRepair)
+        self.ingress = ingress
     }
 }
 

@@ -101,6 +101,7 @@
 
         /// Depacketize + video counters on the UDP queue. Main only hops complete AUs.
         nonisolated private let videoAssembler = SoftAPVideoAssembler()
+        nonisolated private let ingressMetrics = OSAllocatedUnfairLock(initialState: FeedIngressMetrics())
         /// Session/socket snapshot for the 40 Hz ACK pump (UDP queue, not MainActor).
         nonisolated private let wire = OSAllocatedUnfairLock(initialState: WireState())
         /// Last pid `0x38` GET write / reply. Keepalive BLE fallback reads these; UDP queue stamps reply.
@@ -189,6 +190,13 @@
             wire.withLock { w in w.lastSendErrorAt.map { ($0, w.lastSendErrorCode ?? 0) } }
         }
         public var incidentQueue: DjiAppleQueueObservation { videoAssembler.incidentQueue }
+        /// Before video admission/assembly; no payload or endpoint address is retained.
+        public var incidentIngress: FeedIncidentIngress {
+            let accepting = videoGate.withLock { $0.accepting }
+            return ingressMetrics.withLock {
+                $0.snapshot(now: ProcessInfo.processInfo.systemUptime, videoGateOpen: accepting)
+            }
+        }
         public var droppedIncomplete: Int { videoAssembler.snapshot().dropped }
         public var receiveErrorCount: Int { receiveErrors }
         public var lastVideoPacketAt: Date? { videoAssembler.snapshot().lastPacket }
@@ -1050,6 +1058,7 @@
             commandOwner.replaceSource()
             udpGeneration += 1
             let handshakeEpoch = udpGeneration
+            ingressMetrics.withLock { $0.reset(generation: handshakeEpoch) }
             handshakeAdmission.withLock { $0.reset(epoch: handshakeEpoch) }
             let generation = udpGeneration
             liveGeneration.withLock { $0 = generation }
@@ -1166,6 +1175,13 @@
             dumlSeq = stamped &+ 1
             let dispatched = writeOnQueue(
                 pkt, trackCommand: trackCommand, suppliedAdmission: suppliedAdmission)
+            if dispatched, frame.cmdSet == 0, frame.cmdId == 0x88 {
+                let generation = udpGeneration
+                ingressMetrics.withLock {
+                    $0.record(.registrationSubmission, at: ProcessInfo.processInfo.systemUptime,
+                        generation: generation)
+                }
+            }
             // The original direct caller still receives its stamped sequence if its second SDK
             // readiness check skipped; only explicit supplied work reports a refusal instead.
             return suppliedAdmission != nil && !dispatched ? .skipped : .queued(stamped)
@@ -1598,6 +1614,7 @@
             let handshake = handshakeAdmission
             let inbound = handshakeInbound
             let gate = videoGate
+            let metrics = ingressMetrics
             let flipReplyAt = lastSelfieFlipReply
             let generation = udpGeneration
             let genLock = liveGeneration
@@ -1609,6 +1626,12 @@
                 conn, queue: q,
                 onError: { [weak self] message in
                     let canceled = CameraSoftAP.isCanceledReceive(message)
+                    if !canceled {
+                        metrics.withLock {
+                            $0.record(.receiveError, at: ProcessInfo.processInfo.systemUptime,
+                                generation: generation)
+                        }
+                    }
                     let awaitingAck = !handshake.withLock { $0.acknowledged }
                     Task { @MainActor in
                         guard let self else { return }
@@ -1630,6 +1653,11 @@
                 },
                 ingest: { [weak self] bytes in
                     guard genLock.withLock({ $0 }) == generation else { return }
+                    let video = bytes.count > 6 && bytes[6] == 0x02
+                    metrics.withLock {
+                        $0.record(.datagram(video: video), at: ProcessInfo.processInfo.systemUptime,
+                            generation: generation)
+                    }
                     let awaitingAck = !handshake.withLock { $0.acknowledged }
                     if awaitingAck {
                         inbound.withLock { $0 += 1 }
@@ -1648,10 +1676,13 @@
                     }
                     handshake.withLock { $0.receive(bytes, epoch: generation) }
                     self?.noteAckWindows(bytes)
-                    let video = bytes.count > 6 && bytes[6] == 0x02
                     if video {
                         let accept = gate.withLock { $0.accepting }
                         if !CameraSoftAP.shouldIngestLiveVideo(ingestArmed: accept) {
+                            metrics.withLock {
+                                $0.record(.videoGateDrop, at: ProcessInfo.processInfo.systemUptime,
+                                    generation: generation)
+                            }
                             let logDrop = gate.withLock { state -> Bool in
                                 if state.loggedDrop { return false }
                                 state.loggedDrop = true
@@ -1672,6 +1703,10 @@
                             if host.debugVideo?.shouldDropPacket(
                                 UInt64(DumlTransport.transportSeq(bytes) ?? 0)) == true
                             {
+                                metrics.withLock {
+                                    $0.record(.injectedVideoDrop, at: ProcessInfo.processInfo.systemUptime,
+                                        generation: generation)
+                                }
                                 return
                             }
                             host.debugVideo?.sourceDelivered(1, 0)

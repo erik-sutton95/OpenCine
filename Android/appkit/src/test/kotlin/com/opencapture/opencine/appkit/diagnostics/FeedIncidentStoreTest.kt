@@ -4,6 +4,8 @@ import com.opencapture.opencine.media.FeedIncidentAges
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
 import com.opencapture.opencine.media.FeedIncidentBundle
+import com.opencapture.opencine.media.FeedIncidentDecoder
+import com.opencapture.opencine.media.FeedIncidentIngress
 import com.opencapture.opencine.media.FeedIncidentFailingStage
 import com.opencapture.opencine.media.FeedIncidentHeader
 import com.opencapture.opencine.media.FeedIncidentKind
@@ -18,6 +20,9 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import org.json.JSONObject
 import kotlin.test.assertTrue
 
 class FeedIncidentStoreTest {
@@ -192,6 +197,62 @@ class FeedIncidentStoreTest {
         assertTrue(FeedIncidentJson.encodedSize(limited) <= 8_192)
         assertTrue(limited.header.evictions > 0)
         assertTrue(limited.prelude.size + limited.during.size < huge.prelude.size + huge.during.size)
+    }
+
+    @Test
+    fun ingressStatusAgeAndDecoderStatusFlagsSurviveJsonRoundTrip() {
+        val ingress = FeedIncidentIngress(4, 13, 7, 2, 1, 5, 3, 0.1, 0.2, 0.3, false)
+        val snapshot = sampleSnapshot(5.0).copy(
+            ages = FeedIncidentAges(statusAge = 0.4),
+            decoder = FeedIncidentDecoder(lastStatus = -12909, lastFlags = 4_294_967_297L),
+            ingress = ingress,
+        )
+        val bundle = sampleBundle("ingress-json").copy(prelude = listOf(snapshot))
+        val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
+        assertEquals(snapshot, decoded.prelude.single())
+    }
+
+    @Test
+    fun legacyJsonOmitsUnknownIngressStatusAndDecoderFields() {
+        val encoded = FeedIncidentJson.encode(sampleBundle("legacy-json"))
+        val json = JSONObject(String(encoded, Charsets.UTF_8))
+        val snapshot = json.getJSONArray("prelude").getJSONObject(0)
+        assertFalse(snapshot.has("ingress"))
+        assertFalse(snapshot.getJSONObject("ages").has("statusAge"))
+        assertFalse(snapshot.getJSONObject("decoder").has("lastStatus"))
+        assertFalse(snapshot.getJSONObject("decoder").has("lastFlags"))
+        val legacy = assertNotNull(FeedIncidentJson.decode(encoded)).prelude.single()
+        assertNull(legacy.ingress)
+        assertNull(legacy.ages.statusAge)
+        assertNull(legacy.decoder.lastStatus)
+        assertNull(legacy.decoder.lastFlags)
+        snapshot.put("ingress", JSONObject.NULL)
+        snapshot.getJSONObject("decoder").put("lastStatus", JSONObject.NULL).put("lastFlags", JSONObject.NULL)
+        val explicitNulls = assertNotNull(FeedIncidentJson.decode(json.toString().toByteArray(Charsets.UTF_8)))
+        assertNull(explicitNulls.prelude.single().ingress)
+        assertNull(explicitNulls.prelude.single().decoder.lastStatus)
+        assertNull(explicitNulls.prelude.single().decoder.lastFlags)
+    }
+
+    @Test
+    fun missingIngressCountsAndInvalidOptionalAgesRemainUnknown() {
+        val ingress = FeedIncidentIngress(4, 13, 7, 2, 1, 5, 3, Double.NaN, -1.0, Double.POSITIVE_INFINITY, true)
+        val bundle = sampleBundle("unknown-ingress").copy(prelude = listOf(sampleSnapshot(5.0).copy(
+            ages = FeedIncidentAges(packetAge = Double.NaN, accessUnitAge = Double.POSITIVE_INFINITY, statusAge = Double.NaN), ingress = ingress,
+        )))
+        val encoded = FeedIncidentJson.encode(bundle)
+        val decoded = assertNotNull(FeedIncidentJson.decode(encoded)).prelude.single()
+        assertNull(decoded.ages.packetAge)
+        assertNull(decoded.ages.accessUnitAge)
+        assertNull(decoded.ages.statusAge)
+        val observation = assertNotNull(decoded.ingress)
+        assertEquals(13, observation.receivedDatagrams)
+        assertNull(observation.lastDatagramAge)
+        assertNull(observation.lastVideoDatagramAge)
+        assertNull(observation.lastRegistrationSubmissionAge)
+        val json = JSONObject(String(encoded, Charsets.UTF_8))
+        json.getJSONArray("prelude").getJSONObject(0).getJSONObject("ingress").remove("videoDatagrams")
+        assertNull(assertNotNull(FeedIncidentJson.decode(json.toString().toByteArray(Charsets.UTF_8))).prelude.single().ingress)
     }
 
     private fun job(id: String, started: Long) =

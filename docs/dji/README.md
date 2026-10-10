@@ -56,6 +56,14 @@ datalink owners preserve their main-actor callback ordering; background assembly
 own value state. A queue with no pending item has an unknown age (`nil`), while known empty
 counts and bytes are zero. Legacy incident schemas may map that age in their app adapter.
 
+`DjiAppleDatalink.incidentIngress` supplies generation-fenced raw receive facts
+before video admission, fault injection and assembly. The neutral Media snapshot
+keeps these facts optional for legacy producers. Native owners collect fixed-size
+counts and monotonic ages without per-packet logging; apps sample them on the
+existing incident timeline. Local registration counts cover successfully
+submitted app-presence frames, not peer confirmation. Retirement clears the
+counter epoch before late callbacks can reach a replacement.
+
 The package remains resolvable on other platforms through iOS source guards. The Pocket app
 adopts these owners with configured aliases and host callbacks; its remaining camera-session
 orchestration is a separate migration. Import-rule and callback/assembly tests live in

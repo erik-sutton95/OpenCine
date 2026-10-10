@@ -1729,6 +1729,7 @@ class PocketCameraSession(
 
     private fun noteFeedIncidentSnapshot(window: LivePipelineCadence.Window?) {
         val now = SystemClock.elapsedRealtime()
+        val ingressSource = datalink
         fun ageSec(at: Long?): Double? = at?.let { ((now - it).coerceAtLeast(0)).toDouble() / 1000.0 }
         val hz = window?.hz
         appHost.incidents.ingestSnapshot(
@@ -1740,7 +1741,7 @@ class PocketCameraSession(
                         packetHz = hz?.get(LivePipelineCadence.Stage.VIDEO) ?: 0.0,
                         accessUnitHz = hz?.get(LivePipelineCadence.Stage.AU) ?: 0.0,
                         decodeSubmitHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
-                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.OUTPUT) ?: 0.0,
+                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
                         decodedOutputHz = hz?.get(LivePipelineCadence.Stage.OUTPUT) ?: 0.0,
                         // Scopes tap presented GLES frames; there is no independent assist-output stage.
                         assistOutputHz = 0.0,
@@ -1751,10 +1752,11 @@ class PocketCameraSession(
                     FeedIncidentAges(
                         packetAge = ageSec(datalink?.lastVideoPacketAt),
                         accessUnitAge = ageSec(datalink?.lastAccessUnitAt),
-                        decodeAcceptAge = ageSec(decoder.lastDecoderOutputAt),
+                        decodeAcceptAge = decoder.lastDecoderAcceptedAt?.takeIf { it <= now }?.let(::ageSec),
                         decodedOutputAge = ageSec(decoder.lastDecoderOutputAt),
                         assistOutputAge = null,
                         presentAge = ageSec(decoder.lastPresentedAt),
+                        statusAge = ingressSource?.lastStatusAt?.takeIf { it <= now }?.let { (now - it) / 1000.0 },
                     ),
                 queue =
                     FeedIncidentQueue(
@@ -1800,6 +1802,7 @@ class PocketCameraSession(
                         outputObservable = decoder.decoderOutputExpected,
                         presentationExpected = decoder.isPresentationReady && decoder.lastPresentedAt != null,
                     ),
+                ingress = ingressSource?.ingressSnapshot(now / 1000.0),
             ),
         )
         appHost.incidents.noteDecoderGeneration(decoder.randomAccess.generation)

@@ -27,6 +27,8 @@ import kotlin.random.Random
 import com.opencapture.opencine.media.AccessUnitDiscontinuity
 import com.opencapture.opencine.media.CompressedAccessUnitAdmission
 import com.opencapture.opencine.media.LivePipelineCadence
+import com.opencapture.opencine.media.FeedIncidentIngress
+import com.opencapture.opencine.media.FeedIngressMetrics
 
 internal fun isForwardReliableCursor(current: Int, candidate: Int): Boolean {
     val delta = (candidate - current) and 0xFFFF
@@ -202,6 +204,7 @@ class DatalinkDriver(
     private val nativeProgramUsed = AtomicBoolean(false)
     private var closeNeedsStickRest = false
     private val nativeFeedbackEpoch = AtomicLong(0)
+    private val ingressMetrics = DatalinkIngressMetrics(nativeFeedbackEpoch)
     private val nativeProgramFeedback = AtomicReference<Pair<Long, NativeGimbalFeedback>?>(null)
     private val nativeZoomStatus = AtomicReference<Pair<Long, NativeProgramZoomObservation>?>(null)
     private val nativeZoomOwned = AtomicBoolean(false)
@@ -338,6 +341,14 @@ class DatalinkDriver(
     val admissionAwaitingRandomAccess: Boolean get() = admission.isAwaitingRandomAccess
     val lastVideoPacketAt: Long? get() = lastVideoElapsed.get().takeIf { it > 0 }
     val lastStatusAt: Long? get() = lastStatusElapsed.get().takeIf { it > 0 }
+    fun ingressSnapshot(now: Double): FeedIncidentIngress? =
+        if (closed.get()) null else ingressMetrics.snapshot(now, liveViewEnabled)
+
+    private fun recordIngress(event: FeedIngressMetrics.Event, generation: Long) {
+        if (!closed.get()) {
+            ingressMetrics.record(event, SystemClock.elapsedRealtime() / 1000.0, generation)
+        }
+    }
     val lastAccessUnitAt: Long? get() = lastAccessUnitElapsed.get().takeIf { it > 0 }
     val lastRebuildAt: Long? get() = lastRebuildElapsed.get().takeIf { it > 0 }
     val isTcpPokeReady: Boolean get() = synchronized(pokeLock) {
@@ -717,7 +728,11 @@ class DatalinkDriver(
             val header =
                 DjiNative.transportHeader(0x05, routing.size + frameBytes.size, sessionId, udpSeq)
                     ?: return false
+            val sendEpoch = nativeFeedbackEpoch.get()
             val accepted = writeOnNetwork(header + routing + frameBytes)
+            if (accepted && cmdSet == 0x00 && cmdId == 0x88) {
+                recordIngress(FeedIngressMetrics.Event.RegistrationSubmission, sendEpoch)
+            }
             dumlSeq = (dumlSeq + 1) and 0xFFFF
             udpSeq = (udpSeq + 8) and 0xFFFF
             return accepted
@@ -819,8 +834,9 @@ class DatalinkDriver(
         socket = sock
         socketHealth.noteReceiverStarted()
         running.set(true)
+        val ingressEpoch = nativeFeedbackEpoch.get()
         receiver =
-            Thread({ receiveLoop() }, "opc.datalink.rx").also { it.isDaemon = true; it.start() }
+            Thread({ receiveLoop(ingressEpoch) }, "opc.datalink.rx").also { it.isDaemon = true; it.start() }
     }
 
     /** iOS `startAckPump`: pktType 0x04 every 25 ms on its own loop, latest video seq. */
@@ -887,7 +903,7 @@ class DatalinkDriver(
     }
 
     private fun retireVideoEpoch() {
-        val epoch = nativeFeedbackEpoch.incrementAndGet()
+        val epoch = ingressMetrics.retireGeneration()
         handshakeAdmission.reset(epoch)
         // Fence decoder mutation independently of queue ownership. Never hold
         // admission's lock while waiting for the decoder's existing lock.
@@ -971,7 +987,12 @@ class DatalinkDriver(
                 DjiNative.transportHeader(0x05, routing.size + frameBytes.size, sessionId, udpSeq)
                     ?: return
             cmdCounter = (cmdCounter + 1) and 0xFF
-            writeOnNetwork(header + routing + frameBytes)
+            val sendEpoch = nativeFeedbackEpoch.get()
+            val dispatched = writeOnNetwork(header + routing + frameBytes)
+            // Native APP_PRESENCE is 0x00/0x88. This counts local sends, not peer ACKs.
+            if (dispatched && kind == DjiNative.CMD_APP_PRESENCE) {
+                recordIngress(FeedIngressMetrics.Event.RegistrationSubmission, sendEpoch)
+            }
             dumlSeq = (dumlSeq + 1) and 0xFFFF
             udpSeq = (udpSeq + 8) and 0xFFFF
         }
@@ -1146,7 +1167,7 @@ class DatalinkDriver(
         }
     }
 
-    private fun receiveLoop() {
+    private fun receiveLoop(ingressEpoch: Long) {
         val buf = ByteArray(2048)
         while (running.get()) {
             val sock = socket ?: break
@@ -1154,13 +1175,21 @@ class DatalinkDriver(
             val packet = DatagramPacket(buf, buf.size)
             try {
                 sock.receive(packet)
+                recordIngress(FeedIngressMetrics.Event.Datagram(
+                    video = packet.length > 6 && packet.data[packet.offset + 6] == 0x02.toByte(),
+                ), ingressEpoch)
                 if (packet.length > 0 && !closed.get() && receiveEpoch == nativeFeedbackEpoch.get()) {
                     socketHealth.noteWriteSucceeded()
-                    ingest(packet.data.copyOf(packet.length), receiveEpoch)
+                    ingest(packet.data.copyOf(packet.length), receiveEpoch, ingressEpoch)
                 }
             } catch (_: java.net.SocketTimeoutException) {
             } catch (e: Exception) {
                 if (!running.get() || closed.get() || receiveEpoch != nativeFeedbackEpoch.get()) break
+                if (e !is InterruptedException && e !is java.io.InterruptedIOException &&
+                    e !is java.util.concurrent.CancellationException
+                ) {
+                    recordIngress(FeedIngressMetrics.Event.ReceiveError, ingressEpoch)
+                }
                 socketHealth.noteReceiverFailed()
                 running.set(false)
                 Log.w(TAG, "datalink: UDP receive stopped — current bind failed", e)
@@ -1171,7 +1200,7 @@ class DatalinkDriver(
         }
     }
 
-    private fun ingest(datagram: ByteArray, receiveEpoch: Long) {
+    private fun ingest(datagram: ByteArray, receiveEpoch: Long, ingressEpoch: Long) {
         val nIn = inboundLogs.incrementAndGet()
         val pktType = if (datagram.size > 6) datagram[6].toInt() and 0xFF else -1
         if (nIn <= 16) {
@@ -1201,6 +1230,7 @@ class DatalinkDriver(
         }
         if (datagram.size > 20 && datagram[6] == 0x02.toByte()) {
             if (!liveViewEnabled) {
+                recordIngress(FeedIngressMetrics.Event.VideoGateDrop, ingressEpoch)
                 val dropped = leftoverVideoPackets.incrementAndGet()
                 if (loggedLeftoverGop.compareAndSet(false, true) || dropped <= 8) {
                     Log.i(
@@ -1217,7 +1247,10 @@ class DatalinkDriver(
             // Local post-ACK impairment, not an RF or camera-side ACK-loss simulation.
             // Release builds cannot activate it (the app passes the gate only in debug builds);
             // instrumentation owns the bounded gate.
-            if (debugVideoPacketAdmission?.invoke() == false) return
+            if (debugVideoPacketAdmission?.invoke() == false) {
+                recordIngress(FeedIngressMetrics.Event.InjectedVideoDrop, ingressEpoch)
+                return
+            }
             if (n <= 8) {
                 Log.i(TAG, "datalink: video pktType=0x02 #$n bytes=${datagram.size}")
             }
