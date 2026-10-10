@@ -20,6 +20,36 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
         try await run.exercise()
         #endif
     }
+    @MainActor
+    func testPhysicalBackgroundRecoveryAndFreshNativePicture() async throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
+            throw XCTSkip("Requires the opted-in physical migration qualification run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { await run.restore() }
+        try await run.exerciseBackgroundRecoveryAndFreshNativePicture()
+        #endif
+    }
+
+    @MainActor
+    func testPhysicalSettingsRecordingPlaybackReopenAndSavedRelaunch() async throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
+            throw XCTSkip("Requires the opted-in physical migration qualification run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { await run.restore() }
+        try await run.exerciseSettingsRecordingPlaybackReopenAndSavedRelaunch()
+        #endif
+    }
+
 }
 
 private struct PhysicalMigrationFailure: Error, CustomStringConvertible {
@@ -167,6 +197,122 @@ private struct PhysicalMigrationProbe: Decodable {
         try await restorePalette()
         evidence("completed")
         mark("original-settings-restored")
+    }
+
+    // Scoped entries stay inside this private runner; original helpers are unchanged.
+    func exerciseBackgroundRecoveryAndFreshNativePicture() async throws {
+        try await prepareScopedSavedConnection()
+        try await exerciseBackgroundRecovery()
+        evidence("scoped-background-completed")
+    }
+
+    func exerciseSettingsRecordingPlaybackReopenAndSavedRelaunch() async throws {
+        try await prepareScopedSavedConnection()
+        try await captureOriginalISOReadOnly()
+        try await exerciseSettings()
+        let before = try await catalogue("before-recording")
+        try await returnToLive("before-recording-return")
+        try await recordShortClip()
+
+        let after = try await catalogue("after-recording")
+        let added = Set(after.identifiers).subtracting(before.identifiers)
+        try require(
+            after.count == before.count + 1 && added.count == 1
+                && Set(before.identifiers).isSubset(of: Set(after.identifiers)),
+            "One confirmed recording must add exactly one catalogue asset without removing originals")
+        guard let clipID = added.first else { throw failure("The qualification clip is unidentified") }
+        jsonEvidence("qualification-clip", [
+            "identifier": clipID, "before": before.identifiers, "after": after.identifiers,
+        ])
+        try await openClip(clipID)
+        let item = try await readyPlayback("qualification-playback")
+        try await exercisePlayback(item, stage: "qualification-playback")
+        mark("own-clip-native-playback")
+        try await tap(app.buttons["monitor.playback.back"], "Back to media")
+        try await wait("Player must retire on return to media", timeout: 10) {
+            !self.app.buttons["monitor.playback.back"].exists
+        }
+        try await openClip(clipID)
+        let reopened = try await readyPlayback("qualification-playback-reopened")
+        try require(reopened.ownerToken != item.ownerToken, "Reopening must admit a fresh playback owner token")
+        try await exercisePlayback(reopened, stage: "qualification-playback-reopened")
+        mark("fresh-playback-item")
+        try await tap(app.buttons["monitor.playback.back"], "Back to media")
+        try await returnToLive("after-playback-return")
+        mark("fresh-live-return")
+        try await exerciseSavedRelaunch(clipID: clipID)
+        try await restoreHaptics()
+        let restored = try await freshLive("scoped-settings-restored")
+        try await reportedRecording(false, source: restored.identity, stage: "scoped-settings-restored-idle")
+        try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
+        mark("original-settings-restored")
+        evidence("scoped-settings-recording-playback-relaunch-completed")
+    }
+
+    private func prepareScopedSavedConnection() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        try require(
+            !environment.keys.contains {
+                ($0.hasPrefix("OPV_SIM_") || $0 == "OPV_UI_REVIEW_SCREEN")
+                    && environment[$0]?.isEmpty == false
+            },
+            "Remove simulated-feed and review-screen launch inputs before physical qualification")
+        app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1"
+        XCUIDevice.shared.orientation = .portrait
+        let launchedAt = Date().timeIntervalSince1970
+        app.launch()
+        try await connectThroughUI(savedOnly: true)
+        let initial = try await freshLive("connected", since: launchedAt)
+        try await reportedRecording(false, source: initial.identity, stage: "connected-idle")
+        try await wait("Initial raw ISO value or automatic intent", timeout: 12) {
+            guard let current = self.observed("live") else { return false }
+            if current.cameraISOIsAuto == true { return true }
+            return current.cameraISO.map { $0 > 0 } == true
+        }
+        _ = try await advancingLive("connected-source-progress", from: initial)
+        try pictureEvidence("connected-picture", role: "live", identity: initial.identity)
+        mark("actual-connection-and-live-picture")
+    }
+
+    private func captureOriginalISOReadOnly() async throws {
+        let source = try await freshLive("ISO-baseline-before")
+        try await reportedRecording(false, source: source.identity, stage: "ISO-baseline-idle")
+        try await tap(app.buttons["monitor.capture.iso"], "Read original ISO setting")
+        let drum = app.descendants(matching: .any)["Value"].firstMatch
+        try await wait("Reported original ISO detent", timeout: 8) { drum.isHittable }
+        let captured: OriginalISO
+        if source.probe.cameraISOIsAuto == true {
+            guard let label = drum.value as? String, !label.isEmpty, label != "Not set",
+                app.buttons["Auto"].firstMatch.isSelected
+            else { throw failure("The original reported Auto ISO setting must have a known public drum selection") }
+            captured = .automatic(drumLabel: label)
+        } else {
+            guard let original = source.probe.cameraISO, original > 0 else {
+                throw failure("Manual ISO proof requires a positive raw reported ISO")
+            }
+            try require(
+                drum.value as? String == String(original),
+                "Original manual ISO detent must match its positive raw camera report")
+            captured = .manual(value: original, isAuto: source.probe.cameraISOIsAuto)
+        }
+        guard let probe = observed("live"), let current = liveSource(probe),
+            current.identity == source.identity, probe.cameraRecording == false,
+            probe.cameraISOIsAuto == source.probe.cameraISOIsAuto
+        else { throw failure("Read-only ISO baseline requires the same fresh idle source and reported mode") }
+        switch captured {
+        case .manual(let value, _):
+            try require(probe.cameraISO == value && drum.value as? String == String(value),
+                "Read-only manual ISO baseline must retain its captured raw value and public detent")
+        case .automatic(let label):
+            try require(probe.cameraISOIsAuto == true && app.buttons["Auto"].firstMatch.isSelected
+                && drum.value as? String == label,
+                "Read-only Auto ISO baseline must retain its captured mode and exact public selection")
+        }
+        originalISO = captured
+        evidence("ISO-original-read-only")
+        try await tap(app.buttons["monitor.capture.close"], "Close original ISO setting")
+        _ = try await advancingLive("ISO-baseline-live-owner", from: source)
+        mark("read-only-original-ISO-baseline")
     }
 
     // Only the start issued here grants stop authority. An unknown report or a
