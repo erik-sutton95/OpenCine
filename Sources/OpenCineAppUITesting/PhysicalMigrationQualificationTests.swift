@@ -823,8 +823,22 @@ private struct PhysicalMigrationProbe: Decodable {
         try require(count >= 0 && count <= 2_000, "The bounded catalogue inventory supports at most 2,000 assets")
         var identifiers: Set<String> = []
         for _ in 0..<160 {
-            let cells = mediaCells()
-            identifiers.formUnion(cells.map(\.identifier))
+            // One immutable public hierarchy supplies this page, including offscreen nodes.
+            var pageIdentifiers: Set<String> = []
+            var pending = try app.snapshot().children
+            while let node = pending.popLast() {
+                let identifier = node.identifier
+                if identifier.hasPrefix("monitor.media.clip.") { pageIdentifiers.insert(identifier) }
+                pending.append(contentsOf: node.children)
+            }
+            if identifiers.isEmpty {
+                let queried = Set(mediaCells().map(\.identifier))
+                try require(queried == pageIdentifiers, "Public snapshot and original media query must agree before recording")
+                encodedEvidence(stage + "-first-page-snapshot-equivalence", [
+                    "snapshot": pageIdentifiers.sorted(), "originalQuery": queried.sorted(),
+                ])
+            }
+            identifiers.formUnion(pageIdentifiers)
             if identifiers.count == count { break }
             try require(identifiers.count < count, "Catalogue identifiers exceed its declared All count")
             gallery.swipeUp()
