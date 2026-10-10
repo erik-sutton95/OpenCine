@@ -1,4 +1,5 @@
 #if os(iOS)
+import UIKit
 import XCTest
 
 /// Opt-in driver for the vendor reference app during a phone RVI capture.
@@ -8,6 +9,29 @@ import XCTest
 /// `OPV_REFERENCE_ORIENTATION` optionally selects portrait or either landscape;
 /// the driver's original device orientation is restored after the capture.
 open class PhysicalReferenceAppTests: SharedAppUITestCase {
+    /// Explicit cleanup after an interrupted owned run, separate from qualification.
+    func testRestoreOwnedDeviceOrientation() throws {
+        guard let requested = ProcessInfo.processInfo.environment["OPV_OWNED_RESTORE_ORIENTATION"] else {
+            throw XCTSkip("Requires an explicitly recorded owned orientation to restore")
+        }
+        let orientation: UIDeviceOrientation
+        switch requested {
+        case "portrait": orientation = .portrait
+        case "portrait-upside-down": orientation = .portraitUpsideDown
+        case "landscape-left": orientation = .landscapeLeft
+        case "landscape-right": orientation = .landscapeRight
+        default:
+            XCTFail("Unsupported owned restore orientation")
+            return
+        }
+        XCUIDevice.shared.orientation = orientation
+        XCTAssertEqual(XCUIDevice.shared.orientation, orientation)
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "owned-device-orientation-restored-\(requested)"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testDriveReferenceApp() throws {
         let env = ProcessInfo.processInfo.environment
         guard let bundle = env["OPV_REFERENCE_BUNDLE"], !bundle.isEmpty else {
@@ -28,7 +52,17 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
                 return
             }
         }
+        let verifyMonitorOptions = env["OPV_REFERENCE_MONITOR_OPTIONS"] == "1"
+        if verifyMonitorOptions {
+            guard env["OPV_REFERENCE_LAUNCH"] == "1" else {
+                throw ReferenceOptionsFailure("Monitor option verification requires an owned fresh launch")
+            }
+            #if targetEnvironment(simulator)
+            throw XCTSkip("Monitor option verification requires a physical camera and device")
+            #endif
+        }
         let app = XCUIApplication(bundleIdentifier: bundle)
+        if verifyMonitorOptions { app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1" }
         if env["OPV_REFERENCE_LAUNCH"] == "1" { app.launch() } else { app.activate() }
         Thread.sleep(forTimeInterval: 3)
         snapshot(app, "start")
@@ -97,6 +131,11 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
             Thread.sleep(forTimeInterval: 2)
             snapshot(app, "after-\(index)")
         }
+        if verifyMonitorOptions {
+            try verifyCanonicalMonitorOptions(app)
+            snapshot(app, "end")
+            return
+        }
         let dwell = Double(env["OPV_REFERENCE_DWELL"] ?? "0") ?? 0
         let end = Date().addingTimeInterval(dwell)
         var shot = 0
@@ -109,6 +148,369 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
             add(attachment)
         }
         snapshot(app, "end")
+    }
+
+
+    private struct ReferenceOptionsFailure: Error, CustomStringConvertible {
+        let description: String
+        init(_ description: String) { self.description = description }
+    }
+
+    // A subset of the existing native qualification JSON, with no integration import.
+    private struct ReferenceOptionsProbe: Decodable {
+        let simulated: Bool
+        let role: String?
+        let sourceIdentity: String?
+        let sourceActive: Bool?
+        let sourceFrameAt: Double?
+        let sourcePresentations: Int?
+        let nativeDecodeOutputs: Int?
+        let cameraRecording: Bool?
+        let pictureBounds: [Double]?
+    }
+
+    private func verifyCanonicalMonitorOptions(_ app: XCUIApplication) throws {
+        let scales = ["CineStop", "Video", "IRE", "Limits"]
+        let reads = ["LOG", "709"]
+        let originalOrientation = XCUIDevice.shared.orientation
+        let knownOrientations: [UIDeviceOrientation] = [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight]
+        guard knownOrientations.contains(originalOrientation) else {
+            throw ReferenceOptionsFailure("Original device orientation is unknown")
+        }
+        let source = try optionsLiveProbe(app)
+        guard let identity = source.sourceIdentity else {
+            throw ReferenceOptionsFailure("Native live source identity is unavailable")
+        }
+        guard optionsInspectorQuery(app).count == 0 else {
+            throw ReferenceOptionsFailure("An inspector is already presented")
+        }
+        let handle = app.buttons.matching(NSPredicate(format: "identifier IN %@",
+            ["monitor.assists.expand", "monitor.assists.collapse"])).firstMatch
+        try optionsWait("Actual palette state is unavailable") {
+            handle.exists && handle.isHittable
+                && ["monitor.assists.expand", "monitor.assists.collapse"].contains(handle.identifier)
+        }
+        let originalExpanded = handle.identifier == "monitor.assists.collapse"
+        var originalFalse: String?
+        var originalMirror: String?
+        var originalScale: String?
+        var originalRead: String?
+        var originalReference: String?
+        var originalHorizontal: String?
+        var originalVertical: String?
+        var completed: [String] = []
+
+        // Every captured value is restored even if a later selection or capture throws.
+        defer {
+            var restorationFailures = 0
+            func attempt(_ body: () throws -> Void) {
+                do { try body() } catch {
+                    restorationFailures += 1
+                    XCTFail("Monitor option restoration failed: \(error)")
+                }
+            }
+            attempt { try optionsClose(app) }
+            attempt {
+                let current = try optionsLiveProbe(app)
+                guard current.sourceIdentity == identity else {
+                    throw ReferenceOptionsFailure("Original native source was retired; assist restoration withheld")
+                }
+                if let originalScale, let originalRead, let originalReference {
+                    try optionsOpen(app, tool: "FALSE")
+                    defer { try? optionsClose(app) }
+                    attempt { try optionsSelect(app, label: originalScale) }
+                    attempt { try optionsSelect(app, label: originalRead) }
+                    attempt { try optionsSet(app, label: "Reference Display", value: originalReference) }
+                }
+            }
+            attempt {
+                guard try optionsLiveProbe(app).sourceIdentity == identity else {
+                    throw ReferenceOptionsFailure("Original native source was retired; mirror restoration withheld")
+                }
+                if let originalHorizontal, let originalVertical {
+                    try optionsOpen(app, tool: "MIRROR")
+                    defer { try? optionsClose(app) }
+                    attempt { try optionsSet(app, identifier: "mirror.horizontal", value: originalHorizontal) }
+                    attempt { try optionsSet(app, identifier: "mirror.vertical", value: originalVertical) }
+                }
+            }
+            attempt { try optionsClose(app) }
+            attempt {
+                guard try optionsLiveProbe(app).sourceIdentity == identity else {
+                    throw ReferenceOptionsFailure("Original native source was retired; tool restoration withheld")
+                }
+                if let originalFalse { attempt { try optionsSetTool(app, tool: "FALSE", value: originalFalse) } }
+                if let originalMirror { attempt { try optionsSetTool(app, tool: "MIRROR", value: originalMirror) } }
+                let current = app.buttons[originalExpanded ? "monitor.assists.collapse" : "monitor.assists.expand"]
+                if !current.exists {
+                    let other = app.buttons[originalExpanded ? "monitor.assists.expand" : "monitor.assists.collapse"]
+                    try optionsWait("Palette restoration control is unavailable") { other.isHittable }
+                    other.tap()
+                }
+                try optionsWait("Original palette expansion was not restored") { current.exists }
+            }
+            XCUIDevice.shared.orientation = originalOrientation
+            attempt {
+                try optionsWait("Original orientation was not restored") {
+                    XCUIDevice.shared.orientation == originalOrientation
+                }
+            }
+            snapshot(app, "monitor-options-restoration-attempt")
+            let outcome: [String: Any] = ["completed": completed, "restorationFailures": restorationFailures]
+            if let data = try? JSONSerialization.data(withJSONObject: outcome, options: [.sortedKeys]) {
+                let result = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+                result.name = "monitor-options-outcome"; result.lifetime = .keepAlways; add(result)
+            } else { XCTFail("Monitor option outcome could not be attached") }
+        }
+
+        let falseTool = try optionsTool(app, tool: "FALSE")
+        originalFalse = try optionsBoolean(falseTool)
+        try optionsOpen(app, tool: "FALSE")
+        originalScale = try optionsSelected(app, labels: scales)
+        originalRead = try optionsSelected(app, labels: reads)
+        originalReference = try optionsBoolean(try optionsButton(app, label: "Reference Display"))
+        try optionsClose(app)
+        let mirrorTool = try optionsTool(app, tool: "MIRROR")
+        originalMirror = try optionsBoolean(mirrorTool)
+        try optionsOpen(app, tool: "MIRROR")
+        originalHorizontal = try optionsBoolean(try optionsButton(app, identifier: "mirror.horizontal"))
+        originalVertical = try optionsBoolean(try optionsButton(app, identifier: "mirror.vertical"))
+        try optionsClose(app)
+        guard let capturedFalse = originalFalse, let capturedMirror = originalMirror,
+            let capturedScale = originalScale, let capturedRead = originalRead,
+            let capturedReference = originalReference, let capturedHorizontal = originalHorizontal,
+            let capturedVertical = originalVertical else {
+            throw ReferenceOptionsFailure("Original monitor options were not fully captured")
+        }
+        let ledger: [String: Any] = ["paletteExpanded": originalExpanded,
+            "falseColor": capturedFalse, "mirror": capturedMirror, "scale": capturedScale,
+            "read": capturedRead, "referenceDisplay": capturedReference,
+            "horizontal": capturedHorizontal, "vertical": capturedVertical,
+            "orientation": originalOrientation.rawValue]
+        let original = XCTAttachment(data: try JSONSerialization.data(withJSONObject: ledger, options: [.sortedKeys]),
+            uniformTypeIdentifier: "public.json")
+        original.name = "monitor-options-original-state"; original.lifetime = .keepAlways; add(original)
+
+        try optionsSetTool(app, tool: "FALSE", value: "On")
+        for scale in scales {
+            for read in reads {
+                let before = try optionsLiveProbe(app)
+                try optionsOpen(app, tool: "FALSE")
+                try optionsSelect(app, label: scale)
+                try optionsSelect(app, label: read)
+                snapshot(app, "monitor-options-false-\(scale)-\(read)-menu")
+                try optionsClose(app)
+                try optionsAdvanced(app, after: before, identity: identity)
+                snapshot(app, "monitor-options-false-\(scale)-\(read)-live")
+                completed.append("false-\(scale)-\(read)")
+            }
+        }
+        // Isolate the mirror pictures from the preceding false-color presentation.
+        try optionsSetTool(app, tool: "FALSE", value: "Off")
+        try optionsSetTool(app, tool: "MIRROR", value: "On")
+        for axes in [("Off", "Off"), ("On", "Off"), ("Off", "On"), ("On", "On")] {
+            let before = try optionsLiveProbe(app)
+            try optionsOpen(app, tool: "MIRROR")
+            try optionsSet(app, identifier: "mirror.horizontal", value: axes.0)
+            try optionsSet(app, identifier: "mirror.vertical", value: axes.1)
+            snapshot(app, "monitor-options-mirror-\(axes.0)-\(axes.1)-menu")
+            try optionsClose(app)
+            try optionsAdvanced(app, after: before, identity: identity)
+            snapshot(app, "monitor-options-mirror-\(axes.0)-\(axes.1)-live")
+            completed.append("mirror-\(axes.0)-\(axes.1)")
+        }
+        for (orientation, name) in [(UIDeviceOrientation.landscapeLeft, "left"), (.landscapeRight, "right")] {
+            let before = try optionsLiveProbe(app)
+            XCUIDevice.shared.orientation = orientation
+            try optionsWait("Landscape orientation was not reached") { XCUIDevice.shared.orientation == orientation }
+            try optionsAdvanced(app, after: before, identity: identity)
+            let record = app.buttons["monitor.system.record"]
+            try optionsWait("Landscape monitor viewport and record target did not settle") {
+                let viewport = app.frame
+                return viewport.width > viewport.height && record.isHittable && viewport.contains(record.frame)
+            }
+            try optionsNativePicture(app, identity: identity, name: "landscape-" + name)
+            snapshot(app, "monitor-options-landscape-\(name)")
+            completed.append("landscape-\(name)")
+        }
+    }
+
+    // Match the established whole-workflow native view screenshot and clipping contract.
+    // An intentionally cropped/desqueezed raster need not fit inside screen coordinates.
+    private func optionsNativePicture(_ app: XCUIApplication, identity: String, name: String) throws {
+        let probe = try optionsLiveProbe(app)
+        guard probe.sourceIdentity == identity, let values = probe.pictureBounds,
+            values.count == 4, values.allSatisfy(\.isFinite), values[2] >= 80, values[3] >= 80 else {
+            throw ReferenceOptionsFailure("Actual native picture bounds or source are unavailable")
+        }
+        let nativeBounds = CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
+        let pictures = app.descendants(matching: .any).matching(identifier: "monitor.native.picture")
+            .allElementsBoundByIndex.filter {
+                let frame = $0.frame
+                return $0.exists && abs(frame.minX - nativeBounds.minX) <= 1
+                    && abs(frame.minY - nativeBounds.minY) <= 1
+                    && abs(frame.width - nativeBounds.width) <= 1
+                    && abs(frame.height - nativeBounds.height) <= 1
+            }
+        let screenshot: XCUIScreenshot
+        let bounds: CGRect
+        if pictures.count == 1, let picture = pictures.first {
+            screenshot = picture.screenshot()
+            bounds = CGRect(origin: .zero, size: screenshot.image.size)
+        } else {
+            screenshot = XCUIScreen.main.screenshot()
+            bounds = nativeBounds
+        }
+        let screen = CGRect(origin: .zero, size: screenshot.image.size)
+        let visible = screen.intersection(bounds)
+        guard !visible.isNull, visible.width >= 80, visible.height >= 80,
+            visible.width * visible.height >= bounds.width * bounds.height * 0.95 else {
+            throw ReferenceOptionsFailure("The actual native picture crop is not visible within the screenshot")
+        }
+        guard try optionsLiveProbe(app).sourceIdentity == identity else {
+            throw ReferenceOptionsFailure("A successor cannot inherit the native picture screenshot")
+        }
+        let shot = XCTAttachment(screenshot: screenshot)
+        shot.name = "monitor-options-" + name + "-native-picture"; shot.lifetime = .keepAlways; add(shot)
+    }
+
+    private func optionsInspectorQuery(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(identifier: "monitor.inspector")
+    }
+
+    private func optionsWait(_ message: String, _ predicate: @escaping () -> Bool) throws {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in predicate() }, object: nil)
+        guard XCTWaiter.wait(for: [expectation], timeout: 12) == .completed else {
+            throw ReferenceOptionsFailure(message)
+        }
+    }
+
+    private func optionsLiveProbe(_ app: XCUIApplication) throws -> ReferenceOptionsProbe {
+        let probes = app.descendants(matching: .any).matching(identifier: "opencine.native.qualification")
+            .allElementsBoundByIndex.compactMap { element -> ReferenceOptionsProbe? in
+                guard let raw = element.value as? String,
+                    let value = try? JSONDecoder().decode(ReferenceOptionsProbe.self, from: Data(raw.utf8)),
+                    value.role == "live" else { return nil }
+                return value
+            }
+        guard probes.count == 1 else { throw ReferenceOptionsFailure("Expected one actual native live probe") }
+        let value = probes[0]
+        guard !value.simulated, value.sourceActive == true, value.cameraRecording == false,
+            let identity = value.sourceIdentity, !identity.isEmpty,
+            let frame = value.sourceFrameAt, frame.isFinite,
+            (-2 ... 5).contains(Date().timeIntervalSince1970 - frame) else {
+            throw ReferenceOptionsFailure("A fresh idle real-camera source is required")
+        }
+        if let count = value.sourcePresentations, count <= 0 {
+            throw ReferenceOptionsFailure("Native source presentations are not positive")
+        }
+        if let count = value.nativeDecodeOutputs, count <= 0 {
+            throw ReferenceOptionsFailure("Native decode outputs are not positive")
+        }
+        return value
+    }
+
+    private func optionsAdvanced(_ app: XCUIApplication, after before: ReferenceOptionsProbe, identity: String) throws {
+        try optionsWait("The captured native source did not advance after the option change") {
+            guard let value = try? self.optionsLiveProbe(app), value.sourceIdentity == identity,
+                let previous = before.sourceFrameAt, let current = value.sourceFrameAt,
+                current > previous + 0.15 else { return false }
+            if let previous = before.sourcePresentations {
+                guard let current = value.sourcePresentations, current > previous else { return false }
+            }
+            if let previous = before.nativeDecodeOutputs {
+                guard let current = value.nativeDecodeOutputs, current > previous else { return false }
+            }
+            return true
+        }
+    }
+
+    private func optionsTool(_ app: XCUIApplication, tool: String) throws -> XCUIElement {
+        let expand = app.buttons["monitor.assists.expand"]
+        if expand.exists { expand.tap() }
+        let item = app.buttons["monitor.assist." + tool]
+        for direction in [true, false] {
+            for _ in 0 ..< 5 {
+                if item.exists && item.isHittable { return item }
+                let palettes = app.scrollViews.allElementsBoundByIndex.filter {
+                    $0.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "monitor.assist.")).count > 0
+                }
+                guard palettes.count == 1 else { throw ReferenceOptionsFailure("The real tool palette is ambiguous") }
+                if direction { palettes[0].swipeLeft() } else { palettes[0].swipeRight() }
+            }
+        }
+        guard item.exists && item.isHittable else { throw ReferenceOptionsFailure("The requested tool is not hittable") }
+        return item
+    }
+
+    private func optionsOpen(_ app: XCUIApplication, tool: String) throws {
+        try optionsClose(app)
+        let item = try optionsTool(app, tool: tool)
+        item.press(forDuration: 0.6)
+        try optionsWait("The actual tool inspector did not open") {
+            let query = self.optionsInspectorQuery(app)
+            return query.count == 1
+                && query.element(boundBy: 0).buttons["monitor.assist.options." + tool].isSelected
+        }
+    }
+
+    private func optionsClose(_ app: XCUIApplication) throws {
+        let query = optionsInspectorQuery(app)
+        guard query.count > 0 else { return }
+        guard query.count == 1 else { throw ReferenceOptionsFailure("The actual inspector is ambiguous") }
+        let inspector = query.element(boundBy: 0)
+        let close = inspector.buttons["monitor.assist.close"]
+        try optionsWait("The inspector Close control is not hittable") { close.exists && close.isHittable }
+        close.tap()
+        try optionsWait("The inspector did not close") { !inspector.exists }
+    }
+
+    private func optionsButton(_ app: XCUIApplication, label: String? = nil, identifier: String? = nil) throws -> XCUIElement {
+        let query = optionsInspectorQuery(app)
+        guard query.count == 1 else { throw ReferenceOptionsFailure("The actual inspector is absent or ambiguous") }
+        let inspector = query.element(boundBy: 0)
+        let matches = identifier.map { inspector.buttons.matching(identifier: $0) }
+            ?? inspector.buttons.matching(NSPredicate(format: "label == %@", label ?? ""))
+        guard matches.count == 1 else { throw ReferenceOptionsFailure("An actual inspector option is absent or ambiguous") }
+        let element = matches.element(boundBy: 0)
+        try optionsWait("The actual inspector option is not hittable") { element.exists && element.isHittable }
+        return element
+    }
+
+    private func optionsBoolean(_ element: XCUIElement) throws -> String {
+        guard let value = element.value as? String, ["On", "Off"].contains(value) else {
+            throw ReferenceOptionsFailure("The actual option Boolean state is unknown")
+        }
+        return value
+    }
+
+    private func optionsSelected(_ app: XCUIApplication, labels: [String]) throws -> String {
+        let choices = try labels.map { (label: $0, element: try optionsButton(app, label: $0)) }
+        let selected = choices.filter { $0.element.isSelected }
+        guard selected.count == 1 else { throw ReferenceOptionsFailure("Expected one actual selected menu choice") }
+        return selected[0].label
+    }
+
+    private func optionsSelect(_ app: XCUIApplication, label: String) throws {
+        let button = try optionsButton(app, label: label)
+        if !button.isSelected { button.tap() }
+        try optionsWait("The actual menu choice was not selected") { button.isSelected }
+    }
+
+    private func optionsSet(_ app: XCUIApplication, label: String? = nil, identifier: String? = nil, value: String) throws {
+        let button = try optionsButton(app, label: label, identifier: identifier)
+        if try optionsBoolean(button) != value { button.tap() }
+        try optionsWait("The actual Boolean option was not restored or selected") {
+            (try? self.optionsBoolean(button)) == value
+        }
+    }
+
+    private func optionsSetTool(_ app: XCUIApplication, tool: String, value: String) throws {
+        let button = try optionsTool(app, tool: tool)
+        if try optionsBoolean(button) != value { button.tap() }
+        try optionsWait("The actual tool enablement was not restored or selected") {
+            (try? self.optionsBoolean(button)) == value
+        }
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {
