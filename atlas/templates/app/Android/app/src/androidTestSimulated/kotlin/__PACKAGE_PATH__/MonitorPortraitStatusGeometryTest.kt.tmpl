@@ -2,6 +2,7 @@ package __APP_ID__
 
 import android.content.pm.ActivityInfo
 import android.graphics.Rect
+import android.os.Build
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
@@ -105,7 +106,9 @@ class MonitorPortraitStatusGeometryTest {
 
     private data class Measurement(val status: ComposeRect, val recording: Rect, val clock: Rect,
         val format: Rect, val codec: Rect?, val density: Float, val expectedTop: Float)
+    private data class FrameSample(val revision: Long, val screen: ComposeRect, val measurement: Measurement)
     private class Probe {
+        @Volatile var geometryRevision = 0L
         @Volatile var status: ComposeRect? = null
         @Volatile var density = 0f
         @Volatile var screen: ComposeRect? = null
@@ -145,27 +148,46 @@ class MonitorPortraitStatusGeometryTest {
                     if (compact) emptyList() else listOf("Codec")
                 val deadline = SystemClock.uptimeMillis() + 5_000
                 var nodes: Map<String, AccessibilityNodeInfo>? = null
+                var previous: FrameSample? = null
+                var stable: FrameSample? = null
                 do {
                     nodes?.values?.forEach { it.recycle() }
                     instrumentation.waitForIdleSync()
+                    val revision = probe.geometryRevision
+                    val status = probe.status
+                    val screen = probe.screen
+                    val density = probe.density
+                    val expectedTop = probe.expectedTop
+                    if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
                     nodes = nativeNodes(names)
-                } while ((nodes == null || probe.status == null || probe.screen == null || probe.density <= 0f ||
-                    probe.screen?.let { abs(it.width / probe.density - width) <= 0.6f } != true) && SystemClock.uptimeMillis() < deadline)
+                    val actual = nodes
+                    val candidate = if (actual != null && status != null && screen != null && density > 0f &&
+                        abs(screen.width / density - width) <= 0.6f) {
+                        fun bounds(name: String): Rect = Rect().also { actual.getValue(name).getBoundsInScreen(it) }
+                        FrameSample(revision, screen, Measurement(status, bounds("Standby"), bounds("Timecode 14:34:52"),
+                            bounds(if (compact) "Recording options" else "Format"), if (compact) null else bounds("Codec"),
+                            density, expectedTop + screen.top / density))
+                    } else null
+                    val current = candidate?.takeIf { probe.geometryRevision == revision }
+                    stable = current?.takeIf { it == previous }
+                    previous = current
+                } while (stable == null && SystemClock.uptimeMillis() < deadline)
+                if (stable == null) {
+                    nodes?.values?.forEach { it.recycle() }
+                    nodes = null
+                }
+                val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize")
                 val actual = assertNotNull(nodes, "Actual shared header native elements must render")
-                val status = assertNotNull(probe.status, "Actual MonitorScreen status geometry must render")
-                val density = probe.density
+                val density = ready.measurement.density
                 assertTrue(density > 0f)
-                assertEquals(width, assertNotNull(probe.screen).width / density, 0.6f,
+                assertEquals(width, ready.screen.width / density, 0.6f,
                     "The existing carrier must provide the full requested canvas width; use a wide host")
                 try {
                     assertEquals("Timecode 14:34:52", actual.getValue("Timecode 14:34:52").contentDescription?.toString())
                     val format = actual.getValue(if (compact) "Recording options" else "Format")
                     assertEquals(if (compact) "4K50" else "[FX] 6K · 25p", AccessibilityNodeInfoCompat.wrap(format).stateDescription?.toString())
                     if (!compact) assertEquals("R3D NE", AccessibilityNodeInfoCompat.wrap(actual.getValue("Codec")).stateDescription?.toString())
-                    fun bounds(name: String): Rect = Rect().also { actual.getValue(name).getBoundsInScreen(it) }
-                    val measurement = Measurement(status, bounds("Standby"), bounds("Timecode 14:34:52"),
-                        bounds(if (compact) "Recording options" else "Format"), if (compact) null else bounds("Codec"),
-                        density, probe.expectedTop + assertNotNull(probe.screen).top / density)
+                    val measurement = ready.measurement
                     for (frame in listOfNotNull(measurement.recording, measurement.clock, measurement.format, measurement.codec)) {
                         assertTrue(frame.width() > 0 && frame.height() > 0)
                     }
@@ -230,16 +252,24 @@ class MonitorPortraitStatusGeometryTest {
         }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
             MonitorScreen(control, layout, MonitorScreenPresentation(powerMounted = false, captureMounted = false),
-                Modifier.size(width.dp, 900.dp).onGloballyPositioned { probe.screen = screenBounds(it.boundsInWindow()) },
+                Modifier.size(width.dp, 900.dp).onGloballyPositioned {
+                    probe.screen = screenBounds(it.boundsInWindow())
+                    probe.geometryRevision += 1L
+                },
                 picture = { Box(Modifier.fillMaxSize().background(Color.Black)) },
                 status = {
                     MonitorStatusChrome(layout, MonitorStatusPresentation(false, timecode = "14:34:52"),
-                        modifier = Modifier.onGloballyPositioned { probe.status = screenBounds(it.boundsInWindow()) },
+                        modifier = Modifier.onGloballyPositioned {
+                            probe.status = screenBounds(it.boundsInWindow())
+                            probe.geometryRevision += 1L
+                        },
+                        recordingModifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L },
+                        clockModifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L },
                         format = {
-                            if (compact) HeaderReadout("format", "Recording options", "4K50", true, layout, control, state, source, inputs)
+                            if (compact) HeaderReadout("format", "Recording options", "4K50", true, layout, control, state, source, inputs, probe)
                             else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                HeaderReadout("format", "Format", "[FX] 6K · 25p", false, layout, control, state, source, inputs)
-                                HeaderReadout("codec", "Codec", "R3D NE", false, layout, control, state, source, inputs)
+                                HeaderReadout("format", "Format", "[FX] 6K · 25p", false, layout, control, state, source, inputs, probe)
+                                HeaderReadout("codec", "Codec", "R3D NE", false, layout, control, state, source, inputs, probe)
                             }
                         })
                 })
@@ -247,11 +277,12 @@ class MonitorPortraitStatusGeometryTest {
     }
     @Composable private fun HeaderReadout(id: String, title: String, value: String, large: Boolean,
         layout: MonitorFieldLayout, control: MonitorControlModel, state: MonitorOperatorCaptureState<String, Nothing>,
-        source: MonitorCaptureSourceIdentity, inputs: MonitorOperatorCaptureInputs<String, String, Nothing>) {
+        source: MonitorCaptureSourceIdentity, inputs: MonitorOperatorCaptureInputs<String, String, Nothing>, probe: Probe) {
         MonitorOperatorCaptureHeaderReadout(inputs, control, state, source,
             MonitorOperatorLiveReadout<String, String>(id, title, value), enabled = true, commandEnabled = false,
             currentSource = { true }, portrait = layout.portrait,
-            modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = title }) {
+            modifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L }
+                .semantics(mergeDescendants = true) { contentDescription = title }) {
             Text(value, style = MonitorTypography.readout(if (large) 23f else 16f, FontWeight.Medium),
                 color = MonitorPalette.text, maxLines = 1, softWrap = false)
         }

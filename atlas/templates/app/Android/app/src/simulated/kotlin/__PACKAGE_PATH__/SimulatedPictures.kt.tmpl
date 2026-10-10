@@ -311,8 +311,9 @@ class SimulatedAndroidPlaybackPort(context: Context) : MonitorPlaybackPort {
     }
     override fun pause(token: MonitorPlaybackItemToken) {
         val native = player ?: return
-        if (!current(native, token) || ready != null || !native.isPlaying) return
-        native.pause(); frameClock.removeFrameCallback(clock)
+        if (!current(native, token) || ready != null) return
+        if (native.isPlaying) native.pause()
+        frameClock.removeFrameCallback(clock)
         onEvent?.invoke(token, MonitorPlaybackEvent.Playing(false))
     }
     override suspend fun seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken): Boolean {

@@ -21,7 +21,8 @@ import Testing
         guard #available(macOS 14, *) else { return }
         let (defaults, domain) = try storage()
         defer { defaults.removePersistentDomain(forName: domain) }
-        let state = MonitorAssistState(looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        let state = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
         state.toggle(.waveform)
         state.toggle(.peaking)
         state.clean = true
@@ -38,29 +39,39 @@ import Testing
         #expect(!state.effects.waveform)
         state.toggleCleanViewPin(.evMeter)
         #expect(!state.cleanViewPinnedTools.contains(.evMeter))
-        let reloaded = MonitorAssistState(looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
-        #expect(reloaded.waveform && reloaded.peaking && reloaded.cleanViewPinnedTools.contains(.waveform))
+        let reloaded = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        #expect(
+            reloaded.waveform && reloaded.peaking
+                && reloaded.cleanViewPinnedTools.contains(.waveform))
         #expect(reloaded.playbackVisibleTools == [.zebra] && !reloaded.zebra)
-        let other = MonitorAssistState(looks: StateTestLooks(), storage: defaults,
-            keys: .init(assist: "other", cleanPins: "otherPins", playback: "otherPlayback"), cleanPinCases: allowed)
+        let other = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults,
+            keys: .init(assist: "other", cleanPins: "otherPins", playback: "otherPlayback"),
+            cleanPinCases: allowed)
         #expect(!other.waveform && other.playbackVisibleTools.isEmpty)
     }
 
     @Test func legacySelectionsDoNotExpandTheCurrentCatalog() throws {
         guard #available(macOS 14, *) else { return }
         #expect(MonitorAssistTool.allCases.count == 18)
-        #expect(MonitorAssistSelection.allCases.map(\.rawValue).prefix(18) == MonitorAssistTool.allCases.map(\.rawValue)[...])
+        #expect(
+            MonitorAssistSelection.allCases.map(\.rawValue).prefix(18)
+                == MonitorAssistTool.allCases.map(\.rawValue)[...])
         #expect(MonitorAssistSelection(rawValue: "PLAY") == .instantReview)
         #expect(MonitorAssistSelection(rawValue: "MAG") == .magnification)
         #expect(MonitorAssistSelection(rawValue: "UNKNOWN") == nil)
         let (defaults, domain) = try storage()
         defer { defaults.removePersistentDomain(forName: domain) }
-        let state = MonitorAssistState(looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        let state = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
         state.toggle(.instantReview)
         state.toggle(.magnification)
-        let restored = MonitorAssistState(looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
+        let restored = MonitorAssistState(
+            looks: StateTestLooks(), storage: defaults, keys: keys, cleanPinCases: allowed)
         #expect(restored.instantReview && !restored.isOn(.magnification))
-        let snapshot = try JSONDecoder().decode(MonitorAssistSnapshot.self, from: #require(state.encodedSnapshot()))
+        let snapshot = try JSONDecoder().decode(
+            MonitorAssistSnapshot.self, from: #require(state.encodedSnapshot()))
         #expect(snapshot.tools == ["LUT", "PLAY"])
     }
 
@@ -69,7 +80,8 @@ import Testing
         let (defaults, domain) = try storage()
         defer { defaults.removePersistentDomain(forName: domain) }
         let looks = StateTestLooks()
-        let state = MonitorAssistState(looks: looks, storage: defaults, keys: keys, cleanPinCases: allowed)
+        let state = MonitorAssistState(
+            looks: looks, storage: defaults, keys: keys, cleanPinCases: allowed)
         let nominal = try #require(state.exportCube(bakeExposure: false))
         state.lutEnabled = false
         state.refreshLUTCube()
@@ -82,7 +94,8 @@ import Testing
         #expect(state.waveform && !state.peaking && state.effects.lutDimension == 0)
         let mirror = state.inspectorImageOptions(tool: .mirror, transfer: .rec709, clipByte: 255)
         #expect(mirror.mirror && mirror.mirrorVertical && !state.mirror)
-        let inspectorEffects = state.inspectorImageEffects(tool: .lut, transfer: .rec709, clipByte: 255)
+        let inspectorEffects = state.inspectorImageEffects(
+            tool: .lut, transfer: .rec709, clipByte: 255)
         #expect(inspectorEffects.lutDimension == 2 && !state.lutEnabled)
         let first = state.inspectorLUT(transfer: .rec709)
         #expect(first.dimension == 2 && !first.rgba.isEmpty && !state.lutEnabled)
@@ -101,11 +114,15 @@ import Testing
         let (defaults, domain) = try storage()
         defer { defaults.removePersistentDomain(forName: domain) }
         let looks = StateTestLooks()
-        looks.transfer = .dlogm; looks.bakeTransfer = .dlog; looks.referenceClipByte = 223
-        let state = MonitorAssistState(looks: looks, storage: defaults, keys: keys, cleanPinCases: allowed)
+        looks.transfer = .dlogm
+        looks.bakeTransfer = .dlog
+        looks.referenceClipByte = 223
+        let state = MonitorAssistState(
+            looks: looks, storage: defaults, keys: keys, cleanPinCases: allowed)
         #expect(state.effects.transfer == .dlogm && state.effects.resolvedClipByte == 223)
         state.nudgeLUTExposure(-1)
-        let expected = try #require(looks.cube).preparedForExport(bakeExposure: true, stops: -1, transfer: .dlog)
+        let expected = try #require(looks.cube).preparedForExport(
+            bakeExposure: true, stops: -1, transfer: .dlog)
         #expect(state.exportCube(bakeExposure: true) == expected)
     }
 
@@ -119,7 +136,10 @@ import Testing
             looks: StateTestLooks(), storage: defaults,
             keys: keys, cleanPinCases: allowed,
             onToggle: { tool, enabled in
-                guard let current = observed else { Issue.record("Missing current state"); return }
+                guard let current = observed else {
+                    Issue.record("Missing current state")
+                    return
+                }
                 if events.count < 2 {
                     #expect(current.isOn(tool) == enabled)
                     let data = defaults.data(forKey: self.keys.assist)
@@ -252,12 +272,18 @@ import Testing
     var transfer = MonitorTransfer.rec709
     var bakeTransfer: MonitorTransfer?
     var referenceClipByte = 255
-    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { bakeTransfer ?? transfer }
+    func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer {
+        bakeTransfer ?? transfer
+    }
     var cube: CubeLUT? {
-        CubeLUT(size: 2, rgb: (0..<8).flatMap { index -> [Float] in
-            let r = Float(index & 1), g = Float((index >> 1) & 1), b = Float((index >> 2) & 1)
-            return selection == 0 ? [r, g, b] : [b, r, g]
-        })
+        CubeLUT(
+            size: 2,
+            rgb: (0..<8).flatMap { index -> [Float] in
+                let r = Float(index & 1)
+                let g = Float((index >> 1) & 1)
+                let b = Float((index >> 2) & 1)
+                return selection == 0 ? [r, g, b] : [b, r, g]
+            })
     }
 }
 
@@ -274,7 +300,10 @@ import Testing
         return CubeLUT(
             size: 2,
             rgb: (0..<8).flatMap { index -> [Float] in
-                [Float(index & 1), Float((index >> 1) & 1), Float((index >> 2) & 1)]
+                let red = Float(index & 1)
+                let green = Float((index >> 1) & 1)
+                let blue = Float((index >> 2) & 1)
+                return [red, green, blue]
             })
     }
 }
@@ -296,7 +325,10 @@ import Testing
         return CubeLUT(
             size: 2,
             rgb: (0..<8).flatMap { index -> [Float] in
-                [Float(index & 1), Float((index >> 1) & 1), Float((index >> 2) & 1)]
+                let red = Float(index & 1)
+                let green = Float((index >> 1) & 1)
+                let blue = Float((index >> 2) & 1)
+                return [red, green, blue]
             })
     }
 }

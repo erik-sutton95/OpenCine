@@ -223,8 +223,11 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
     private func presentation(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> MonitorPlaybackPresentation {
         let record = player.active ?? initial.record, asset = record.asset, values = sourceValues
         let listed = PlaybackVideoLayout.size(fromResolution: record.facts.resolution)
-        let size = CGSize(width: player.metadata.width ?? asset.pixelSize.map { Double($0.width) } ?? listed.map { Double($0.width) } ?? 16,
-            height: player.metadata.height ?? asset.pixelSize.map { Double($0.height) } ?? listed.map { Double($0.height) } ?? 9)
+        let width: Double = player.metadata.width ?? asset.pixelSize.map { Double($0.width) }
+            ?? listed.map { Double($0.width) } ?? 16
+        let height: Double = player.metadata.height ?? asset.pixelSize.map { Double($0.height) }
+            ?? listed.map { Double($0.height) } ?? 9
+        let size = CGSize(width: width, height: height)
         let rect = DesqueezeAssist.presentationRect(sourceSize: size,
             in: CGRect(x: 0, y: 0, width: 1000, height: 1000), effects: effects)
         let duration = player.duration ?? asset.durationSeconds ?? 0
