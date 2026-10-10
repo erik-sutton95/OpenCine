@@ -155,13 +155,13 @@ registry commit>`.
   repository grant; a private one does (App Store Connect, Xcode Cloud settings).
 - **Atlas**: the run already passed `atlas check --sources`. Review `compat/VERSIONS.md`.
 - **Device checklists**: linked from each PR body; nothing here is hardware-qualified.
-- **OpenInstaCine sync overlay**: `scripts/apply-openpocketcine-overlays.py` injects the
-  OpenCine package path into `ios/project.yml` after a Pocket sync. Change it to the URL +
-  `exactVersion` form before the next sync.
+- **OpenInstaCine source ownership**: the former Pocket sync and overlay scripts
+  are retired. Common changes belong in OpenCine and reach Insta through a
+  reviewed dependency adoption; no overlay URL edit is needed.
 
 After an app PR merges: move that app's atlas `refs` to the merged commit, record its `opencine`
 edge as `live` with manifest evidence, remove `source-copy` edges only for paths the app no
-longer copies (for Insta, also drop them from `scripts/sync-openpocketcine.sh`), run
+longer copies, run
 `python3 atlas/tools/atlas.py check --sources` and push.
 
 For OpenInstaCine the narrowed edges are already known (RELEASE-01 sync audit): the Apple

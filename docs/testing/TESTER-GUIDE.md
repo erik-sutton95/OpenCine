@@ -9,7 +9,9 @@ Status at the 2026-10-10 checkpoint: locally committed candidate. All three apps
 generated apps use the same capability-driven live and settings composition on each platform.
 Pocket remains the common UI reference. Safe areas, camera pages, popups, capture headers,
 circular focus reset and View Assist labels have shared owners; integration slots carry actual
-hardware controls. Full expanded tool names use two lines; compact favorites keep their size.
+hardware controls. Expanded View Assist uses short single-line captions and the
+square cells used by compact favorites. Settings, inspectors and accessibility
+retain full tool names.
 Common false color offers CineStop, Video, IRE and Limits with LOG/709 reads. Shared scope,
 peaking and two-axis mirror behavior retain native ownership and deployed preference keys.
 
