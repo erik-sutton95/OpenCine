@@ -106,10 +106,13 @@ import UIKit
             view.accessibilityIdentifier = "simulated.live.picture"
             view.accessibilityLabel = "SIMULATED live picture"
             view.accessibilityValue = "Waiting \(identity)"
-            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak view, identity] _, _ in
+            let publishPictureValue: @MainActor @Sendable () -> Void = { [weak view, identity] in
+                guard let view else { return }
+                view.accessibilityValue = simulatedPictureValue(view, identity: identity)
+            }
+            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { _, _ in
                 Task { @MainActor in
-                    guard let view else { return }
-                    view.accessibilityValue = simulatedPictureValue(view, identity: identity)
+                    publishPictureValue()
                 }
             }
             feed.attach(host: view, player: player)
@@ -172,10 +175,13 @@ import UIKit
             display.setEnabled(preferences.hdrDisplay)
         }
         func attach(_ view: MonitorPlaybackFeedHost) {
-            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak view, identity] _, _ in
+            let publishPictureValue: @MainActor @Sendable () -> Void = { [weak view, identity] in
+                guard let view else { return }
+                view.accessibilityValue = simulatedPictureValue(view, identity: identity)
+            }
+            pictureObserver = view.playerLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { _, _ in
                 Task { @MainActor in
-                    guard let view else { return }
-                    view.accessibilityValue = simulatedPictureValue(view, identity: identity)
+                    publishPictureValue()
                 }
             }
             native.feed.attach(host: view, player: native.player)

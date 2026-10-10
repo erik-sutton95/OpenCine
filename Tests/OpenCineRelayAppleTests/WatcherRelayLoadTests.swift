@@ -3,6 +3,7 @@ import Foundation
 import Network
 import OpenCineRelay
 import XCTest
+import os
 
 @testable import OpenCineRelayApple
 
@@ -203,13 +204,15 @@ extension WatcherRelayLoadTests {
         listener.stateUpdateHandler = { state in
             if case .ready = state { listening.fulfill() }
         }
-        var server: NWConnection?
+        // The SDK marks NWConnection Sendable only on macOS 14; this test supports 13.
+        // The lock retains the slot; all connection operations stay on reader.queue.
+        let server = OSAllocatedUnfairLock<NWConnection?>(uncheckedState: nil)
         let meta = WatcherRelayFrameMetadata(isKeyframe: true)
         let payload = try WatcherRelayFrameBlob.encode(
             metadata: meta, hevc: Data(repeating: 7, count: 300_000))
         let wire = WatcherRelayFraming.encode(kind: .frame, payload: payload)
         listener.newConnectionHandler = { connection in
-            server = connection
+            server.withLockUnchecked { $0 = connection }
             connection.start(queue: reader.queue)
             connection.send(
                 content: Data(wire.prefix(3)),
@@ -248,7 +251,10 @@ extension WatcherRelayLoadTests {
         receiveNext()
         wait(for: [received], timeout: 5)
         connection.cancel()
-        reader.queue.sync { server?.cancel() }
+        reader.queue.sync {
+            let accepted = server.withLockUnchecked { $0 }
+            accepted?.cancel()
+        }
         listener.cancel()
     }
 }

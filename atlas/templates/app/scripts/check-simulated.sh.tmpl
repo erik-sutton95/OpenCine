@@ -26,8 +26,33 @@ PY
 template_cleanup() {
     if [ -n "$template_udid" ]; then xcrun simctl delete "$template_udid" || true; fi
     if [ -n "$template_emulator_pid" ]; then
-        adb -s "$template_serial" emu kill >/dev/null 2>&1 || true
-        kill "$template_emulator_pid" >/dev/null 2>&1 || true
+        # Stop only this script's private emulator, then reap the owned child.
+        python3 - "$template_emulator_pid" "$template_serial" <<'PYEMULATOR' || true
+import os, signal, subprocess, sys, time
+pid, serial = int(sys.argv[1]), sys.argv[2]
+try:
+    subprocess.run(['adb', '-s', serial, 'emu', 'kill'], stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=5)
+except (OSError, subprocess.TimeoutExpired):
+    pass
+try:
+    os.kill(pid, signal.SIGTERM)
+except ProcessLookupError:
+    raise SystemExit(0)
+deadline = time.monotonic() + 10
+while time.monotonic() < deadline:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        raise SystemExit(0)
+    time.sleep(0.1)
+try:
+    os.kill(pid, signal.SIGKILL)
+except ProcessLookupError:
+    pass
+PYEMULATOR
+        wait "$template_emulator_pid" >/dev/null 2>&1 || true
+        template_emulator_pid=
     fi
     if [ "$template_companion_owned" = 1 ]; then rm -rf "$template_companion"; fi
 }
@@ -241,12 +266,20 @@ PYREADY
     template_apk="$template_app/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk"
     template_test_apk="$template_app/Android/app/build/outputs/apk/androidTest/simulated/debug/app-simulated-debug-androidTest.apk"
     template_release_apk="$template_app/Android/app/build/outputs/apk/camera/release/app-camera-release-unsigned.apk"
+    mkdir -p "$template_out/built-artifacts/android"
+    cp "$template_apk" "$template_out/built-artifacts/android/primary-simulated-debug.apk"
+    cp "$template_test_apk" "$template_out/built-artifacts/android/primary-simulated-tests.apk"
+    cp "$template_release_apk" "$template_out/built-artifacts/android/primary-camera-release.apk"
+    cp "$template_companion/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk" \
+        "$template_out/built-artifacts/android/companion-simulated-debug.apk"
+    template_manifest android-built "$template_out/built-artifacts/android"
     template_step android-install.log adb -s "$template_serial" install -r "$template_apk"
     template_step android-tests-install.log adb -s "$template_serial" install -r "$template_test_apk"
     template_step android-companion-install.log adb -s "$template_serial" install -r \
         "$template_companion/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk"
     template_step android-instrumentation.log adb -s "$template_serial" shell am instrument -w -r \
         -e class '__APP_ID__.OperatorFlowTest,__APP_ID__.MonitorPortraitStatusGeometryTest' '__APP_ID__.simulated.test/androidx.test.runner.AndroidJUnitRunner'
+    cat "$template_out/android-instrumentation.log"
     python3 - "$template_out/android-instrumentation.log" "$template_release_apk" <<'PY'
 import re, sys, zipfile
 from pathlib import Path
@@ -258,12 +291,6 @@ with zipfile.ZipFile(sys.argv[2]) as apk:
 PY
     template_step android-screenshots.log adb -s "$template_serial" pull \
         '/sdcard/Android/data/__APP_ID__.simulated/files/SIMULATED-flow' "$template_out/android-screenshots"
-    mkdir -p "$template_out/built-artifacts/android"
-    cp "$template_apk" "$template_out/built-artifacts/android/primary-simulated-debug.apk"
-    cp "$template_test_apk" "$template_out/built-artifacts/android/primary-simulated-tests.apk"
-    cp "$template_release_apk" "$template_out/built-artifacts/android/primary-camera-release.apk"
-    cp "$template_companion/Android/app/build/outputs/apk/simulated/debug/app-simulated-debug.apk" \
-        "$template_out/built-artifacts/android/companion-simulated-debug.apk"
     template_manifest android-passed "$template_out/built-artifacts/android"
 fi
 printf 'SIMULATED generated acceptance passed; raw evidence: %s\n' "$template_out"
