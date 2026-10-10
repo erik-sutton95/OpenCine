@@ -35,33 +35,18 @@ object LiveAccessUnit {
     fun detectCodec(csd: ByteArray, nalTypes: String): LiveVideoCodec? {
         var sawHevc = false
         var sawAvc = false
-        var offset = 0
-        while (offset + 3 < csd.size) {
-            val sc4 =
-                offset + 4 <= csd.size &&
-                    csd[offset] == 0.toByte() &&
-                    csd[offset + 1] == 0.toByte() &&
-                    csd[offset + 2] == 0.toByte() &&
-                    csd[offset + 3] == 1.toByte()
-            val sc3 =
-                csd[offset] == 0.toByte() &&
-                    csd[offset + 1] == 0.toByte() &&
-                    csd[offset + 2] == 1.toByte()
-            val nalStart =
-                when {
-                    sc4 -> offset + 4
-                    sc3 -> offset + 3
-                    else -> {
-                        offset += 1
-                        continue
-                    }
-                }
-            if (nalStart >= csd.size) break
-            when (csd[nalStart].toInt() and 0xFF) {
+        for (nal in annexBNals(csd)) {
+            // This detector only admits framed NALs; other legacy callers
+            // retain the scanner's raw-buffer fallback.
+            if (nal.size < 4 || nal[0] != 0.toByte() ||
+                nal[1] != 0.toByte() || nal[2] != 1.toByte()
+            ) continue
+            val skip = startCodeLength(nal)
+            if (nal.size <= skip) continue
+            when (nal[skip].toInt() and 0xFF) {
                 0x40, 0x42, 0x44 -> sawHevc = true
                 0x67, 0x68 -> sawAvc = true
             }
-            offset = nalStart + 1
         }
         if (sawHevc) return LiveVideoCodec.HEVC
         if (sawAvc) return LiveVideoCodec.AVC
@@ -80,11 +65,22 @@ object LiveAccessUnit {
 
     private fun annexBNals(data: ByteArray): List<ByteArray> {
         val starts = ArrayList<Int>()
+        val privateMetadata = HashSet<Int>()
         var i = 0
         while (i + 3 <= data.size) {
             if (data[i] == 0.toByte() && data[i + 1] == 0.toByte() && data[i + 2] == 1.toByte()) {
                 starts.add(i)
-                i += 3
+                // Match Hevc.nalRanges: the recognized raw metadata has no
+                // emulation prevention, so embedded start codes are not NALs.
+                if (i + 32 <= data.size && data[i + 3] == 6.toByte() &&
+                    data[i + 4] == 0xF0.toByte() && data[i + 5] == 25.toByte() &&
+                    data[i + 31] == 0x80.toByte()
+                ) {
+                    privateMetadata.add(i)
+                    i += 32
+                } else {
+                    i += 3
+                }
             } else {
                 i += 1
             }
@@ -93,6 +89,7 @@ object LiveAccessUnit {
         val out = ArrayList<ByteArray>(starts.size)
         for (k in starts.indices) {
             val from = starts[k]
+            if (from in privateMetadata) continue
             val to = if (k + 1 < starts.size) starts[k + 1] else data.size
             if (to > from) out.add(data.copyOfRange(from, to))
         }

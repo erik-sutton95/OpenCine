@@ -132,4 +132,29 @@ class CompressedAccessUnitAdmissionTest {
         q.releaseScheduledHop()
         assertTrue(q.offer(avcKey))
     }
+    @Test
+    fun privateNanoMetadataCannotReleaseTheLostReferenceGate() {
+        val q = CompressedAccessUnitAdmission()
+        q.offer(avcKey)
+        q.takeDelivery()
+        q.noteIncompleteLoss()
+        q.takeDelivery()
+
+        val metadata = ByteArray(25) { 0x22 }
+        byteArrayOf(0, 0, 1, 0x65, 0x7F).copyInto(metadata, 4)
+        val privateSei = byteArrayOf(0, 0, 1, 6, 0xF0.toByte(), 25) +
+            metadata + byteArrayOf(0x80.toByte())
+        q.offer(privateSei + pSlice(1))
+        val dependent = q.takeDelivery()
+        assertTrue(dependent.awaitingRandomAccess)
+        assertTrue(dependent.accessUnits.isEmpty())
+        assertEquals(1, q.irapSeen)
+
+        q.offer(avcKey)
+        val recovered = q.takeDelivery()
+        assertFalse(recovered.awaitingRandomAccess)
+        assertEquals(1, recovered.accessUnits.size)
+        assertTrue(recovered.accessUnits.single().contentEquals(avcKey))
+    }
+
 }
