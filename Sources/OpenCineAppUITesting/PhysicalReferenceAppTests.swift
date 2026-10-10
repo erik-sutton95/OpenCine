@@ -32,6 +32,84 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
         add(screenshot)
     }
 
+    /// Restores explicitly captured local assist preferences after an interrupted owned run.
+    /// This cleanup is separate from qualification and never starts a camera operation.
+    func testRestoreOwnedMonitorOptions() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let raw = env["OPV_OWNED_RESTORE_MONITOR_OPTIONS_JSON"] else {
+            throw XCTSkip("Requires explicitly captured owned monitor settings")
+        }
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Owned monitor cleanup requires the physical camera and device")
+        #endif
+        let state = try JSONDecoder().decode(OwnedMonitorOptionsState.self, from: Data(raw.utf8))
+        guard let bundle = env["OPV_REFERENCE_BUNDLE"], !bundle.isEmpty,
+            let orientation = UIDeviceOrientation(rawValue: state.orientation),
+            [.portrait, .portraitUpsideDown, .landscapeLeft, .landscapeRight].contains(orientation),
+            [state.falseColor, state.mirror, state.horizontal, state.vertical, state.referenceDisplay]
+                .allSatisfy({ ["On", "Off"].contains($0) }),
+            ["CineStop", "Video", "IRE", "Limits"].contains(state.scale),
+            ["LOG", "709"].contains(state.read) else {
+            throw ReferenceOptionsFailure("Captured monitor cleanup state is invalid")
+        }
+        let app = XCUIApplication(bundleIdentifier: bundle)
+        app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1"
+        var cleanupSourceIdentity: String?
+        defer {
+            do { try optionsClose(app) } catch { XCTFail("Owned inspector cleanup failed: \(error)") }
+            if let identity = cleanupSourceIdentity {
+                do {
+                    guard try optionsLiveProbe(app).sourceIdentity == identity else {
+                        throw ReferenceOptionsFailure("Owned palette cleanup source was retired")
+                    }
+                    try optionsRestorePalette(app, expanded: state.paletteExpanded)
+                } catch {
+                    XCTFail("Owned palette cleanup failed: \(error)")
+                }
+            }
+            XCUIDevice.shared.orientation = orientation
+            XCTAssertEqual(XCUIDevice.shared.orientation, orientation)
+            snapshot(app, "owned-monitor-options-restoration")
+        }
+        // This explicit cleanup uses the horizontal palette, then restores the captured orientation.
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launch()
+        if let label = env["OPV_OWNED_RESTORE_CONNECT_LABEL"] {
+            let connect = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+            if connect.waitForExistence(timeout: 10) { connect.tap() }
+        }
+        Thread.sleep(forTimeInterval: 3)
+        let source = try optionsLiveProbe(app)
+        guard let identity = source.sourceIdentity else {
+            throw ReferenceOptionsFailure("Owned monitor cleanup requires a native source identity")
+        }
+        cleanupSourceIdentity = identity
+        try optionsOpen(app, tool: "FALSE")
+        try optionsSelect(app, label: state.scale)
+        try optionsSelect(app, label: state.read)
+        try optionsSet(app, label: "Reference Display", value: state.referenceDisplay)
+        try optionsClose(app)
+        guard try optionsLiveProbe(app).sourceIdentity == identity else {
+            throw ReferenceOptionsFailure("Owned cleanup source was retired")
+        }
+        try optionsOpen(app, tool: "MIRROR")
+        try optionsSet(app, identifier: "mirror.horizontal", value: state.horizontal)
+        try optionsSet(app, identifier: "mirror.vertical", value: state.vertical)
+        try optionsClose(app)
+        try optionsSetTool(app, tool: "FALSE", value: state.falseColor)
+        try optionsSetTool(app, tool: "MIRROR", value: state.mirror)
+        try optionsRestorePalette(app, expanded: state.paletteExpanded)
+        guard try optionsLiveProbe(app).sourceIdentity == identity else {
+            throw ReferenceOptionsFailure("Owned cleanup did not finish on its fresh idle source")
+        }
+        let probe = app.descendants(matching: .any).matching(identifier: "opencine.native.qualification")
+            .allElementsBoundByIndex.compactMap { $0.value as? String }.joined(separator: "\n")
+        let evidence = XCTAttachment(string: probe)
+        evidence.name = "owned-monitor-options-restored-native-probe"
+        evidence.lifetime = .keepAlways
+        add(evidence)
+    }
+
     func testDriveReferenceApp() throws {
         let env = ProcessInfo.processInfo.environment
         guard let bundle = env["OPV_REFERENCE_BUNDLE"], !bundle.isEmpty else {
@@ -154,6 +232,18 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
     private struct ReferenceOptionsFailure: Error, CustomStringConvertible {
         let description: String
         init(_ description: String) { self.description = description }
+    }
+
+    private struct OwnedMonitorOptionsState: Decodable {
+        let falseColor: String
+        let horizontal: String
+        let mirror: String
+        let orientation: Int
+        let paletteExpanded: Bool
+        let read: String
+        let referenceDisplay: String
+        let scale: String
+        let vertical: String
     }
 
     // A subset of the existing native qualification JSON, with no integration import.
@@ -386,26 +476,33 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
     }
 
     private func optionsLiveProbe(_ app: XCUIApplication) throws -> ReferenceOptionsProbe {
-        let probes = app.descendants(matching: .any).matching(identifier: "opencine.native.qualification")
-            .allElementsBoundByIndex.compactMap { element -> ReferenceOptionsProbe? in
-                guard let raw = element.value as? String,
-                    let value = try? JSONDecoder().decode(ReferenceOptionsProbe.self, from: Data(raw.utf8)),
+        let rawProbes = app.descendants(matching: .any).matching(identifier: "opencine.native.qualification")
+            .allElementsBoundByIndex.compactMap { $0.value as? String }
+        func rejection(_ message: String) -> ReferenceOptionsFailure {
+            let evidence = XCTAttachment(string: rawProbes.joined(separator: "\n"))
+            evidence.name = "monitor-options-rejected-native-probe"
+            evidence.lifetime = .keepAlways
+            add(evidence)
+            return ReferenceOptionsFailure(message)
+        }
+        let probes = rawProbes.compactMap { raw -> ReferenceOptionsProbe? in
+                guard let value = try? JSONDecoder().decode(ReferenceOptionsProbe.self, from: Data(raw.utf8)),
                     value.role == "live" else { return nil }
                 return value
             }
-        guard probes.count == 1 else { throw ReferenceOptionsFailure("Expected one actual native live probe") }
+        guard probes.count == 1 else { throw rejection("Expected one actual native live probe") }
         let value = probes[0]
         guard !value.simulated, value.sourceActive == true, value.cameraRecording == false,
             let identity = value.sourceIdentity, !identity.isEmpty,
             let frame = value.sourceFrameAt, frame.isFinite,
             (-2 ... 5).contains(Date().timeIntervalSince1970 - frame) else {
-            throw ReferenceOptionsFailure("A fresh idle real-camera source is required")
+            throw rejection("A fresh idle real-camera source is required")
         }
         if let count = value.sourcePresentations, count <= 0 {
-            throw ReferenceOptionsFailure("Native source presentations are not positive")
+            throw rejection("Native source presentations are not positive")
         }
         if let count = value.nativeDecodeOutputs, count <= 0 {
-            throw ReferenceOptionsFailure("Native decode outputs are not positive")
+            throw rejection("Native decode outputs are not positive")
         }
         return value
     }
@@ -511,6 +608,16 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
         try optionsWait("The actual tool enablement was not restored or selected") {
             (try? self.optionsBoolean(button)) == value
         }
+    }
+
+    private func optionsRestorePalette(_ app: XCUIApplication, expanded: Bool) throws {
+        let desired = app.buttons[expanded ? "monitor.assists.collapse" : "monitor.assists.expand"]
+        if !desired.exists {
+            let other = app.buttons[expanded ? "monitor.assists.expand" : "monitor.assists.collapse"]
+            try optionsWait("Owned palette cleanup control is unavailable") { other.isHittable }
+            other.tap()
+        }
+        try optionsWait("Captured palette state was not restored") { desired.exists }
     }
 
     private func snapshot(_ app: XCUIApplication, _ name: String) {
