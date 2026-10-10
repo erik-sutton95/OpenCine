@@ -28,6 +28,14 @@ enum class MonitorAssistTool {
     val label: String
         get() = name
 
+    /** Full palette and settings names, matching the shared Swift catalog. */
+    val displaySettingsTitle: String
+        get() = when (this) {
+            PARADE -> "Parade"
+            ND -> "ND"
+            else -> title
+        }
+
     val title: String
         get() =
             when (this) {

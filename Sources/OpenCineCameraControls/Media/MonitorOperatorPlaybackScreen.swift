@@ -328,7 +328,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             let tools = availableTools
             let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(context.presentation,
                 toolCount: tools.count, safeTop: context.safeTop)
-            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
+            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.displaySettingsTitle,
                     enabled: assist.isPlaybackVisible($0), hasOptions: hasOptions($0)) },
                 layout: metrics, usageSeed: MonitorToolUsage.fieldMonitorSeed, usage: $usage,
                 expanded: context.expanded, onToggle: { if let tool = MonitorAssistSelection(rawValue: $0) { assist.togglePlayback(tool) } },

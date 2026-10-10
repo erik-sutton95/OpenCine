@@ -338,3 +338,8 @@ destination artwork remains supported. Actual Insta popup renders exercise both
 overflow heights and busy progress; Nikon hosted UIKit actions exercise popup
 admission, request values and progress controls at portrait and compact
 landscape geometries. Physical delivery and Android input remain untested.
+
+The expanded View Assist palette reserves two lines for full tool names, including
+Anamorphic Desqueeze. Wider catalog cells scroll horizontally in landscape and vertically
+in portrait; the collapsed favorites keep the common system-button size. Icons keep their
+size through the reveal, and label space grows with the palette on both platforms.

@@ -5,6 +5,10 @@ import Foundation
 public struct MonitorAssistPaletteLayout: Equatable, Sendable {
     public static let padding: Double = 4
     public static let spacing: Double = 6
+    /// Expanded labels have room for full tool names on two lines.
+    public static let expandedCellMinimumWidth: Double = 80
+    public static let expandedLabelHeight: Double = 20
+    public static let expandedLabelAllowance: Double = 14
     /// The arrow retains its original 15-point lane; another 12 points catch right-side misses.
     public static let expansionButtonWidth: Double = 27
     public static let horizontalInsets: Double = padding * 2 + spacing + expansionButtonWidth
@@ -39,10 +43,9 @@ public struct MonitorAssistPaletteLayout: Equatable, Sendable {
         let limitW = max(1, maximumWidth.isFinite ? maximumWidth : 1)
         let limitH = max(1, maximumHeight.isFinite ? maximumHeight : 1)
         let count = max(0, toolCount)
-        cellHeight = MonitorSystemButtonMetrics.side(tablet: tablet)
-        // Expanded catalog cells match the collapsed favorites, including icon
-        // size. Narrow canvases scroll instead of shrinking the tap target.
-        cellWidth = cellHeight
+        let compactSide = MonitorSystemButtonMetrics.side(tablet: tablet)
+        cellHeight = compactSide + (expanded ? Self.expandedLabelAllowance : 0)
+        cellWidth = expanded ? max(compactSide, Self.expandedCellMinimumWidth) : compactSide
         columns = max(1, (count + 1) / 2)
         let collapsedCount = min(count, portrait ? 1 : 2)
         let rowsHeight =
@@ -53,11 +56,12 @@ public struct MonitorAssistPaletteLayout: Equatable, Sendable {
                 Double(columns) * cellWidth + Double(max(0, columns - 1)) * Self.spacing
                 + Self.horizontalInsets
             width = min(
-                limitW, portrait ? cellWidth + 8 : max(cellHeight + Self.horizontalInsets, catalogWidth))
+                limitW,
+                portrait ? cellWidth + 8 : max(cellHeight + Self.horizontalInsets, catalogWidth))
             let desiredHeight =
                 portrait
                 ? Double(count) * cellHeight + Double(max(0, count - 1)) * Self.spacing + 35
-                : 2 * cellHeight + 11
+                : 2 * cellHeight + Self.spacing + Self.padding * 2
             height = min(limitH, desiredHeight)
         } else {
             width = min(limitW, cellHeight + (portrait ? 8 : Self.horizontalInsets))
@@ -90,7 +94,8 @@ public struct MonitorAssistPaletteLayout: Equatable, Sendable {
             toolCount: toolCount, maximumWidth: maximumWidth, maximumHeight: maximumHeight)
         return (
             layout,
-            layout.anchored(leading: geometry.assists.x, bottom: geometry.assists.maxY))
+            layout.anchored(leading: geometry.assists.x, bottom: geometry.assists.maxY)
+        )
     }
 
     /// Both states use the same viewport limits during a clipped reveal.

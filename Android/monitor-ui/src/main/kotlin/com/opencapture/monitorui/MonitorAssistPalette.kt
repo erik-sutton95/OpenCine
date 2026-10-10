@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -61,6 +62,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -135,16 +137,23 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     val expansionLane = MonitorLayoutPolicy.ASSIST_EXPANSION_BUTTON_WIDTH.dp
     val horizontalInsets = MonitorLayoutPolicy.ASSIST_HORIZONTAL_INSETS.dp
     val columns = maxOf(1, (tools.size + 1) / 2)
-    val catalogWidth = buttonSize * columns + MonitorLayoutPolicy.ASSIST_SPACING.dp * maxOf(0, columns - 1) + horizontalInsets
+    val labelScale = density.fontScale.coerceAtLeast(1f)
+    val labelHeight = (MonitorLayoutPolicy.ASSIST_EXPANDED_LABEL_HEIGHT * labelScale).dp
+    val expandedCellWidth = maxOf(buttonSize, (MonitorLayoutPolicy.ASSIST_EXPANDED_CELL_MINIMUM_WIDTH * labelScale).dp)
+    val expandedCellHeight = buttonSize + MonitorLayoutPolicy.ASSIST_EXPANDED_LABEL_ALLOWANCE.dp +
+        labelHeight - MonitorLayoutPolicy.ASSIST_EXPANDED_LABEL_HEIGHT.dp
+    val catalogWidth = expandedCellWidth * columns + MonitorLayoutPolicy.ASSIST_SPACING.dp * maxOf(0, columns - 1) + horizontalInsets
     val available = MonitorLayoutPolicy.assistAvailableWidth(
         config.screenWidthDp.toFloat(), portrait, tablet).dp
     val compactW = buttonSize + if (portrait) 8.dp else horizontalInsets
-    val compactH = if (portrait) buttonSize + 35.dp else buttonSize * 2 + 11.dp
-    val fullW = if (portrait) buttonSize + 8.dp else minOf(available, maxOf(buttonSize + horizontalInsets, catalogWidth))
+    val compactH = if (portrait) buttonSize + 35.dp else buttonSize * 2 + (MonitorLayoutPolicy.ASSIST_SPACING + 8).dp
+    val fullW = if (portrait) expandedCellWidth + 8.dp else minOf(available, maxOf(expandedCellWidth + horizontalInsets, catalogWidth))
     val fullH = if (portrait) minOf((config.screenHeightDp * .62f).dp,
-        buttonSize * tools.size + (maxOf(0, tools.size - 1) * MonitorLayoutPolicy.ASSIST_SPACING + 35).dp,
-        maxExpandedHeight?.dp?.coerceAtLeast(compactH) ?: Float.MAX_VALUE.dp) else buttonSize * 2 + 11.dp
+        expandedCellHeight * tools.size + (maxOf(0, tools.size - 1) * MonitorLayoutPolicy.ASSIST_SPACING + 35).dp,
+        maxExpandedHeight?.dp?.coerceAtLeast(compactH) ?: Float.MAX_VALUE.dp) else expandedCellHeight * 2 + (MonitorLayoutPolicy.ASSIST_SPACING + 8).dp
     val reveal = if (portrait && dragging) scrub else progress.value
+    val cellWidth = buttonSize + (expandedCellWidth - buttonSize) * reveal
+    val cellHeight = buttonSize + (expandedCellHeight - buttonSize) * reveal
     val visibleW = compactW + (fullW - compactW) * reveal
     val visibleH = compactH + (fullH - compactH) * reveal
     val spanPx = with(density) {
@@ -207,7 +216,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
         val tint = if (active) MonitorPalette.accent else MonitorPalette.text
         val shown = if (index < compactCount) 1f else extraOpacity
         val identifier = accessibilityIdentifier(tool)
-        Box(Modifier.size(buttonSize).graphicsLayer { alpha = shown * if (available) 1f else .4f }
+        Box(Modifier.size(cellWidth, cellHeight).graphicsLayer { alpha = shown * if (available) 1f else .4f }
             .clip(RoundedCornerShape(9.dp)).background(if (active) MonitorPalette.accent.copy(alpha = .13f) else Color.Transparent)
             .combinedClickable(enabled = !locked && available && shown > 0.35f, onClick = { used(tool); onToggle(tool) },
                 onLongClick = if (hasOptions(tool)) { { used(tool); onOptions(tool); expanded = false } } else null)
@@ -218,10 +227,12 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
                 accessibilityValue(tool)?.let { stateDescription = it }
             },
             contentAlignment = Alignment.Center) {
-            glyph(tool, tint, Modifier.size(iconSize))
+            glyph(tool, tint, Modifier.offset(y = -(cellHeight - buttonSize) / 2).size(iconSize))
             Text(label(tool), color = tint.copy(alpha = tint.alpha * labelOpacity),
-                style = MonitorTypography.text(7.5f, FontWeight.SemiBold).copy(letterSpacing = .75.sp),
-                maxLines = 1, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp))
+                style = MonitorTypography.text(7.5f, FontWeight.SemiBold).copy(letterSpacing = .75.sp, lineHeight = 10.sp),
+                textAlign = TextAlign.Center, maxLines = 2,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
+                    .size(cellWidth - 8.dp, labelHeight))
         }
     }
     val handleDrag = rememberDraggableState { delta ->
@@ -371,7 +382,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
                                 repeat(2) { row ->
                                     val index = MonitorAssistPaletteReveal.landscapeCellIndex(column, row)
                                     if (index < ranked.size) key(ranked[index], index)
-                                    else Box(Modifier.size(buttonSize))
+                                    else Box(Modifier.size(cellWidth, cellHeight))
                                 }
                             }
                         }

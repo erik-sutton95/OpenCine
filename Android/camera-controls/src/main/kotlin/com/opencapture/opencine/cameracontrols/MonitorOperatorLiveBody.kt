@@ -311,7 +311,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveBody(
                     }
                 }
                 if (sections.assists in mounted && assist.configureTool == null) MonitorAssistPalette(palette,
-                    layout.portrait, !interactive, { it.isOn }, { it.title }, { it.label }, { it.hasOptions },
+                    layout.portrait, !interactive, { it.isOn }, { it.title },
+                    { it.tool?.displaySettingsTitle ?: it.title }, { it.hasOptions },
                     onToggle = { if (interactive && currentSource()) it.toggle() },
                     onOptions = { if (interactive && currentSource()) assist.configureTool = it.tool },
                     glyph = { item, tint, decoration ->

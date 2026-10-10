@@ -12,7 +12,7 @@ struct MonitorAssistPaletteLayoutTests {
         #expect(compact.width == compact.cellHeight + 8)
         let full = compact.resolving(expanded: true)
         #expect(full.height > compact.height)
-        #expect(full.width == compact.width)
+        #expect(full.width > compact.width)
     }
 
     @Test func portraitExpansionKeepsVisibleToolsInsideItsActualHitRectangle() {
@@ -23,9 +23,11 @@ struct MonitorAssistPaletteLayoutTests {
         let frame = layout.anchored(leading: 14, bottom: bottom)
         #expect(frame.maxY == bottom)
         #expect(frame.y >= 62)
-        #expect(frame.width == 56)
-        #expect(layout.cellWidth == layout.cellHeight)
-        #expect(layout.cellWidth == MonitorSystemButtonMetrics.side(tablet: false))
+        #expect(frame.width == 88)
+        #expect(layout.cellWidth == MonitorAssistPaletteLayout.expandedCellMinimumWidth)
+        #expect(
+            layout.cellHeight == MonitorSystemButtonMetrics.side(tablet: false)
+                + MonitorAssistPaletteLayout.expandedLabelAllowance)
         #expect(layout.scrollHeight + 35 == frame.height)
         // PEAK is the second row; its centre is hundreds of points above the
         // collapsed rail but must still be inside the expanded native view.
@@ -56,18 +58,20 @@ struct MonitorAssistPaletteLayoutTests {
         let columns = Double(landscape.columns)
         #expect(
             columns * landscape.cellWidth + (columns - 1) * MonitorAssistPaletteLayout.spacing
-                <= landscape.scrollWidth)
+                > landscape.scrollWidth)
     }
 
     @Test func landscapeExpansionKeepsTwoRowsAndScrollsNarrowScreens() {
         let layout = MonitorAssistPaletteLayout(
             portrait: false, tablet: false, expanded: true, toolCount: 15,
             maximumWidth: 530, maximumHeight: 300)
-        #expect(layout.height == 107)
-        #expect(layout.cellWidth == MonitorSystemButtonMetrics.side(tablet: false))
-        #expect(layout.cellWidth == layout.cellHeight)
+        #expect(layout.height == 138)
+        #expect(
+            layout.cellHeight == MonitorSystemButtonMetrics.side(tablet: false)
+                + MonitorAssistPaletteLayout.expandedLabelAllowance)
+        #expect(layout.cellWidth == MonitorAssistPaletteLayout.expandedCellMinimumWidth)
         #expect(layout.columns == 8)
-        #expect(layout.scrollHeight == 99)
+        #expect(layout.scrollHeight == 130)
         #expect(layout.scrollWidth + MonitorAssistPaletteLayout.horizontalInsets == layout.width)
         #expect(layout.width <= 530)
         #expect(layout.iconSide == MonitorSystemButtonMetrics.iconSide(tablet: false))
@@ -98,8 +102,16 @@ struct MonitorAssistPaletteLayoutTests {
                     #expect(frame.x >= 0 && frame.maxX <= width)
                     #expect(frame.y >= 59 && frame.maxY <= height)
                     #expect(frame.maxY == geometry.assists.maxY)
-                    #expect(layout.cellHeight == geometry.settings.height)
-                    #expect(layout.cellWidth == geometry.settings.width)
+                    #expect(
+                        layout.cellHeight == geometry.settings.height
+                            + (expanded ? MonitorAssistPaletteLayout.expandedLabelAllowance : 0))
+                    #expect(
+                        layout.cellWidth
+                            == (expanded
+                                ? max(
+                                    geometry.settings.width,
+                                    MonitorAssistPaletteLayout.expandedCellMinimumWidth)
+                                : geometry.settings.width))
                     #expect(
                         layout.iconSide
                             == MonitorSystemButtonMetrics.iconSide(tablet: tablet))

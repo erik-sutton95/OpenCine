@@ -161,7 +161,7 @@ public fun MonitorOperatorScreen(
             mounts.remove(MonitorDisplaySection.RAIL_RECORD)
         val format = control.snapshot?.mode?.value?.id?.let { MonitorOperatorLiveReadout<MonitorOperatorSceneCaptureKey, MonitorDisplaySection>(
             MonitorOperatorSceneCaptureKey.Mode, "Shooting mode", it, action = {}) }
-        val tools = availableAssistTools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
+        val tools = availableAssistTools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.displaySettingsTitle,
             tool, assist.isOn(tool), { assist.toggle(tool) },
             tool !in setOf(MonitorAssistTool.EV, MonitorAssistTool.LEVEL) && (tool != MonitorAssistTool.LUT || lookOptions != null),
             accessibilityIdentifier = "monitor.assist.${tool.name}") }

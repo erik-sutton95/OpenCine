@@ -84,10 +84,10 @@
                 // Portrait clips the bottom of this full-size host. Keep the
                 // tool stack in a visibleH plate so the collapsed favorite
                 // sits under the chevron instead of above the clip.
-                toolGrid(full: full, labels: t)
+                toolGrid(full: full, labels: t, visibleHeight: visibleH)
                     .frame(
                         width: full.portrait ? visibleW : full.width,
-                        height: full.portrait ? visibleH : full.height,
+                        height: visibleH,
                         alignment: .topLeading)
                 expansionControl(
                     compact: compact, full: full, visibleWidth: visibleW, visibleHeight: visibleH
@@ -161,8 +161,15 @@
             .compactMap { id in tools.first { $0.id == id } }
         }
 
-        private func toolGrid(full: MonitorAssistPaletteLayout, labels: Double) -> some View {
+        private func toolGrid(
+            full: MonitorAssistPaletteLayout, labels: Double, visibleHeight: Double
+        ) -> some View {
             let items = displayTools
+            let compact = full.resolving(expanded: false)
+            let cellWidth = MonitorAssistPaletteReveal.lerp(
+                compact.cellWidth, full.cellWidth, labels)
+            let cellHeight = MonitorAssistPaletteReveal.lerp(
+                compact.cellHeight, full.cellHeight, labels)
             // Collapsed, the edge fade would mask the favorite in its one-cell viewport.
             // Shallow: a hint that more tools scroll, never dimming the edge buttons.
             let fade: CGFloat = expanded ? 8 : 0
@@ -195,7 +202,7 @@
                                                     labels: labels)
                                             } else {
                                                 Color.clear.frame(
-                                                    width: full.cellWidth, height: full.cellHeight)
+                                                    width: cellWidth, height: cellHeight)
                                             }
                                         }
                                     }
@@ -221,7 +228,7 @@
             }
             .frame(
                 width: full.scrollWidth,
-                height: full.portrait ? nil : full.scrollHeight,
+                height: full.portrait ? nil : max(0, visibleHeight - 8),
                 alignment: .topLeading
             )
             .frame(maxHeight: full.scrollHeight)
@@ -342,11 +349,24 @@
             let extraOpacity = MonitorAssistPaletteReveal.extraToolOpacity(progress: labels)
             let shown = index < compactCount ? 1.0 : extraOpacity
             let labelOpacity = min(1, max(0, (labels - 0.7) / 0.3))
+            let compact = full.resolving(expanded: false)
+            let cellWidth = MonitorAssistPaletteReveal.lerp(
+                compact.cellWidth, full.cellWidth, labels)
+            let cellHeight = MonitorAssistPaletteReveal.lerp(
+                compact.cellHeight, full.cellHeight, labels)
             let label = ZStack {
                 icon(tool.id).frame(width: full.iconSide, height: full.iconSide)
+                    .offset(y: -(cellHeight - compact.cellHeight) / 2)
                 Text(tool.title).font(MonitorTheme.font(7.5, weight: .semibold))
-                    .tracking(0.75).lineLimit(1)
-                    .offset(y: full.cellHeight / 2 - 8)
+                    .tracking(0.75).lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(
+                        width: max(0, cellWidth - 8),
+                        height: MonitorAssistPaletteLayout.expandedLabelHeight, alignment: .top
+                    )
+                    .offset(
+                        y: cellHeight / 2 - 4 - MonitorAssistPaletteLayout.expandedLabelHeight / 2
+                    )
                     .opacity(labelOpacity)
                     .accessibilityHidden(true)
             }
@@ -355,7 +375,7 @@
                     ? MonitorTheme.edrAccent(gain: hdrGain)
                     : MonitorTheme.edrSecondary(gain: hdrGain)
             )
-            .frame(width: full.cellWidth, height: full.cellHeight)
+            .frame(width: cellWidth, height: cellHeight)
             .background(
                 tool.enabled ? MonitorTheme.accent.opacity(0.13) : .clear,
                 in: RoundedRectangle(cornerRadius: 9)

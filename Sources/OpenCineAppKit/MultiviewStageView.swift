@@ -367,13 +367,15 @@
             let items = toolItems
             // Landscape stages mount Live View's palette as Live View does:
             // horizontal, anchored at its collapsed bottom-leading slot, growing
-            // trailing short of DISP. Portrait Grid keeps the vertical rail.
+            // trailing short of DISP. Portrait Grid grows from its compact rail
+            // within the viewport so expanded labels retain their full width.
             let horizontal = layout.assistsHorizontal
             let palette = MonitorAssistPaletteLayout(
                 portrait: !horizontal, tablet: layout.tablet, expanded: true,
                 toolCount: items.count,
                 maximumWidth: horizontal
-                    ? layout.display.x - 8 - layout.assists.x : layout.assists.width,
+                    ? layout.display.x - 8 - layout.assists.x
+                    : Double(viewport.width) - layout.assists.x - 14,
                 maximumHeight: horizontal
                     ? layout.assists.maxY - max(layout.sessionControls.y, 8)
                     : layout.assists.height)

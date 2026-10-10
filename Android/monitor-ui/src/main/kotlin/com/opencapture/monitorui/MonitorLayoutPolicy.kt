@@ -399,6 +399,9 @@ object MonitorLayoutPolicy {
     const val ASSIST_EXPANSION_BUTTON_WIDTH = 27f
     /** Gap between View Assist tool cells. */
     const val ASSIST_SPACING = 6f
+    const val ASSIST_EXPANDED_CELL_MINIMUM_WIDTH = 80f
+    const val ASSIST_EXPANDED_LABEL_HEIGHT = 20f
+    const val ASSIST_EXPANDED_LABEL_ALLOWANCE = 14f
     const val ASSIST_HORIZONTAL_INSETS = 4f * 2f + ASSIST_SPACING + ASSIST_EXPANSION_BUTTON_WIDTH
 
     fun assistAvailableWidth(screenWidth: Float, portrait: Boolean, tablet: Boolean, cornerRadius: Float = 42f): Float {
