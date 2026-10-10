@@ -163,4 +163,3 @@ fun bitmapVulkanUniforms(
     result[39] = if (mirroredVertical) 1f else 0f
     return result
 }
-

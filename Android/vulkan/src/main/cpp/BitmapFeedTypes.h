@@ -34,5 +34,3 @@ struct BitmapFeed {
     VkPipeline pipeline = VK_NULL_HANDLE;
     VkFormat pipelineFormat = VK_FORMAT_MAX_ENUM;
 };
-
-

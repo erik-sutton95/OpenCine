@@ -154,7 +154,7 @@ struct OpcVk {
     std::mutex lock;
     bool bitmapInput = false;
     BitmapFeed bitmap{};
-    std::vector<ImageMem> bitmapPendingImages; 
+    std::vector<ImageMem> bitmapPendingImages;
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice gpu = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;

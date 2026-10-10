@@ -59,4 +59,3 @@ fun monitorJpegSampleSizeForLongSide(width: Int, height: Int, maxLongSide: Int):
     }
     return sample
 }
-

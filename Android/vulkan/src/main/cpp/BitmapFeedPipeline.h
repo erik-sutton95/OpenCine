@@ -190,4 +190,3 @@ static bool renderBitmapFeed(OpcVk* r) {
     vkCmdEndRenderPass(r->cmd);
     return submitAndPresentFrame(r, index, false);
 }
-

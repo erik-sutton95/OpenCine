@@ -811,4 +811,3 @@ class GimbalOverlayMotion {
         const val STALE_AFTER = 0.3
     }
 }
-
