@@ -10,6 +10,7 @@ value as pending until the camera actually reports it, on both the DJI and Luna 
 seconds to read back.)
 
 ## Source baseline
+
 - `openpocketcine` @ `27b15028e86d93798c802ddb56c7c474a30bb4c7`: DJI WB commands and status in
   `Sources/OpenPocketViewCore/Commands.swift`, `CameraStatus.swift`, `CameraControl.swift`;
   UI call sites `ios/OpenPocketCine/CameraSession.swift`, `CaptureQuickControl.swift`.
@@ -26,6 +27,7 @@ seconds to read back.)
   therefore be planned by hand, which this brief records.
 
 ## Ownership
+
 - Interface owner (one agent): `opencinecore` command receipt and setting observation types,
   with fakes for a DJI-like and a Luna-like delayed readback. Nobody else edits these types;
   integration agents report needed changes to the owner.
@@ -40,6 +42,7 @@ seconds to read back.)
   task branches, ADR 0002).
 
 ## Implementation (dependency order)
+
 1. Core owner: add the types and fake-based tests in `opencinecore`; record the candidate SHA
    in `compat/candidates.json`.
 2. In parallel, against that SHA: Agent DJI in `openpocketcine`, Agent Luna in
@@ -49,6 +52,7 @@ seconds to read back.)
 4. Validate each app separately at its own branch SHA plus the same `opencinecore` SHA.
 
 ## Completion gate
+
 - In both apps, the WB control shows requested-pending, then the camera-reported value; a
   rejected or timed-out change returns to the reported value with a reason.
 - Automated: `opencinecore` tests; Pocket `just swift-test` and `just android-check`; Insta
@@ -60,10 +64,12 @@ seconds to read back.)
   than skipped silently.
 
 ## Rollback
+
 - Each app reverts its integration commit independently; the old direct command path is
   restored behind one app-side switch (plan CORE-02). Do not run both command paths at once.
 
 ## Handoff
+
 - Commits on four task branches (Core, Pocket, Insta, UI owner), none merged by agents.
 - Release order once authorized: publish the `opencinecore` version, then each app pins it
   in its own pull request (ADR 0007). Pocket and Insta can ship in either order.
@@ -71,6 +77,7 @@ seconds to read back.)
   evidence; set `opencinecore` to `active`.
 
 ## What the dry run showed
+
 - A brand-new seam has no edges, so `impact` correctly reports nothing; the brief carries the
   planned consumers explicitly instead of trusting an empty graph.
 - `check` will reject the edges if anyone points `opencinecore` back at an app or UI package.

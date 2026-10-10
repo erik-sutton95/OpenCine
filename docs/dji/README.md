@@ -297,7 +297,6 @@ The owner sends no command on retirement and never joins the settings FIFO. Nati
 presentation and diagnostic copy remain explicit host policy. Portable command builders
 and Kotlin behavior are unchanged; platform and physical qualification remain untested.
 
-
 ### Apple first-picture format and zoom-color ownership candidate
 
 A source-only DJIApple candidate owns the complete first-picture format kick/restore task,

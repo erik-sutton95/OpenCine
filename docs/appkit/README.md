@@ -422,7 +422,6 @@ an unfavorited stored row cannot reappear as starred after reload. Catalog remov
 operations for those removed identities; late writes and receipts cannot complete a recycled
 asset or clear a successor's progress.
 
-
 ## Borrowed video playback (SHELL-03 I5b-1)
 
 `MonitorMediaPlaybackModel<Payload, Look>` owns the actual candidate/load/cache workflow,

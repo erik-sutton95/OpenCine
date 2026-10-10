@@ -17,7 +17,6 @@
 > example, the Pocket vertical-raster fix is merged (#482), and the BASE-01 Pocket baseline is
 > `27b15028`.
 
-
 **Date:** 2026-10-01  
 **Status:** Proposed architecture, grounded in inspected local repositories.  
 **Scope of this work:** Inspection and this plan only. No application code was refactored, no packages were extracted, and no repositories were created.  

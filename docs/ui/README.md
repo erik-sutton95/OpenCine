@@ -335,7 +335,6 @@ python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iO
 Apache 2.0 ([LICENSE](../../LICENSE), [NOTICE](../../NOTICE)). Bundled fonts and icons:
 [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md).
 
-
 Assist identities, scope modes/guide selections, audio orientation/readout, resolved false-color
 reference values and the exact normalized-center Codable fields belong to Foundation-only
 MonitorPresentation. MonitorUI keeps source-compatible public aliases plus native glyph/coordinate

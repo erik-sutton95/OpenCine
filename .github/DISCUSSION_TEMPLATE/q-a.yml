@@ -1,0 +1,33 @@
+title: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask away! Before posting, please check existing Q&A discussions to see if
+        your question has already been answered. Shared platform and integration
+        guides live in [the repository documentation](https://github.com/erik-sutton95/OpenCine/tree/main/docs).
+
+        Found a bug? Open a GitHub Issue instead of a discussion.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What do you want to know? Be as specific as possible.
+      placeholder: "How do I add a typed optional camera service?"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Live view
+        - Camera control
+        - Monitoring / metadata
+        - Media library
+        - Connection / pairing
+        - Android app
+        - Build / development
+        - Other
+    validations:
+      required: true

@@ -13,8 +13,24 @@ indent_size = 2
 [*.dart]
 indent_size = 2
 
-[*.{kt,kts,java,gradle,swift}]
+[*.{kt,kts,java,gradle}]
 indent_size = 4
+
+# Retained Swift uses 2/4-space blocks, aligned continuations and literal shader text.
+# .swift-format keeps its 4-space convention and never reflows multiline literals.
+[*.swift]
+indent_size = unset
+
+[*.py]
+indent_size = 4
+
+# Atlas Python blocks use 4 spaces; continuations and fixture text need no grid.
+[atlas/**.py]
+indent_size = unset
+
+# Literal Xcode project fixtures retain tabs; code blocks still use spaces.
+[atlas/tests/test_publish.py]
+indent_style = unset
 
 # C / GLSL hang continuation lines on the parameter list, not a 2-space grid.
 [*.{c,h,cc,cpp,hpp,vert,frag,comp,glsl,cmake}]
@@ -27,7 +43,7 @@ indent_size = unset
 
 # Ordered-list continuation lines align under the list marker (3 spaces for `1. `),
 # which a fixed indent_size would flag.
-[*.{md,mdx}]
+[*.{md,mdx,md.tmpl}]
 indent_size = unset
 trim_trailing_whitespace = false
 
@@ -40,4 +56,29 @@ charset = unset
 end_of_line = unset
 insert_final_newline = unset
 trim_trailing_whitespace = unset
+indent_size = unset
+
+# Legal text retains its original aligned paragraphs.
+[LICENSE]
+indent_size = unset
+
+# Retained upstream KCP files; first-party luna_*.c and headers stay covered.
+[Sources/CKcp/ikcp.{c,h}]
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+
+[Sources/CKcp/LICENSE]
+insert_final_newline = unset
+
+[Sources/MonitorUI/Resources/Fonts/OFL-Sora.txt]
+trim_trailing_whitespace = unset
+
+# Canonical saved-camera wire fixtures retain their exact terminal bytes.
+[Fixtures/saved-cameras/*.json]
+insert_final_newline = unset
+
+# The continued comment aligns with its opening text.
+[Android/dji/src/main/AndroidManifest.xml]
 indent_size = unset

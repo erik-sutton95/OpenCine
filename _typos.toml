@@ -1,0 +1,57 @@
+[files]
+# Generated files carry pseudo-random IDs that trip typos: Xcode projects (hex UUIDs)
+# and other machine-generated tables.
+extend-exclude = [
+    "graphify-out/**",
+    "CHANGELOG.md",
+    "*.lock",
+    "**/*.storyboard",
+    "**/*.pbxproj",
+    "**/*.excalidraw",
+]
+
+[default.extend-words]
+# Protocol fields and codec/four-character atom names are exact wire vocabulary.
+rto = "rto"
+DNE = "DNE"
+trak = "trak"
+# Camera / protocol domain terms that are not misspellings.
+DUML = "DUML"
+EIS = "EIS"
+FOV = "FOV"
+DLog = "DLog"
+HEVC = "HEVC"
+THM = "THM"
+Osmo = "Osmo"
+Mimo = "Mimo"
+SoftAP = "SoftAP"
+xcodegen = "xcodegen"
+Rec = "Rec"
+# DUML payload bytes quoted in protocol docs (not English words).
+BA = "BA"
+DA = "DA"
+# Simulator device identifier (not a UUID misspelling).
+UDID = "UDID"
+Lucide = "Lucide"
+ND = "ND"
+Resend = "Resend"
+whatsnew = "whatsnew"
+AdGuard = "AdGuard"
+Blokada = "Blokada"
+RethinkDNS = "RethinkDNS"
+utun = "utun"
+
+[default.extend-identifiers]
+ue = "ue"
+iy = "iy"
+ded = "ded"
+pickerNd = "pickerNd"
+extraNd = "extraNd"
+HudNd = "HudNd"
+
+[default]
+extend-ignore-re = [
+    "PNGs?",
+    # "mis-" is an English prefix, not a truncated "miss"/"mist".
+    "mis-[a-z]+",
+]

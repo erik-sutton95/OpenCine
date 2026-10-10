@@ -77,6 +77,7 @@ integer millisecond conversion remains at the consuming boundary.
   stay in the integration. A world reference frame needs the camera to hold one; a phone IMU
   sample alone does not establish it.
 - Moved test numbers are golden.
+
 ## OpenCineRelay rules
 
 - Optional: no other Core product imports it (a test enforces it). Foundation only, no

@@ -129,7 +129,6 @@ HTTP/native read fixtures exercise no-EOF completion, header precedence, cancell
 receipts. `MonitorMediaThumbnailEncoder` owns packed NV12 video-range conversion to the existing
 sRGB JPEG output with explicit stride and plane guards.
 
-
 ### Native clip player on Apple
 
 `MonitorApplePlaybackOwner` owns the real AVPlayer item, output-before-replacement attachment,
@@ -186,7 +185,6 @@ instead. A separate native macOS proof exports the
 readable prefix of an existing sample to a playable movie with metadata. Unreadable audio does
 not imply readable video is absent. These are simulated and native framework checks; physical
 devices and the consuming app's delivery workflow remain untested.
-
 
 ### Native movie export on Android
 

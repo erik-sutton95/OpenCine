@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Opt in per clone: git config core.hooksPath .githooks
+set -euo pipefail
+scripts/check-repository-hygiene.sh --staged
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: install Gitleaks to scan staged changes." >&2
+  exit 1
+fi
+gitleaks protect --staged --redact --no-banner --config .gitleaks.toml

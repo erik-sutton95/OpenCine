@@ -1,0 +1,21 @@
+# gitleaks secret-scan config for OpenCine.
+# Extends the built-in ruleset and allowlists values that are known-safe for
+# this repo. See docs/testing/REPOSITORY-HYGIENE.md for the policy this enforces.
+title = "OpenCine secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Repo-specific known-safe values and paths"
+regexes = [
+  # Operator-preference storage keys. They are named `<AREA>_..._KEY = "dotted.path.vN"`, which is
+  # the exact shape `generic-api-key` looks for. Deliberately anchored to the dotted-path form
+  # these keys use rather than allowlisting the `_KEY` name, so a real credential assigned to a
+  # `_KEY` constant is still caught.
+  '''^(assist|display|link|media|monitor|scope)\.[A-Za-z0-9.]+\.v[0-9]+$''',
+]
+paths = [
+  # This config talks about secret patterns on purpose.
+  '''\.gitleaks\.toml$''',
+]
