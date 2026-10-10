@@ -5,39 +5,51 @@ How to build OpenPocketCine, OpenInstaCine and OpenZCine against OpenCine on
 on a real camera. Which app code moved where: [RETIRED-OWNERS.md](RETIRED-OWNERS.md); what the
 apps still keep and why: [COMPATIBILITY-INVENTORY.md](COMPATIBILITY-INVENTORY.md).
 
-Status at the 2026-10-09 checkpoint: locally committed candidate. The common live and
-settings composition, camera-page safe area, popup presentation, capture header and circular
-focus-reset button now have one shared owner on each platform. All three apps supply values,
-admitted actions and typed hardware panels to that composition; future generated apps use it too.
-Nikon uses the normal SwiftUI app lifecycle so its shared controls receive an active scene.
+Status at the 2026-10-10 checkpoint: locally committed candidate. All three apps and
+generated apps use the same capability-driven live and settings composition on each platform.
+Pocket remains the common UI reference. Safe areas, camera pages, popups, capture headers,
+circular focus reset and View Assist labels have shared owners; integration slots carry actual
+hardware controls. Full expanded tool names use two lines; compact favorites keep their size.
+Common false color offers CineStop, Video, IRE and Limits with LOG/709 reads. Shared scope,
+peaking and two-axis mirror behavior retain native ownership and deployed preference keys.
 
-The fixed coding ledger is 44 of 46 checkpoints complete (96%). Nikon compatibility and the
-final matrix are reopened until the current combined real-camera flows and landscape edges
-are proven. Six current consumer gates passed: three full Android consumers and three iOS
-builds for testing for both simulator architectures. Current header geometry passed four cases
-on each platform, all seven hosted iOS cases passed, and the generated Android default recipe
-passed its original eight contracts and three flows plus four new geometry cases (15 total).
-These are automated scopes, not full physical qualification.
+The earlier exact twenty-gate matrix `275f8e15` retains its recorded source scope. The final
+label delta passed eleven scoped gates (`e5f18775`): 3,156 Swift Testing cases in 375 suites and
+177 XCTest cases, strict concurrency, 2,259 Android cases with zero failures and two known Core
+skips, both iOS simulator architectures, three signed iOS builds for testing and all three full
+Android consumers. Current app Android XML totals are Pocket 234, Insta 207 and Nikon 902,
+with zero failures, errors or skips. Consumer staging, lint, debug/release and instrumentation
+compilation passed; Nikon also passed its Wear/native packaging checks. Nine strict signatures,
+six iPad profiles and four Pocket/Insta APK/JNI bindings passed. Compilation is not device proof.
+The separate opt-in cleanup driver `9a909df` passed its Nikon signed build and source review;
+its hardware restoration has not passed. It changes no shipping source or native admission rule.
 
-All three current iPhone app/test bundles are built, signed and source-bound. Nikon's installed
-reference check shows the circular focus icon, working ISO popup and portrait header clearance.
-That limited reference check does not qualify recording, playback, recovery or saved relaunch.
-The complete original current camera flow remains untested for all three brands (0 of 3);
-the iPhone currently requires its passcode and the physical Android phone is detached.
-App pins, integration and publication remain unchanged.
+Recorded Pocket/Luna original full camera workflows passed (`1946de9e` / `801a7c65`) at their
+bound products. Luna's exact new clip belongs to SD bank 3 and is absent from internal bank 2
+(`2787fbe1`); transfer and capture destination are not inferred. Pocket's receive/decoder fault
+scenarios passed within their injected scope; the initiating Sentry dropout cause remains unknown.
+Eleven optional generation-owned ingress diagnostics are implemented for future diagnosis.
 
-Root evidence references are the six-consumer matrix `ba1368f5`, header geometry `ee0bc90d`,
-generated Android default-15 result `f29a9858`, signed-product binding `40e5fac3`, standards
-review `63ddec16`, spec review `6174ed10` and default-recipe follow-up peer review `ad5a9560`.
-Each binds its original inputs and scope. Later generated-test setup and default-recipe changes
-are test-only; existing shipping products were rechecked byte for byte. Earlier native suites,
-original generated iOS eleven-case acceptance and golden fixtures retain their recorded scope.
-Known accessibility/reference/decoder skips, Nikon's existing formatting/privacy-fixture
-failures, historical Atlas refs and untested real multicam/performance remain explicit.
+Nikon's whole camera workflow remains failed/incomplete. Current native connection, complete
+projected catalogue, ISO change/restoration and narrow layout observations retain their scope.
+Initial label products passed native iPad portrait/landscape expand/collapse checks. The current
+options run reached all eight false-color/read combinations, four mirror combinations and both
+landscapes but failed final restoration, so the testcase is RED. Captured local mirror settings
+still require restoration; later attempts stopped before preference changes because the camera
+was not found. iPad automation worked without pending approval at the last readiness observation.
+Background recovery, confirmed recording, exact new-clip playback/reopen and saved relaunch still
+need a closed current Nikon proof. Android hardware, Dynamic Island phone edges, real two/four
+camera operation, device performance and unexecuted special states remain untested.
 
-Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved and excluded from
-the local commits. The dated tables and checklists below retain historical measurements and
-acceptance criteria; older pending or closed wording does not override this checkpoint.
+Source ownership and official current duplication are bound by `b9c99891`, its legacy-glass
+follow-up `b218c210`, and committed measurement `1819853f`. SDK/app matches include preserved
+test oracles and bounded native/compatibility adapters; decreased totals do not mean zero copies.
+The coding ledger counts adopted owners with scoped automated checks; physical qualification,
+canonical integration and publication are separate. Pins, remotes and publication are unchanged.
+Pocket/Insta exploratory UI-test edits remain preserved and excluded from commits. Existing
+reference/accessibility/decoder skips and Nikon formatting/privacy-fixture failures retain their
+recorded exclusions. Historical tables and every original checklist below retain their scope and
+acceptance criteria.
 
 What counts as a regression:
 
@@ -66,10 +78,10 @@ The current locally committed product revisions are:
 
 | Repository | Product revision |
 |---|---|
-| OpenCine | `9b14ac06e4265d9392f1fa89e24a0ea0424bda94` |
-| OpenPocketCine | `143f801e3097f5c5ee96b06114c7ec5785035742` |
-| OpenInstaCine | `78f656a7ed5da717059ed00cb92e34a73d4c11c2` |
-| OpenZCine | `3f46a545c139c149fd23fb55997fa42177654318` |
+| OpenCine | `9a909dfca79bceb7cfe113ca0990d98f3e99467d` |
+| OpenPocketCine | `3c753de685202ffd4ce2a23e4b30c21b79989652` |
+| OpenInstaCine | `d1b8b8a527b6ced92d46f42fbcc51ba77b26f00d` |
+| OpenZCine | `4460a435f190bcc67eb73bd945340e86eac78b9a` |
 
 A later docs-only SDK commit changes these three tester documents only. Current build receipts
 bind source bytes rather than the older HEAD of the frozen actual build copies. The working
@@ -97,9 +109,9 @@ needs the maintainer's approval). Always build against a sibling OpenCine checko
 `../OpenCine is at ..., pinned ...`, which is expected.
 
 Production counts and their exclusions are recorded in
-[RETIRED-OWNERS.md](RETIRED-OWNERS.md#current-production-counts-candidate-wip).
+[RETIRED-OWNERS.md](RETIRED-OWNERS.md#current-production-counts-2026-10-10).
 Its dated working-tree census includes nonignored new sources and excludes deleted files.
-The dated census has not been repeated for the current product revisions; line reduction alone
+The October 10 census `5e3f1569` is bound to these current sources. Line reduction alone
 does not qualify behavior or prove that an interface became simpler.
 
 ## 1. Set up
@@ -569,9 +581,9 @@ them on hardware.
 ## 9. What is verified and what is not
 
 Target platforms: iOS 17+ (iPhone, iPad, Apple Watch) and Android 10+ arm64 (phone; Nikon also
-Wear OS). The following table separates the current passing scopes from checks still pending.
-Current combined full physical qualification remains untested. The October 9 current scope is
-recorded at the top of this guide; the following table retains the October 8 results.
+Wear OS). Current automated and physical scopes are recorded at the top of this guide.
+Pocket/Luna recorded full flows passed; current Nikon and the broader platform checklist remain
+incomplete. The following table retains the October 8 results without qualifying later products.
 
 ### Historical verification, 2026-10-08
 

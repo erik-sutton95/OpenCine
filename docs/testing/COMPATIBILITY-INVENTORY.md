@@ -2,44 +2,57 @@
 
 Retained facades, aliases, stored/wire contracts, SDK adapters and copied bodies in the current
 thin-app candidate. Companion of [RETIRED-OWNERS.md](RETIRED-OWNERS.md) and
-[TESTER-GUIDE.md](TESTER-GUIDE.md). Updated 2026-10-09.
+[TESTER-GUIDE.md](TESTER-GUIDE.md). Updated 2026-10-10.
 
-Status at the 2026-10-09 checkpoint: locally committed candidate. The common live and
-settings composition, camera-page safe area, popup presentation, capture header and circular
-focus-reset button now have one shared owner on each platform. All three apps supply values,
-admitted actions and typed hardware panels to that composition; future generated apps use it too.
-Nikon uses the normal SwiftUI app lifecycle so its shared controls receive an active scene.
+Status at the 2026-10-10 checkpoint: locally committed candidate. All three apps and
+generated apps use the same capability-driven live and settings composition on each platform.
+Pocket remains the common UI reference. Safe areas, camera pages, popups, capture headers,
+circular focus reset and View Assist labels have shared owners; integration slots carry actual
+hardware controls. Full expanded tool names use two lines; compact favorites keep their size.
+Common false color offers CineStop, Video, IRE and Limits with LOG/709 reads. Shared scope,
+peaking and two-axis mirror behavior retain native ownership and deployed preference keys.
 
-The fixed coding ledger is 44 of 46 checkpoints complete (96%). Nikon compatibility and the
-final matrix are reopened until the current combined real-camera flows and landscape edges
-are proven. Six current consumer gates passed: three full Android consumers and three iOS
-builds for testing for both simulator architectures. Current header geometry passed four cases
-on each platform, all seven hosted iOS cases passed, and the generated Android default recipe
-passed its original eight contracts and three flows plus four new geometry cases (15 total).
-These are automated scopes, not full physical qualification.
+The earlier exact twenty-gate matrix `275f8e15` retains its recorded source scope. The final
+label delta passed eleven scoped gates (`e5f18775`): 3,156 Swift Testing cases in 375 suites and
+177 XCTest cases, strict concurrency, 2,259 Android cases with zero failures and two known Core
+skips, both iOS simulator architectures, three signed iOS builds for testing and all three full
+Android consumers. Current app Android XML totals are Pocket 234, Insta 207 and Nikon 902,
+with zero failures, errors or skips. Consumer staging, lint, debug/release and instrumentation
+compilation passed; Nikon also passed its Wear/native packaging checks. Nine strict signatures,
+six iPad profiles and four Pocket/Insta APK/JNI bindings passed. Compilation is not device proof.
+The separate opt-in cleanup driver `9a909df` passed its Nikon signed build and source review;
+its hardware restoration has not passed. It changes no shipping source or native admission rule.
 
-All three current iPhone app/test bundles are built, signed and source-bound. Nikon's installed
-reference check shows the circular focus icon, working ISO popup and portrait header clearance.
-That limited reference check does not qualify recording, playback, recovery or saved relaunch.
-The complete original current camera flow remains untested for all three brands (0 of 3);
-the iPhone currently requires its passcode and the physical Android phone is detached.
-App pins, integration and publication remain unchanged.
+Recorded Pocket/Luna original full camera workflows passed (`1946de9e` / `801a7c65`) at their
+bound products. Luna's exact new clip belongs to SD bank 3 and is absent from internal bank 2
+(`2787fbe1`); transfer and capture destination are not inferred. Pocket's receive/decoder fault
+scenarios passed within their injected scope; the initiating Sentry dropout cause remains unknown.
+Eleven optional generation-owned ingress diagnostics are implemented for future diagnosis.
 
-Root evidence references are the six-consumer matrix `ba1368f5`, header geometry `ee0bc90d`,
-generated Android default-15 result `f29a9858`, signed-product binding `40e5fac3`, standards
-review `63ddec16`, spec review `6174ed10` and default-recipe follow-up peer review `ad5a9560`.
-Each binds its original inputs and scope. Later generated-test setup and default-recipe changes
-are test-only; existing shipping products were rechecked byte for byte. Earlier native suites,
-original generated iOS eleven-case acceptance and golden fixtures retain their recorded scope.
-Known accessibility/reference/decoder skips, Nikon's existing formatting/privacy-fixture
-failures, historical Atlas refs and untested real multicam/performance remain explicit.
+Nikon's whole camera workflow remains failed/incomplete. Current native connection, complete
+projected catalogue, ISO change/restoration and narrow layout observations retain their scope.
+Initial label products passed native iPad portrait/landscape expand/collapse checks. The current
+options run reached all eight false-color/read combinations, four mirror combinations and both
+landscapes but failed final restoration, so the testcase is RED. Captured local mirror settings
+still require restoration; later attempts stopped before preference changes because the camera
+was not found. iPad automation worked without pending approval at the last readiness observation.
+Background recovery, confirmed recording, exact new-clip playback/reopen and saved relaunch still
+need a closed current Nikon proof. Android hardware, Dynamic Island phone edges, real two/four
+camera operation, device performance and unexecuted special states remain untested.
 
-Pocket/Insta exploratory `SharedAppUITests.swift` edits remain preserved and excluded from
-the local commits. The dated tables and checklists below retain historical measurements and
-acceptance criteria; older pending or closed wording does not override this checkpoint.
+Source ownership and official current duplication are bound by `b9c99891`, its legacy-glass
+follow-up `b218c210`, and committed measurement `1819853f`. SDK/app matches include preserved
+test oracles and bounded native/compatibility adapters; decreased totals do not mean zero copies.
+The coding ledger counts adopted owners with scoped automated checks; physical qualification,
+canonical integration and publication are separate. Pins, remotes and publication are unchanged.
+Pocket/Insta exploratory UI-test edits remain preserved and excluded from commits. Existing
+reference/accessibility/decoder skips and Nikon formatting/privacy-fixture failures retain their
+recorded exclusions. Historical tables and every original checklist below retain their scope and
+acceptance criteria.
 
-Current product source is SDK `9b14ac06`, Pocket `143f801e`, Insta `78f656a7` and Nikon
-`3f46a545`. The three tester documents are a later docs-only delta. The retained-surface tables
+Current product source is SDK `9a909df`, Pocket `3c753de6`, Insta `d1b8b8a5` and Nikon
+`4460a435`. Shared shipping labels are committed in SDK `88899de`. These three tester documents
+are a later docs-only delta. The retained-surface tables
 below describe bounded native/integration/storage compatibility, not alternate common UI owners.
 
 ## Retention rules
@@ -165,10 +178,32 @@ Account/Cache owners are exercised by actual adopters. Unsupported features stay
 | X-1, X-2, X-3 | Shared shader/staging/bootstrap/tester checks and protocol probe owner references are implemented. Each app keeps pre-pin bootstrap/thin wrappers; Nikon's different TestFlight contract remains |
 
 Root closed the original Pocket/Insta compatibility exits in `2415a4b7`; this table grants no
-additional checkpoint credit. The October 9 Nikon compatibility and final matrix exits are
-reopened at 44 of 46 pending the complete current physical flows and landscape checks. Earlier
+additional checkpoint credit. Nikon common composition and current scoped consumer gates are now verified.
+Physical Nikon acceptance remains incomplete and separately tracked. Earlier
 first-pass candidate/matrix evidence retains its original scope. The
 historical pending prose below is retained as dated provenance, not current status.
+
+## Current normalized duplication, 2026-10-10
+
+Official measurement `1819853f` uses SDK `9a909df` and the three current committed consumer
+refs above. No missing sources or pair growth against the original baseline `3ee29c52`.
+The six pair counts include test oracles and normalized block matches, not distinct source LOC.
+
+| Pair | Current duplicated lines | Change from original baseline |
+|---|---:|---:|
+| OpenCine / OpenInstaCine | 706 | -18,508 |
+| OpenCine / OpenPocketCine | 256 | -2,249 |
+| OpenCine / OpenZCine | 434 | -238 |
+| OpenInstaCine / OpenPocketCine | 9,836 | -45,459 |
+| OpenInstaCine / OpenZCine | 584 | -132 |
+| OpenPocketCine / OpenZCine | 523 | -1,164 |
+
+Pocket's legacy `GlassChrome.resolveTier` has no shipping callers and remains exercised by its
+original tests. Nikon's matching policy still drives the legacy Kyant/native presentation path.
+Shared sampled-blur capability supports API 31/32; the legacy tier contract requires API 33.
+Replacing it mechanically would change behavior. Keep that declared native compatibility leaf;
+it is not evidence of a second common live composition. Native JNI, account/keychain/route,
+ImageIO and wire/schema leaves and their independent test oracles remain bounded adapters.
 
 ## Historical compatibility snapshot and measurements
 
@@ -194,8 +229,8 @@ The start used shared `bb500df8`, Pocket `3e429797`, Insta `ed7e0089`, Nikon `0b
 numbers are preserved, not recalculated or presented as the current exit. Their old explanation
 that no shared live/watcher/gamepad/assist/lattice owner existed is superseded by current actual
 adoption. `atlas dupes --candidate` reads recorded refs; a pre-migration registry or stale
-candidate cannot measure later uncommitted sources. Final normalized duplication remains pending
-an exact final source binding; no atlas baseline was changed.
+candidate cannot measure later uncommitted sources. The October 10 committed measurement above supplies the current binding;
+no registry, candidate, pin or atlas baseline was changed.
 
 Historical removal provenance: shared `9fe3a9f` removed unused MonitorZoomStops/DjiConnectionRoute
 aliases; Pocket `2216acb5` removed dead scaler/JSON/JNI helpers, playback-frame taps and forwarding
