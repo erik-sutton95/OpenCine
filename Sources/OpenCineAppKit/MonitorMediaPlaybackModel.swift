@@ -227,6 +227,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   @ObservationIgnored private var lookTask: Task<Void, Never>?
   @ObservationIgnored private var lookRevision = UUID()
   @ObservationIgnored private var seekTask: Task<Void, Never>?
+  @ObservationIgnored private var playRequestRevision: UInt64 = 0
   @ObservationIgnored private var writer: MonitorMediaCacheWrite?
   @ObservationIgnored private var scrub: Scrub?
   @ObservationIgnored private var sceneActive = true
@@ -626,7 +627,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       if invalidTarget { _ = applyOutput(admitted) }
     case .ended:
       if looping {
-        seek(to: 0, resume: true, admitted: admitted)
+        seek(to: 0, resume: playRequested, admitted: admitted)
       } else {
         publish([.reachedEnd, .playRequested, .position]) {
           $0.reachedEnd = true
@@ -643,10 +644,17 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     }
   }
 
-  public func setPlaying(_ play: Bool) { setPlaying(play, admitted: token) }
-  private func setPlaying(_ play: Bool, admitted: MonitorPlaybackItemToken) {
-    guard admit(admitted), publish([.playRequested], { $0.playRequested = play }),
-      admit(admitted)
+  public func setPlaying(_ play: Bool) {
+    let admitted = token
+    playRequestRevision &+= 1
+    setPlaying(play, admitted: admitted, request: playRequestRevision)
+  }
+  private func setPlaying(
+    _ play: Bool, admitted: MonitorPlaybackItemToken, request: UInt64
+  ) {
+    guard admit(admitted), request == playRequestRevision,
+      publish([.playRequested], { $0.playRequested = play }),
+      admit(admitted), request == playRequestRevision
     else { return }
     if ready, presentationActive, sceneActive {
       if play {
@@ -698,6 +706,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     return min(duration, max(0, seconds))
   }
   private func seek(to seconds: Double, resume: Bool, admitted: MonitorPlaybackItemToken) {
+    let request = playRequestRevision
     guard ready, let target = bounded(seconds), admit(admitted) else { return }
     seekTask?.cancel()
     seekTask = nil
@@ -716,7 +725,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       guard self.admit(admitted), !Task.isCancelled else { return }
       self.seekTask = nil
       guard completed, self.presentationActive, self.sceneActive else { return }
-      if resume { self.setPlaying(true, admitted: admitted) }
+      if resume { self.setPlaying(true, admitted: admitted, request: request) }
     }
   }
 
@@ -784,6 +793,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     cancelScrub(interrupted: interrupted, admitted: token)
   }
   private func cancelScrub(interrupted: Bool, admitted: MonitorPlaybackItemToken) {
+    let request = playRequestRevision
     guard admit(admitted) else { return }
     let edit = scrub
     scrub = nil
@@ -798,7 +808,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
         self.presentationActive, self.sceneActive
       else { return }
       self.seekTask = nil
-      if edit.resume { self.setPlaying(true, admitted: admitted) }
+      if edit.resume { self.setPlaying(true, admitted: admitted, request: request) }
     }
   }
   public func setPresentationActive(_ value: Bool) {
@@ -818,6 +828,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     sceneActive = value
     if !value {
       if sceneLossPolicy == .clearRequest {
+        playRequestRevision &+= 1
         guard publish([.playRequested], { $0.playRequested = false }), admit(admitted)
         else { return }
       }

@@ -24,6 +24,7 @@ private class PlaybackTestPort : MonitorPlaybackPort {
     var onPause: (() -> Unit)? = null
     var emitsInstallation = false
     var onRetire: ((MonitorPlaybackItemToken) -> Unit)? = null
+    var onSeekReturn: ((MonitorPlaybackItemToken) -> Unit)? = null
     override fun retireItem(token: MonitorPlaybackItemToken) { retired += token; onRetire?.invoke(token) }
     override suspend fun prepare(item: MonitorPlaybackItem, token: MonitorPlaybackItemToken, readyTimeout: Duration?): MonitorPlaybackMetadata {
         val waiter = CompletableDeferred<MonitorPlaybackMetadata>(); preparations += Preparation(token, waiter)
@@ -35,7 +36,9 @@ private class PlaybackTestPort : MonitorPlaybackPort {
     override fun pause(token: MonitorPlaybackItemToken) { onPause?.invoke() }
     override suspend fun seek(seconds: Double, tolerance: Double, token: MonitorPlaybackItemToken): Boolean {
         val waiter = CompletableDeferred<Boolean>(); seeks += Seek(token, seconds, tolerance, waiter)
-        return withContext(NonCancellable) { waiter.await() }
+        val completed = withContext(NonCancellable) { waiter.await() }
+        onSeekReturn?.invoke(token)
+        return completed
     }
     fun finishSeek(index: Int, completed: Boolean = true) { seeks[index].result.complete(completed) }
     override fun setMuted(muted: Boolean, token: MonitorPlaybackItemToken) {}
@@ -88,6 +91,16 @@ private class PlaybackService : CameraMediaService {
     override suspend fun openBrowse(): CameraMediaBrowse = browse
 }
 private class PlaybackTestClock { var instant = MonotonicInstant(100.seconds) }
+private class PlaybackResumeProbe {
+    var observing = false
+    var observations = 0
+    var reentered = false
+    var atObservation: ((Int) -> Unit)? = null
+    fun current(): Boolean {
+        if (observing) { observations += 1; atObservation?.invoke(observations) }
+        return true
+    }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorMediaPlaybackModelTest {
@@ -118,6 +131,153 @@ class MonitorMediaPlaybackModelTest {
             sceneLossPolicy = sceneLossPolicy)
         return Fixture(root, library, port, model)
     }
+    private fun resumeProbe(model: MonitorMediaPlaybackModel<String, String>, port: PlaybackTestPort): PlaybackResumeProbe {
+        val probe = PlaybackResumeProbe()
+        model.setItemAdmission { MonitorPlaybackAdmission { probe.current() } }
+        port.onSeekReturn = { probe.observing = true }
+        return probe
+    }
+
+    @Test fun pendingLoopSeekCompletionCannotOverrideOperatorPause() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("loop"); model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token; assertTrue(model.state.value.ready); assertEquals(listOf(item), port.played)
+            model.setLooping(true); port.onEvent?.invoke(item, MonitorPlaybackEvent.Ended); runCurrent()
+            assertEquals(1, port.seeks.size); model.setPlaying(false)
+            assertFalse(model.state.value.playRequested); assertEquals(1, port.seeks.size)
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertFalse(model.state.value.playRequested); assertEquals(listOf(item), port.played)
+            assertEquals(item, port.seeks[0].token); assertEquals(0.0, port.seeks[0].target); assertEquals(0.0, port.seeks[0].tolerance)
+            assertTrue(model.state.value.ready); assertEquals(item, model.state.value.token); assertEquals(0, port.closes)
+            assertTrue(fixture.library.state.value.browsing)
+        } finally { fixture.close() }
+    }
+
+    @Test fun pendingRestartSeekCompletionCannotOverrideRepeatedPause() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("restart"); model.load(row, listOf(row), play = false); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token; assertTrue(model.state.value.ready)
+            model.restart(); runCurrent(); assertEquals(1, port.seeks.size)
+            model.setPlaying(false); assertFalse(model.state.value.playRequested)
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertFalse(model.state.value.playRequested); assertTrue(port.played.isEmpty())
+            assertTrue(model.state.value.ready); assertEquals(item, model.state.value.token)
+            assertEquals(item, port.seeks[0].token); assertEquals(0, port.closes)
+        } finally { fixture.close() }
+    }
+
+    @Test fun explicitRestartWhilePausedStillResumesPlayback() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("restart"); model.load(row, listOf(row), play = false); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token; assertTrue(model.state.value.ready)
+            model.restart(); runCurrent(); assertEquals(1, port.seeks.size)
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(item), port.played); assertEquals(item, model.state.value.token)
+            assertEquals(0.0, port.seeks[0].target); assertEquals(0.0, port.seeks[0].tolerance); assertEquals(0, port.closes)
+        } finally { fixture.close() }
+    }
+
+    @Test fun unrelatedPublicationDoesNotInvalidatePendingRestart() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("restart"); model.load(row, listOf(row), play = false); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token
+            model.restart(); runCurrent(); assertEquals(1, port.seeks.size)
+            model.setMuted(true); port.onEvent?.invoke(item, MonitorPlaybackEvent.Playing(false))
+            port.onEvent?.invoke(item, MonitorPlaybackEvent.Position(42.0))
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(item), port.played); assertTrue(model.state.value.muted)
+            assertEquals(42.0, model.state.value.position); assertEquals(false, model.state.value.reportedPlaying)
+            assertEquals(item, model.state.value.token)
+        } finally { fixture.close() }
+    }
+
+    @Test fun lateLoopEndAfterPauseCannotRequestPlayback() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("loop"); model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token
+            model.setLooping(true); model.setPlaying(false); port.onEvent?.invoke(item, MonitorPlaybackEvent.Ended); runCurrent()
+            assertEquals(1, port.seeks.size); port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertFalse(model.state.value.playRequested); assertTrue(model.state.value.looping); assertEquals(listOf(item), port.played)
+            assertEquals(0.0, port.seeks[0].target); assertEquals(item, port.seeks[0].token); assertEquals(item, model.state.value.token)
+        } finally { fixture.close() }
+    }
+
+    @Test fun restartAdmissionPauseCannotBeOverriddenByCompletion() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("restart"); model.load(row, listOf(row), play = false); runCurrent(); port.release(0); runCurrent()
+            probe.atObservation = {
+                probe.atObservation = null; probe.reentered = true; model.setPlaying(false)
+            }
+            probe.observing = true; model.restart(); probe.observing = false; probe.observations = 0
+            assertTrue(probe.reentered); runCurrent(); assertEquals(1, port.seeks.size)
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertFalse(model.state.value.playRequested); assertTrue(port.played.isEmpty()); assertTrue(model.state.value.ready)
+        } finally { fixture.close() }
+    }
+
+    @Test fun resumeAdmissionPauseCannotStartNativeTransport() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("restart"); model.load(row, listOf(row), play = false); runCurrent(); port.release(0); runCurrent()
+            model.restart(); runCurrent(); assertEquals(1, port.seeks.size)
+            probe.atObservation = {
+                if (model.state.value.playRequested) {
+                    probe.atObservation = null; probe.reentered = true; model.setPlaying(false)
+                }
+            }
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertTrue(probe.reentered); assertFalse(model.state.value.playRequested); assertTrue(port.played.isEmpty())
+        } finally { fixture.close() }
+    }
+
+    @Test fun clearRequestSceneLossDuringResumeAdmissionCannotStartNativeTransport() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION,
+            sceneLossPolicy = MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("restart"); model.load(row, listOf(row), play = false); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token
+            model.restart(); runCurrent(); assertEquals(1, port.seeks.size)
+            probe.atObservation = {
+                if (model.state.value.playRequested) {
+                    probe.atObservation = null; probe.reentered = true
+                    model.setSceneActive(false); model.setSceneActive(true)
+                }
+            }
+            port.finishSeek(0); runCurrent(); assertTrue(probe.observations > 0)
+            assertTrue(probe.reentered); assertFalse(model.state.value.playRequested); assertTrue(port.played.isEmpty())
+            assertTrue(model.state.value.ready); assertEquals(item, model.state.value.token); assertEquals(0, port.closes)
+            assertTrue(fixture.library.state.value.browsing)
+        } finally { fixture.close() }
+    }
+
+    @Test fun interruptedScrubDeferredResumeCannotOverrideLaterPause() = runTest {
+        val fixture = fixture(backgroundScope, lookTiming = MonitorPlaybackLookTiming.BEFORE_NATIVE_PREPARATION)
+        val model = fixture.model; val port = fixture.port; val probe = resumeProbe(model, port)
+        try {
+            val row = record("scrub"); model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token; assertNotNull(model.beginScrub())
+            model.cancelScrub(true); model.setPlaying(false); probe.observing = true
+            runCurrent(); assertTrue(probe.observations > 0)
+            assertFalse(model.state.value.scrubbing); assertFalse(model.state.value.playRequested); assertEquals(listOf(item), port.played)
+            assertEquals(item, model.state.value.token); assertTrue(port.seeks.isEmpty()); assertEquals(0, port.closes)
+            assertTrue(fixture.library.state.value.browsing)
+        } finally { fixture.close() }
+    }
+
     @Test fun replacementRejectsLateReadyAndTimeFromPreviousItem() = runTest {
         val fixture = fixture(backgroundScope); val model = fixture.model; val port = fixture.port
         try {

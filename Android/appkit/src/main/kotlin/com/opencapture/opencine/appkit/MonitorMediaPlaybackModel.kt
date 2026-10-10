@@ -64,6 +64,7 @@ public class MonitorMediaPlaybackModel<P, L>(
     private var lookTask: Job? = null
     private var lookRevision = UUID.randomUUID()
     private var seekTask: Job? = null
+    private var playRequestRevision = 0L
     private var writer: MonitorMediaCacheWrite? = null
     private data class Scrub(val token: MonitorPlaybackScrubToken, val resume: Boolean, val origin: Double,
         var lastSeek: MonotonicInstant? = null)
@@ -271,13 +272,18 @@ public class MonitorMediaPlaybackModel<P, L>(
                     conformTarget = if (invalidTarget) null else it.conformTarget) } || !admit(token)) return
                 if (invalidTarget) applyOutput(token)
             }
-            MonitorPlaybackEvent.Ended -> if (state.value.looping) seek(0.0, true, token) else mutate { it.copy(reachedEnd = true, playRequested = false, position = it.duration ?: it.position) }
+            MonitorPlaybackEvent.Ended -> if (state.value.looping) seek(0.0, state.value.playRequested, token) else mutate { it.copy(reachedEnd = true, playRequested = false, position = it.duration ?: it.position) }
             is MonitorPlaybackEvent.Failed -> mutate { it.copy(error = event.message, loading = false, ready = false) }
         }
     }
-    public fun setPlaying(play: Boolean) { setPlaying(play, state.value.token) }
-    private fun setPlaying(play: Boolean, token: MonitorPlaybackItemToken) {
-        if (!admit(token) || !mutate { it.copy(playRequested = play) } || !admit(token)) return
+    public fun setPlaying(play: Boolean) {
+        val token = state.value.token
+        playRequestRevision += 1
+        setPlaying(play, token, playRequestRevision)
+    }
+    private fun setPlaying(play: Boolean, token: MonitorPlaybackItemToken, request: Long) {
+        if (!admit(token) || request != playRequestRevision ||
+            !mutate { it.copy(playRequested = play) } || !admit(token) || request != playRequestRevision) return
         if (state.value.ready && presentationActive && sceneActive) {
             if (play) native.play(rate, token) else native.pause(token)
         }
@@ -304,6 +310,7 @@ public class MonitorMediaPlaybackModel<P, L>(
     public fun seekBy(seconds: Double) { seek(state.value.position + seconds, false, state.value.token) }
     private fun bounded(seconds: Double): Double? = state.value.duration?.takeIf { it.isFinite() && it > 0 && seconds.isFinite() }?.let { seconds.coerceIn(0.0, it) }
     private fun seek(seconds: Double, resume: Boolean, token: MonitorPlaybackItemToken) {
+        val request = playRequestRevision
         val target = bounded(seconds) ?: return
         if (!state.value.ready || !admit(token)) return
         seekTask?.cancel(); seekTask = null
@@ -313,7 +320,7 @@ public class MonitorMediaPlaybackModel<P, L>(
             val completed = native.seek(target, 0.0, token)
             if (!admit(token) || !isActive) return@launch
             seekTask = null
-            if (completed && sceneActive && presentationActive && resume) setPlaying(true, token)
+            if (completed && sceneActive && presentationActive && resume) setPlaying(true, token, request)
         }
         seekTask = task; task.start()
     }
@@ -359,6 +366,7 @@ public class MonitorMediaPlaybackModel<P, L>(
         cancelScrub(interrupted, state.value.token)
     }
     private fun cancelScrub(interrupted: Boolean, token: MonitorPlaybackItemToken) {
+        val request = playRequestRevision
         if (!admit(token)) return
         val edit = scrub; scrub = null; seekTask?.cancel(); seekTask = null
         if (!mutate { it.copy(scrubbing = false) } || !admit(token) || !interrupted || edit == null || edit.token.item != token || !sceneActive || !presentationActive) return
@@ -366,7 +374,7 @@ public class MonitorMediaPlaybackModel<P, L>(
             yield()
             if (!admit(token) || !isActive || state.value.scrubbing || !sceneActive || !presentationActive) return@launch
             seekTask = null
-            if (edit.resume) setPlaying(true, token)
+            if (edit.resume) setPlaying(true, token, request)
         }
         seekTask = task; task.start()
     }
@@ -382,8 +390,10 @@ public class MonitorMediaPlaybackModel<P, L>(
         if (!admit(token)) return
         sceneActive = value
         if (!value) {
-            if (sceneLossPolicy == MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST &&
-                (!mutate { it.copy(playRequested = false) } || !admit(token))) return
+            if (sceneLossPolicy == MonitorPlaybackSceneLossPolicy.CLEAR_REQUEST) {
+                playRequestRevision += 1
+                if (!mutate { it.copy(playRequested = false) } || !admit(token)) return
+            }
             cancelScrub(false, token)
             if (admit(token)) native.pause(token)
         }
