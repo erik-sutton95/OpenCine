@@ -50,6 +50,53 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
         #endif
     }
 
+    @MainActor
+    func testPhysicalCapturedOwnClipQueryOrPlaybackReopenAndSavedRelaunch() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["OPV_PHYSICAL_UI_REVIEW"] == "1",
+            let raw = environment["OPV_PHYSICAL_OWNED_CLIP_JSON"], !raw.isEmpty
+        else { throw XCTSkip("Requires explicit prior qualification-clip proof and physical opt-in") }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        let request = try JSONDecoder().decode(PhysicalOwnedClipRequest.self, from: Data(raw.utf8))
+        try request.validate(cameraName: environment["OPV_PHYSICAL_CAMERA_NAME"])
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self, bundleIdentifier: request.bundleIdentifier)
+        addTeardownBlock { await run.restore() }
+        try await run.exerciseCapturedOwnClip(request)
+        #endif
+    }
+
+}
+
+/// The root configuration must bind this proof to its original run and signed app.
+private struct PhysicalOwnedClipRequest: Decodable {
+    enum Mode: String, Decodable { case query, playback }
+    struct Clip: Decodable {
+        let identifier: String
+        let before: [String]
+        let after: [String]
+    }
+    let mode: Mode
+    let bundleIdentifier: String
+    let cameraName: String
+    let qualificationClip: Clip
+
+    func validate(cameraName configuredName: String?) throws {
+        let before = Set(qualificationClip.before), after = Set(qualificationClip.after)
+        let prefix = "monitor.media.clip."
+        guard !bundleIdentifier.isEmpty, !cameraName.isEmpty, configuredName == cameraName,
+            bundleIdentifier.range(of: #"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$"#,
+                options: .regularExpression) != nil,
+            qualificationClip.identifier.hasPrefix(prefix), qualificationClip.identifier.count > prefix.count,
+            !qualificationClip.identifier.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+            before.count == qualificationClip.before.count, after.count == qualificationClip.after.count,
+            after.count <= 2_000, after.count == before.count + 1, before.isSubset(of: after),
+            after.subtracting(before) == Set([qualificationClip.identifier]),
+            after.allSatisfy({ $0.hasPrefix(prefix) && $0.count > prefix.count })
+        else { throw PhysicalMigrationFailure("Explicit captured own-clip proof, bundle and exact saved camera are required") }
+    }
 }
 
 private struct PhysicalMigrationFailure: Error, CustomStringConvertible {
@@ -110,7 +157,7 @@ private struct PhysicalMigrationProbe: Decodable {
     }
 
     private unowned let test: XCTestCase
-    private let app = XCUIApplication()
+    private let app: XCUIApplication
     private let originalOrientation = XCUIDevice.shared.orientation
     private var selectedCameraName: String?
     private var originalISO: OriginalISO?
@@ -131,7 +178,16 @@ private struct PhysicalMigrationProbe: Decodable {
     private var completedStages: [String] = []
     private var lastProbeFailure: String?
 
-    init(test: XCTestCase) { self.test = test }
+    init(test: XCTestCase) {
+        self.test = test
+        app = XCUIApplication()
+    }
+
+    // An explicit scoped target does not change the default target of original runs.
+    init(test: XCTestCase, bundleIdentifier: String) {
+        self.test = test
+        app = XCUIApplication(bundleIdentifier: bundleIdentifier)
+    }
 
     func exercise() async throws {
         let environment = ProcessInfo.processInfo.environment
@@ -247,6 +303,91 @@ private struct PhysicalMigrationProbe: Decodable {
         try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
         mark("original-settings-restored")
         evidence("scoped-settings-recording-playback-relaunch-completed")
+    }
+
+    // Reuses the original playback/relaunch oracles without acquiring record authority.
+    func exerciseCapturedOwnClip(_ request: PhysicalOwnedClipRequest) async throws {
+        let clipID = request.qualificationClip.identifier
+        jsonEvidence("owned-clip-prior-proof", [
+            "mode": request.mode.rawValue, "bundleIdentifier": request.bundleIdentifier,
+            "cameraName": request.cameraName, "identifier": clipID,
+            "before": request.qualificationClip.before, "after": request.qualificationClip.after,
+            "originalOrientation": originalOrientation.rawValue,
+        ])
+        try await prepareScopedSavedConnection()
+        if request.mode == .playback {
+            try await captureOriginalISOReadOnly()
+            try await exerciseSettings()
+            guard let originalHaptics, let recordConfirmation, let originalSettingsTab else {
+                throw failure("Captured cleanup preferences are required before owned-clip playback")
+            }
+            // These values were captured before the unchanged settings helper toggled Haptics.
+            jsonEvidence("owned-clip-cleanup-baseline", [
+                "originalHaptics": originalHaptics, "recordConfirmation": recordConfirmation,
+                "originalSettingsTab": originalSettingsTab, "originalOrientation": originalOrientation.rawValue,
+                "ISOEvidence": "physical-migration.ISO-original-read-only",
+            ])
+        }
+        try await openOwnedClipGallery()
+        if request.mode == .query {
+            let query = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", clipID))
+            let clip = query.firstMatch
+            try require(clip.exists && clip.identifier == clipID,
+                "The exact captured clip must resolve through the public identifier query")
+            jsonEvidence("owned-clip-exact-query", [
+                "requestedIdentifier": clipID, "resolvedIdentifier": clip.identifier,
+                "matchedCount": query.count, "clipTapped": false,
+            ])
+            mark("captured-own-clip-query-only")
+            return
+        }
+        try require(!recordingStartIssued && !isoDirty,
+            "Scoped playback must have no recording or ISO mutation authority")
+        try await openClip(clipID)
+        let item = try await readyPlayback("qualification-playback")
+        try await exercisePlayback(item, stage: "qualification-playback")
+        mark("own-clip-native-playback")
+        try await tap(app.buttons["monitor.playback.back"], "Back to media")
+        try await wait("Player must retire on return to media", timeout: 10) {
+            !self.app.buttons["monitor.playback.back"].exists
+        }
+        try await openClip(clipID)
+        let reopened = try await readyPlayback("qualification-playback-reopened")
+        try require(reopened.ownerToken != item.ownerToken, "Reopening must admit a fresh playback owner token")
+        try await exercisePlayback(reopened, stage: "qualification-playback-reopened")
+        mark("fresh-playback-item")
+        try await tap(app.buttons["monitor.playback.back"], "Back to media")
+        try await returnToLive("after-playback-return")
+        mark("fresh-live-return")
+        try await exerciseSavedRelaunch(clipID: clipID)
+        try await restoreHaptics()
+        let restored = try await freshLive("scoped-settings-restored")
+        try await reportedRecording(false, source: restored.identity, stage: "scoped-settings-restored-idle")
+        try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
+        mark("original-settings-restored")
+        evidence("scoped-owned-clip-playback-relaunch-completed")
+    }
+
+    private func openOwnedClipGallery() async throws {
+        let source = try await freshLive("owned-clip-gallery-before")
+        try await reportedRecording(false, source: source.identity, stage: "owned-clip-gallery-idle")
+        try await dismissToLive()
+        try await tap(app.buttons["monitor.system.media"], "Real camera media")
+        let gallery = app.scrollViews["monitor.media.gallery"]
+        try await wait("Production media gallery", timeout: 15) { gallery.exists }
+        let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "monitor.media.category."))
+        try await wait("Media categories", timeout: 10) { categories.count > 0 }
+        guard let selected = categories.allElementsBoundByIndex.first(where: \.isSelected) else {
+            throw failure("Original media category is unknown")
+        }
+        originalMediaCategory = selected.identifier
+        jsonEvidence("owned-clip-media-baseline", ["originalMediaCategory": selected.identifier])
+        guard let all = categories.allElementsBoundByIndex.first(where: { $0.label == "Show All media" }) else {
+            throw failure("The captured clip requires the public All-media category")
+        }
+        if !all.isSelected { mediaCategoryDirty = true; try await tap(all, "All media") }
+        let filter = app.buttons["monitor.media.filter"]
+        try require(filter.exists && filter.value as? String == "Off", "Preserved media filters must permit a complete catalogue")
     }
 
     private func prepareScopedSavedConnection() async throws {
@@ -936,7 +1077,7 @@ private struct PhysicalMigrationProbe: Decodable {
     private func openClip(_ identifier: String) async throws {
         let gallery = app.scrollViews["monitor.media.gallery"]
         try require(gallery.exists, "Clip selection requires the public camera catalogue")
-        let clip = app.descendants(matching: .any)[identifier].firstMatch
+        let clip = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
         func artworkTargetIsReachable() -> Bool {
             guard clip.isHittable else { return false }
             let cell = clip.frame, viewport = gallery.frame
