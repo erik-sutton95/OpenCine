@@ -177,6 +177,8 @@
     /// Native/source content fills finite accessory slots; page state remains in MonitorPlaybackScreen.
     @MainActor public struct MonitorPlaybackPageSlots {
         public var headerAccessory: () -> AnyView
+        /// Compact content alongside the header actions; expanded content uses headerAccessory.
+        public var headerActionAccessory: () -> AnyView
         public var canvasDetails: (MonitorPlaybackCanvasContext) -> AnyView
         /// UIKit window coordinates of the actual share button, distinct from the assist bar frame.
         public var onShareButtonFrame: (CGRect) -> Void
@@ -189,9 +191,11 @@
             },
             onShareButtonFrame: @escaping (CGRect) -> Void = { _ in },
             onChromeVisibilityChanged: @escaping (Bool) -> Void = { _ in },
-            onAssistExpansionChanged: @escaping (Bool) -> Void = { _ in }
+            onAssistExpansionChanged: @escaping (Bool) -> Void = { _ in },
+            headerActionAccessory: @escaping () -> AnyView = { AnyView(EmptyView()) }
         ) {
             self.headerAccessory = headerAccessory
+            self.headerActionAccessory = headerActionAccessory
             self.canvasDetails = canvasDetails
             self.onShareButtonFrame = onShareButtonFrame
             self.onChromeVisibilityChanged = onChromeVisibilityChanged

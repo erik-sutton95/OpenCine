@@ -3,6 +3,7 @@ package com.opencapture.opencine.cameracontrols
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -239,13 +240,16 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         assist.configureTool = tool
     }
     val slots = MonitorPlaybackPageSlots(headerAccessory = {
-        operations.rating?.let { rating -> MonitorPlaybackRatingShade(owner.ratingStars, rating.levels,
-            model.isCurrent(value.token), owner.ratingNotice, owner.ratingShadeOpen, model::ratingShadeOpen,
-            { model.setRating(it, rating) }) }
+        operations.rating?.let { rating -> MonitorPlaybackRatingDetails(owner.ratingStars, rating.levels,
+            model.isCurrent(value.token), owner.ratingNotice, owner.ratingShadeOpen,
+            { model.setRating(it, rating) }, Modifier.fillMaxWidth()) }
     }, canvasDetails = { context ->
         if (assist != null && assists?.panelPlacement?.usesAnalysisViewport == true)
             OperatorPlaybackAssistOverlays(assist, assists, context.geometry, bundle, levels,
                 transfer, signalOptions, ::options, context.analysis, supportedTools)
+    }, headerActionAccessory = {
+        if (operations.rating != null)
+            MonitorPlaybackRatingAnchor(owner.ratingStars, owner.ratingShadeOpen, model::ratingShadeOpen)
     })
     MonitorPlaybackScreen(presentation, actions, slots, modifier,
         coverPresented = deliveryPresented, backHandler = { BackHandler(onBack = it) },

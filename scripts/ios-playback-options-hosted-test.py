@@ -38,6 +38,7 @@ out = args.output.resolve()
 assert not out.exists(), "Use a fresh owned output directory"
 out.mkdir(parents=True)
 names = [
+    "testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait",
     "testSupportedOptionsChangeTheSuppliedAssistWithoutReplacingThePlayer",
     "testAbsentStoresAndPlaybackSuppliersOmitUnavailableControls",
     "testActualMenuActionsReadTheSavedHapticsPreferenceEachTime",
@@ -51,6 +52,8 @@ geometry_names = [
 ]
 assert re.findall(r"\bfunc (test\w+)\(", geometry_source.read_text()) == geometry_names
 all_names = names + geometry_names
+original_names = names[1:]
+original_seven_names = original_names + geometry_names
 inputs = [source, geometry_source, Path(__file__).resolve(), sdk / "Package.swift", project_spec, entitlements]
 before = {str(path): sha256(path.read_bytes()).hexdigest() for path in inputs}
 (out / "input-binding.json").write_text(json.dumps(before, indent=2) + "\n")
@@ -118,19 +121,23 @@ outcomes = {
 }
 report = {
     "processExit": code, "namedOutcomes": outcomes,
-    "exactThreePasses": all(outcomes[name] == ["passed"] for name in names),
+    "exactThreePasses": all(outcomes[name] == ["passed"] for name in original_names),
     "exactFourGeometryPasses": all(outcomes[name] == ["passed"] for name in geometry_names),
-    "exactSevenPasses": all(outcomes[name] == ["passed"] for name in all_names),
+    "exactSevenPasses": all(outcomes[name] == ["passed"] for name in original_seven_names),
+    "exactRatingGeometryPass": outcomes[names[0]] == ["passed"],
+    "exactAllNamedPasses": all(outcomes[name] == ["passed"] for name in all_names),
     "inputSourcesUnchanged": before == after, "projectUnchanged": pbx.read_bytes() == project_before,
     "sourceSHA256": before[str(source)], "geometrySourceSHA256": before[str(geometry_source)],
     "host": args.host_target,
-    "scope": "SIMULATED rendered menu actions/state/token, preference reads and portrait-header native geometry; no physical picture/haptics claim",
+    "scope": "SIMULATED rendered menu actions/state/token, preference reads, portrait-header and portrait/landscape rating geometry; no physical picture/haptics claim",
 }
-(out / "named-seven-outcomes.json").write_text(json.dumps(report, indent=2) + "\n")
+(out / "named-all-outcomes.json").write_text(json.dumps(report, indent=2) + "\n")
+seven_report = dict(report, namedOutcomes={name: outcomes[name] for name in original_seven_names})
+(out / "named-seven-outcomes.json").write_text(json.dumps(seven_report, indent=2) + "\n")
 # Retain the original three-case result shape for existing developer consumers.
-original_report = dict(report, namedOutcomes={name: outcomes[name] for name in names})
+original_report = dict(report, namedOutcomes={name: outcomes[name] for name in original_names})
 (out / "named-three-outcomes.json").write_text(json.dumps(original_report, indent=2) + "\n")
 print(json.dumps(report), flush=True)
 if code:
     raise SystemExit(code)
-assert report["exactSevenPasses"] and report["inputSourcesUnchanged"] and report["projectUnchanged"], report
+assert report["exactAllNamedPasses"] and report["inputSourcesUnchanged"] and report["projectUnchanged"], report

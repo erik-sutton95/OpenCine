@@ -136,6 +136,7 @@ class MonitorPlaybackPageSlots(
     val canvasDetails: @Composable (MonitorPlaybackCanvasContext) -> Unit = {},
     val onChromeVisibilityChanged: (Boolean) -> Unit = {},
     val onAssistExpansionChanged: (Boolean) -> Unit = {},
+    val headerActionAccessory: @Composable () -> Unit = {},
 )
 
 /** Original overload keeps positional and trailing assistInspector callers unchanged. */
@@ -526,6 +527,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         bottom = MonitorPlaybackLayout.HEADER_BOTTOM.dp,
                     ),
                     actions = {
+                        slots.headerActionAccessory()
                         MonitorPlaybackActionChip(
                             MonitorIcon.STAR, "Favorite clip", { withItem { currentActions.favorite(it) } },
                             filled = favorite, tint = if (favorite) Color(0.914f, 0.674f, 0.208f) else MonitorPalette.text.copy(alpha = 0.86f),
@@ -540,8 +542,12 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         }
                     },
                 )
-                Box(Modifier.align(Alignment.TopCenter).padding(top = (headerTop + 48f).dp)
-                    .onGloballyPositioned { accessoryBottomPx = it.boundsInRoot().bottom }) {
+                Box(Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                    .padding(top = with(density) { headerBottomPx.toDp() },
+                        start = MonitorPlaybackLayout.headerGutter(sideInset).dp,
+                        end = MonitorPlaybackLayout.headerGutter(sideInset).dp)
+                    .onGloballyPositioned { accessoryBottomPx = it.boundsInRoot().bottom },
+                    contentAlignment = Alignment.TopEnd) {
                     slots.headerAccessory()
                 }
                 PlaybackBackButton(

@@ -315,6 +315,7 @@
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 HStack(spacing: 8) {
+                    slots.headerActionAccessory()
                     Button {
                         withItem { actions.favorite($0) }
                     } label: {

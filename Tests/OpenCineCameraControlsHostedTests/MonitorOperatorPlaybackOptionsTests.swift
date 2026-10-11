@@ -13,6 +13,36 @@ import XCTest
 /// These hosted contracts do not decode pictures or qualify physical haptics.
 @MainActor
 final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
+    func testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait() async throws {
+        for size in [CGSize(width: 900, height: 420), CGSize(width: 420, height: 900)] {
+            let fixture = try PlaybackOptionsFixture(size: size, rating: true)
+            defer { fixture.close() }
+            _ = try await fixture.readyPlayer()
+            let rating = try await fixture.element(identifier: "monitor.playback.rating")
+            let favorite = try await fixture.element(label: "Favorite clip")
+            XCTAssertEqual(rating.accessibilityFrame.midY, favorite.accessibilityFrame.midY, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(rating.accessibilityFrame.height, 44)
+            try await fixture.activate(identifier: "monitor.playback.rating")
+            _ = try await fixture.element(identifier: "monitor.playback.rating.5")
+            let expandedAnchor = try await fixture.element(identifier: "monitor.playback.rating")
+            let expandedFavorite = try await fixture.element(label: "Favorite clip")
+            XCTAssertEqual(expandedAnchor.accessibilityFrame.midY,
+                expandedFavorite.accessibilityFrame.midY, accuracy: 1)
+            for level in 1...5 {
+                let option = try await fixture.element(identifier: "monitor.playback.rating.\(level)")
+                let frame = fixture.window.convert(option.accessibilityFrame, from: nil)
+                XCTAssertGreaterThanOrEqual(frame.minX, 0)
+                XCTAssertLessThanOrEqual(frame.maxX, size.width + 1)
+                XCTAssertGreaterThanOrEqual(frame.minY, 0)
+                XCTAssertLessThanOrEqual(frame.maxY, size.height + 1)
+                XCTAssertGreaterThanOrEqual(frame.height, 44)
+            }
+            try await fixture.activate(identifier: "monitor.playback.rating.4")
+            for _ in 0..<200 where fixture.context.model.ratingStars != 0 { await Task.yield() }
+            XCTAssertEqual(fixture.context.model.ratingStars, 0)
+        }
+    }
+
     func testSupportedOptionsChangeTheSuppliedAssistWithoutReplacingThePlayer() async throws {
         let fixture = try PlaybackOptionsFixture()
         defer { fixture.close() }
@@ -225,6 +255,8 @@ private final class PlaybackOptionsContext {
 
 private struct PlaybackOptionsSurface: View {
     let context: PlaybackOptionsContext
+    var size = CGSize(width: 420, height: 900)
+    var rating = false
     @State private var usage = MonitorToolUsage()
     var body: some View {
         MonitorOperatorPlaybackScreen(model: context.model, initial: context.initial,
@@ -232,11 +264,13 @@ private struct PlaybackOptionsSurface: View {
             looks: FalseColorLooks(scaleHelp: "SIMULATED Rec.709 source", rec709LookCurve: { _ in nil }),
             palette: MonitorDefaultLivePalette.self, haptics: context.haptics, usage: $usage,
             cacheOriginal: false, deliveryPresented: false,
-            operations: MonitorOperatorPlaybackOperations<String, String>(),
+            operations: MonitorOperatorPlaybackOperations<String, String>(rating: rating ? .init(
+                levels: [1, 2, 3, 4, 5], read: { _ in 4 },
+                commit: { value, _ in .confirmed(value) }) : nil),
             source: { _ in .init(availability: .original, colorLabel: "SIMULATED Rec.709",
                 transfer: .rec709, clipByte: 255) }, nativeAssists: { _ in nil }, close: {},
             picture: { _, _ in Color.black }, preview: { _ in EmptyView() }, lookMenu: { EmptyView() })
-            .frame(width: 420, height: 900).environment(\.scenePhase, .active)
+            .frame(width: size.width, height: size.height).environment(\.scenePhase, .active)
     }
 }
 
@@ -246,15 +280,15 @@ private final class PlaybackOptionsFixture {
     let host: UIHostingController<PlaybackOptionsSurface>
     let window: UIWindow
     private weak var previousKeyWindow: UIWindow?
-    init() throws {
+    init(size: CGSize = CGSize(width: 420, height: 900), rating: Bool = false) throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
         let scene = try XCTUnwrap(scenes.count == 1 ? scenes.first : nil,
             "Rendered playback contracts require one foreground connected application scene")
         let context = try PlaybackOptionsContext()
-        let host = UIHostingController(rootView: PlaybackOptionsSurface(context: context))
+        let host = UIHostingController(rootView: PlaybackOptionsSurface(context: context, size: size, rating: rating))
         let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: 420, height: 900)
+        window.frame = CGRect(origin: .zero, size: size)
         self.context = context; self.host = host; self.window = window
         previousKeyWindow = scene.keyWindow
         window.rootViewController = host

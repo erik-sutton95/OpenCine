@@ -133,7 +133,9 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         MonitorPlaybackScreen(value: presentation(player), actions: actions(player),
             coverPresented: deliveryPresented, onGeometry: onGeometry,
             onBarFrame: { barFrame = $0 },
-            slots: .init(headerAccessory: { AnyView(ratingShade(player)) }, onShareButtonFrame: onShareButtonFrame),
+            slots: .init(headerAccessory: { AnyView(ratingDetails(player)) },
+                onShareButtonFrame: onShareButtonFrame,
+                headerActionAccessory: { AnyView(ratingAnchor(player)) }),
             picture: { picture(player, effects) },
             feedAssists: { rect in feedMarks(rect) },
             canvasAssists: { size, rect in canvasAssists(size, rect, player: player) },
@@ -141,12 +143,19 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             .overlay { playbackInspector(player) }
     }
 
-    @ViewBuilder private func ratingShade(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
+    @ViewBuilder private func ratingAnchor(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
+        if operations.rating != nil {
+            MonitorPlaybackRatingAnchor(stars: model.ratingStars,
+                expanded: Binding(get: { model.ratingShadeOpen }, set: { model.ratingShadeOpen = $0 }))
+        }
+    }
+    @ViewBuilder private func ratingDetails(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
         if let rating = operations.rating {
-            MonitorPlaybackRatingShade(stars: model.ratingStars, levels: rating.levels,
+            MonitorPlaybackRatingDetails(stars: model.ratingStars, levels: rating.levels,
                 enabled: model.isCurrent(player.token), notice: model.ratingNotice,
-                expanded: Binding(get: { model.ratingShadeOpen }, set: { model.ratingShadeOpen = $0 }),
+                expanded: model.ratingShadeOpen,
                 select: { model.setRating($0, service: rating) })
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
