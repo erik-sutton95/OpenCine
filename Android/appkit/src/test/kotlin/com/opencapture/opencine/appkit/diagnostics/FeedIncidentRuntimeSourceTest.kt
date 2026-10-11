@@ -7,6 +7,7 @@ import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentSessionContext
 import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentSink
 import com.opencapture.opencine.media.FeedIncidentTestSource
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
@@ -23,9 +24,10 @@ import kotlin.test.assertTrue
 /** SIMULATED writer ordering, using the actual recorder and persisted incident/summary stores. */
 class FeedIncidentRuntimeSourceTest {
     @Test fun retiredDrainCannotConsumeSuccessorBeforeBegin() = withHarness { h ->
-        val old = h.runtime.beginBoundSession(context("old"))
+        val sink: FeedIncidentSink = h.runtime // Actual integration-facing Media contract.
+        val old = sink.beginBoundSession(context("old"))
         old.ingestSnapshot(stall())
-        val current = h.runtime.beginBoundSession(context("current"))
+        val current = sink.beginBoundSession(context("current"))
         current.noteDecoderGeneration(22)
         current.noteSocketGeneration(33)
         current.ingestSnapshot(stall())

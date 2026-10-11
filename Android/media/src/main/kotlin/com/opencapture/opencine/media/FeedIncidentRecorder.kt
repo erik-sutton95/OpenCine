@@ -362,9 +362,8 @@ class FeedIncidentRecorder(
     }
 }
 
-/** Where a camera session reports its feed; the host's runtime records it with [FeedIncidentRecorder]. */
-interface FeedIncidentSink {
-    fun beginSession(context: FeedIncidentSessionContext)
+/** Submission authority retained by a camera session, independent of the host's runtime module. */
+interface FeedIncidentSource {
     fun endSession(nowSeconds: Double)
     fun ingestSnapshot(snapshot: FeedIncidentSnapshot)
     fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb)
@@ -373,4 +372,19 @@ interface FeedIncidentSink {
     fun noteSocketGeneration(generation: Int)
     fun noteExhausted(nowSeconds: Double)
     fun noteUnexpectedDisconnect(nowSeconds: Double)
+    fun noteTestSource(source: FeedIncidentTestSource) {}
+}
+
+/** Where a camera session reports its feed; the host's runtime records it with [FeedIncidentRecorder]. */
+interface FeedIncidentSink : FeedIncidentSource {
+    fun beginSession(context: FeedIncidentSessionContext)
+
+    /**
+     * Compatibility for existing synchronous sinks, not a retirement guarantee. Asynchronous
+     * host runtimes override this method with captured authority that rejects retired producers.
+     */
+    fun beginBoundSession(context: FeedIncidentSessionContext): FeedIncidentSource {
+        beginSession(context)
+        return this
+    }
 }

@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit.diagnostics
 
 import com.opencapture.opencine.media.FeedIncidentRecorder
 import com.opencapture.opencine.media.FeedIncidentSink
+import com.opencapture.opencine.media.FeedIncidentSource
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBundle
 import com.opencapture.opencine.media.FeedIncidentPersistenceJob
@@ -18,16 +19,16 @@ import java.util.concurrent.ExecutorService
 public class FeedIncidentSessionSource internal constructor(
     private val runtime: FeedIncidentRuntime,
     public val sessionID: String,
-) {
-    public fun ingestSnapshot(snapshot: FeedIncidentSnapshot): Unit = runtime.ingest(this, snapshot)
-    public fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb): Unit = runtime.breadcrumb(this, breadcrumb)
-    public fun recordRepair(repair: FeedRepairRecord): Unit = runtime.repair(this, repair)
-    public fun noteTestSource(origin: FeedIncidentTestSource): Unit = runtime.origin(this, origin)
-    public fun noteDecoderGeneration(generation: Int): Unit = runtime.decoderGeneration(this, generation)
-    public fun noteSocketGeneration(generation: Int): Unit = runtime.socketGeneration(this, generation)
-    public fun noteExhausted(nowSeconds: Double): Unit = runtime.exhausted(this, nowSeconds)
-    public fun noteUnexpectedDisconnect(nowSeconds: Double): Unit = runtime.disconnected(this, nowSeconds)
-    public fun endSession(nowSeconds: Double): Unit = runtime.end(this, nowSeconds)
+) : FeedIncidentSource {
+    override fun ingestSnapshot(snapshot: FeedIncidentSnapshot): Unit = runtime.ingest(this, snapshot)
+    override fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb): Unit = runtime.breadcrumb(this, breadcrumb)
+    override fun recordRepair(repair: FeedRepairRecord): Unit = runtime.repair(this, repair)
+    override fun noteTestSource(origin: FeedIncidentTestSource): Unit = runtime.origin(this, origin)
+    override fun noteDecoderGeneration(generation: Int): Unit = runtime.decoderGeneration(this, generation)
+    override fun noteSocketGeneration(generation: Int): Unit = runtime.socketGeneration(this, generation)
+    override fun noteExhausted(nowSeconds: Double): Unit = runtime.exhausted(this, nowSeconds)
+    override fun noteUnexpectedDisconnect(nowSeconds: Double): Unit = runtime.disconnected(this, nowSeconds)
+    override fun endSession(nowSeconds: Double): Unit = runtime.end(this, nowSeconds)
 }
 
 /**
@@ -86,7 +87,7 @@ public class FeedIncidentRuntime internal constructor(
     /** Legacy producers capture the current source per call; asynchronous owners should retain a binding. */
     override fun beginSession(context: FeedIncidentSessionContext) { beginBoundSession(context) }
 
-    public fun beginBoundSession(context: FeedIncidentSessionContext): FeedIncidentSessionSource = synchronized(gate) {
+    override fun beginBoundSession(context: FeedIncidentSessionContext): FeedIncidentSessionSource = synchronized(gate) {
         val captured = context.copy()
         val source = FeedIncidentSessionSource(this, captured.sessionId)
         submittedSource = source
@@ -106,7 +107,7 @@ public class FeedIncidentRuntime internal constructor(
     override fun ingestSnapshot(snapshot: FeedIncidentSnapshot) { currentSource()?.ingestSnapshot(snapshot) }
     override fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb) { currentSource()?.recordBreadcrumb(breadcrumb) }
     override fun recordRepair(repair: FeedRepairRecord) { currentSource()?.recordRepair(repair) }
-    public fun noteTestSource(source: FeedIncidentTestSource) { currentSource()?.noteTestSource(source) }
+    override fun noteTestSource(source: FeedIncidentTestSource) { currentSource()?.noteTestSource(source) }
     override fun noteDecoderGeneration(generation: Int) { currentSource()?.noteDecoderGeneration(generation) }
     override fun noteSocketGeneration(generation: Int) { currentSource()?.noteSocketGeneration(generation) }
     override fun noteExhausted(nowSeconds: Double) { currentSource()?.noteExhausted(nowSeconds) }
