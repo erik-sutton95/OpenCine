@@ -238,6 +238,11 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         cancelScrub = { edit, reason -> player.cancelScrub(reason == MonitorEditingCancellation.INTERRUPTED, edit) },
         longPressFeedback = haptics::longPress, detentFeedback = haptics::confirm, selectionFeedback = haptics::selection,
         dismissAssistInspector = { if (assist?.configureTool == null) false else { assist.configureTool = null; true } })
+    if (operations.captureDeletion != null && mayDelete) {
+        actions.deletionConfirmation = com.opencapture.monitorui.MonitorPlaybackDeletionActions(
+            capture = { model.captureDeletion(it, operations) }, isCurrent = model::isDeletionCurrent,
+            confirm = model::confirmDeletion, cancel = model::cancelDeletion)
+    }
     fun hasOptions(tool: MonitorAssistTool): Boolean = tool.hasConfiguration && when (tool) {
         MonitorAssistTool.FALSE -> transfer != null || signalOptions.falseColor != null
         MonitorAssistTool.ZEBRA -> transfer != null || signalOptions.zebra != null

@@ -124,6 +124,39 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
         }
     }
 
+    func testActualCapturedDeleteDialogKeepsRelatedCopyMessageAndCancelSendsNoIO() async throws {
+        var library: MonitorMediaLibraryModel<String>?
+        var calls = 0
+        var captured: MonitorMediaLibraryDeletionAuthority?
+        let operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion: { _ in
+            guard let authority = library?.captureDeletion(key: .init("SIMULATED-related-delete"), ifCurrent: { true })
+            else { return nil }
+            captured = authority
+            return .init(confirmation: .init(title: "Remove this SIMULATED clip?",
+                message: "The camera master and backup copies are removed too."),
+                authority: authority, perform: { calls += 1 })
+        }, access: { _ in .init(delete: true) })
+        let fixture = try PlaybackOptionsFixture(operations: operations)
+        library = fixture.context.library
+        defer { fixture.close() }
+        let owner = try await fixture.readyPlayer()
+        let token = owner.token
+        try await fixture.activate(label: "Delete clip from camera")
+        let dialog = try await fixture.presentedDialog()
+        XCTAssertEqual(dialog.title, "Remove this SIMULATED clip?")
+        XCTAssertEqual(dialog.message, "The camera master and backup copies are removed too.")
+        XCTAssertEqual(calls, 0)
+        let cancel = try XCTUnwrap(dialog.actions.first { $0.style == .cancel })
+        let title = try XCTUnwrap(cancel.title)
+        let button = try await fixture.dialogElement(dialog, label: title)
+        XCTAssertTrue(button.accessibilityActivate())
+        for _ in 0..<100 { await Task.yield(); fixture.layout() }
+        XCTAssertEqual(calls, 0)
+        XCTAssertFalse(captured?.isCurrent ?? true)
+        XCTAssertTrue(fixture.context.model.playback === owner)
+        XCTAssertEqual(owner.token, token)
+    }
+
     func testSupportedOptionsChangeTheSuppliedAssistWithoutReplacingThePlayer() async throws {
         let fixture = try PlaybackOptionsFixture()
         defer { fixture.close() }
@@ -318,9 +351,12 @@ private final class PlaybackOptionsContext {
     let initial: MonitorMediaGalleryOpen<String>
     let unknownSignal: Bool
     let stores: AssistPanelStores?
+    let operations: MonitorOperatorPlaybackOperations<String, String>
 
-    init(unknownSignal: Bool = false) throws {
+    init(unknownSignal: Bool = false,
+        operations: MonitorOperatorPlaybackOperations<String, String> = .init()) throws {
         self.unknownSignal = unknownSignal
+        self.operations = operations
         let name = "SIMULATED.playback-options." + UUID().uuidString
         let storage = try XCTUnwrap(UserDefaults(suiteName: name))
         storageName = name; self.storage = storage
@@ -382,9 +418,7 @@ private struct PlaybackOptionsSurface: View {
             looks: FalseColorLooks(scaleHelp: "SIMULATED Rec.709 source", rec709LookCurve: { _ in nil }),
             palette: MonitorDefaultLivePalette.self, haptics: context.haptics, usage: $usage,
             cacheOriginal: false, deliveryPresented: false,
-            operations: MonitorOperatorPlaybackOperations<String, String>(rating: rating ? .init(
-                levels: [1, 2, 3, 4, 5], read: { _ in 4 },
-                commit: { value, _ in .confirmed(value) }) : nil),
+            operations: context.operations,
             source: { _ in context.unknownSignal
                 ? .init(availability: .original, allowsSignalFallback: false)
                 : .init(availability: .original, colorLabel: "SIMULATED Rec.709",
@@ -403,12 +437,28 @@ private final class PlaybackOptionsFixture {
     let window: UIWindow
     private weak var previousKeyWindow: UIWindow?
     init(size: CGSize = CGSize(width: 420, height: 900), rating: Bool = false,
-        unknownSignal: Bool = false) throws {
+        unknownSignal: Bool = false,
+        operations: MonitorOperatorPlaybackOperations<String, String> = .init()) throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
         let scene = try XCTUnwrap(scenes.count == 1 ? scenes.first : nil,
             "Rendered playback contracts require one foreground connected application scene")
-        let context = try PlaybackOptionsContext(unknownSignal: unknownSignal)
+        let supplied: MonitorOperatorPlaybackOperations<String, String>
+        if rating {
+            let service = MonitorMediaPlaybackRatingService<String>(
+                levels: [1, 2, 3, 4, 5], read: { _ in 4 },
+                commit: { value, _ in .confirmed(value) })
+            if let capture = operations.captureDeletion {
+                supplied = .init(captureDeletion: capture, cacheOriginal: operations.cacheOriginal,
+                    delete: operations.delete, favorite: operations.favorite, adoptLook: operations.adoptLook,
+                    access: operations.access, rating: service)
+            } else {
+                supplied = .init(cacheOriginal: operations.cacheOriginal, delete: operations.delete,
+                    favorite: operations.favorite, adoptLook: operations.adoptLook,
+                    access: operations.access, rating: service)
+            }
+        } else { supplied = operations }
+        let context = try PlaybackOptionsContext(unknownSignal: unknownSignal, operations: supplied)
         let host = UIHostingController(rootView: PlaybackOptionsSurface(context: context, size: size, rating: rating))
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(origin: .zero, size: size)
@@ -434,6 +484,28 @@ private final class PlaybackOptionsFixture {
         }
         return try XCTUnwrap(context.model.playback.flatMap { $0.ready ? $0 : nil },
             "The actual shared screen must open its SIMULATED item owner")
+    }
+    func presentedDialog() async throws -> UIAlertController {
+        for _ in 0..<500 {
+            layout()
+            var current: UIViewController? = host
+            while let value = current {
+                if let dialog = value as? UIAlertController { return dialog }
+                current = value.presentedViewController
+            }
+            await Task.yield()
+        }
+        throw NSError(domain: "SIMULATED.captured-delete-dialog", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "The real destructive confirmation did not present"])
+    }
+    func dialogElement(_ dialog: UIAlertController, label: String) async throws -> NSObject {
+        for _ in 0..<500 {
+            layout(); dialog.view.layoutIfNeeded()
+            if let element = Self.leaves(dialog.view).first(where: { $0.accessibilityLabel == label }) { return element }
+            await Task.yield()
+        }
+        throw NSError(domain: "SIMULATED.captured-delete-dialog", code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "The real dialog action was not mounted: " + label])
     }
     var identifiers: [String] { layout(); return Self.leaves(host.view).compactMap(Self.identifier) }
     var labels: [String] { layout(); return Self.leaves(host.view).compactMap(\.accessibilityLabel) }

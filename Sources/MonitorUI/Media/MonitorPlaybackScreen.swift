@@ -35,6 +35,8 @@
         @State private var isConformPresented = false
         @State private var isDeleteConfirmPresented = false
         @State private var deleteItem: MonitorPlaybackItemToken?
+        @State private var capturedDeletion: MonitorPlaybackDeletionConfirmation?
+        @State private var capturedDeletionActions: MonitorPlaybackDeletionActions?
         @State private var zoom = MonitorPlaybackZoom()
         @State private var zoomContainerSize: CGSize = .zero
         @State private var zoomPictureSize: CGSize = .zero
@@ -89,6 +91,7 @@
         public var body: some View {
             playerContent
                 .onChange(of: value.item) { _, _ in
+                    cancelDeleteConfirmation()
                     cancelEditing(.contextChanged)
                     zoom.reset()
                     assistMode = false
@@ -112,6 +115,7 @@
                     if !active, frameEditing.end() { cancelEditing(.interrupted) }
                 }
                 .onDisappear {
+                    cancelDeleteConfirmation()
                     playbackFlashTask?.cancel()
                     cancelEditing(.disappeared)
                 }
@@ -336,7 +340,7 @@
                     }
                     .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Clip information")
                     shareTransportButton(compact: portrait)
-                    if actions.delete != nil { deleteButton }
+                    if actions.delete != nil || actions.deletionConfirmation != nil { deleteButton }
                 }
                 .frame(maxWidth: portrait ? .infinity : nil, alignment: .trailing)
                 .fixedSize(horizontal: !portrait, vertical: true)
@@ -419,23 +423,46 @@
 
         private var deleteButton: some View {
             Button {
-                deleteItem = value.item
-                isDeleteConfirmPresented = deleteItem != nil
+                cancelDeleteConfirmation()
+                if let capture = actions.deletionConfirmation, let item = value.item {
+                    capturedDeletion = capture.capture(item)
+                    capturedDeletionActions = capturedDeletion == nil ? nil : capture
+                    isDeleteConfirmPresented = capturedDeletion != nil
+                } else {
+                    deleteItem = value.item
+                    isDeleteConfirmPresented = deleteItem != nil
+                }
             } label: {
                 MonitorPlaybackChip(destructive: true) { MonitorIcon.trash }
             }
             .buttonStyle(MonitorButtonStyle())
             .accessibilityLabel("Delete clip from camera")
             .confirmationDialog(
-                "Delete this clip from the camera?", isPresented: $isDeleteConfirmPresented,
+                capturedDeletion?.title ?? "Delete this clip from the camera?", isPresented: $isDeleteConfirmPresented,
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    let admitted = deleteItem
-                    deleteItem = nil
-                    if let admitted { actions.delete?(admitted) }
+                    if let captured = capturedDeletion, let typed = capturedDeletionActions {
+                        capturedDeletion = nil; capturedDeletionActions = nil; deleteItem = nil
+                        if typed.isCurrent(captured.id) { typed.confirm(captured.id) }
+                        else { typed.cancel(captured.id) }
+                    } else {
+                        let admitted = deleteItem; deleteItem = nil
+                        if let admitted { actions.delete?(admitted) }
+                    }
                 }
+            } message: {
+                if let message = capturedDeletion?.message { Text(message) }
             }
+            .onChange(of: isDeleteConfirmPresented) { _, shown in
+                if !shown { cancelDeleteConfirmation() }
+            }
+        }
+
+        private func cancelDeleteConfirmation() {
+            let captured = capturedDeletion, outgoing = capturedDeletionActions
+            capturedDeletion = nil; capturedDeletionActions = nil; deleteItem = nil; isDeleteConfirmPresented = false
+            if let captured { outgoing?.cancel(captured.id) }
         }
 
         @ViewBuilder

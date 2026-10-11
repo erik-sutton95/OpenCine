@@ -190,7 +190,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         guard model.isCurrent(token), let player else { return }; action(player)
     }
     private func actions(_ owner: MonitorMediaPlaybackModel<Payload, Look>) -> MonitorPlaybackActions {
-        .init(back: back,
+        var result = MonitorPlaybackActions(back: back,
             play: { token, value in current(token) { $0.setPlaying(value) } },
             restart: { current($0) { $0.restart() } }, seekBy: { token, delta in current(token) { $0.seek(by: delta) } },
             mute: { token, value in current(token) { $0.setMuted(value) } },
@@ -215,6 +215,14 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             updateFrameScrub: { owner.updateFrameScrub(delta: $1, width: $2, admitted: $0) },
             commitScrub: { owner.commitScrub(admitted: $0) },
             cancelScrub: { owner.cancelScrub(interrupted: $1 == .interrupted, admitted: $0) })
+        if operations.captureDeletion != nil, mayDelete(owner.active) {
+            result.deletionConfirmation = .init(
+                capture: { model.captureDeletion(admitted: $0, operations: operations) },
+                isCurrent: { model.isDeletionCurrent(admitted: $0) },
+                confirm: { model.confirmDeletion(admitted: $0) },
+                cancel: { model.cancelDeletion(admitted: $0) })
+        }
+        return result
     }
 
     private func mayDelete(_ record: MonitorMediaRecord<Payload>?) -> Bool {

@@ -68,6 +68,8 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import com.opencapture.opencine.media.MonitorConformPreview
+import com.opencapture.opencine.media.MonitorPlaybackDeletionConfirmation
+import java.util.UUID
 import com.opencapture.opencine.media.MonitorPlaybackItemToken
 import com.opencapture.opencine.media.MonitorPlaybackScrubToken
 import kotlinx.coroutines.Job
@@ -94,6 +96,11 @@ data class MonitorPlaybackPresentation(
     val horizontalPresentationScale: Float = 1f, val verticalPresentationScale: Float = 1f,
 )
 
+class MonitorPlaybackDeletionActions(
+    val capture: (MonitorPlaybackItemToken) -> MonitorPlaybackDeletionConfirmation?,
+    val isCurrent: (UUID) -> Boolean, val confirm: (UUID) -> Unit, val cancel: (UUID) -> Unit,
+)
+
 class MonitorPlaybackActions(
     val back: () -> Unit,
     val play: (MonitorPlaybackItemToken, Boolean) -> Unit,
@@ -114,7 +121,9 @@ class MonitorPlaybackActions(
     val longPressFeedback: () -> Unit = {}, val detentFeedback: () -> Unit = {},
     val selectionFeedback: () -> Unit = {},
     val dismissAssistInspector: () -> Boolean = { false },
-)
+) {
+    var deletionConfirmation: MonitorPlaybackDeletionActions? = null
+}
 
 data class MonitorPlaybackPictureGeometry(val item: MonitorPlaybackItemToken?, val feed: MonitorRect,
     val zoom: MonitorPlaybackZoom, val canvasWidth: Float, val canvasHeight: Float)
@@ -179,6 +188,8 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
 ) {
     val scope = rememberCoroutineScope()
     var confirmDelete by remember { mutableStateOf<MonitorPlaybackItemToken?>(null) }
+    var capturedDeletion by remember { mutableStateOf<MonitorPlaybackDeletionConfirmation?>(null) }
+    var capturedDeletionActions by remember { mutableStateOf<MonitorPlaybackDeletionActions?>(null) }
     var chromeVisible by remember { mutableStateOf(value.initialChromeVisible) }
     var headerBottomPx by remember { mutableStateOf(0f) }
     var accessoryBottomPx by remember { mutableStateOf(0f) }
@@ -216,16 +227,21 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
         val item = currentValue.item ?: return
         editing.admit(currentActions.beginScrub(item), item)
     }
+    fun cancelDeleteConfirmation() {
+        val captured = capturedDeletion; val outgoing = capturedDeletionActions
+        capturedDeletion = null; capturedDeletionActions = null; confirmDelete = null
+        if (captured != null) outgoing?.cancel?.invoke(captured.id)
+    }
     fun handlePlaybackBack() {
         when {
-            confirmDelete != null -> confirmDelete = null
+            confirmDelete != null || capturedDeletion != null -> cancelDeleteConfirmation()
             currentActions.dismissAssistInspector() -> Unit
             infoOpen -> infoOpen = false
             else -> currentActions.back()
         }
     }
     backHandler { handlePlaybackBack() }
-    DisposableEffect(Unit) { onDispose { flashJob?.cancel(); cancelEdit(MonitorEditingCancellation.DISAPPEARED) } }
+    DisposableEffect(Unit) { onDispose { cancelDeleteConfirmation(); flashJob?.cancel(); cancelEdit(MonitorEditingCancellation.DISAPPEARED) } }
     val view = androidx.compose.ui.platform.LocalView.current
     DisposableEffect(view) {
         val lifecycle = view.findViewTreeLifecycleOwner()?.lifecycle
@@ -236,6 +252,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
         onDispose { lifecycle?.removeObserver(observer) }
     }
     LaunchedEffect(value.item) {
+        cancelDeleteConfirmation()
         cancelEdit(MonitorEditingCancellation.CONTEXT_CHANGED)
         zoom = MonitorPlaybackZoom(); frameScrubbing = false; assistMode = false
         flashJob?.cancel(); flashSymbol = null
@@ -550,8 +567,16 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                             MonitorIcon.SHARE, "Share clip", { withItem { currentActions.share(it) } },
                             title = if (portraitPlayback) null else "SHARE", active = true, enabled = value.shareEnabled,
                         )
-                        if (actions.delete != null) {
-                            MonitorPlaybackActionChip(MonitorIcon.TRASH, "Delete clip", { confirmDelete = value.item }, destructive = true)
+                        if (actions.delete != null || actions.deletionConfirmation != null) {
+                            MonitorPlaybackActionChip(MonitorIcon.TRASH, "Delete clip", {
+                                cancelDeleteConfirmation()
+                                val item = currentValue.item
+                                val typed = currentActions.deletionConfirmation
+                                if (typed != null && item != null) {
+                                    capturedDeletion = typed.capture(item)
+                                    capturedDeletionActions = typed.takeIf { capturedDeletion != null }
+                                } else confirmDelete = item
+                            }, destructive = true)
                         }
                     },
                 )
@@ -669,14 +694,19 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 safeLeading, safeTop, safeBottom, safeTrailing, viewportHeight - 120f))
 
             // Inside the overlay window: in the host window it sits under the gesture well.
-            if (confirmDelete != null) {
+            if (confirmDelete != null || capturedDeletion != null) {
                 MonitorConfirmPopup(
-                    title = "Delete this clip from the camera?",
+                    title = capturedDeletion?.title ?: "Delete this clip from the camera?",
+                    message = capturedDeletion?.message,
                     confirmTitle = "Delete",
-                    onDismiss = { confirmDelete = null },
+                    onDismiss = ::cancelDeleteConfirmation,
                     onConfirm = {
-                        val admitted = confirmDelete; confirmDelete = null
-                        if (admitted != null) currentActions.delete?.invoke(admitted)
+                        val captured = capturedDeletion; val admitted = confirmDelete
+                        val typed = capturedDeletionActions
+                        capturedDeletion = null; capturedDeletionActions = null; confirmDelete = null
+                        if (captured != null && typed != null) {
+                            if (typed.isCurrent(captured.id)) typed.confirm(captured.id) else typed.cancel(captured.id)
+                        } else if (admitted != null) currentActions.delete?.invoke(admitted)
                     },
                 )
             }
