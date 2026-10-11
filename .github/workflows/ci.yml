@@ -78,8 +78,14 @@ jobs:
         shell: bash  # -o pipefail, so a failing swift test fails the step
         run: |
           # Run the complete strict bundle built above, not the isolated WAE objects.
-          swift test --skip-build -Xswiftc -strict-concurrency=complete 2>&1 | tee test.log
-          ! grep -q "implemented in both" test.log
+          # Isolate the four bounded real-I/O cases from unrelated MainActor suites.
+          # The five-second fixture deadline and every original assertion remain intact.
+          cache_test='heldRealWriteDoesNotBlockAdmissionOrSuccessor'
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --filter "$cache_test" 2>&1 | tee test-cache.log
+          swift test --skip-build -Xswiftc -strict-concurrency=complete \
+            --skip "$cache_test" 2>&1 | tee test.log
+          ! grep -q "implemented in both" test-cache.log test.log
       - name: Build MonitorUI (iOS Simulator)
         run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
       - name: Build OpenCineApple (iOS Simulator)
