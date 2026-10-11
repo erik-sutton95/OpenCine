@@ -39,7 +39,7 @@ class HevcDecoder(
     private val errorJournal: (DecoderErrorRecord) -> Unit = {},
 ) {
     private val inputOwnership = DecoderInputOwnership(lock)
-    private var codec: MediaCodec? = null
+    @Volatile private var codec: MediaCodec? = null
     private var surface: Surface? = null
     private var configured = false
     private var liveCodec: LiveVideoCodec? = null
@@ -536,37 +536,42 @@ class HevcDecoder(
                 Thread(
                     {
                         val info = MediaCodec.BufferInfo()
-                        while (running) {
+                        while (ownsOutput(started)) {
                             val index =
                                 try {
                                     started.dequeueOutputBuffer(info, 10_000)
                                 } catch (error: Exception) {
-                                    if (running) {
+                                    if (ownsOutput(started)) {
                                         noteError(DecoderErrorOrigin.OUTPUT, error)
                                     }
                                     break
                                 }
+                            // Stamp before ownership admission. A stamp taken before retirement
+                            // is rejected by the replacement presentation probe even if release races it.
+                            val stamp = System.nanoTime()
+                            if (!ownsOutput(started)) break
                             when {
                                 index >= 0 -> {
-                                    // One stamp for both ends: it goes on the buffer and
-                                    // comes back through notePresented, so the cadence can
-                                    // tell a picture that is still waiting from a new one.
-                                    val stamp = System.nanoTime()
+                                    // The same stamp comes back through notePresented.
                                     cadence.noteOutput(stamp)
                                     noteDecodeTransit(info)
                                     noteNativeOutput()
                                     runCatching {
                                         started.releaseOutputBuffer(index, stamp)
                                     }.onFailure { error ->
-                                        noteError(DecoderErrorOrigin.OUTPUT_RELEASE, error)
+                                        if (ownsOutput(started)) {
+                                            noteError(DecoderErrorOrigin.OUTPUT_RELEASE, error)
+                                        }
                                     }
                                     // Output to an ImageReader is not a displayed image.
                                     // Vulkan/GLES/TextureView reports the actual present.
-                                    hasFormat = true
+                                    if (ownsOutput(started)) hasFormat = true
                                 }
                                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                                    hasFormat = true
-                                    Log.i(TAG, "output format changed")
+                                    if (ownsOutput(started)) {
+                                        hasFormat = true
+                                        Log.i(TAG, "output format changed")
+                                    }
                                 }
                             }
                         }
@@ -625,6 +630,8 @@ class HevcDecoder(
         val nowUs = SystemClock.elapsedRealtimeNanos() / 1_000L
         cadence.noteTransit(LivePipelineCadence.Leg.DECODE, (nowUs - submittedUs) * 1_000L)
     }
+
+    private fun ownsOutput(started: MediaCodec): Boolean = running && codec === started
 
     private fun noteNativeOutput() {
         hasSeenNativeOutput = true
