@@ -35,6 +35,7 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 window.frame = CGRect(x: 0, y: 0, width: 420, height: 900)
                 window.rootViewController = host
                 window.makeKeyAndVisible()
+                host.view.frame = window.bounds
                 defer {
                     window.isHidden = true; window.rootViewController = nil
                     if let previous, !previous.isHidden { previous.makeKeyAndVisible() }
@@ -42,14 +43,14 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 let mounted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                     MainActor.assumeIsolated {
                         host.view.layoutIfNeeded()
-                        return PlaybackOptionsFixture.leaves(host.view).contains {
+                        return Self.galleryAccessibilityObjects(host.view).contains {
                             PlaybackOptionsFixture.identifier($0) == "SIMULATED.media.cell"
                         }
                     }
                 }, object: nil)
                 let mountedResult = await XCTWaiter.fulfillment(of: [mounted], timeout: 5)
                 XCTAssertEqual(mountedResult, .completed)
-                let element = try XCTUnwrap(PlaybackOptionsFixture.leaves(host.view).first {
+                let element = try XCTUnwrap(Self.galleryAccessibilityObjects(host.view).first {
                     PlaybackOptionsFixture.identifier($0) == "SIMULATED.media.cell"
                 })
                 XCTAssertTrue(element.accessibilityActivate(), "The rendered cell must expose its default action")
@@ -63,7 +64,7 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 XCTAssertTrue(select(selection))
                 XCTAssertEqual(actions.selected, selecting ? 2 : 1)
                 XCTAssertEqual(actions.opened, selecting ? 0 : 1)
-                let favorite = try XCTUnwrap(PlaybackOptionsFixture.leaves(host.view).first {
+                let favorite = try XCTUnwrap(Self.galleryAccessibilityObjects(host.view).first {
                     $0.accessibilityLabel == "Favorite SIMULATED clip" && $0.accessibilityTraits.contains(.button)
                 })
                 XCTAssertTrue(favorite.accessibilityActivate())
@@ -72,6 +73,22 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 XCTAssertEqual(actions.selected, selecting ? 2 : 1)
             }
         }
+    }
+
+    /// The cell is an actual .contain group; retaining its children must not hide the group action.
+    private static func galleryAccessibilityObjects(_ object: NSObject) -> [NSObject] {
+        if object.accessibilityElementsHidden { return [] }
+        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
+        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
+            return [object] + elements.flatMap(galleryAccessibilityObjects)
+        }
+        let count = object.accessibilityElementCount()
+        if count > 0, count != NSNotFound {
+            let elements = (0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject }
+            if !elements.isEmpty { return [object] + elements.flatMap(galleryAccessibilityObjects) }
+        }
+        if object.isAccessibilityElement { return [object] }
+        return [object] + ((object as? UIView)?.subviews ?? []).flatMap(galleryAccessibilityObjects)
     }
 
     func testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait() async throws {
