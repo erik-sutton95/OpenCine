@@ -201,7 +201,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
                 selection: value.selection, expandedSection: value.expandedSection,
                 sections: value.sections, order: value.order).onAppear(perform: value.returnedFromEditor)
         } else {
-            MonitorOperatorDisplaySections(live: displayValue(.live), clean: displayValue(.clean), assist: assist,
+            MonitorOperatorDisplaySections(modes: operatorSession?.modes ?? [.live, .clean], chrome: displayValue, assist: assist,
                 available: configuration?.availableDisplay ?? [.statusBar, .cameraValues, .lockButton, .recReadout,
                     .timecode, .toolBar, .railRecord, .railMedia, .railSettings], edit: editChrome,
                 feedback: configuration?.feedback ?? {})
@@ -345,7 +345,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private func displayValue(_ mode: MonitorDisplayMode) -> Binding<MonitorDisplayChrome> {
         guard let operatorSession else { preconditionFailure("Borrowed layouts require their explicit display bindings") }
         return Binding(get: { operatorSession.chrome(for: mode) }, set: {
-            if mode == .clean { operatorSession.clean = $0 } else { operatorSession.live = $0 }
+            switch mode {
+            case .live: operatorSession.live = $0
+            case .clean: operatorSession.clean = $0
+            case .command: operatorSession.command = $0
+            }
             preferenceRevision += 1
         })
     }

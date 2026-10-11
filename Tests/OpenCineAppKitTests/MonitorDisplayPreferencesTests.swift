@@ -6,30 +6,47 @@ import Testing
     private let identifiers = [
         "statusBar", "toolBar", "cameraValues", "lockButton", "batteries", "railRecord",
         "railMedia", "railSettings", "zoomChip", "gimbalStick", "focusBox", "recReadout",
+        "timecode", "format", "codec", "color", "storage", "fps",
+    ]
+    private let legacyIdentifiers = [
+        "statusBar", "toolBar", "cameraValues", "lockButton", "batteries", "railRecord",
+        "railMedia", "railSettings", "zoomChip", "gimbalStick", "focusBox", "recReadout",
         "timecode", "format", "color", "storage", "fps",
     ]
 
     @Test func legacySectionOrderAndLiveCleanDefaultsStayStable() {
         #expect(MonitorDisplayChrome.Section.allCases.map(\.rawValue) == identifiers)
-        #expect(MonitorDisplayMode.allCases.map(\.rawValue) == ["live", "clean"])
-        #expect(MonitorDisplayMode.allCases.map(\.settingsTitle) == ["DISP 1 · Live", "DISP 2 · Clean"])
+        #expect(MonitorDisplayMode.allCases.map(\.rawValue) == ["live", "clean", "command"])
+        #expect(MonitorDisplayMode.allCases.map(\.settingsTitle)
+            == ["DISP 1 · Live", "DISP 2 · Clean", "DISP 3 · Command"])
         #expect(MonitorDisplayChrome.Section.focusBox.title == "Face Box")
-        for mode in MonitorDisplayMode.allCases {
+        for mode in [MonitorDisplayMode.live, .clean] {
             #expect(MonitorDisplayChrome.configurableSections(in: mode) == MonitorDisplayChrome.Section.allCases)
         }
+        #expect(MonitorDisplayChrome.configurableSections(in: .command).map(\.rawValue)
+            == ["lockButton", "batteries", "railRecord", "railMedia", "railSettings"])
         #expect(MonitorDisplayChrome.Section.allCases.allSatisfy(MonitorDisplayChrome.liveDefaults.isVisible))
         #expect(MonitorDisplayChrome.Section.allCases.filter {
             !MonitorDisplayChrome.cleanDefaults.isVisible($0)
         }.map(\.rawValue) == ["statusBar", "toolBar", "cameraValues", "lockButton"])
     }
 
-    @Test func legacyChromeEncodingKeepsAllSeventeenKeysAndFalseValues() throws {
+    @Test func chromeEncodingKeepsEveryKeyAndFalseValues() throws {
         let data = try JSONEncoder().encode(MonitorDisplayChrome.cleanDefaults)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Bool])
         #expect(Set(object.keys) == Set(identifiers))
         #expect(object["statusBar"] == false)
         #expect(object["focusBox"] == true)
         #expect(try JSONDecoder().decode(MonitorDisplayChrome.self, from: data) == .cleanDefaults)
+    }
+
+    /// A layout saved before the codec chip existed keeps every choice and shows the chip.
+    @Test func layoutSavedBeforeTheCodecSectionStillDecodes() throws {
+        var legacy = [String: Bool](uniqueKeysWithValues: legacyIdentifiers.map { ($0, true) })
+        legacy["statusBar"] = false
+        let decoded = try JSONDecoder().decode(MonitorDisplayChrome.self,
+            from: JSONSerialization.data(withJSONObject: legacy))
+        #expect(!decoded.statusBar && decoded.codec && decoded.focusBox)
     }
 
     @Test func absentLayoutsReadWithoutWritingAndExplicitOffSurvivesReload() throws {
