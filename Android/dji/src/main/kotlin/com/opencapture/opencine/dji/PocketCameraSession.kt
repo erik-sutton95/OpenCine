@@ -14,6 +14,7 @@ import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentQueue
 import com.opencapture.opencine.media.FeedIncidentRates
 import com.opencapture.opencine.media.FeedIncidentSessionContext
+import com.opencapture.opencine.media.FeedIncidentSource
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
@@ -265,6 +266,7 @@ class PocketCameraSession(
     private var socketGeneration = 0
     /** Open from the first LIVE until the operator disconnects (iOS `incidentSessionActive`). */
     private var incidentSessionActive = false
+    private var incidentSource: FeedIncidentSource? = null
     /** Repair deadlines held off Bluetooth recovery this stall episode (core `nextSessionHoldCycles`). */
     private var sessionHoldCycles = 0
     private var lastSessionHoldAt: Long? = null
@@ -938,7 +940,9 @@ class PocketCameraSession(
         reportedCapture = CameraStatus()
         appHost.setCameraSessionActive(false)
         // Operator ended the session: an incident still open ends as userEnded.
-        appHost.incidents.endSession(SystemClock.elapsedRealtime() / 1000.0)
+        val outgoingIncidentSource = incidentSource
+        incidentSource = null
+        outgoingIncidentSource?.endSession(SystemClock.elapsedRealtime() / 1000.0)
         incidentSessionActive = false
         cancelSessionRecovery(clearHoldsMonitor = true)
         reconnectTarget = null
@@ -1717,7 +1721,7 @@ class PocketCameraSession(
     private fun beginFeedIncidentSession() {
         if (incidentSessionActive) return
         incidentSessionActive = true
-        appHost.incidents.beginSession(
+        incidentSource = appHost.incidents.beginBoundSession(
             FeedIncidentSessionContext(
                 sessionId = feedSessionId,
                 appVersion = appHost.appVersion,
@@ -1736,11 +1740,12 @@ class PocketCameraSession(
     }
 
     private fun noteFeedIncidentSnapshot(window: LivePipelineCadence.Window?) {
+        val source = incidentSource ?: return
         val now = SystemClock.elapsedRealtime()
         val ingressSource = datalink
         fun ageSec(at: Long?): Double? = at?.let { ((now - it).coerceAtLeast(0)).toDouble() / 1000.0 }
         val hz = window?.hz
-        appHost.incidents.ingestSnapshot(
+        source.ingestSnapshot(
             FeedIncidentSnapshot(
                 monotonicNow = now / 1000.0,
                 wallClockMs = System.currentTimeMillis(),
@@ -1813,7 +1818,7 @@ class PocketCameraSession(
                 ingress = ingressSource?.ingressSnapshot(now / 1000.0),
             ),
         )
-        appHost.incidents.noteDecoderGeneration(decoder.randomAccess.generation)
+        source.noteDecoderGeneration(decoder.randomAccess.generation)
     }
 
     private fun publishPipelineStats() {
@@ -2265,7 +2270,7 @@ class PocketCameraSession(
                 RecoveryEffect.SENT -> FeedRepairPhase.LOCALLY_SENT
                 RecoveryEffect.FRESH_PICTURE -> FeedRepairPhase.PICTURE_RESTORED
             }
-        appHost.incidents.recordRepair(
+        incidentSource?.recordRepair(
             FeedRepairRecord(
                 monotonicAt = SystemClock.elapsedRealtime() / 1000.0,
                 action = action.wire,
@@ -2431,7 +2436,7 @@ class PocketCameraSession(
             feedWatchdog.reset()
             return
         }
-        appHost.incidents.noteExhausted(SystemClock.elapsedRealtime() / 1000.0)
+        incidentSource?.noteExhausted(SystemClock.elapsedRealtime() / 1000.0)
         logRecovery(RecoveryAction.DECODER, RecoveryEffect.BLOCKED, RecoveryReason.PICTURE_DEADLINE)
         logRecovery(RecoveryAction.REJOIN, RecoveryEffect.REQUESTED, RecoveryReason.PICTURE_DEADLINE)
         rejoinDatalinkKeepingLive()
@@ -2440,6 +2445,7 @@ class PocketCameraSession(
     /** Keep the held picture; the fresh endpoint receives one enable from this repair owner. */
     private suspend fun rebuildDatalinkKeepingPicture(reason: String) {
         val link = datalink ?: return
+        val source = incidentSource
         val owner = mediaPictureGeneration
         var startedAt = 0L
         repairDatalinkEndpoint(
@@ -2456,7 +2462,7 @@ class PocketCameraSession(
                 firstPictureSettled = false
                 focusTrackPending = true
                 socketGeneration += 1
-                appHost.incidents.noteSocketGeneration(socketGeneration)
+                source?.noteSocketGeneration(socketGeneration)
             },
             reopen = {
                 decoder.prepareAfterForeground()
@@ -2526,7 +2532,7 @@ class PocketCameraSession(
         cancelProgrammedMove()
         endGimbalStick()
         if (_phase.value == ConnectionPhase.LIVE) needsForegroundRecover = true
-        appHost.incidents.recordBreadcrumb(
+        incidentSource?.recordBreadcrumb(
             FeedIncidentBreadcrumb(
                 SystemClock.elapsedRealtime() / 1000.0,
                 FeedIncidentBreadcrumbKind.SCENE_ACTIVITY,
@@ -2842,7 +2848,7 @@ class PocketCameraSession(
         }
         recoveryCameraId = cameraId
         if (recoveryDeviceName.isEmpty()) recoveryDeviceName = camera?.name.orEmpty()
-        appHost.incidents.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
+        incidentSource?.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
         holdsMonitor = true
         feedRecoveryJob?.cancel()
         feedRecoveryJob = null
