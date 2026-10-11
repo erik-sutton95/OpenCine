@@ -38,6 +38,7 @@ out = args.output.resolve()
 assert not out.exists(), "Use a fresh owned output directory"
 out.mkdir(parents=True)
 names = [
+    "testGalleryDefaultActivationOpensWhileSelectionAndFavoriteRemainIndependent",
     "testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait",
     "testSupportedOptionsChangeTheSuppliedAssistWithoutReplacingThePlayer",
     "testAbsentStoresAndPlaybackSuppliersOmitUnavailableControls",
@@ -52,7 +53,7 @@ geometry_names = [
 ]
 assert re.findall(r"\bfunc (test\w+)\(", geometry_source.read_text()) == geometry_names
 all_names = names + geometry_names
-original_names = names[1:]
+original_names = names[2:]
 original_seven_names = original_names + geometry_names
 inputs = [source, geometry_source, Path(__file__).resolve(), sdk / "Package.swift", project_spec, entitlements]
 before = {str(path): sha256(path.read_bytes()).hexdigest() for path in inputs}
@@ -124,7 +125,8 @@ report = {
     "exactThreePasses": all(outcomes[name] == ["passed"] for name in original_names),
     "exactFourGeometryPasses": all(outcomes[name] == ["passed"] for name in geometry_names),
     "exactSevenPasses": all(outcomes[name] == ["passed"] for name in original_seven_names),
-    "exactRatingGeometryPass": outcomes[names[0]] == ["passed"],
+    "exactRatingGeometryPass": outcomes[names[1]] == ["passed"],
+    "exactGalleryDefaultActivationPass": outcomes[names[0]] == ["passed"],
     "exactAllNamedPasses": all(outcomes[name] == ["passed"] for name in all_names),
     "inputSourcesUnchanged": before == after, "projectUnchanged": pbx.read_bytes() == project_before,
     "sourceSHA256": before[str(source)], "geometrySourceSHA256": before[str(geometry_source)],

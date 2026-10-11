@@ -13,6 +13,67 @@ import XCTest
 /// These hosted contracts do not decode pictures or qualify physical haptics.
 @MainActor
 final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
+    func testGalleryDefaultActivationOpensWhileSelectionAndFavoriteRemainIndependent() async throws {
+        for layout in [MonitorMediaLayout.grid, .list] {
+            for selecting in [false, true] {
+                let scene = try XCTUnwrap(UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .first { $0.activationState == .foregroundActive })
+                let previous = scene.keyWindow
+                let actions = MediaCellActivationActions()
+                let clip = MonitorClipValue(id: "SIMULATED-cell", title: "SIMULATED clip",
+                    detail: "Actual shared gallery cell", duration: "00:08", source: "ON PHONE",
+                    favorite: false, favoriteLabel: "Favorite SIMULATED clip")
+                let cell = MonitorMediaCell(clip: clip, layout: layout, selecting: selecting,
+                    selected: false, onOpen: { actions.opened += 1 },
+                    onSelect: { actions.selected += 1 }, onFavorite: { actions.favorited += 1 },
+                    thumbnail: { Color.black })
+                    .accessibilityIdentifier("SIMULATED.media.cell")
+                    .frame(width: 300)
+                let host = UIHostingController(rootView: cell)
+                let window = UIWindow(windowScene: scene)
+                window.frame = CGRect(x: 0, y: 0, width: 420, height: 900)
+                window.rootViewController = host
+                window.makeKeyAndVisible()
+                defer {
+                    window.isHidden = true; window.rootViewController = nil
+                    if let previous, !previous.isHidden { previous.makeKeyAndVisible() }
+                }
+                let mounted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                    MainActor.assumeIsolated {
+                        host.view.layoutIfNeeded()
+                        return PlaybackOptionsFixture.leaves(host.view).contains {
+                            PlaybackOptionsFixture.identifier($0) == "SIMULATED.media.cell"
+                        }
+                    }
+                }, object: nil)
+                let mountedResult = await XCTWaiter.fulfillment(of: [mounted], timeout: 5)
+                XCTAssertEqual(mountedResult, .completed)
+                let element = try XCTUnwrap(PlaybackOptionsFixture.leaves(host.view).first {
+                    PlaybackOptionsFixture.identifier($0) == "SIMULATED.media.cell"
+                })
+                XCTAssertTrue(element.accessibilityActivate(), "The rendered cell must expose its default action")
+                XCTAssertEqual(actions.opened, selecting ? 0 : 1)
+                XCTAssertEqual(actions.selected, selecting ? 1 : 0)
+                XCTAssertEqual(actions.favorited, 0)
+                let selection = try XCTUnwrap(element.accessibilityCustomActions?.first {
+                    $0.name == (selecting ? "Toggle selection" : "Select clip")
+                })
+                let select = try XCTUnwrap(selection.actionHandler)
+                XCTAssertTrue(select(selection))
+                XCTAssertEqual(actions.selected, selecting ? 2 : 1)
+                XCTAssertEqual(actions.opened, selecting ? 0 : 1)
+                let favorite = try XCTUnwrap(PlaybackOptionsFixture.leaves(host.view).first {
+                    $0.accessibilityLabel == "Favorite SIMULATED clip" && $0.accessibilityTraits.contains(.button)
+                })
+                XCTAssertTrue(favorite.accessibilityActivate())
+                XCTAssertEqual(actions.favorited, 1)
+                XCTAssertEqual(actions.opened, selecting ? 0 : 1)
+                XCTAssertEqual(actions.selected, selecting ? 2 : 1)
+            }
+        }
+    }
+
     func testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait() async throws {
         // Existing consumers may pass the Boolean expansion callback as a trailing closure.
         _ = MonitorPlaybackPageSlots { (_: Bool) in }
@@ -142,6 +203,13 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
         }
         try await fixture.dismissOptions()
     }
+}
+
+@MainActor
+private final class MediaCellActivationActions {
+    var opened = 0
+    var selected = 0
+    var favorited = 0
 }
 
 @MainActor
@@ -370,7 +438,7 @@ private final class PlaybackOptionsFixture {
         return try XCTUnwrap(Self.leaves(host.view).first(where: predicate),
             "The actual playback accessibility element must be mounted: " + message)
     }
-    private static func leaves(_ object: NSObject) -> [NSObject] {
+    fileprivate static func leaves(_ object: NSObject) -> [NSObject] {
         if object.accessibilityElementsHidden { return [] }
         if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
         if object.isAccessibilityElement { return [object] }
@@ -384,7 +452,7 @@ private final class PlaybackOptionsFixture {
         }
         return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
     }
-    private static func identifier(_ object: NSObject) -> String? {
+    fileprivate static func identifier(_ object: NSObject) -> String? {
         let getter = NSSelectorFromString("accessibilityIdentifier")
         guard object.responds(to: getter) else { return nil }
         return object.perform(getter)?.takeUnretainedValue() as? String

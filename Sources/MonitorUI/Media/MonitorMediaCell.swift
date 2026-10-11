@@ -57,6 +57,9 @@
                 if layout == .grid { gridCard } else { listRow }
             }
             .accessibilityElement(children: .contain)
+            .accessibilityAction(.default) {
+                selecting ? onSelect() : onOpen()
+            }
             .accessibilityAction(
                 named: selecting ? "Toggle selection" : (clip.selectionEntryLabel ?? "Select clip")
             ) {
