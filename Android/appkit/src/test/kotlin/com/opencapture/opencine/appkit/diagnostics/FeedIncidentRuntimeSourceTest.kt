@@ -71,6 +71,7 @@ class FeedIncidentRuntimeSourceTest {
         assertNotEquals(99, bundle.header.decoderGeneration)
         assertNotEquals(99, bundle.header.socketGeneration)
         assertEquals("ended", FeedSessionSummaryStore.load(h.incidentRoot).first().outcome)
+        assertEquals(FeedIncidentTestSource.MANUAL, FeedSessionSummaryStore.load(h.incidentRoot).first().testSource)
     }
 
     @Test fun endPreservesAdmittedSnapshotAndRejectsLateProducer() = withHarness { h ->

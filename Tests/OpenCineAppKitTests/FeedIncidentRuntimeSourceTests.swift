@@ -55,6 +55,7 @@ final class FeedIncidentRuntimeSourceTests: XCTestCase {
         XCTAssertNotEqual(bundle.header.decoderGeneration, 99)
         XCTAssertNotEqual(bundle.header.socketGeneration, 99)
         XCTAssertEqual(FeedSessionSummaryStore.load(root: h.root).first?.outcome, "ended")
+        XCTAssertEqual(FeedSessionSummaryStore.load(root: h.root).first?.testSource, .manual)
     }
 
     func testEndPreservesAdmittedSnapshotAndRejectsLateProducer() throws {
