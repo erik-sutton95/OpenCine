@@ -74,7 +74,15 @@ moves to OpenCine.
 Import rules ([plan](atlas/docs/architecture/platform-plan.md) 3.4). The target edges in
 `Package.swift` and the `project(":x")` edges in `Android/` encode them; the per-area import tests
 and `atlas check` enforce them. Never add an edge that breaks them, and never add a third-party
-package dependency.
+package dependency, with one exception: an optional telemetry adapter may take its vendor SDK.
+Today that is the reporting adapter: the Swift package `Packages/OpenCineSentryApple` (product
+`OpenCineSentryApple`, sentry-cocoa at an exact version) and Android `:appkit-sentry`
+(sentry-android and OkHttp), appkit's reporting sink, its transport and the problem report upload
+on that SDK. The Swift adapter is a separate package so the OpenCine package itself keeps no
+dependencies (resolving OpenCine never fetches the SDK). Only the adapter and its tests name the
+SDK; no other module depends on the adapter or imports it (`AppKitRules`, `AdapterIsolationTest`),
+so an app that links no adapter links no SDK. An app links the adapter beside the app shell and
+keeps only host values (names, DSN, Sentry project, CI secrets).
 
 - Core (`OpenCineCore`) imports Foundation only and names no manufacturer; it never imports UI, an
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,

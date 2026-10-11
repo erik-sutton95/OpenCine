@@ -92,6 +92,15 @@ jobs:
         run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
       - name: Build OpenCineApple (iOS Simulator)
         run: xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
+      # The optional Sentry adapter is its own package (it alone takes sentry-cocoa) and starts the
+      # SDK in its tests, so they run in an iOS simulator rather than the shared macOS test process.
+      - name: Test OpenCineSentryApple (iOS Simulator)
+        working-directory: Packages/OpenCineSentryApple
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl create opencine-sentry "iPhone 16 Pro")"
+          trap 'xcrun simctl delete "$udid"' EXIT
+          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" test
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
         run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
