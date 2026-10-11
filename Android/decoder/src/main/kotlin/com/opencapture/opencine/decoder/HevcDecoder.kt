@@ -541,9 +541,7 @@ class HevcDecoder(
                                 try {
                                     started.dequeueOutputBuffer(info, 10_000)
                                 } catch (error: Exception) {
-                                    if (ownsOutput(started)) {
-                                        noteError(DecoderErrorOrigin.OUTPUT, error)
-                                    }
+                                    noteOutputError(started, DecoderErrorOrigin.OUTPUT, error)
                                     break
                                 }
                             // Stamp before ownership admission. A stamp taken before retirement
@@ -553,24 +551,30 @@ class HevcDecoder(
                             when {
                                 index >= 0 -> {
                                     // The same stamp comes back through notePresented.
-                                    cadence.noteOutput(stamp)
-                                    noteDecodeTransit(info)
-                                    noteNativeOutput()
+                                    val admitted = synchronized(lock) {
+                                        if (!ownsOutput(started)) false else {
+                                            cadence.noteOutput(stamp)
+                                            noteDecodeTransit(info)
+                                            noteNativeOutput()
+                                            true
+                                        }
+                                    }
+                                    if (!admitted) break
                                     runCatching {
                                         started.releaseOutputBuffer(index, stamp)
                                     }.onFailure { error ->
-                                        if (ownsOutput(started)) {
-                                            noteError(DecoderErrorOrigin.OUTPUT_RELEASE, error)
-                                        }
+                                        noteOutputError(started, DecoderErrorOrigin.OUTPUT_RELEASE, error)
                                     }
                                     // Output to an ImageReader is not a displayed image.
                                     // Vulkan/GLES/TextureView reports the actual present.
-                                    if (ownsOutput(started)) hasFormat = true
+                                    synchronized(lock) { if (ownsOutput(started)) hasFormat = true }
                                 }
                                 index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                                    if (ownsOutput(started)) {
-                                        hasFormat = true
-                                        Log.i(TAG, "output format changed")
+                                    synchronized(lock) {
+                                        if (ownsOutput(started)) {
+                                            hasFormat = true
+                                            Log.i(TAG, "output format changed")
+                                        }
                                     }
                                 }
                             }
@@ -638,11 +642,28 @@ class HevcDecoder(
         lastDecoderOutputAt = SystemClock.elapsedRealtime()
     }
 
+    private fun noteOutputError(started: MediaCodec, origin: DecoderErrorOrigin, error: Throwable) {
+        val record = synchronized(lock) {
+            if (ownsOutput(started)) recordError(origin, error) else null
+        }
+        // The admitted record retains its original generation. Host callbacks do not run under
+        // the codec lock and cannot mutate a replacement decoder's error lifetime.
+        record?.let(errorJournal)
+    }
+
     private fun noteError(
         origin: DecoderErrorOrigin,
         error: Throwable,
         inputIsIrap: Boolean? = null,
     ) {
+        recordError(origin, error, inputIsIrap)?.let(errorJournal)
+    }
+
+    private fun recordError(
+        origin: DecoderErrorOrigin,
+        error: Throwable,
+        inputIsIrap: Boolean? = null,
+    ): DecoderErrorRecord? {
         decoderErrors.incrementAndGet()
         val now = SystemClock.elapsedRealtime()
         val code =
@@ -661,8 +682,7 @@ class HevcDecoder(
                 lastOutputAgeMs = lastDecoderOutputAt?.let { now - it },
                 atElapsedMs = now,
             )
-        val journaled = errorLifetime.note(record, now) ?: return
-        errorJournal(journaled)
+        return errorLifetime.note(record, now)
     }
 
     private fun mergeTypes(existing: String, incoming: String): String {
