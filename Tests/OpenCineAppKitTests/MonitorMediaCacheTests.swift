@@ -4,7 +4,7 @@ import OpenCineMedia
 import Testing
 
 @MainActor @Suite struct MonitorMediaCacheTests {
-    @Test(arguments: CacheWriterRetirement.allCases)
+    @Test(.serialized, arguments: CacheWriterRetirement.allCases)
     func heldRealWriteDoesNotBlockAdmissionOrSuccessor(_ retirement: CacheWriterRetirement) async throws {
         let (parent, directory) = directory()
         defer { try? FileManager.default.removeItem(at: parent) }
