@@ -61,6 +61,10 @@ struct MediaTransferPumpTests {
             thumbnail: [],
             objectSizeBytes: totalBytes)
         var options = FakeZRServer.Options()
+        options.advertisedOperations = [
+            PTPOperationCode.getObjectSize.rawValue,
+            PTPOperationCode.getPartialObjectEx.rawValue,
+        ]
         options.mediaObjects = [object]
         let server = try FakeZRServer(options: options)
         defer { server.stop() }
@@ -100,6 +104,60 @@ struct MediaTransferPumpTests {
                 1_024,
                 0,
             ])
+    }
+
+    @Test func largeTransferRequiresActualAdvertisedSizeAndReadOperations() throws {
+        for operations: [PTPOperationCode] in [[], [.getObjectSize]] {
+            let total = UInt64(UInt32.max) + 1024
+            let object = FakeZRMediaObject(
+                handle: 0x2003, filename: "SIMULATED-LARGE.MOV", objectFormat: 0x300D,
+                sizeBytes: UInt32.max, captureDate: "20261011T120000", pixelWidth: 1920,
+                pixelHeight: 1080, thumbnail: [], objectSizeBytes: total)
+            var options = FakeZRServer.Options()
+            options.mediaObjects = [object]
+            options.advertisedOperations = operations.map(\.rawValue)
+            let server = try FakeZRServer(options: options)
+            defer { server.stop() }
+            let session = try connect(to: server)
+            defer { session.disconnect() }
+            session.enterMediaMode()
+            let collector = TransferCollector()
+            #expect(throws: PTPObjectTransferError.self) {
+                try session.startMediaTransfer(
+                    handle: object.handle, reportedSize: UInt64(UInt32.max),
+                    onStarted: collector.started, onChunk: collector.chunk,
+                    onCompleted: collector.completed, onStopped: collector.stopped,
+                    onFailed: collector.failed)
+            }
+            #expect(collector.totalBytes == nil && collector.completedBytes == nil)
+            #expect(collector.offsets.isEmpty)
+            #expect(!server.receivedOperations().contains(.getPartialObjectEx))
+            #expect(
+                server.receivedOperations().filter { $0 == .getObjectSize }.count
+                    == (operations.isEmpty ? 0 : 1))
+        }
+    }
+
+    @Test func knownLargeExtentCannotBypassMissingExtendedReadCapability() throws {
+        var options = FakeZRServer.Options()
+        options.advertisedOperations = [PTPOperationCode.getPartialObject.rawValue]
+        let server = try FakeZRServer(options: options)
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        session.enterMediaMode()
+        let collector = TransferCollector()
+        let total = UInt64(UInt32.max) + 1024
+        #expect(throws: PTPObjectTransferError.extendedReadUnsupported(totalBytes: total)) {
+            try session.startMediaTransfer(
+                handle: 0x2004, reportedSize: total,
+                onStarted: collector.started, onChunk: collector.chunk,
+                onCompleted: collector.completed, onStopped: collector.stopped,
+                onFailed: collector.failed)
+        }
+        #expect(collector.totalBytes == nil && collector.offsets.isEmpty)
+        #expect(!server.receivedOperations().contains(.getObjectSize))
+        #expect(!server.receivedOperations().contains(.getPartialObjectEx))
     }
 
     private func mediaObject(handle: UInt32, payload: Data) -> FakeZRMediaObject {
