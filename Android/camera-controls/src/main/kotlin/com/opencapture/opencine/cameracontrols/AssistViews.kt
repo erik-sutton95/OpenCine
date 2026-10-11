@@ -46,6 +46,7 @@ import com.opencapture.monitorui.MonitorFalseColorReferenceValues
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorGuideMaskPolicy
 import com.opencapture.monitorui.MonitorInspector
+import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorParadeMode
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorScopePanelSize
