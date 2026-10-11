@@ -207,6 +207,10 @@ public struct PTPObjectTransferCursor: Equatable, Sendable {
 public enum PTPObjectTransferError: LocalizedError, Equatable, Sendable {
     /// Nikon `GetObjectSize` returned fewer than the required eight bytes.
     case truncatedObjectSize(actualLength: Int)
+    /// The body did not advertise the operation needed to resolve its reserved size sentinel.
+    case objectSizeResolutionUnsupported
+    /// A queried or supplied object size remains unknown under the reserved-sentinel contract.
+    case unresolvedObjectSize(reportedBytes: UInt64)
     /// A request or cursor was configured with a zero-byte maximum.
     case zeroMaximumBytes
     /// A request or resume position is outside the resolved object extent.
@@ -227,6 +231,10 @@ public enum PTPObjectTransferError: LocalizedError, Equatable, Sendable {
         switch self {
         case .truncatedObjectSize(let actualLength):
             "Nikon GetObjectSize returned only \(actualLength) byte(s); eight are required."
+        case .objectSizeResolutionUnsupported:
+            "The camera does not advertise object-size resolution for this clip."
+        case .unresolvedObjectSize:
+            "The camera did not provide a known size for this clip."
         case .zeroMaximumBytes:
             "A partial-object request must allow at least one byte."
         case .offsetOutsideObject(let offset, let totalBytes):

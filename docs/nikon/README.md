@@ -206,3 +206,25 @@ The existing video fallback census also includes downloaded cached filenames eve
 their rows have no hardware location; the host supplies those exact storage retention facts
 through its unchanged download predicate. Removed remote-only metadata cannot manufacture
 a local survivor or trigger a replacement probe. No new native wire command is introduced.
+
+## Large object transfer safety
+
+The native Apple owner adds `resolvedObjectSize(handle:reportedSize:)` and a
+`getPartialObject(_ request: PTPPartialObjectRequest)` overload beside the existing
+UINT32 range API. Both execute through the same session's serialized transaction gate
+and command deadline. The reserved UINT32 size sentinel is resolved only when the body
+advertises `GetObjectSize`; extended reads require its advertised `GetPartialObjectEx`.
+A missing operation or an unresolved size is an explicit typed error, never a guessed
+byte extent. Existing generation and discovery policies are unchanged.
+
+The Android Swift owner uses the same transfer contracts and now checks its actual
+DeviceInfo operation list for size resolution and extended reads. A name fallback
+for camera controls does not authorize these media operations. Both platform callers
+validate a cursor advance before a cache write and publish its durable offset only
+after persistence. These wire contracts live in shared Swift on both platforms; no
+new Kotlin wire types or JNI members are introduced.
+
+`NativeObjectTransferTests` and `MediaTransferPumpTests` use scripted transports;
+those scenarios are SIMULATED. The extended operation layout and reserved-sentinel
+behavior still require verification against a real ZR clip above 4 GiB. These changes
+do not establish hardware support or recover an already corrupted partial cache.

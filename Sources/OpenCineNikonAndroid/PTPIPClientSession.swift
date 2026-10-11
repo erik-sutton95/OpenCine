@@ -731,6 +731,10 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// callers, so reads never race the write.
     public private(set) var identity: PTPIPClientIdentity
 
+    /// Actual DeviceInfo operations, populated only during establishment before publication.
+    /// Name-based control fallbacks never authorize extended media reads.
+    private var mediaTransferOperations: Set<UInt16> = []
+
     /// Privacy-safe connect-gate line sink. Set by the JNI connect wrappers so
     /// a Share Diagnostics report can show body family and DeviceInfo outcome.
     var connectTraceSink: ((String) -> Void)?
@@ -1091,6 +1095,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 {
                     policy = ZCameraOperationPolicy(deviceInfo: info)
                 }
+                session.mediaTransferOperations = policy.operations
                 let probedKnown = policy.isKnown
                 policy = policy.resolvingUnknown(cameraName: cameraNameHint)
                 session.emitConnectGate(
@@ -1186,6 +1191,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
         } else {
             probed = ZCameraOperationPolicy(operations: [])
         }
+        mediaTransferOperations = probed.operations
         let resolved = probed.resolvingUnknown(cameraName: identity.cameraName)
         emitConnectGate(
             probedKnown: probed.isKnown,
@@ -1289,6 +1295,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
     private func identify() throws {
         let info = try transactExpectingOK(.getDeviceInfo, dataPhase: .dataIn)
         let deviceInfo = try PTPDeviceInfo(data: info.data)
+        mediaTransferOperations = deviceInfo.operationsSupported
         identity = PTPIPClientIdentity(
             cameraName: identity.cameraName.isEmpty ? deviceInfo.model : identity.cameraName,
             manufacturer: deviceInfo.manufacturer,
@@ -3969,9 +3976,16 @@ public final class PTPIPClientSession: @unchecked Sendable {
     /// `GetObjectSize` operation.
     public func resolvedObjectSize(handle: UInt32, reportedSize: UInt64) throws -> UInt64 {
         guard reportedSize == UInt64(UInt32.max) else { return reportedSize }
+        guard mediaTransferOperations.contains(PTPOperationCode.getObjectSize.rawValue) else {
+            throw PTPObjectTransferError.objectSizeResolutionUnsupported
+        }
         let result = try transactExpectingOK(
             .getObjectSize, parameters: [handle], dataPhase: .dataIn)
-        return try PTPObjectSize(data: result.data).bytes
+        let size = try PTPObjectSize(data: result.data).bytes
+        guard size > 0, size != UInt64(UInt32.max) else {
+            throw PTPObjectTransferError.unresolvedObjectSize(reportedBytes: size)
+        }
+        return size
     }
 
     /// The object star-rating property (UINT16). Values 0/1/25/50/75/100 == Off…★★★★★;
@@ -4032,7 +4046,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
             objectHandle: handle,
             totalBytes: totalBytes,
             resumeOffset: resumeOffset,
-            supportsExtendedReads: true)
+            supportsExtendedReads: mediaTransferOperations.contains(
+                PTPOperationCode.getPartialObjectEx.rawValue))
 
         mediaTransferCondition.lock()
         guard !mediaTransferActive else {
@@ -4089,6 +4104,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
                     parameters: request.parameters,
                     dataPhase: .dataIn)
                 let offset = cursor.offset
+                var next = cursor
+                try next.advance(by: UInt64(result.data.count))
                 guard onChunk(offset, result.data) else {
                     throw PTPIPClientSessionError.connectionFailed(
                         "The progressive media cache rejected a camera chunk.")
@@ -4096,7 +4113,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 // The JNI upcall is synchronous: Kotlin has persisted this
                 // range before returning, so only now may the core cursor
                 // advance its durable resume point.
-                try cursor.advance(by: UInt64(result.data.count))
+                cursor = next
             } catch {
                 failure = error.localizedDescription
                 break

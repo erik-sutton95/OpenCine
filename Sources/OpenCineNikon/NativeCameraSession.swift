@@ -1166,6 +1166,48 @@
             return result.data
         }
 
+        /// Resolves a reserved UINT32 object-size sentinel using the body's advertised operation.
+        /// Other reported values pass through unchanged; callers must reject unknown zero extents.
+        /// Unadvertised operations and unresolved query results are refused rather than guessed.
+        /// The extended size operation remains hardware-unverified on ZR. [VERIFY-ON-HW]
+        public func resolvedObjectSize(handle: UInt32, reportedSize: UInt64) async throws -> UInt64
+        {
+            guard reportedSize == UInt64(UInt32.max) else { return reportedSize }
+            guard operationPolicy.supports(.getObjectSize) else {
+                throw PTPObjectTransferError.objectSizeResolutionUnsupported
+            }
+            let result = try await transact(
+                operationCode: .getObjectSize, parameters: [handle], dataPhase: .dataIn)
+            guard result.operationResponse.responseCode == .ok else {
+                throw NativeCameraSessionError.operationRejected(
+                    .getObjectSize, result.operationResponse.responseCode)
+            }
+            let size = try PTPObjectSize(data: result.data).bytes
+            guard size > 0, size != UInt64(UInt32.max) else {
+                throw PTPObjectTransferError.unresolvedObjectSize(reportedBytes: size)
+            }
+            return size
+        }
+
+        /// Executes an existing bounded UInt64 request on this session's serialized transport.
+        /// Extended requests require the connected body's advertised operation; no policy fallback.
+        /// The extended read wire layout remains hardware-unverified on ZR. [VERIFY-ON-HW]
+        public func getPartialObject(_ request: PTPPartialObjectRequest) async throws -> Data {
+            if request.operationCode == .getPartialObjectEx,
+                !operationPolicy.supports(.getPartialObjectEx)
+            {
+                throw PTPObjectTransferError.extendedReadUnsupported(totalBytes: request.endOffset)
+            }
+            let result = try await transact(
+                operationCode: request.operationCode,
+                parameters: request.parameters, dataPhase: .dataIn)
+            guard result.operationResponse.responseCode == .ok else {
+                throw NativeCameraSessionError.operationRejected(
+                    request.operationCode, result.operationResponse.responseCode)
+            }
+            return result.data
+        }
+
         /// The object star-rating property (UINT16). Values 0/1/25/50/75/100 == Off…★★★★★;
         /// anything else rounds down to the nearest step. RAW stills don't carry it - a pair's
         /// JPEG/HEIF side does. [verify-on-HW]
