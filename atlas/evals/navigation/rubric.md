@@ -1,5 +1,7 @@
 # Navigation evaluation rubric
 
+These cases are a frozen pre-migration navigation benchmark. The `pre-migration` snapshot names preserve their original SHAs and expected paths; they do not describe public main or current shared-code ownership. Updating the registry's main baseline must not restamp historical evaluation results. Current behavior and ownership require source review at the deployed pins.
+
 Held-out cases in [cases.json](cases.json) against frozen sources in
 [snapshots.json](snapshots.json). Use them to evaluate routing; never use them to tune
 `AGENTS.md`, `docs/ROUTING.md` or summaries.

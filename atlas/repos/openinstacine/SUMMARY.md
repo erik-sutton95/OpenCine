@@ -1,36 +1,22 @@
 # openinstacine
 
-Insta360 Luna monitor app (iOS, watchOS, Android). Built on a synchronized copy of the
-OpenPocketCine shell plus Luna adapters. The repo has no `AGENTS.md`; start from its
-`README.md` and `docs/DEVELOPMENT.md`.
+Insta360 Luna monitor app for iOS, watchOS and Android. It consumes the common OpenCine shell and its Luna integration. Start with the app's `README.md` and `docs/DEVELOPMENT.md`.
 
 ## Connections
 
-- **Source-copy of `openpocketcine`** (live): `scripts/sync-openpocketcine.sh` re-copies
-  shared Swift targets, tests, the renamed iOS shell and a tools subset. The last synced
-  Pocket commit is recorded in `docs/implementation/openpocketcine-sync-commit.txt`.
-  The Android shell (`Apps/Android/monitor`, `monitor-ui`, `core-api`) was copied by hand.
-- Its settable-accent `MonitorTheme` is the theme donor for the shared UI in `opencine` (ADR 0004).
-- **Consumes `opencine`** on `opencine/integration` (candidate): one sibling path `../OpenCine` and
-  one Gradle included build named `opencine`, pinned by one line in `opencine-pins.txt`.
+Public main uses the one sibling OpenCine package and Android included build, with the exact revision in `opencine-pins.txt`. Shared UI, app composition, media processing, common services and Luna protocol/transport belong in OpenCine. Historical Pocket-copy attribution is preserved; the retired copy-sync script is not the current propagation path.
 
 ## Where to start reading
 
-| Topic | Paths |
-|---|---|
-| Products | `Package.swift`, `Adapters/Insta360Protocol/Package.swift`, `ios/project.yml` |
-| Nominal neutral contract | `Sources/MonitorContracts/CameraBackend.swift` |
-| Luna Apple adapter | `Adapters/Insta360Apple/Sources/Insta360Apple/LunaCameraBackend.swift` |
-| Luna wire protocol (Swift) | `Adapters/Insta360Protocol/Sources/Insta360Protocol/` |
-| Luna wire protocol (Kotlin) | `Apps/Android/luna-adapter/src/main/kotlin/com/opencapture/openinstacine/luna/` |
-| Luna-owned iOS seams | `ios/OpenInstaCine/CameraSession.swift`, `CameraSessionControls.swift`, `LunaShellMapping.swift`, `PictureEVMeter.swift` |
-| Which files the sync never touches | `LUNA_OWNED` and `OSMO_ONLY` in `scripts/sync-openpocketcine.sh` |
+- `Package.swift`, `ios/project.yml`, `Apps/Android/settings.gradle.kts`: native consumers and app-owned targets.
+- `ios/OpenInstaCine/CameraSession.swift`, `CameraSessionCore.swift`, `CameraSessionControls.swift`: Luna session host bindings.
+- `ios/OpenInstaCine/AppDiagnostics.swift`: host reporting/privacy policy.
+- `Apps/Android/monitor/src/main/kotlin/com/opencapture/openinstacine/monitor/session/PocketCameraSession.kt`: Android Luna host; retained filename is not a DJI protocol implementation.
+- `Apps/Android/monitor/src/main/kotlin/com/opencapture/openinstacine/monitor/media/Media3PlaybackPort.kt`: native playback adapter.
+- OpenCine `Sources/Insta360Protocol/`, `Sources/Insta360Apple/`, `Android/insta360-luna/`: protocol and platform integration ownership.
 
 ## Cross-repo gotchas
 
-- Files under `Sources/MonitorUI`, `Sources/MonitorPresentation` and most of `ios/` are
-  Pocket-owned copies. Fix them in Pocket (or in `opencine` once adopted), not here, or the
-  next sync will conflict.
-- `docs/implementation/architecture.md` names paths that do not exist at the baseline;
-  trust manifests over it.
-- Inherited Multi View code is not evidence that Luna Multi View is supported.
+Shared behavior changes belong in OpenCine and require relevant adoption and verification in every thin app. A package pin and passing compile do not prove that an app supplies all required values/actions. Historical pre-migration refs and graph snapshots are navigation provenance, not evidence of current behavior. Read canonical checkouts through Git objects; edit only task-owned worktrees.
+
+Preserve Luna approval/keychain namespaces. Inherited multicam controls alone do not establish that one joined camera access point can serve two Luna cameras. Capability and physical evidence determine support.

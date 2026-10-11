@@ -1,40 +1,22 @@
 # openzcine
 
-Nikon Z monitor app (iOS, watchOS, Wear OS, Android). Registered refs: `main` (the baseline),
-the unmerged `feat/monitor-engine-port` candidate (shared UI targets, multicam, owner-keyed JNI)
-and the `opencine/integration` candidate that consumes `opencine` (Core, Media, FrameIO, Apple,
-Nikon; not the shared UI). Never describe one as another. The UI-03 engine-port candidate
-(`opencine/ui-03-engine-port-candidate`, still on the retired OpenCineUI path) is superseded:
-OpenZCine adopts shared UI and multicam fresh from OpenCine in a later work package (NIKON-01).
+Nikon Z cinema monitor app for iOS, watchOS, Android and Wear OS. Public main consumes OpenCine shared UI, app composition, media, multicam and Nikon integration. Historical engine-port refs remain provenance, not the current composition.
 
 ## Connections
 
-- **Source-copy of `openpocketcine`** (candidate branch only): engine-port vendors
-  `MonitorPresentation`, `MonitorUI` and Android `monitor-ui` by hand.
-- Donor of the cube parser that `openpocketcine` adapted.
-- **Consumes `opencine`** on `opencine/integration`: one local package reference `../../OpenCine`
-  in `ios/Runner.xcodeproj`, `../OpenCine` in `Package.swift`, and one Gradle included build
-  named `opencine`, pinned by one line in `opencine-pins.txt`.
-- On `main`, the iOS app compiles `OpenZCineCore` sources directly; it does not consume the
-  root Swift package. The engine-port Xcode project adds a local package reference.
+The root Swift package and native Runner/Watch targets consume OpenCine; Android includes its one build named `opencine`. `opencine-pins.txt` records the exact shared revision. Nikon PTP session/JNI and property policy live in OpenCine; app adapters own native picture, admitted host services and brand capabilities.
 
 ## Where to start reading
 
-| Topic | Paths |
-|---|---|
-| Products | `Package.swift`, `ios/Runner.xcodeproj/project.pbxproj`, `Apps/Android/settings.gradle.kts` |
-| PTP properties and live view | `Sources/OpenZCineCore/PTPCameraProperties.swift`, `LiveViewWatchdog.swift`, `ios/Runner/NativeCameraSession.swift` |
-| HDMI/UVC capture input | `ios/Runner/UVCVideoSource.swift`, `Apps/Android/app/src/main/kotlin/com/opencapture/openzcine/UvcCaptureSource.kt` |
-| Frame.io request planning | `Sources/OpenZCineCore/Frameio/FrameioAPI.swift` |
-| Owner-keyed JNI (engine-port only) | `Sources/OpenZCineAndroidFacade/AndroidSessionOwnerRegistry.swift` |
-| Picture/control separation (engine-port only) | `Sources/OpenZCineCore/VideoSource.swift` |
-| Multicam (engine-port only) | `ios/Runner/MulticamCoordinator.swift`, `Sources/OpenZCineCore/GroupRecord.swift` |
+- `Package.swift`, `ios/Runner.xcodeproj/project.pbxproj`, `Apps/Android/settings.gradle.kts`: actual consumers.
+- `ios/Runner/NativeAppRoot.swift`, `MonitorUnified.swift`: observed native camera facts and common monitor bindings.
+- `ios/Runner/MediaBrowser.swift`, `NikonPlaybackNativePort.swift`: shared gallery/playback composition and captured native item owner.
+- `ios/Runner/MulticamCoordinator.swift`, `MulticamStage.swift`: host multicam composition.
+- `ios/Runner/Frameio/`, `Sources/OpenZCineAndroidFacade/FrameioWire.swift`: delivery host and wire adapters.
+- OpenCine `Sources/OpenCineNikon/`, `Sources/OpenCineNikonAndroid/`, `Android/nikon/`: portable Nikon integration and owner-keyed JNI.
 
 ## Cross-repo gotchas
 
-- The primary checkout holds dirty user spike work on another branch. Read through Git
-  objects; edit only in a task worktree.
-- The engine-port worktree lives in a directory named `main`. The directory name is not
-  branch evidence; use `tools/atlas.py locate openzcine`.
-- The contributed "R3D NE Monitor" LUT is app-scoped by permission. Never move it into a
-  shared package (see `THIRD-PARTY-NOTICES.md`).
+Shared behavior changes belong in OpenCine and require relevant adoption and verification in every thin app. A package pin and passing compile do not prove that an app supplies all required values/actions. Historical pre-migration refs and graph snapshots are navigation provenance, not evidence of current behavior. Read canonical checkouts through Git objects; edit only task-owned worktrees.
+
+The contributed R3D NE Monitor LUT remains app-scoped by permission; never move it into the shared package. Codec/recording profile does not by itself prove the live preview or a saved clip's transfer curve. Read actual descriptors and per-file metadata; preserve unknown.
