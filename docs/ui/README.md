@@ -109,6 +109,13 @@ adapters and source admission.
 [grouped-format-2]: ../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/CaptureFormatPicker.kt
 [grouped-format-3]: ../appkit/README.md#monitor-composition-and-capture
 
+`MonitorTimecodeFormat` renders only supplied telemetry. Optional frame components
+produce `HH:MM:SS:FF`; absent frames retain `HH:MM:SS`. An explicitly reported
+drop-frame mode uses `HH:MM:SS;FF`. Unknown rates and modes remain unknown: the
+formatter never derives frames from a timer or guesses a recording rate. The
+shared clock accents the final field with either separator. Camera adapters
+choose precision from their source facts, independently of recording duration.
+
 Portrait status measures the recording, clock and format slots, keeping an 8 point/dp
 clearance and using an intrinsic second row when needed. Rows contain the full native
 touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (normally
