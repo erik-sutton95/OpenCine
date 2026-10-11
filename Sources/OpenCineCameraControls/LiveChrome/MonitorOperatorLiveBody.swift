@@ -562,7 +562,8 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
         if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
             let transfer = assistSource.readTransfer()
             MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores, looks: assistSource.looks,
-                palette: Host.Palette.self, haptics: assistSource.haptics, transfer: transfer,
+                palette: Host.Palette.self, haptics: assistSource.haptics,
+                sourceTransfer: assistSource.readBundle().levelAxis?.supportsCalibratedReferences == false ? nil : transfer,
                 clipByte: assistSource.readClipByte(transfer),
                 viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height),
                 safeArea: .init(top: safeArea.top, leading: safeArea.leading, bottom: safeArea.bottom, trailing: safeArea.trailing),

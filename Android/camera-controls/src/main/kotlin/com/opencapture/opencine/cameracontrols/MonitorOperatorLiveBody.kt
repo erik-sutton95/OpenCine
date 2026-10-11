@@ -364,7 +364,7 @@ public fun <K, S, M, N> MonitorOperatorLiveBody(
                     safeLeading, safeTop, safeBottom, { assist.configureTool = null }, safeTrailing = safeTrailing,
                     trailing = true, tabs = inspectorTools) { maximum ->
                     AssistOptionsPanel(configured, assist, { assist.configureTool = null }, assistHost, lookOptions,
-                        maxHeightDp = maximum, transfer = scopeTransfer ?: assist.scopeBundle.transfer,
+                        maxHeightDp = maximum, transfer = if (assist.scopeBundle.levelAxis?.supportsCalibratedReferences == false) null else scopeTransfer ?: assist.scopeBundle.transfer,
                         embedded = true, isPhoto = photo, imagePreview = preview, lookMenu = assists?.lookMenu, signalOptions = signalOptions)
                 }
             } }
