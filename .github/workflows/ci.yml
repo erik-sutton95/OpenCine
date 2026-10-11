@@ -114,6 +114,9 @@ jobs:
       - name: Vulkan present synchronization regression (host CPU)
         working-directory: .
         run: scripts/android-vulkan-sync-test.sh
+      - name: Release dex check for reflectively created ML Kit components
+        working-directory: .
+        run: scripts/android-verify-component-registrars-test.sh
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.
