@@ -764,4 +764,49 @@ class MonitorMediaPlaybackModelTest {
             assertFalse(model.state.value.closed); assertTrue(fixture.library.state.value.browsing)
         } finally { fixture.close() }
     }
+
+    @Test fun waitingTransportKeepsPauseAvailableWithoutClaimingPlayingOrAdvancingTime() = runTest {
+        val fixture = fixture(backgroundScope); val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("waiting"); model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token; assertTrue(model.state.value.ready); assertEquals(listOf(item), port.played)
+            port.onEvent?.invoke(item, MonitorPlaybackEvent.Position(42.0))
+            port.onEvent?.invoke(item, MonitorPlaybackEvent.Transport(MonitorPlaybackTransportState.WAITING))
+            assertEquals(MonitorPlaybackTransportState.WAITING, model.state.value.reportedTransport)
+            assertEquals(false, model.state.value.reportedPlaying); assertTrue(model.state.value.playRequested)
+            assertTrue(model.state.value.canPause); assertEquals(42.0, model.state.value.position)
+            model.togglePlaying(); assertFalse(model.state.value.playRequested); assertEquals(listOf(item), port.played)
+            assertEquals(42.0, model.state.value.position); assertEquals(item, model.state.value.token); assertTrue(model.state.value.ready)
+        } finally { fixture.close() }
+    }
+
+    @Test fun waitingTransportScrubRetainsRequestedResumeAfterNativeSeek() = runTest {
+        val fixture = fixture(backgroundScope); val model = fixture.model; val port = fixture.port
+        try {
+            val row = record("waiting-scrub"); model.load(row, listOf(row)); runCurrent(); port.release(0); runCurrent()
+            val item = model.state.value.token; assertTrue(model.state.value.ready); assertEquals(listOf(item), port.played)
+            port.onEvent?.invoke(item, MonitorPlaybackEvent.Transport(MonitorPlaybackTransportState.WAITING))
+            val edit = model.beginScrub(); assertNotNull(edit); model.commitScrub(edit!!); runCurrent()
+            assertEquals(1, port.seeks.size); port.finishSeek(0); runCurrent()
+            assertTrue(model.state.value.playRequested); assertEquals(listOf(item, item), port.played); assertFalse(model.state.value.scrubbing)
+        } finally { fixture.close() }
+    }
+
+    @Test fun retiredTransportReportCannotChangeSuccessorIntentOrObservation() = runTest {
+        val fixture = fixture(backgroundScope); val model = fixture.model; val port = fixture.port
+        try {
+            val a = record("A"); val b = record("B"); model.load(a, listOf(a, b)); runCurrent(); port.release(0); runCurrent()
+            val old = model.state.value.token
+            port.onEvent?.invoke(old, MonitorPlaybackEvent.Transport(MonitorPlaybackTransportState.WAITING))
+            model.load(b, listOf(a, b), play = false); runCurrent(); port.release(1); runCurrent()
+            port.onEvent?.invoke(old, MonitorPlaybackEvent.Transport(MonitorPlaybackTransportState.PLAYING))
+            assertNull(model.state.value.reportedTransport); assertNull(model.state.value.reportedPlaying); assertFalse(model.state.value.playRequested)
+            port.onEvent?.invoke(model.state.value.token, MonitorPlaybackEvent.Transport(MonitorPlaybackTransportState.PAUSED))
+            assertEquals(MonitorPlaybackTransportState.PAUSED, model.state.value.reportedTransport)
+            assertEquals(false, model.state.value.reportedPlaying); assertFalse(model.state.value.canPause)
+            port.onEvent?.invoke(model.state.value.token, MonitorPlaybackEvent.Transport(null))
+            assertNull(model.state.value.reportedTransport); assertNull(model.state.value.reportedPlaying); assertFalse(model.state.value.canPause)
+        } finally { fixture.close() }
+    }
+
 }
