@@ -4,6 +4,7 @@ import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
 import OpenCineCameraControls
+import OpenCineHostedAccessibility
 import OpenCineMedia
 import SwiftUI
 import UIKit
@@ -43,15 +44,15 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 let mounted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                     MainActor.assumeIsolated {
                         host.view.layoutIfNeeded()
-                        return Self.galleryAccessibilityObjects(host.view).contains {
-                            PlaybackOptionsFixture.identifier($0) == "SIMULATED.media.cell"
+                        return HostedAccessibility.elements(in: host.view).contains {
+                            HostedAccessibility.identifier($0) == "SIMULATED.media.cell"
                         }
                     }
                 }, object: nil)
                 let mountedResult = await XCTWaiter.fulfillment(of: [mounted], timeout: 5)
                 XCTAssertEqual(mountedResult, .completed)
-                let element = try XCTUnwrap(Self.galleryAccessibilityObjects(host.view).first {
-                    PlaybackOptionsFixture.identifier($0) == "SIMULATED.media.cell"
+                let element = try XCTUnwrap(HostedAccessibility.elements(in: host.view).first {
+                    HostedAccessibility.identifier($0) == "SIMULATED.media.cell"
                 })
                 XCTAssertTrue(element.accessibilityActivate(), "The rendered cell must expose its default action")
                 XCTAssertEqual(actions.opened, selecting ? 0 : 1)
@@ -64,7 +65,7 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 XCTAssertTrue(select(selection))
                 XCTAssertEqual(actions.selected, selecting ? 2 : 1)
                 XCTAssertEqual(actions.opened, selecting ? 0 : 1)
-                let favorite = try XCTUnwrap(Self.galleryAccessibilityObjects(host.view).first {
+                let favorite = try XCTUnwrap(HostedAccessibility.elements(in: host.view).first {
                     $0.accessibilityLabel == "Favorite SIMULATED clip" && $0.accessibilityTraits.contains(.button)
                 })
                 XCTAssertTrue(favorite.accessibilityActivate())
@@ -73,22 +74,6 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
                 XCTAssertEqual(actions.selected, selecting ? 2 : 1)
             }
         }
-    }
-
-    /// The cell is an actual .contain group; retaining its children must not hide the group action.
-    private static func galleryAccessibilityObjects(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
-            return [object] + elements.flatMap(galleryAccessibilityObjects)
-        }
-        let count = object.accessibilityElementCount()
-        if count > 0, count != NSNotFound {
-            let elements = (0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject }
-            if !elements.isEmpty { return [object] + elements.flatMap(galleryAccessibilityObjects) }
-        }
-        if object.isAccessibilityElement { return [object] }
-        return [object] + ((object as? UIView)?.subviews ?? []).flatMap(galleryAccessibilityObjects)
     }
 
     func testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait() async throws {
@@ -507,10 +492,10 @@ private final class PlaybackOptionsFixture {
         throw NSError(domain: "SIMULATED.captured-delete-dialog", code: 2,
             userInfo: [NSLocalizedDescriptionKey: "The real dialog action was not mounted: " + label])
     }
-    var identifiers: [String] { layout(); return Self.leaves(host.view).compactMap(Self.identifier) }
+    var identifiers: [String] { layout(); return Self.leaves(host.view).compactMap(HostedAccessibility.identifier) }
     var labels: [String] { layout(); return Self.leaves(host.view).compactMap(\.accessibilityLabel) }
     func element(identifier: String) async throws -> NSObject {
-        try await element(matching: { Self.identifier($0) == identifier }, message: identifier)
+        try await element(matching: { HostedAccessibility.identifier($0) == identifier }, message: identifier)
     }
     func element(label: String) async throws -> NSObject {
         try await element(matching: { $0.accessibilityLabel == label && $0.accessibilityTraits.contains(.button) },
@@ -547,7 +532,7 @@ private final class PlaybackOptionsFixture {
         try await activate(identifier: "monitor.assist.close")
         XCTAssertNil(context.assist.configureTool)
     }
-    private func layout() { host.view.setNeedsLayout(); host.view.layoutIfNeeded() }
+    func layout() { host.view.setNeedsLayout(); host.view.layoutIfNeeded() }
     private func element(matching predicate: @escaping (NSObject) -> Bool, message: String) async throws -> NSObject {
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
             MainActor.assumeIsolated {
@@ -564,23 +549,7 @@ private final class PlaybackOptionsFixture {
             "The actual playback accessibility element must be mounted: " + message)
     }
     fileprivate static func leaves(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
-            return elements.flatMap(leaves)
-        }
-        let count = object.accessibilityElementCount()
-        if count > 0, count != NSNotFound {
-            let elements = (0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject }
-            if !elements.isEmpty { return elements.flatMap(leaves) }
-        }
-        return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
-    }
-    fileprivate static func identifier(_ object: NSObject) -> String? {
-        let getter = NSSelectorFromString("accessibilityIdentifier")
-        guard object.responds(to: getter) else { return nil }
-        return object.perform(getter)?.takeUnretainedValue() as? String
+        HostedAccessibility.elements(in: object).filter(\.isAccessibilityElement)
     }
 }
 #endif

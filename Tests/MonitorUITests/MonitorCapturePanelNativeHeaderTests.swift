@@ -1,6 +1,7 @@
 #if os(iOS)
 import MonitorUI
 import Observation
+import OpenCineHostedAccessibility
 import SwiftUI
 import UIKit
 import XCTest
@@ -132,7 +133,7 @@ private final class NativeHeaderFixture {
         for _ in 0..<200 {
             host.view.setNeedsLayout()
             host.view.layoutIfNeeded()
-            let elements = Self.elements(host.view)
+            let elements = HostedAccessibility.elements(in: host.view).filter(\.isAccessibilityElement)
             let labels = elements.compactMap(\.accessibilityLabel)
             lastLabels = labels
             if labels.filter({ $0 == expected.title }).count == 1,
@@ -147,16 +148,6 @@ private final class NativeHeaderFixture {
         }
         return try XCTUnwrap(matched,
             "The actual common header must expose current title/subtitle and Close, with no retired labels. Actual: \(lastLabels)")
-    }
-
-    private static func elements(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        if let children = object.accessibilityElements as? [NSObject], !children.isEmpty {
-            return children.flatMap(elements)
-        }
-        return ((object as? UIView)?.subviews ?? []).flatMap(elements)
     }
 }
 #endif

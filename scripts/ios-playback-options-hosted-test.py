@@ -40,8 +40,10 @@ out.mkdir(parents=True)
 names = [
     "testGalleryDefaultActivationOpensWhileSelectionAndFavoriteRemainIndependent",
     "testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait",
+    "testActualCapturedDeleteDialogKeepsRelatedCopyMessageAndCancelSendsNoIO",
     "testSupportedOptionsChangeTheSuppliedAssistWithoutReplacingThePlayer",
     "testAbsentStoresAndPlaybackSuppliersOmitUnavailableControls",
+    "testExplicitUnknownItemDoesNotBorrowThePlayerOrEffectSignal",
     "testActualMenuActionsReadTheSavedHapticsPreferenceEachTime",
 ]
 assert re.findall(r"\bfunc (test\w+)\(", source.read_text()) == names
@@ -53,7 +55,7 @@ geometry_names = [
 ]
 assert re.findall(r"\bfunc (test\w+)\(", geometry_source.read_text()) == geometry_names
 all_names = names + geometry_names
-original_names = names[2:]
+original_names = [names[3], names[4], names[6]]
 original_seven_names = original_names + geometry_names
 inputs = [source, geometry_source, Path(__file__).resolve(), sdk / "Package.swift", project_spec, entitlements]
 before = {str(path): sha256(path.read_bytes()).hexdigest() for path in inputs}
@@ -70,7 +72,7 @@ spec = {
             "type": "bundle.unit-test", "platform": "iOS", "sources": [str(source), str(geometry_source)],
             "dependencies": [{"target": args.host_target}] + [
                 {"package": "OpenCine", "product": product} for product in [
-                    "MonitorPresentation", "MonitorUI", "OpenCineAppKit",
+                    "MonitorPresentation", "MonitorUI", "OpenCineAppKit", "OpenCineHostedAccessibility",
                     "OpenCineCameraControls", "OpenCineMedia",
                 ]
             ],

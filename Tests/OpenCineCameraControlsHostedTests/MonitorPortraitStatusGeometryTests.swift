@@ -3,6 +3,7 @@ import Foundation
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineHostedAccessibility
 import SwiftUI
 import UIKit
 import XCTest
@@ -319,7 +320,7 @@ private final class PortraitStatusFixture {
     }
     private func current() -> PortraitStatusMeasurement? {
         host.view.setNeedsLayout(); host.view.layoutIfNeeded()
-        let nodes = Self.elements(host.view)
+        let nodes = HostedAccessibility.elements(in: host.view).filter(\.isAccessibilityElement)
         func one(_ label: String) -> NSObject? {
             let matches = nodes.filter { $0.accessibilityLabel == label }
             return matches.count == 1 ? matches.first : nil
@@ -341,25 +342,6 @@ private final class PortraitStatusFixture {
     }
     private static func readable(_ r: CGRect) -> Bool {
         [r.minX, r.minY, r.width, r.height].allSatisfy(\.isFinite) && r.width > 0 && r.height > 0
-    }
-    private static func elements(_ root: NSObject) -> [NSObject] {
-        var seen = Set<ObjectIdentifier>()
-        func visit(_ object: NSObject) -> [NSObject] {
-            guard seen.count < 512, seen.insert(ObjectIdentifier(object)).inserted,
-                !object.accessibilityElementsHidden else { return [] }
-            if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-            var result = object.isAccessibilityElement ? [object] : []
-            if let array = object.accessibilityElements as? [NSObject], !array.isEmpty {
-                result += array.flatMap(visit)
-            } else {
-                let count = object.accessibilityElementCount()
-                if count > 0, count != NSNotFound, count <= 512 {
-                    result += (0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject }.flatMap(visit)
-                } else { result += ((object as? UIView)?.subviews ?? []).flatMap(visit) }
-            }
-            return result
-        }
-        return visit(root)
     }
 }
 #endif

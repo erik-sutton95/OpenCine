@@ -54,6 +54,8 @@ let package = Package(
         // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
         // it into an app.
         .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
+        // The one hosted accessibility walk, for in-process test bundles; depends on nothing.
+        .library(name: "OpenCineHostedAccessibility", targets: ["OpenCineHostedAccessibility"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineCameraVocabulary", targets: ["OpenCineCameraVocabulary"]),
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
@@ -137,7 +139,9 @@ let package = Package(
         ),
         .testTarget(name: "MonitorPresentationTests", dependencies: ["MonitorPresentation"]),
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
-        .testTarget(name: "MonitorUITests", dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple"]),
+        .testTarget(
+            name: "MonitorUITests",
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineHostedAccessibility"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -178,6 +182,10 @@ let package = Package(
         // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6
         // with a MainActor pass over XCTest's expectation waits.
         .target(name: "OpenCineAppUITesting", swiftSettings: [.swiftLanguageMode(.v5)]),
+        // Hosted test bundles link this beside their host app, so it depends on nothing here: no
+        // second copy of a module the host already holds. iOS only, empty elsewhere.
+        .target(name: "OpenCineHostedAccessibility"),
+        .testTarget(name: "OpenCineHostedAccessibilityTests", dependencies: ["OpenCineHostedAccessibility"]),
 
         // MARK: Camera vocabulary
         // The camera control vocabulary the monitor shells speak (exposure, colour, focus, video
