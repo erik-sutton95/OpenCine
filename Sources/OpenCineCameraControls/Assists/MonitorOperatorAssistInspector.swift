@@ -35,7 +35,7 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
     private let stores: AssistPanelStores?
     private let looks: FalseColorLooks
     private let haptics: OperatorHaptics
-    private let transfer: MonitorTransfer
+    private let transfer: MonitorTransfer?
     private let clipByte: Int
     private let viewport: CGSize
     private let safeArea: EdgeInsets
@@ -58,6 +58,25 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
         self.tool = tool; self.assist = assist; self.stores = stores; self.looks = looks
         self.haptics = haptics; self.transfer = transfer; self.clipByte = clipByte
+        self.viewport = viewport; self.safeArea = safeArea; self.available = available
+        self.onDismiss = onDismiss; self.preview = preview; self.lookMenu = lookMenu
+        self.signalOptions = signalOptions
+        self.audioAvailable = audioAvailable
+    }
+
+    /// An explicit unknown source keeps exposure menus unavailable without a default transfer.
+    public init(tool: MonitorAssistSelection, assist: MonitorAssistState<Looks>,
+        stores: AssistPanelStores?, looks: FalseColorLooks, palette: Palette.Type,
+        haptics: OperatorHaptics, sourceTransfer: MonitorTransfer?, clipByte: Int,
+        viewport: CGSize, safeArea: EdgeInsets = EdgeInsets(),
+        available: Set<MonitorAssistSelection> = Set(MonitorAssistSelection.settingsCases),
+        signalOptions: MonitorOperatorSignalOptions = .init(),
+        audioAvailable: Bool? = nil,
+        onDismiss: @escaping () -> Void,
+        @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
+        @ViewBuilder lookMenu: @escaping () -> LookMenu) {
+        self.tool = tool; self.assist = assist; self.stores = stores; self.looks = looks
+        self.haptics = haptics; self.transfer = sourceTransfer; self.clipByte = clipByte
         self.viewport = viewport; self.safeArea = safeArea; self.available = available
         self.onDismiss = onDismiss; self.preview = preview; self.lookMenu = lookMenu
         self.signalOptions = signalOptions
@@ -93,7 +112,7 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
 
     private var menu: some View {
         MonitorOperatorAssistMenu(tool: tool, assist: assist, stores: stores, looks: looks,
-            palette: Palette.self, haptics: haptics, transfer: transfer, clipByte: clipByte,
+            palette: Palette.self, haptics: haptics, sourceTransfer: transfer, clipByte: clipByte,
             signalOptions: signalOptions,
             lookMenu: lookMenu)
     }
@@ -108,7 +127,7 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
     private let stores: AssistPanelStores?
     private let looks: FalseColorLooks
     private let haptics: OperatorHaptics
-    private let transfer: MonitorTransfer
+    private let transfer: MonitorTransfer?
     private let clipByte: Int
     private let lookMenu: () -> LookMenu
     private let signalOptions: MonitorOperatorSignalOptions
@@ -123,22 +142,37 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
         self.signalOptions = signalOptions
     }
 
+    /// An explicit unknown source keeps exposure menus unavailable without a default transfer.
+    public init(tool: MonitorAssistSelection, assist: MonitorAssistState<Looks>,
+        stores: AssistPanelStores?, looks: FalseColorLooks, palette: Palette.Type,
+        haptics: OperatorHaptics, sourceTransfer: MonitorTransfer?, clipByte: Int,
+        signalOptions: MonitorOperatorSignalOptions = .init(),
+        @ViewBuilder lookMenu: @escaping () -> LookMenu) {
+        self.tool = tool; self.assist = assist; self.stores = stores; self.looks = looks
+        self.haptics = haptics; self.transfer = sourceTransfer; self.clipByte = clipByte; self.lookMenu = lookMenu
+        self.signalOptions = signalOptions
+    }
+
     @ViewBuilder public var body: some View {
         switch tool {
         case .peaking: PeakingAssist.longPressMenu(assist: assist, palette: Palette.self, haptics: haptics)
         case .falseColor:
             if let menu = signalOptions.falseColor { menu }
-            else { FalseColorAssist.commonMenu(assist: assist, looks: looks,
+            else if let transfer { FalseColorAssist.commonMenu(assist: assist, looks: looks,
                 haptics: haptics, transfer: transfer, clipByte: clipByte,
                 referenceDisplayAvailable: stores != nil && signalOptions.referenceAvailable != false) }
         case .zebra:
             if let menu = signalOptions.zebra { menu }
-            else if let stores { ZebraAssist.longPressMenu(assist: assist, stores: stores, palette: Palette.self,
+            else if let stores, let transfer { ZebraAssist.longPressMenu(assist: assist, stores: stores, palette: Palette.self,
                 haptics: haptics, transfer: transfer, clipByte: clipByte) }
         case .lut: lookMenu()
-        case .waveform: if let stores { WaveformAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
-        case .parade: if let stores { ParadeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
-        case .histogram: if let stores { HistogramAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
+        case .waveform: if let stores { WaveformAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics, supportsCalibratedReferences: transfer != nil) }
+        case .parade: if let stores { ParadeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics, supportsCalibratedReferences: transfer != nil) }
+        case .histogram:
+            if transfer == nil {
+                Text("Encoded code percentage. Source calibration unavailable.")
+                    .font(MonitorTheme.font(11)).foregroundStyle(MonitorTheme.faint)
+            } else if let stores { HistogramAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
         case .vectorscope: if let stores { VectorscopeAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
         case .trafficLights: if let stores { TrafficLightsAssist.longPressMenu(assist: assist, stores: stores, haptics: haptics) }
         case .ndMeter: if let stores { NDAssist.longPressMenu(stores: stores, haptics: haptics) }

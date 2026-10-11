@@ -233,9 +233,9 @@ private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState
             else if (transfer != null) FalseColorOptions(state, transfer, host)
         MonitorAssistTool.ZEBRA -> if (signalOptions.zebra != null) signalOptions.zebra.invoke()
             else if (transfer != null) ZebraOptions(state, transfer, host)
-        MonitorAssistTool.WAVE -> WaveformOptions(state)
-        MonitorAssistTool.PARADE -> ParadeOptions(state)
-        MonitorAssistTool.HISTO -> HistogramOptions(state)
+        MonitorAssistTool.WAVE -> WaveformOptions(state, transfer != null)
+        MonitorAssistTool.PARADE -> ParadeOptions(state, transfer != null)
+        MonitorAssistTool.HISTO -> HistogramOptions(state, transfer != null)
         MonitorAssistTool.VECTOR -> VectorscopeOptions(state)
         MonitorAssistTool.LIGHTS -> LightsOptions(state)
         MonitorAssistTool.ND -> NdOptions(state, host)
@@ -312,25 +312,29 @@ private fun ZebraOptions(state: MonitorAssistState, transfer: MonitorTransfer, h
 }
 
 @Composable
-private fun WaveformOptions(state: MonitorAssistState) {
+private fun WaveformOptions(state: MonitorAssistState, supportsCalibratedReferences: Boolean) {
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorScopeTraceMenu(MonitorWaveformMode.entries, state.waveMode,
         { haptics.selection(); state.setWaveform(mode = it) }, { it.label },
         state.waveBrightness, { state.setWaveform(brightness = it) }, state.waveGuides,
-        { haptics.selection(); state.setWaveform(guides = it) })
+        { haptics.selection(); state.setWaveform(guides = it) }, supportsCalibratedReferences)
 }
 
 @Composable
-private fun ParadeOptions(state: MonitorAssistState) {
+private fun ParadeOptions(state: MonitorAssistState, supportsCalibratedReferences: Boolean) {
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorScopeTraceMenu(MonitorParadeMode.entries, state.paradeMode,
         { haptics.selection(); state.setParade(mode = it) }, { it.label },
         state.paradeBrightness, { state.setParade(brightness = it) }, state.paradeGuides,
-        { haptics.selection(); state.setParade(guides = it) })
+        { haptics.selection(); state.setParade(guides = it) }, supportsCalibratedReferences)
 }
 
 @Composable
-private fun HistogramOptions(state: MonitorAssistState) {
+private fun HistogramOptions(state: MonitorAssistState, supportsCalibratedReferences: Boolean) {
+    if (!supportsCalibratedReferences) {
+        Text("Encoded code percentage. Source calibration unavailable.", color = MonitorPalette.muted, fontSize = 11.sp)
+        return
+    }
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorHistogramMenu(state.histoTrafficLights,
         { haptics.selection(); state.setHistogram(traffic = !state.histoTrafficLights) },

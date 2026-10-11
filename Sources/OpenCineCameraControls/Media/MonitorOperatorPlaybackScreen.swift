@@ -160,12 +160,12 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
     }
 
     @ViewBuilder private func playbackInspector(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
-        if let assist, let tool = assist.configureTool, hasOptions(tool) {
+        if let assist, let tool = assist.configureTool, availableTools.contains(tool), hasOptions(tool) {
             GeometryReader { proxy in
                 let values = sourceValues
                 MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores,
                         looks: looks, palette: Palette.self, haptics: haptics,
-                        transfer: values.transfer ?? player.transfer ?? effects.transfer,
+                        sourceTransfer: values.resolvedTransfer(fallback: player.transfer ?? effects.transfer),
                         clipByte: values.clipByte ?? effects.resolvedClipByte, viewport: proxy.size,
                         safeArea: OperatorPanelMetrics.resolvedDeviceSafeArea(
                             proxy.safeAreaInsets, window: windowGeometry.safeArea),
@@ -314,15 +314,16 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             if let readScopes {
                 MonitorScopeOverlays(assist: assist, stores: stores, haptics: haptics, canvas: canvas,
                     feed: rect, chromeClearance: clearance, readBundle: readScopes,
-                    configureDisplay: configureDisplay, playback: true, paradeIntensityScale: paradeIntensityScale)
+                    configureDisplay: configureDisplay, playback: true, available: Set(availableTools), paradeIntensityScale: paradeIntensityScale)
             }
             if assist.isPlaybackVisible(.audioMeters), let levels = nativeAssists(player)?.audioLevels {
                 AudioMeterOverlay(stores: stores, levels: levels, sensitivity: nil, bounds: canvas,
                     chromeClearance: clearance, hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.audioMeters) })
             }
-            if assist.isPlaybackVisible(.falseColor), assist.falseColorReference, signalOptions.referenceAvailable != false {
+            if assist.isPlaybackVisible(.falseColor), availableTools.contains(.falseColor), assist.falseColorReference, signalOptions.referenceAvailable != false,
+                let transfer = sourceValues.resolvedTransfer(fallback: player.transfer ?? effects.transfer) {
                 FalseColorReferenceOverlay(stores: stores, looks: looks, scale: assist.falseColorScale,
-                    transfer: sourceValues.transfer ?? player.transfer ?? effects.transfer,
+                    transfer: transfer,
                     rec709: assist.falseColorRec709, clipByte: sourceValues.clipByte ?? effects.resolvedClipByte, bounds: canvas,
                     chromeClearance: clearance, hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.falseColor) },
                     referenceValues: signalOptions.reference)
@@ -333,7 +334,8 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         guard assist != nil else { return [] }
         let scopes: Set<MonitorAssistSelection> = [.waveform, .parade, .histogram, .vectorscope, .trafficLights, .ndMeter]
         return MonitorAssistSelection.playbackToolbarCases.filter {
-            (availableAssistTools?.contains($0) ?? true) && ($0 != .audioMeters || (stores != nil && player.flatMap(nativeAssists) != nil))
+            (availableAssistTools?.contains($0) ?? true)
+                && (sourceValues.allowsSignalFallback || sourceValues.transfer != nil || ![MonitorAssistSelection.falseColor, .zebra, .trafficLights, .ndMeter].contains($0)) && ($0 != .audioMeters || (stores != nil && player.flatMap(nativeAssists) != nil))
                 && ((stores != nil && readScopes != nil) || !scopes.contains($0))
         }
     }

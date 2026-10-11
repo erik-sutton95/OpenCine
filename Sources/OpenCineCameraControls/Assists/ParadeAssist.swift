@@ -79,9 +79,9 @@
         @MainActor
         public static func longPressMenu(
             options: Binding<Options>, haptics: OperatorHaptics,
-            compact: Bool = false
+            compact: Bool = false, supportsCalibratedReferences: Bool = true
         ) -> ParadeLongPressMenu {
-            ParadeLongPressMenu(options: options, haptics: haptics, compact: compact)
+            ParadeLongPressMenu(options: options, haptics: haptics, compact: compact, supportsCalibratedReferences: supportsCalibratedReferences)
         }
 
         /// Binds the shared parade store. `assist` is unused - parade options live off
@@ -89,9 +89,9 @@
         @MainActor
         public static func longPressMenu<Looks: MonitorLookProvider>(
             assist: MonitorAssistState<Looks>, stores: AssistPanelStores, haptics: OperatorHaptics,
-            compact: Bool = false
+            compact: Bool = false, supportsCalibratedReferences: Bool = true
         ) -> ParadeLongPressMenu {
-            longPressMenu(options: stores.parade.optionsBinding, haptics: haptics, compact: compact)
+            longPressMenu(options: stores.parade.optionsBinding, haptics: haptics, compact: compact, supportsCalibratedReferences: supportsCalibratedReferences)
         }
 
         /// Direct drag + L-corner resize wrapper (the reference monitor `MovablePanel` id `"parade"`).
@@ -115,13 +115,15 @@
         @Binding public var options: ParadeAssist.Options
         public var haptics: OperatorHaptics
         public var compact: Bool = false
+        public var supportsCalibratedReferences: Bool = true
 
         public init(
-            options: Binding<ParadeAssist.Options>, haptics: OperatorHaptics, compact: Bool = false
+            options: Binding<ParadeAssist.Options>, haptics: OperatorHaptics, compact: Bool = false, supportsCalibratedReferences: Bool = true
         ) {
             _options = options
             self.haptics = haptics
             self.compact = compact
+            self.supportsCalibratedReferences = supportsCalibratedReferences
         }
         public var body: some View { assistMenu.buttonStyle(.monitorTapTarget) }
 
@@ -141,7 +143,7 @@
                 compact: compact,
                 modeFeedback: {
                     haptics.selection()
-                }, guideFeedback: { haptics.selection() })
+                }, guideFeedback: { haptics.selection() }, supportsCalibratedReferences: supportsCalibratedReferences)
         }
     }
 #endif

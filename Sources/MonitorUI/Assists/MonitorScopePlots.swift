@@ -53,9 +53,12 @@ public struct MonitorWaveformScopePlot: View {
                         .frame(width: size.width, height: size.height)
                 }
             }
-            ScopeGuideOverlay(clip: guides.clip, crush: guides.crush, middle: guides.middle,
+            ScopeGuideOverlay(clip: axis.supportsCalibratedReferences && guides.clip,
+                crush: axis.supportsCalibratedReferences && guides.crush,
+                middle: axis.supportsCalibratedReferences && guides.middle,
                 middleGrayIRE: axis.middleGrayIRE)
                 .frame(width: size.width, height: size.height)
+                .accessibilityLabel(axis.supportsCalibratedReferences ? "Calibrated scope references" : "Encoded code range")
         }
     }
 }

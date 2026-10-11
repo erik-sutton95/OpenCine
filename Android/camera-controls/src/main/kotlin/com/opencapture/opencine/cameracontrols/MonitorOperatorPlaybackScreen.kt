@@ -134,17 +134,23 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val value by player.state.collectAsState()
     val record = value.active ?: initial.record
     val facts = source(record)
-    val transfer = effects?.scopeTap?.transfer ?: facts.transfer
+    // Existing hosts retain effect-first transfer precedence; an explicit source never falls back.
+    val transfer = if (facts.allowsSignalFallback) effects?.scopeTap?.transfer ?: facts.transfer else facts.transfer
     val audio = nativeAudio(player)
     val levels = audio?.levels?.collectAsState()?.value
     val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value
     val sampled = setOf(MonitorAssistTool.WAVE, MonitorAssistTool.PARADE, MonitorAssistTool.HISTO,
         MonitorAssistTool.VECTOR, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND)
-    val supportedTools = when {
+    val suppliedTools = when {
         assist == null -> emptySet()
         assists?.scopes == null -> (availableAssistTools ?: MonitorAssistTool.playbackToolbarCases.toSet()) - sampled
         else -> availableAssistTools
     }
+    val supportedTools = if (!facts.allowsSignalFallback && transfer == null) {
+        (suppliedTools ?: MonitorAssistTool.playbackToolbarCases.toSet()) - setOf(
+            MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND,
+        )
+    } else suppliedTools
     val context = LocalContext.current
     val rate = player.rate
     fun clock(seconds: Double): String {
@@ -266,7 +272,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
                 requestExpand = chrome.expanded, onExpansionHandled = chrome.onExpansionHandled,
                 showsAudio = audio != null, playback = true, availableTools = supportedTools, hasOptions = ::hasOptions)
         }, assistInspector = { chrome ->
-            if (assist != null) assist.configureTool?.takeIf(::hasOptions)?.let { tool ->
+            if (assist != null) assist.configureTool?.takeIf { supportedTools?.contains(it) != false && hasOptions(it) }?.let { tool ->
                 val image: (@Composable () -> Unit)? = assists?.preview?.let { renderer -> { renderer(tool) } }
                 AssistInspectorFrame(tool, assist, chrome.width, chrome.height, chrome.leading, chrome.top, chrome.bottom,
                     onDismiss = { assist.configureTool = null }, playback = true, safeTrailing = chrome.trailing,

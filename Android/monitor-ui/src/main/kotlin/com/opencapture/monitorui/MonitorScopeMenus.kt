@@ -18,7 +18,7 @@ import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 fun <Mode> MonitorScopeTraceMenu(
     modes: List<Mode>, mode: Mode, onMode: (Mode) -> Unit, title: (Mode) -> String,
     brightness: Int, onBrightness: (Int) -> Unit, guides: MonitorScopeGuides,
-    onGuides: (MonitorScopeGuides) -> Unit,
+    onGuides: (MonitorScopeGuides) -> Unit, supportsCalibratedReferences: Boolean = true,
 ) {
     MonitorOptionGroup {
         MonitorSettingsInlineRow("Mode", showTopDivider = false) {
@@ -30,6 +30,10 @@ fun <Mode> MonitorScopeTraceMenu(
         }
     }
     Spacer(Modifier.height(11.dp))
+    if (!supportsCalibratedReferences) {
+        Text("Encoded code percentage. Source calibration unavailable.", color = MonitorPalette.faint)
+        return
+    }
     Text("GUIDE LINES", modifier = Modifier.padding(start = 12.dp, bottom = 5.dp),
         style = MonitorTypography.text(7.5f, FontWeight.Medium).copy(letterSpacing = 1.sp), color = MonitorPalette.faint)
     MonitorOptionGroup {

@@ -35,14 +35,25 @@ public enum WaveformIre {
 /// A shared transfer builds it from its anchors; a source that owns a measured placement
 /// supplies the table and grey line itself.
 public struct ScopeLevelAxis: Equatable, Sendable {
-    /// One IRE value (0...100) per tap code 0...255.
+    /// One axis value (0...100) per tap code: calibrated IRE or encoded-code percentage.
     public var table: [Float]
     public var middleGrayIRE: Double
+    /// Whether this source supplied exposure calibration for grey, crush and clip references.
+    public var supportsCalibratedReferences: Bool
 
-    public init(table: [Float], middleGrayIRE: Double) {
-        precondition(table.count == 256, "ScopeLevelAxis needs one IRE per tap code")
+    public init(table: [Float], middleGrayIRE: Double, supportsCalibratedReferences: Bool = true) {
+        precondition(table.count == 256, "ScopeLevelAxis needs one axis value per tap code")
         self.table = table
         self.middleGrayIRE = middleGrayIRE
+        self.supportsCalibratedReferences = supportsCalibratedReferences
+    }
+
+    /// Encoded-code percentage, retaining traces without assigning an unknown transfer or grey.
+    /// `middleGrayIRE` is unused in this mode; no calibrated reference may consume it.
+    public static var rawCodes: Self {
+        Self(
+            table: (0...255).map { Float($0) / 255 * 100 }, middleGrayIRE: 0,
+            supportsCalibratedReferences: false)
     }
 
     public init(transfer: MonitorTransfer, clipByte: Int) {

@@ -29,6 +29,8 @@ public data class MonitorPlaybackSourceValues(
     /** Furthest native loaded-time-range end in source seconds; null is unknown.
      * Not a continuous-range guarantee or a downloaded byte fraction. */
     public val bufferedThroughSeconds: Double? = null,
+    /** Explicit unknown sources opt out of legacy player/effect transfer fallback. */
+    public val allowsSignalFallback: Boolean = true,
 ) {
     /** Maps only an actual native temporal observation with known actual native duration. */
     public fun bufferedTemporalFraction(nativeDuration: Double?): Double? {
@@ -36,6 +38,8 @@ public data class MonitorPlaybackSourceValues(
         val duration = nativeDuration?.takeIf { it.isFinite() && it > 0.0 } ?: return null
         return (through / duration).coerceIn(0.0, 1.0)
     }
+    public fun resolvedTransfer(fallback: () -> MonitorTransfer?): MonitorTransfer? =
+        transfer ?: if (allowsSignalFallback) fallback() else null
     public val sourceLabel: String? get() {
         val source = availability ?: return null
         if (source == MonitorPlaybackAvailability.ORIGINAL) return "ORIGINAL · ON PHONE"

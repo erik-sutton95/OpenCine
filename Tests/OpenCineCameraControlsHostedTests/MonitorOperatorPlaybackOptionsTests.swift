@@ -198,6 +198,32 @@ final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
         try await fixture.dismissOptions()
     }
 
+    func testExplicitUnknownItemDoesNotBorrowThePlayerOrEffectSignal() async throws {
+        let fixture = try PlaybackOptionsFixture(unknownSignal: true)
+        defer { fixture.close() }
+        let owner = try await fixture.readyPlayer()
+        let token = owner.token
+        try await fixture.expandPalette()
+        for tool in [MonitorAssistSelection.falseColor, .zebra, .trafficLights, .ndMeter] {
+            XCTAssertFalse(fixture.identifiers.contains("monitor.assist." + tool.rawValue))
+        }
+        try await fixture.openOptions(.peaking)
+        try await fixture.activate(label: MonitorPeakingSense.high.rawValue)
+        XCTAssertEqual(fixture.context.assist.peakingSensitivity, .high)
+        try await fixture.dismissOptions()
+        try await fixture.openOptions(.waveform)
+        _ = try await fixture.element(label: "Mode")
+        _ = try await fixture.element(label: "Brightness")
+        XCTAssertFalse(fixture.labels.contains("Safe clip"))
+        XCTAssertFalse(fixture.labels.contains("Safe crush"))
+        XCTAssertFalse(fixture.labels.contains("Middle gray"))
+        XCTAssertTrue(fixture.context.stores?.waveform.options.guides == MonitorScopeGuides.default,
+            "Unknown calibration must not rewrite saved guide preferences")
+        XCTAssertTrue(fixture.context.model.playback === owner)
+        XCTAssertEqual(owner.token, token)
+        XCTAssertFalse(fixture.labels.contains("SIMULATED Rec.709"))
+    }
+
     func testActualMenuActionsReadTheSavedHapticsPreferenceEachTime() async throws {
         let fixture = try PlaybackOptionsFixture()
         defer { fixture.close() }
@@ -290,11 +316,15 @@ private final class PlaybackOptionsContext {
     let library: MonitorMediaLibraryModel<String>
     let model: MonitorOperatorMediaModel<String, String>
     let initial: MonitorMediaGalleryOpen<String>
+    let unknownSignal: Bool
+    let stores: AssistPanelStores?
 
-    init() throws {
+    init(unknownSignal: Bool = false) throws {
+        self.unknownSignal = unknownSignal
         let name = "SIMULATED.playback-options." + UUID().uuidString
         let storage = try XCTUnwrap(UserDefaults(suiteName: name))
         storageName = name; self.storage = storage
+        stores = unknownSignal ? AssistPanelStores(storage: storage, namespace: "SIMULATED.raw") : nil
         let preferences = MonitorOperatorPreferences(storage: storage,
             keys: .init(keepScreenAwake: "wake", hdrDisplay: "hdr", recordConfirmation: "record",
                 haptics: "haptics", cacheOriginals: "cache"))
@@ -348,15 +378,19 @@ private struct PlaybackOptionsSurface: View {
     @State private var usage = MonitorToolUsage()
     var body: some View {
         MonitorOperatorPlaybackScreen(model: context.model, initial: context.initial,
-            assist: context.assist, stores: nil,
+            assist: context.assist, stores: context.stores,
             looks: FalseColorLooks(scaleHelp: "SIMULATED Rec.709 source", rec709LookCurve: { _ in nil }),
             palette: MonitorDefaultLivePalette.self, haptics: context.haptics, usage: $usage,
             cacheOriginal: false, deliveryPresented: false,
             operations: MonitorOperatorPlaybackOperations<String, String>(rating: rating ? .init(
                 levels: [1, 2, 3, 4, 5], read: { _ in 4 },
                 commit: { value, _ in .confirmed(value) }) : nil),
-            source: { _ in .init(availability: .original, colorLabel: "SIMULATED Rec.709",
-                transfer: .rec709, clipByte: 255) }, nativeAssists: { _ in nil }, close: {},
+            source: { _ in context.unknownSignal
+                ? .init(availability: .original, allowsSignalFallback: false)
+                : .init(availability: .original, colorLabel: "SIMULATED Rec.709",
+                    transfer: .rec709, clipByte: 255) }, nativeAssists: { _ in nil },
+            readScopes: context.unknownSignal ? { ScopeAssistBundle(levelAxis: .rawCodes) } : nil,
+            close: {},
             picture: { _, _ in Color.black }, preview: { _ in EmptyView() }, lookMenu: { EmptyView() })
             .frame(width: size.width, height: size.height).environment(\.scenePhase, .active)
     }
@@ -368,12 +402,13 @@ private final class PlaybackOptionsFixture {
     let host: UIHostingController<PlaybackOptionsSurface>
     let window: UIWindow
     private weak var previousKeyWindow: UIWindow?
-    init(size: CGSize = CGSize(width: 420, height: 900), rating: Bool = false) throws {
+    init(size: CGSize = CGSize(width: 420, height: 900), rating: Bool = false,
+        unknownSignal: Bool = false) throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .filter { $0.activationState == .foregroundActive }
         let scene = try XCTUnwrap(scenes.count == 1 ? scenes.first : nil,
             "Rendered playback contracts require one foreground connected application scene")
-        let context = try PlaybackOptionsContext()
+        let context = try PlaybackOptionsContext(unknownSignal: unknownSignal)
         let host = UIHostingController(rootView: PlaybackOptionsSurface(context: context, size: size, rating: rating))
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(origin: .zero, size: size)
