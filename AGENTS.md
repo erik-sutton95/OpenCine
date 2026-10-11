@@ -188,7 +188,14 @@ python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py chec
   then `xcrun simctl delete $UDID`.
 - Operator-visible behavior is proven on a physical device for each platform changed, or reported
   as `untested`. Simulated and compile-only are not done.
-- A change here is not live in an app until that app's pin moves and the app is verified.
+- Every shared-code change must assess OpenPocketCine, OpenInstaCine, OpenZCine and every other
+  registered thin app against its pinned manifests and current call sites. Implement required
+  adapter, composition, UI, configuration and test changes in every affected app. Follow
+  [propagate-core-change](.claude/skills/propagate-core-change/SKILL.md).
+- Record each app's impact, required adoption, pin and verification evidence in the task handoff;
+  justify an unaffected app from source evidence. A shared change is complete only after its
+  required app changes and checks are complete. Unverified or blocked adoption remains open.
+  A change here is not live in an app until that app's pin moves and the app is verified.
 
 ## Releases
 
