@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +55,7 @@ import com.opencapture.opencine.appkit.MonitorScreenPresentation
 import java.io.File
 import java.util.UUID
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -65,6 +67,9 @@ import org.junit.runner.RunWith
 class MonitorPortraitStatusGeometryTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation = instrumentation.uiAutomation
+    private var composeDiagnostic: String? = null
+    private val canvasDescription = "SIMULATED status geometry canvas"
+    private val statusDescription = "SIMULATED status geometry header"
 
     @Test fun observedSeparateReadoutsKeepTheirFullValuesAndEightPointClearance() = withHeader(440f) { value ->
         assertEquals(412f, value.status.width / value.density, 0.6f)
@@ -114,9 +119,16 @@ class MonitorPortraitStatusGeometryTest {
         @Volatile var screen: ComposeRect? = null
         @Volatile var opened: String? = null
         @Volatile var expectedTop = 0f
+        @Volatile var composeRecording: ComposeRect? = null
+        @Volatile var composeClock: ComposeRect? = null
+        @Volatile var composeFormat: ComposeRect? = null
+        @Volatile var composeCodec: ComposeRect? = null
+        @Volatile var composeFontScale: Float? = null
+        @Volatile var minimumTouchTarget: String? = null
     }
     private fun clear(pixels: Int, value: Measurement) {
-        assertTrue(pixels >= 8f * value.density - 1f, "Expected 8dp native clearance, got ${pixels / value.density}dp")
+        assertTrue(pixels >= 8f * value.density - 1f,
+            "Expected 8dp native clearance, got ${pixels / value.density}dp; native=$value; compose=$composeDiagnostic")
     }
     private fun contained(value: Measurement) {
         for (frame in listOfNotNull(value.recording, value.clock, value.format, value.codec)) {
@@ -145,11 +157,15 @@ class MonitorPortraitStatusGeometryTest {
                     }
                 }
                 val names = listOf("Standby", "Timecode 14:34:52", if (compact) "Recording options" else "Format") +
-                    if (compact) emptyList() else listOf("Codec")
+                    (if (compact) emptyList() else listOf("Codec")) + listOf(canvasDescription, statusDescription)
                 val deadline = SystemClock.uptimeMillis() + 5_000
                 var nodes: Map<String, AccessibilityNodeInfo>? = null
                 var previous: FrameSample? = null
                 var stable: FrameSample? = null
+                var nativeCanvas: Rect? = null
+                var expectedCanvas: Rect? = null
+                var nativeStatus: Rect? = null
+                var expectedStatus: Rect? = null
                 do {
                     nodes?.values?.forEach { it.recycle() }
                     instrumentation.waitForIdleSync()
@@ -161,7 +177,24 @@ class MonitorPortraitStatusGeometryTest {
                     if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
                     nodes = nativeNodes(names)
                     val actual = nodes
-                    val candidate = if (actual != null && status != null && screen != null && density > 0f &&
+                    nativeCanvas = actual?.getValue(canvasDescription)?.let { node ->
+                        Rect().also { node.getBoundsInScreen(it) }
+                    }
+                    expectedCanvas = screen?.let { bounds ->
+                        Rect(bounds.left.roundToInt(), bounds.top.roundToInt(),
+                            bounds.right.roundToInt(), bounds.bottom.roundToInt())
+                    }
+                    nativeStatus = actual?.getValue(statusDescription)?.let { node ->
+                        Rect().also { node.getBoundsInScreen(it) }
+                    }
+                    expectedStatus = status?.let { bounds ->
+                        Rect(bounds.left.roundToInt(), bounds.top.roundToInt(),
+                            bounds.right.roundToInt(), bounds.bottom.roundToInt())
+                    }
+                    // Both parent bounds must share coordinates; the full canvas can hide a child transform.
+                    val canvasReady = nativeCanvas != null && nativeCanvas == expectedCanvas &&
+                        nativeStatus != null && nativeStatus == expectedStatus
+                    val candidate = if (canvasReady && actual != null && status != null && screen != null && density > 0f &&
                         abs(screen.width / density - width) <= 0.6f) {
                         fun bounds(name: String): Rect = Rect().also { actual.getValue(name).getBoundsInScreen(it) }
                         FrameSample(revision, screen, Measurement(status, bounds("Standby"), bounds("Timecode 14:34:52"),
@@ -176,7 +209,9 @@ class MonitorPortraitStatusGeometryTest {
                     nodes?.values?.forEach { it.recycle() }
                     nodes = null
                 }
-                val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize")
+                val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize; " +
+                    "nativeCanvas=$nativeCanvas, observedCanvas=$expectedCanvas, " +
+                    "nativeStatus=$nativeStatus, observedStatus=$expectedStatus")
                 val actual = assertNotNull(nodes, "Actual shared header native elements must render")
                 val density = ready.measurement.density
                 assertTrue(density > 0f)
@@ -188,6 +223,18 @@ class MonitorPortraitStatusGeometryTest {
                     assertEquals(if (compact) "4K50" else "[FX] 6K · 25p", AccessibilityNodeInfoCompat.wrap(format).stateDescription?.toString())
                     if (!compact) assertEquals("R3D NE", AccessibilityNodeInfoCompat.wrap(actual.getValue("Codec")).stateDescription?.toString())
                     val measurement = ready.measurement
+                    val composeRevisionBefore = probe.geometryRevision
+                    val composeRecording = probe.composeRecording
+                    val composeClock = probe.composeClock
+                    val composeFormat = probe.composeFormat
+                    val composeCodec = probe.composeCodec
+                    val composeFontScale = probe.composeFontScale
+                    val minimumTouchTarget = probe.minimumTouchTarget
+                    val composeRevisionAfter = probe.geometryRevision
+                    composeDiagnostic = "selectedRevision=${ready.revision}, sampledRevision=" +
+                        "$composeRevisionBefore..$composeRevisionAfter, fontScale=$composeFontScale, " +
+                        "minimumTouchTarget=$minimumTouchTarget, recording=$composeRecording, " +
+                        "clock=$composeClock, format=$composeFormat, codec=$composeCodec"
                     for (frame in listOfNotNull(measurement.recording, measurement.clock, measurement.format, measurement.codec)) {
                         assertTrue(frame.width() > 0 && frame.height() > 0)
                     }
@@ -205,6 +252,7 @@ class MonitorPortraitStatusGeometryTest {
                 previousOrientation?.let { orientation ->
                     scenario.onActivity { it.requestedOrientation = orientation }
                 }
+                composeDiagnostic = null
             }
         }
     }
@@ -244,6 +292,8 @@ class MonitorPortraitStatusGeometryTest {
             open = { probe.opened = it }, dismiss = {}) }
         probe.density = density
         probe.expectedTop = layout.status.y
+        probe.composeFontScale = LocalDensity.current.fontScale
+        probe.minimumTouchTarget = LocalViewConfiguration.current.minimumTouchTargetSize.toString()
         fun screenBounds(bounds: ComposeRect): ComposeRect {
             val inScreen = IntArray(2); val inWindow = IntArray(2)
             view.getLocationOnScreen(inScreen); view.getLocationInWindow(inWindow)
@@ -255,21 +305,27 @@ class MonitorPortraitStatusGeometryTest {
                 Modifier.size(width.dp, 900.dp).onGloballyPositioned {
                     probe.screen = screenBounds(it.boundsInWindow())
                     probe.geometryRevision += 1L
-                },
+                }.semantics { contentDescription = canvasDescription },
                 picture = { Box(Modifier.fillMaxSize().background(Color.Black)) },
                 status = {
                     MonitorStatusChrome(layout, MonitorStatusPresentation(false, timecode = "14:34:52"),
                         modifier = Modifier.onGloballyPositioned {
                             probe.status = screenBounds(it.boundsInWindow())
                             probe.geometryRevision += 1L
+                        }.semantics { contentDescription = statusDescription },
+                        recordingModifier = Modifier.onGloballyPositioned {
+                            probe.composeRecording = screenBounds(it.boundsInWindow())
+                            probe.geometryRevision += 1L
                         },
-                        recordingModifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L },
-                        clockModifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L },
+                        clockModifier = Modifier.onGloballyPositioned {
+                            probe.composeClock = screenBounds(it.boundsInWindow())
+                            probe.geometryRevision += 1L
+                        },
                         format = {
-                            if (compact) HeaderReadout("format", "Recording options", "4K50", true, layout, control, state, source, inputs, probe)
+                            if (compact) HeaderReadout("format", "Recording options", "4K50", true, layout, control, state, source, inputs, probe, ::screenBounds)
                             else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                HeaderReadout("format", "Format", "[FX] 6K · 25p", false, layout, control, state, source, inputs, probe)
-                                HeaderReadout("codec", "Codec", "R3D NE", false, layout, control, state, source, inputs, probe)
+                                HeaderReadout("format", "Format", "[FX] 6K · 25p", false, layout, control, state, source, inputs, probe, ::screenBounds)
+                                HeaderReadout("codec", "Codec", "R3D NE", false, layout, control, state, source, inputs, probe, ::screenBounds)
                             }
                         })
                 })
@@ -277,11 +333,16 @@ class MonitorPortraitStatusGeometryTest {
     }
     @Composable private fun HeaderReadout(id: String, title: String, value: String, large: Boolean,
         layout: MonitorFieldLayout, control: MonitorControlModel, state: MonitorOperatorCaptureState<String, Nothing>,
-        source: MonitorCaptureSourceIdentity, inputs: MonitorOperatorCaptureInputs<String, String, Nothing>, probe: Probe) {
+        source: MonitorCaptureSourceIdentity, inputs: MonitorOperatorCaptureInputs<String, String, Nothing>, probe: Probe,
+        screenBounds: (ComposeRect) -> ComposeRect) {
         MonitorOperatorCaptureHeaderReadout(inputs, control, state, source,
             MonitorOperatorLiveReadout<String, String>(id, title, value), enabled = true, commandEnabled = false,
             currentSource = { true }, portrait = layout.portrait,
-            modifier = Modifier.onGloballyPositioned { probe.geometryRevision += 1L }
+            modifier = Modifier.onGloballyPositioned {
+                val bounds = screenBounds(it.boundsInWindow())
+                if (id == "codec") probe.composeCodec = bounds else probe.composeFormat = bounds
+                probe.geometryRevision += 1L
+            }
                 .semantics(mergeDescendants = true) { contentDescription = title }) {
             Text(value, style = MonitorTypography.readout(if (large) 23f else 16f, FontWeight.Medium),
                 color = MonitorPalette.text, maxLines = 1, softWrap = false)

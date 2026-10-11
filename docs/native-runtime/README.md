@@ -208,3 +208,24 @@ Controlled codec tests and JVM file tests do not prove native encoding or physic
 behavior; consuming apps also need real decoded video, audio, metadata and progress evidence.
 OpenZCine's `NativeReadableMovieExportTest` supplies that evidence on an API 35 arm64 emulator
 (SIMULATED input; physical devices untested).
+
+## Swift CI compatibility scope
+
+CI compiles the complete package and every test target with complete concurrency
+checking, then runs that full test bundle. A separate scratch directory compiles
+all 13 listed portable library/test targets with warnings treated as errors,
+including Core, its test support and Multicam. The manifest and original test
+sources remain intact; a runtime test filter does not limit compilation scope.
+
+`OpenCineApple` and `OpenCineAppleTests` are explicitly outside the portable
+warnings-as-errors gate. They remain in the full strict build/test and iOS build
+checks. This is a native compatibility exception, not unchanged warning-as-error
+coverage. Current SDKs warn on the retained Core Image kernel-language initializer
+and compatible-export-preset query. Those warnings remain visible; CI suppresses
+none of them. Replacing the kernels requires Metal-language implementation and
+native pixel validation. The replacement preset API requires asynchronous
+compatibility inspection and preserved preset/fallback behavior. A hygiene change
+does not change those render/export policies.
+
+See the [CI workflow](../../.github/workflows/ci.yml) and
+[package manifest](../../Package.swift) for the exact targets and checks.

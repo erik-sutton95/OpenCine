@@ -11,6 +11,7 @@ import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
+import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
@@ -24,6 +25,7 @@ import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
 import com.opencapture.opencine.motion.MotionAxis
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +34,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.test.AfterTest
@@ -43,13 +46,17 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * A Luna camera behind the session's link: it applies the real SET bodies the session builds and
  * answers readbacks in the real reply encodings. Port of the iOS `LunaCameraSessionTests`.
  */
-private class FakeLuna(private val scope: CoroutineScope) {
+private class FakeLuna(
+    private val scope: CoroutineScope,
+    private val now: () -> MonotonicInstant = { MonotonicInstant(System.nanoTime().nanoseconds) },
+) {
     private val lock = Any()
     var program = 0L
     var iso = 0L
@@ -75,6 +82,7 @@ private class FakeLuna(private val scope: CoroutineScope) {
             send = ::receive, functionMode = { LunaControl.FUNCTION_MODE_VIDEO },
             readSettings = { reportSettings() }, readCapture = { reportCapture() }, scope = scope,
             timing = LunaCameraSession.Timing(SettingKey.entries.associateWith { settle }, 40.milliseconds),
+            now = now,
         )
         return session
     }
@@ -203,8 +211,9 @@ class LunaCameraSessionTest {
         assertEquals(SettingValue.Iso(ISOValue.Auto), session.snapshots.value.value(SettingKey.ISO).value)
     }
 
-    @Test fun slowSettleStaysPendingAndConfirmsFromReadback() = runBlocking {
-        val camera = FakeLuna(scope)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun slowSettleStaysPendingAndConfirmsFromReadback() = runTest {
+        val camera = FakeLuna(backgroundScope) { MonotonicInstant(testScheduler.currentTime.milliseconds) }
         val session = camera.connectedSession()
         camera.applyDelay = 300.milliseconds
         val command = CameraCommand(
