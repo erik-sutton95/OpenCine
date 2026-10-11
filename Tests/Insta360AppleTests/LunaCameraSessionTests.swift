@@ -195,7 +195,7 @@ final class LunaCameraSessionTests: XCTestCase {
     func testPublishesMotionTimecodeAndNoAudio() {
         let session = FakeLuna().connectedSession()
         let capabilities = session.current.capabilities
-        XCTAssertEqual(capabilities.timecode, .supported)
+        XCTAssertEqual(capabilities.timecode, .supported(.seconds), "host clock: whole seconds")
         XCTAssertEqual(capabilities.audioLevels, .unsupported)
         XCTAssertEqual(LunaCameraSession.motion.pose, .supported)
         XCTAssertFalse(LunaCameraSession.motion.axes.contains(.zoom), "moves keep one zoom")
@@ -211,7 +211,7 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(session.layout(base: base), layout)
 
         XCTAssertNil(session.current.timecode.value, "nothing derived yet: unknown")
-        session.ingest(timecode: CameraTimecode(hours: 15, minutes: 39, seconds: 50, frames: 12))
+        session.ingest(timecode: CameraTimecode(hours: 15, minutes: 39, seconds: 50))
         XCTAssertEqual(session.current.timecode.value?.seconds, 50)
         XCTAssertEqual(session.current.timecode.origin, .clockDerived, "never a camera counter")
     }

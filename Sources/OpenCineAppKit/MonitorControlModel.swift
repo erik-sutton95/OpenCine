@@ -52,8 +52,16 @@ public final class MonitorControlModel {
 
     /// The session the controls drive; `nil` when nothing is bound.
     public private(set) var session: (any CameraSession)?
-    /// The latest snapshot of `session`.
-    public private(set) var snapshot: CameraSnapshot?
+    /// The latest snapshot of `session`. A report that changes only the timecode updates it
+    /// without notifying observers of `snapshot`; read `timecode` to follow the counter.
+    public var snapshot: CameraSnapshot? {
+        access(keyPath: \.snapshot)
+        return latest
+    }
+    /// The latest reported timecode, observed on its own: a per-frame counter re-renders the
+    /// clock that shows it, not every view that reads the snapshot.
+    public private(set) var timecode: ObservedValue<CameraTimecode> = .unknown
+    @ObservationIgnored private var latest: CameraSnapshot?
     /// Operator targets whose operations are unfinished.
     public private(set) var pending: [SettingKey: SettingValue] = [:]
     /// A record start or stop is in flight.
@@ -127,9 +135,10 @@ public final class MonitorControlModel {
         binding += 1
         feed?.cancel()
         feed = nil
-        let changed = snapshot != nil || !pending.isEmpty
+        let changed = latest != nil || !pending.isEmpty
         session = nil
-        snapshot = nil
+        withMutation(keyPath: \.snapshot) { latest = nil }
+        if timecode != .unknown { timecode = .unknown }
         pending = [:]
         operations = [:]
         scheduled = []
@@ -140,8 +149,20 @@ public final class MonitorControlModel {
     }
 
     private func apply(_ snapshot: CameraSnapshot) {
-        self.snapshot = snapshot
+        if let previous = latest, Self.differsOnlyInTimecode(previous, snapshot) {
+            latest = snapshot
+        } else {
+            withMutation(keyPath: \.snapshot) { latest = snapshot }
+        }
+        if timecode != snapshot.timecode { timecode = snapshot.timecode }
         onChange()
+    }
+
+    private static func differsOnlyInTimecode(_ old: CameraSnapshot, _ new: CameraSnapshot) -> Bool {
+        var old = old
+        old.timecode = new.timecode
+        old.revision = new.revision
+        return old == new
     }
 
     // MARK: Readouts

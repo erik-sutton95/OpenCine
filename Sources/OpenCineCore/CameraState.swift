@@ -133,17 +133,19 @@ public enum ControlAuthority: Hashable, Codable, Sendable {
 }
 
 /// SMPTE-style timecode: the camera's own counter, or time of day an integration derives from a
-/// clock (origin `.clockDerived`, which never claims that cameras are synchronized). The counter
-/// runs at the `frameRate` setting.
+/// clock (origin `.clockDerived`, which never claims that cameras are synchronized). How precisely
+/// the source counts is `CapabilitySnapshot.timecode.precision`.
 public struct CameraTimecode: Hashable, Codable, Sendable {
     public var hours: Int
     public var minutes: Int
     public var seconds: Int
-    public var frames: Int
+    /// The frame count the source reported; `nil` when it knows whole seconds only. Never derived
+    /// from a clock or a frame rate.
+    public var frames: Int?
     /// `nil` when the camera does not say whether it counts drop-frame.
     public var dropFrame: Bool?
 
-    public init(hours: Int, minutes: Int, seconds: Int, frames: Int, dropFrame: Bool? = nil) {
+    public init(hours: Int, minutes: Int, seconds: Int, frames: Int? = nil, dropFrame: Bool? = nil) {
         self.hours = hours
         self.minutes = minutes
         self.seconds = seconds

@@ -23,10 +23,10 @@ public struct LunaFrameTimecode: Sendable {
     }
 
     /// The timecode of a frame stamped `milliseconds` on the frame clock that arrived at
-    /// `arrival` (unix seconds), or nil while its second is the one already reported (a HUD shows
-    /// whole seconds).
+    /// `arrival` (unix seconds), or nil while its second is the one already reported. The source
+    /// knows whole seconds only (`TimecodePrecision.seconds`), so the value carries no frames.
     public mutating func note(
-        frameClock milliseconds: UInt64, arrival: Double, timeZoneSeconds: Int, fps: Int
+        frameClock milliseconds: UInt64, arrival: Double, timeZoneSeconds: Int
     ) -> CameraTimecode? {
         let seen = arrival - Double(milliseconds) / 1000 - Self.frameLatencySeconds
         let offset = min(self.offset ?? seen, seen)
@@ -35,22 +35,14 @@ public struct LunaFrameTimecode: Sendable {
         let second = Int(wall.rounded(.down))
         guard second != lastSecond else { return nil }
         lastSecond = second
-        return Self.timecode(unixSeconds: wall, timeZoneSeconds: timeZoneSeconds, fps: fps)
+        return Self.timecode(unixSeconds: wall, timeZoneSeconds: timeZoneSeconds)
     }
 
-    /// Time-of-day timecode, non-drop. Frames count at the recording rate, halved above 30
-    /// (50 and 100 count 25s, 60 and 120 count 30s); unknown (0) counts 25s.
-    public static func timecode(unixSeconds: Double, timeZoneSeconds: Int, fps: Int)
-        -> CameraTimecode
-    {
-        var base = fps > 0 ? fps : 25
-        while base > 30 { base /= 2 }
+    /// Time-of-day timecode in whole seconds. A frame field would be invented from the phone
+    /// clock, so there is none.
+    public static func timecode(unixSeconds: Double, timeZoneSeconds: Int) -> CameraTimecode {
         let local = unixSeconds + Double(timeZoneSeconds)
-        let whole = local.rounded(.down)
-        let second = ((Int(whole) % 86_400) + 86_400) % 86_400
-        let frame = min(base - 1, Int((local - whole) * Double(base)))
-        return CameraTimecode(
-            hours: second / 3600, minutes: (second / 60) % 60, seconds: second % 60, frames: frame,
-            dropFrame: false)
+        let second = ((Int(local.rounded(.down)) % 86_400) + 86_400) % 86_400
+        return CameraTimecode(hours: second / 3600, minutes: (second / 60) % 60, seconds: second % 60)
     }
 }
