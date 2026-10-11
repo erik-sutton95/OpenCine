@@ -240,6 +240,14 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         let rect = DesqueezeAssist.presentationRect(sourceSize: size,
             in: CGRect(x: 0, y: 0, width: 1000, height: 1000), effects: effects)
         let duration = player.duration ?? asset.durationSeconds ?? 0
+        let buffered: Double
+        if let through = values.bufferedThroughSeconds {
+            if player.ready, through.isFinite, through >= 0,
+                let nativeDuration = player.metadata.duration,
+                nativeDuration.isFinite, nativeDuration > 0
+            { buffered = min(through, nativeDuration) }
+            else { buffered = 0 }
+        } else { buffered = values.buffered ?? 0 }
         let position = player.scrubbing ? player.scrubPosition : player.position
         let bytes = asset.representations.first { $0.role == .original }?.byteCount
         let byteLabel = bytes.map(MediaClipFormatting.byteLabel)
@@ -260,7 +268,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             metadata: metadata, aspect: Double(rect.width / max(1, rect.height)),
             mirrorHorizontal: effects.mirror, mirrorVertical: effects.mirrorVertical,
             ready: player.ready, error: player.error ?? (player.closed ? "This clip is not cached on the phone." : nil), progress: values.progress,
-            position: position, duration: duration, buffered: values.buffered ?? 0,
+            position: position, duration: duration, buffered: buffered,
             positionLabel: time(position, player: player), durationLabel: time(duration, player: player),
             playing: player.canPause && !player.scrubbing,
             reachedEnd: player.reachedEnd, scrubbing: player.scrubbing, muted: player.muted,

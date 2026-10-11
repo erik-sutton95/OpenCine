@@ -156,6 +156,9 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val asset = record.asset
     val position = if (value.scrubbing) value.scrubPosition else value.position
     val duration = value.duration ?: asset.durationSeconds ?: 0.0
+    val buffered = if (facts.bufferedThroughSeconds != null) {
+        facts.bufferedTemporalFraction(value.metadata.duration?.takeIf { value.ready })?.toFloat() ?: 0f
+    } else facts.buffered?.toFloat() ?: 0f
     val listed = PlaybackVideoLayout.sizeFromResolution(record.facts.resolution)
     val width = value.metadata.width ?: asset.pixelSize?.width?.toDouble() ?: listed?.width?.toDouble() ?: 16.0
     val height = value.metadata.height ?: asset.pixelSize?.height?.toDouble() ?: listed?.height?.toDouble() ?: 9.0
@@ -189,7 +192,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         value.scrubbing, value.muted, value.looping, player.canGoPrevious, player.canGoNext, favorite,
         value.metadata.conform, value.conformTarget, initialChromeVisible = initialChromeVisible,
         loopAvailable = loopAvailable, shareEnabled = mayShare,
-        buffered = facts.buffered?.toFloat() ?: 0f,
+        buffered = buffered,
         doubleTapResetsZoom = interaction.doubleTapResetsZoom,
         continuousPanBounds = interaction.continuousPanBounds,
         zoomBoundary = if (interaction.zoomAgainstCanvas) MonitorPlaybackZoomBoundary.CANVAS else MonitorPlaybackZoomBoundary.PICTURE,

@@ -19,13 +19,23 @@ public data class MonitorPlaybackMetadataValue(public val title: String, public 
 public data class MonitorPlaybackSourceValues(
     public val availability: MonitorPlaybackAvailability? = null,
     public val progress: Double? = null,
+    /** Legacy Compose presentation fraction. New native adapters use bufferedThroughSeconds. */
     public val buffered: Double? = null,
     public val colorLabel: String? = null,
     public val transfer: MonitorTransfer? = null,
     public val clipByte: Int? = null,
     public val metadata: List<MonitorPlaybackMetadataValue> = emptyList(),
     public val clockStyle: MonitorPlaybackClockStyle = MonitorPlaybackClockStyle.ELAPSED,
+    /** Furthest native loaded-time-range end in source seconds; null is unknown.
+     * Not a continuous-range guarantee or a downloaded byte fraction. */
+    public val bufferedThroughSeconds: Double? = null,
 ) {
+    /** Maps only an actual native temporal observation with known actual native duration. */
+    public fun bufferedTemporalFraction(nativeDuration: Double?): Double? {
+        val through = bufferedThroughSeconds?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
+        val duration = nativeDuration?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+        return (through / duration).coerceIn(0.0, 1.0)
+    }
     public val sourceLabel: String? get() {
         val source = availability ?: return null
         if (source == MonitorPlaybackAvailability.ORIGINAL) return "ORIGINAL · ON PHONE"

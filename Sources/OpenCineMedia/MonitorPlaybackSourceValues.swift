@@ -26,7 +26,11 @@ public struct MonitorPlaybackMetadataValue: Equatable, Sendable {
 public struct MonitorPlaybackSourceValues: Sendable {
     public var availability: MonitorPlaybackAvailability?
     public var progress: Double?
+    /// Legacy Swift presentation seconds. New native adapters use bufferedThroughSeconds.
     public var buffered: Double?
+    /// Furthest native loaded-time-range end, in source seconds; nil is unknown.
+    /// This is not a continuous-range guarantee or a downloaded byte fraction.
+    public var bufferedThroughSeconds: Double?
     public var colorLabel: String?
     public var transfer: MonitorTransfer?
     public var clipByte: Int?
@@ -35,11 +39,19 @@ public struct MonitorPlaybackSourceValues: Sendable {
     public init(availability: MonitorPlaybackAvailability? = nil, progress: Double? = nil,
         buffered: Double? = nil, colorLabel: String? = nil, transfer: MonitorTransfer? = nil,
         clipByte: Int? = nil, metadata: [MonitorPlaybackMetadataValue] = [],
-        clockStyle: MonitorPlaybackClockStyle = .elapsed) {
+        clockStyle: MonitorPlaybackClockStyle = .elapsed, bufferedThroughSeconds: Double? = nil) {
         self.availability = availability; self.progress = progress; self.buffered = buffered
         self.colorLabel = colorLabel; self.transfer = transfer; self.clipByte = clipByte
         self.metadata = metadata
         self.clockStyle = clockStyle
+        self.bufferedThroughSeconds = bufferedThroughSeconds
+    }
+    /// Maps a native temporal observation only when its actual native duration is known.
+    public func bufferedTemporalFraction(nativeDuration: Double?) -> Double? {
+        guard let through = bufferedThroughSeconds, through.isFinite, through >= 0,
+            let nativeDuration, nativeDuration.isFinite, nativeDuration > 0
+        else { return nil }
+        return min(1, max(0, through / nativeDuration))
     }
     public var sourceLabel: String? {
         guard let availability else { return nil }
