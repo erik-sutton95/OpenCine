@@ -14,6 +14,8 @@ import XCTest
 @MainActor
 final class MonitorOperatorPlaybackOptionsTests: XCTestCase {
     func testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait() async throws {
+        // Existing consumers may pass the Boolean expansion callback as a trailing closure.
+        _ = MonitorPlaybackPageSlots { (_: Bool) in }
         for size in [CGSize(width: 900, height: 420), CGSize(width: 420, height: 900)] {
             let fixture = try PlaybackOptionsFixture(size: size, rating: true)
             defer { fixture.close() }

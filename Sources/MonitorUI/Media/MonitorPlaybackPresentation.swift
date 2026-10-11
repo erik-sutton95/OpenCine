@@ -191,8 +191,8 @@
             },
             onShareButtonFrame: @escaping (CGRect) -> Void = { _ in },
             onChromeVisibilityChanged: @escaping (Bool) -> Void = { _ in },
-            onAssistExpansionChanged: @escaping (Bool) -> Void = { _ in },
-            headerActionAccessory: @escaping () -> AnyView = { AnyView(EmptyView()) }
+            headerActionAccessory: @escaping () -> AnyView = { AnyView(EmptyView()) },
+            onAssistExpansionChanged: @escaping (Bool) -> Void = { _ in }
         ) {
             self.headerAccessory = headerAccessory
             self.headerActionAccessory = headerActionAccessory

@@ -247,7 +247,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         if (assist != null && assists?.panelPlacement?.usesAnalysisViewport == true)
             OperatorPlaybackAssistOverlays(assist, assists, context.geometry, bundle, levels,
                 transfer, signalOptions, ::options, context.analysis, supportedTools)
-    }, headerActionAccessory = {
+    }, onChromeVisibilityChanged = {}, onAssistExpansionChanged = {}, headerActionAccessory = {
         if (operations.rating != null)
             MonitorPlaybackRatingAnchor(owner.ratingStars, owner.ratingShadeOpen, model::ratingShadeOpen)
     })

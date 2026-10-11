@@ -136,8 +136,21 @@ class MonitorPlaybackPageSlots(
     val canvasDetails: @Composable (MonitorPlaybackCanvasContext) -> Unit = {},
     val onChromeVisibilityChanged: (Boolean) -> Unit = {},
     val onAssistExpansionChanged: (Boolean) -> Unit = {},
-    val headerActionAccessory: @Composable () -> Unit = {},
-)
+) {
+    var headerActionAccessory: @Composable () -> Unit = {}
+        private set
+
+    /** All five arguments are required so original default, positional and trailing calls stay unambiguous. */
+    constructor(
+        headerAccessory: @Composable () -> Unit,
+        canvasDetails: @Composable (MonitorPlaybackCanvasContext) -> Unit,
+        onChromeVisibilityChanged: (Boolean) -> Unit,
+        onAssistExpansionChanged: (Boolean) -> Unit,
+        headerActionAccessory: @Composable () -> Unit,
+    ) : this(headerAccessory, canvasDetails, onChromeVisibilityChanged, onAssistExpansionChanged) {
+        this.headerActionAccessory = headerActionAccessory
+    }
+}
 
 /** Original overload keeps positional and trailing assistInspector callers unchanged. */
 @Composable
