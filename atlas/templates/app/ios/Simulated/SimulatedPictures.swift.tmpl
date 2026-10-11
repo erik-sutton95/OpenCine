@@ -84,13 +84,13 @@ import UIKit
     static func dismantleUIView(_ view: MonitorPlaybackFeedHost, coordinator: Coordinator) { coordinator.close() }
 
     @MainActor final class Coordinator {
-        let player = AVQueuePlayer()
+        let player = AVPlayer()
         let feed: MonitorPlaybackFeedSession
         let display = LiveHDRDisplay()
         let sampleBus = LiveFrameSampleBus()
         let preferences: MonitorOperatorPreferences
-        private var looper: AVPlayerLooper?
-        private var itemObserver: NSKeyValueObservation?
+        private var endObserver: NSObjectProtocol?
+        private var closed = false
         private var pictureObserver: NSKeyValueObservation?
         private var host: MonitorPlaybackFeedHost?
         private let identity = UUID().uuidString
@@ -116,14 +116,29 @@ import UIKit
                 }
             }
             feed.attach(host: view, player: player)
-            itemObserver = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] _, _ in
-                Task { @MainActor in
-                    guard let self, let item = self.player.currentItem else { return }
-                    self.feed.prepare(item)
-                }
-            }
             if let url = try? SimulatedAssets.url("mp4") {
-                looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                let item = AVPlayerItem(url: url)
+                feed.prepare(item)
+                player.actionAtItemEnd = .none
+                endObserver = NotificationCenter.default.addObserver(
+                    forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
+                ) { [weak self, weak item] _ in
+                    Task { @MainActor in
+                        guard let self, let item, !self.closed,
+                            self.player.currentItem === item
+                        else { return }
+                        self.player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) {
+                            [weak self, weak item] finished in
+                            Task { @MainActor in
+                                guard finished, let self, let item, !self.closed,
+                                    self.player.currentItem === item
+                                else { return }
+                                self.player.play()
+                            }
+                        }
+                    }
+                }
+                player.replaceCurrentItem(with: item)
                 player.play()
             }
             return view
@@ -132,9 +147,11 @@ import UIKit
             feed.setEffects(effects, transfer: effects.transfer, sampleBus: sampleBus)
         }
         func close() {
-            itemObserver = nil; pictureObserver = nil
-            looper?.disableLooping(); looper = nil
-            player.pause(); player.removeAllItems()
+            closed = true
+            pictureObserver = nil
+            if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+            endObserver = nil
+            player.pause(); player.replaceCurrentItem(with: nil)
             if let host { feed.detach(host: host) }
             feed.shutdown(); host = nil
         }
