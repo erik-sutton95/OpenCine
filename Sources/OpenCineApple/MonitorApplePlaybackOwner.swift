@@ -22,10 +22,13 @@
         private var preparation = UUID()
         private var waiter: CheckedContinuation<Void, Error>?
         private var statusObserver: NSKeyValueObservation?
+        private var transportObserver: NSKeyValueObservation?
         private var timeObserver: Any?
         private var endObserver: NSObjectProtocol?
         private var timeoutTask: Task<Void, Never>?
         private var metadataTask: Task<Void, Never>?
+        private var preparationReturned = false
+        private var reportedFailure = false
         private var closed = false
 
         public init(player: AVPlayer = AVPlayer(), feed: MonitorPlaybackFeedSession) {
@@ -82,9 +85,9 @@
                 [weak self, weak item] _, _ in
                 Task { @MainActor in
                     guard let self, let item, self.current(token, request: request),
-                        self.item === item
+                        self.item === item, self.player.currentItem === item
                     else { return }
-                    self.completeReadiness(item)
+                    self.completeReadiness(item, token: token, request: request)
                 }
             }
             player.replaceCurrentItem(with: item)
@@ -115,7 +118,7 @@
                                 ))
                         }
                     }
-                    completeReadiness(item)
+                    completeReadiness(item, token: token, request: request)
                 }
             } onCancel: {
                 Task { @MainActor [weak self] in
@@ -125,6 +128,10 @@
             }
             guard current(token, request: request), !Task.isCancelled else {
                 throw MonitorPlaybackError.retired
+            }
+            guard item.status != .failed else {
+                throw MonitorPlaybackError.nativeFailure(
+                    item.error?.localizedDescription ?? "Could not open that clip.")
             }
             installObservers(item: item, token: token, request: request)
             feed.noteItemReady()
@@ -141,19 +148,35 @@
                 self.metadataTask = nil
                 self.onEvent?(token, .metadata(facts))
             }
+            guard current(token, request: request), self.item === item,
+                player.currentItem === item, !Task.isCancelled
+            else { throw MonitorPlaybackError.retired }
+            guard item.status != .failed else {
+                throw MonitorPlaybackError.nativeFailure(
+                    item.error?.localizedDescription ?? "Could not open that clip.")
+            }
+            preparationReturned = true
             return .init(duration: CMTimeGetSeconds(item.duration))
         }
         private func current(_ token: MonitorPlaybackItemToken, request: UUID) -> Bool {
             !closed && admitsSource() && self.token == token && preparation == request
         }
-        private func completeReadiness(_ item: AVPlayerItem) {
+        private func completeReadiness(
+            _ item: AVPlayerItem, token: MonitorPlaybackItemToken, request: UUID
+        ) {
             switch item.status {
             case .readyToPlay: finishReadiness(.success(()))
             case .failed:
-                finishReadiness(
-                    .failure(
-                        MonitorPlaybackError.nativeFailure(
-                            item.error?.localizedDescription ?? "Could not open that clip.")))
+                let message = item.error?.localizedDescription ?? "Could not open that clip."
+                if !preparationReturned {
+                    finishReadiness(.failure(MonitorPlaybackError.nativeFailure(message)))
+                } else {
+                    guard !reportedFailure, current(token, request: request), self.item === item,
+                        player.currentItem === item
+                    else { return }
+                    reportedFailure = true
+                    onEvent?(token, .failed(message))
+                }
             default: break
             }
         }
@@ -167,6 +190,25 @@
         private func installObservers(
             item: AVPlayerItem, token: MonitorPlaybackItemToken, request: UUID
         ) {
+            transportObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) {
+                [weak self, weak item] _, _ in
+                Task { @MainActor in
+                    guard let self, let item, self.current(token, request: request),
+                        self.item === item, self.player.currentItem === item
+                    else { return }
+                    let transport: MonitorPlaybackTransportState?
+                    switch self.player.timeControlStatus {
+                    case .paused: transport = .paused
+                    case .waitingToPlayAtSpecifiedRate: transport = .waiting
+                    case .playing: transport = .playing
+                    @unknown default: transport = nil
+                    }
+                    guard self.current(token, request: request), self.item === item,
+                        self.player.currentItem === item
+                    else { return }
+                    self.onEvent?(token, .transport(transport))
+                }
+            }
             timeObserver = player.addPeriodicTimeObserver(
                 forInterval: CMTime(seconds: 0.2, preferredTimescale: 600), queue: .main
             ) { [weak self] time in
@@ -189,10 +231,13 @@
         }
         private func retireObservers() {
             preparation = UUID()
+            preparationReturned = false
+            reportedFailure = false
             metadataTask?.cancel()
             metadataTask = nil
             finishReadiness(.failure(MonitorPlaybackError.retired))
             statusObserver = nil
+            transportObserver = nil
             if let timeObserver { player.removeTimeObserver(timeObserver) }
             timeObserver = nil
             if let endObserver { NotificationCenter.default.removeObserver(endObserver) }

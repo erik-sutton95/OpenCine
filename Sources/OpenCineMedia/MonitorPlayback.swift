@@ -42,11 +42,18 @@ public struct MonitorPlaybackMetadata: Equatable, Sendable {
     }
 }
 
+/// Observed native transport, separate from the operator's requested play state.
+public enum MonitorPlaybackTransportState: Equatable, Sendable {
+    case paused, waiting, playing
+}
+
 public enum MonitorPlaybackEvent: Equatable, Sendable {
     /// The native item is attached and preparation has been requested. It is not a ready frame.
     case itemInstalled
     case position(Double?)
     case playing(Bool?)
+    /// Waiting retains play intent while the native clock is stalled. Nil is unobserved.
+    case transport(MonitorPlaybackTransportState?)
     case metadata(MonitorPlaybackMetadata)
     case ended
     case failed(String)

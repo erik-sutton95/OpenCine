@@ -806,4 +806,54 @@ import Testing
         port.release(1); #expect(await eventually { model.ready && port.played.count == 2 })
         #expect(port.played == [old, model.token] && !model.closed && library.browsing)
     }
+
+    @Test func waitingTransportKeepsPauseAvailableWithoutClaimingPlayingOrAdvancingTime() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("waiting"); model.load(row, playlist: [row])
+        #expect(await eventually { port.preparations.count == 1 }); port.release(0)
+        #expect(await eventually { model.ready && port.played.count == 1 }); let item = model.token
+        port.onEvent?(item, .position(42)); port.onEvent?(item, .transport(.waiting))
+        #expect(model.reportedTransport == .waiting && model.reportedPlaying == false)
+        #expect(model.playRequested && model.canPause && model.position == 42)
+        model.togglePlaying()
+        #expect(!model.playRequested && port.played == [item])
+        #expect(model.position == 42 && model.token == item && model.ready)
+    }
+
+    @Test func waitingTransportScrubRetainsRequestedResumeAfterNativeSeek() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let row = record("waiting-scrub"); model.load(row, playlist: [row])
+        #expect(await eventually { port.preparations.count == 1 }); port.release(0)
+        #expect(await eventually { model.ready && port.played.count == 1 }); let item = model.token
+        port.onEvent?(item, .transport(.waiting))
+        let edit = model.beginScrub(); #expect(edit != nil)
+        guard let edit else { return }
+        model.commitScrub(admitted: edit)
+        #expect(await eventually { port.seeks.count == 1 }); port.finishSeek(0)
+        #expect(await eventually { port.played.count == 2 })
+        #expect(model.playRequested && port.played == [item, item] && !model.scrubbing)
+    }
+
+    @Test func retiredTransportReportCannotChangeSuccessorIntentOrObservation() async {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, port, model) = fixture()
+        defer { model.close(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let a = record("A"), b = record("B"); model.load(a, playlist: [a, b])
+        #expect(await eventually { port.preparations.count == 1 }); port.release(0)
+        #expect(await eventually { model.ready }); let old = model.token
+        port.onEvent?(old, .transport(.waiting)); model.load(b, playlist: [a, b], play: false)
+        #expect(await eventually { port.preparations.count == 2 }); port.release(1)
+        #expect(await eventually { model.ready })
+        port.onEvent?(old, .transport(.playing))
+        #expect(model.reportedTransport == nil && model.reportedPlaying == nil && !model.playRequested)
+        port.onEvent?(model.token, .transport(.paused))
+        #expect(model.reportedTransport == .paused && model.reportedPlaying == false && !model.canPause)
+        port.onEvent?(model.token, .transport(nil))
+        #expect(model.reportedTransport == nil && model.reportedPlaying == nil && !model.canPause)
+    }
+
 }

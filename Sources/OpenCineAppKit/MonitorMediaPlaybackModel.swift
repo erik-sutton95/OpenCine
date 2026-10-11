@@ -53,6 +53,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     var error: String? = nil
     var playRequested: Bool = true
     var reportedPlaying: Bool? = nil
+    var reportedTransport: MonitorPlaybackTransportState? = nil
     var position: Double = 0
     var duration: Double? = nil
     var metadata: MonitorPlaybackMetadata = .init()
@@ -72,7 +73,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   @ObservationIgnored private var pendingNotifications: [Field] = []
   private enum Field: Equatable {
     case active, playlist, item, token, ready, nativeItemInstalled, loading, error,
-      playRequested, reportedPlaying, position, duration, metadata, reachedEnd, muted,
+      playRequested, reportedPlaying, reportedTransport, position, duration, metadata, reachedEnd, muted,
       looping, conformTarget, look, scrubbing, scrubPosition, closed
   }
 
@@ -116,6 +117,15 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
   public var reportedPlaying: Bool? {
     access(keyPath: \.reportedPlaying)
     return snapshot.reportedPlaying
+  }
+  /// Native transport is unknown until the current item reports it.
+  public var reportedTransport: MonitorPlaybackTransportState? {
+    access(keyPath: \.reportedTransport)
+    return snapshot.reportedTransport
+  }
+  /// Whether the primary transport action is Pause rather than Play.
+  public var canPause: Bool {
+    reportedTransport == .waiting ? playRequested : (reportedPlaying ?? playRequested)
   }
   public var position: Double {
     access(keyPath: \.position)
@@ -192,6 +202,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       case .error: withMutation(keyPath: \.error) {}
       case .playRequested: withMutation(keyPath: \.playRequested) {}
       case .reportedPlaying: withMutation(keyPath: \.reportedPlaying) {}
+      case .reportedTransport: withMutation(keyPath: \.reportedTransport) {}
       case .position: withMutation(keyPath: \.position) {}
       case .duration: withMutation(keyPath: \.duration) {}
       case .metadata: withMutation(keyPath: \.metadata) {}
@@ -371,7 +382,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
         [
           .token, .active, .playlist, .item, .ready, .nativeItemInstalled, .loading,
           .error, .reachedEnd, .position, .duration, .metadata, .conformTarget, .look,
-          .reportedPlaying, .playRequested, .scrubbing,
+          .reportedPlaying, .reportedTransport, .playRequested, .scrubbing,
         ],
         { state in
           state.token = admitted
@@ -393,6 +404,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
           state.conformTarget = nil
           state.look = nil
           state.reportedPlaying = nil
+          state.reportedTransport = nil
           state.playRequested = play
           state.scrubbing = false
         }), admit(admitted)
@@ -606,7 +618,16 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       if !scrubbing, let seconds, seconds.isFinite, seconds >= 0 {
         publish([.position]) { $0.position = seconds }
       }
-    case .playing(let value): publish([.reportedPlaying]) { $0.reportedPlaying = value }
+    case .playing(let value):
+      publish([.reportedPlaying, .reportedTransport]) {
+        $0.reportedPlaying = value
+        $0.reportedTransport = nil
+      }
+    case .transport(let value):
+      publish([.reportedPlaying, .reportedTransport]) {
+        $0.reportedTransport = value
+        $0.reportedPlaying = value.map { $0 == .playing }
+      }
     case .metadata(var facts):
       if facts.conform.captureRate == nil {
         facts.conform.captureRate = active?.asset.frameRate
@@ -665,7 +686,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
     }
   }
   public func togglePlaying() {
-    if reachedEnd { restart() } else { setPlaying(!(reportedPlaying ?? playRequested)) }
+    if reachedEnd { restart() } else { setPlaying(!canPause) }
   }
   public func setMuted(_ value: Bool) {
     let admitted = token
@@ -737,7 +758,7 @@ public final class MonitorMediaPlaybackModel<Payload: Sendable, Look: Sendable> 
       seekTask?.cancel()
       seekTask = nil
       scrub = .init(
-        token: admitted, resume: reportedPlaying ?? playRequested, origin: position)
+        token: admitted, resume: canPause, origin: position)
       guard publish([.scrubPosition], { $0.scrubPosition = $0.position }),
         admit(item), scrub?.token == admitted
       else { return nil }

@@ -184,7 +184,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         sourceLabel, metadata, assist?.presentedAspect((width / height).toFloat(), playback = true) ?: (width / height).toFloat(),
         value.ready, value.error ?: if (value.closed) MediaOperatorCopy.CLIP_NOT_CACHED else null,
         facts.progress, position.toFloat(), duration.toFloat(), clock(position), clock(duration),
-        (value.reportedPlaying ?: value.playRequested) && !value.scrubbing, value.reachedEnd,
+        value.canPause && !value.scrubbing, value.reachedEnd,
         value.scrubbing, value.muted, value.looping, player.canGoPrevious, player.canGoNext, favorite,
         value.metadata.conform, value.conformTarget, initialChromeVisible = initialChromeVisible,
         loopAvailable = loopAvailable, shareEnabled = mayShare,
