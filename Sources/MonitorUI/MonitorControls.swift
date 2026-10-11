@@ -186,10 +186,9 @@
         }
         public var body: some View {
             let displayed = clock ?? "--:--:--"
-            let split = displayed.lastIndex(of: ":")
-            let head = split.map { String(displayed[...$0]) } ?? displayed
-            let tail = split.map { String(displayed[displayed.index(after: $0)...]) } ?? ""
-            (Text(head).foregroundColor(.white) + Text(tail).foregroundColor(MonitorTheme.accent))
+            let components = MonitorTimecodeFormat.accentComponents(in: displayed)
+            (Text(components.base).foregroundColor(.white)
+                + Text(components.accent).foregroundColor(MonitorTheme.accent))
                 .font(MonitorTheme.font(fontSize, weight: .medium)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.65)
                 .accessibilityLabel(clock.map { "Timecode \($0)" } ?? "Timecode not available")

@@ -131,7 +131,7 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
     public private(set) var confirmationPresented = false
     public private(set) var deleteRequestID: UUID?
     public private(set) var resolvedDurations: [MediaAssetID: String] = [:]
-    @ObservationIgnored private var lifetime = UUID()
+    private var lifetime = UUID()
     @ObservationIgnored private var active = true
     @ObservationIgnored private var deletion: (MonitorMediaGallerySnapshot<Payload>, [MonitorMediaRecord<Payload>],
         MonitorMediaGalleryOperations<Payload>, UUID)?

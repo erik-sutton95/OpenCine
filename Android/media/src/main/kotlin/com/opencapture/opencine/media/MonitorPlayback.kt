@@ -17,11 +17,15 @@ public data class MonitorPlaybackMetadata(
     public val duration: Double? = null, public val width: Double? = null, public val height: Double? = null,
     public val conform: MonitorConformPreview.Source = MonitorConformPreview.Source(),
 )
+/** Observed native transport, separate from the operator's requested play state. */
+public enum class MonitorPlaybackTransportState { PAUSED, WAITING, PLAYING }
 public sealed interface MonitorPlaybackEvent {
     /** Native item attached and preparation requested; not a decoded/ready frame. */
     public data object ItemInstalled : MonitorPlaybackEvent
     public data class Position(public val seconds: Double?) : MonitorPlaybackEvent
     public data class Playing(public val value: Boolean?) : MonitorPlaybackEvent
+    /** Waiting retains play intent while the native clock is stalled. Null is unobserved. */
+    public data class Transport(public val value: MonitorPlaybackTransportState?) : MonitorPlaybackEvent
     public data class Metadata(public val value: MonitorPlaybackMetadata) : MonitorPlaybackEvent
     public data object Ended : MonitorPlaybackEvent
     public data class Failed(public val message: String) : MonitorPlaybackEvent

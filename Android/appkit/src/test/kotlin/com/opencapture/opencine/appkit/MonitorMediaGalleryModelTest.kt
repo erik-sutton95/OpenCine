@@ -3,6 +3,7 @@ package com.opencapture.opencine.appkit
 import com.opencapture.opencine.media.*
 import java.nio.file.Files
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.test.*
 import kotlin.test.*
 
@@ -46,6 +47,23 @@ class MonitorMediaGalleryModelTest {
     private fun projection(ids: List<String> = listOf("A", "B"),
         scope: MonitorMediaProjectionSelectionScope = MonitorMediaProjectionSelectionScope.REPRESENTATIVES) =
         MonitorMediaProjection.project(ids.map(::MediaAssetID), MonitorMediaProjectionRequest(selectionScope = scope), GalleryGrouping())
+    @Test fun sourceReplacementInvalidatesRenderedGallerySnapshot() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            val rendered = f.gallery.snapshot()
+            val renderedStates = mutableListOf<MonitorMediaGalleryState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.gallery.state.collect { renderedStates += it }
+            }
+            f.gallery.sourceChanged()
+            assertEquals(2, renderedStates.size)
+            assertFalse(f.gallery.isCurrent(rendered))
+            val successor = f.gallery.snapshot()
+            assertTrue(f.gallery.isCurrent(successor))
+            assertNotNull(f.gallery.open(MediaAssetID("A"), successor, MonitorMediaGalleryOperations(), sourceAvailable = true))
+            assertNull(f.gallery.open(MediaAssetID("A"), rendered, MonitorMediaGalleryOperations(), sourceAvailable = true))
+        } finally { f.close() }
+    }
     @Test fun explicitPlaybackEligibilityFiltersTheWindowWithoutChangingAssetOrShareFacts() = runTest {
         val f = Fixture(backgroundScope, listOf("A", "B", "C"))
         try {

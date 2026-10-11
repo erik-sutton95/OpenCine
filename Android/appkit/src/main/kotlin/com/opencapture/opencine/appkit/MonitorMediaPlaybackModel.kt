@@ -42,7 +42,12 @@ public data class MonitorMediaPlaybackState<P, L>(
     public val muted: Boolean = false, public val looping: Boolean = false, public val conformTarget: Double? = null,
     public val look: MonitorPlaybackLook<L>? = null, public val lookResolution: UUID? = null, public val scrubbing: Boolean = false,
     public val scrubPosition: Double = 0.0, public val closed: Boolean = false,
-)
+    public val reportedTransport: MonitorPlaybackTransportState? = null,
+) {
+    /** Whether the primary transport action is Pause rather than Play. */
+    public val canPause: Boolean get() = if (reportedTransport == MonitorPlaybackTransportState.WAITING)
+        playRequested else reportedPlaying ?: playRequested
+}
 /** Real load/cache/item/scrub owner borrowing its gallery. Native callbacks share one revision. */
 public class MonitorMediaPlaybackModel<P, L>(
     private val library: MonitorMediaLibraryModel<P>, public val native: MonitorPlaybackPort, scope: CoroutineScope,
@@ -131,7 +136,7 @@ public class MonitorMediaPlaybackModel<P, L>(
             duration = record.asset.durationSeconds, metadata = MonitorPlaybackMetadata(record.asset.durationSeconds,
                 record.asset.pixelSize?.width?.toDouble(), record.asset.pixelSize?.height?.toDouble(),
                 MonitorConformPreview.Source(captureRate = record.asset.frameRate)),
-            conformTarget = null, look = null, lookResolution = null, reportedPlaying = null, playRequested = play, scrubbing = false) } || !admit(token)) return
+            conformTarget = null, look = null, lookResolution = null, reportedPlaying = null, reportedTransport = null, playRequested = play, scrubbing = false) } || !admit(token)) return
         native.retireItem(token)
         if (!admit(token)) return
         val choices = candidates(record).toList()
@@ -261,7 +266,9 @@ public class MonitorMediaPlaybackModel<P, L>(
                     state.value.playRequested && sceneActive && presentationActive) native.play(rate, token)
             }
             is MonitorPlaybackEvent.Position -> event.seconds?.takeIf { it.isFinite() && it >= 0 && !state.value.scrubbing }?.let { seconds -> mutate { it.copy(position = seconds) } }
-            is MonitorPlaybackEvent.Playing -> mutate { it.copy(reportedPlaying = event.value) }
+            is MonitorPlaybackEvent.Playing -> mutate { it.copy(reportedPlaying = event.value, reportedTransport = null) }
+            is MonitorPlaybackEvent.Transport -> mutate { it.copy(reportedTransport = event.value,
+                reportedPlaying = event.value?.let { transport -> transport == MonitorPlaybackTransportState.PLAYING }) }
             is MonitorPlaybackEvent.Metadata -> {
                 val before = state.value
                 val conform = event.value.conform.let { source ->
@@ -288,7 +295,7 @@ public class MonitorMediaPlaybackModel<P, L>(
             if (play) native.play(rate, token) else native.pause(token)
         }
     }
-    public fun togglePlaying() { if (state.value.reachedEnd) restart() else setPlaying(!(state.value.reportedPlaying ?: state.value.playRequested)) }
+    public fun togglePlaying() { if (state.value.reachedEnd) restart() else setPlaying(!state.value.canPause) }
     public fun setMuted(value: Boolean) {
         val token = state.value.token
         if (!admit(token) || !mutate { it.copy(muted = value) } || !admit(token)) return
@@ -330,7 +337,7 @@ public class MonitorMediaPlaybackModel<P, L>(
         val admitted = scrub?.token ?: MonitorPlaybackScrubToken(state.token)
         if (scrub == null) {
             seekTask?.cancel(); seekTask = null
-            scrub = Scrub(admitted, state.reportedPlaying ?: state.playRequested, state.position)
+            scrub = Scrub(admitted, state.canPause, state.position)
             if (!mutate { it.copy(scrubPosition = state.position) } || !admit(state.token) || scrub?.token != admitted) return null
             native.pause(state.token)
         }

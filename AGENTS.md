@@ -54,6 +54,21 @@ All four repositories' issues also gather in one GitHub project (`OpenCapture`, 
 publish step). App issue forms ask "only in this app, or also another?"; a problem in shared code
 moves to OpenCine.
 
+## Task routing and status reports
+
+- For every new user request, determine whether it belongs to the active task. Keep related
+  work in that task; for a separate topic, use the Orca CLI to create or reuse a dedicated
+  task-owned worktree in each required repository and begin the authorized work there.
+  Prefer tracked Orca worktrees over subagents for independent topics. Record the brief,
+  owner, scope, dependencies and current handoff so each task can be resumed independently.
+  Check existing tasks first to avoid duplicate work, and give each writer distinct ownership.
+- After every completed feature, change or fix, return a concise status report describing
+  what changed in OpenCine and what was added, fixed or adopted in each thin app. Include
+  OpenPocketCine, OpenInstaCine, OpenZCine and any other registered app; justify unaffected
+  apps from source evidence. Report checks, physical verification, pin/integration status
+  and remaining blockers. Update the task handoff and central progress before reporting
+  completion, using the propagation and verification requirements below.
+
 ## Boundaries
 
 Import rules ([plan](atlas/docs/architecture/platform-plan.md) 3.4). The target edges in
@@ -188,7 +203,14 @@ python3 -m unittest discover -s atlas/tests && python3 atlas/tools/atlas.py chec
   then `xcrun simctl delete $UDID`.
 - Operator-visible behavior is proven on a physical device for each platform changed, or reported
   as `untested`. Simulated and compile-only are not done.
-- A change here is not live in an app until that app's pin moves and the app is verified.
+- Every shared-code change must assess OpenPocketCine, OpenInstaCine, OpenZCine and every other
+  registered thin app against its pinned manifests and current call sites. Implement required
+  adapter, composition, UI, configuration and test changes in every affected app. Follow
+  [propagate-core-change](.claude/skills/propagate-core-change/SKILL.md).
+- Record each app's impact, required adoption, pin and verification evidence in the task handoff;
+  justify an unaffected app from source evidence. A shared change is complete only after its
+  required app changes and checks are complete. Unverified or blocked adoption remains open.
+  A change here is not live in an app until that app's pin moves and the app is verified.
 
 ## Releases
 
