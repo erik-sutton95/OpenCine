@@ -18,7 +18,11 @@ public enum class ConnectionPhase { IDLE, SCANNING, CONNECTING_GATT, PAIRING, AW
 public enum class CameraCapability { LIVE_VIDEO, CAMERA_SETTINGS, RECORD, GIMBAL, FOCUS, CAMERA_MEDIA, AUDIO, ZOOM, TRACKING, METERED_EV, NATIVE_ISO_HOP }
 public data class CameraIdentity(public val id: String, public val advertisedName: String, public val modelName: String)
 public data class CameraSnapshot(public val firmware: String? = null, public val batteryPercent: Int? = null, public val previewWidth: Int = 1280, public val previewHeight: Int = 720, public val previewFps: Int = 25)
-public data class EncodedVideoFrame(public val annexB: ByteArray, public val timestampMicros: Long)
+public data class EncodedVideoFrame(
+    public val annexB: ByteArray, public val timestampMicros: Long,
+    /** Captured native connection; absent when the backend cannot identify its source. */
+    public val connectionGeneration: Long? = null,
+)
 
 /** Backend owns camera protocol and connection I/O. Shared monitor owns decode and UI. */
 public interface CameraBackend {
@@ -31,6 +35,8 @@ public interface CameraBackend {
     public val radioOn: StateFlow<Boolean>
     public val joinedSSID: StateFlow<String?>
     public val frames: Flow<EncodedVideoFrame>
+    /** The current native frame source, changed before a replacement connection starts. */
+    public val frameConnectionGeneration: Long? get() = null
     public fun startScan()
     public fun connect(id: String)
     public fun disconnect()

@@ -106,7 +106,8 @@ class LunaBackend(
     override val readout = _readout.asStateFlow()
     /** OpenCineCore session for the current camera: recording, ISO, shutter and WB go through it. */
     private var session: LunaCameraSession? = null
-    private var mediaConnectionGeneration = 0L
+    @Volatile private var mediaConnectionGeneration = 0L
+    override val frameConnectionGeneration: Long get() = mediaConnectionGeneration
     private var connectedMedia: LunaMediaService? = null
     /** Native host preparation must validate this captured session/epoch before acting. */
     var prepareMediaLiveReturn: (suspend (MediaBrowseBinding) -> Unit)? = null
@@ -172,6 +173,7 @@ class LunaBackend(
     override fun connect(id: String) {
         connectedMedia?.retire()
         mediaConnectionGeneration += 1
+        val frameGeneration = mediaConnectionGeneration
         val previous = connectJob
         previous?.cancel()
         socket?.close()
@@ -180,7 +182,7 @@ class LunaBackend(
             previous?.join()
             _failure.value = null; _failureDetail.value = null
             _connected.value = _found.value.firstOrNull { it.id == id } ?: CameraIdentity(id, "Luna Ultra", "Insta360 Luna Ultra")
-            try { runCamera(id) }
+            try { runCamera(id, frameGeneration) }
             catch (error: Exception) {
                 // A withTimeout inside (GATT, greeting) is a CancellationException too; only a real cancel propagates.
                 if (error is CancellationException && !isActive) throw error
@@ -189,7 +191,7 @@ class LunaBackend(
             } finally { cleanup() }
         }
     }
-    private suspend fun runCamera(id: String): Unit = coroutineScope {
+    private suspend fun runCamera(id: String, frameGeneration: Long): Unit = coroutineScope {
         val identity = clientIdentity.toByteArray()
         // Initiator 1 follows the hardware-verified bootstrap; IDs are this installation's own.
         val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
@@ -210,7 +212,7 @@ class LunaBackend(
         val cameraSocket = withContext(Dispatchers.IO) {
             network.socketFactory.createSocket().also { socket = it; it.tcpNoDelay = true; it.soTimeout = 10_000; it.connect(InetSocketAddress("192.168.42.1", 6666), 8_000) }
         }
-        runLive(cameraSocket, authBody)
+        runLive(cameraSocket, authBody, frameGeneration)
     }
 
     /** BLE approval and the encrypted Wi-Fi credential read, then the camera AP join (credentials saved). */
@@ -255,11 +257,14 @@ class LunaBackend(
         return joinRetrying(ssid, password, budgetMs = 120_000).also { _joinedSSID.value = ssid }
     }
 
-    private suspend fun runLive(cameraSocket: Socket, authBody: ByteArray): Unit = coroutineScope {
+    private suspend fun runLive(cameraSocket: Socket, authBody: ByteArray, frameGeneration: Long): Unit = coroutineScope {
         lastVideoAt.set(android.os.SystemClock.elapsedRealtime())
         val channel = LunaChannel(
             send = { bytes -> withContext(Dispatchers.IO) { cameraSocket.getOutputStream().write(bytes); cameraSocket.getOutputStream().flush() } },
-            video = { bytes, tick -> lastVideoAt.set(android.os.SystemClock.elapsedRealtime()); video.tryEmit(EncodedVideoFrame(bytes, tick)) },
+            video = { bytes, tick ->
+                lastVideoAt.set(android.os.SystemClock.elapsedRealtime())
+                video.tryEmit(EncodedVideoFrame(bytes, tick, frameGeneration))
+            },
             notify = { message -> val note = LunaNotification.parse(message.code, message.body); scope.launch { handle(note) } },
             track = { frame -> if (frame != lastTrack) { lastTrack = frame; frame.shared?.let(trackFlow::tryEmit) } },
             imu = { samples ->
