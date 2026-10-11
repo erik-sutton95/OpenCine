@@ -69,6 +69,7 @@ class MonitorPortraitStatusGeometryTest {
     private val automation = instrumentation.uiAutomation
     private var composeDiagnostic: String? = null
     private val canvasDescription = "SIMULATED status geometry canvas"
+    private val statusDescription = "SIMULATED status geometry header"
 
     @Test fun observedSeparateReadoutsKeepTheirFullValuesAndEightPointClearance() = withHeader(440f) { value ->
         assertEquals(412f, value.status.width / value.density, 0.6f)
@@ -156,13 +157,15 @@ class MonitorPortraitStatusGeometryTest {
                     }
                 }
                 val names = listOf("Standby", "Timecode 14:34:52", if (compact) "Recording options" else "Format") +
-                    (if (compact) emptyList() else listOf("Codec")) + canvasDescription
+                    (if (compact) emptyList() else listOf("Codec")) + listOf(canvasDescription, statusDescription)
                 val deadline = SystemClock.uptimeMillis() + 5_000
                 var nodes: Map<String, AccessibilityNodeInfo>? = null
                 var previous: FrameSample? = null
                 var stable: FrameSample? = null
                 var nativeCanvas: Rect? = null
                 var expectedCanvas: Rect? = null
+                var nativeStatus: Rect? = null
+                var expectedStatus: Rect? = null
                 do {
                     nodes?.values?.forEach { it.recycle() }
                     instrumentation.waitForIdleSync()
@@ -181,8 +184,16 @@ class MonitorPortraitStatusGeometryTest {
                         Rect(bounds.left.roundToInt(), bounds.top.roundToInt(),
                             bounds.right.roundToInt(), bounds.bottom.roundToInt())
                     }
-                    // Require the native and observed canvas to share screen coordinates before sampling the header.
-                    val canvasReady = nativeCanvas != null && nativeCanvas == expectedCanvas
+                    nativeStatus = actual?.getValue(statusDescription)?.let { node ->
+                        Rect().also { node.getBoundsInScreen(it) }
+                    }
+                    expectedStatus = status?.let { bounds ->
+                        Rect(bounds.left.roundToInt(), bounds.top.roundToInt(),
+                            bounds.right.roundToInt(), bounds.bottom.roundToInt())
+                    }
+                    // Both parent bounds must share coordinates; the full canvas can hide a child transform.
+                    val canvasReady = nativeCanvas != null && nativeCanvas == expectedCanvas &&
+                        nativeStatus != null && nativeStatus == expectedStatus
                     val candidate = if (canvasReady && actual != null && status != null && screen != null && density > 0f &&
                         abs(screen.width / density - width) <= 0.6f) {
                         fun bounds(name: String): Rect = Rect().also { actual.getValue(name).getBoundsInScreen(it) }
@@ -199,7 +210,8 @@ class MonitorPortraitStatusGeometryTest {
                     nodes = null
                 }
                 val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize; " +
-                    "nativeCanvas=$nativeCanvas, observedCanvas=$expectedCanvas")
+                    "nativeCanvas=$nativeCanvas, observedCanvas=$expectedCanvas, " +
+                    "nativeStatus=$nativeStatus, observedStatus=$expectedStatus")
                 val actual = assertNotNull(nodes, "Actual shared header native elements must render")
                 val density = ready.measurement.density
                 assertTrue(density > 0f)
@@ -300,7 +312,7 @@ class MonitorPortraitStatusGeometryTest {
                         modifier = Modifier.onGloballyPositioned {
                             probe.status = screenBounds(it.boundsInWindow())
                             probe.geometryRevision += 1L
-                        },
+                        }.semantics { contentDescription = statusDescription },
                         recordingModifier = Modifier.onGloballyPositioned {
                             probe.composeRecording = screenBounds(it.boundsInWindow())
                             probe.geometryRevision += 1L
