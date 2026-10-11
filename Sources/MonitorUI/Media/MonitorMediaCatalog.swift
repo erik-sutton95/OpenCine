@@ -84,6 +84,7 @@
                 if phase != .active { selectionInteraction.cancel() }
             }
             .onDisappear { selectionInteraction.detach() }
+            .onAppear { selectionInteraction.returnFromOpening() }
         }
 
         private func dismiss() { action(.back) }
@@ -229,7 +230,10 @@
                 selecting: selecting, selected: selectedIDs.contains(item.id),
                 favoriteEnabled: item.permissions.contains(.favorite),
                 sourceTint: item.availability == .original ? MonitorTheme.color(0x3FD3A3) : MonitorTheme.muted,
-                onOpen: { action(.open(item.id)) }, onSelect: { action(.select(item.id)) },
+                onOpen: {
+                    selectionInteraction.preservePositionForOpening()
+                    action(.open(item.id))
+                }, onSelect: { action(.select(item.id)) },
                 onFavorite: { action(.favorite(item.id)) }
             ) { thumbnail(item) }
             // On the cell's own element, before the selection anchor joins it: after it, both

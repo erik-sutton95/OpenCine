@@ -121,6 +121,7 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
                             }
                         }
                     }, accessory: { cachingHeader(snapshot) })
+                    .id(catalogIdentity)
                 if gallery.filterPopupPresented { filterPopup(snapshot: snapshot, size: proxy.size) }
                 if let progress = library.deletionProgress { deletionOverlay(progress) }
                 if let notice = gallery.notice {
@@ -152,6 +153,22 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
                 key: request.bound == .start ? library.dateStart : library.dateEnd,
                 commit: { gallery.date($0, admitted: request) })
         }
+    }
+
+    /// A cover returns to one source and presentation, never to a replacement's old position.
+    private var catalogIdentity: MonitorOperatorCatalogIdentity {
+        .init(source: ObjectIdentifier(library), lifetime: library.lifetimeToken,
+            navigation: [presentation?.category ?? library.category.rawValue,
+                (presentation?.layout ?? library.layout).rawValue,
+                (presentation?.thumbnailSize ?? library.thumbnailSize).rawValue,
+                presentation?.sortTitle ?? library.sort.rawValue],
+            filters: [library.formats, library.resolutions, library.colors,
+                presentation?.filters.formatSelection ?? [],
+                presentation?.filters.resolutionSelection ?? [],
+                presentation?.filters.photoSizeSelection ?? []],
+            dates: [library.dateStart, library.dateEnd,
+                presentation?.filters.dateWindow, presentation?.filters.storageID],
+            sourceAvailable: sourceAvailable)
     }
 
     private func item(_ record: MonitorMediaRecord<Payload>) -> MonitorMediaItem {
@@ -390,5 +407,14 @@ extension MonitorMediaFilterForm {
                 selectedId: filters.storageID, onToggle: { onAction(.storage($0)) }),
             hasActiveFilters: presentation.activeFilterCount > 0)
     }
+}
+
+private struct MonitorOperatorCatalogIdentity: Hashable {
+    let source: ObjectIdentifier
+    let lifetime: UUID
+    let navigation: [String]
+    let filters: [Set<String>]
+    let dates: [String?]
+    let sourceAvailable: Bool
 }
 #endif
