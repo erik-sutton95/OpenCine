@@ -806,3 +806,14 @@ import Testing
         PTPCameraPropertyDecoders.whiteBalanceOptions(advertised: advertised, codec: nil)
             == advertised)
 }
+
+@Test func stillToneReadbackPreservesUnknownAndRetiresPreviousTone() {
+    let initial = PTPCameraPropertySnapshot()
+    #expect(initial.stillToneMode == nil)
+    #expect(initial.applying(property: .stillToneMode, data: Data([0])).stillToneMode == "SDR")
+    let hlg = initial.applying(property: .stillToneMode, data: Data([2]))
+    #expect(hlg.stillToneMode == "HLG")
+    for bytes: [UInt8] in [[], [1], [255], [2, 0]] {
+        #expect(hlg.applying(property: .stillToneMode, data: Data(bytes)).stillToneMode == nil)
+    }
+}

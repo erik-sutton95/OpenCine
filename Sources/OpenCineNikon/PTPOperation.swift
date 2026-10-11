@@ -230,8 +230,8 @@ public enum PTPPropertyCode: UInt32, Sendable {
     case wbColorTemp = 0xD01E
     case wbTuneColorTemp = 0xD150
     case wbTuneNatural = 0xD15E
-    /// Stills tone mode (UINT8): 0 SDR, 2 HLG. Drives the exposure-assist transfer curve in
-    /// photo mode — SDR bodies without the property simply fail the poll and stay SDR.
+    /// Stills tone mode (UINT8): the existing integration names 0 SDR and 2 HLG.
+    /// Missing or unknown readback does not establish the preview signal calibration.
     case stillToneMode = 0x0001_D01C
 }
 

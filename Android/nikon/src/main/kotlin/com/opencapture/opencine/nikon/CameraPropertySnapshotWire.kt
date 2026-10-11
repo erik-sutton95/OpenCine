@@ -108,7 +108,7 @@ object CameraPropertySnapshotWire {
             cameraGrid = value.optionalString("cameraGrid"),
             captureSelector = value.optionalString("captureSelector"),
             stillCaptureMode = value.optionalString("stillCaptureMode"),
-            stillToneMode = value.optionalString("stillToneMode"),
+            stillToneMode = value.optionalString("stillToneMode")?.takeIf { it == "SDR" || it == "HLG" },
             imageSize = value.optionalString("imageSize"),
             compression = value.optionalString("compression"),
             meteringMode = value.optionalString("meteringMode"),

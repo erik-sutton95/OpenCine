@@ -2157,8 +2157,11 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             return replacing(
                 pictureControl: PTPCameraPropertyDecoders.pictureControl(
                     ByteCoding.readUInt16LE(bytes, at: 0)))
-        case .stillToneMode where bytes.count >= 1:
-            return replacing(stillToneMode: bytes[0] == 2 ? "HLG" : "SDR")
+        case .stillToneMode:
+            // Only the existing integration's named enum values are observed facts.
+            // Unknown/malformed readback retires an older tone rather than becoming SDR.
+            let tone: String? = bytes.count == 1 ? [UInt8(0): "SDR", 2: "HLG"][bytes[0]] : nil
+            return replacing(stillToneMode: tone, clearsStillToneMode: tone == nil)
         case .wbColorTemp where bytes.count >= 2:
             // Stills colour temperature shares the movie Kelvin field — the active selector
             // decides which property the poll fills it from.
@@ -2275,7 +2278,8 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         pictureControl: String? = nil,
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
-        evIndicatorLit: Bool? = nil
+        evIndicatorLit: Bool? = nil,
+        clearsStillToneMode: Bool = false
     ) -> PTPCameraPropertySnapshot {
         PTPCameraPropertySnapshot(
             iso: iso ?? self.iso,
@@ -2327,7 +2331,7 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             rawCompression: rawCompression ?? self.rawCompression,
             userModeProgram: userModeProgram ?? self.userModeProgram,
             pictureControl: pictureControl ?? self.pictureControl,
-            stillToneMode: stillToneMode ?? self.stillToneMode,
+            stillToneMode: clearsStillToneMode ? nil : stillToneMode ?? self.stillToneMode,
             evIndicatorSixths: evIndicatorSixths ?? self.evIndicatorSixths,
             evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit
         )
