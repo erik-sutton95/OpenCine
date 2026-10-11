@@ -104,7 +104,7 @@ public class MonitorOperatorMotionViews(
 
 /** The one monitor recipe is shared by native legacy, descriptor and generated-app adapters. */
 @Composable
-internal fun <K, S, M, N> MonitorOperatorLiveBody(
+public fun <K, S, M, N> MonitorOperatorLiveBody(
     control: MonitorControlModel, identity: MonitorOperatorLiveIdentity,
     current: (MonitorOperatorLiveIdentity) -> Boolean, layout: MonitorFieldLayout, viewport: MonitorRect,
     sections: MonitorOperatorLiveSections<S>, mounted: Set<S>, host: ChromeEditHost<S, M>, editing: M?,
