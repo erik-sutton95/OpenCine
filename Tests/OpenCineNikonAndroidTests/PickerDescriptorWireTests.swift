@@ -61,6 +61,10 @@ struct PickerDescriptorWireTests {
             ])
         // And the pair lights the depth the body is actually on.
         #expect(controls.codecBitDepth == "10-bit")
+        let wire = AndroidCameraPropertyReadbackWire.encode(
+            session.refreshAndroidPropertySnapshot(.bootstrap))
+        // SIMULATED actual native readback: this codec could be SDR, HLG or N-Log.
+        #expect(!wire.split(separator: "\n").contains { $0.hasPrefix("tone\t") })
     }
 
     @Test func pickingTenBitPutsTheAdvertisedTenBitValueOnTheWire() throws {

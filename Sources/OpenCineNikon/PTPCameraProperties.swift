@@ -1566,14 +1566,19 @@ extension PTPCameraPropertyDecoders {
         }
     }
 
-    /// Infers the automatic tone/gamma label used by exposure assists from the reported codec.
+    /// Returns a positively identified log label, never a tone inferred from a container.
+    /// ProRes, N-RAW and H.265 can record more than one tone mode; their codec is insufficient.
     public static func toneLabel(fromCodec codec: String) -> String? {
-        guard !codec.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return isRedLog3G10Codec(codec) ? "Log3G10" : "N-Log"
+        if isRedLog3G10Codec(codec) { return "Log3G10" }
+        let upper = codec.uppercased()
+        if upper.contains("N-LOG") || upper.contains("N LOG") || upper.contains("NLOG") {
+            return "N-Log"
+        }
+        return nil
     }
 
-    /// R3D (or a codec label naming Log3G10) records REDWideGamutRGB/Log3G10; every other codec
-    /// monitors as N-Log on the log path. `ExposureToneCurve.forCameraCodec` reads this.
+    /// Identifies the fixed R3D recording tone or an explicit Log3G10 label.
+    /// A recording tone does not establish the transfer of live-view or decoded proxy pixels.
     public static func isRedLog3G10Codec(_ codec: String) -> Bool {
         let upper = codec.uppercased()
         return upper.contains("R3D") || upper.contains("LOG3G10")
