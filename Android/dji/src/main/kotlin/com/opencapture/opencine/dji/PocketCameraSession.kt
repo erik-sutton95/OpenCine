@@ -603,6 +603,8 @@ class PocketCameraSession(
     private val inflightPending = ConcurrentHashMap<Int, InflightSend>()
     private var reconnectJob: Job? = null
     private var reconnectTarget: String? = null
+    /** This session's hold on the reporting camera path, from connect start until disconnect. */
+    private var reportingCameraPath: AutoCloseable? = null
     private val _connectionTargetId = MutableStateFlow<String?>(null)
     val connectionTargetId: StateFlow<String?> = _connectionTargetId.asStateFlow()
     private var feedRecoveryJob: Job? = null
@@ -820,7 +822,7 @@ class PocketCameraSession(
         reconnectTarget = null
         _connectionTargetId.value = camera.id
         _isReconnecting.value = false
-        appHost.setCameraSessionActive(true)
+        if (reportingCameraPath == null) reportingCameraPath = appHost.beginCameraPath()
         LocalVPNProbe.noteIfActive(appContext) { DjiLog.log("notice", "session", "vpn", it) }
         connectJob?.cancel()
         if (!holdsMonitor) publishPhase(ConnectionPhase.CONNECTING_GATT)
@@ -938,7 +940,8 @@ class PocketCameraSession(
         mediaReturnOwner = null
         controlBinding.retire(com.opencapture.opencine.core.SessionCloseReason.REQUESTED)
         reportedCapture = CameraStatus()
-        appHost.setCameraSessionActive(false)
+        reportingCameraPath?.close()
+        reportingCameraPath = null
         // Operator ended the session: an incident still open ends as userEnded.
         val outgoingIncidentSource = incidentSource
         incidentSource = null

@@ -131,15 +131,14 @@ class ReliabilityReportingTest {
         consent.setOptedIn(true)
         gate.setValidInternetForTests(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         gate.register(fake)
         assertFalse(gate.shouldBlockUpload)
         assertTrue(gate.isConnected)
-        gate.setCameraSessionActive(true)
+        val lease = gate.beginCameraPath()
         assertTrue(gate.shouldBlockUpload)
         assertFalse(gate.isConnected)
         assertTrue(fake.cancelled)
-        gate.setCameraSessionActive(false)
+        lease.end()
         gate.setCameraIPv4PathReadyForTests(true)
         assertTrue(gate.shouldBlockUpload)
         assertFalse(gate.isConnected)
@@ -157,12 +156,11 @@ class ReliabilityReportingTest {
         consent.setOptedIn(false)
         gate.setValidInternetForTests(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         gate.register(fake)
         assertFalse(fake.cancelled)
         gate.cancelPending(includeIndependent = false)
         assertFalse(fake.cancelled)
-        gate.setCameraSessionActive(true)
+        gate.beginCameraPath()
         assertTrue(fake.cancelled)
     }
 
@@ -241,17 +239,55 @@ class ReliabilityReportingTest {
             ReliabilityReportingLoadDecision.REJECT_HOST,
             ReliabilityReportingNetwork.decision(other, dsnHost, gate),
         )
-        gate.setCameraSessionActive(true)
+        gate.beginCameraPath()
         assertEquals(
             ReliabilityReportingLoadDecision.BLOCK_CAMERA_PATH,
             ReliabilityReportingNetwork.decision(allowed, dsnHost, gate),
         )
     }
 
+    /**
+     * A6-08: each connection owner holds its own lease from the connect attempt through recovery
+     * and failure until it retires. A superseded owner ending late, or twice, never reopens its
+     * successor's hold; uploads resume (and onClear runs) after the last lease ends.
+     */
+    @Test
+    fun cameraPathLeaseIsFencedPerOwner() {
+        consent.setOptedIn(true)
+        gate.setCameraIPv4PathReadyForTests(false)
+        val queued = FakeTask()
+        gate.register(queued)
+        var clears = 0
+        val stale = gate.beginCameraPath { clears += 1 }
+        assertTrue(queued.cancelled)
+        val successor = gate.beginCameraPath { clears += 1 }
+        stale.end()
+        stale.close()
+        assertTrue(stale.isEnded)
+        assertTrue(gate.isCameraSessionActive)
+        assertTrue(gate.shouldBlockUpload)
+        assertEquals(0, clears)
+        val late = FakeTask()
+        gate.register(late)
+        assertTrue(late.cancelled)
+        successor.end()
+        assertFalse(gate.shouldBlockUpload)
+        assertEquals(1, clears)
+        successor.end()
+        assertEquals(1, clears)
+
+        val outlived = gate.beginCameraPath()
+        gate.resetForTests()
+        val next = gate.beginCameraPath()
+        outlived.close()
+        assertTrue(gate.shouldBlockUpload, "a lease that outlived a reset cannot release a new holder")
+        next.close()
+        assertFalse(gate.shouldBlockUpload)
+    }
+
     @Test
     fun revokedConsentDisconnectsTransportGate() {
         consent.setOptedIn(false)
-        gate.setCameraSessionActive(false)
         gate.setCameraIPv4PathReadyForTests(false)
         gate.setValidInternetForTests(true)
         assertFalse(gate.isConnected)
@@ -289,7 +325,6 @@ class ReliabilityReportingTest {
     fun queuedIncidentKeepsOriginalReleaseAndOccurrenceTime() {
         consent.setOptedIn(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         val bundle = stallBundle("12121212121212121212121212121212")
         bundle.header.appVersion = "0.1.0"
         bundle.header.appBuild = "107"
@@ -321,7 +356,6 @@ class ReliabilityReportingTest {
     fun queuedReplayOriginSurvivesJsonReloadAndCurrentRunOverride() {
         consent.setOptedIn(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         val original = stallBundle("14141414141414141414141414141414")
         original.header.testSource = FeedIncidentTestSource.FAULT_INJECTION
         original.header.buildIdentity = "android-queuedorigin0123456789abcd"
@@ -355,7 +389,6 @@ class ReliabilityReportingTest {
     fun queuedReceiptOlderThanFiveMinutesCanRetry() {
         consent.setOptedIn(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         val id = "13131313131313131313131313131313"
         ReliabilityReportingReceipts.store(
             ReliabilityReportingReceipt(
@@ -377,7 +410,6 @@ class ReliabilityReportingTest {
     fun captureEnqueueIsQueuedNotDeliveredAndDedupsConfirmed() {
         consent.setOptedIn(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         val bundle = stallBundle("12c2d058d58442709aa2eca08bf20986")
         var captured = 0
         reporting.setCaptureHandlerForTests { event, data ->
@@ -417,7 +449,7 @@ class ReliabilityReportingTest {
     @Test
     fun cameraPathDoesNotEnqueueWhileBlocked() {
         consent.setOptedIn(true)
-        gate.setCameraSessionActive(true)
+        gate.beginCameraPath()
         val bundle = stallBundle("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
         var captured = false
         reporting.setCaptureHandlerForTests { _, _ -> captured = true }
