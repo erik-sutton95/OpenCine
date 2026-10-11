@@ -121,10 +121,10 @@ private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composabl
 @Composable
 fun MonitorClock(timecode: String?, tablet: Boolean = false, modifier: Modifier = Modifier, compact: Boolean = false) {
     val displayed = timecode ?: "--:--:--"
-    val split = displayed.lastIndexOf(':')
+    val (base, accent) = MonitorTimecodeFormat.accentComponents(displayed)
     Text(buildAnnotatedString {
-        withStyle(SpanStyle(color = MonitorPalette.text)) { append(if (split >= 0) displayed.substring(0, split + 1) else displayed) }
-        withStyle(SpanStyle(color = MonitorPalette.accent)) { if (split >= 0) append(displayed.substring(split + 1)) }
+        withStyle(SpanStyle(color = MonitorPalette.text)) { append(base) }
+        withStyle(SpanStyle(color = MonitorPalette.accent)) { append(accent) }
     }, style = MonitorTypography.text(if (compact) 15f else if (tablet) 25f else 23f, FontWeight.Medium),
         maxLines = 1, softWrap = false,
         modifier = modifier.clearAndSetSemantics { contentDescription = timecode?.let { "Timecode $it" } ?: "Timecode not available" })
