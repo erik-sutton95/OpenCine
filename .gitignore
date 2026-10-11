@@ -11,3 +11,6 @@ build/
 .kotlin/
 local.properties
 .cxx/
+# Python bytecode from the scripts/sentry checks
+__pycache__/
+*.pyc

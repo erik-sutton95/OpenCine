@@ -33,6 +33,8 @@ jobs:
           args: "detect --source=. --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: Sentry release tooling shared by the apps (offline)
+        run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
         uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
       - name: Markdown lint
