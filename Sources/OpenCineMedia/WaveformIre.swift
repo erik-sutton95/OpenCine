@@ -50,11 +50,9 @@ public struct ScopeLevelAxis: Equatable, Sendable {
 
     /// Encoded-code percentage, retaining traces without assigning an unknown transfer or grey.
     /// `middleGrayIRE` is unused in this mode; no calibrated reference may consume it.
-    public static var rawCodes: Self {
-        Self(
-            table: (0...255).map { Float($0) / 255 * 100 }, middleGrayIRE: 0,
-            supportsCalibratedReferences: false)
-    }
+    public static let rawCodes = Self(
+        table: (0...255).map { Float($0) / 255 * 100 }, middleGrayIRE: 0,
+        supportsCalibratedReferences: false)
 
     public init(transfer: MonitorTransfer, clipByte: Int) {
         self.init(
