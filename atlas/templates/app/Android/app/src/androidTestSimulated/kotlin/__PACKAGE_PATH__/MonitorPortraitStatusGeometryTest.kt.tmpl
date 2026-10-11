@@ -55,6 +55,7 @@ import com.opencapture.opencine.appkit.MonitorScreenPresentation
 import java.io.File
 import java.util.UUID
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -67,6 +68,7 @@ class MonitorPortraitStatusGeometryTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val automation = instrumentation.uiAutomation
     private var composeDiagnostic: String? = null
+    private val canvasDescription = "SIMULATED status geometry canvas"
 
     @Test fun observedSeparateReadoutsKeepTheirFullValuesAndEightPointClearance() = withHeader(440f) { value ->
         assertEquals(412f, value.status.width / value.density, 0.6f)
@@ -154,11 +156,13 @@ class MonitorPortraitStatusGeometryTest {
                     }
                 }
                 val names = listOf("Standby", "Timecode 14:34:52", if (compact) "Recording options" else "Format") +
-                    if (compact) emptyList() else listOf("Codec")
+                    (if (compact) emptyList() else listOf("Codec")) + canvasDescription
                 val deadline = SystemClock.uptimeMillis() + 5_000
                 var nodes: Map<String, AccessibilityNodeInfo>? = null
                 var previous: FrameSample? = null
                 var stable: FrameSample? = null
+                var nativeCanvas: Rect? = null
+                var expectedCanvas: Rect? = null
                 do {
                     nodes?.values?.forEach { it.recycle() }
                     instrumentation.waitForIdleSync()
@@ -170,7 +174,16 @@ class MonitorPortraitStatusGeometryTest {
                     if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
                     nodes = nativeNodes(names)
                     val actual = nodes
-                    val candidate = if (actual != null && status != null && screen != null && density > 0f &&
+                    nativeCanvas = actual?.getValue(canvasDescription)?.let { node ->
+                        Rect().also { node.getBoundsInScreen(it) }
+                    }
+                    expectedCanvas = screen?.let { bounds ->
+                        Rect(bounds.left.roundToInt(), bounds.top.roundToInt(),
+                            bounds.right.roundToInt(), bounds.bottom.roundToInt())
+                    }
+                    // Require the native and observed canvas to share screen coordinates before sampling the header.
+                    val canvasReady = nativeCanvas != null && nativeCanvas == expectedCanvas
+                    val candidate = if (canvasReady && actual != null && status != null && screen != null && density > 0f &&
                         abs(screen.width / density - width) <= 0.6f) {
                         fun bounds(name: String): Rect = Rect().also { actual.getValue(name).getBoundsInScreen(it) }
                         FrameSample(revision, screen, Measurement(status, bounds("Standby"), bounds("Timecode 14:34:52"),
@@ -185,7 +198,8 @@ class MonitorPortraitStatusGeometryTest {
                     nodes?.values?.forEach { it.recycle() }
                     nodes = null
                 }
-                val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize")
+                val ready = assertNotNull(stable, "Actual shared header native elements and geometry must stabilize; " +
+                    "nativeCanvas=$nativeCanvas, observedCanvas=$expectedCanvas")
                 val actual = assertNotNull(nodes, "Actual shared header native elements must render")
                 val density = ready.measurement.density
                 assertTrue(density > 0f)
@@ -279,7 +293,7 @@ class MonitorPortraitStatusGeometryTest {
                 Modifier.size(width.dp, 900.dp).onGloballyPositioned {
                     probe.screen = screenBounds(it.boundsInWindow())
                     probe.geometryRevision += 1L
-                },
+                }.semantics { contentDescription = canvasDescription },
                 picture = { Box(Modifier.fillMaxSize().background(Color.Black)) },
                 status = {
                     MonitorStatusChrome(layout, MonitorStatusPresentation(false, timecode = "14:34:52"),
