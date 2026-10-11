@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import OpenCineAppKit
 import OpenCineMedia
 import Testing
@@ -15,6 +16,7 @@ import Testing
     func favorites() -> Set<String> { keys }
     func saveFavorites(_ keys: Set<String>) { self.keys = keys }
 }
+@MainActor private final class GallerySnapshotObserver { var invalidations = 0 }
 
 private struct GalleryGrouping: MonitorMediaProjectionPolicy {
     var groupStage: MonitorMediaProjectionGroupStage { .beforeSort }
@@ -51,6 +53,22 @@ private struct GalleryGrouping: MonitorMediaProjectionPolicy {
     }
     private func projection(_ ids: [String] = ["A", "B"], scope: MonitorMediaProjectionSelectionScope = .representatives) -> MonitorMediaProjectionResult {
         MonitorMediaProjection.project(ids.map { MediaAssetID($0) }, request: .init(selectionScope: scope), policy: GalleryGrouping())
+    }
+    @Test func sourceReplacementInvalidatesRenderedGallerySnapshot() throws {
+        guard #available(macOS 14, *) else { return }
+        let (root, library, gallery) = try fixture()
+        defer { gallery.retire(); library.close(); try? FileManager.default.removeItem(at: root) }
+        let observer = GallerySnapshotObserver()
+        let rendered = withObservationTracking { gallery.snapshot() } onChange: {
+            MainActor.assumeIsolated { observer.invalidations += 1 }
+        }
+        gallery.sourceChanged()
+        #expect(observer.invalidations == 1)
+        #expect(!gallery.isCurrent(rendered))
+        let successor = gallery.snapshot()
+        #expect(gallery.isCurrent(successor))
+        #expect(gallery.open(.init("A"), admitted: successor, operations: .init(), sourceAvailable: true) != nil)
+        #expect(gallery.open(.init("A"), admitted: rendered, operations: .init(), sourceAvailable: true) == nil)
     }
     @Test func explicitPlaybackEligibilityFiltersTheWindowWithoutChangingAssetOrShareFacts() throws {
         guard #available(macOS 14, *) else { return }
