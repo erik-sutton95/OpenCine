@@ -12,7 +12,23 @@ import com.opencapture.opencine.media.FeedIncidentTestSource
 import com.opencapture.opencine.media.FeedRepairRecord
 import java.io.File
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ExecutorService
+
+/** Captured authority for one incident session, distinct even when a context ID is reused. */
+public class FeedIncidentSessionSource internal constructor(
+    private val runtime: FeedIncidentRuntime,
+    public val sessionID: String,
+) {
+    public fun ingestSnapshot(snapshot: FeedIncidentSnapshot): Unit = runtime.ingest(this, snapshot)
+    public fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb): Unit = runtime.breadcrumb(this, breadcrumb)
+    public fun recordRepair(repair: FeedRepairRecord): Unit = runtime.repair(this, repair)
+    public fun noteTestSource(origin: FeedIncidentTestSource): Unit = runtime.origin(this, origin)
+    public fun noteDecoderGeneration(generation: Int): Unit = runtime.decoderGeneration(this, generation)
+    public fun noteSocketGeneration(generation: Int): Unit = runtime.socketGeneration(this, generation)
+    public fun noteExhausted(nowSeconds: Double): Unit = runtime.exhausted(this, nowSeconds)
+    public fun noteUnexpectedDisconnect(nowSeconds: Double): Unit = runtime.disconnected(this, nowSeconds)
+    public fun endSession(nowSeconds: Double): Unit = runtime.end(this, nowSeconds)
+}
 
 /**
  * Shell owner for feed-incident persistence. Recorder stays in memory; this
@@ -20,17 +36,29 @@ import java.util.concurrent.atomic.AtomicBoolean
  * decode, display, or fatal-signal handlers. Finalized incidents and session
  * summaries go to [reporting]; its host names the listing and redacts.
  */
-public class FeedIncidentRuntime(private val reporting: ReliabilityReporting) : FeedIncidentSink {
-    private val product = reporting.host.product
-    private val redact = reporting.host.redact
-    private val writer =
+public class FeedIncidentRuntime internal constructor(
+    private val reporting: ReliabilityReporting,
+    private val writer: ExecutorService,
+) : FeedIncidentSink {
+    public constructor(reporting: ReliabilityReporting) : this(reporting,
         Executors.newSingleThreadExecutor { thread ->
             Thread(thread, "opc.feed-incident").apply { isDaemon = true }
-        }
+        })
+    private val product = reporting.host.product
+    private val redact = reporting.host.redact
     private val recorder = FeedIncidentRecorder(redact = redact)
     private var store: FeedIncidentStore? = null
-    @Volatile private var latestSnapshot: FeedIncidentSnapshot? = null
-    private val snapshotScheduled = AtomicBoolean(false)
+    private data class Pending(
+        val source: FeedIncidentSessionSource,
+        var snapshot: FeedIncidentSnapshot? = null,
+        var decoderGeneration: Int? = null,
+        var socketGeneration: Int? = null,
+    )
+    private val gate = Any()
+    private var submittedSource: FeedIncidentSessionSource? = null
+    private var pending: Pending? = null
+    // Only the serial writer reads or mutates the active recorder source.
+    private var activeSource: FeedIncidentSessionSource? = null
     private var sessionContext: FeedIncidentSessionContext? = null
     private var lastSummaryCheckpoint = 0.0
 
@@ -55,69 +83,81 @@ public class FeedIncidentRuntime(private val reporting: ReliabilityReporting) : 
         }
     }
 
-    override fun beginSession(context: FeedIncidentSessionContext) {
+    /** Legacy producers capture the current source per call; asynchronous owners should retain a binding. */
+    override fun beginSession(context: FeedIncidentSessionContext) { beginBoundSession(context) }
+
+    public fun beginBoundSession(context: FeedIncidentSessionContext): FeedIncidentSessionSource = synchronized(gate) {
+        val captured = context.copy()
+        val source = FeedIncidentSessionSource(this, captured.sessionId)
+        submittedSource = source
+        pending = null
+        // Enqueue the begin event before returning authority to any producer.
         writer.execute {
-            persist(recorder.beginSession(context))
-            sessionContext = context
+            persist(recorder.beginSession(captured))
+            activeSource = source
+            sessionContext = captured
             lastSummaryCheckpoint = 0.0
             persistSessionSummary("live")
         }
+        source
     }
 
-    override fun endSession(nowSeconds: Double) {
+    override fun endSession(nowSeconds: Double) { currentSource()?.endSession(nowSeconds) }
+    override fun ingestSnapshot(snapshot: FeedIncidentSnapshot) { currentSource()?.ingestSnapshot(snapshot) }
+    override fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb) { currentSource()?.recordBreadcrumb(breadcrumb) }
+    override fun recordRepair(repair: FeedRepairRecord) { currentSource()?.recordRepair(repair) }
+    public fun noteTestSource(source: FeedIncidentTestSource) { currentSource()?.noteTestSource(source) }
+    override fun noteDecoderGeneration(generation: Int) { currentSource()?.noteDecoderGeneration(generation) }
+    override fun noteSocketGeneration(generation: Int) { currentSource()?.noteSocketGeneration(generation) }
+    override fun noteExhausted(nowSeconds: Double) { currentSource()?.noteExhausted(nowSeconds) }
+    override fun noteUnexpectedDisconnect(nowSeconds: Double) { currentSource()?.noteUnexpectedDisconnect(nowSeconds) }
+
+    private fun currentSource(): FeedIncidentSessionSource? = synchronized(gate) { submittedSource }
+
+    private fun enqueue(source: FeedIncidentSessionSource, work: () -> Unit) = synchronized(gate) {
+        if (submittedSource !== source) return@synchronized
         writer.execute {
+            if (activeSource === source) work()
+        }
+    }
+
+    internal fun end(source: FeedIncidentSessionSource, nowSeconds: Double) = synchronized(gate) {
+        if (submittedSource !== source) return@synchronized
+        submittedSource = null
+        // A previously admitted drain runs before this end event, under its original source.
+        writer.execute {
+            if (activeSource !== source) return@execute
             persist(recorder.endSession(nowSeconds))
             persistSessionSummary(summaryOutcome(recorder.incidentCount, recorder.healthyExposure))
             sessionContext = null
+            activeSource = null
             reporting.enqueueFinalizedFromSpool()
         }
     }
 
-    override fun ingestSnapshot(snapshot: FeedIncidentSnapshot) {
-        latestSnapshot = snapshot
-        if (snapshotScheduled.compareAndSet(false, true)) {
-            writer.execute { drainSnapshot() }
-        }
+    internal fun ingest(source: FeedIncidentSessionSource, snapshot: FeedIncidentSnapshot) =
+        updatePending(source) { it.snapshot = snapshot }
+    internal fun decoderGeneration(source: FeedIncidentSessionSource, generation: Int) =
+        updatePending(source) { it.decoderGeneration = generation }
+    internal fun socketGeneration(source: FeedIncidentSessionSource, generation: Int) =
+        updatePending(source) { it.socketGeneration = generation }
+    internal fun breadcrumb(source: FeedIncidentSessionSource, breadcrumb: FeedIncidentBreadcrumb) = enqueue(source) {
+        recorder.recordBreadcrumb(breadcrumb)
+        reporting.noteBreadcrumb(breadcrumb)
     }
-
-    override fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb) {
-        writer.execute {
-            recorder.recordBreadcrumb(breadcrumb)
-            reporting.noteBreadcrumb(breadcrumb)
-        }
+    internal fun repair(source: FeedIncidentSessionSource, repair: FeedRepairRecord) = enqueue(source) {
+        persist(recorder.recordRepair(repair))
+        reporting.noteRepair(repair)
     }
-
-    override fun recordRepair(repair: FeedRepairRecord) {
-        writer.execute {
-            persist(recorder.recordRepair(repair))
-            reporting.noteRepair(repair)
-        }
+    internal fun origin(source: FeedIncidentSessionSource, origin: FeedIncidentTestSource) = enqueue(source) {
+        recorder.noteTestSource(origin)
+        sessionContext?.let { if (origin.rank > it.testSource.rank) it.testSource = origin }
     }
-
-    public fun noteTestSource(source: FeedIncidentTestSource) {
-        writer.execute {
-            recorder.noteTestSource(source)
-            val context = sessionContext
-            if (context != null && source.rank > context.testSource.rank) {
-                context.testSource = source
-            }
-        }
+    internal fun exhausted(source: FeedIncidentSessionSource, nowSeconds: Double) = enqueue(source) {
+        persist(recorder.noteExhausted(nowSeconds))
     }
-
-    override fun noteDecoderGeneration(generation: Int) {
-        writer.execute { recorder.noteDecoderGeneration(generation) }
-    }
-
-    override fun noteSocketGeneration(generation: Int) {
-        writer.execute { recorder.noteSocketGeneration(generation) }
-    }
-
-    override fun noteExhausted(nowSeconds: Double) {
-        writer.execute { persist(recorder.noteExhausted(nowSeconds)) }
-    }
-
-    override fun noteUnexpectedDisconnect(nowSeconds: Double) {
-        writer.execute { persist(recorder.noteUnexpectedDisconnect(nowSeconds)) }
+    internal fun disconnected(source: FeedIncidentSessionSource, nowSeconds: Double) = enqueue(source) {
+        persist(recorder.noteUnexpectedDisconnect(nowSeconds))
     }
 
     public fun exportText(): String {
@@ -164,11 +204,23 @@ public class FeedIncidentRuntime(private val reporting: ReliabilityReporting) : 
     }
 
 
-    private fun drainSnapshot() {
-        val snapshot = latestSnapshot
-        latestSnapshot = null
-        snapshotScheduled.set(false)
-        if (snapshot != null) {
+    private fun updatePending(source: FeedIncidentSessionSource, update: (Pending) -> Unit) = synchronized(gate) {
+        if (submittedSource !== source) return@synchronized
+        val schedule = pending?.source !== source
+        if (schedule) pending = Pending(source)
+        update(checkNotNull(pending))
+        if (schedule) writer.execute { drainSnapshot(source) }
+    }
+
+    private fun drainSnapshot(source: FeedIncidentSessionSource) {
+        val drained = synchronized(gate) {
+            if (pending?.source !== source) return
+            pending.also { pending = null }
+        } ?: return
+        if (activeSource !== source) return
+        drained.decoderGeneration?.let(recorder::noteDecoderGeneration)
+        drained.socketGeneration?.let(recorder::noteSocketGeneration)
+        drained.snapshot?.let { snapshot ->
             persist(recorder.recordSnapshot(snapshot))
             if (snapshot.monotonicNow - lastSummaryCheckpoint >= 30.0) {
                 lastSummaryCheckpoint = snapshot.monotonicNow
