@@ -82,13 +82,15 @@ public class MonitorOperatorStickActions(public val move: (Float, Float) -> Unit
 /** An optional observed metering choice. Its native setter remains in the integration adapter. */
 public class MonitorOperatorMeteringTile(public val face: Boolean, public val toggle: () -> Unit)
 
-/** Existing coherent hosts and stored preferences, with native zoom/stick facts as small adapters. */
+/** Existing coherent hosts and stored preferences, with native zoom/stick facts as small adapters, and the
+ * camera-vocabulary report and capabilities this composition observed. */
 public class MonitorOperatorLiveChromeSource<Host>(
     public val host: Host, public val shell: ShellModel, public val session: MonitorOperatorSessionModel,
     public val capture: MonitorOperatorCaptureSource, public val preferences: OperatorPreferenceStore,
     public val portraitAspect: PortraitFeedAspect, public val setPortraitAspect: (PortraitFeedAspect) -> Unit,
     public val zoom: MonitorOperatorZoomPresentation?, public val stick: MonitorOperatorStickActions,
     public val returnToStage: (() -> Unit)? = null,
+    public val status: CameraStatus, public val capabilities: MonitorLayoutCapabilities,
 ) where Host : CaptureSheetHost, Host : GimbalChromeHost
 
 /** Shared portrait/landscape control composition, including full zoom and programmed-motion UI. */

@@ -6,26 +6,47 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The existing host and generated Scene entries delegate to the same complete body. */
+/**
+ * Every app's live entry is the one surface: the camera-vocabulary entry delegates to it, and it and the
+ * generated-app scene enter the one internal composition. Neither keeps a region recipe or a second entry.
+ */
 class SingleSharedMonitorCompositionContractTest {
     private val directory = File("src/main/kotlin/com/opencapture/opencine/cameracontrols")
-    private val adapters = listOf("MonitorOperatorLiveSurface.kt",
-        "MonitorOperatorDescriptorLiveSurface.kt", "MonitorOperatorScene.kt")
     private val regions = setOf("MonitorScreen", "MonitorStatusChrome", "MonitorSystemControls",
         "MonitorAssistPalette", "AssistInspectorFrame", "AssistOptionsPanel",
         "MonitorOperatorCaptureStrip", "MonitorOperatorCapturePopup")
 
-    @Test fun everyLiveEntryDelegatesWithoutKeepingASecondRegionRecipe() {
-        for (name in adapters) {
-            val source = File(directory, name).readText()
-            val live = if (name == "MonitorOperatorScene.kt") functionBody(tokens(source), "MonitorOperatorScreen") else tokens(source)
-            val calls = calls(live)
-            assertTrue("MonitorOperatorLiveBody" in calls, "$name does not enter the common body")
-            assertTrue(calls.none { it in regions }, "$name retains common region composition")
+    @Test fun everyLiveEntryIsTheOneSurfaceWithoutASecondRegionRecipe() {
+        val vocabulary = calls(File(directory, "MonitorOperatorVocabularySurface.kt").readText())
+        assertTrue("MonitorOperatorLiveSurface" in vocabulary, "The vocabulary entry must delegate to the one surface")
+        assertTrue(vocabulary.none { it in regions }, "The vocabulary entry retains common region composition")
+        val surface = calls(File(directory, "MonitorOperatorLiveSurface.kt").readText())
+        val scene = calls(functionBody(tokens(File(directory, "MonitorOperatorScene.kt").readText()), "MonitorOperatorScreen"))
+        for ((name, calls) in listOf("surface" to surface, "scene" to scene)) {
+            assertTrue("MonitorOperatorLiveComposition" in calls, "The $name does not enter the common composition")
+            assertTrue(calls.none { it in regions }, "The $name retains common region composition")
         }
     }
 
-    @Test fun commonBodyOwnsStatusRailAssistsInspectorAndPopupOnce() {
+    @Test fun theSurfaceConsumesNeutralFacts() {
+        val identifiers = tokens(File(directory, "MonitorOperatorLiveSurface.kt").readText()).toSet()
+        assertFalse("CaptureSheetHost" in identifiers)
+        assertFalse("CameraStatus" in identifiers, "The surface must consume neutral observed facts")
+    }
+
+    /** The composition stays internal; the public body only forwards for Z Android until F05 migrates it. */
+    @Test fun theCompositionBehindTheSurfaceIsNotASecondEntry() {
+        val source = File(directory, "MonitorOperatorLiveBody.kt").readText()
+        val declaration = Regex("""(\w+)\s+fun\s+<[^>]*>\s+MonitorOperatorLiveComposition\(""").find(source)
+        assertEquals("internal", declaration?.groupValues?.get(1), "The composition must stay internal")
+        val tokens = tokens(source)
+        val compat = tokens.indices.single { tokens[it] == "MonitorOperatorLiveBody" && tokens.getOrNull(it - 1) == ">" }
+        val forwarded = calls(tokens.subList(compat, (compat until tokens.size).first { tokens[it] == "fun" }))
+        assertTrue("MonitorOperatorLiveComposition" in forwarded && forwarded.none { it in regions },
+            "The Z Android entry must only forward to the composition")
+    }
+
+    @Test fun commonCompositionOwnsStatusRailAssistsInspectorAndPopupOnce() {
         val source = File(directory, "MonitorOperatorLiveBody.kt").readText()
         val calls = calls(source)
         for (region in regions) {
@@ -42,6 +63,12 @@ class SingleSharedMonitorCompositionContractTest {
     @Test fun generatedAppsStillEnterTheSharedSceneAdapter() {
         val template = File("../../atlas/templates/app/Android/app/src/main/kotlin/__PACKAGE_PATH__/MainActivity.kt.tmpl")
         assertTrue("MonitorOperatorScene" in calls(template.readText()))
+    }
+
+    @Test fun compositionScannerSkipsGenericDeclarations() {
+        val source = "fun <Host> MonitorOperatorLiveSurface(chrome: Host) { MonitorOperatorLiveSurface(chrome) }"
+        assertEquals(listOf("MonitorOperatorLiveSurface"), calls(source))
+        assertTrue(calls("fun <K> MonitorOperatorLiveSurface(key: K) {}").isEmpty())
     }
 
     @Test fun compositionScannerRejectsASecondRecipeAndIgnoresCopyInComments() {
@@ -82,7 +109,7 @@ class SingleSharedMonitorCompositionContractTest {
     private fun calls(tokens: List<String>): List<String> {
         return tokens.indices.mapNotNull { index ->
             if (index + 1 >= tokens.size || !(tokens[index].startsWith("Monitor") || tokens[index].startsWith("Assist")) ||
-                (index > 0 && tokens[index - 1] in setOf("fun", "class", "interface", "object"))) return@mapNotNull null
+                declared(tokens, index)) return@mapNotNull null
             var next = index + 1
             if (tokens[next] == "<") {
                 var depth = 0
@@ -94,6 +121,22 @@ class SingleSharedMonitorCompositionContractTest {
             }
             if (next < tokens.size && tokens[next] == "(") tokens[index] else null
         }
+    }
+
+    /** A name after `fun`, `class`, `interface` or `object`, past any type parameters, is a declaration. */
+    private fun declared(tokens: List<String>, index: Int): Boolean {
+        var previous = index - 1
+        if (tokens.getOrNull(previous) == ">") {
+            var depth = 0
+            while (previous >= 0) {
+                if (tokens[previous] == ">") depth++
+                if (tokens[previous] == "<") depth--
+                if (depth == 0) break
+                previous--
+            }
+            previous--
+        }
+        return tokens.getOrNull(previous) in setOf("fun", "class", "interface", "object")
     }
 
     private fun functionBody(tokens: List<String>, name: String): List<String> {
