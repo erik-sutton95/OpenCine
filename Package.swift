@@ -236,7 +236,10 @@ let package = Package(
         .target(name: "CKcp", exclude: ["LICENSE"]),
         .target(
             name: "Insta360Apple",
-            dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion", "OpenCineMedia"]
+            dependencies: [
+                "Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion", "OpenCineMedia",
+                "OpenCineCameraVocabulary",
+            ]
         ),
         .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol", "OpenCineCore", "OpenCineMedia"]),
         .testTarget(
