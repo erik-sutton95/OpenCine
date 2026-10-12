@@ -256,7 +256,6 @@ private fun <P> MonitorOperatorCatalogGallery(
             @Composable fun card(record: MonitorMediaRecord<P>) {
                 val id = record.asset.id
                 val entry = value.entries[id]
-                val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
                 val metadata = facts(record)
                 val context = MonitorMediaGalleryThumbnail(record, entry, list, snapshot.token,
                     current = { owner.isCurrent(snapshot) && snapshot.record(id) != null },
@@ -264,9 +263,7 @@ private fun <P> MonitorOperatorCatalogGallery(
                 MonitorMediaHitTarget(registry, id.rawValue) {
                     val cellValue = cell?.invoke(record, MonitorMediaGalleryCellContext(list, value.selecting,
                         id in value.selectedIDs, state.resolvedDurations[id]))
-                    MonitorClipCard(cellValue?.copy(id = id.rawValue, favorite = record.favorite) ?: MonitorClipValue(id.rawValue,
-                        record.asset.filename, metadata.detail, state.resolvedDurations[id] ?: metadata.duration,
-                        source, record.favorite, metadata.progress?.toFloat() ?: value.progress[id]?.toFloat()),
+                    MonitorClipCard(monitorCatalogClip(record, entry, metadata, state.resolvedDurations[id], value.progress[id], cellValue),
                         list, value.selecting, id in value.selectedIDs,
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
@@ -299,6 +296,18 @@ private fun <P> MonitorOperatorCatalogGallery(
     if (connected) PullToRefreshBox(value.fetching,
         onRefresh = { if (!value.fetching && owner.isCurrent(snapshot)) refresh() }, modifier = Modifier.fillMaxSize()) { draw() }
     else draw()
+}
+
+/** The catalog owns cache state and progress for every cell; a source cell supplies its own facts only. */
+internal fun <P> monitorCatalogClip(
+    record: MonitorMediaRecord<P>, entry: MonitorMediaCacheEntry?, facts: MonitorMediaGalleryFileFacts,
+    resolvedDuration: String?, libraryProgress: Double?, cell: MonitorClipValue?,
+): MonitorClipValue {
+    val source = if (entry?.original != null) "CACHED" else if (entry?.proxy != null) "PROXY" else "ON CAMERA"
+    val progress = (facts.progress ?: libraryProgress)?.toFloat()
+    return cell?.copy(id = record.asset.id.rawValue, favorite = record.favorite, source = source, progress = progress)
+        ?: MonitorClipValue(record.asset.id.rawValue, record.asset.filename, facts.detail,
+            resolvedDuration ?: facts.duration, source, record.favorite, progress)
 }
 
 private fun <T> Set<T>.toggled(value: T): Set<T> = if (value in this) this - value else this + value
