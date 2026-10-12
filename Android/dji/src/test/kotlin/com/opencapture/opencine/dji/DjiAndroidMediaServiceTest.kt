@@ -246,8 +246,15 @@ class DjiAndroidMediaServiceTest {
         assertEquals(MediaListCommand.pageKey(first), MediaListCommand.pageKey(first.copy(sizeBytes = first.sizeBytes + 1)))
         val unknown = DjiAndroidMediaAssets.asset(MediaFile("unknown.bin", ""))
         assertNull(unknown.kind); assertNull(unknown.durationSeconds); assertNull(unknown.pixelSize)
-        assertNull(unknown.frameRate); assertNull(unknown.capturedAt); assertNull(unknown.deletable)
+        assertNull(unknown.frameRate); assertNull(unknown.capturedAt); assertEquals(false, unknown.deletable)
         assertNull(unknown.representations.single().byteCount)
+    }
+
+    @Test fun assetIsDeletableExactlyWhenItsFileHasAnOwnHandle() {
+        val file = MediaFile("DCIM/DJI_001/DJI_20260912120000_0001_D.MP4", "", handle = 7)
+        assertEquals(true, DjiAndroidMediaAssets.asset(file).deletable)
+        assertEquals(false, DjiAndroidMediaAssets.asset(file.copy(handleShared = true)).deletable)
+        assertEquals(false, DjiAndroidMediaAssets.asset(file.copy(handle = 0)).deletable)
     }
 
     @Test fun capturedReceiverNeverLooksUpSuccessorAfterQueueingAndRetiresOnlyItsTicket() {

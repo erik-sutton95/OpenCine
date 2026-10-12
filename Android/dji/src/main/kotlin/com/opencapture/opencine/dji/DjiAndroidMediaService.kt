@@ -448,6 +448,8 @@ object DjiAndroidMediaAssets {
         val captured = file.filenameTimestamp?.let { stamp -> runCatching { LocalDateTime.parse(stamp, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")).toInstant(ZoneOffset.UTC).toEpochMilli() }.getOrNull() }
         return MediaAsset(id, filename = file.filename, kind = kind, capturedAt = captured,
             durationSeconds = file.durationSeconds.takeIf { it > 0 }?.toDouble(), pixelSize = pixels,
-            frameRate = file.fps?.takeIf { it > 0 }?.toDouble(), representations = representations, deletable = null)
+            frameRate = file.fps?.takeIf { it > 0 }?.toDouble(), representations = representations,
+            // The card deletes a file only through its own, unshared handle (Swift twin DjiAppleMediaAssets).
+            deletable = file.isDeletable)
     }
 }
