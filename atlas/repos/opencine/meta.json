@@ -243,6 +243,12 @@
       "coordinates": "com.opencapture.opencine:camera-controls"
     },
     {
+      "name": ":frameio",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:frameio"
+    },
+    {
       "name": ":relay",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -312,7 +318,8 @@
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
-      ":camera-controls"
+      ":camera-controls",
+      ":frameio"
     ],
     "multicam": [
       "OpenCineMulticam",
@@ -328,6 +335,8 @@
       "OpenCineDJIAppleTests",
       "OpenCineJNI",
       "OpenCineJNISupport",
+      "OpenCineFrameIOAndroid",
+      "OpenCineFrameIOAndroidTests",
       "OpenCineDJIAndroid",
       "OpenCineDJIAndroidTests",
       "OpenCineNikon",

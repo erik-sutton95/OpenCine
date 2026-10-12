@@ -73,6 +73,9 @@ let package = Package(
         // JNI copy helpers (and the NDK <jni.h> shim OpenCineJNI, re-exported) for an app's own
         // Swift Android exports.
         .library(name: "OpenCineJNISupport", targets: ["OpenCineJNISupport"]),
+        // The Swift side of the Android `FrameioNative` JNI facade (`:frameio`): an app links it
+        // into its Swift Android library. Its wire helpers also build and test on Darwin.
+        .library(name: "OpenCineFrameIOAndroid", targets: ["OpenCineFrameIOAndroid"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -236,6 +239,12 @@ let package = Package(
         // MARK: JNI
         // JNI copy helpers over the header-only OpenCineJNI shim (re-exported). Empty on Darwin.
         .target(name: "OpenCineJNISupport", dependencies: ["OpenCineJNI"]),
+        // Frame.io OAuth and V4 request wire for every app's Android shell (moved from
+        // OpenZCine's Android facade) and the JNI exports of the Kotlin class
+        // com.opencapture.opencine.frameio.FrameioNative. PKCE SHA-256 is the Android platform
+        // digest, injected through the JNI object; no cryptography package dependency.
+        .target(name: "OpenCineFrameIOAndroid", dependencies: ["OpenCineFrameIO", "OpenCineJNISupport"]),
+        .testTarget(name: "OpenCineFrameIOAndroidTests", dependencies: ["OpenCineFrameIOAndroid", "OpenCineFrameIO"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation only) and the Apple I/O adapter with its KCP C code.
