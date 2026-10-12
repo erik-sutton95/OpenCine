@@ -40,6 +40,8 @@ import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.StorageVolume
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
@@ -593,7 +595,7 @@ class LunaCameraSession internal constructor(
         // Timecode is host-derived time of day ([ingest]); Luna reports no audio levels.
         val declared = CapabilitySnapshot(
             current.capabilities.revision, descriptors,
-            timecode = SupportStatus.SUPPORTED, audioLevels = SupportStatus.UNSUPPORTED,
+            timecode = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.UNSUPPORTED,
         )
         if (declared == current.capabilities) return
         current = current.copy(capabilities = declared.copy(revision = declared.revision.next()))

@@ -45,7 +45,7 @@ class ValuesTest {
         assertNull(snapshot.storage.value)
         assertNull(snapshot.timecode.value)
         assertNull(snapshot.audioLevels.value)
-        assertEquals(SupportStatus.UNKNOWN, snapshot.capabilities.timecode)
+        assertEquals(TimecodeCapability.unknown, snapshot.capabilities.timecode)
         assertEquals(SupportStatus.UNKNOWN, snapshot.capabilities.audioLevels)
     }
 

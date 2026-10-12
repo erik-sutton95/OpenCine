@@ -11,51 +11,49 @@ class LunaFrameTimecodeTest {
     private val utc = TimeZone.getTimeZone("UTC")
 
     private fun text(timecode: CameraTimecode?) = timecode?.run {
-        String.format(Locale.US, "%02d:%02d:%02d:%02d", hours, minutes, seconds, frames)
+        assertNull(frames, "seconds precision: no frame field is invented")
+        String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
     }
 
-    @Test fun timeOfDayCountsFramesAtTheRecordingRateHalvedAbove30() {
+    @Test fun timeOfDayIsWholeSecondsWithNoDerivedFrames() {
         // 2026-09-30 08:51:10.54 UTC, Stockholm (UTC+2).
         val t = 1_790_758_270.54
-        fun at(unix: Double, zone: Int, fps: Int) = text(LunaFrameTimecode.timecode(unix, zone, fps))
-        assertEquals("10:51:10:13", at(t, 7200, 25))
-        assertEquals("10:51:10:16", at(t, 7200, 30))
-        assertEquals("10:51:10:13", at(t, 7200, 50))
-        assertEquals("10:51:10:16", at(t, 7200, 120))
-        assertEquals("10:51:10:13", at(t, 7200, 0), "unknown rate counts 25s")
+        fun at(unix: Double, zone: Int) = text(LunaFrameTimecode.timecode(unix, zone))
+        assertEquals("10:51:10", at(t, 7200))
         // Wraps at midnight, west of GMT too.
-        assertEquals("23:59:59:23", at(86_399.99, 0, 24))
-        assertEquals("23:00:00:00", at(3600.0, -7200, 24))
-        assertEquals(false, LunaFrameTimecode.timecode(t, 0, 25).dropFrame)
+        assertEquals("23:59:59", at(86_399.99, 0))
+        assertEquals("23:00:00", at(3600.0, -7200))
+        val value = LunaFrameTimecode.timecode(t, 0)
+        assertNull(value.frames)
+        assertNull(value.dropFrame, "a seconds-only source does not claim a frame count mode")
     }
 
     @Test fun framesPinToTheEarliestArrivalAndReportOncePerSecond() {
         val clock = LunaFrameTimecode()
         assertNull(clock.offsetMs)
         // Frame stamped 100 s arrives at 1000.5 s: the offset is 900.5 s less 90 ms of latency.
-        assertEquals("00:16:40:10", text(clock.note(100_000, 1_000_500, utc, 25)))
+        assertEquals("00:16:40", text(clock.note(100_000, 1_000_500, utc)))
         assertEquals(900_410L, clock.offsetMs)
 
-        // Arrives later than the pinned frame: the offset holds, and the same second reports
-        // nothing even though its frame count moved.
-        assertNull(clock.note(100_300, 1_001_200, utc, 25))
+        // Arrives later than the pinned frame: the offset holds, and the same second reports nothing.
+        assertNull(clock.note(100_300, 1_001_200, utc))
         assertEquals(900_410L, clock.offsetMs)
-        assertEquals("00:16:41:02", text(clock.note(100_700, 1_001_500, utc, 25)))
+        assertEquals("00:16:41", text(clock.note(100_700, 1_001_500, utc)))
 
         // Arrives sooner than any frame before: re-pins earlier.
-        assertNull(clock.note(101_000, 1_001_300, utc, 25))
+        assertNull(clock.note(101_000, 1_001_300, utc))
         assertEquals(900_210L, clock.offsetMs)
 
         clock.reset()
         assertNull(clock.offsetMs)
-        assertEquals("00:16:41:05", text(clock.note(101_000, 1_001_300, utc, 25)), "a reset reports the current second again")
+        assertEquals("00:16:41", text(clock.note(101_000, 1_001_300, utc)), "a reset reports the current second again")
     }
 
     @Test fun zoneOffsetIsTheOneAtTheFramesTimeOfDay() {
         // EU summer time ends 2026-10-25 01:00 UTC: Stockholm 02:59:59 CEST, then 02:00:00 CET.
         val stockholm = TimeZone.getTimeZone("Europe/Stockholm")
         val clock = LunaFrameTimecode()
-        assertEquals("02:59:59:12", text(clock.note(0, 1_792_889_999_590, stockholm, 25)))
-        assertEquals("02:00:00:05", text(clock.note(700, 1_792_890_000_400, stockholm, 25)))
+        assertEquals("02:59:59", text(clock.note(0, 1_792_889_999_590, stockholm)))
+        assertEquals("02:00:00", text(clock.note(700, 1_792_890_000_400, stockholm)))
     }
 }

@@ -35,6 +35,7 @@ import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.StorageVolume
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.rejection
 import kotlinx.coroutines.CompletableDeferred
@@ -48,7 +49,7 @@ public data class FakeMode(
     public val mode: CaptureMode,
     public val descriptors: List<SettingDescriptor>,
     public val unsupported: Set<SettingKey>,
-    public val timecode: SupportStatus = SupportStatus.UNKNOWN,
+    public val timecode: TimecodeCapability = TimecodeCapability.unknown,
     public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
 )
 
@@ -155,6 +156,12 @@ public class FakeCameraSession(
         if (from != null && from != attempt) return
         if (current.connection != ConnectionState.Ready || reportsSilenced) return
         report()
+    }
+
+    /** The camera's counter advances (a live-view header, a status push): only the timecode changes. */
+    public fun cameraReportsTimecode(timecode: CameraTimecode?) {
+        device = device.copy(timecode = timecode)
+        cameraReportsStatus()
     }
 
     /** The operator turns the mode dial. Values the new mode cannot hold move to its first choice. */
@@ -419,7 +426,7 @@ public class FakeCameraSession(
         }
         val capabilities = snapshot.capabilities
         snapshot = snapshot.copy(
-            timecode = device.timecode?.takeIf { capabilities.timecode == SupportStatus.SUPPORTED }
+            timecode = device.timecode?.takeIf { capabilities.timecode.support == SupportStatus.SUPPORTED }
                 ?.let { ObservedValue(it, behavior.timecodeOrigin, now) } ?: ObservedValue.unknown,
             audioLevels = device.audioLevels?.takeIf { capabilities.audioLevels == SupportStatus.SUPPORTED }
                 ?.let { ObservedValue(it, CAMERA_REPORTED, now) } ?: ObservedValue.unknown,
@@ -442,7 +449,7 @@ public class FakeCameraSession(
             }
         }
         val revision = current.capabilities.revision
-        val timecode = fakeMode?.timecode ?: SupportStatus.UNKNOWN
+        val timecode = fakeMode?.timecode ?: TimecodeCapability.unknown
         val audioLevels = fakeMode?.audioLevels ?: SupportStatus.UNKNOWN
         val next = CapabilitySnapshot(revision, descriptors, unsupported, timecode, audioLevels)
         if (next == current.capabilities) return

@@ -178,6 +178,43 @@ public enum class SupportStatus {
     UNKNOWN,
 }
 
+/**
+ * How precisely a source counts its timecode. Shared formatting follows it, so a seconds-only
+ * source never shows a frame field and a frame-counting source never loses one.
+ */
+public sealed interface TimecodePrecision {
+    /** Whole seconds only (a host clock, or a counter whose frame field is not proven per frame). */
+    public data object Seconds : TimecodePrecision
+
+    /** Frames at [rate]. [dropFrame] is `null` when the camera does not say. */
+    public data class Frames(public val rate: Rational, public val dropFrame: Boolean? = null) : TimecodePrecision
+}
+
+/**
+ * Support for [CameraSnapshot.timecode] plus its declared precision. [precision] is `null` while
+ * support is not [SupportStatus.SUPPORTED] or the source has not said how it counts.
+ */
+public class TimecodeCapability(
+    public val support: SupportStatus = SupportStatus.UNKNOWN,
+    precision: TimecodePrecision? = null,
+) {
+    public val precision: TimecodePrecision? = precision.takeIf { support == SupportStatus.SUPPORTED }
+
+    override fun equals(other: Any?): Boolean =
+        other is TimecodeCapability && support == other.support && precision == other.precision
+
+    override fun hashCode(): Int = 31 * support.hashCode() + precision.hashCode()
+
+    override fun toString(): String = "TimecodeCapability(support=$support, precision=$precision)"
+
+    public companion object {
+        public val unknown: TimecodeCapability = TimecodeCapability()
+        public val unsupported: TimecodeCapability = TimecodeCapability(SupportStatus.UNSUPPORTED)
+        public fun supported(precision: TimecodePrecision?): TimecodeCapability =
+            TimecodeCapability(SupportStatus.SUPPORTED, precision)
+    }
+}
+
 public enum class SettingAccess { READ_ONLY, READ_WRITE }
 
 public sealed interface UnavailableReason {
@@ -250,8 +287,8 @@ public data class CapabilitySnapshot(
     public val revision: CapabilityRevision = CapabilityRevision(),
     public val descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
     public val unsupported: Set<SettingKey> = emptySet(),
-    /** Whether the camera reports [CameraSnapshot.timecode]. */
-    public val timecode: SupportStatus = SupportStatus.UNKNOWN,
+    /** Whether the camera reports [CameraSnapshot.timecode], and how precisely. */
+    public val timecode: TimecodeCapability = TimecodeCapability.unknown,
     /** Whether the camera reports live [CameraSnapshot.audioLevels]. */
     public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
 ) {
@@ -260,7 +297,7 @@ public data class CapabilitySnapshot(
         revision: CapabilityRevision = CapabilityRevision(),
         descriptors: List<SettingDescriptor>,
         unsupported: Set<SettingKey> = emptySet(),
-        timecode: SupportStatus = SupportStatus.UNKNOWN,
+        timecode: TimecodeCapability = TimecodeCapability.unknown,
         audioLevels: SupportStatus = SupportStatus.UNKNOWN,
     ) : this(revision, descriptors.associateBy { it.key }, unsupported, timecode, audioLevels)
 

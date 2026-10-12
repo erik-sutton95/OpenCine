@@ -35,6 +35,8 @@ import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus.SUPPORTED
 import com.opencapture.opencine.core.SupportStatus.UNSUPPORTED
 import com.opencapture.opencine.core.TelemetrySource
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.testing.FakeCameraBehavior.RecordWire
@@ -78,12 +80,12 @@ public fun FakeCameraSession.Companion.djiLike(): FakeCameraSession {
         0x01 to FakeMode(
             video,
             listOf(iso, shutter(50, 100, 200, 400), ev, wb, fps(24, 25, 30, 48, 50, 60), zoom, SettingDescriptor(RECORDING)),
-            unsupported = setOf(APERTURE), timecode = SUPPORTED, audioLevels = SUPPORTED,
+            unsupported = setOf(APERTURE), timecode = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SUPPORTED,
         ),
         0x02 to FakeMode(
             slow,
             listOf(iso, shutter(250, 500, 1000), ev, wb, fps(120, 240), zoom, SettingDescriptor(RECORDING)),
-            unsupported = setOf(APERTURE), timecode = SUPPORTED, audioLevels = SUPPORTED,
+            unsupported = setOf(APERTURE), timecode = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SUPPORTED,
         ),
         0x05 to FakeMode(
             photo,
@@ -91,7 +93,7 @@ public fun FakeCameraSession.Companion.djiLike(): FakeCameraSession {
                 iso, shutter(50, 100, 200, 400), ev, wb, zoom,
                 SettingDescriptor(RECORDING, availability = Availability.Unavailable(UnavailableReason.Mode)),
             ),
-            unsupported = setOf(APERTURE, FRAME_RATE), timecode = UNSUPPORTED, audioLevels = UNSUPPORTED,
+            unsupported = setOf(APERTURE, FRAME_RATE), timecode = TimecodeCapability.unsupported, audioLevels = UNSUPPORTED,
         ),
     )
     return FakeCameraSession(
@@ -149,7 +151,8 @@ public fun FakeCameraSession.Companion.nikonLike(): FakeCameraSession {
             ),
             SettingDescriptor(RECORDING),
         ),
-        unsupported = setOf(ZOOM), timecode = SUPPORTED, audioLevels = SUPPORTED,
+        unsupported = setOf(ZOOM), audioLevels = SUPPORTED,
+        timecode = TimecodeCapability.supported(TimecodePrecision.Frames(Rational(24), dropFrame = false)),
     )
     return FakeCameraSession(
         FakeCameraBehavior(
@@ -199,7 +202,7 @@ public fun FakeCameraSession.Companion.lunaLike(): FakeCameraSession {
             ),
             SettingDescriptor(RECORDING),
         ),
-        unsupported = emptySet(), timecode = SUPPORTED, audioLevels = UNSUPPORTED,
+        unsupported = emptySet(), timecode = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = UNSUPPORTED,
     )
     return FakeCameraSession(
         FakeCameraBehavior(
@@ -213,7 +216,7 @@ public fun FakeCameraSession.Companion.lunaLike(): FakeCameraSession {
                 SettingValue.Zoom(1.0), SettingValue.FocusMode(FocusMode.CONTINUOUS),
             ),
             batteryPercent = 55,
-            timecode = CameraTimecode(9, 30, 0, 12),
+            timecode = CameraTimecode(9, 30, 0),
         ),
     )
 }
