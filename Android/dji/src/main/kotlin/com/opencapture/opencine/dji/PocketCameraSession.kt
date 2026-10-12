@@ -74,8 +74,7 @@ import com.opencapture.opencine.vocabulary.LiveChromeThrottle
 import com.opencapture.opencine.vocabulary.LiveFeedTapPolicy
 import com.opencapture.opencine.vocabulary.RecoveryPictureProof
 import com.opencapture.opencine.vocabulary.SceneFacePolicy
-import com.opencapture.opencine.vocabulary.SessionDropStormGuard
-import com.opencapture.opencine.vocabulary.SessionRecoveryDecision
+import com.opencapture.opencine.vocabulary.SessionRecoveryEpisode
 import com.opencapture.opencine.vocabulary.SessionRecoveryPolicy
 import com.opencapture.opencine.vocabulary.SessionRecoveryTrigger
 import com.opencapture.opencine.vocabulary.SessionRecoveryUi
@@ -88,8 +87,6 @@ import com.opencapture.opencine.vocabulary.TrackingHud
 import com.opencapture.opencine.vocabulary.TrackingStartPolicy
 import com.opencapture.opencine.vocabulary.VideoFormat
 import com.opencapture.opencine.vocabulary.WhiteBalancePin
-import com.opencapture.opencine.vocabulary.recoverAfterAdvertisement
-import com.opencapture.opencine.vocabulary.withinAutomaticRecoveryBudget
 import java.util.UUID
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
@@ -111,6 +108,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
@@ -186,6 +184,14 @@ internal fun acceptsGimbalConfiguration(
     hasGimbal: Boolean, live: Boolean, sceneActive: Boolean, warming: Boolean,
     recovering: Boolean, videoStale: Boolean, hasDatalink: Boolean,
 ): Boolean = hasGimbal && live && sceneActive && !warming && !recovering && !videoStale && hasDatalink
+
+/**
+ * DJI's bound on one session-recovery attempt once the datalink handshake admits it: the first
+ * fresh picture within one GOP grace. The scan, BLE pairing and Wi-Fi join before admission keep
+ * their own transport deadlines inside the shared 180 s budget.
+ */
+internal val DJI_RECOVERY_ATTEMPT_DEADLINE =
+    SessionRecoveryEpisode.AttemptDeadline(attemptMs = LiveViewEnablePolicy.GOP_GRACE_MS)
 
 /** A serialized command chain keeps its original endpoint epoch across every suspension. */
 internal class EndpointCommandEpoch(val generation: Long) :
@@ -466,8 +472,6 @@ class PocketCameraSession(
     private var mediaListCounter = 1
     private val feedWatchdog = LiveViewEnablePolicy.State()
     private var coreWatchdog = 0L
-    private val dropStorm = SessionDropStormGuard()
-    private var recoveryJob: Job? = null
     private var recoveryCameraId: String? = null
     private var recoveryDeviceName = ""
     private var datalink: DatalinkDriver? = null
@@ -2821,7 +2825,7 @@ class PocketCameraSession(
     }
 
     fun retrySessionRecovery() {
-        dropStorm.reset()
+        recoveryEpisode.resetStorm()
         cancelSessionRecovery(clearHoldsMonitor = false)
         beginSessionRecovery("operator retry", SessionRecoveryTrigger.OPERATOR_RETRY)
     }
@@ -2831,52 +2835,42 @@ class PocketCameraSession(
         disconnect()
     }
 
+    /** The shared recovery episode; scan, BLE, Wi-Fi, datalink and decoder stay here. */
+    private val recoveryEpisode by lazy {
+        SessionRecoveryEpisode(
+            scope = scope,
+            port = RecoveryPort(),
+            attemptDeadline = DJI_RECOVERY_ATTEMPT_DEADLINE,
+            timing = SessionRecoveryEpisode.Timing(SystemClock::elapsedRealtime),
+        ) { applyRecovery(it) }
+    }
+
     private fun beginSessionRecovery(
         reason: String,
         trigger: SessionRecoveryTrigger = SessionRecoveryTrigger.BLE_DROPPED,
     ) {
-        if (isMultiviewBorrowed) return
-        if (!SessionRecoveryPolicy.shouldBegin(trigger)) return
-        if (_recoveryState.value is SessionRecoveryUi.PausedAfterDrops) return
-        if (_recoveryState.value is SessionRecoveryUi.WaitingForOperator) return
-        if (recoveryJob != null) return
         val camera = connectedCamera
         val cameraId = camera?.id ?: recoveryCameraId
         if (cameraId == null) {
-            Log.i(TAG, "session: drop ($reason) — no camera to recover")
+            Log.i(TAG, "session: drop ($reason): no camera to recover")
             return
         }
+        val previousTarget = recoveryCameraId
         recoveryCameraId = cameraId
-        if (recoveryDeviceName.isEmpty()) recoveryDeviceName = camera?.name.orEmpty()
-        incidentSource?.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
-        holdsMonitor = true
-        feedRecoveryJob?.cancel()
-        feedRecoveryJob = null
-        connectJob?.cancel()
-        stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraPath.isProcessBound())
-        ble.disconnect()
-        val now = SystemClock.elapsedRealtime()
-        if (dropStorm.noteDrop(now)) {
-            DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → storm pause after ${dropStorm.dropsInWindow} drops")
-            _recoveryState.value = SessionRecoveryUi.PausedAfterDrops(dropStorm.dropsInWindow)
+        if (!recoveryEpisode.begin(cameraId, trigger, reason)) {
+            if (!_recoveryState.value.isRecovering) recoveryCameraId = previousTarget
             return
         }
-        DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → bounded recovery")
-        _recoveryState.value = SessionRecoveryPolicy.monitor.state(afterFailedAttempts = 0)
-        val target = camera ?: FoundCamera(cameraId, "", recoveryDeviceName, CameraModel.default, null)
-        recoveryJob =
-            scope.launch {
-                try { runSessionRecovery(target) }
-                finally {
-                    if (recoveryJob === coroutineContext[Job]) recoveryJob = null
-                }
-            }
+        if (recoveryDeviceName.isEmpty()) recoveryDeviceName = camera?.name.orEmpty()
+        when (val state = _recoveryState.value) {
+            is SessionRecoveryUi.PausedAfterDrops ->
+                DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → storm pause after ${state.drops} drops")
+            else -> DjiLog.log("notice", "recovery", "session", "session: drop ($reason) → bounded recovery")
+        }
     }
 
     private fun cancelSessionRecovery(clearHoldsMonitor: Boolean) {
-        recoveryJob?.cancel()
-        recoveryJob = null
-        _recoveryState.value = SessionRecoveryUi.Idle
+        recoveryEpisode.cancel(clearHold = clearHoldsMonitor)
         if (clearHoldsMonitor) {
             holdsMonitor = false
             recoveryCameraId = null
@@ -2884,75 +2878,64 @@ class PocketCameraSession(
         }
     }
 
-    private suspend fun runSessionRecovery(camera: FoundCamera) {
-        val policy = SessionRecoveryPolicy.monitor
-        var failures = 0
-        suspend fun runAttempts() {
-            while (true) {
-                val state = policy.state(afterFailedAttempts = failures)
-                _recoveryState.value = state
-                if (state !is SessionRecoveryUi.Retrying) return
-                val recovered = attemptRecoveryConnect(camera)
-                if (recovered) {
-                    _recoveryState.value = SessionRecoveryUi.Idle
-                    holdsMonitor = false
-                    DjiLog.log("notice", "recovery", "session", "session: recovered after $failures failed attempt(s)")
-                    return
-                }
-                failures += 1
-                when (val decision = policy.decision(afterFailedAttempts = failures, jitter = kotlin.random.Random.nextDouble())) {
-                    SessionRecoveryDecision.Stop -> {
-                        _recoveryState.value = policy.state(afterFailedAttempts = failures)
-                        DjiLog.log("notice", "recovery", "session", "session: recovery exhausted after $failures attempts")
-                        return
-                    }
-                    is SessionRecoveryDecision.Retry -> delay(decision.afterMs)
-                }
+    private fun applyRecovery(snapshot: SessionRecoveryEpisode.Snapshot) {
+        val previous = _recoveryState.value
+        _recoveryState.value = snapshot.state
+        if (previous !is SessionRecoveryUi.Retrying) return
+        when (val state = snapshot.state) {
+            // A recovered episode keeps its target; a local cancel clears or keeps the hold.
+            SessionRecoveryUi.Idle -> if (snapshot.targetId != null && !snapshot.holdsPicture) {
+                holdsMonitor = false
+                DjiLog.log("notice", "recovery", "session", "session: recovered after ${previous.attempt - 1} failed attempt(s)")
             }
-        }
-        if (!withinAutomaticRecoveryBudget { runAttempts() }) {
-            stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraNetworkUsable())
-            ble.disconnect()
-            _recoveryState.value = SessionRecoveryUi.WaitingForOperator(maxOf(1, failures + 1))
-            DjiLog.log("notice", "recovery", "budget",
-                "session: recovery stopped after 180s — operator retry required")
+            is SessionRecoveryUi.WaitingForOperator ->
+                DjiLog.log("notice", "recovery", "budget", "session: recovery stopped after ${state.attemptsMade} attempt(s), operator retry required")
+            else -> Unit
         }
     }
 
-    private suspend fun attemptRecoveryConnect(camera: FoundCamera): Boolean {
-        val id = recoveryCameraId ?: camera.id
-        return try {
-            // Keep the held image and Surface, but retire a failed codec before
-            // the new session. The episode budget encloses all connection stages.
-            withContext(Dispatchers.IO) { decoder.prepareAfterForeground() }
-            recoverAfterAdvertisement(
-                scan = {
-                    ble.startScan()
-                    waitForRecoveryAdvertisement(id, SessionRecoveryPolicy.ADVERTISEMENT_SCAN_BUDGET_MS)
-                },
-                reconnect = { foundCamera ->
-                    run(foundCamera)
-                    val handshakeAt = SystemClock.elapsedRealtime()
-                    var recovered = false
-                    while (SystemClock.elapsedRealtime() - handshakeAt < LiveViewEnablePolicy.GOP_GRACE_MS) {
-                        if (hasRecoveryPicture(handshakeAt)) {
-                            recovered = true
-                            break
-                        }
-                        delay(100)
-                    }
-                    recovered
-                },
+    /** The DJI transport for the shared episode. */
+    private inner class RecoveryPort : SessionRecoveryEpisode.Port {
+        // A lent session belongs to multiview; only its owner recovers it.
+        override fun observe() =
+            SessionRecoveryEpisode.Observation(
+                ownsConnection = !isMultiviewBorrowed && recoveryCameraId != null,
+                sourceAtMs = datalink?.lastAccessUnitAt,
+                presentedAtMs = decoder.lastPresentedAt,
             )
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            false
-        }.also { recovered ->
-            if (!recovered) {
-                stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraNetworkUsable())
-                ble.disconnect()
+
+        override fun cleanup(kind: SessionRecoveryEpisode.Cleanup, attempt: SessionRecoveryEpisode.Attempt) {
+            when (kind) {
+                SessionRecoveryEpisode.Cleanup.INITIAL_DROP -> {
+                    incidentSource?.noteUnexpectedDisconnect(SystemClock.elapsedRealtime() / 1000.0)
+                    holdsMonitor = true
+                    feedRecoveryJob?.cancel()
+                    feedRecoveryJob = null
+                    connectJob?.cancel()
+                    stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraPath.isProcessBound())
+                    ble.disconnect()
+                }
+                SessionRecoveryEpisode.Cleanup.FAILED_ATTEMPT, SessionRecoveryEpisode.Cleanup.BUDGET_EXHAUSTED -> {
+                    stopLivePipeline(preserveDecoder = true, preserveSoftAP = cameraNetworkUsable())
+                    ble.disconnect()
+                }
+                SessionRecoveryEpisode.Cleanup.STORM_PAUSE -> Unit
             }
+        }
+
+        override suspend fun connect(attempt: SessionRecoveryEpisode.Attempt): Boolean {
+            val id = recoveryCameraId ?: return false
+            // Keep the held image and Surface, but retire a failed codec before the new session.
+            withContext(Dispatchers.IO) { decoder.prepareAfterForeground() }
+            attempt.checkContinuation()
+            val found = withTimeoutOrNull(SessionRecoveryPolicy.ADVERTISEMENT_SCAN_BUDGET_MS) {
+                ble.startScan()
+                waitForRecoveryAdvertisement(id, SessionRecoveryPolicy.ADVERTISEMENT_SCAN_BUDGET_MS)
+            } ?: return false
+            attempt.checkContinuation()
+            // BLE, pairing, Wi-Fi and the datalink handshake; a transport failure throws.
+            run(found)
+            return true
         }
     }
 
@@ -3166,7 +3149,7 @@ class PocketCameraSession(
         return PocketControlState(
             linkReady = dl != null && endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding),
             authorized = controlLeaseAllows(),
-            recovering = dl?.isRebuilding == true || recoveryJob?.isActive == true,
+            recovering = dl?.isRebuilding == true || recoveryEpisode.isRunning,
             phase = _phase.value,
             cameraId = connectedCamera?.id,
             shootingMode = status.shootingMode,
@@ -3934,7 +3917,7 @@ class PocketCameraSession(
             owner, mediaPictureGeneration, isBrowsingMedia)
 
     private fun ownsMediaReturnContext(owner: Long): Boolean =
-        ownsLivePicture(owner) && _phase.value == ConnectionPhase.LIVE && !holdsMonitor && recoveryJob == null
+        ownsLivePicture(owner) && _phase.value == ConnectionPhase.LIVE && !holdsMonitor && !recoveryEpisode.isRunning
 
     fun ownsMediaLiveResume(owner: Long): Boolean =
         ownsMediaReturnContext(owner) && datalink?.isClosed == false
@@ -5420,7 +5403,7 @@ class PocketCameraSession(
         warming = !firstPictureSettled || decoder.lastPresentedAt?.let {
             SystemClock.elapsedRealtime() - it in 0 until LiveViewEnablePolicy.STALL_MS
         } != true,
-        recovering = holdsMonitor || recoveryJob != null || feedRecoveryJob != null,
+        recovering = holdsMonitor || recoveryEpisode.isRunning || feedRecoveryJob != null,
         videoStale = isLiveVideoStale(),
         hasDatalink = datalink?.isClosed == false,
     )
