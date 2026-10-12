@@ -60,24 +60,11 @@ import com.opencapture.monitorui.MonitorWaveformMode
 import com.opencapture.monitorui.MonitorZebraUnit
 import com.opencapture.monitorui.MonitorJoystickSize
 import com.opencapture.monitorui.MonitorPalette
-import com.opencapture.monitorui.settings.MonitorAccountSettings
-import com.opencapture.monitorui.settings.MonitorAccountState
-import com.opencapture.monitorui.settings.MonitorAppInformationSettings
-import com.opencapture.monitorui.settings.MonitorCacheSettings
-import com.opencapture.monitorui.settings.MonitorConnectionSettings
-import com.opencapture.monitorui.settings.MonitorControllerSettings
-import com.opencapture.monitorui.settings.MonitorDiagnosticSettings
 import com.opencapture.monitorui.settings.MonitorExposureMeterSettings
-import com.opencapture.monitorui.settings.MonitorGimbalSettings
-import com.opencapture.monitorui.settings.MonitorJoystickSettings
-import com.opencapture.monitorui.settings.MonitorLinkHealthScale
 import com.opencapture.monitorui.settings.MonitorMotionChoiceSetting
 import com.opencapture.monitorui.settings.MonitorMotionIntegerSetting
 import com.opencapture.monitorui.settings.MonitorMotionToggleSetting
-import com.opencapture.monitorui.settings.MonitorOperatorSafetySettings
-import com.opencapture.monitorui.settings.MonitorProjectLegalSettings
-import com.opencapture.monitorui.settings.MonitorSavedCameraSettings
-import com.opencapture.monitorui.settings.MonitorSavedCameraSummary
+import com.opencapture.monitorui.settings.MonitorDisplayChoice
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsColorDot
 import com.opencapture.monitorui.settings.MonitorSettingsColorDots
@@ -91,7 +78,6 @@ import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import com.opencapture.monitorui.settings.MonitorSettingsValueSlider
 import com.opencapture.monitorui.settings.MonitorSettingsValueText
-import com.opencapture.monitorui.settings.MonitorSupportSettings
 import com.opencapture.opencine.appkit.CamerasModel
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorDisplayChrome
@@ -103,7 +89,6 @@ import com.opencapture.opencine.appkit.diagnostics.ManualProblemReportDialog
 import com.opencapture.opencine.appkit.diagnostics.settingsStatus
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReporting
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
-import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.media.MonitorCrushClipCompensation
 import com.opencapture.opencine.media.MonitorDesqueezeDirection
 import com.opencapture.opencine.media.MonitorDesqueezePreset
@@ -169,8 +154,6 @@ class OperatorSetupState(
 /** The decoder and link counters the Link Health tile samples twice a second. */
 class OperatorLinkSample(val framesEnqueued: Int, val lastPresentedAt: Long?, val videoPackets: Int, val hasVideoFormat: Boolean)
 
-enum class OperatorLegalPage { PRIVACY, LICENSES, NOTICE }
-
 /** The App Information card: what the app is and how it talks to the camera. */
 class OperatorAppInformation(
     val theme: String,
@@ -208,9 +191,9 @@ class OperatorSetupApp(
     val linkSample: () -> OperatorLinkSample,
     val information: OperatorAppInformation,
     val sourceUrl: String,
-    val termsUrl: String,
     val diagnostics: OperatorDiagnostics,
-    val legalPage: @Composable (OperatorLegalPage, () -> Unit) -> Unit,
+    /** Privacy, terms, licenses and NOTICE, in Settings and wherever the app links privacy. */
+    val legal: MonitorLegalDocuments,
     val lutPicker: @Composable (() -> Unit) -> Unit,
     /**
      * Captured existing cache IO; no page or storage policy is supplied by the app. An app whose gallery
@@ -266,72 +249,133 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
     val bars = OperatorLinkHealth.bars(isLive, sample.videoPackets, sample.hasVideoFormat, measuredFps)
     val phaseLabel = connectionPhaseLabel(state.phase, state.failure)
     val view = LocalView.current
+    val context = LocalContext.current
 
     LaunchedEffect(model.chromeEditorReturnMode) {
         if (model.chromeEditorReturnMode == null) return@LaunchedEffect
         model.chromeEditorReturnMode = null
     }
 
-    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
-        brand = app.wordmark, selection = model.operatorSettingsTab,
-        onSelect = { model.operatorSettingsTab = it },
-        isLive = isLive, phase = phaseLabel, close = onClose, disconnect = model::disconnect,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-        source = MonitorOperatorSettingsSource.Deployed(model, state, app, bars),
-    ))
-}
-
-@Composable
-internal fun LinkRows(
-    model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp,
-    isLive: Boolean, phaseLabel: String, bars: Int,
-) {
-    MonitorLinkHealthScale(
-        title = "Link Health",
-        caption = OperatorLinkHealth.caption(isLive, bars),
-        score = OperatorLinkHealth.score(bars),
-    )
-    MonitorConnectionSettings(
-        transport = if (isLive) "BLE + Wi-Fi active" else "Not connected",
-        transportHelp = app.help.CURRENT_TRANSPORT,
-        phase = phaseLabel, phaseHelp = app.help.PHASE,
-        network = state.network?.takeIf { it.isNotEmpty() },
-        networkHelp = app.help.CAMERA_WIFI,
-    )
-    if (app.upscalers.size > 1) {
-        val context = LocalContext.current
-        var upscaler by remember { mutableStateOf(app.upscaler(context)) }
-        MonitorSettingsRowCard(title = "Processing") {
-            MonitorSettingsInlineRow("Feed Upscaler", app.help.FEED_UPSCALER, showTopDivider = false) {
-                MonitorSettingsSegmented(
-                    options = app.upscalers,
-                    selected = upscaler,
-                    compact = true,
-                    fillWidth = false,
-                ) { label ->
-                    upscaler = label
-                    app.setUpscaler(context, label)
-                }
-            }
-        }
-    }
-    val saved = model.cameras.state.collectAsState().value.saved
-    MonitorSavedCameraSettings(cameras = saved.map { camera ->
-        val network = camera.routes.firstOrNull { it.kind == RouteKind.CAMERA_ACCESS_POINT }?.network
-        MonitorSavedCameraSummary(camera.id, camera.displayName, camera.model + (network?.let { " · $it" } ?: ""), network)
-    }, emptyHelp = app.help.SAVED_CAMERAS)
-}
-
-@Composable
-internal fun SharingRows() {
-    MonitorSettingsRowCard {
-        Text(
-            "Coming soon...",
-            style = LiveType.ui(15f, FontWeight.Medium),
-            color = LiveDesign.muted,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 2.dp),
+    val legalPage = remember { mutableStateOf<MonitorLegalPage?>(null) }
+    var showReportForm by remember { mutableStateOf(false) }
+    val configuration = operatorSetupConfiguration(model, state, app, isLive, phaseLabel, bars, onClose,
+        feedback = { operatorHaptic(view, model.hapticsEnabled) }, report = { showReportForm = true })
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, model.operatorSettingsTab,
+        { model.operatorSettingsTab = it }, MonitorOperatorPictureSettings.Deployed(model, state, app), legalPage = legalPage))
+    if (showReportForm) {
+        val diagnostics = app.diagnostics
+        ManualProblemReportDialog(
+            diagnostics.manualReport, diagnostics.diagnosticText, diagnostics.reportActionMinimumTouchTarget,
+            onClose = { showReportForm = false },
+            onPrivacy = {
+                showReportForm = false
+                app.legal.open(MonitorLegalPage.PRIVACY, context) { legalPage.value = it }
+            },
         )
     }
+}
+
+/** The deployed apps' settings as one configuration over their model: the same recipe every app builds. */
+@Composable
+private fun operatorSetupConfiguration(
+    model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp,
+    isLive: Boolean, phaseLabel: String, bars: Int, onClose: () -> Unit,
+    feedback: () -> Unit, report: () -> Unit,
+): MonitorOperatorSettingsConfiguration {
+    val context = LocalContext.current
+    val diagnostics = app.diagnostics
+    var upscaler by remember { mutableStateOf(app.upscaler(context)) }
+    var gimbalGamepadStick by remember { mutableStateOf(app.prefs.gimbalGamepadStick(context)) }
+    var reliabilityOptIn by remember { mutableStateOf(diagnostics.reporting.isOptedIn) }
+    val reportSnapshot by diagnostics.manualReport.snapshot.collectAsState()
+    val saved = model.cameras.state.collectAsState().value.saved
+    val cacheSource = app.cacheSource?.invoke(context) ?: run {
+        val dirs = requireNotNull(app.mediaCache) { "Operator Setup needs a cache source or the legacy cache directories" }
+        val clear = requireNotNull(app.clearMediaCache) { "Legacy cache directories need their clear action" }
+        com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
+            com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(dirs.candidates(context).first().absolutePath, null),
+            0L, isCurrent = { true },
+            count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dirs.byteCount(context) } },
+            clear = { clear(context) },
+        )
+    }
+    fun <T> changed(next: T, current: T, apply: (T) -> Unit) {
+        if (next != current) { feedback(); apply(next) }
+    }
+    val gimbal = state.layout.gimbal
+    val information = app.information
+    return MonitorOperatorSettingsConfiguration(
+        brand = app.wordmark, isLive = isLive, phase = phaseLabel, close = onClose, disconnect = model::disconnect,
+        feedback = feedback,
+        link = MonitorSettingsLinkSource(
+            transport = if (isLive) "BLE + Wi-Fi active" else "Not connected", transportHelp = app.help.CURRENT_TRANSPORT,
+            phase = phaseLabel, phaseHelp = app.help.PHASE, healthTitle = "Link Health",
+            healthCaption = OperatorLinkHealth.caption(isLive, bars), score = OperatorLinkHealth.score(bars),
+            processingTitle = "Processing",
+            processingChoices = if (app.upscalers.size > 1) listOf(MonitorSettingsChoiceSource("Feed Upscaler",
+                app.help.FEED_UPSCALER, app.upscalers.map { MonitorDisplayChoice(it, it) }, upscaler,
+                select = { label -> upscaler = label; app.setUpscaler(context, label) }, segmented = true)) else emptyList(),
+            network = state.network, networkHelp = app.help.CAMERA_WIFI,
+            savedCameras = monitorSavedCameraSummaries(saved), savedCamerasHelp = app.help.SAVED_CAMERAS,
+        ),
+        sharing = null, sharingSubtitle = null, sharingRail = null,
+        controls = MonitorSettingsControlsSource(
+            model.recordConfirmationEnabled, model::updateRecordConfirmationEnabled,
+            model.hapticsEnabled, model::updateHapticsEnabled, model.keepScreenAwake, model::updateKeepScreenAwake,
+            keepAwakeHelp = app.help.KEEP_SCREEN_AWAKE, hapticsHelp = app.help.HAPTICS,
+            motion = MonitorSettingsMotionSource(
+                sensitivity = if (!gimbal) null else MonitorMotionIntegerSetting(model.gimbalStickSensitivity, 1..5,
+                    app.help.JOYSTICK_SENSITIVITY) { changed(it, model.gimbalStickSensitivity, model::updateGimbalStickSensitivity) },
+                joystick = if (!gimbal) null else MonitorSettingsJoystickSource(
+                    size = MonitorMotionChoiceSetting(MonitorJoystickSize.entries.map { it.label },
+                        model.virtualJoystickSize.label, app.help.VIRTUAL_JOYSTICK_SIZE) { label ->
+                        changed(MonitorJoystickSize.fromLabel(label), model.virtualJoystickSize, model::updateVirtualJoystickSize)
+                    },
+                    invertPan = MonitorMotionToggleSetting(model.virtualJoystickInvertPan,
+                        app.help.VIRTUAL_JOYSTICK_INVERT_PAN) { feedback(); model.updateVirtualJoystickInvertPan(it) },
+                    invertTilt = MonitorMotionToggleSetting(model.virtualJoystickInvertTilt,
+                        app.help.VIRTUAL_JOYSTICK_INVERT_TILT) { feedback(); model.updateVirtualJoystickInvertTilt(it) },
+                    deadZone = MonitorMotionIntegerSetting(model.virtualJoystickDeadzonePercent, 0..25,
+                        app.help.VIRTUAL_JOYSTICK_DEADZONE, suffix = "%") {
+                        changed(it, model.virtualJoystickDeadzonePercent, model::updateVirtualJoystickDeadzonePercent)
+                    },
+                    response = MonitorMotionChoiceSetting(CameraCommands.VirtualJoystickCurve.entries.map { it.label },
+                        model.virtualJoystickResponseCurve.label, app.help.VIRTUAL_JOYSTICK_RESPONSE) { label ->
+                        changed(CameraCommands.VirtualJoystickCurve.fromLabel(label), model.virtualJoystickResponseCurve,
+                            model::updateVirtualJoystickResponseCurve)
+                    },
+                    identifier = "gimbal.virtual",
+                ),
+                controller = MonitorMotionChoiceSetting(GamepadGimbalStick.entries.map { it.label },
+                    gimbalGamepadStick.label, app.help.GIMBAL_JOYSTICK) { label ->
+                    changed(GamepadGimbalStick.fromLabel(label), gimbalGamepadStick) { next ->
+                        app.prefs.setGimbalGamepadStick(context, next)
+                        gimbalGamepadStick = next
+                        model.gimbalGamepad.noteStickSelectionChanged(model)
+                    }
+                },
+                controllerStatus = if (model.gamepadConnected) "Connected" else "Not connected",
+                controllerHelp = app.help.GAMEPAD,
+            ),
+        ),
+        cache = MonitorSettingsCachePresentation(cacheSource, formatBytes = { if (it == 0L) "Empty" else formatCacheSize(it) },
+            scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
+            cacheOriginals = model.cacheFullResolution, setCacheOriginals = model::updateCacheFullResolution,
+            cacheHelp = app.help.CACHE_FULL_RESOLUTION),
+        unconfiguredAccount = MonitorSettingsReadoutSource("Frame.io", app.help.FRAME_IO, null),
+        support = MonitorSettingsSupportSource(report = report,
+            automaticReports = reliabilityOptIn, available = diagnostics.reporting.isAvailable,
+            automaticHelp = app.help.RELIABILITY_REPORTS, unavailableHelp = app.help.RELIABILITY_UNAVAILABLE,
+            setAutomaticReports = { reliabilityOptIn = it; diagnostics.reporting.setConsent(it) },
+            status = reportSnapshot.settingsStatus,
+            discard = if (reportSnapshot.allowsDiscard) ({ diagnostics.manualReport.discard() }) else null,
+            sourceUrl = app.sourceUrl, sourceHelp = app.help.SOURCE, termsHelp = information.termsHelp),
+        diagnostics = MonitorSettingsDiagnosticsSource(save = { diagnostics.shareReport(context) },
+            incidents = diagnostics.incidents),
+        legal = app.legal,
+        information = MonitorSettingsInformationSource(information.theme, information.protocol, information.version,
+            information.themeHelp, information.protocolHelp, information.versionHelp),
+    )
 }
 
 // View Assist: main's cards (two columns in landscape), on the settings controls.
@@ -659,81 +703,6 @@ private fun ScopeGuideRows(guides: MonitorScopeGuides, onChange: (MonitorScopeGu
     MonitorSettingsSwitchInlineRow("Middle Gray", isOn = guides.middle, stacked = true) { onChange(guides.copy(middle = !guides.middle)) }
 }
 
-@Composable
-internal fun ControlsRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp) {
-    val view = LocalView.current
-    val context = LocalContext.current
-    var gimbalGamepadStick by remember { mutableStateOf(app.prefs.gimbalGamepadStick(context)) }
-    MonitorOperatorSafetySettings(
-        recordConfirmation = model.recordConfirmationEnabled, haptics = model.hapticsEnabled,
-        keepScreenAwake = model.keepScreenAwake,
-        onRecordConfirmation = model::updateRecordConfirmationEnabled,
-        onHaptics = model::updateHapticsEnabled, onKeepScreenAwake = model::updateKeepScreenAwake,
-        hapticsHelp = app.help.HAPTICS, keepScreenAwakeHelp = app.help.KEEP_SCREEN_AWAKE,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-    if (state.layout.gimbal) {
-        MonitorGimbalSettings(sensitivity = MonitorMotionIntegerSetting(
-            value = model.gimbalStickSensitivity, range = 1..5, help = app.help.JOYSTICK_SENSITIVITY,
-        ) { next ->
-            if (next != model.gimbalStickSensitivity) {
-                operatorHaptic(view, model.hapticsEnabled)
-                model.updateGimbalStickSensitivity(next)
-            }
-        })
-        MonitorJoystickSettings(
-            size = MonitorMotionChoiceSetting(MonitorJoystickSize.entries.map { it.label },
-                model.virtualJoystickSize.label, app.help.VIRTUAL_JOYSTICK_SIZE) { label ->
-                val next = MonitorJoystickSize.fromLabel(label)
-                if (next != model.virtualJoystickSize) {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.updateVirtualJoystickSize(next)
-                }
-            },
-            invertPan = MonitorMotionToggleSetting(model.virtualJoystickInvertPan,
-                app.help.VIRTUAL_JOYSTICK_INVERT_PAN) { next ->
-                operatorHaptic(view, model.hapticsEnabled)
-                model.updateVirtualJoystickInvertPan(next)
-            },
-            invertTilt = MonitorMotionToggleSetting(model.virtualJoystickInvertTilt,
-                app.help.VIRTUAL_JOYSTICK_INVERT_TILT) { next ->
-                operatorHaptic(view, model.hapticsEnabled)
-                model.updateVirtualJoystickInvertTilt(next)
-            },
-            deadZone = MonitorMotionIntegerSetting(model.virtualJoystickDeadzonePercent,
-                0..25, app.help.VIRTUAL_JOYSTICK_DEADZONE, suffix = "%") { next ->
-                if (next != model.virtualJoystickDeadzonePercent) {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.updateVirtualJoystickDeadzonePercent(next)
-                }
-            },
-            response = MonitorMotionChoiceSetting(CameraCommands.VirtualJoystickCurve.entries.map { it.label },
-                model.virtualJoystickResponseCurve.label, app.help.VIRTUAL_JOYSTICK_RESPONSE) { label ->
-                val next = CameraCommands.VirtualJoystickCurve.fromLabel(label)
-                if (next != model.virtualJoystickResponseCurve) {
-                    operatorHaptic(view, model.hapticsEnabled)
-                    model.updateVirtualJoystickResponseCurve(next)
-                }
-            },
-            identifierPrefix = "gimbal.virtual",
-        )
-    }
-    MonitorControllerSettings(
-        stick = MonitorMotionChoiceSetting(GamepadGimbalStick.entries.map { it.label },
-            gimbalGamepadStick.label, app.help.GIMBAL_JOYSTICK) { label ->
-            val next = GamepadGimbalStick.fromLabel(label)
-            if (next != gimbalGamepadStick) {
-                operatorHaptic(view, model.hapticsEnabled)
-                app.prefs.setGimbalGamepadStick(context, next)
-                gimbalGamepadStick = next
-                model.gimbalGamepad.noteStickSelectionChanged(model)
-            }
-        },
-        status = if (model.gamepadConnected) "Connected" else "Not connected",
-        statusHelp = app.help.GAMEPAD,
-    )
-}
-
 // Display: main's rows.
 
 /** Main's Display rows; tagged `monitor.settings.display.*` for the instrumented tests. */
@@ -776,92 +745,6 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
         },
         edit = if (!isLive) null else { mode -> model.beginChromeEditing(mode) },
         feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-}
-
-@Composable
-internal fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
-    val context = LocalContext.current
-    val view = LocalView.current
-    val source = app.cacheSource?.invoke(context) ?: run {
-        val dirs = requireNotNull(app.mediaCache) { "Operator Setup needs a cache source or the legacy cache directories" }
-        val clear = requireNotNull(app.clearMediaCache) { "Legacy cache directories need their clear action" }
-        com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
-            com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(dirs.candidates(context).first().absolutePath, null),
-            0L, isCurrent = { true },
-            count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dirs.byteCount(context) } },
-            clear = { clear(context) },
-        )
-    }
-    MonitorAccountSettings(
-        title = "Frame.io", help = app.help.FRAME_IO,
-        state = MonitorAccountState.NOT_CONFIGURED,
-    )
-    MonitorOperatorCacheSettings(
-        source = source, cacheOriginals = model.cacheFullResolution,
-        cacheHelp = app.help.CACHE_FULL_RESOLUTION,
-        scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
-        onCacheOriginals = model::updateCacheFullResolution,
-        formatBytes = { bytes -> if (bytes == 0L) "Empty" else formatCacheSize(bytes) },
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-}
-
-@Composable
-internal fun SystemRows(model: OperatorSetupModel, app: OperatorSetupApp, onLegal: (OperatorLegalPage) -> Unit) {
-    val context = LocalContext.current
-    val view = LocalView.current
-    val diagnostics = app.diagnostics
-    var reliabilityOptIn by remember { mutableStateOf(diagnostics.reporting.isOptedIn) }
-    var diagnosticOptions by remember { mutableStateOf(false) }
-    var showReportForm by remember { mutableStateOf(false) }
-    val report by diagnostics.manualReport.snapshot.collectAsState()
-    MonitorSupportSettings(
-        automaticReports = reliabilityOptIn, available = diagnostics.reporting.isAvailable,
-        automaticHelp = app.help.RELIABILITY_REPORTS,
-        unavailableHelp = app.help.RELIABILITY_UNAVAILABLE,
-        onAutomaticReports = { reliabilityOptIn = it; diagnostics.reporting.setConsent(it) },
-        report = { showReportForm = true }, privacy = { onLegal(OperatorLegalPage.PRIVACY) },
-        status = report.settingsStatus,
-        discard = if (report.allowsDiscard) ({ diagnostics.manualReport.discard() }) else null,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) },
-    )
-    MonitorDiagnosticSettings(
-        expanded = diagnosticOptions, onExpanded = { diagnosticOptions = it },
-        deleteHelp = "Remove saved feed reports from this phone. Connection logs remain. Turn off automatic reporting to clear pending uploads. Reports already sent cannot be removed here.",
-        save = { diagnostics.shareReport(context) },
-        delete = {
-            diagnostics.incidents.deleteStoredReports { deleted ->
-                android.widget.Toast.makeText(context,
-                    if (deleted) "Saved feed reports deleted" else "Couldn't delete saved feed reports. Please try again.",
-                    android.widget.Toast.LENGTH_LONG).show()
-            }
-        },
-    )
-    if (showReportForm) {
-        ManualProblemReportDialog(
-            diagnostics.manualReport, diagnostics.diagnosticText, diagnostics.reportActionMinimumTouchTarget,
-            onClose = { showReportForm = false },
-            onPrivacy = {
-                showReportForm = false
-                onLegal(OperatorLegalPage.PRIVACY)
-            },
-        )
-    }
-    val information = app.information
-    MonitorProjectLegalSettings(
-        sourceHelp = app.help.SOURCE, termsHelp = information.termsHelp,
-        source = { openUrl(context, app.sourceUrl) },
-        privacy = { onLegal(OperatorLegalPage.PRIVACY) },
-        terms = { openUrl(context, app.termsUrl) },
-        licenses = { onLegal(OperatorLegalPage.LICENSES) }, notice = { onLegal(OperatorLegalPage.NOTICE) },
-    )
-    MonitorAppInformationSettings(
-        theme = information.theme, protocolName = information.protocol,
-        version = information.version,
-        themeHelp = information.themeHelp,
-        protocolHelp = information.protocolHelp,
-        versionHelp = information.versionHelp,
     )
 }
 

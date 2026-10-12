@@ -66,12 +66,14 @@ public fun MonitorProjectLegalSettings(
         }
         licenses?.let { action ->
             MonitorSettingsInlineRow("Licenses", "Apache 2.0 and third-party notices.") {
-                MonitorSettingsActionPill("Open", onClick = action)
+                MonitorSettingsActionPill("Open", onClick = action,
+                    modifier = Modifier.semantics { contentDescription = "Open Licenses" })
             }
         }
         notice?.let { action ->
             MonitorSettingsInlineRow("NOTICE", "Attribution shipped with the app.") {
-                MonitorSettingsActionPill("Open", onClick = action)
+                MonitorSettingsActionPill("Open", onClick = action,
+                    modifier = Modifier.semantics { contentDescription = "Open NOTICE" })
             }
         }
     }

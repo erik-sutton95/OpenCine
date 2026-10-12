@@ -129,11 +129,14 @@ and reset actions.
 
 ## Operator settings
 
-Android's deployed, configured and generated-session settings adapters delegate to the sole
+Android's deployed, configured and generated-session settings entries each build one
+`MonitorOperatorSettingsConfiguration` and delegate to the sole
 [`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
 That owner supplies the cover input barrier, safe-drawing clearance, page margins, Back action,
-tab dispatch and legal/LUT overlays. Existing typed settings sources supply real values and
-native content; they cannot replace the common page frame. SwiftUI uses its existing complete
+one row recipe per tab and legal/LUT overlays. Capabilities an app lacks (sharing, motion, account,
+cache, diagnostics, legal) are absent optional sections; only View Assist and Display still take a
+per-entry picture source. Legal pages come from one typed `MonitorLegalDocuments` value (bundled
+text or a web page per page) shown by `MonitorLegalDocumentScreen`. SwiftUI uses its existing complete
 `MonitorOperatorSettingsScreen` and the same lower `MonitorSettingsPage` primitive.
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and

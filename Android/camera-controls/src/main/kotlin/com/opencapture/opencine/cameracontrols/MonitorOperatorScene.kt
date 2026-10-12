@@ -235,19 +235,41 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
     preferences: MonitorOperatorPreferences, display: MonitorDisplayPreferences, assist: MonitorAssistState,
     library: MonitorMediaLibraryModel<P>?, availableAssistTools: Set<MonitorAssistTool> = MonitorOperatorDefaultAssistTools,
     operatorSession: MonitorOperatorSessionModel? = null, assistHost: AssistHost = MonitorDefaultAssistHost,
-    lookOptions: AssistLutPicker? = null) {
+    lookOptions: AssistLutPicker? = null, legal: MonitorLegalDocuments? = null) {
     val state by shell.state.collectAsState()
     val scope = rememberCoroutineScope()
     val session = operatorSession ?: remember(shell, assist, display) { MonitorOperatorSessionModel(shell, assist, display, scope) }
     val live = state.monitor != null
     val cameraName = state.monitor?.camera?.saved?.displayName
-    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
-        brand = brand, selection = session.settingsTab, onSelect = { session.settingsTab = it },
-        isLive = live, phase = cameraName ?: "No camera connected", close = shell::dismissCover,
-        disconnect = if (live) shell::close else null,
-        source = MonitorOperatorSettingsSource.Session(preferences, session, assist, library,
-            cameraName, availableAssistTools, assistHost, lookOptions, actions.diagnostics, actions.reportProblem),
+    val phase = cameraName ?: "No camera connected"
+    val revision = remember { mutableIntStateOf(0) }
+    @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
+    fun write(apply: () -> Unit) { apply(); revision.intValue++ }
+    val configuration = MonitorOperatorSettingsConfiguration(
+        brand = brand, isLive = live, phase = phase, close = shell::dismissCover,
+        disconnect = if (live) shell::close else null, feedback = {},
+        link = MonitorSettingsLinkSource(transport = if (live) "Connected" else "Not connected",
+            transportHelp = "How this phone reaches the camera.", phase = phase,
+            phaseHelp = "The camera this monitor shows.", healthTitle = "Link Health",
+            healthCaption = if (live) "Live" else "No live path.", score = null),
+        sharing = null, sharingSubtitle = null, sharingRail = null,
+        controls = MonitorSettingsControlsSource(preferences.recordConfirmation, { write { preferences.recordConfirmation = it } },
+            preferences.haptics, { write { preferences.haptics = it } },
+            preferences.keepScreenAwake, { write { preferences.keepScreenAwake = it } },
+            keepAwakeHelp = "Prevents auto-lock while this app is open. A monitor should stay lit."),
+        cache = library?.let {
+            MonitorSettingsCachePresentation(monitorSettingsCacheSource(it), cacheOriginals = preferences.cacheOriginals,
+                setCacheOriginals = { value -> write { preferences.cacheOriginals = value } })
+        },
+        support = MonitorSettingsSupportSource(report = actions.reportProblem, actions = listOf(
+            MonitorSupportAction("support.diagnostics", "Diagnostics", actionTitle = "Share",
+                accessibilityLabel = "Share Diagnostics", action = actions.diagnostics))),
+        legal = legal,
         tabs = listOf(MonitorSettingsTab.LINK, MonitorSettingsTab.ASSIST, MonitorSettingsTab.CONTROLS, MonitorSettingsTab.DISPLAY) +
             (if (library != null) listOf(MonitorSettingsTab.STORAGE) else emptyList()) + listOf(MonitorSettingsTab.SYSTEM),
-    ))
+    )
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab,
+        { session.settingsTab = it }, MonitorOperatorPictureSettings.Session(preferences, session, assist,
+            availableAssistTools, assistHost, lookOptions)))
 }
+

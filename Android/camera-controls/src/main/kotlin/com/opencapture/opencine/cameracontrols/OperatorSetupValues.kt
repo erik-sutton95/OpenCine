@@ -1,8 +1,6 @@
 package com.opencapture.opencine.cameracontrols
 
 import android.content.Context
-import android.content.Intent
-import androidx.core.net.toUri
 import com.opencapture.monitorui.MonitorLinkHealth
 import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.LutLookResolver
@@ -271,9 +269,4 @@ fun lutLookLabel(
             profile = profile,
         )
     return LutLookResolver.statusLabel(enabled, selection, source)
-}
-
-/** Opens [url] in the browser; nothing happens when no app can. */
-fun openUrl(context: Context, url: String) {
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
 }
