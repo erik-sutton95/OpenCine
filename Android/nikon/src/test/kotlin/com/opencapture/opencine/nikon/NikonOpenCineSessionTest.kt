@@ -10,6 +10,7 @@ import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.Rational
@@ -210,6 +211,17 @@ class NikonOpenCineSessionTest {
 
             camera.cameraProperties.value = movie().copy(frameRate = 0)
             assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecode)
+            seam.closeNow(SessionCloseReason.REQUESTED)
+        }
+
+    /** A5-01: Nikon `BatteryLevel` is a five-step gauge, so the reading declares fifths. */
+    @Test
+    fun batteryDeclaresFiveSteps() =
+        runTest {
+            val seam = NikonOpenCineSession(FakeNikon(movie()), backgroundScope)
+            val battery = seam.refresh().power.battery
+            assertEquals(0.8, battery.value)
+            assertEquals(ObservationPrecision.Quantized(0.2), battery.precision)
             seam.closeNow(SessionCloseReason.REQUESTED)
         }
 

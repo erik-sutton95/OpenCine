@@ -410,7 +410,8 @@ public final class NikonCameraSession: CameraSession {
         Self.observe(&next.recording, facts.recording.map { $0 ? .recording : .idle }, at: at)
         Self.observe(
             &next.power.battery, facts.reported.batteryPercent.map { Double($0) / 100 }, at: at,
-            precision: .quantized(step: 0.01))
+            // BatteryLevel is the body's five-step gauge, never a percent (A5-01).
+            precision: .quantized(step: 1.0 / Double(NikonCameraBatteryGauge.barCount)))
         for (key, value) in Self.reportedSettings(facts.reported) {
             var observation = next.value(of: key)
             Self.observe(&observation, value, at: at)
