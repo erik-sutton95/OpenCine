@@ -29,6 +29,33 @@ class MonitorMediaPreferencesTest {
         b.saveFavorites(setOf("other.mov"))
         assertEquals(setOf("take.mov"), a.favorites()); assertEquals(setOf("other.mov"), b.favorites())
     }
+    @Test fun galleryViewOptionsPersistThroughTheLibraryAndRestoreNextTime() = runTest {
+        // A4-15: Pocket and Insta keep the operator's tab, order, layout and size like Z does.
+        val memory = MediaPreferencesMemory()
+        val root = Files.createTempDirectory("opencine-media-view-").toFile()
+        try {
+            fun library() = MonitorMediaLibraryModel(MonitorMediaCache(MonitorMediaCacheDirectory(root), ViewCodec,
+                MonitorMediaOriginalEligibility.ExactSize, "index.json", listOf("index.json")),
+                MonitorMediaPreferences(memory.storage, "fav", "last", "\u001f", viewKeyPrefix = "opc.media.view"), scope = backgroundScope)
+            val first = library()
+            assertEquals(MonitorMediaViewOptions(), first.state.value.let {
+                MonitorMediaViewOptions(it.category, it.sort, it.layout, it.thumbnailSize) })
+            first.filter(category = MonitorMediaCategoryFilter.PHOTOS)
+            first.display(sort = MonitorMediaSort.RATING, layout = com.opencapture.monitorui.MonitorMediaLayout.LIST,
+                thumbnailSize = com.opencapture.monitorui.MonitorThumbnailSize.LARGE)
+            assertEquals(mapOf("opc.media.view.category" to "PHOTOS", "opc.media.view.sort" to "RATING",
+                "opc.media.view.layout" to "LIST", "opc.media.view.thumbnail-size" to "LARGE"), memory.values)
+            first.dispose()
+            val next = library().state.value
+            assertEquals(MonitorMediaCategoryFilter.PHOTOS, next.category); assertEquals(MonitorMediaSort.RATING, next.sort)
+            assertEquals(com.opencapture.monitorui.MonitorMediaLayout.LIST, next.layout)
+            assertEquals(com.opencapture.monitorui.MonitorThumbnailSize.LARGE, next.thumbnailSize)
+            memory.values["opc.media.view.sort"] = "UNKNOWN"
+            assertEquals(MonitorMediaSort.NEWEST, MonitorMediaPreferences(memory.storage, "fav", "last", "\u001f",
+                viewKeyPrefix = "opc.media.view").viewOptions().sort)
+            assertEquals(MonitorMediaViewOptions(), MonitorMediaPreferences(memory.storage, "fav", "last", "\u001f").viewOptions())
+        } finally { root.deleteRecursively() }
+    }
     @Test fun retiredModelWriterSharesRootGenerationWithReplacementCache() = runTest {
         val root = Files.createTempDirectory("opencine-media-storage-").toFile()
         try {
@@ -42,6 +69,13 @@ class MonitorMediaPreferencesTest {
             writer.abort(); assertContentEquals(byteArrayOf(2), replacement.read("files/take.mov"))
         } finally { root.deleteRecursively() }
     }
+}
+
+private object ViewCodec : MonitorMediaCatalogCodec<String> {
+    override fun decode(bytes: ByteArray) = emptyList<MonitorMediaRecord<String>>()
+    override fun encode(records: List<MonitorMediaRecord<String>>) = ByteArray(0)
+    override fun capture(asset: com.opencapture.opencine.media.MediaAsset, binding: com.opencapture.opencine.media.MediaBrowseBinding): MonitorMediaRecord<String> =
+        throw com.opencapture.opencine.media.MediaServiceException(com.opencapture.opencine.media.MediaServiceFailure.UNSUPPORTED)
 }
 
 private class MediaPreferencesMemory {
