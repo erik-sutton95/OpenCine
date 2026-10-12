@@ -46,4 +46,6 @@ include(
     ":appkit",
     // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
     ":camera-controls",
+    // Media3 playback shared by the apps: player recipe, port, audio meter tap and playback owner.
+    ":media3",
 )

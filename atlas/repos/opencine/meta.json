@@ -238,6 +238,12 @@
       "coordinates": "com.opencapture.opencine:camera-controls"
     },
     {
+      "name": ":media3",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:media3"
+    },
+    {
       "name": ":relay",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -305,7 +311,8 @@
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
-      ":camera-controls"
+      ":camera-controls",
+      ":media3"
     ],
     "multicam": [
       "OpenCineMulticam",
