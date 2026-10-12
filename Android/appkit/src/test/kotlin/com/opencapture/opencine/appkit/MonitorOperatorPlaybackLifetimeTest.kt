@@ -306,6 +306,20 @@ class MonitorOperatorPlaybackLifetimeTest {
             assertSame(owner, f.model.state.value.playback)
         } finally { f.close() }
     }
+    @Test fun shareFromPlaybackPausesAndDismissLeavesTheTransportPaused() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            f.model.playerVisible(true); assertTrue(f.open(0)); val owner = assertNotNull(f.model.state.value.playback)
+            runCurrent(); assertTrue(owner.state.value.ready); owner.setPlaying(true)
+            val token = owner.state.value.token; val plays = f.ports[0].played.size
+            assertTrue(f.model.beginShare(token))
+            assertTrue(f.model.state.value.deliveryPresented)
+            assertFalse(owner.state.value.playRequested); assertEquals(token, f.ports[0].paused.last())
+            f.model.deliveryPresented(false)
+            assertFalse(owner.state.value.playRequested); assertEquals(plays, f.ports[0].played.size)
+            assertFalse(f.model.beginShare(token.copy(revision = token.revision + 1)))
+        } finally { f.close() }
+    }
     @Test fun realRemovalMayRetireTheOutgoingItemOnceAndOpenTheAdjacentOwner() = runTest {
         val f = Fixture(backgroundScope)
         try {

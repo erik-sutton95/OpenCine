@@ -189,6 +189,18 @@ public class MonitorOperatorMediaModel<P, L>(
         if (page == capturedPage && state.value.playback === owner) owner?.setPresentationActive(value && !state.value.deliveryPresented)
     }
     public fun sceneActive(value: Boolean): Unit { sceneActive = value; state.value.playback?.setSceneActive(value) }
+    /**
+     * The shared share entry for the playing item (A4-11): the transport pauses before the
+     * delivery sheet covers it, and dismissing the sheet leaves it paused.
+     */
+    public fun beginShare(token: MonitorPlaybackItemToken): Boolean {
+        val owner = state.value.playback
+        if (owner == null || !isCurrent(token)) return false
+        owner.setPlaying(false)
+        if (!isCurrent(token)) return false
+        deliveryPresented(true)
+        return true
+    }
     public fun deliveryPresented(value: Boolean): Unit {
         val capturedPage = page; val owner = state.value.playback
         mutable.value = state.value.copy(deliveryPresented = value)

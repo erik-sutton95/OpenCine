@@ -227,9 +227,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         adjacent = { token, offset -> if (!model.adjacent(offset, token)) haptics.confirm() },
         favorite = { token -> current(token) { operations.favorite?.invoke(record) ?: model.library.toggleFavorite(asset.id) } },
         share = { token -> current(token) {
-            if (share != null && (operations.access?.let { it(record).share == true } ?: true) && model.isCurrent(token)) {
-                model.deliveryPresented(true); share(record)
-            }
+            if (share != null && (operations.access?.let { it(record).share == true } ?: true) && model.beginShare(token)) share(record)
         } },
         delete = removal, beginScrub = { if (model.isCurrent(it)) player.beginScrub() else null },
         updateScrub = { edit, seconds -> player.updateScrub(seconds, edit) },
