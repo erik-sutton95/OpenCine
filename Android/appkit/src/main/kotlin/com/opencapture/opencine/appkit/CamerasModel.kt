@@ -11,6 +11,7 @@ import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionRouteID
 import com.opencapture.opencine.core.DiscoveryMode
 import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.IntegrationPresentation
 import com.opencapture.opencine.core.IntegrationPrompt
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
@@ -197,6 +198,22 @@ public class CamerasModel(
     public fun connect(sighting: Sighting) {
         start(ConnectTarget.Nearby(sighting.camera), sighting.integration)
     }
+
+    /**
+     * A tap on a nearby camera's card: chooses it for the pair page and, when its integration
+     * pairs on tap ([IntegrationPresentation.NearbyTap.CONNECT]), starts the attempt at once.
+     */
+    public fun openNearby(id: String) {
+        select(id)
+        val sighting = mutable.value.nearby.firstOrNull { it.id == id } ?: return
+        if (presentation(sighting.integration).nearbyTap == IntegrationPresentation.NearbyTap.CONNECT) connect(sighting)
+    }
+
+    /** Whether [camera]'s setups take an operator name (its integration's [IntegrationPresentation.namesSetups]). */
+    public fun namesSetups(camera: SavedCamera): Boolean = presentation(camera.integration).namesSetups
+
+    private fun presentation(integration: IntegrationID): IntegrationPresentation =
+        entries.firstOrNull { it.integration.id == integration }?.integration?.presentation ?: IntegrationPresentation()
 
     /** Provisions a new route on a saved camera (from an add-route slot). */
     public fun addRoute(draft: RouteDraft, camera: SavedCamera) {

@@ -216,12 +216,34 @@ public class CameraServices private constructor(@PublishedApi internal val servi
     public fun <T : Any> plus(type: KClass<T>, service: T): CameraServices = CameraServices(services + (type to service))
 }
 
+/**
+ * How the shared cameras and pair pages treat an integration's cameras. The meaning is shared; each
+ * integration declares its value, so no app passes a brand flag or its own tap handler.
+ */
+public data class IntegrationPresentation(
+    public val nearbyTap: NearbyTap = NearbyTap.SELECT,
+    /** A saved setup's menu offers Rename setup. */
+    public val namesSetups: Boolean = true,
+) {
+    /** What a tap on a nearby camera's card does. */
+    public enum class NearbyTap {
+        /** Opens the pair page with the camera chosen; its Connect starts the attempt. */
+        SELECT,
+
+        /** Starts the attempt at once; the pair page shows its steps (a pairing the camera approves). */
+        CONNECT,
+    }
+}
+
 /** One camera integration as shared code sees it. Apps list their integrations explicitly. */
 public interface CameraIntegration {
     /** Registration and diagnostics only: shared code never chooses behavior from it. */
     public val id: IntegrationID
     public val profiles: List<CameraProfile>
     public val discoveryModes: Set<DiscoveryMode>
+
+    /** How the shared pages present this integration's cameras. */
+    public val presentation: IntegrationPresentation get() = IntegrationPresentation()
 
     /**
      * The latest nearby list per element; cancelling the collector stops discovery. A mode not in

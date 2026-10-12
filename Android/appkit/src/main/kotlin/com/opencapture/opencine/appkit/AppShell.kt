@@ -15,7 +15,8 @@ public data class ShellBrand(
     public val name: String,
     /** How nearby cameras are found, under NEARBY ("announcing over Bluetooth"). */
     public val nearbyNote: String = "announcing over Bluetooth",
-    /** A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped. */
+    /** Superseded by the integration's [com.opencapture.opencine.core.IntegrationPresentation.namesSetups]; `false` still hides Rename setup. */
+    @Deprecated("Integrations declare it: IntegrationPresentation.namesSetups")
     public val renamesSetups: Boolean = true,
 )
 
@@ -29,7 +30,11 @@ public class ShellActions(
     public val integrationAction: ((String, String) -> Unit)? = null,
     public val privacy: (() -> Unit)? = null,
     public val terms: (() -> Unit)? = null,
-    /** The cameras page's Pair, Media and Settings; `null` opens the shell's pair page or cover. */
+    /**
+     * The cameras page's Pair a new camera, Media and Settings; `null` opens the shell's pair page or
+     * cover. A nearby card always opens the shell's pair page ([CamerasModel.openNearby] decides
+     * whether it connects at once).
+     */
     public val pair: (() -> Unit)? = null,
     public val media: (() -> Unit)? = null,
     public val settings: (() -> Unit)? = null,
@@ -104,7 +109,9 @@ public fun AppShell(
                             nearbyNote = brand.nearbyNote, onMultiview = actions.multiview,
                             onIntegrationAction = actions.integrationAction,
                             extraNearby = extraNearby, onExtraNearby = actions.extraNearby ?: {},
-                            onPrivacy = actions.privacy, onTerms = actions.terms, renamesSetups = brand.renamesSetups,
+                            onPrivacy = actions.privacy, onTerms = actions.terms,
+                            renamesSetups = @Suppress("DEPRECATION") brand.renamesSetups,
+                            onPairNearby = model::beginPairing,
                         )
                     }
                 }
