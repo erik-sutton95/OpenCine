@@ -106,6 +106,35 @@ public struct PowerStatus: Hashable, Codable, Sendable {
     public static let unknown = Self()
 }
 
+/// What a battery observation says, at the precision its source declared. Shared chrome renders
+/// this value; it never guesses a gauge from a brand or a percent from a gauge.
+public enum BatteryReading: Hashable, Sendable {
+    /// A charge fraction, 0...1 (a percentage report or a phone).
+    case fraction(Double)
+    /// `filled` of `of` gauge steps (a five-bar gauge); never a percentage.
+    case steps(filled: Int, of: Int)
+
+    /// The step count a declared precision implies: a source reporting in steps of 1/2 to 1/10
+    /// has a gauge, a finer one (percent) reports a fraction.
+    static func gaugeSteps(_ precision: ObservationPrecision?) -> Int? {
+        guard case .quantized(let step) = precision, step.isFinite, step > 0 else { return nil }
+        let count = (1 / step).rounded()
+        guard (2...10).contains(count), abs(1 / step - count) < 0.000_001 else { return nil }
+        return Int(count)
+    }
+}
+
+extension PowerStatus {
+    /// The battery as its source declared it; `nil` when unknown, which shared chrome shows as
+    /// absent rather than an empty gauge (D11).
+    public var batteryReading: BatteryReading? {
+        guard let value = battery.value, value.isFinite else { return nil }
+        let fraction = min(1, max(0, value))
+        guard let steps = BatteryReading.gaugeSteps(battery.precision) else { return .fraction(fraction) }
+        return .steps(filled: min(steps, max(0, Int((fraction * Double(steps)).rounded()))), of: steps)
+    }
+}
+
 public struct ControlLease: Hashable, Codable, Sendable {
     public var id: ControlLeaseID
     /// `nil` when the lease lasts until revoked.

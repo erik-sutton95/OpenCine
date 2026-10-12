@@ -1,11 +1,11 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.monitorui.MonitorTimecodeFormat
+import com.opencapture.opencine.core.BatteryReading
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.MonitorEntryDescriptor
-import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.UnavailableReason
@@ -15,7 +15,6 @@ import com.opencapture.opencine.multicam.RecordDirection
 import com.opencapture.opencine.multicam.RecordPlan
 import com.opencapture.opencine.multicam.RoleStatus
 import java.util.Locale
-import kotlin.math.roundToInt
 
 // Swift twin: Sources/OpenCineAppKit/MultiviewStage.swift (same types and copy).
 
@@ -135,16 +134,13 @@ public data class MultiviewTile(
                 null -> MultiviewTileStatus("Waiting for the camera", inProgress = true) to "Waiting for the camera"
                 else -> MultiviewTileStatus("Connecting…", inProgress = true) to "Connecting…"
             }
-            val battery = snapshot?.power?.battery
             // A reading declared in coarse steps (a five-bar gauge) is drawn as bars, never a percent.
-            val steps = (battery?.precision as? ObservationPrecision.Quantized)?.step
-                ?.takeIf { it > 0.0 && kotlin.math.abs(1 / it - (1 / it).roundToInt()) < 0.000001 }
-                ?.let { (1 / it).roundToInt() }?.takeIf { it in 2..10 }
+            val battery = snapshot?.power?.batteryReading
             return MultiviewTile(
                 name = entry.name,
-                battery = battery?.value?.takeIf { steps == null }?.let { (it * 100).roundToInt() },
-                batteryBars = steps?.let { count -> battery?.value?.let { (it * count).roundToInt().coerceIn(0, count) } },
-                batteryBarCount = steps ?: 5,
+                battery = (battery as? BatteryReading.Fraction)?.let { Math.round(it.value * 100).toInt() },
+                batteryBars = (battery as? BatteryReading.Steps)?.filled,
+                batteryBarCount = (battery as? BatteryReading.Steps)?.of ?: 5,
                 charging = snapshot?.power?.charging?.value ?: false,
                 timecode = MonitorTimecodeFormat.label(snapshot),
                 tally = MultiviewTally.text(recording, waiting = waiting, failed = control is ConnectionState.Disconnected),

@@ -120,6 +120,7 @@ public fun MonitorOperatorScreen(
     val shellState by shell.state.collectAsState()
     LaunchedEffect(shellState.monitor?.id, session) { session.synchronize(shellState.monitor?.id) }
     val control by shell.control.state.collectAsState()
+    val phone = rememberPhoneBatteryReadout()
     val locked = session.locked
     var field by remember { mutableStateOf<MonitorCaptureField?>(null) }
     var usage by remember { mutableStateOf(MonitorToolUsageState()) }
@@ -180,7 +181,8 @@ public fun MonitorOperatorScreen(
             control.snapshot?.connection is com.opencapture.opencine.core.ConnectionState.Recovering,
             MonitorOperatorLiveStatus({ shell.control.statusPresentation() }, session.mounts(MonitorDisplaySection.TIMECODE),
                 session.mounts(MonitorDisplaySection.REC_READOUT), null, format?.let { listOf(it) } ?: emptyList(), null, null, null),
-            emptyList(), inputs, { field = null; captureKeys.forEach(shell.control::cancelEdit) },
+            listOfNotNull(MonitorOperatorPowerReading(false, phone.percent, phone.externalPower),
+                control.snapshot?.power?.let(::cameraPowerReading)), inputs, { field = null; captureKeys.forEach(shell.control::cancelEdit) },
             { shell.open(ShellModel.Cover.SETTINGS) }, { shell.open(ShellModel.Cover.MEDIA) }, { session.cycle() },
             index, modes.size, false, operatorPreferences.recordConfirmation, true,
             displayTitle = index?.let { "DISP ${it + 1} ${session.mode.title.lowercase()}" },

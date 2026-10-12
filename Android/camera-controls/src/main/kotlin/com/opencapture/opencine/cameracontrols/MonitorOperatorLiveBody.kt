@@ -44,8 +44,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.*
 import com.opencapture.opencine.appkit.*
+import com.opencapture.opencine.core.BatteryReading
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.ControlEpoch
+import com.opencapture.opencine.core.PowerStatus
 import com.opencapture.opencine.media.ScopeAssistBundle
 import com.opencapture.opencine.media.MonitorAudioMeterLevels
 import kotlin.math.max
@@ -74,6 +76,19 @@ public class MonitorOperatorPowerReading(
     public val bars: Int? = null, public val barCount: Int = 5, public val warning: Boolean = false,
     public val exhausted: Boolean = false,
 )
+
+/**
+ * The camera battery as its source declared it: a gauge keeps its bars (and reads as a warning at
+ * two fifths or less), a fraction prints a percentage, and an unknown
+ * battery is absent rather than an empty gauge (D11). iOS `MonitorOperatorPowerReading.camera`.
+ */
+public fun cameraPowerReading(power: PowerStatus): MonitorOperatorPowerReading? =
+    when (val reading = power.batteryReading) {
+        is BatteryReading.Fraction -> MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), power.charging.value)
+        is BatteryReading.Steps -> MonitorOperatorPowerReading(true, null, power.charging.value, reading.filled, reading.of,
+            warning = reading.filled * 5 <= reading.of * 2)
+        null -> null
+    }
 /** A supported palette extension retains its native action; all palette rendering remains common. */
 public class MonitorOperatorPaletteItem(
     public val id: String, public val title: String, public val label: String,
