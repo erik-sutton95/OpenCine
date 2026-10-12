@@ -21,9 +21,10 @@ class MonitorOperatorSessionModelTest {
     private data class Fixture(val model: MonitorOperatorSessionModel, val shell: ShellModel,
         val assist: MonitorAssistState, val display: MonitorDisplayPreferences)
 
-    private fun TestScope.fixture(): Fixture {
-        val display = MonitorDisplayPreferences(DisplayPreferencesMemory().storage,
-            MonitorDisplayPreferences.Keys("legacy.Live", "legacy.Clean"))
+    private fun TestScope.fixture(
+        display: MonitorDisplayPreferences = MonitorDisplayPreferences(DisplayPreferencesMemory().storage,
+            MonitorDisplayPreferences.Keys("legacy.Live", "legacy.Clean")),
+    ): Fixture {
         val assist = MonitorAssistState()
         val shell = ShellModel(Values.model(emptyList(), backgroundScope), MonitorControlModel(backgroundScope))
         return Fixture(MonitorOperatorSessionModel(shell, assist, display, backgroundScope), shell, assist, display)
@@ -103,5 +104,57 @@ class MonitorOperatorSessionModelTest {
         shell.open(ShellModel.Cover.MEDIA); model.synchronize("a"); shell.dismissCover()
         assertTrue(model.interactive)
         assertEquals(MonitorDisplayMode.LIVE, model.returnedMode)
+    }
+
+    /** A1-08: the one display owner. Pocket and Insta keep Live and Clean; a source that supplies a
+     * camera dashboard declares Command, and a mode leaving the set falls back to the first. */
+    @Test fun declaredModesCycleInOrderAndLockRefusesTheCycle() = runTest {
+        val (model, _, assist) = fixture()
+        assertEquals(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN), model.modes)
+        assertEquals(MonitorDisplayMode.LIVE, model.mode)
+        assertFalse(model.select(MonitorDisplayMode.COMMAND), "an undeclared mode is refused")
+        model.declare(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN, MonitorDisplayMode.COMMAND))
+        assertTrue(model.cycle() && model.mode == MonitorDisplayMode.CLEAN && assist.clean)
+        assertTrue(model.cycle() && model.mode == MonitorDisplayMode.COMMAND && !assist.clean)
+        model.locked = true
+        assertFalse(model.cycle())
+        assertEquals(MonitorDisplayMode.COMMAND, model.mode, "the lock holds the mode")
+        model.locked = false
+        assertTrue(model.cycle() && model.mode == MonitorDisplayMode.LIVE)
+        assertTrue(model.select(MonitorDisplayMode.COMMAND))
+        model.locked = true
+        model.declare(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN))
+        assertEquals(MonitorDisplayMode.LIVE, model.mode, "a capability that leaves overrides the lock")
+    }
+
+    @Test fun commandOwnsOnlyTheRailAndPersistsUnderItsKey() = runTest {
+        val memory = DisplayPreferencesMemory()
+        val keys = MonitorDisplayPreferences.Keys("z.live", "z.clean", "z.command")
+        val (model) = fixture(MonitorDisplayPreferences(memory.storage, keys))
+        model.declare(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN, MonitorDisplayMode.COMMAND))
+        model.toggle(MonitorDisplaySection.STATUS_BAR, MonitorDisplayMode.COMMAND)
+        model.toggle(MonitorDisplaySection.RAIL_MEDIA, MonitorDisplayMode.COMMAND)
+        assertTrue(model.command.statusBar && !model.command.railMedia, "only rail sections are configurable")
+        val reloaded = MonitorDisplayPreferences(memory.storage, keys)
+        assertFalse(reloaded.command.railMedia)
+        assertTrue(reloaded.hasStoredLayout(MonitorDisplayMode.COMMAND) && !reloaded.hasStoredLayout(MonitorDisplayMode.LIVE))
+        assertTrue(model.select(MonitorDisplayMode.COMMAND) && model.mounts(MonitorDisplaySection.STATUS_BAR))
+        assertFalse(model.mounts(MonitorDisplaySection.RAIL_MEDIA))
+        model.beginEditing(MonitorDisplayMode.COMMAND)
+        assertTrue(model.mounts(MonitorDisplaySection.RAIL_MEDIA) && model.mounts(MonitorDisplaySection.STATUS_BAR))
+    }
+
+    /** A1-50: the lock lives with the monitor lifetime in the one owner, not in a view. */
+    @Test fun lockLastsOneMonitorLifetime() = runTest {
+        val (model) = fixture()
+        model.synchronize("a")
+        model.locked = true
+        model.synchronize("a")
+        assertTrue(model.locked, "a cover or re-render keeps the lock")
+        model.synchronize("b")
+        assertFalse(model.locked, "a new monitor starts unlocked")
+        model.locked = true
+        model.close()
+        assertFalse(model.locked)
     }
 }

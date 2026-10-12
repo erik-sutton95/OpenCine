@@ -222,7 +222,7 @@ fun toggledCleanPins(prefs: OperatorPreferenceStore, current: Set<String>, toolK
 }
 
 fun resetDispChrome(model: OperatorSetupModel, mode: MonitorDisplayMode) {
-    val defaults = if (mode == MonitorDisplayMode.LIVE) MonitorDisplayChrome.liveDefaults else MonitorDisplayChrome.cleanDefaults
+    val defaults = MonitorDisplayChrome.defaults(mode)
     MonitorDisplaySection.entries.forEach { section ->
         if (model.chrome(mode).isVisible(section) != defaults.isVisible(section)) model.toggleChrome(section, mode)
     }
@@ -747,7 +747,7 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
         }
     }
     com.opencapture.opencine.appkit.MonitorOperatorDisplaySections(
-        live = model.chrome(MonitorDisplayMode.LIVE), clean = model.chrome(MonitorDisplayMode.CLEAN),
+        modes = listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN), chrome = model::chrome,
         assist = model.assist,
         onChange = { mode, desired ->
             MonitorDisplaySection.entries.forEach { section ->
@@ -760,6 +760,8 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
             when (section) {
                 MonitorDisplaySection.GIMBAL_STICK -> state.layout.gimbal
                 MonitorDisplaySection.ZOOM_CHIP -> state.layout.zoom
+                // The camera vocabulary reports its codec inside the format chip.
+                MonitorDisplaySection.CODEC -> false
                 else -> true
             }
         }.toSet(),

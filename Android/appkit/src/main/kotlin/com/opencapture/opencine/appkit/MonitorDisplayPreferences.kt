@@ -3,6 +3,9 @@ package com.opencapture.opencine.appkit
 import android.content.SharedPreferences
 import org.json.JSONObject
 
+/** DISP 1 Live, DISP 2 Clean and DISP 3 Command. A source declares which it offers
+ * ([MonitorOperatorSessionModel.declare]): Command only where the source supplies a camera dashboard
+ * in place of the picture. */
 public enum class MonitorDisplayMode(public val title: String, public val settingsTitle: String, public val settingsCaption: String) {
     LIVE(
         "Live",
@@ -13,6 +16,11 @@ public enum class MonitorDisplayMode(public val title: String, public val settin
         "Clean",
         "DISP 2 · Clean",
         "A stripped-back image. Same elements as DISP 1; status, tool and capture bars start off. Pin which view assists stay on.",
+    ),
+    COMMAND(
+        "Command",
+        "DISP 3 · Command",
+        "The camera dashboard in place of the picture. Only the rail is yours to arrange.",
     ),
 }
 
@@ -31,6 +39,7 @@ public enum class MonitorDisplaySection(public val key: String, public val title
     REC_READOUT("recReadout", "REC"),
     TIMECODE("timecode", "Timecode"),
     FORMAT("format", "Format"),
+    CODEC("codec", "Codec"),
     COLOR("color", "Color"),
     STORAGE("storage", "Storage"),
     FPS("fps", "FPS"),
@@ -45,6 +54,8 @@ public data class MonitorDisplayChrome(
     public val recReadout: Boolean = true,
     public val timecode: Boolean = true,
     public val format: Boolean = true,
+    /** The recording codec chip, for sources that report one apart from the format. */
+    public val codec: Boolean = true,
     public val color: Boolean = true,
     public val storage: Boolean = true,
     public val fps: Boolean = true,
@@ -71,6 +82,7 @@ public data class MonitorDisplayChrome(
             MonitorDisplaySection.REC_READOUT -> recReadout
             MonitorDisplaySection.TIMECODE -> timecode
             MonitorDisplaySection.FORMAT -> format
+            MonitorDisplaySection.CODEC -> codec
             MonitorDisplaySection.COLOR -> color
             MonitorDisplaySection.STORAGE -> storage
             MonitorDisplaySection.FPS -> fps
@@ -92,6 +104,7 @@ public data class MonitorDisplayChrome(
             MonitorDisplaySection.REC_READOUT -> copy(recReadout = !recReadout)
             MonitorDisplaySection.TIMECODE -> copy(timecode = !timecode)
             MonitorDisplaySection.FORMAT -> copy(format = !format)
+            MonitorDisplaySection.CODEC -> copy(codec = !codec)
             MonitorDisplaySection.COLOR -> copy(color = !color)
             MonitorDisplaySection.STORAGE -> copy(storage = !storage)
             MonitorDisplaySection.FPS -> copy(fps = !fps)
@@ -107,6 +120,7 @@ public data class MonitorDisplayChrome(
             .put("recReadout", recReadout)
             .put("timecode", timecode)
             .put("format", format)
+            .put("codec", codec)
             .put("color", color)
             .put("storage", storage)
             .put("fps", fps)
@@ -141,6 +155,24 @@ public data class MonitorDisplayChrome(
                 focusBox = true,
             )
 
+        /** Live and clean offer the same list with different defaults. Command has no picture, so only
+         * the rail cluster is the operator's to arrange there; the rest keeps its stock value. */
+        public fun isConfigurable(section: MonitorDisplaySection, mode: MonitorDisplayMode): Boolean =
+            when (mode) {
+                MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN -> true
+                MonitorDisplayMode.COMMAND -> section in COMMAND_SECTIONS
+            }
+
+        /** The stock layout of [mode]. */
+        public fun defaults(mode: MonitorDisplayMode): MonitorDisplayChrome =
+            if (mode == MonitorDisplayMode.CLEAN) cleanDefaults else liveDefaults
+
+        public fun configurableSections(mode: MonitorDisplayMode): List<MonitorDisplaySection> =
+            MonitorDisplaySection.entries.filter { isConfigurable(it, mode) }
+
+        private val COMMAND_SECTIONS = setOf(MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.BATTERIES,
+            MonitorDisplaySection.RAIL_RECORD, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_SETTINGS)
+
         public fun fromJson(raw: String?, fallback: MonitorDisplayChrome): MonitorDisplayChrome {
             if (raw.isNullOrBlank()) return fallback
             return runCatching {
@@ -154,6 +186,7 @@ public data class MonitorDisplayChrome(
                     recReadout = obj.optBoolean("recReadout", fallback.recReadout),
                     timecode = obj.optBoolean("timecode", fallback.timecode),
                     format = obj.optBoolean("format", fallback.format),
+                    codec = obj.optBoolean("codec", fallback.codec),
                     color = obj.optBoolean("color", fallback.color),
                     storage = obj.optBoolean("storage", fallback.storage),
                     fps = obj.optBoolean("fps", fallback.fps),
@@ -169,14 +202,19 @@ public data class MonitorDisplayChrome(
     }
 }
 
-/** Saved live/clean layouts in app-supplied legacy storage. Reads never migrate the file.
- * Android retains per-field fallback for incomplete JSON, unlike Apple's whole-value fallback. */
+/** Saved per-mode layouts in app-supplied legacy storage. Reads never migrate the file.
+ * Android retains per-field fallback for incomplete JSON, unlike Apple's whole-value fallback, so a
+ * layout saved before the codec section shows the codec chip on both platforms. */
 public class MonitorDisplayPreferences(
     private val storage: SharedPreferences,
     private val keys: Keys,
 ) {
-    public data class Keys(public val live: String, public val clean: String) {
-        init { require(live.isNotEmpty() && clean.isNotEmpty() && live != clean) }
+    /** [command] is present only for an app whose sources offer DISP 3. */
+    public data class Keys(public val live: String, public val clean: String, public val command: String? = null) {
+        init {
+            require(live.isNotEmpty() && clean.isNotEmpty() && live != clean)
+            require(command == null || command.isNotEmpty() && command != live && command != clean)
+        }
     }
 
     public var live: MonitorDisplayChrome
@@ -185,4 +223,18 @@ public class MonitorDisplayPreferences(
     public var clean: MonitorDisplayChrome
         get() = MonitorDisplayChrome.fromJson(storage.getString(keys.clean, null), MonitorDisplayChrome.cleanDefaults)
         set(value) { storage.edit().putString(keys.clean, value.toJson()).apply() }
+    /** DISP 3's rail layout; stock (and not stored) when the app has no command key. */
+    public var command: MonitorDisplayChrome
+        get() = MonitorDisplayChrome.fromJson(keys.command?.let { storage.getString(it, null) }, MonitorDisplayChrome.liveDefaults)
+        set(value) { keys.command?.let { storage.edit().putString(it, value.toJson()).apply() } }
+
+    /** Whether [mode] has a stored layout, for an app that seeds one from an older store once. */
+    public fun hasStoredLayout(mode: MonitorDisplayMode): Boolean {
+        val key = when (mode) {
+            MonitorDisplayMode.LIVE -> keys.live
+            MonitorDisplayMode.CLEAN -> keys.clean
+            MonitorDisplayMode.COMMAND -> keys.command
+        }
+        return key?.let { storage.getString(it, null) } != null
+    }
 }
