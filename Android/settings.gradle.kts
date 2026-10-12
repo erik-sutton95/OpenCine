@@ -46,4 +46,6 @@ include(
     ":appkit",
     // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
     ":camera-controls",
+    // The shared conformance kit apps run from their androidTest source sets.
+    ":app-ui-testing",
 )
