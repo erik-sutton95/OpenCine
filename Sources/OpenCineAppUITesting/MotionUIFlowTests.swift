@@ -12,6 +12,11 @@ open class MotionUIFlowTests: SharedAppUITestCase {
     /// camera zooms while recording without a color change.
     open var recordingZoomLockNote: String? { "Can't change color while recording \u{2014} D-Log2 can't zoom" }
 
+    /// Motion programs drive a gimbal: an app whose camera has none records a capability skip.
+    override open func setUpWithError() throws {
+        guard try profile().capabilities.gimbal else { throw XCTSkip("The camera has no gimbal") }
+    }
+
     func testOutsideTapMinimizesWithoutActivatingCameraControls() {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait

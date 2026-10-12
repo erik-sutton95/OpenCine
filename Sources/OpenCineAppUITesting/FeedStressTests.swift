@@ -8,7 +8,6 @@ import XCTest
 /// Cached FPS and historical journals are not pass criteria. Simulator and
 /// missing `OPV_FEED_STRESS=1` skip; a missing live camera fails.
 open class FeedStressTests: SharedAppUITestCase {
-    private var app: XCUIApplication!
     private var seed: UInt64 = 20_260_914
     private var limitS: TimeInterval = 300
     private var recordOptIn = false

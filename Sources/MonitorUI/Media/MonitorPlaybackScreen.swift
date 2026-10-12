@@ -303,6 +303,7 @@
                     VStack(alignment: .leading, spacing: 4) {
                         Text(value.title).font(MonitorTheme.font(13, weight: .semibold))
                             .foregroundStyle(MonitorTheme.text).lineLimit(1)
+                            .accessibilityIdentifier("monitor.playback.title")
                         Text(value.subtitle).font(MonitorTheme.font(9.5)).foregroundStyle(
                             MonitorTheme.muted
                         )

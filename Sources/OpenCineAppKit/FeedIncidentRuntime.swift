@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 import OpenCineMedia
 
 // The app's feed-incident journal: the current run's origin, the on-device spool and the runtime
@@ -48,7 +49,8 @@ public final class FeedIncidentOrigin: @unchecked Sendable {
     public static func isAutomationLaunch(_ environment: [String: String]) -> Bool {
         if environment["OPV_FEED_STRESS"] == "1" { return true }
         if environment["OPV_PHYSICAL_UI_REVIEW"] == "1" { return true }
-        if let screen = environment["OPV_UI_REVIEW_SCREEN"], !screen.isEmpty { return true }
+        // Any staged screen, the shared review contract's or an app-only one.
+        if let screen = environment[ReviewLaunch.Key.screen], !screen.isEmpty { return true }
         if environment["XCTestConfigurationFilePath"] != nil { return true }
         return false
     }

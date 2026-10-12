@@ -98,6 +98,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineHostedAccessibility",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineCameraControls",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -302,6 +307,8 @@
       "OpenCineAppKitApple",
       "OpenCineAppKitAppleTests",
       "OpenCineAppUITesting",
+      "OpenCineHostedAccessibility",
+      "OpenCineHostedAccessibilityTests",
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
