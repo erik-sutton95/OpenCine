@@ -99,9 +99,21 @@ public final class ShellModel {
         show(Monitor(camera: camera, ownership: .borrowed(release: release)))
     }
 
+    /// What leaving the monitor does to an open cover.
+    public enum CoverRetention: Sendable {
+        /// The cover leaves with the monitor (the default).
+        case dismiss
+        /// The cover stays, with its view state, over the cameras page: an internet hop leaves
+        /// the camera with the gallery still open (A2-07).
+        case retain
+    }
+
     /// Leaves the monitor for the cameras page. Closes the session only when owned.
-    public func close() {
-        guard let monitor = leave() else { return }
+    public func close() { close(.dismiss) }
+
+    /// `close()`, with the cover kept over the cameras page when `cover` is `.retain`.
+    public func close(_ cover: CoverRetention) {
+        guard let monitor = leave(cover) else { return }
         end(monitor, closing: .requested)
     }
 
@@ -120,11 +132,11 @@ public final class ShellModel {
         end(monitor, closing: nil)
     }
 
-    private func leave() -> Monitor? {
+    private func leave(_ retention: CoverRetention = .dismiss) -> Monitor? {
         guard let monitor else { return nil }
         control.unbind()
         self.monitor = nil
-        cover = nil
+        if retention == .dismiss { cover = nil }
         return monitor
     }
 
