@@ -40,10 +40,11 @@
                 VTSessionSetProperty(
                     session, key: kVTCompressionPropertyKey_MaxKeyFrameInterval,
                     value: 100 as CFNumber))
-            try require(
-                VTSessionSetProperty(
-                    session, key: kVTCompressionPropertyKey_MaxFrameDelayCount,
-                    value: 1 as CFNumber))
+            // Best effort, as in WatcherRelayEncoder: the macOS 26.5 and 27 hardware HEVC
+            // encoder refuses this key (-12900). CompleteFrames flushes every picture anyway.
+            _ = VTSessionSetProperty(
+                session, key: kVTCompressionPropertyKey_MaxFrameDelayCount,
+                value: 1 as CFNumber)
             try require(
                 VTSessionSetProperty(
                     session, key: kVTCompressionPropertyKey_AverageBitRate,
