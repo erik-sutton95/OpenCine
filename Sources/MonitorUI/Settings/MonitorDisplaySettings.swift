@@ -188,7 +188,10 @@
                     // A card identifier propagates over IDs assigned inside native inline rows.
                     controlsCard(section)
                 } else {
+                    // A container, as the Compose column is: the identifier names the card and
+                    // leaves its header's and Edit view's own.
                     sectionCard(section)
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("monitor.settings.display.section.\(section.id)")
                 }
             }.rows
