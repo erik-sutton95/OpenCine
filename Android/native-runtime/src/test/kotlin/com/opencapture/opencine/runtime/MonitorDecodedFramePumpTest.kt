@@ -2,14 +2,96 @@ package com.opencapture.opencine.runtime
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MonitorDecodedFramePumpTest {
     private data class SourceFrame(val id: Int, val stamp: Long?)
+    private class QueuedPictureDispatcher : CoroutineDispatcher() {
+        private val queued = ArrayDeque<Runnable>()
+        override fun dispatch(context: CoroutineContext, block: Runnable) { queued.addLast(block) }
+        fun deliver() { queued.removeFirst().run() }
+    }
+    @Test fun presentationReturnsToItsOwnerWhileDecodeKeepsItsWorkerAndActualFrame() {
+        val decodeThread = AtomicReference<Thread>()
+        val pictureThread = AtomicReference<Thread>()
+        val decodeWorker = Executors.newSingleThreadExecutor {
+            Thread(it, "frame-decode").also(decodeThread::set)
+        }.asCoroutineDispatcher()
+        val pictureOwner = Executors.newSingleThreadExecutor {
+            Thread(it, "picture-owner").also(pictureThread::set)
+        }.asCoroutineDispatcher()
+        try {
+            runBlocking(decodeWorker) {
+                val source = SourceFrame(1, 10)
+                val bitmap = Any()
+                var presents = 0
+                monitorPumpFramesWithSourceFrame(flowOf(source), MonitorFramePacingStats(log = {}),
+                    { it.stamp }, presentationDispatcher = pictureOwner,
+                    decode = { actual ->
+                        assertSame(decodeThread.get(), Thread.currentThread())
+                        assertSame(source, actual)
+                        bitmap
+                    }, present = { actual, pixels ->
+                        check(Thread.currentThread() === pictureThread.get()) { "Bitmap picture owner is main-confined" }
+                        assertSame(source, actual)
+                        assertSame(bitmap, pixels)
+                        presents++
+                    })
+                assertEquals(1, presents)
+            }
+        } finally {
+            decodeWorker.close()
+            pictureOwner.close()
+        }
+    }
+
+    @Test fun retirementWhilePresentationIsQueuedCannotReachThePictureOwner() = runTest {
+        val pictureOwner = QueuedPictureDispatcher()
+        var current = true
+        var presents = 0
+        val source = SourceFrame(1, 10)
+        val worker = launch {
+            monitorPumpFramesWithSourceFrame(flowOf(source), MonitorFramePacingStats(log = {}),
+                { it.stamp }, presentationDispatcher = pictureOwner,
+                decode = { Any() }, present = { _, _ -> presents++ }, isCurrent = { current })
+        }
+        testScheduler.runCurrent()
+        assertEquals(0, presents)
+        // The source retires independently while the destination queue still holds its callback.
+        current = false
+        pictureOwner.deliver()
+        worker.join()
+        assertEquals(0, presents)
+    }
+
+    @Test fun cancellationWhilePresentationIsQueuedCannotReachThePictureOwner() = runTest {
+        val pictureOwner = QueuedPictureDispatcher()
+        var presents = 0
+        val worker = launch {
+            monitorPumpFramesWithSourceFrame(flowOf(SourceFrame(1, null)), MonitorFramePacingStats(log = {}),
+                { it.stamp }, presentationDispatcher = pictureOwner,
+                decode = { Any() }, present = { _, _ -> presents++ })
+        }
+        testScheduler.runCurrent()
+        assertEquals(0, presents)
+        worker.cancel()
+        pictureOwner.deliver()
+        worker.join()
+        assertEquals(0, presents)
+    }
+
     @Test fun retiredDuringDecodeCannotPresentAndSuccessorRetainsItsActualSourcePair() = runTest {
         val frames = mutableListOf<Pair<SourceFrame, Int>>()
         val retired = SourceFrame(1, 10)
