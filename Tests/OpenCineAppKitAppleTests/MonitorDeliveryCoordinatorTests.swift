@@ -65,34 +65,6 @@ import XCTest
         XCTAssertFalse(coordinator.isActive)
     }
 
-    func testTheRootPresenterSharesAboveACoverAndAcknowledgesOnce() async throws {
-        let coordinator = MonitorDeliveryCoordinator(exports: store)
-        defer { coordinator.close() }
-        let host = UIHostingController(
-            rootView: Color.black.monitorDeliverySharePresenter(coordinator.lifetime))
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
-        window.rootViewController = host
-        window.makeKeyAndVisible()
-        defer { window.isHidden = true; window.rootViewController = nil }
-        // A player or photo cover over the root, as a gallery presents one.
-        let cover = UIViewController()
-        cover.modalPresentationStyle = .fullScreen
-        host.present(cover, animated: false)
-        await settle { host.presentedViewController === cover }
-        let (file, lease) = try sharedFile("A.mp4")
-        coordinator.begin { _, _ in .share(urls: [file], metadataText: "A.mp4 · today · 8 bytes", stagingCleanupURL: lease) }
-        await settle { cover.presentedViewController is UIActivityViewController }
-        let sheet = try XCTUnwrap(cover.presentedViewController as? UIActivityViewController)
-        XCTAssertNil(host.presentedViewController?.presentedViewController?.presentedViewController)
-        XCTAssertNotNil(coordinator.lifetime.state.share)
-        sheet.completionWithItemsHandler?(nil, false, nil, nil)
-        sheet.completionWithItemsHandler?(nil, false, nil, nil)
-        XCTAssertNil(coordinator.lifetime.state.share, "The sheet's completion acknowledges its share")
-        await settle { lease.map { !FileManager.default.fileExists(atPath: $0.path) } ?? true }
-        XCTAssertFalse(lease.map { FileManager.default.fileExists(atPath: $0.path) } ?? true)
-        cover.dismiss(animated: false)
-    }
-
     func testTheRootPresenterSharesWithNoMediaSurfaceMounted() async throws {
         let coordinator = MonitorDeliveryCoordinator(exports: store)
         defer { coordinator.close() }
@@ -106,9 +78,17 @@ import XCTest
         coordinator.begin { _, _ in .share(urls: [file], metadataText: nil, stagingCleanupURL: lease) }
         await settle { host.presentedViewController is UIActivityViewController }
         let sheet = try XCTUnwrap(host.presentedViewController as? UIActivityViewController)
+        XCTAssertNotNil(coordinator.lifetime.state.share)
         sheet.completionWithItemsHandler?(nil, false, nil, nil)
-        XCTAssertNil(coordinator.lifetime.state.share)
+        sheet.completionWithItemsHandler?(nil, false, nil, nil)
+        XCTAssertNil(coordinator.lifetime.state.share, "The sheet's completion acknowledges its share")
+        await settle { lease.map { !FileManager.default.fileExists(atPath: $0.path) } ?? true }
+        XCTAssertFalse(lease.map { FileManager.default.fileExists(atPath: $0.path) } ?? true)
     }
+
+    // The sheet above a player or photo cover is tested in an app's hosted bundle (Z
+    // MediaDeliveryCompositionTests): a package test bundle has no app host, and UIKit never
+    // completes a modal presentation there, so no cover ever reaches a window.
 
     /// A2-54: a playback barrier waits only for the caching stage and never cancels the run.
     func testThePlaybackBarrierJoinsOnlyTheCachingStage() async throws {

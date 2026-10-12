@@ -109,7 +109,10 @@ import XCTest
         } catch {
             XCTAssertEqual(error.localizedDescription, "Turn on a LUT before baking one into the file.")
         }
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: store.exportsDirectory.path), [])
+        // A refused export leaves nothing behind; the store makes its exports folder only for
+        // an export it starts.
+        XCTAssertEqual(
+            (try? FileManager.default.contentsOfDirectory(atPath: store.exportsDirectory.path)) ?? [], [])
     }
 
     func testConvertLogSkipsAClipThatIsNotLog() async throws {
