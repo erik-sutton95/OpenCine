@@ -13,8 +13,9 @@ final class MonitorDeliveryPhotosSaverTests: XCTestCase {
         let offMainBlocks = OSAllocatedUnfairLock(initialState: 0)
         let restore = PhotoKitThreading.install(countingOffMainBlocks: offMainBlocks)
         defer { restore() }
-        // A still has nothing to create: the block runs and the transaction commits empty.
-        let saved = try await MonitorDeliveryPhotosSaver.saveVideos(at: [URL(fileURLWithPath: "/tmp/still.jpg")])
+        // A sidecar is neither a movie nor a still (stills are saved too), so there is nothing to
+        // create: the block runs and the transaction commits empty.
+        let saved = try await MonitorDeliveryPhotosSaver.save(at: [URL(fileURLWithPath: "/tmp/clip.xml")])
         XCTAssertEqual(saved, 0)
         XCTAssertEqual(offMainBlocks.withLock { $0 }, 1)
     }
