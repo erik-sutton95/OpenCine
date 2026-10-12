@@ -33,7 +33,18 @@ public class MonitorDeliveryRemoteService<P, X, H>(
     public val create: suspend (String, X) -> MonitorDeliveryProject<P>,
     public val persist: (MonitorDeliveryProject<P>, X) -> Unit,
     public val internet: MonitorDeliveryInternetService<H>, public val transfer: (H) -> H?,
+    /**
+     * The remote keeps an upload history, so already uploaded records are skipped unless the
+     * operator turns on re-upload; without one the re-upload toggle is not offered (A2-53).
+     */
+    public val skipsUploaded: Boolean,
 )
-public data class MonitorDeliveryPreparedRequest<C, F, H>(public val destination: MonitorDeliveryDestination,
+/**
+ * The operator's accepted choices. A remote upload carries the project selected in the popup and
+ * its listing context, or null when none was loaded (the host then captures its saved
+ * destination once, at begin), so a later selection never redirects this run (A2-72).
+ */
+public data class MonitorDeliveryPreparedRequest<C, F, P, X, H>(public val destination: MonitorDeliveryDestination,
     public val configuration: MonitorDeliveryExportConfiguration<C, F>?,
-    public val action: MonitorDeliveryPostExportAction, public val internetLease: H?)
+    public val action: MonitorDeliveryPostExportAction, public val internetLease: H?,
+    public val project: MonitorDeliveryProject<P>? = null, public val projectContext: X? = null)

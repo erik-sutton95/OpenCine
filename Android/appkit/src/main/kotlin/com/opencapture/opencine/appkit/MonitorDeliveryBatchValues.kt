@@ -58,48 +58,55 @@ public class MonitorDeliveryExportService<R, A>(
 ) {
     public constructor(prepare: suspend (R, (Double) -> Unit) -> A?) : this({}, prepare)
 }
-public data class MonitorDeliveryShareFiles<A>(public val urls: List<A>, public val cleanup: A? = null)
-public sealed interface MonitorDeliveryPhotosService<A> {
-    public class Batch<A>(public val save: suspend (List<A>) -> Int) : MonitorDeliveryPhotosService<A>
-    public class PerItem<A>(public val save: suspend (A) -> Boolean) : MonitorDeliveryPhotosService<A>
-}
+public data class MonitorDeliveryShareFiles<A>(public val urls: List<A>, public val metadataText: String? = null, public val cleanup: A? = null)
+/** One OS insert per item, so a rejected item never discards the others (A2-56). */
+public class MonitorDeliveryPhotosService<A>(public val save: suspend (A) -> Boolean)
 /** Existing OS authorization, admitted before cache or export work. */
 public class MonitorDeliveryPhotosAuthorizationService(
     public val isPending: () -> Boolean, public val authorize: suspend () -> Unit,
 )
+/**
+ * The remote's record of confirmed uploads (A2-53): a record already uploaded is skipped before
+ * any cache or export work unless the operator asks to re-upload; every confirmed upload is
+ * recorded.
+ */
+public class MonitorDeliveryUploadHistory<R>(public val wasUploaded: (R) -> Boolean, public val recordUploaded: (R) -> Unit)
 public class MonitorDeliveryUploadService<A>(public val progressCaption: String = "Uploading", public val upload: suspend (A, (Double) -> Unit) -> Unit)
 public class MonitorDeliveryInternetService<H>(
-    public val needsHop: () -> Boolean, public val begin: () -> H, public val owns: (H) -> Boolean,
+    /** A new route lease, or null when another hop holds the route (never stolen). */
+    public val needsHop: () -> Boolean, public val begin: () -> H?, public val owns: (H) -> Boolean,
     public val wait: suspend (H) -> Boolean, public val restoreEntered: suspend (H) -> Unit,
     public val restore: (H) -> Unit,
 ) {
-    public constructor(needsHop: () -> Boolean, begin: () -> H, owns: (H) -> Boolean,
+    public constructor(needsHop: () -> Boolean, begin: () -> H?, owns: (H) -> Boolean,
         wait: suspend (H) -> Boolean, restore: (H) -> Unit) :
         this(needsHop, begin, owns, wait, { restore(it) }, restore)
 }
-public enum class MonitorDeliveryItemFailurePolicy { STOP, CONTINUE_ITEMS }
-/** Immutable exercised transaction and empty-summary behavior, independent of source brand. */
-public data class MonitorDeliveryBatchBehavior(
-    public val nativeFailures: MonitorDeliveryItemFailurePolicy = MonitorDeliveryItemFailurePolicy.STOP,
-    public val photosFailures: MonitorDeliveryItemFailurePolicy = MonitorDeliveryItemFailurePolicy.STOP,
-    public val emptyUploadSucceeds: Boolean = false,
-    public val singleUploadFailureUsesDetail: Boolean = true,
-)
 public data class MonitorDeliveryBatchCounts(
     public val prepared: Int, public val uploaded: Int, public val skipped: Int,
     public val failed: Int, public val uncached: Int,
 )
-public class MonitorDeliveryBatchPolicy(
-    public val cacheFailure: (Int) -> String = { "Couldn't cache $it clip(s) from the camera. Check the connection and try again." },
-    public val emptySelection: String = "Select at least one clip.", public val noPrepared: String? = null,
-    public val internetFailure: String = "Couldn't reach the internet after leaving the camera's Wi-Fi. Check cellular or home Wi-Fi and try again.",
-    public val behavior: MonitorDeliveryBatchBehavior = MonitorDeliveryBatchBehavior(),
-    public val nativeSummary: (MonitorDeliveryBatchCounts) -> String? = { null },
-    public val photosFailure: (Int, Int) -> String? = { _, _ -> null },
-)
+/**
+ * The one batch policy every app runs (A2-56): a failing item never stops the others, Photos
+ * access is asked before any cache or export work, and the outcome counts every item.
+ */
+public object MonitorDeliveryBatchPolicy {
+    public fun cacheFailure(count: Int): String = "Couldn't cache $count clip(s) from the camera. Check the connection and try again."
+    public const val EMPTY_SELECTION: String = "Select at least one clip."
+    public const val INTERNET_FAILURE: String =
+        "Couldn't reach the internet after leaving the camera's Wi-Fi. Check cellular or home Wi-Fi and try again."
+    /** The note shared beside a partial native share, or null when every item was prepared. */
+    public fun nativeSummary(counts: MonitorDeliveryBatchCounts): String? = buildList {
+        if (counts.failed > 0) add("Prepared ${counts.prepared}; ${counts.failed} failed.")
+        if (counts.uncached > 0) add("${counts.uncached} clip(s) couldn't be cached from the camera.")
+    }.joinToString(" ").ifEmpty { null }
+    /** A Photos save that saved nothing or rejected an item fails with its exact counts. */
+    public fun photosFailure(saved: Int, failed: Int): String? =
+        if (saved == 0 || failed > 0) "Saved $saved; $failed couldn't be saved to Photos." else null
+}
 
 public fun <A> MonitorDeliveryBatchOutcome<A>.completion(): MonitorDeliveryCompletion<MonitorDeliveryBatchOutcome<A>, MonitorDeliveryShareFiles<A>> = when (this) {
-    is MonitorDeliveryBatchOutcome.Share -> MonitorDeliveryCompletion(this, share = MonitorDeliveryShareFiles(urls, stagingCleanupURL))
+    is MonitorDeliveryBatchOutcome.Share -> MonitorDeliveryCompletion(this, share = MonitorDeliveryShareFiles(urls, metadataText, stagingCleanupURL))
     is MonitorDeliveryBatchOutcome.SavedToPhotos -> MonitorDeliveryCompletion(this, toast = "Saved $count clip${if (count == 1) "" else "s"} to Photos")
     is MonitorDeliveryBatchOutcome.Uploaded -> MonitorDeliveryCompletion(this, toast = summary)
     is MonitorDeliveryBatchOutcome.Failed -> MonitorDeliveryCompletion(this, toast = message)
