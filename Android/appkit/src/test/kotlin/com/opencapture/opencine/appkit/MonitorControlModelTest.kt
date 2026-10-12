@@ -1,6 +1,9 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.CameraSession
+import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.MonotonicInstant
+import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CommandDispatchAdmission
@@ -35,6 +38,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun iso(value: Int) = SettingValue.Iso(ISOValue.Manual(value))
@@ -61,6 +65,129 @@ internal class Counted(val fake: FakeCameraSession) : CameraSession by fake {
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorControlModelTest {
     private val notes = mutableListOf<String>()
+
+    @Test fun confirmedRecordingDurationReachesTheActualStatusProjection() = runTest {
+        val model = model()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        assertEquals(false, model.isRecording)
+        model.record(true)
+        runCurrent()
+        assertEquals(listOf("record-start"), camera.wire)
+        camera.advance(3.seconds)
+        runCurrent()
+        assertTrue(model.isRecording == true && !model.state.value.recordPending)
+        assertEquals(17, model.statusPresentation(elapsedSeconds = 17).elapsedSeconds)
+        assertEquals(0, model.statusPresentation().elapsedSeconds)
+        model.unbind()
+        assertNull(model.statusPresentation().elapsedSeconds)
+    }
+
+
+    private fun TestScope.elapsedModel() = MonitorControlModel(backgroundScope,
+        now = { MonotonicInstant(testScheduler.currentTime.milliseconds) })
+
+    @Test fun idleRecordingReportsKeepElapsedObservationStable() = runTest {
+        val model = elapsedModel()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        model.bind(camera)
+        val original = model.recordingElapsed
+        assertEquals(0, original.value)
+        for (index in 1..10) {
+            advanceTimeBy(1000); runCurrent()
+            camera.cameraReportsTimecode(CameraTimecode(0, 1, index))
+            runCurrent()
+            assertEquals(index, model.timecode.value?.seconds)
+            assertEquals(original, model.recordingElapsed)
+        }
+        model.unbind()
+    }
+
+    @Test fun bodyRecordingTicksWithoutCommandsAndKeepsClockOrigin() = runTest {
+        val model = elapsedModel()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus(); model.bind(camera)
+        camera.cameraReportsRecording(true); runCurrent()
+        assertEquals(0, model.statusPresentation().elapsedSeconds)
+        val changes = mutableListOf<String>()
+        model.onChange = { changes += "change" }
+        advanceTimeBy(1000); runCurrent()
+        assertEquals(1, model.statusPresentation().elapsedSeconds)
+        assertEquals(ObservationOrigin.CLOCK_DERIVED, model.recordingElapsed.origin)
+        advanceTimeBy(60000); runCurrent()
+        assertEquals(61, model.statusPresentation().elapsedSeconds)
+        assertEquals(17, model.statusPresentation(elapsedSeconds = 17).elapsedSeconds)
+        assertEquals(0, model.statusPresentation(elapsedSeconds = 0).elapsedSeconds)
+        assertTrue(changes.isEmpty())
+        assertTrue(camera.wire.isEmpty())
+        camera.cameraReportsRecording(false); runCurrent()
+        assertEquals(0, model.recordingElapsed.value)
+        advanceTimeBy(60000); runCurrent()
+        assertEquals(0, model.statusPresentation().elapsedSeconds)
+        model.unbind()
+    }
+
+    @Test fun unknownRecordingStartStaysUnknownUntilFreshTransition() = runTest {
+        val model = elapsedModel()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsRecording(true); model.bind(camera); runCurrent()
+        assertNull(model.statusPresentation().elapsedSeconds)
+        assertEquals(17, model.statusPresentation(elapsedSeconds = 17).elapsedSeconds)
+        advanceTimeBy(20000); runCurrent()
+        assertEquals(null, model.recordingElapsed.value)
+        camera.cameraReportsRecording(null); runCurrent()
+        assertNull(model.isRecording)
+        camera.cameraReportsRecording(true); runCurrent()
+        assertNull(model.statusPresentation().elapsedSeconds)
+        camera.cameraReportsRecording(false); runCurrent()
+        camera.cameraReportsRecording(true); runCurrent()
+        assertEquals(0, model.recordingElapsed.value)
+        advanceTimeBy(2000); runCurrent()
+        assertEquals(2, model.recordingElapsed.value)
+        model.unbind()
+    }
+
+    @Test fun rebindRetiresElapsedAndOldTicksCannotReachSuccessor() = runTest {
+        val model = elapsedModel()
+        val first = FakeCameraSession.lunaLike()
+        first.cameraReportsStatus(); model.bind(first)
+        first.cameraReportsRecording(true); runCurrent()
+        advanceTimeBy(3000); runCurrent()
+        assertEquals(3, model.recordingElapsed.value)
+        val next = FakeCameraSession.lunaLike()
+        next.cameraReportsRecording(true); model.bind(next); runCurrent()
+        advanceTimeBy(20000); runCurrent()
+        assertEquals(next.id, model.state.value.snapshot?.session)
+        assertNull(model.statusPresentation().elapsedSeconds)
+        next.cameraReportsRecording(false); runCurrent()
+        next.cameraReportsRecording(true); runCurrent()
+        assertEquals(0, model.recordingElapsed.value)
+        advanceTimeBy(1000); runCurrent()
+        assertEquals(1, model.recordingElapsed.value)
+        first.close(SessionCloseReason.REQUESTED); runCurrent()
+        assertEquals(next.id, model.state.value.snapshot?.session)
+        assertEquals(1, model.recordingElapsed.value)
+        model.unbind()
+        advanceTimeBy(20000); runCurrent()
+        assertNull(model.statusPresentation().elapsedSeconds)
+    }
+
+    @Test fun recoveryRetiresElapsedAndUnknownContinuousRecordingStart() = runTest {
+        val model = elapsedModel()
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus(); model.bind(camera)
+        camera.cameraReportsRecording(true); runCurrent()
+        advanceTimeBy(2000); runCurrent()
+        assertEquals(2, model.recordingElapsed.value)
+        val attempt = camera.loseLink(); runCurrent()
+        assertNull(model.statusPresentation().elapsedSeconds)
+        camera.completeAttempt(attempt); runCurrent()
+        assertEquals(true, model.isRecording)
+        assertNull(model.statusPresentation().elapsedSeconds)
+        model.unbind()
+    }
 
     private fun TestScope.model() = MonitorControlModel(backgroundScope).also { it.onNote = { note -> notes += note } }
 

@@ -164,6 +164,13 @@ public class FakeCameraSession(
         cameraReportsStatus()
     }
 
+    /** A camera-body recording report, independent of any app command. */
+    public fun cameraReportsRecording(recording: Boolean?) {
+        device = device.copy(recording = recording)
+        if (recording == null) current = current.copy(recording = ObservedValue.unknown)
+        cameraReportsStatus()
+    }
+
     /** The operator turns the mode dial. Values the new mode cannot hold move to its first choice. */
     public fun cameraSwitchesMode(raw: Int) {
         var settings = device.settings
