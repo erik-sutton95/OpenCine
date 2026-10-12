@@ -75,11 +75,13 @@ public enum MonitorCapturePresentation {
                 (range.upperBound - range.lowerBound) / step <= 1_000
             {
                 let count = Int(((range.upperBound - range.lowerBound) / step).rounded(.down))
+                // Every detent lies on the domain's own grid; a set keeps the merge linear (R-03).
+                var listed = Set(values)
                 for index in 0...count {
                     let kelvin = range.lowerBound + Double(index) * step
                     if kelvin.rounded() == kelvin {
                         let value = SettingValue.whiteBalance(.kelvin(Int(kelvin)))
-                        if domain.contains(value), !values.contains(value) { values.append(value) }
+                        if listed.insert(value).inserted { values.append(value) }
                     }
                 }
             }
@@ -109,9 +111,17 @@ extension MonitorControlModel {
             authorized && snapshot.connection == .ready
             && descriptor.access == .readWrite && descriptor.availability == .available
         return MonitorCaptureField(
-            key: key, title: title, selection: shown(key),
-            choices: MonitorCapturePresentation.choices(key, domain: descriptor.domain),
+            key: key, title: title, selection: shown(key), choices: drum(key, domain: descriptor.domain),
             editor: writable ? edit(key) : nil)
+    }
+
+    /// The drum for a domain, built once per domain rather than on every read.
+    private func drum(_ key: SettingKey, domain: SettingDomain?) -> [MonitorCaptureChoice] {
+        guard let domain else { return [] }
+        if let cached = captureChoices[key], cached.domain == domain { return cached.choices }
+        let choices = MonitorCapturePresentation.choices(key, domain: domain)
+        captureChoices[key] = (domain, choices)
+        return choices
     }
 
     /// Both held gestures and persistent drums commit the editor they opened, never a new one.

@@ -72,6 +72,9 @@ public final class MonitorControlModel {
     @ObservationIgnored public var onChange: () -> Void = {}
     /// The bound session reported `.disconnected` or ended its snapshots. Called once per binding.
     @ObservationIgnored var onEnded: () -> Void = {}
+    /// Each field's drum, rebuilt only when its domain changes (`captureField`): a body pass
+    /// reads it many times a second and a Kelvin domain spans up to a thousand detents (R-03).
+    @ObservationIgnored var captureChoices: [SettingKey: (domain: SettingDomain, choices: [MonitorCaptureChoice])] = [:]
 
     @ObservationIgnored private let coalescing: Duration
     @ObservationIgnored private let sleep: @MainActor (Duration) async -> Void

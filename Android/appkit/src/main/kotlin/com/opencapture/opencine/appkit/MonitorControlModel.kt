@@ -125,6 +125,12 @@ public class MonitorControlModel(
     /** The bound session reported [ConnectionState.Disconnected]. Called once per binding. */
     internal var onEnded: () -> Unit = {}
 
+    /**
+     * Each field's drum, rebuilt only when its domain changes ([captureField]): a recomposition reads
+     * it many times a second and a Kelvin domain spans up to a thousand detents (R-03).
+     */
+    internal val captureChoices = java.util.concurrent.ConcurrentHashMap<SettingKey, Pair<SettingDomain, List<MonitorCaptureChoice>>>()
+
     private var binding = 0
     private var feed: Job? = null
     private data class PendingEdit(

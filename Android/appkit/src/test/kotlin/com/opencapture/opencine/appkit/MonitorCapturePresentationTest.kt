@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
@@ -118,6 +119,36 @@ class MonitorCapturePresentationTest {
         assertFalse(assertNotNull(control.captureField(SettingKey.ISO)).isEditable)
         assertFalse(control.commit(field.choices.last(), field))
         assertTrue(camera.wire.isEmpty())
+    }
+
+    /**
+     * R-03: a recomposition reads the same drum, built once per domain. The base rebuilt every Kelvin
+     * detent (up to a thousand, with a quadratic membership scan) on each read.
+     */
+    @Test fun aFieldsDrumIsBuiltOncePerDomain() = runTest {
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        runCurrent()
+        val first = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE)).choices
+        assertEquals(40, first.size, "Auto plus 39 detents")
+        assertSame(first, assertNotNull(control.captureField(SettingKey.WHITE_BALANCE)).choices)
+    }
+
+    /** R-03: a thousand-step Kelvin domain keeps the explicit choices first and adds each detent once. */
+    @Test fun aThousandStepKelvinDomainKeepsOrderWithoutDuplicates() {
+        val explicit = listOf(
+            SettingValue.WhiteBalance(WhiteBalanceValue.Auto), SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(5600)),
+            SettingValue.WhiteBalance(WhiteBalanceValue.Preset("Sunny")),
+        )
+        val values = MonitorCapturePresentation.choices(SettingKey.WHITE_BALANCE,
+            SettingDomain(explicit, 1000.0..101_000.0, 100.0)).map { it.value }
+        assertEquals(3 + 1000, values.size, "1001 detents, 5600 K already listed")
+        assertEquals(values.size, values.toSet().size)
+        assertEquals(explicit, values.take(3))
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(1000)), values[3])
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(101_000)), values.last())
     }
 
     @Test fun kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
