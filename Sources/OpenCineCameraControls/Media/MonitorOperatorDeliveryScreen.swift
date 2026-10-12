@@ -14,12 +14,12 @@
         private let model: MonitorDeliveryPreparationModel<Curve, Format, Project, Context, Lease>
         private let maxCardHeight: CGFloat
         private let onClose: () -> Void
-        private let onBegin: (MonitorDeliveryPreparedRequest<Curve, Format, Lease>) -> Void
+        private let onBegin: (MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>) -> Void
         private let remoteArtwork: () -> Artwork
         public init(
             model: MonitorDeliveryPreparationModel<Curve, Format, Project, Context, Lease>,
             maxCardHeight: CGFloat = 520, onClose: @escaping () -> Void,
-            onBegin: @escaping (MonitorDeliveryPreparedRequest<Curve, Format, Lease>) -> Void,
+            onBegin: @escaping (MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>) -> Void,
             @ViewBuilder remoteArtwork: @escaping () -> Artwork
         ) {
             self.model = model
@@ -164,7 +164,7 @@
                         "Include metadata",
                         help: "Filename, capture date, and size (best-effort JSON sidecar).",
                         isOn: configuration.includeMetadata),
-                    reupload: model.destination == .remoteUpload
+                    reupload: model.offersReupload
                         ? .init(
                             "Re-upload already uploaded",
                             help: "Skip clips already on \(serviceName) unless enabled.",
@@ -293,13 +293,13 @@
     >: View {
         private let model: MonitorDeliveryPreparationModel<Curve, Format, Project, Context, Lease>
         private let onDismiss: () -> Void
-        private let onBegin: (MonitorDeliveryPreparedRequest<Curve, Format, Lease>) -> Void
+        private let onBegin: (MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>) -> Void
         private let remoteArtwork: () -> Artwork
         @Environment(\.monitorWindowGeometry) private var windowGeometry
         public init(
             model: MonitorDeliveryPreparationModel<Curve, Format, Project, Context, Lease>,
             onDismiss: @escaping () -> Void,
-            onBegin: @escaping (MonitorDeliveryPreparedRequest<Curve, Format, Lease>) -> Void,
+            onBegin: @escaping (MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>) -> Void,
             @ViewBuilder remoteArtwork: @escaping () -> Artwork
         ) {
             self.model = model

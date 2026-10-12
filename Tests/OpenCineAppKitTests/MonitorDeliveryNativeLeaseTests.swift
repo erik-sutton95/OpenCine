@@ -63,7 +63,7 @@ import Testing
                 self.owned = token + 1
                 self.calls.append("transfer \(token)")
                 return token + 1
-            })
+            }, skipsUploaded: false)
     }
 }
 
@@ -74,7 +74,7 @@ import Testing
         MonitorDeliveryBatchProgress, MonitorDeliveryBatchOutcome<String>, String
     >
     private func request(_ facts: NativeLeaseFacts) -> MonitorDeliveryPreparedRequest<
-        Int, Int, Int
+        Int, Int, String, Int, Int
     >? {
         let popup = Preparation(
             selection: {
@@ -110,7 +110,7 @@ import Testing
                 facts.calls.append("stage")
                 return .init(urls: files, cleanup: "staging")
             },
-            photos: .perItem { _ in
+            photos: .init { _ in
                 facts.calls.append("save")
                 return true
             },

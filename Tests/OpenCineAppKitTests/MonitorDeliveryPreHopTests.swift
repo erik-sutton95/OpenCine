@@ -16,6 +16,7 @@ import Testing
     var owned: Int?
     var revision = 0
     var polls = 0
+    var refuses = false
     var service: MonitorDeliveryRemoteService<String, Int, Int> {
         .init(
             presentation: .init(displayName: "Remote", progressCaption: "Uploading"),
@@ -37,6 +38,10 @@ import Testing
             internet: .init(
                 needsHop: { self.onCameraNetwork },
                 begin: {
+                    if self.refuses {
+                        self.calls.append("refused")
+                        return nil
+                    }
                     self.calls.append("begin")
                     self.revision += 1
                     self.owned = self.revision
@@ -52,7 +57,7 @@ import Testing
                     self.calls.append("restore \(lease)")
                     self.owned = nil
                 }),
-            transfer: { $0 })
+            transfer: { $0 }, skipsUploaded: false)
     }
 }
 
@@ -127,6 +132,21 @@ import Testing
         await settle { model.projectsError != nil }
         #expect(model.projectsError == "Original unavailable." && !model.hopping)
         #expect(facts.calls == ["cache"] && facts.owned == nil)
+        model.close()
+    }
+
+    /// A2-16: while another hop holds the route, begin refuses; the popup says why, stays on the
+    /// camera network and lists nothing.
+    @Test func aRefusedRouteSaysWhyAndNeverLeaves() async {
+        let facts = PreHopFacts()
+        facts.refuses = true
+        let model = make(facts) { facts.calls.append("cache") }
+        await settle { facts.polls == 1 }
+        model.hopToInternet()
+        await settle { model.projectsError != nil }
+        #expect(model.projectsError == "Couldn't leave the camera's Wi‑Fi while another network switch is running.")
+        #expect(!model.hopping && model.listing == nil && facts.owned == nil)
+        #expect(facts.calls == ["cache", "refused"] && facts.onCameraNetwork)
         model.close()
     }
 

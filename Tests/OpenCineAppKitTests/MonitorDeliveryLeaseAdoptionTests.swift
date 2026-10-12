@@ -43,7 +43,7 @@ import Testing
                 self.owned = token + 1
                 self.calls.append("transfer \(token)")
                 return token + 1
-            })
+            }, skipsUploaded: false)
     }
 }
 

@@ -162,7 +162,7 @@ let package = Package(
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
         // protocols; iOS only, empty elsewhere.
-        .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
+        .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
         .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
         // The camera apps' controls over the camera vocabulary (app composition next to the app
         // shell). App differences arrive as host values, never as brand branches.
