@@ -231,6 +231,32 @@ class MonitorOperatorPlaybackLifetimeTest {
             assertNull(f.library.record(MediaAssetID("A")))
         } finally { f.close() }
     }
+    @Test fun retiredGalleryDeletionRelistsByDefaultWhenItsFinishDoesNot() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            assertTrue(f.open(0)); val owner = assertNotNull(f.model.state.value.playback)
+            val authority = assertNotNull(f.library.captureDeletion(MonitorMediaLibraryIOKey("default-relist")) { true })
+            var finished = 0
+            val operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion = { record ->
+                MonitorOperatorPlaybackDeletionRequest(MonitorPlaybackDeletionConfirmation(title = "Remove A"), authority) {
+                    owner.close()
+                    f.library.deleteHostBatch(authority,
+                        listOf(MonitorMediaDeletionTarget(record, listOf(1))), 1,
+                        MonitorMediaDeletionPreparation.RETIRE_GALLERY,
+                        port = MonitorMediaDeletionPort(finish = { finished += 1 }, remove = { MonitorMediaDeleteAcknowledgement.REMOVED },
+                            commit = { row, _ ->
+                                f.library.applyLocalRemoval(setOf(row.asset.id), authority.actionToken); true
+                            }))
+                }
+            })
+            val copy = assertNotNull(f.model.captureDeletion(owner.state.value.token, operations))
+            f.model.confirmDeletion(copy.id); runCurrent()
+            assertEquals(1, finished)
+            assertTrue(f.library.state.value.browsing)
+            assertEquals("B", f.model.state.value.playback?.state?.value?.active?.payload)
+            assertNull(f.library.record(MediaAssetID("A")))
+        } finally { f.close() }
+    }
     @Test fun capturedDeletionBeforeReplacementCannotDeleteTheNewItem() = runTest {
         val f = Fixture(backgroundScope)
         try {
