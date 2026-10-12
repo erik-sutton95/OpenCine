@@ -305,6 +305,7 @@
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
+      ":appkit-sentry",
       ":camera-controls"
     ],
     "multicam": [
