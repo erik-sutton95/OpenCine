@@ -159,7 +159,7 @@ public protocol ReliabilityReportingSink: AnyObject, Sendable {
     func capture(_ event: ReliabilityEvent, attachment: Data, attachmentName: String)
 }
 
-/// Opt-in automatic reporting, installed by the app and gated by camera-session activity.
+/// Opt-in automatic reporting, installed by the app and gated by the camera path.
 /// Does not start without persisted consent and a valid https DSN. Does not mark
 /// an incident delivered when it is only queued.
 public final class ReliabilityReporting: @unchecked Sendable {
@@ -249,17 +249,25 @@ public final class ReliabilityReporting: @unchecked Sendable {
         applySDKState()
     }
 
-    public func setCameraSessionActive(_ active: Bool) {
-        gate.setCameraSessionActive(active)
-        if active {
-            gate.cancelPending()
-        } else {
-            if !sdkStarted, consent.isOptedIn {
-                applySDKState()
+    /// Holds reports back from this connect attempt (recovery included) until the returned lease
+    /// ends, when its owner retires. Each owner keeps its own lease; uploads resume after the last
+    /// one ends. Main thread.
+    public func beginCameraPath() -> ReliabilityCameraPathLease {
+        gate.beginCameraPath { [weak self] in
+            if Thread.isMainThread {
+                self?.cameraPathCleared()
+            } else {
+                DispatchQueue.main.async { self?.cameraPathCleared() }
             }
-            enqueueFinalizedFromSpool()
-            scheduleResumeIfIdle()
         }
+    }
+
+    private func cameraPathCleared() {
+        if !sdkStarted, consent.isOptedIn {
+            applySDKState()
+        }
+        enqueueFinalizedFromSpool()
+        scheduleResumeIfIdle()
     }
 
     public func setConsent(_ on: Bool) {

@@ -48,10 +48,10 @@ public interface ReliabilityReportingSink {
 }
 
 /**
- * Opt-in automatic reporting, installed by the app and gated by camera-session activity.
+ * Opt-in automatic reporting, installed by the app and gated by the camera path.
  * Does not start without persisted consent and a valid https DSN. Does not mark
  * an incident delivered when it is only queued. [sink] is the host's reporting SDK;
- * [onCameraPathClear] runs when a camera session ends.
+ * [onCameraPathClear] runs when the last camera path lease ends.
  */
 public class ReliabilityReporting(
     public val host: DiagnosticsHost,
@@ -125,18 +125,20 @@ public class ReliabilityReporting(
         applySdkState()
     }
 
-    public fun setCameraSessionActive(active: Boolean) {
-        gate.setCameraSessionActive(active)
-        if (active) {
-            gate.cancelPending()
-        } else {
-            if (!sdkStarted.get() && consent.isOptedIn) {
-                applySdkState()
-            }
-            enqueueFinalizedFromSpool()
-            scheduleResumeIfIdle()
-            onCameraPathClear()
+    /**
+     * Holds reports back from this connect attempt (recovery included) until the returned lease
+     * ends, when its owner retires. Each owner keeps its own lease; uploads resume after the last
+     * one ends. Main thread.
+     */
+    public fun beginCameraPath(): ReliabilityCameraPathLease = gate.beginCameraPath(::cameraPathCleared)
+
+    private fun cameraPathCleared() {
+        if (!sdkStarted.get() && consent.isOptedIn) {
+            applySdkState()
         }
+        enqueueFinalizedFromSpool()
+        scheduleResumeIfIdle()
+        onCameraPathClear()
     }
 
     public fun setConsent(on: Boolean) {

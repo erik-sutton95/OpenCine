@@ -3,7 +3,8 @@ import PackageDescription
 
 // OpenCine: the shared Swift packages of OpenPocketCine, OpenInstaCine and OpenZCine in one
 // package. Product and module names are the ones the apps already import. There are no
-// package dependencies, so an app that links one product resolves nothing else.
+// package dependencies, so an app that links one product resolves nothing else. The optional
+// Sentry reporting adapter is its own package, Packages/OpenCineSentryApple, for that reason.
 //
 // Dependency rules (plan 3.4; the target edges below encode them, the per-area import tests and
 // `atlas check` enforce them):

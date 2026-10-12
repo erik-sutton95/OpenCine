@@ -17,8 +17,11 @@ interface PocketSessionHost {
     /** Operator preference: hop to the native ISO when the color mode changes. */
     fun nativeISOHopEnabled(): Boolean
 
-    /** Reliability reporting: a camera session is open (crash and hang context). */
-    fun setCameraSessionActive(active: Boolean)
+    /**
+     * Reliability reporting: holds reports back from a connect attempt (recovery included) until
+     * the session retires and closes the returned hold.
+     */
+    fun beginCameraPath(): AutoCloseable
     /** Feed incident recorder (snapshots, repairs, breadcrumbs). */
     val incidents: FeedIncidentSink
     fun incidentTestSource(): FeedIncidentTestSource
