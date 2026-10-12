@@ -172,31 +172,12 @@ class MonitorCapturePresentationTest {
         assertEquals(listOf("record-start"), camera.wire)
     }
 
-    @Test fun explicitTargetApprovalNeverInvertsWhenTheCameraStartsMeanwhile() = runTest {
+    @Test fun approvalRetiresWithUnknownModeAndReplacement() = runTest {
         val camera = FakeCameraSession.lunaLike()
         camera.cameraReportsStatus()
         val control = MonitorControlModel(backgroundScope)
         control.bind(camera)
-        val approval = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
-        control.record(true); runCurrent()
-        camera.advance(3.seconds); runCurrent()
-        assertTrue(control.canCommitRecord(approval))
-        assertTrue(control.commitRecord(approval)); runCurrent()
-        assertFalse(control.state.value.recordPending)
-        assertEquals(listOf("record-start"), camera.wire)
-        val stop = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
-        camera.setAuthority(ControlAuthority.ReadOnly); runCurrent()
-        assertFalse(control.canCommitRecord(stop))
-        assertFalse(control.commitRecord(stop))
-        assertEquals(listOf("record-start"), camera.wire)
-    }
-
-    @Test fun explicitApprovalRetiresWithUnknownModeAndReplacement() = runTest {
-        val camera = FakeCameraSession.lunaLike()
-        camera.cameraReportsStatus()
-        val control = MonitorControlModel(backgroundScope)
-        control.bind(camera)
-        val approval = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
+        val approval = assertNotNull(control.recordEditor())
         camera.cameraSwitchesMode(0xff); runCurrent()
         assertFalse(control.canCommitRecord(approval))
         assertFalse(control.commitRecord(approval))

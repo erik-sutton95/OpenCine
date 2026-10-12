@@ -24,8 +24,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorPalette
-import com.opencapture.monitorui.settings.LocalMonitorSettingsScrollContext
-import com.opencapture.monitorui.settings.MonitorDisplaySettings
 import com.opencapture.monitorui.settings.MonitorInputOrientationSettings
 import com.opencapture.monitorui.settings.MonitorOperatorSafetySettings
 import com.opencapture.monitorui.settings.MonitorPanelSettings
@@ -54,7 +52,7 @@ internal sealed interface MonitorOperatorSettingsSource {
 
     class Configured(
         val configuration: MonitorOperatorSettingsConfiguration,
-        val display: MonitorOperatorBorrowedDisplay,
+        val display: MonitorOperatorDisplaySource,
     ) : MonitorOperatorSettingsSource
 
     class Session<P>(
@@ -94,12 +92,6 @@ internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) 
     var legalPage by remember { mutableStateOf<OperatorLegalPage?>(null) }
     var showLutPicker by remember { mutableStateOf(false) }
     val revision = remember { mutableIntStateOf(0) }
-    LaunchedEffect(inputs.selection) {
-        val source = inputs.source
-        if (inputs.selection == MonitorSettingsTab.DISPLAY && source is MonitorOperatorSettingsSource.Configured) {
-            source.display.returnedFromEditor()
-        }
-    }
     BoxWithConstraints(Modifier.fillMaxSize().background(MonitorPalette.background)
         .pointerInput(Unit) { detectTapGestures {} }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -180,14 +172,8 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.DISPLAY -> when (source) {
             is MonitorOperatorSettingsSource.Deployed -> OperatorDisplayRows(source.model, source.state, source.app, inputs.isLive)
-            is MonitorOperatorSettingsSource.Configured -> {
-                val display = source.display
-                val scroll = LocalMonitorSettingsScrollContext.current
-                MonitorDisplaySettings(display.layoutTitle, display.layoutHelp,
-                    display.choices, display.selection, display.onSelect,
-                    display.expandedSection, display.onExpand, display.sections,
-                    display.order, compact, inputs.feedback, scroll)
-            }
+            is MonitorOperatorSettingsSource.Configured -> OperatorDisplaySections(source.display.session,
+                source.display.available, source.display.edit, revision, onPreferenceChanged, inputs.feedback)
             is MonitorOperatorSettingsSource.Session<*> -> SessionDisplaySettings(source, inputs.isLive, revision, onPreferenceChanged)
         }
         MonitorSettingsTab.STORAGE -> when (source) {
@@ -242,7 +228,20 @@ private fun SessionDisplaySettings(source: MonitorOperatorSettingsSource.Session
     val session = source.session
     MonitorPanelSettings(preferences.hdrDisplay, "Show the native monitor in HDR when the display supports it.",
         { preferences.hdrDisplay = it; onPreferenceChanged() })
-    MonitorOperatorDisplaySections(session.modes, session::chrome, source.assist,
+    OperatorDisplaySections(session, setOf(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.CAMERA_VALUES,
+        MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.REC_READOUT, MonitorDisplaySection.TIMECODE,
+        MonitorDisplaySection.TOOL_BAR,
+        MonitorDisplaySection.RAIL_RECORD, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_SETTINGS),
+        if (live) session::beginEditing else null, revision, onPreferenceChanged)
+}
+
+/** The one Display form over the session: each declared mode's chrome, its pins and its Edit view. */
+@Composable
+private fun OperatorDisplaySections(session: MonitorOperatorSessionModel, available: Set<MonitorDisplaySection>,
+    edit: ((MonitorDisplayMode) -> Unit)?, revision: MutableIntState, onPreferenceChanged: () -> Unit,
+    feedback: () -> Unit = {}) {
+    @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
+    MonitorOperatorDisplaySections(session.modes, session::chrome, session.assist,
         onChange = { mode, value ->
             when (mode) {
                 MonitorDisplayMode.LIVE -> session.live = value
@@ -250,11 +249,7 @@ private fun SessionDisplaySettings(source: MonitorOperatorSettingsSource.Session
                 MonitorDisplayMode.COMMAND -> session.command = value
             }
             onPreferenceChanged()
-        }, available = setOf(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.CAMERA_VALUES,
-            MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.REC_READOUT, MonitorDisplaySection.TIMECODE,
-            MonitorDisplaySection.TOOL_BAR,
-            MonitorDisplaySection.RAIL_RECORD, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_SETTINGS),
-        edit = if (live) session::beginEditing else null)
+        }, available = available, edit = edit, feedback = feedback)
 }
 
 @Composable

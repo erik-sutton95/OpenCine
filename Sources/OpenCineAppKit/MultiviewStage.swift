@@ -79,9 +79,12 @@ public struct MultiviewTile: Hashable, Sendable {
     public var model: String
     /// Resolution, rate and look, on roomy tiles and in the options.
     public var format: String
-    /// 0...100, `nil` when unknown.
+    /// 0...100, `nil` when unknown or when the source reports bars instead.
     public var battery: Int?
     public var charging: Bool
+    /// Filled steps of the source's coarse gauge, never an inferred percentage.
+    public var batteryBars: Int?
+    public var batteryBarCount: Int
     public var storage: String
     public var timecode: String?
     /// `MultiviewTally` copy, or the app's own.
@@ -109,7 +112,8 @@ public struct MultiviewTile: Hashable, Sendable {
 
     public init(
         name: String, model: String = "", format: String = "", battery: Int? = nil,
-        charging: Bool = false, storage: String = MultiviewTally.unavailable,
+        charging: Bool = false, batteryBars: Int? = nil, batteryBarCount: Int = 5,
+        storage: String = MultiviewTally.unavailable,
         timecode: String? = nil, tally: String = MultiviewTally.unavailable,
         recordingSince: Date? = nil, recording: Bool = false, lut: Bool = false,
         note: String? = nil, tileNote: String? = nil, readouts: [MultiviewReadout] = [], status: MultiviewTileStatus? = nil,
@@ -121,6 +125,8 @@ public struct MultiviewTile: Hashable, Sendable {
         self.format = format
         self.battery = battery
         self.charging = charging
+        self.batteryBars = batteryBars
+        self.batteryBarCount = batteryBarCount
         self.storage = storage
         self.timecode = timecode
         self.tally = tally
@@ -277,10 +283,20 @@ extension MultiviewTile {
                 (MultiviewTileStatus(text: "Waiting for the camera", inProgress: true),
                  "Waiting for the camera")
             }
+        let battery = snapshot?.power.battery
+        let steps: Int?
+        if case .quantized(let step) = battery?.precision, step.isFinite, step > 0,
+            (2...10).contains((1 / step).rounded()), abs(1 / step - (1 / step).rounded()) < 0.000_001 {
+            steps = Int((1 / step).rounded())
+        } else {
+            steps = nil
+        }
         self.init(
             name: entry.name,
-            battery: snapshot?.power.battery.value.map { Int(($0 * 100).rounded()) },
+            battery: steps == nil ? battery?.value.map { Int(($0 * 100).rounded()) } : nil,
             charging: snapshot?.power.charging.value ?? false,
+            batteryBars: steps.flatMap { count in battery?.value.map { min(count, max(0, Int(($0 * Double(count)).rounded()))) } },
+            batteryBarCount: steps ?? 5,
             timecode: snapshot?.timecode.value.flatMap {
                 MonitorTimecodeFormat.label($0, precision: snapshot?.capabilities.timecode.precision)
             },

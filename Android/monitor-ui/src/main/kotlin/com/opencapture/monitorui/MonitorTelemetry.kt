@@ -116,16 +116,22 @@ private fun TelemetryGauge(
         if (value != null) {
             Text(value, color = tint, style = MonitorTypography.readout(10f, FontWeight.Bold), maxLines = 1)
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
-                repeat(barCount.coerceAtLeast(1)) { index ->
-                    Box(
-                        Modifier.size(3.5.dp, 9.dp).background(
-                            tint.copy(alpha = if (fraction >= (index + 1).toFloat() / barCount.coerceAtLeast(1)) 1f else .2f),
-                            RoundedCornerShape(.75.dp),
-                        ),
-                    )
-                }
-            }
+            MonitorGaugeBars(fraction, barCount, tint)
+        }
+    }
+}
+
+/** A coarse gauge as [count] bars, lit up to [fraction]: link delivery, or a camera's battery steps. */
+@Composable
+fun MonitorGaugeBars(fraction: Float, count: Int, tint: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
+        repeat(count.coerceAtLeast(1)) { index ->
+            Box(
+                Modifier.size(3.5.dp, 9.dp).background(
+                    tint.copy(alpha = if (fraction >= (index + 1).toFloat() / count.coerceAtLeast(1)) 1f else .2f),
+                    RoundedCornerShape(.75.dp),
+                ),
+            )
         }
     }
 }

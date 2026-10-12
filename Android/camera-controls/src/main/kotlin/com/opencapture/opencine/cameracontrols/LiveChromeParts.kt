@@ -56,6 +56,7 @@ import com.opencapture.opencine.appkit.LocalOperatorHaptics
 import com.opencapture.opencine.media.CameraLinkPhase
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.SessionRecoveryCopy
 import kotlin.math.abs
 import kotlin.math.min
 import kotlinx.coroutines.Job
@@ -116,12 +117,15 @@ object LiveViewLink {
         }
     }
 
+    /** [sessionRecovering]: the session dropped and bounded recovery holds the last frame. */
     fun fpsChipLabel(
         connection: ConnectionPhase,
         recovering: Boolean,
         formattedFPS: String,
         measuredFPS: Double,
+        sessionRecovering: Boolean = false,
     ): String {
+        if (sessionRecovering) return SessionRecoveryCopy.HELD_FRAME_BADGE
         if (connection == ConnectionPhase.FAILED) return "FAIL"
         if (recovering) return "RECOV"
         if (measuredFPS > 0) return formattedFPS

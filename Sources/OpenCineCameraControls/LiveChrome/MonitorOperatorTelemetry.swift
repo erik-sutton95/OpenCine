@@ -85,13 +85,9 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                 Text(value).font(MonitorTheme.font(tablet ? 11 : 10, weight: .semibold))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
             } else {
-                HStack(spacing: 1.5) {
-                    ForEach(0..<max(1, barCount), id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 0.75)
-                            .fill(index < bars ? color : color.opacity(0.2))
-                            .frame(width: 3.5, height: tablet ? 10 : 9)
-                    }
-                }
+                MonitorGaugeBars(
+                    fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color,
+                    barHeight: tablet ? 10 : 9)
             }
         }
         .padding(.horizontal, 6)

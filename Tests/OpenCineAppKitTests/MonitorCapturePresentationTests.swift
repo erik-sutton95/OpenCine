@@ -178,36 +178,13 @@ import Testing
     }
 
     @available(macOS 14, *)
-    @Test func explicitTargetApprovalNeverInvertsWhenTheCameraStartsMeanwhile() async throws {
+    @Test func approvalRetiresWithUnknownModeAndReplacement() async throws {
         let camera = FakeCameraSession.lunaLike()
         await camera.cameraReportsStatus()
         let control = MonitorControlModel()
         control.bind(camera)
         #expect(await eventually { control.recordEditor() != nil })
-        let approval = try #require(control.recordEditor(policy: .explicitTarget))
-        control.record(start: true)
-        #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
-        await camera.advance(by: .seconds(3))
-        #expect(await eventually { control.isRecording == true && !control.recordPending })
-        #expect(control.canCommitRecord(from: approval))
-        #expect(control.commitRecord(from: approval))
-        #expect(await eventually { !control.recordPending })
-        #expect(await camera.wire == ["record-start"])
-        let stop = try #require(control.recordEditor(policy: .explicitTarget))
-        await camera.setAuthority(.readOnly)
-        #expect(await eventually { !control.canCommitRecord(from: stop) })
-        #expect(!control.commitRecord(from: stop))
-        #expect(await camera.wire == ["record-start"])
-    }
-
-    @available(macOS 14, *)
-    @Test func explicitApprovalRetiresWithUnknownModeAndReplacement() async throws {
-        let camera = FakeCameraSession.lunaLike()
-        await camera.cameraReportsStatus()
-        let control = MonitorControlModel()
-        control.bind(camera)
-        #expect(await eventually { control.recordEditor() != nil })
-        let approval = try #require(control.recordEditor(policy: .explicitTarget))
+        let approval = try #require(control.recordEditor())
         await camera.cameraSwitchesMode(raw: 0xff)
         #expect(await eventually { !control.canCommitRecord(from: approval) })
         #expect(!control.commitRecord(from: approval))

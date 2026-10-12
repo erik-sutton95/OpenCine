@@ -2,12 +2,15 @@ package com.opencapture.opencine.nikon
 
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.Rational
@@ -16,6 +19,8 @@ import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import kotlin.test.Test
@@ -115,6 +120,7 @@ class NikonOpenCineSessionTest {
             )
         override val recordingState = MutableStateFlow(CameraRecordingState.STANDBY)
         override val reportedRecording = MutableStateFlow(reported)
+        override val liveTimecode = MutableStateFlow<CameraTimecode?>(null)
         override val cameraProperties = MutableStateFlow(properties)
         val writes = mutableListOf<Pair<CameraControl, String>>()
         val records = mutableListOf<Boolean>()
@@ -164,6 +170,64 @@ class NikonOpenCineSessionTest {
                     whiteBalanceValues = listOf("Auto", "Natural auto", "Sunny", "2500K", "5560K", "10000K"),
                 ),
         )
+
+    /**
+     * A5-04: the header sequence reaches the common snapshot with frames at the body's movie rate. A
+     * per-frame change moves only the timecode and the revision; off, absent, or off the link is
+     * unknown, never a frozen counter.
+     */
+    @Test
+    fun headerTimecodePublishesFramesAndNeverFreezes() =
+        runTest {
+            val camera = FakeNikon(movie().copy(frameRate = 25))
+            val seam = NikonOpenCineSession(camera, backgroundScope)
+            val idle = seam.snapshots.value
+            assertNull(idle.timecode.value)
+            assertEquals(TimecodeCapability.supported(TimecodePrecision.Frames(Rational(25))), idle.capabilities.timecode)
+
+            camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 17)
+            runCurrent()
+            val first = seam.snapshots.value
+            assertEquals(CameraTimecode(1, 2, 3, frames = 17), first.timecode.value)
+            assertEquals(ObservationOrigin.CAMERA_REPORTED, first.timecode.origin)
+            camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 18)
+            runCurrent()
+            val advanced = seam.snapshots.value
+            assertEquals(CameraTimecode(1, 2, 3, frames = 18), advanced.timecode.value)
+            assertEquals(first.revision.next(), advanced.revision)
+            assertTrue(advanced.capabilities === first.capabilities)
+            assertEquals(first, advanced.copy(revision = first.revision, timecode = first.timecode))
+
+            // The runtime publishes an off header (digits or zeros) and a header-less frame as null.
+            camera.liveTimecode.value = null
+            runCurrent()
+            assertNull(seam.snapshots.value.timecode.value)
+
+            camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 19)
+            runCurrent()
+            camera.state.value = CameraSessionState.Disconnected
+            runCurrent()
+            assertNull(seam.snapshots.value.timecode.value, "unknown off the link even if the source lags")
+
+            camera.cameraProperties.value = movie().copy(frameRate = 0)
+            assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecode)
+            seam.closeNow(SessionCloseReason.REQUESTED)
+        }
+
+    /** A5-01: Nikon `BatteryLevel` is a five-step gauge, so the reading declares fifths. */
+    @Test
+    fun batteryDeclaresFiveSteps() =
+        runTest {
+            val seam = NikonOpenCineSession(FakeNikon(movie()), backgroundScope)
+            val battery = seam.refresh().power.battery
+            assertEquals(0.8, battery.value)
+            assertEquals(ObservationPrecision.Quantized(0.2), battery.precision)
+            seam.closeNow(SessionCloseReason.REQUESTED)
+            // The value sits on the body's steps: an undocumented level rounds up, no reading is unknown.
+            assertEquals(0.6, NikonOpenCineSession.batteryFraction(58))
+            assertEquals(0.2, NikonOpenCineSession.batteryFraction(1))
+            assertNull(NikonOpenCineSession.batteryFraction(0))
+        }
 
     @Test
     fun ownedCloseHookRunsOnceWithoutRecordCommands() = runTest {
