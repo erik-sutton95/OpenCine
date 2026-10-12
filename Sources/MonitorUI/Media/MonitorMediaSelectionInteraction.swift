@@ -27,14 +27,6 @@
         private var viewportWidth: CGFloat = 0
         private var context = ""
         private weak var mountedProbe: UIView?
-        private struct OpeningPosition {
-            let offset: CGPoint
-            let viewport: CGSize
-            let context: String
-            let ids: [String]
-        }
-        private var openingPosition: OpeningPosition?
-        private var returningFromOpening = false
 
         private lazy var hold: UILongPressGestureRecognizer = {
             let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handle))
@@ -56,11 +48,6 @@
             feedback: @escaping (MonitorMediaSelectionFeedback) -> Void = { _ in },
             publish: @escaping (Set<String>) -> Void
         ) {
-            if let position = openingPosition,
-                position.context != context || position.ids != ids
-            {
-                discardOpeningPosition()
-            }
             if controller.ids != ids || self.context != context
                 || self.configuration != configuration
                 || (controller.selecting && !selecting)
@@ -106,8 +93,6 @@
                     viewportWidth = scroll.bounds.width
                     scroll.addGestureRecognizer(hold)
                     scroll.addGestureRecognizer(pan)
-                    scroll.panGestureRecognizer.addTarget(
-                        self, action: #selector(nativeScrollChanged))
                     // Browsing rejects this pan immediately. Selection gives it
                     // first refusal so scrolling and pull-refresh cannot compete.
                     scroll.panGestureRecognizer.require(toFail: pan)
@@ -121,8 +106,6 @@
             cancel()
             scrollView?.removeGestureRecognizer(hold)
             scrollView?.removeGestureRecognizer(pan)
-            scrollView?.panGestureRecognizer.removeTarget(
-                self, action: #selector(nativeScrollChanged))
             scrollView = nil
             mountedProbe = nil
         }
@@ -138,52 +121,6 @@
             pan.isEnabled = false
             hold.isEnabled = true
             pan.isEnabled = true
-        }
-
-        /// Save one position before the actual clip action presents an offscreen cover.
-        func preservePositionForOpening() {
-            guard let scroll = scrollView, scroll.window != nil,
-                scroll.contentOffset.x.isFinite, scroll.contentOffset.y.isFinite
-            else { return }
-            openingPosition = OpeningPosition(
-                offset: scroll.contentOffset, viewport: scroll.bounds.size,
-                context: context, ids: controller.ids)
-            returningFromOpening = false
-        }
-
-        func returnFromOpening() {
-            returningFromOpening = openingPosition != nil
-            mountedProbe?.setNeedsLayout()
-        }
-
-        /// Runs after the actual native viewport lays out, including a remounted scroll view.
-        func restorePositionAfterLayout(from probe: UIView) {
-            guard mountedProbe === probe, returningFromOpening,
-                let position = openingPosition, let scroll = scrollView,
-                scroll.window != nil, scroll.bounds.width > 1, scroll.bounds.height > 1
-            else { return }
-            guard position.context == context, position.ids == controller.ids,
-                abs(position.viewport.width - scroll.bounds.width) < 1,
-                abs(position.viewport.height - scroll.bounds.height) < 1
-            else { discardOpeningPosition(); return }
-            let minimum = -scroll.adjustedContentInset.top
-            let maximum = max(
-                minimum,
-                scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)
-            // Lazy content may not have reached its final extent on the first probe layout.
-            guard position.offset.y <= maximum else { return }
-            discardOpeningPosition()
-            scroll.setContentOffset(
-                CGPoint(x: position.offset.x, y: max(minimum, position.offset.y)), animated: false)
-        }
-
-        private func discardOpeningPosition() {
-            openingPosition = nil
-            returningFromOpening = false
-        }
-
-        @objc private func nativeScrollChanged(_ recognizer: UIPanGestureRecognizer) {
-            if recognizer.state == .began { discardOpeningPosition() }
         }
 
         func gestureRecognizer(
@@ -389,7 +326,6 @@
                 configuration: configuration, feedback: feedback,
                 publish: publish)
             interaction.attach(from: view)
-            view.setNeedsLayout()
         }
         static func dismantleUIView(_ view: Probe, coordinator: ()) {
             view.interaction.detach(from: view)
@@ -409,13 +345,7 @@
                     interaction.detach(from: self)
                 } else {
                     interaction.attach(from: self)
-                    setNeedsLayout()
                 }
-            }
-            override func layoutSubviews() {
-                super.layoutSubviews()
-                interaction.attach(from: self)
-                interaction.restorePositionAfterLayout(from: self)
             }
         }
     }
