@@ -200,11 +200,12 @@ public fun MonitorSettingsGroupCard(
      */
     expanded: Boolean? = null,
     onExpandToggle: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val isExpanded = expanded ?: true
     Column(
-        Modifier.fillMaxWidth().settingsCardSurface().padding(horizontal = 13.dp, vertical = 11.dp),
+        modifier.fillMaxWidth().settingsCardSurface().padding(horizontal = 13.dp, vertical = 11.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(

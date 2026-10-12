@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -654,7 +655,8 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 if (isMuted) MonitorIcon.VOLUME_X else MonitorIcon.VOLUME_2,
                                 if (isMuted) "Unmute" else "Mute", { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
                             )
-                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop clip", { withItem { currentActions.loop(it, !looping) } }, active = looping)
+                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop clip", { withItem { currentActions.loop(it, !looping) } },
+                                Modifier.semantics { stateDescription = if (looping) "On" else "Off" }, active = looping)
                             MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, "Hide playback controls", { chromeVisible = false })
                         }
                     },

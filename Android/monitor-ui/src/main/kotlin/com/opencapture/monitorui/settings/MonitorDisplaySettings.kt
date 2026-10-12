@@ -169,9 +169,10 @@ public fun MonitorDisplaySections(
                 expanded = if (onExpand == null) null else expandedSection == section.id,
                 onExpandToggle = onExpand?.let { expand ->
                     { expand(if (expandedSection == section.id) null else section.id) }
-                }) {
-                Column(Modifier.testTag("monitor.settings.display.section.${section.id}"),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                },
+                // The whole card, header included, as on iOS: a folded section is found and opened by it.
+                modifier = Modifier.testTag("monitor.settings.display.section.${section.id}")) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     section.edit?.let { edit ->
                         MonitorSettingsActionPill(title = section.editTitle, onClick = edit,
                             modifier = Modifier.testTag("monitor.settings.display.edit.${section.id}"))

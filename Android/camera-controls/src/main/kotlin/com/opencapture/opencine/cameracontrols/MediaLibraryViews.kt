@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -119,7 +120,8 @@ fun MediaCategoryTab(tab: MediaLibraryTab, active: Boolean, fill: Boolean = fals
             MediaLibraryTab.PHOTOS -> "Photos"
             MediaLibraryTab.FAVORITES -> "Favorites"
         }
-    MonitorTab(active, { haptics.selection(); onClick() }, Modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier),
+    MonitorTab(active, { haptics.selection(); onClick() },
+        Modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier).testTag("monitor.media.category.${tab.name}"),
         vertical = fill, separator = tab != MediaLibraryTab.entries.first(),
         accessibilityLabel = "Show $label media") {
         Row(Modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier),

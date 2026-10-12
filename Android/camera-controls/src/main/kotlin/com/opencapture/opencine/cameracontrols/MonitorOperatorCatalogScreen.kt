@@ -285,13 +285,13 @@ private fun <P> MonitorOperatorCatalogGallery(
                         MediaEmptyState(value.fetching, value.note ?: MediaLibraryCopy.emptySubtitle(connected,
                             value.records.isNotEmpty(), value.activeFilterCount, MediaLibraryTab.valueOf(value.category.name)))
                     }
-                    list -> LazyColumn(Modifier.fillMaxSize().monitorScrollFade(listState), state = listState,
+                    list -> LazyColumn(Modifier.fillMaxSize().testTag(GALLERY_TAG).monitorScrollFade(listState), state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                         items(records, key = { it.asset.id.rawValue }) { card(it) }
                     }
                     else -> MonitorCatalogGrid(records,
                         monitorCatalogColumns(presentation?.thumbnailSize ?: value.thumbnailSize, minOf(configuration.screenWidthDp, configuration.screenHeightDp) >= 600),
-                        key = { it.asset.id.rawValue }, modifier = Modifier.fillMaxSize(), state = gridState) { card(it) }
+                        key = { it.asset.id.rawValue }, modifier = Modifier.fillMaxSize().testTag(GALLERY_TAG), state = gridState) { card(it) }
                 }
             }
         }
@@ -318,3 +318,6 @@ private fun MediaDeletionOverlay(progress: MonitorMediaDeletionProgress, detail:
         }
     }
 }
+
+/** The scrolling gallery, named as the SwiftUI catalog names it. */
+private const val GALLERY_TAG = "monitor.media.gallery"
