@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 /** The saved-setup rules over the Android record (moved from OpenZCine with the policy). */
 class SavedCameraRecordsTest {
-    /** Unnamed routers on different subnets are different setups — no permission required. */
+    /** Unnamed routers on different subnets are different setups: no permission required. */
     @Test
     fun `two unnamed routers on different subnets are two setups`() {
         val records =
@@ -60,7 +60,7 @@ class SavedCameraRecordsTest {
 
     /**
      * A camera reached from the studio and from home is two setups. The network's name is the only
-     * thing that can say so — the address changes with the lease.
+     * thing that can say so; the address changes with the lease.
      */
     @Test
     fun `two named networks are two router setups`() {
@@ -166,7 +166,7 @@ class SavedCameraRecordsTest {
 
     /**
      * A record IS one camera setup, keyed by (camera, path). One body's access-point and router
-     * setups routinely share an address — every camera-AP Nikon answers on 192.168.1.1 — and
+     * setups routinely share an address (every camera-AP Nikon answers on 192.168.1.1) and
      * matching on the address alone swallowed one into the other.
      */
     @Test
@@ -238,7 +238,7 @@ class SavedCameraRecordsTest {
      *
      * The old rule pinned every access-point record to a fixed 192.168.1.1 and handed the address
      * it had been carrying to a manufactured infrastructure row. Both halves of that were wrong.
-     * There is no global access-point IP to pin to — 192.168.1.1 is a convention, and it is also
+     * There is no global access-point IP to pin to: 192.168.1.1 is a convention, and it is also
      * the commonest home-router address there is, so asserting it put a camera's identity on
      * somebody's gateway. And splitting produced a router setup the operator never made, out of
      * an address that only ever described one session.
@@ -307,7 +307,7 @@ class SavedCameraRecordsTest {
     }
 
     /**
-     * The operator's Router choice must survive persistence — the wizard used to collapse it
+     * The operator's Router choice must survive persistence; the wizard used to collapse it
      * into PHONE_HOTSPOT at save time, silently reclassifying every router camera (the Android
      * twin of iOS's old "Wi-Fi" transport-string collapse).
      */
@@ -458,7 +458,7 @@ class SavedCameraRecordsTest {
 
     /**
      * The #293 report: pairing a second body removed the first. Every camera-AP Nikon is
-     * 192.168.1.1, so both records share one address — a shared host (or a profileID defaulted
+     * 192.168.1.1, so both records share one address: a shared host (or a profileID defaulted
      * from it) merges records only when the names don't contradict it, and forgetting one of the
      * two must not delete the other.
      */
@@ -506,12 +506,12 @@ class SavedCameraRecordsTest {
                 lastSeenAtEpochMillis = 1_000L,
                 wifiSsid = "NIKON_ZR_6002199",
             )
-        // The foreign address is no longer discarded — it becomes the router setup it always
-        // described — so the access-point half is taken by transport rather than by `single()`.
+        // The foreign address is no longer discarded: it becomes the router setup it always
+        // described, so the access-point half is taken by transport rather than by `single()`.
         val canonical = SavedCameraRecords.canonicalized(listOf(poisoned))
         val repaired =
             canonical.first { it.transport == SavedCameraTransport.CAMERA_ACCESS_POINT }
-        // Learned dialable host is kept — never rewritten to a global camera-AP IP.
+        // Learned dialable host is kept, never rewritten to a global camera-AP IP.
         assertEquals("192.168.1.246", repaired.host)
         assertEquals("NIKON_ZR_6002199", repaired.wifiSsid)
         assertEquals(1, canonical.size)
@@ -566,7 +566,7 @@ class SavedCameraRecordsTest {
 
     /**
      * The wizard saves its record BEFORE the body confirmation, and an abandoned pairing has to
-     * take that row back out — but only the row it created. A re-pair of a camera the operator
+     * take that row back out, but only the row it created. A re-pair of a camera the operator
      * already has must report nothing, or walking away from a failed re-pair would cost them the
      * working setup they started with.
      */
@@ -650,7 +650,7 @@ class SavedCameraRecordsTest {
 
     /**
      * THE network-key table, the Kotlin half. Every row here is a row of the Swift core's
-     * `theNetworkKeyTable` (Tests/OpenZCineCoreTests/RouterSetupsPerNetworkTests.swift) — the rule
+     * `theNetworkKeyTable` (Tests/OpenZCineCoreTests/RouterSetupsPerNetworkTests.swift): the rule
      * lives in two languages, and the only thing keeping them one rule is that both are checked
      * against the same table.
      *
@@ -687,7 +687,7 @@ class SavedCameraRecordsTest {
                 // Named differently: two networks, whatever the addresses say.
                 Row("Home", "Studio", "192.168.1.50", "192.168.1.77", false),
                 Row("Home", "Studio", "192.168.1.50", "10.0.0.9", false),
-                // One unnamed: no name to compare, so the subnet answers — the upgrade path from
+                // One unnamed: no name to compare, so the subnet answers, the upgrade path from
                 // records written before the operator allowed the read.
                 Row("Home", null, "192.168.1.50", "192.168.1.77", true),
                 Row("Home", null, "192.168.1.50", "10.0.0.9", false),
