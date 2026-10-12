@@ -22,6 +22,8 @@
         /// The feed rate label ("25.00", or LINK / RECOV / FAIL).
         var liveFPS: String { get }
 
+        /// The one display owner: modes, chrome, editor, lock and connect arming.
+        var operatorSession: MonitorOperatorSessionModel<MonitorLUTLooks> { get }
         var assist: MonitorAssistState<MonitorLUTLooks> { get }
         var assistToolUsage: MonitorToolUsage { get set }
         var gimbalPanelOpen: Bool { get }
@@ -75,7 +77,9 @@
 
     }
 
-    extension LiveChromeHost {
+    /// Every editor over the shared DISP sections names and offers them the same way.
+    extension ChromeEditHost
+    where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
         public var chromeEditSections: [MonitorDisplayChrome.Section] {
             MonitorDisplayChrome.Section.allCases
         }
@@ -95,7 +99,9 @@
         ) -> Bool {
             MonitorDisplayChrome.isConfigurable(section, in: mode)
         }
+    }
 
+    extension LiveChromeHost {
         public func isChromeVisible(
             _ section: MonitorDisplayChrome.Section, in mode: MonitorDisplayMode
         ) -> Bool {

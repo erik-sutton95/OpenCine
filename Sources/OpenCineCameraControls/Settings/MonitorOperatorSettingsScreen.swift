@@ -19,9 +19,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private let availableAssistTools: Set<MonitorAssistSelection>
     private let assistPanels: AssistPanelStores?
     private let falseColorLooks: FalseColorLooks
-    @State private var operatorSession: MonitorOperatorSessionModel<Looks>?
+    @State private var operatorSession: MonitorOperatorSessionModel<Looks>
     private let configuration: MonitorOperatorSettingsConfiguration<Looks>?
-    private let borrowedDisplay: MonitorOperatorBorrowedDisplay?
     private let borrowedSelection: Binding<MonitorSettingsTab>?
     private let borrowedScrollOffsets: Binding<[String: CGFloat]>?
     private let sourceIdentity: UUID?
@@ -47,22 +46,22 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         self.preferences = preferences; self.display = display; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
         self.configuration = configuration; self.coverSafeArea = safeArea
-        self.borrowedDisplay = nil; self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
+        self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
         self.assistPanels = assistPanels; self.falseColorLooks = falseColorLooks
         _operatorSession = State(initialValue: operatorSession ?? MonitorOperatorSessionModel(shell: shell, assist: assist, display: display))
     }
 
-    /// Complete configured flow over a source's existing display storage and page state.
+    /// Complete configured flow over a source's page state and the one display owner.
     public init(brand: String, configuration: MonitorOperatorSettingsConfiguration<Looks>,
         library: MonitorMediaLibraryModel<Payload>?, selectedTab: Binding<MonitorSettingsTab>,
-        scrollOffsets: Binding<[String: CGFloat]>, borrowedDisplay: MonitorOperatorBorrowedDisplay,
+        scrollOffsets: Binding<[String: CGFloat]>, operatorSession: MonitorOperatorSessionModel<Looks>,
         sourceIdentity: UUID?, initialReportPresented: Bool = false, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
         self.preferences = nil; self.display = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
-        self.configuration = configuration; self.coverSafeArea = safeArea; self.borrowedDisplay = borrowedDisplay
+        self.configuration = configuration; self.coverSafeArea = safeArea
         self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
-        _operatorSession = State(initialValue: nil)
+        _operatorSession = State(initialValue: operatorSession)
         _showReport = State(initialValue: initialReportPresented)
     }
 
@@ -73,7 +72,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
 
     private var selectedTab: Binding<MonitorSettingsTab> {
         if let borrowedSelection { return borrowedSelection }
-        return Binding(get: { operatorSession?.settingsTab ?? .link }, set: { operatorSession?.settingsTab = $0 })
+        return Binding(get: { operatorSession.settingsTab }, set: { operatorSession.settingsTab = $0 })
     }
 
     public var body: some View {
@@ -183,7 +182,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     private var editChrome: ((MonitorDisplayMode) -> Void)? {
-        guard configuration?.isLive ?? (shell?.monitor != nil), let operatorSession else { return nil }
+        guard configuration?.isLive ?? (shell?.monitor != nil) else { return nil }
         return operatorSession.beginEditing
     }
 
@@ -196,17 +195,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             MonitorPanelSettings(hdrDisplay: preference(\.hdrDisplay),
                 help: "Show the native monitor in HDR when the display supports it.", feedback: {})
         }
-        if let value = borrowedDisplay {
-            MonitorDisplaySettings(layoutHelp: value.layoutHelp, choices: value.choices,
-                selection: value.selection, expandedSection: value.expandedSection,
-                sections: value.sections, order: value.order).onAppear(perform: value.returnedFromEditor)
-        } else {
-            MonitorOperatorDisplaySections(modes: operatorSession?.modes ?? [.live, .clean], chrome: displayValue, assist: assist,
-                available: configuration?.availableDisplay ?? [.statusBar, .cameraValues, .lockButton, .recReadout,
-                    .timecode, .toolBar, .railRecord, .railMedia, .railSettings], edit: editChrome,
-                feedback: configuration?.feedback ?? {})
-                .onAppear { operatorSession?.returnedMode = nil }
-        }
+        MonitorOperatorDisplaySections(modes: operatorSession.modes, chrome: displayValue, assist: assist,
+            available: configuration?.availableDisplay ?? [.statusBar, .cameraValues, .lockButton, .recReadout,
+                .timecode, .toolBar, .railRecord, .railMedia, .railSettings], edit: editChrome,
+            feedback: configuration?.feedback ?? {})
+            .onAppear { operatorSession.returnedMode = nil }
     }
 
     @ViewBuilder private func linkRows(_ link: MonitorSettingsLinkSource, isLive: Bool) -> some View {
@@ -343,8 +336,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         })
     }
     private func displayValue(_ mode: MonitorDisplayMode) -> Binding<MonitorDisplayChrome> {
-        guard let operatorSession else { preconditionFailure("Borrowed layouts require their explicit display bindings") }
-        return Binding(get: { operatorSession.chrome(for: mode) }, set: {
+        Binding(get: { operatorSession.chrome(for: mode) }, set: {
             switch mode {
             case .live: operatorSession.live = $0
             case .clean: operatorSession.clean = $0

@@ -38,13 +38,6 @@ final class MonitorOperatorEditorHost<Looks: MonitorLookProvider>: ChromeEditHos
         self.model = model; self.preferences = preferences
     }
     var hapticsEnabled: Bool { preferences.haptics }
-    var chromeEditSections: [ChromeSection] { ChromeSection.allCases }
-    func chromeSectionTitle(_ section: ChromeSection) -> String { section.title }
-    func chromeSectionID(_ section: ChromeSection) -> String { section.rawValue }
-    func chromeModeTitle(_ mode: ChromeMode) -> String { mode.title }
-    func isChromeConfigurable(_ section: ChromeSection, in mode: ChromeMode) -> Bool {
-        MonitorDisplayChrome.isConfigurable(section, in: mode)
-    }
     func isChromeVisible(_ section: ChromeSection, in mode: ChromeMode) -> Bool {
         model.chrome(for: mode).isVisible(section)
     }

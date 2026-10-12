@@ -402,9 +402,9 @@
         public var body: some View {
             let percent = host.cameraStatus.batteryPercent
             MonitorOperatorTelemetry<Host.Palette>(fps: host.liveFPS, signalBars: host.liveSignalBars,
-                power: [.init(id: "camera", title: "Camera battery", camera: true,
-                    percent: (0...100).contains(percent) ? percent : nil)],
-                horizontal: horizontal, showsLink: showsLink, showsPower: showsPower, automaticPhoneBattery: true)
+                camera: .init(id: "camera", title: "Camera battery", camera: true,
+                    percent: (0...100).contains(percent) ? percent : nil, charging: host.cameraStatus.charging),
+                horizontal: horizontal, showsLink: showsLink, showsPower: showsPower)
         }
         public static func batteryColor(_ percent: Int) -> Color {
             MonitorOperatorTelemetry<Host.Palette>.batteryColor(percent)

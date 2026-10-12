@@ -31,7 +31,7 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     public private(set) var interactive = true
 
     private let shell: ShellModel
-    private let assist: MonitorAssistState<Looks>
+    public let assist: MonitorAssistState<Looks>
     private let preferences: MonitorDisplayPreferences
     private let displaySession = MonitorDisplaySession<MonitorDisplayMode>(mode: .live)
     /// Command has no assist-state twin; Live and Clean stay `assist.clean`, which assist
