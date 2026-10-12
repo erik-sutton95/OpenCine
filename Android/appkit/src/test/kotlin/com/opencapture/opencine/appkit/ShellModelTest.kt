@@ -118,6 +118,19 @@ class ShellModelTest {
     }
 
     @Test
+    fun leavingTheMonitorCanRetainItsCover() = runTest {
+        val shell = shell()
+        val camera = Counted(FakeCameraSession.lunaLike())
+        connect(shell, Values.camera, camera)
+        shell.open(ShellModel.Cover.MEDIA)
+        shell.close(ShellModel.CoverRetention.RETAIN)
+        runCurrent()
+        assertTrue(shell.monitor == null && shell.route == ShellModel.Route.CAMERAS)
+        assertEquals(ShellModel.Cover.MEDIA, shell.cover, "the cover is never cleared, so its page keeps its identity")
+        assertEquals(listOf(SessionCloseReason.REQUESTED), camera.closes)
+    }
+
+    @Test
     fun closeOnce() = runTest {
         val shell = shell()
         val camera = Counted(FakeCameraSession.lunaLike())
