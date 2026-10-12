@@ -29,6 +29,6 @@ class MonitorUnknownSignalTest {
         assertContentEquals(counts, axis.remapHistogram(counts))
         val legacy = ScopeLevelAxis.of(MonitorTransfer.DLOG2)
         assertTrue(legacy.supportsCalibratedReferences)
-        assertEquals(legacy, ScopeLevelAxis(legacy.table, legacy.middleGrayIRE))
+        assertEquals(legacy, ScopeLevelAxis(legacy.table, legacy.middleGrayIre))
     }
 }
