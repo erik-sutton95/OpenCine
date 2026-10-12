@@ -199,8 +199,9 @@ class OperatorSetupApp(
     val help: OperatorHelpCopy,
     val prefs: OperatorPreferenceStore,
     val assistHost: AssistHost,
-    val mediaCache: OperatorMediaCacheDirs,
-    val clearMediaCache: (Context) -> Unit,
+    /** Legacy cache directories, read only when [cacheSource] is null. */
+    val mediaCache: OperatorMediaCacheDirs? = null,
+    val clearMediaCache: ((Context) -> Unit)? = null,
     val upscalers: List<String>,
     val upscaler: (Context) -> String,
     val setUpscaler: (Context, String) -> Unit,
@@ -211,7 +212,11 @@ class OperatorSetupApp(
     val diagnostics: OperatorDiagnostics,
     val legalPage: @Composable (OperatorLegalPage, () -> Unit) -> Unit,
     val lutPicker: @Composable (() -> Unit) -> Unit,
-    /** Captured existing cache IO; no page or storage policy is supplied by the app. */
+    /**
+     * Captured existing cache IO; no page or storage policy is supplied by the app. An app whose gallery
+     * runs on a shared library passes [monitorSettingsCacheSource] over it, so Settings counts and
+     * clears what the gallery writes.
+     */
     val cacheSource: (@Composable (Context) -> com.opencapture.opencine.appkit.MonitorSettingsCacheSource)? = null,
 )
 
@@ -778,12 +783,16 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
 internal fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
     val context = LocalContext.current
     val view = LocalView.current
-    val source = app.cacheSource?.invoke(context) ?: com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
-        com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(app.mediaCache.candidates(context).first().absolutePath, null),
-        0L, isCurrent = { true },
-        count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.mediaCache.byteCount(context) } },
-        clear = { app.clearMediaCache(context) },
-    )
+    val source = app.cacheSource?.invoke(context) ?: run {
+        val dirs = requireNotNull(app.mediaCache) { "Operator Setup needs a cache source or the legacy cache directories" }
+        val clear = requireNotNull(app.clearMediaCache) { "Legacy cache directories need their clear action" }
+        com.opencapture.opencine.appkit.MonitorSettingsCacheSource(
+            com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity(dirs.candidates(context).first().absolutePath, null),
+            0L, isCurrent = { true },
+            count = { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dirs.byteCount(context) } },
+            clear = { clear(context) },
+        )
+    }
     MonitorAccountSettings(
         title = "Frame.io", help = app.help.FRAME_IO,
         state = MonitorAccountState.NOT_CONFIGURED,

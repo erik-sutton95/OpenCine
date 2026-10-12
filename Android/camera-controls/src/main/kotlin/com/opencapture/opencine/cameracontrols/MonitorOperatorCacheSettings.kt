@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.settings.MonitorCacheSettings
 import com.opencapture.opencine.appkit.MonitorMediaLibraryModel
-import com.opencapture.opencine.appkit.MonitorSettingsCacheIdentity
+import com.opencapture.opencine.appkit.settingsCacheSource
 import com.opencapture.opencine.appkit.MonitorSettingsCacheModel
 import com.opencapture.opencine.appkit.MonitorSettingsCacheSource
 
@@ -24,17 +24,14 @@ import com.opencapture.opencine.appkit.MonitorSettingsCacheSource
 @Composable
 public fun <P> MonitorOperatorCacheSettings(library: MonitorMediaLibraryModel<P>, cacheOriginals: Boolean,
     onCacheOriginals: (Boolean) -> Unit) {
+    MonitorOperatorCacheSettings(monitorSettingsCacheSource(library), cacheOriginals, onCacheOriginals)
+}
+
+/** The settings cache source over the gallery's [library], renewed with its lifetime and cache revision. */
+@Composable
+public fun <P> monitorSettingsCacheSource(library: MonitorMediaLibraryModel<P>): MonitorSettingsCacheSource {
     val value by library.state.collectAsState()
-    val admission = library.actionToken
-    val revision = value.cacheRevision
-    val source = MonitorSettingsCacheSource(
-        MonitorSettingsCacheIdentity(library.cache.directory.root.absolutePath, value.lifetimeToken.toString()),
-        revision,
-        isCurrent = { library.isCurrent(admission) && library.state.value.cacheRevision == revision },
-        count = { library.cache.directory.totalByteCount() },
-        clear = { library.clearCache() },
-    )
-    MonitorOperatorCacheSettings(source, cacheOriginals, onCacheOriginals)
+    return library.settingsCacheSource(value)
 }
 
 /** SDK adapters provide captured IO; this owner presents count, confirmation, progress and errors. */
