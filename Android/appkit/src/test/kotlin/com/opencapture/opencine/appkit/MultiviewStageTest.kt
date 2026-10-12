@@ -11,6 +11,9 @@ import com.opencapture.opencine.core.MonitorEntryDescriptor
 import com.opencapture.opencine.core.MonitorEntryID
 import com.opencapture.opencine.core.MulticamQualification
 import com.opencapture.opencine.core.NearbyCamera
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservationPrecision
+import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.PictureHealth
 import com.opencapture.opencine.core.PictureSourceDescriptor
 import com.opencapture.opencine.core.RouteKind
@@ -136,6 +139,12 @@ class MultiviewStageTest {
         assertTrue(lost.status?.text == "Disconnected" && lost.status?.inProgress == false)
         val unreported = MultiviewTile(group.entries[0], link.copy(control = RoleStatus.Unreported), null)
         assertEquals("Waiting for the camera", unreported.detail)
+        // A5-01: a reading declared in fifths is the camera's gauge: bars, never a percent.
+        val reported = state().cameras.getValue(group.entries[0].cameraSession!!)
+        val fifths = ObservedValue(0.6, ObservationOrigin.CAMERA_REPORTED, null, precision = ObservationPrecision.Quantized(0.2))
+        val gauge = MultiviewTile(group.entries[0], link, reported.copy(power = reported.power.copy(battery = fifths)))
+        assertEquals(listOf(null, 3, 5), listOf(gauge.battery, gauge.batteryBars, gauge.batteryBarCount))
+        assertEquals(null, first.batteryBars, "a percent reading stays a percent")
         assertEquals(listOf("ISO", "SHUTTER", "WB", "FOCUS"), first.readouts.map { it.title })
         assertEquals(listOf("800", "1/50", "5600K", "\u2014"), first.readouts.map { it.value })
         assertTrue(stage.drop(members).all { it == null }, "the other slots stay empty")

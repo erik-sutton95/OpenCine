@@ -409,7 +409,7 @@ public final class NikonCameraSession: CameraSession {
         Self.observe(&next.mode, Self.mode(facts.reported), at: at)
         Self.observe(&next.recording, facts.recording.map { $0 ? .recording : .idle }, at: at)
         Self.observe(
-            &next.power.battery, facts.reported.batteryPercent.map { Double($0) / 100 }, at: at,
+            &next.power.battery, facts.reported.batteryPercent.flatMap(Self.batteryFraction), at: at,
             // BatteryLevel is the body's five-step gauge, never a percent (A5-01).
             precision: .quantized(step: 1.0 / Double(NikonCameraBatteryGauge.barCount)))
         for (key, value) in Self.reportedSettings(facts.reported) {
@@ -441,6 +441,12 @@ public final class NikonCameraSession: CameraSession {
     /// Every Z body's live-view header carries a frame-counting timecode field, at the movie rate
     /// the body reports (its screen-size token encodes whole frames per second). Whether it runs
     /// is the observation, not the capability.
+    /// The body's gauge as a fraction on its declared fifths; an absent reading stays unknown.
+    public static func batteryFraction(_ rawBatteryLevel: Int) -> Double? {
+        let gauge = NikonCameraBatteryGauge.gauge(rawBatteryLevel: rawBatteryLevel)
+        return gauge == .unknown ? nil : Double(gauge.filledBars) / Double(NikonCameraBatteryGauge.barCount)
+    }
+
     static func timecodeCapability(_ reported: PTPCameraPropertySnapshot) -> TimecodeCapability {
         .supported(reported.fps.map { .frames(rate: Rational($0), dropFrame: nil) })
     }

@@ -88,6 +88,9 @@ struct NikonCameraSessionTests {
         let battery = session.refresh().power.battery
         #expect(battery.value == 0.8)
         #expect(battery.precision == .quantized(step: 0.2))
+        #expect(NikonCameraSession.batteryFraction(58) == 0.6)
+        #expect(NikonCameraSession.batteryFraction(1) == 0.2)
+        #expect(NikonCameraSession.batteryFraction(0) == nil)
     }
 
     @Test("Every advertised writable value reaches the write queue; none is silently unsupported")

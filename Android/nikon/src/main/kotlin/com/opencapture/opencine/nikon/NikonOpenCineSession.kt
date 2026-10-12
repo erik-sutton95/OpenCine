@@ -353,7 +353,7 @@ class NikonOpenCineSession(
                     current.power.copy(
                         battery =
                             current.power.battery.observe(
-                                properties.batteryPercent?.let { it / 100.0 },
+                                properties.batteryPercent?.let(::batteryFraction),
                                 at,
                                 // Nikon BatteryLevel is a five-step gauge (A5-01), not a percent.
                                 BATTERY_PRECISION,
@@ -383,6 +383,11 @@ class NikonOpenCineSession(
 
         /** The body's battery gauge steps: five bars, so a reading is never finer than a fifth. */
         val BATTERY_PRECISION: ObservationPrecision = ObservationPrecision.Quantized(1.0 / NikonCameraBatteryGauge.BAR_COUNT)
+
+        /** The bars the body shows, as a fraction on [BATTERY_PRECISION]'s steps; no reading stays unknown. */
+        fun batteryFraction(rawBatteryLevel: Int): Double? = NikonCameraBatteryGauge.gauge(rawBatteryLevel)
+            .takeIf { it != NikonCameraBatteryGauge.Unknown }
+            ?.let { it.filledBars.toDouble() / NikonCameraBatteryGauge.BAR_COUNT }
 
         /**
          * Every Z body's live-view header carries a frame-counting timecode at the movie rate the body

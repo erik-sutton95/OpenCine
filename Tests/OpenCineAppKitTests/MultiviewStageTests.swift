@@ -103,6 +103,17 @@ import Testing
         let first = try #require(stage[0])
         #expect(first.name == "Camera A" && first.tally == "STBY" && first.battery == 76)
         #expect(first.timecode == "01:02:03" && first.status == nil)
+        // A coarse observation carries the camera's gauge, never a percentage claim.
+        let cameraID = try #require(group.entries[0].cameraSession)
+        let observed = try #require((await state()).cameras[cameraID])
+        var coarse = observed
+        coarse.power.battery = ObservedValue(
+            0.6, origin: .cameraReported, at: nil, precision: .quantized(step: 0.2))
+        let gauge = MultiviewTile(group.entries[0], summary: group.summary(
+            at: await state(), telemetryMaxAge: .seconds(30)).entries[0], snapshot: coarse)
+        #expect(gauge.battery == nil)
+        #expect(gauge.batteryBars == 3 && gauge.batteryBarCount == 5)
+        #expect(first.batteryBars == nil)
         // The link as reported: a closed session is not connecting, and no report is a wait.
         var link = group.summary(at: await state(), telemetryMaxAge: .seconds(30)).entries[0]
         link.control = .reported(.disconnected(.linkLost))

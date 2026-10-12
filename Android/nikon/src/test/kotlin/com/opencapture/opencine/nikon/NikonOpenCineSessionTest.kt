@@ -223,6 +223,10 @@ class NikonOpenCineSessionTest {
             assertEquals(0.8, battery.value)
             assertEquals(ObservationPrecision.Quantized(0.2), battery.precision)
             seam.closeNow(SessionCloseReason.REQUESTED)
+            // The value sits on the body's steps: an undocumented level rounds up, no reading is unknown.
+            assertEquals(0.6, NikonOpenCineSession.batteryFraction(58))
+            assertEquals(0.2, NikonOpenCineSession.batteryFraction(1))
+            assertNull(NikonOpenCineSession.batteryFraction(0))
         }
 
     @Test
