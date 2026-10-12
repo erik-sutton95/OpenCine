@@ -93,6 +93,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineFrameIOApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineAppUITesting",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -301,6 +306,8 @@
       "OpenCineAppKitTests",
       "OpenCineAppKitApple",
       "OpenCineAppKitAppleTests",
+      "OpenCineFrameIOApple",
+      "OpenCineFrameIOAppleTests",
       "OpenCineAppUITesting",
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",

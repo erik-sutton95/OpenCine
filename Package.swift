@@ -19,6 +19,10 @@ import PackageDescription
 // - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
 //   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMedia, OpenCineMotion, OpenCineRelay and
 //   OpenCineRelayApple only: never an integration, an app or a third-party package.
+// - OpenCineFrameIOApple (Frame.io's Apple host: keychain token, Info.plist configuration, web
+//   sign-in, saved destination, upload history and the delivery services every app composes)
+//   builds on OpenCineFrameIO, OpenCineAppKit and OpenCineAppKitApple only. Keychain service,
+//   defaults keys and bundle arrive from the app.
 // - OpenCineCameraControls (the camera apps' controls over the camera vocabulary: face AF,
 //   capture sheets, live chrome, gimbal views) builds on OpenCineCameraVocabulary, MonitorUI,
 //   MonitorPresentation, OpenCineAppKit, OpenCineAppKitApple, Core, Media and Motion only: never
@@ -50,6 +54,7 @@ let package = Package(
         // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
         .library(name: "OpenCineAppKitApple", targets: ["OpenCineAppKitApple"]),
+        .library(name: "OpenCineFrameIOApple", targets: ["OpenCineFrameIOApple"]),
         .library(name: "OpenCineCameraControls", targets: ["OpenCineCameraControls"]),
         // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
         // it into an app.
@@ -164,6 +169,10 @@ let package = Package(
         // protocols; iOS only, empty elsewhere.
         .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
         .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
+        .target(name: "OpenCineFrameIOApple", dependencies: ["OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
+        .testTarget(
+            name: "OpenCineFrameIOAppleTests",
+            dependencies: ["OpenCineFrameIOApple", "OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
         // The camera apps' controls over the camera vocabulary (app composition next to the app
         // shell). App differences arrive as host values, never as brand branches.
         .target(
