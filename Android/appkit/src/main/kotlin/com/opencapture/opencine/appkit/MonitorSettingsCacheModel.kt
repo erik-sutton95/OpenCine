@@ -22,6 +22,24 @@ public class MonitorSettingsCacheSource(
     internal val clear: suspend () -> Unit,
     internal val clearSummary: (() -> String?)? = null,
 )
+
+/**
+ * The settings cache source over this library's own directory, so Settings counts and clears exactly
+ * what the gallery writes. [value] is the observed library state the source is captured from.
+ */
+public fun <P> MonitorMediaLibraryModel<P>.settingsCacheSource(
+    value: MonitorMediaLibraryState<P> = state.value,
+): MonitorSettingsCacheSource {
+    val admission = actionToken
+    val revision = value.cacheRevision
+    return MonitorSettingsCacheSource(
+        MonitorSettingsCacheIdentity(cache.directory.root.absolutePath, value.lifetimeToken.toString()),
+        revision,
+        isCurrent = { isCurrent(admission) && state.value.cacheRevision == revision },
+        count = { cache.directory.totalByteCount() },
+        clear = { clearCache() },
+    )
+}
 public data class MonitorSettingsCacheState(
     public val bytes: Long? = null,
     public val clearing: Boolean = false,
