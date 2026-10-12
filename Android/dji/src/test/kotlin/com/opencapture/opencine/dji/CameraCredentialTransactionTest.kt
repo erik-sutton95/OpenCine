@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.platform.withCredentialIO
+import com.opencapture.opencine.platform.CallbackOperationOwner
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.core.ConnectTarget

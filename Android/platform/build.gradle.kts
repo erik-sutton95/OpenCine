@@ -19,5 +19,8 @@ android {
 }
 
 dependencies {
+    // The camera access-point join and the credential IO helper suspend.
+    api(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
