@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.CommandStage
+import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
@@ -149,6 +150,39 @@ class MonitorCapturePresentationTest {
         assertEquals(explicit, values.take(3))
         assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(1000)), values[3])
         assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(101_000)), values.last())
+    }
+
+    /**
+     * R-03: the cache keys on everything a drum is built from, the key and the advertised domain (its
+     * listed values, range and step). A camera that re-advertises its list over the same range
+     * rebuilds the drum, and the shown value is read fresh on every pass, never cached.
+     */
+    @Test fun aReadvertisedListRebuildsTheDrumAndTheShownValueStaysLive() = runTest {
+        val luna = FakeCameraSession.lunaLike()
+        val video = assertNotNull(luna.behavior.modes[0x01])
+        val presets = video.copy(descriptors = video.descriptors.map {
+            if (it.key != SettingKey.WHITE_BALANCE) it
+            else SettingDescriptor(SettingKey.WHITE_BALANCE, domain = SettingDomain(
+                listOf(SettingValue.WhiteBalance(WhiteBalanceValue.Auto), SettingValue.WhiteBalance(WhiteBalanceValue.Preset("Sunny"))),
+                2700.0..6500.0, 100.0))
+        })
+        val camera = FakeCameraSession(luna.behavior.copy(modes = luna.behavior.modes + (0x02 to presets)), luna.device)
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        runCurrent()
+        val field = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE))
+        assertEquals(40, field.choices.size)
+        assertEquals("4000K", field.label)
+        val kelvin = SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(5600))
+        assertTrue(control.commit(field.choices.first { it.value == kelvin }, field))
+        val shown = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE))
+        assertEquals("5600K", shown.label)
+        assertSame(field.choices, shown.choices)
+        camera.cameraSwitchesMode(0x02); runCurrent()
+        val readvertised = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE)).choices
+        assertEquals(41, readvertised.size)
+        assertEquals(listOf("Auto", "Sunny"), readvertised.take(2).map { it.label })
     }
 
     @Test fun kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
