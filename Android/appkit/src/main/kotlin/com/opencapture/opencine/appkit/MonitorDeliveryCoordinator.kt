@@ -165,7 +165,9 @@ public class MonitorDeliveryCoordinator(
         val note = remote?.routeNote?.invoke() ?: return outcome
         return when (outcome) {
             is MonitorDeliveryBatchOutcome.Uploaded -> MonitorDeliveryBatchOutcome.Uploaded(listOf(outcome.summary, note).filter { it.isNotEmpty() }.joinToString("; "))
-            is MonitorDeliveryBatchOutcome.Failed -> MonitorDeliveryBatchOutcome.Failed("${outcome.message}; $note")
+            // One sentence: "Cancelled; camera rejoined.", never "Cancelled.; camera rejoined".
+            is MonitorDeliveryBatchOutcome.Failed -> MonitorDeliveryBatchOutcome.Failed(
+                "${outcome.message.removeSuffix(".")}; $note".let { if (it.endsWith(".")) it else "$it." })
             else -> outcome
         }
     }

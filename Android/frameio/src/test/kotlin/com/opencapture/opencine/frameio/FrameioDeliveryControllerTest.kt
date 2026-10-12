@@ -298,6 +298,20 @@ class FrameioDeliveryControllerTest {
     }
 
     @Test
+    fun `a failed run and its route note read as one sentence`() = runTest {
+        withReadyRoot { root ->
+            val run = MonitorDeliveryRemoteRun<Clip>("Uploading", upload = { _, _, _ ->
+                throw FrameioDeliveryException("SIMULATED upload refused.")
+            }, routeNote = { "camera rejoined" })
+
+            val outcome = deliver(listOf(Clip("clip", root.clip("C0008.MOV").toFile())), run)
+
+            assertEquals("SIMULATED upload refused; camera rejoined.",
+                assertIs<MonitorDeliveryBatchOutcome.Failed<File>>(outcome).message)
+        }
+    }
+
+    @Test
     fun `concurrent rejoin callers share one camera attempt and result`() = runTest {
         withReadyRoot { root ->
             val reachability = MutableReachability(FrameioNetworkState.CAMERA_ACCESS_POINT)
