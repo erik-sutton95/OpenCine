@@ -333,4 +333,70 @@
             }.ignoresSafeArea()
         }
     }
+
+    /// The delivery popup of one selection (A2-74). The preparation model and its begin action
+    /// are made once per `selectionID`, on first display, never by a parent's re-render; a new
+    /// selection makes a new pair and the old model closes when its popup leaves. `make` returns
+    /// nil when the selection's source is gone, which dismisses the popup.
+    public struct MonitorOperatorDeliveryPopupHost<
+        Curve: Equatable & Sendable, Format: Equatable & Sendable,
+        Project: Sendable, Context: Sendable, Lease: Sendable, Artwork: View
+    >: View {
+        public typealias Preparation = MonitorDeliveryPreparationModel<
+            Curve, Format, Project, Context, Lease
+        >
+        public typealias Made = (model: Preparation, begin: (Preparation.Request) -> Void)
+        private let selectionID: AnyHashable
+        private let make: @MainActor () -> Made?
+        private let onDismiss: () -> Void
+        private let remoteArtwork: () -> Artwork
+        public init(
+            selectionID: AnyHashable, make: @escaping @MainActor () -> Made?,
+            onDismiss: @escaping () -> Void, @ViewBuilder remoteArtwork: @escaping () -> Artwork
+        ) {
+            self.selectionID = selectionID
+            self.make = make
+            self.onDismiss = onDismiss
+            self.remoteArtwork = remoteArtwork
+        }
+        public var body: some View {
+            MonitorOperatorDeliveryPopupBody(make: make, onDismiss: onDismiss, remoteArtwork: remoteArtwork)
+                .id(selectionID)
+        }
+    }
+
+    @MainActor private final class MonitorDeliveryLazyPreparation<Made> {
+        private let make: @MainActor () -> Made?
+        lazy var made: Made? = make()
+        init(_ make: @escaping @MainActor () -> Made?) { self.make = make }
+    }
+
+    private struct MonitorOperatorDeliveryPopupBody<
+        Curve: Equatable & Sendable, Format: Equatable & Sendable,
+        Project: Sendable, Context: Sendable, Lease: Sendable, Artwork: View
+    >: View {
+        typealias Host = MonitorOperatorDeliveryPopupHost<Curve, Format, Project, Context, Lease, Artwork>
+        // Building the holder is cheap and never calls `make`; SwiftUI keeps the first one.
+        @State private var lazy: MonitorDeliveryLazyPreparation<Host.Made>
+        private let onDismiss: () -> Void
+        private let remoteArtwork: () -> Artwork
+        init(
+            make: @escaping @MainActor () -> Host.Made?, onDismiss: @escaping () -> Void,
+            remoteArtwork: @escaping () -> Artwork
+        ) {
+            _lazy = State(wrappedValue: MonitorDeliveryLazyPreparation(make))
+            self.onDismiss = onDismiss
+            self.remoteArtwork = remoteArtwork
+        }
+        var body: some View {
+            if let made = lazy.made {
+                MonitorOperatorDeliveryPopupOverlay(
+                    model: made.model, onDismiss: onDismiss, onBegin: made.begin,
+                    remoteArtwork: remoteArtwork)
+            } else {
+                // The selection's source is gone: there is nothing to deliver, so leave.
+                Color.clear.onAppear(perform: onDismiss)
+            }
+        }
+    }
 #endif

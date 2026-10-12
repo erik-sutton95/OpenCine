@@ -81,6 +81,8 @@ struct AppKitRules {
         let package: Set<String> = [
             "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit",
             "OpenCineAppKitApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion",
+            // The shared clip delivery exports through the Apple media exporter.
+            "OpenCineApple",
         ]
         let system: Set<String> = [
             "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",

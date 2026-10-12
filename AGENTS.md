@@ -106,14 +106,19 @@ package dependency.
   a native sample bus or runtime owner. Views take values and actions; brand variation is a theme value.
 - The app shell (`OpenCineAppKit`, `appkit`) builds on Core, Media, Multicam and UI, never on an
   integration or an app: apps list their integrations and fill its typed slots.
-- `OpenCineAppKitApple` (the Apple composition layer of the app shell: code both camera apps share
-  on iOS, such as head tracking) builds on `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`,
-  `OpenCineApple`, `OpenCineMotion`, `OpenCineRelay` and `OpenCineRelayApple` only: never an
-  integration, an app or a third-party package. Same no-brand and no-mutable-global rules as the
-  app shell; app differences arrive as host values and protocols.
+- `OpenCineAppKitApple` (the Apple composition layer of the app shell: code the camera apps share
+  on iOS, such as head tracking, the delivery coordinator and the share presenter) builds on
+  `OpenCineAppKit`, `MonitorUI`, `MonitorPresentation`, `OpenCineApple`, `OpenCineMotion`,
+  `OpenCineRelay` and `OpenCineRelayApple` only: never an integration, an app or a third-party
+  package. Same no-brand and no-mutable-global rules as the app shell; app differences arrive as
+  host values and protocols.
+- `OpenCineFrameIOApple` (Frame.io's Apple host every app composes: keychain token, Info.plist
+  configuration, web sign-in, saved destination, upload history, the Frame.io mark and the
+  delivery remote services) builds on `OpenCineFrameIO`, `OpenCineAppKit` and
+  `OpenCineAppKitApple` only. The keychain service, defaults keys and bundle are app values.
 - Camera controls (`OpenCineCameraControls`, `camera-controls`) hold the capture sheets, live chrome,
-  gimbal, LUT and assist views and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
-  the camera vocabulary, UI, the app shell, Core, Media and Motion, never on DJI or another
+  gimbal, LUT and assist views, the log-camera clip delivery and the operator preferences over the camera vocabulary. App composition, next to the app shell: they build on
+  the camera vocabulary, UI, the app shell, Core, Media, Motion and `OpenCineApple` (the clip exporter), never on DJI or another
   integration, an app or a third-party package. App differences arrive as host values (label
   profile, state, theme), never as brand branches. Their edge to the camera vocabulary (one per
   platform) is listed in atlas `allowed_target_edges`; UI itself still never builds on an

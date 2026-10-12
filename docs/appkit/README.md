@@ -491,6 +491,31 @@ never infers a cleanup path from an original or cached URL.
 Mirrored `MonitorDeliveryModelTests` and `MonitorDeliveryModelTest` use manual gates and timers.
 Native adapter and physical presentation checks remain separate consumer verification.
 
+### One delivery owner per app (iOS)
+
+Every app composes the same owners and keeps only its camera adapter, brand and namespaces:
+
+- `MonitorDeliveryCoordinator` (`OpenCineAppKitApple`) is the app-scoped run: one
+  `MonitorDeliveryModel` over `MonitorDeliveryBatchProgress`, the batch policy, per-item Photos
+  with access asked before caching, upload history (skip unless re-upload), metadata text with the
+  share, and `cameraTransferReleased()` for a playback barrier that waits only while a run caches
+  from the camera (it never cancels a run). The app supplies a `MonitorDeliverySource` (originals,
+  still, export into the store, filename, metadata) and, for a remote, a `MonitorDeliveryRemoteRun`.
+- `MonitorDeliveryExportStore` (`OpenCineMedia`, one `.shared` instance under Caches) owns export
+  output: a directory per export so the camera's filename never overwrites another export, share
+  leases, pruning at launch and by Settings' clear, and the bytes Settings counts
+  (`MonitorDeliveryCoordinator.cacheSource`). Exports are transient and never in Documents.
+- `View.monitorDeliverySharePresenter(_:)` is the one share sheet, installed once at the app root
+  and presented from the topmost controller, above any player or photo cover.
+- `MonitorOperatorDeliveryPopupHost` (`OpenCineCameraControls`) makes the preparation model once
+  per selection identity; `MonitorClipDelivery` is the shared host of the log-curve camera apps.
+- `MonitorInternetHop` (`OpenCineAppKit`) is the one internet hop: refused while another runs,
+  tokens with transfer, a single return the app's route must still admit, and the system path
+  monitor as the one probe. The native leave and rejoin stay the app's Wi-Fi joiner, through its
+  `Port`; `deliveryService(route:admission:)` is the delivery's internet lease.
+- `ShellModel.close(.retain)` leaves the monitor with an open cover kept, so a hop that drops the
+  camera keeps the gallery page, its selection and its popup.
+
 ## Reliability reporting, incidents and problem reports (iOS)
 
 The network policy of the apps' opt-in crash and incident reporting, without the reporting SDK
