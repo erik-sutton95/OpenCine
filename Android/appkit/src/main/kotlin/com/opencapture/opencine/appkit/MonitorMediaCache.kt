@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -234,6 +235,8 @@ public class MonitorMediaCacheDirectory(public val root: File,
             pending.forEach { if (it.exists() && !it.deleteRecursively()) throw IOException("Cannot delete retired cache") }
         }
     }
+    /** Per-clip shot color codes kept beside this directory's catalog; one store per directory. */
+    public val shotColors: MonitorMediaShotColorStore by lazy { MonitorMediaShotColorStore(this) }
     public suspend fun totalByteCount(): Long = withContext(Dispatchers.IO) {
         (listOf(root) + retiredRoots(includeUnprepared = true)).sumOf { directory ->
             directory.walkTopDown().filter { it.isFile }.sumOf { it.length() }
@@ -250,6 +253,57 @@ public class MonitorMediaCacheDirectory(public val root: File,
         // UUID.fromString also accepts abbreviated groups. Require the entire canonical suffix.
         return runCatching { UUID.fromString(suffix).toString().equals(suffix, ignoreCase = true) }.getOrDefault(false)
     }
+}
+
+/**
+ * Shot color codes by clip path (`color.json`), metadata a catalog clear may keep or drop. The map is
+ * cached per directory generation, so a clear is never answered from memory, and a writer admitted
+ * at an older generation never recreates cleared metadata.
+ */
+public class MonitorMediaShotColorStore internal constructor(private val directory: MonitorMediaCacheDirectory) {
+    private var map: Map<String, Int> = emptyMap()
+    private var mapGeneration: Long? = null
+
+    /** Read-only: never migrates or recreates cleared metadata. */
+    @Synchronized public fun color(path: String): Int? = load()[path]
+
+    /** Admitted only while the directory is still at [generation]; negative codes are not colors. */
+    @Synchronized public fun remember(path: String, code: Int, generation: Long = directory.generation) {
+        if (code >= 0) persist(generation) { it + (path to code) }
+    }
+
+    /** One-time import of an app's legacy codes; codes already stored win. */
+    @Synchronized public fun adopt(legacy: Map<String, Int>) {
+        persist(directory.generation) { stored -> legacy.filterValues { it >= 0 } + stored }
+    }
+
+    private fun load(): Map<String, Int> {
+        val generation = directory.generation
+        if (mapGeneration == generation) return map
+        map = runCatching {
+            val json = JSONObject(directory.read(ADDRESS).toString(Charsets.UTF_8))
+            json.keys().asSequence().associateWith { json.optInt(it, -1) }.filterValues { it >= 0 }
+        }.getOrDefault(emptyMap())
+        mapGeneration = generation
+        return map
+    }
+
+    private fun persist(generation: Long, change: (Map<String, Int>) -> Map<String, Int>) {
+        if (directory.generation != generation) return
+        val next = change(load())
+        val bytes = JSONObject(next).toString().toByteArray(Charsets.UTF_8)
+        // The lease is taken at the admitted generation, so a clear before commit retires it.
+        val writer = synchronized(directory.lock) {
+            if (directory.revision != generation) return
+            directory.beginWrite(ADDRESS)
+        }
+        try { writer.writeNow(bytes); writer.commit(MediaTransferReceipt(bytes.size.toLong())) }
+        catch (_: MonitorMediaCacheException) { return }
+        finally { writer.abort() }
+        map = next; mapGeneration = generation
+    }
+
+    private companion object { const val ADDRESS = "color.json" }
 }
 
 /** Abort only removes its unique staging path. A retired writer can never commit into a new root. */
