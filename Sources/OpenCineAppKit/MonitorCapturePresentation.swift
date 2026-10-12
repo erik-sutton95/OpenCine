@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCore
+import OpenCineMedia
 
 /// A drum detent keeps its typed command value. Display copy never becomes a wire mapping.
 public struct MonitorCaptureChoice: Hashable, Sendable {
@@ -53,9 +54,7 @@ public enum MonitorCapturePresentation {
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"
-        case .exposureCompensation(let stops):
-            stops.numerator == 0 ? "0.0" : (stops.numerator < 0 ? "−" : "+")
-                + String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), abs(stops.doubleValue))
+        case .exposureCompensation(let stops): ExposureCompensation.label(stops: stops.doubleValue)
         case .focusMode(.manual): "MF"
         case .focusMode(.single): "AF-S"
         case .focusMode(.continuous): "AF-C"

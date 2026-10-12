@@ -21,7 +21,7 @@ import Testing
     }()
 
     @Test func everyRowMatches() throws {
-        #expect(Self.vectors.count >= 18)
+        #expect(Self.vectors.count >= 26)
         for row in Self.vectors {
             let expected = try #require(row.last)
             let actual: String
@@ -35,6 +35,10 @@ import Testing
                 actual = MonitorCapturePresentation.label(.shutter(.angle(Double(row[1])!)))
             case "aperture":
                 actual = MonitorCapturePresentation.label(.aperture(Double(row[1])!))
+            case "ev":
+                actual = MonitorCapturePresentation.label(
+                    .exposureCompensation(Rational(Int(row[1])!, Int(row[2])!)))
+                #expect(actual == ExposureCompensation.label(stops: Double(row[1])! / Double(row[2])!))
             default:
                 Issue.record("unknown kind \(row[0])")
                 continue

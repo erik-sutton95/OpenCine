@@ -10,6 +10,7 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.WhiteBalanceValue
+import com.opencapture.opencine.media.ExposureCompensation
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -63,9 +64,7 @@ public object MonitorCapturePresentation {
             is WhiteBalanceValue.Preset -> wb.id
             is WhiteBalanceValue.Kelvin -> "${wb.kelvin}K"
         }
-        is SettingValue.ExposureCompensation -> if (value.stops.numerator == 0) "0.0"
-            else (if (value.stops.numerator < 0) "−" else "+") +
-                String.format(java.util.Locale.ROOT, "%.1f", kotlin.math.abs(value.stops.doubleValue))
+        is SettingValue.ExposureCompensation -> ExposureCompensation.label(value.stops.doubleValue)
         is SettingValue.FocusMode -> when (value.mode) {
             com.opencapture.opencine.core.FocusMode.MANUAL -> "MF"
             com.opencapture.opencine.core.FocusMode.SINGLE -> "AF-S"

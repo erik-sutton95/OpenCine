@@ -179,7 +179,7 @@ public struct EvComp: Hashable, Sendable, Comparable {
     public static let maxThirds = 9
     public static let zero = EvComp(thirds: 0)
     /// Operator minus (U+2212) so `−3.0` matches the bar / drum.
-    public static let minusSign = "\u{2212}"
+    public static let minusSign = ExposureCompensation.minusSign
     public static let allCases: [EvComp] = (minThirds...maxThirds).map { EvComp(thirds: $0) }
 
     public init(thirds: Int) {
@@ -221,13 +221,7 @@ public struct EvComp: Hashable, Sendable, Comparable {
     public var rawValue: UInt8 { UInt8(clamping: 0x10 + thirds) }
 
     /// `0.0`, `+1.0`, `−1.3`.
-    public var label: String {
-        if thirds == 0 { return "0.0" }
-        let sign = thirds > 0 ? "+" : Self.minusSign
-        let absThirds = abs(thirds)
-        let frac = [".0", ".3", ".7"][absThirds % 3]
-        return "\(sign)\(absThirds / 3)\(frac)"
-    }
+    public var label: String { ExposureCompensation.label(stops: Double(thirds) / 3) }
 
     public static func < (lhs: EvComp, rhs: EvComp) -> Bool { lhs.thirds < rhs.thirds }
 }
