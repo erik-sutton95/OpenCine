@@ -22,7 +22,9 @@ public enum MonitorDeliveryNativeFileFailure: LocalizedError {
         guard !Task.isCancelled, ifCurrent(), !Task.isCancelled else { throw CancellationError() }
         // Entered PHPhotoLibrary work retains its actual OS transaction contract. Immutable
         // selection also preserves the prior count without a mutable cross-executor counter.
-        try await PHPhotoLibrary.shared().performChanges {
+        // PhotoKit runs the block on its own queue, so it must not inherit main-actor isolation
+        // (Swift 6 traps on entry otherwise: OPENPOCKETCINE-IOS-3P).
+        try await PHPhotoLibrary.shared().performChanges { @Sendable in
             for url in videos { PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }
         }
         return videos.count

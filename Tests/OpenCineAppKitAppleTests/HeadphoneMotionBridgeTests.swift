@@ -34,6 +34,30 @@ final class HeadphoneMotionBridgeTests: XCTestCase {
         )
     }
 
+    /// OPENPOCKETCINE-IOS-3N: Core Motion calls the handler on the request's queue, so a handler
+    /// that inherited the bridge's main-actor isolation trapped when head tracking started.
+    func testCoreMotionDeliversSamplesOnTheMotionQueue() async {
+        let motion = PendingHeadphoneMotionManager()
+        let bridge = makeBridge(
+            motion: motion, authorizationStatus: { .authorized }, uptime: { 100 })
+        let host = FakeHeadTrackHost()
+        host.headTrackingEnabled = true
+        bridge.attach(host: host)
+        defer { bridge.detach() }
+        guard let queue = motion.queues.first, let start = motion.starts.first else {
+            return XCTFail("Head tracking did not request motion")
+        }
+        nonisolated(unsafe) let handler = start
+        let delivered = expectation(description: "Sample delivered on the motion queue")
+        queue.addOperation {
+            XCTAssertFalse(Thread.isMainThread)
+            handler(HeadphoneMotionSample(timestamp: 99.95), nil)
+            delivered.fulfill()
+        }
+        await fulfillment(of: [delivered], timeout: 1)
+        XCTAssertEqual(bridge.receivedHeadSampleAt, 99.95)
+    }
+
     func testStoppingPendingPermissionCancelsTheRequestAndFencesItsCallback() {
         let motion = PendingHeadphoneMotionManager()
         let bridge = makeBridge(
@@ -195,6 +219,7 @@ private final class PendingHeadphoneMotionManager: CMHeadphoneMotionManager {
     var active = false
     var connectionActive = false
     var starts: [CMHeadphoneMotionManager.DeviceMotionHandler] = []
+    var queues: [OperationQueue] = []
     var stopCount = 0
     var onStop: (() -> Void)?
     override var isDeviceMotionAvailable: Bool { true }
@@ -207,6 +232,7 @@ private final class PendingHeadphoneMotionManager: CMHeadphoneMotionManager {
         withHandler handler: @escaping CMHeadphoneMotionManager.DeviceMotionHandler
     ) {
         starts.append(handler)
+        queues.append(queue)
     }
     override func stopDeviceMotionUpdates() {
         stopCount += 1

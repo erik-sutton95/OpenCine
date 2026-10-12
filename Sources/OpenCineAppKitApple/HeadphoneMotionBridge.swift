@@ -408,7 +408,9 @@
             requestedAt = uptime()
             didToastStartupWaiting = false
             publishMotionWaitingNote()
-            motion.startDeviceMotionUpdates(to: motionQueue) { [weak self] sample, error in
+            // Core Motion calls this on motionQueue: no main-actor isolation, or Swift 6 traps on
+            // entry (OPENPOCKETCINE-IOS-3N). The body touches only the nonisolated sample inbox.
+            motion.startDeviceMotionUpdates(to: motionQueue) { @Sendable [weak self] sample, error in
                 if let error {
                     Task { @MainActor in
                         guard let self else { return }
