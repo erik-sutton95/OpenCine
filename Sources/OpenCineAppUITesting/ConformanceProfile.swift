@@ -1,5 +1,5 @@
 #if os(iOS)
-import MonitorPresentation
+import OpenCineCore
 
 /// What the app under test can do, declared once by its UI test bundle's principal class
 /// (`NSPrincipalClass`, which XCTest creates before any test runs). Scenarios derive their
@@ -9,9 +9,9 @@ public struct ConformanceProfile {
     /// Names evidence only.
     public var app: String
     /// The value the app's live UI renders from for its review body.
-    public var capabilities: MonitorCapabilities
+    public var capabilities: MonitorLayoutCapabilities
 
-    public init(app: String, capabilities: MonitorCapabilities) {
+    public init(app: String, capabilities: MonitorLayoutCapabilities) {
         self.app = app
         self.capabilities = capabilities
     }

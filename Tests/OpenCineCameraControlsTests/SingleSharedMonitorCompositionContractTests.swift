@@ -31,6 +31,16 @@ struct SingleSharedMonitorCompositionContractTests {
         }
     }
 
+    /// A5-08: `MonitorLayoutCapabilities` is the one layout type; no presentation twin survives.
+    @Test func oneLayoutCapabilityType() throws {
+        let files = try FileManager.default.contentsOfDirectory(
+            at: Self.root.appending(path: "Sources/MonitorPresentation"), includingPropertiesForKeys: nil)
+        for file in files where file.pathExtension == "swift" {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            #expect(!source.contains("struct MonitorCapabilities"), "\(file.lastPathComponent) keeps a layout twin")
+        }
+    }
+
     @Test func theSurfaceOwnsStatusRailAssistsInspectorAndPopupOnce() throws {
         let source = try Self.read(Self.directory + Self.surface)
         let calls = Self.calls(in: source)
