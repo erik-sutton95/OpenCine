@@ -54,8 +54,8 @@ interface LunaConnectPort : CameraMediaServiceSource {
     fun disconnect()
     /** A new core session for the next connection; the previous one closes as replaced. */
     fun openSession(): CameraSession
-    /** Drops the camera's saved Wi-Fi. The approval identity stays. */
-    fun forget(id: String)
+    /** Drops the camera's saved Wi-Fi off Main. The approval identity stays. */
+    suspend fun forget(id: String)
 }
 
 /** The Luna failures with the copy the backend has always shown (Swift `ConnectionFailure.luna`). */

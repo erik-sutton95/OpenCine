@@ -25,6 +25,8 @@ import com.opencapture.opencine.insta360.shell.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
@@ -53,6 +55,10 @@ class LunaBackend(
     private val bluetooth = context.getSystemService(BluetoothManager::class.java)
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    /** The host's Wi-Fi store is Keystore-sealed and blocks in Keystore2 backoff (the Pocket ANR,
+     * OPENPOCKETCINE-ANDROID-13): never on Main, one transaction at a time. */
+    private val wifiStore = Mutex()
+    private suspend fun <T> wifiStoreIO(operation: () -> T): T = wifiStore.withLock { withContext(Dispatchers.IO) { operation() } }
     private val preferences = context.getSharedPreferences(clientIdentityPreferences, Context.MODE_PRIVATE)
     private val clientIdentity: String = preferences.getString("authorization-id", null) ?: UUID.randomUUID().toString().uppercase().also { preferences.edit().putString("authorization-id", it).apply() }
     override val capabilities = setOf(
@@ -197,7 +203,7 @@ class LunaBackend(
         val authBody = LunaWire.blob(1, identity) + LunaWire.integer(2, 1) + LunaWire.blob(3, identity)
         // iOS `connect`: Bluetooth first whenever the camera advertises (it wakes the camera AP, which the
         // Luna turns off when idle); saved Wi-Fi is the fallback for a camera this run has not seen.
-        val network = savedWifi(id)?.takeIf { saved -> _found.value.none { it.id == id } }?.let { (ssid, password) ->
+        val network = wifiStoreIO { savedWifi(id) }?.takeIf { saved -> _found.value.none { it.id == id } }?.let { (ssid, password) ->
             setPhase(ConnectionPhase.JOINING_WIFI)
             try { joinRetrying(ssid, password, budgetMs = 20_000).also { _joinedSSID.value = ssid } }
             catch (error: Exception) {
@@ -251,7 +257,7 @@ class LunaBackend(
         val ssid = LunaWire.text(wifi, 1); val password = LunaWire.text(wifi, 2)
         check(ssid.isNotBlank() && password.length in 8..63)
         ble.close(); gatt = null
-        saveWifi(id, ssid, password)
+        wifiStoreIO { saveWifi(id, ssid, password) }
         setPhase(ConnectionPhase.JOINING_WIFI)
         // iOS joins for up to 120 s after the BLE handoff: the AP can take most of a minute to come up.
         return joinRetrying(ssid, password, budgetMs = 120_000).also { _joinedSSID.value = ssid }
@@ -388,7 +394,7 @@ class LunaBackend(
         stopScan(); connectJob?.cancel(); runCatching { socket?.close() }
         setPhase(ConnectionPhase.IDLE); _failure.value = null; _failureDetail.value = null
     }
-    override fun forget(id: String) = forgetWifi(id)
+    override suspend fun forget(id: String) = wifiStoreIO { forgetWifi(id) }
     override fun close() { disconnect(); cleanup(); scope.cancel() }
     override fun sceneActive(active: Boolean) {
         if (!active) { wasInactive = true; return }
