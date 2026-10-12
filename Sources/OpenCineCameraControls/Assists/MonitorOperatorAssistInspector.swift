@@ -25,6 +25,16 @@ public struct MonitorOperatorSignalOptions {
         self.level = level; self.instantReview = instantReview
         self.resetFalseColor = resetFalseColor; self.resetZebra = resetZebra
     }
+
+    /// The source supplies options for a tool that has no shared ones (level, instant review),
+    /// so its palette chip opens the inspector (A1-23).
+    public func offers(_ tool: MonitorAssistSelection) -> Bool {
+        switch tool {
+        case .level: level != nil
+        case .instantReview: instantReview != nil
+        default: false
+        }
+    }
 }
 
 /// Common tool selection, menus, help and comparison controls around one bounded native preview.

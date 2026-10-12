@@ -79,9 +79,9 @@ CGRect live layout built from `FieldMonitorLayout` (`LiveMonitorLayout.fieldMoni
 `LivePopupPlacement`, `LiveChromeMetrics`, `InterfaceOrientationObserver`, `liveModuleFrame`
 and the `interfaceLocked` environment value). The Compose twin is `MonitorLiveLayout.kt`.
 
-Live app composition uses `MonitorOperatorLiveBody` in `OpenCineCameraControls` /
-`camera-controls` through the existing live surface, descriptor surface or generated-app Scene
-adapter. One owner places the canvas, status, system rail, palette, inspector and capture popup.
+Live app composition uses `MonitorOperatorLiveSurface` in `OpenCineCameraControls` /
+`camera-controls`, fed by a typed source, the vocabulary adapter or the generated-app Scene. One
+owner places the canvas, status, system rail, palette, inspector and capture popup.
 The lower UI primitives continue to take values and actions; app-specific native content enters
 bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
 for adapter boundaries, capture ownership and regression guards.

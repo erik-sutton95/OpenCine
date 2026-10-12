@@ -2368,7 +2368,6 @@ extension CameraDisplayState {
             media: media,
             liveFPS: liveFPS,
             cameraBatteryPercent: properties.batteryPercent ?? cameraBatteryPercent,
-            phoneBatteryPercent: phoneBatteryPercent,
             cameraName: cameraName,
             lens: properties.lens ?? lens,
             // Real warning state (OK / CHECK / HOT) once 0xD102 is polled — never a fabricated

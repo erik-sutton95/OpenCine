@@ -242,9 +242,13 @@ private fun SessionDisplaySettings(source: MonitorOperatorSettingsSource.Session
     val session = source.session
     MonitorPanelSettings(preferences.hdrDisplay, "Show the native monitor in HDR when the display supports it.",
         { preferences.hdrDisplay = it; onPreferenceChanged() })
-    MonitorOperatorDisplaySections(session.live, session.clean, source.assist,
+    MonitorOperatorDisplaySections(session.modes, session::chrome, source.assist,
         onChange = { mode, value ->
-            if (mode == MonitorDisplayMode.CLEAN) session.clean = value else session.live = value
+            when (mode) {
+                MonitorDisplayMode.LIVE -> session.live = value
+                MonitorDisplayMode.CLEAN -> session.clean = value
+                MonitorDisplayMode.COMMAND -> session.command = value
+            }
             onPreferenceChanged()
         }, available = setOf(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.CAMERA_VALUES,
             MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.REC_READOUT, MonitorDisplaySection.TIMECODE,

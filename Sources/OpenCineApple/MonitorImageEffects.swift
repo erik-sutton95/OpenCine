@@ -55,6 +55,36 @@ public struct MonitorCodeZebraSpec: Equatable, Sendable {
     }
 }
 
+extension MonitorCodeZebraSpec {
+    /// The monitor's zebra zones for one source curve and live ceiling, the ones every app
+    /// paints: the highlight on the hottest channel (WAVE 100 and the ceiling ratchet read the
+    /// maximum channel, and a blue-led sky has luma well under it), capped at the clip shelf so
+    /// 100% paints clipped detail; the midtone band on luma. 0 is paper black and 100 the ceiling.
+    public init(_ zebra: MonitorZebraSpec, transfer: MonitorTransfer, clipByte: Int) {
+        let highlight = zebra.highlightEnabled
+            ? ScopeDisplayScale.zebraHighlightNative(
+                monitorPercent: zebra.highlightIRE, transfer: transfer, clipByte: clipByte)
+            : nil
+        var lower: Double?
+        var upper: Double?
+        if zebra.midtoneEnabled {
+            let half = LiveZebra.midtoneHalfWidthIRE
+            let lo = ScopeDisplayScale.signalNative(
+                monitorPercent: zebra.midtoneIRE - half, transfer: transfer, clipByte: clipByte)
+            let hi = ScopeDisplayScale.signalNative(
+                monitorPercent: zebra.midtoneIRE + half, transfer: transfer, clipByte: clipByte)
+            let centre = (lo + hi) * 0.5
+            let halfWidth = abs(hi - lo) * 0.5
+            lower = centre - halfWidth
+            upper = centre + halfWidth
+        }
+        self.init(
+            thresholds: MonitorZebraCodeThresholds(
+                highlight: highlight, midtoneLower: lower, midtoneUpper: upper),
+            highlightColor: zebra.highlightColor, midtoneColor: zebra.midtoneColor)
+    }
+}
+
 /// One complete false-color paint and weight snapshot, already qualified by its source owner.
 public struct MonitorOverlayMaps: Equatable, Sendable {
     public var dimension: Int

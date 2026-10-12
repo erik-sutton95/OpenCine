@@ -9,22 +9,33 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Owns display editing, reachable settings and one cancellable connect-tap arming lifetime. */
+/**
+ * The one owner of the monitor's display intent: the DISP modes a source offers and the current one,
+ * each mode's chrome, the chrome editor and its return to Settings, the interface lock and the
+ * connect-tap arming lifetime. Every app's live surface reads it; none keeps its own copy.
+ * The shell retains the camera; this owner closes presentation without sending a command.
+ *
+ * Swift mirror: `MonitorOperatorSessionModel` in `OpenCineAppKit`, same names.
+ */
 public class MonitorOperatorSessionModel(
     private val shell: ShellModel,
-    private val assist: MonitorAssistState,
+    public val assist: MonitorAssistState,
     private val preferences: MonitorDisplayPreferences,
     private val scope: CoroutineScope,
     private val sleep: suspend (Long) -> Unit = { delay(it) },
 ) {
     private var liveValue by mutableStateOf(preferences.live)
     private var cleanValue by mutableStateOf(preferences.clean)
+    private var commandValue by mutableStateOf(preferences.command)
     public var live: MonitorDisplayChrome
         get() = liveValue
         set(value) { liveValue = value; preferences.live = value }
     public var clean: MonitorDisplayChrome
         get() = cleanValue
         set(value) { cleanValue = value; preferences.clean = value }
+    public var command: MonitorDisplayChrome
+        get() = commandValue
+        set(value) { commandValue = value; preferences.command = value }
     public var settingsTab: MonitorSettingsTab by mutableStateOf(MonitorSettingsTab.LINK)
     private val displaySession = MonitorDisplaySession(MonitorDisplayMode.LIVE)
     public var editingMode: MonitorDisplayMode?
@@ -33,36 +44,75 @@ public class MonitorOperatorSessionModel(
     public var returnedMode: MonitorDisplayMode?
         get() = displaySession.returnedMode
         set(value) { displaySession.returnedMode = value }
+    /** The modes the source offers, in DISP order. Live and Clean unless a source declares more. */
+    public var modes: List<MonitorDisplayMode> by mutableStateOf(listOf(MonitorDisplayMode.LIVE, MonitorDisplayMode.CLEAN))
+        private set
+    /** The interface lock. It refuses the DISP cycle here; the surface refuses every other operator
+     * input while it holds. It lasts one monitor lifetime. */
+    public var locked: Boolean
+        get() = displaySession.locked
+        set(value) { displaySession.locked = value }
     public var interactive: Boolean by mutableStateOf(true)
         private set
+    /** Command has no assist-state twin; Live and Clean stay `assist.clean`, which assist filtering and
+     * saved assist state already follow. */
+    private var commandShown by mutableStateOf(false)
     private var source: String? = null
     private var revision: Long = 0
     private var armJob: Job? = null
 
-    public val mode: MonitorDisplayMode get() = if (assist.clean) MonitorDisplayMode.CLEAN else MonitorDisplayMode.LIVE
+    public val mode: MonitorDisplayMode
+        get() = if (commandShown) MonitorDisplayMode.COMMAND else if (assist.clean) MonitorDisplayMode.CLEAN else MonitorDisplayMode.LIVE
     public val chrome: MonitorDisplayChrome get() = chrome(mode)
     public val isEditing: Boolean get() = editingMode != null
 
-    public fun chrome(mode: MonitorDisplayMode): MonitorDisplayChrome = if (mode == MonitorDisplayMode.CLEAN) clean else live
+    public fun chrome(mode: MonitorDisplayMode): MonitorDisplayChrome = when (mode) {
+        MonitorDisplayMode.LIVE -> live
+        MonitorDisplayMode.CLEAN -> clean
+        MonitorDisplayMode.COMMAND -> command
+    }
 
     public fun mounts(section: MonitorDisplaySection): Boolean {
-        if (editingMode == mode) return true
-        if (section == MonitorDisplaySection.RAIL_SETTINGS && !live.railSettings && !clean.railSettings) return true
+        if (editingMode == mode && MonitorDisplayChrome.isConfigurable(section, mode)) return true
+        if (section == MonitorDisplaySection.RAIL_SETTINGS && modes.none { chrome(it).railSettings }) return true
         return chrome.isVisible(section)
     }
 
     public fun toggle(section: MonitorDisplaySection, mode: MonitorDisplayMode): Unit {
-        if (mode == MonitorDisplayMode.CLEAN) clean = clean.toggling(section) else live = live.toggling(section)
+        if (!MonitorDisplayChrome.isConfigurable(section, mode)) return
+        when (mode) {
+            MonitorDisplayMode.LIVE -> live = live.toggling(section)
+            MonitorDisplayMode.CLEAN -> clean = clean.toggling(section)
+            MonitorDisplayMode.COMMAND -> command = command.toggling(section)
+        }
     }
+
+    /** The source states which modes it offers. A current mode that leaves the set falls back to the
+     * first, lock or not: the capability went, not the operator's intent. */
+    public fun declare(modes: List<MonitorDisplayMode>): Unit {
+        if (modes.isEmpty() || modes == this.modes) return
+        this.modes = modes
+        if (mode !in modes) show(modes[0])
+    }
+
+    /** DISP or a feed swipe. Refused while locked and for a mode the source does not offer. */
+    public fun select(next: MonitorDisplayMode): Boolean {
+        if (locked || next == mode || next !in modes) return false
+        show(next)
+        return true
+    }
+
+    /** The DISP key: the next offered mode. */
+    public fun cycle(): Boolean = MonitorDisplaySession.next(modes, mode)?.let(::select) ?: false
 
     public fun beginEditing(mode: MonitorDisplayMode): Unit {
         shell.dismissCover()
-        assist.clean = mode == MonitorDisplayMode.CLEAN
+        show(mode)
         displaySession.beginEditing(mode)
     }
 
     public fun finishEditing(): Unit {
-        if (displaySession.finishEditing(MonitorDisplayMode.entries) == null) return
+        if (displaySession.finishEditing(modes) == null) return
         settingsTab = MonitorSettingsTab.DISPLAY
         shell.open(ShellModel.Cover.SETTINGS)
     }
@@ -86,10 +136,16 @@ public class MonitorOperatorSessionModel(
 
     public fun close(): Unit { retire(); source = null }
 
+    private fun show(next: MonitorDisplayMode) {
+        if (commandShown != (next == MonitorDisplayMode.COMMAND)) commandShown = next == MonitorDisplayMode.COMMAND
+        if (assist.clean != (next == MonitorDisplayMode.CLEAN)) assist.clean = next == MonitorDisplayMode.CLEAN
+    }
+
     private fun retire() {
         revision += 1
         armJob?.cancel(); armJob = null
         interactive = true
+        locked = false
         displaySession.retireEditor()
     }
 }

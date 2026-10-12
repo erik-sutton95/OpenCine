@@ -120,7 +120,7 @@ public fun MonitorOperatorScreen(
     val shellState by shell.state.collectAsState()
     LaunchedEffect(shellState.monitor?.id, session) { session.synchronize(shellState.monitor?.id) }
     val control by shell.control.state.collectAsState()
-    var locked by remember { mutableStateOf(false) }
+    val locked = session.locked
     var field by remember { mutableStateOf<MonitorCaptureField?>(null) }
     var usage by remember { mutableStateOf(MonitorToolUsageState()) }
     val host = remember(session) { operatorChromeHost(session) }
@@ -165,7 +165,9 @@ public fun MonitorOperatorScreen(
             tool, assist.isOn(tool), { assist.toggle(tool) },
             tool !in setOf(MonitorAssistTool.EV, MonitorAssistTool.LEVEL) && (tool != MonitorAssistTool.LUT || lookOptions != null),
             accessibilityIdentifier = "monitor.assist.${tool.name}") }
-        MonitorOperatorLiveBody(shell.control, identity, { value ->
+        val modes = session.modes
+        val index = modes.indexOf(session.mode).takeIf { it >= 0 }
+        MonitorOperatorLiveComposition(shell.control, identity, { value ->
             shell.state.value.monitor?.id == value.monitor && shell.control.state.value.snapshot?.session == value.camera &&
                 shell.control.state.value.snapshot?.epoch == value.epoch
         }, layout, MonitorRect(safeLeading, safeTop, maxOf(0f, layout.viewport.width - safeLeading - safeTrailing),
@@ -173,13 +175,15 @@ public fun MonitorOperatorScreen(
             MonitorOperatorLiveSections(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.BATTERIES,
                 MonitorDisplaySection.CAMERA_VALUES, MonitorDisplaySection.TOOL_BAR, MonitorDisplaySection.LOCK_BUTTON,
                 MonitorDisplaySection.RAIL_SETTINGS, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_RECORD, null),
-            mounts, host, session.editingMode, locked, { locked = it }, covered, assist.clean, false, false,
+            mounts, host, session.editingMode, locked, { session.locked = it }, covered,
+            session.mode == MonitorDisplayMode.CLEAN, session.mode == MonitorDisplayMode.COMMAND, false,
             control.snapshot?.connection is com.opencapture.opencine.core.ConnectionState.Recovering,
             MonitorOperatorLiveStatus(shell.control.statusPresentation(), session.mounts(MonitorDisplaySection.TIMECODE),
                 session.mounts(MonitorDisplaySection.REC_READOUT), null, format?.let { listOf(it) } ?: emptyList(), null, null, null),
             emptyList(), inputs, { field = null; captureKeys.forEach(shell.control::cancelEdit) },
-            { shell.open(ShellModel.Cover.SETTINGS) }, { shell.open(ShellModel.Cover.MEDIA) }, { assist.clean = !assist.clean },
-            if (assist.clean) 1 else 0, 2, false, operatorPreferences.recordConfirmation, true,
+            { shell.open(ShellModel.Cover.SETTINGS) }, { shell.open(ShellModel.Cover.MEDIA) }, { session.cycle() },
+            index, modes.size, false, operatorPreferences.recordConfirmation, true,
+            displayTitle = index?.let { "DISP ${it + 1} ${session.mode.title.lowercase()}" },
             assist = assist, assists = null, palette = tools, usage = usage, setUsage = { usage = it }, usageSeed = emptyMap(),
             renderedTools = availableAssistTools, fittedScopes = emptyList(), scopeZone = null,
             recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,

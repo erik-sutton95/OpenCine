@@ -36,6 +36,8 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.StorageVolume
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
@@ -697,12 +699,13 @@ class DjiCameraSessionAdapter(
 
         /**
          * Every body reports `timecode_info` except Nano, whose live and Multi View readouts never
-         * showed one. Unknown body: unknown.
+         * showed one. Unknown body: unknown. Declared in whole seconds: the frame field rides the
+         * throttled status push and is not proven to count per frame (A5 runtime check).
          */
-        fun timecodeSupport(model: CameraModel?): SupportStatus = when {
-            model == null -> SupportStatus.UNKNOWN
-            model.family == "nano" -> SupportStatus.UNSUPPORTED
-            else -> SupportStatus.SUPPORTED
+        fun timecodeSupport(model: CameraModel?): TimecodeCapability = when {
+            model == null -> TimecodeCapability.unknown
+            model.family == "nano" -> TimecodeCapability.unsupported
+            else -> TimecodeCapability.supported(TimecodePrecision.Seconds)
         }
 
         /** `cam_audio_status_v2` levels. Unknown body: unknown. */

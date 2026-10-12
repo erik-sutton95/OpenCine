@@ -52,10 +52,10 @@ import Testing
             (layout.timecode, layout.audio) = (timecode, audio)
             return layout
         }
-        let bodies: [(Int, String, MonitorLayoutCapabilities, SupportStatus)] = [
-            (0x0022, "Osmo Pocket 4 Pro", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported),
-            (0x0020, "Osmo Pocket 3", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported),
-            (0x0018, "Osmo Action 6", expected(gimbal: false, zoom: false, focus: false, iris: true, timecode: true, audio: true), .supported),
+        let bodies: [(Int, String, MonitorLayoutCapabilities, TimecodeCapability)] = [
+            (0x0022, "Osmo Pocket 4 Pro", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported(.seconds)),
+            (0x0020, "Osmo Pocket 3", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported(.seconds)),
+            (0x0018, "Osmo Action 6", expected(gimbal: false, zoom: false, focus: false, iris: true, timecode: true, audio: true), .supported(.seconds)),
             (0x0019, "Osmo Nano", expected(gimbal: false, zoom: false, focus: false, iris: false, timecode: false, audio: true), .unsupported),
         ]
         for (id, name, layout, timecode) in bodies {

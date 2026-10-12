@@ -138,23 +138,26 @@ pages over itself.
 
 ## Monitor composition and capture
 
-`MonitorOperatorLiveBody` in `OpenCineCameraControls` / `camera-controls` owns one live monitor
-composition on SwiftUI and Compose. It assembles the picture canvas, status and telemetry,
-system rail, assists and palette, inspector, capture strip, header gestures and capture popup.
-The shared layout and presentation follow the existing Pocket behavior. All three entry APIs
-adapt values and actions into that body:
+`MonitorOperatorLiveSurface` in `OpenCineCameraControls` / `camera-controls` is the one live
+monitor every app composes, on SwiftUI and Compose. It assembles the picture canvas, status and
+telemetry, system rail, assists and palette, inspector, capture strip, header gestures and capture
+popup, and owns the policies a caller used to pass as flags: record confirmation, connect-tap
+arming, the interface lock and a borrowed multicam member. Display modes, chrome and the lock come
+from `MonitorOperatorSessionModel`. The composition behind it is internal. Entries:
 
 | Entry | Source adapter |
 | --- | --- |
-| `MonitorOperatorLiveSurface` | Existing vocabulary hosts and their captured native control actions |
-| `MonitorOperatorDescriptorLiveSurface` | Reported fields, optional source facts and typed native control content; a direct body alias on Swift |
+| `MonitorOperatorLiveSurface(host:control:session:layout:source:...)` | A typed source value (identity, available sections, picture, status, battery, capture, record, exposure, level, audio, notes) and bounded native slots |
+| Vocabulary convenience init (Swift) / `cameraStatusLiveSource` (Kotlin) | Hosts on the `CameraStatus` vocabulary |
 | `MonitorOperatorScene` | Core shell and providers, including both generated future-app templates |
 
-A new app uses one of these adapters and supplies its capabilities, observations and actions.
-Native picture, focus, motion and control content have bounded typed slots. Status, rails,
-palette, inspector and popup chrome stay in the common body. Sources:
-[Swift owner](../../Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveBody.swift) and
-[Compose owner](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorLiveBody.kt).
+A new app supplies its capabilities, observations and actions as that source. Native picture,
+focus, motion and control content have bounded typed slots. Status, rails, palette, inspector and
+popup chrome stay in the common surface. Unknown values stay absent. Sources:
+[Swift owner](../../Sources/OpenCineCameraControls/LiveChrome/MonitorOperatorLiveSurface.swift) and
+[Compose owner](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorLiveSurface.kt).
+On Compose the public `MonitorOperatorLiveBody` remains only as a compatibility entry until the
+last caller moves to the surface.
 
 `MonitorScreen` fixes the stable picture/assist host positions and the bounded status, power,
 capture and system slots from `FieldMonitorLayout` (Compose `MonitorFieldLayout`). Its

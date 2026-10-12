@@ -244,6 +244,33 @@ public struct SettingDescriptor: Hashable, Codable, Sendable {
     }
 }
 
+/// How precisely a source counts its timecode. Shared formatting follows it, so a seconds-only
+/// source never shows a frame field and a frame-counting source never loses one.
+public enum TimecodePrecision: Hashable, Codable, Sendable {
+    /// Whole seconds only (a host clock, or a counter whose frame field is not proven per frame).
+    case seconds
+    /// Frames at `rate`. `dropFrame` is `nil` when the camera does not say.
+    case frames(rate: Rational, dropFrame: Bool?)
+}
+
+/// Support for `CameraSnapshot.timecode` plus its declared precision. `precision` is `nil` while
+/// support is not `.supported` or the source has not said how it counts.
+public struct TimecodeCapability: Hashable, Codable, Sendable {
+    public var support: SupportStatus
+    public var precision: TimecodePrecision?
+
+    public init(support: SupportStatus = .unknown, precision: TimecodePrecision? = nil) {
+        self.support = support
+        self.precision = support == .supported ? precision : nil
+    }
+
+    public static let unknown = TimecodeCapability()
+    public static let unsupported = TimecodeCapability(support: .unsupported)
+    public static func supported(_ precision: TimecodePrecision?) -> TimecodeCapability {
+        TimecodeCapability(support: .supported, precision: precision)
+    }
+}
+
 /// The revisioned set of setting descriptors, plus support for the observations that are not
 /// settings. A key that is neither described nor listed as unsupported has unknown support.
 /// Missing groups (no aperture, say) never block the rest.
@@ -251,14 +278,14 @@ public struct CapabilitySnapshot: Hashable, Codable, Sendable {
     public var revision: CapabilityRevision
     public var descriptors: [SettingKey: SettingDescriptor]
     public var unsupported: Set<SettingKey>
-    /// Whether the camera reports `CameraSnapshot.timecode`.
-    public var timecode: SupportStatus
+    /// Whether the camera reports `CameraSnapshot.timecode`, and how precisely.
+    public var timecode: TimecodeCapability
     /// Whether the camera reports live `CameraSnapshot.audioLevels`.
     public var audioLevels: SupportStatus
 
     public init(
         revision: CapabilityRevision = .init(), descriptors: [SettingDescriptor] = [],
-        unsupported: Set<SettingKey> = [], timecode: SupportStatus = .unknown,
+        unsupported: Set<SettingKey> = [], timecode: TimecodeCapability = .init(),
         audioLevels: SupportStatus = .unknown
     ) {
         self.revision = revision

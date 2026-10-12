@@ -40,7 +40,7 @@ public struct MonitorLayoutCapabilities: Hashable, Sendable {
         zoom = writable(.zoom)
         focus = writable(.focusMode) || writable(.focusPoint)
         iris = writable(.aperture)
-        timecode = shown(capabilities.timecode, else: base.timecode)
+        timecode = shown(capabilities.timecode.support, else: base.timecode)
         audio = shown(capabilities.audioLevels, else: base.audio)
     }
 }

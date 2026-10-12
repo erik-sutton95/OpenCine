@@ -21,6 +21,8 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
 import com.opencapture.opencine.motion.MotionAxis
@@ -332,7 +334,7 @@ class LunaCameraSessionTest {
     @Test fun publishesMotionTimecodeAndNoAudio() {
         val session = FakeLuna(scope).connectedSession()
         val capabilities = session.snapshots.value.capabilities
-        assertEquals(SupportStatus.SUPPORTED, capabilities.timecode)
+        assertEquals(TimecodeCapability.supported(TimecodePrecision.Seconds), capabilities.timecode, "host clock: whole seconds")
         assertEquals(SupportStatus.UNSUPPORTED, capabilities.audioLevels)
         assertEquals(SupportStatus.SUPPORTED, LunaCameraSession.MOTION.pose)
         assertFalse(MotionAxis.ZOOM in LunaCameraSession.MOTION.axes, "moves keep one zoom")
@@ -342,7 +344,7 @@ class LunaCameraSessionTest {
             session.layout(MonitorLayoutCapabilities(audio = true, clipDelete = true)),
         )
         assertNull(session.snapshots.value.timecode.value, "nothing derived yet: unknown")
-        session.ingest(CameraTimecode(15, 39, 50, 12))
+        session.ingest(CameraTimecode(15, 39, 50))
         assertEquals(50, session.snapshots.value.timecode.value?.seconds)
         assertEquals(ObservationOrigin.CLOCK_DERIVED, session.snapshots.value.timecode.origin, "never a camera counter")
     }

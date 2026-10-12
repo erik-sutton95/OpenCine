@@ -177,14 +177,13 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
     private let commandEnabled: Bool
     private let currentSource: () -> Bool
     private let coordinateSpace: String
-    private let onCaptureFrame: (CGRect) -> Void
     public init(inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>, control: MonitorControlModel,
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         enabled: Bool, commandEnabled: Bool = true, currentSource: @escaping () -> Bool,
-        coordinateSpace: String = "monitor.canvas", onCaptureFrame: @escaping (CGRect) -> Void = { _ in }) {
+        coordinateSpace: String = "monitor.canvas") {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.enabled = enabled; self.commandEnabled = commandEnabled; self.currentSource = currentSource
-        self.coordinateSpace = coordinateSpace; self.onCaptureFrame = onCaptureFrame
+        self.coordinateSpace = coordinateSpace
     }
 
     public var body: some View {
@@ -204,13 +203,6 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
                     }
             }
         }.frame(maxWidth: .infinity)
-            .background {
-                GeometryReader { geometry in
-                    Color.clear.onChange(of: geometry.frame(in: .global), initial: true) { _, frame in
-                        if currentSource() { onCaptureFrame(frame) }
-                    }
-                }
-            }
             .opacity(enabled ? 1 : 0.4)
     }
 }

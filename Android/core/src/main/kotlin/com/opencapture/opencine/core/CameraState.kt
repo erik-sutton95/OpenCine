@@ -113,14 +113,18 @@ public sealed interface ControlAuthority {
 
 /**
  * SMPTE-style timecode: the camera's own counter, or time of day an integration derives from a
- * clock (origin `CLOCK_DERIVED`, which never claims that cameras are synchronized). The counter
- * runs at the `FRAME_RATE` setting.
+ * clock (origin `CLOCK_DERIVED`, which never claims that cameras are synchronized). How precisely
+ * the source counts is [CapabilitySnapshot.timecode]'s precision.
  */
 public data class CameraTimecode(
     public val hours: Int,
     public val minutes: Int,
     public val seconds: Int,
-    public val frames: Int,
+    /**
+     * The frame count the source reported; `null` when it knows whole seconds only. Never derived
+     * from a clock or a frame rate.
+     */
+    public val frames: Int? = null,
     /** `null` when the camera does not say whether it counts drop-frame. */
     public val dropFrame: Boolean? = null,
 )

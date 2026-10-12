@@ -7,11 +7,12 @@ import com.opencapture.monitorui.settings.MonitorDisplaySections
 import com.opencapture.monitorui.settings.MonitorDisplayToggle
 import com.opencapture.monitorui.settings.MonitorDisplaySection as DisplaySection
 
-/** Common display composition over existing, app-namespaced preference values. */
+/** Common display composition over existing, app-namespaced preference values, one section per
+ * DISP mode the source offers. */
 @Composable
 public fun MonitorOperatorDisplaySections(
-    live: MonitorDisplayChrome,
-    clean: MonitorDisplayChrome,
+    modes: List<MonitorDisplayMode>,
+    chrome: (MonitorDisplayMode) -> MonitorDisplayChrome,
     assist: MonitorAssistState,
     onChange: (MonitorDisplayMode, MonitorDisplayChrome) -> Unit,
     available: Set<MonitorDisplaySection> = MonitorDisplaySection.entries.toSet(),
@@ -23,20 +24,19 @@ public fun MonitorOperatorDisplaySections(
     val order = listOf(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.TOOL_BAR,
         MonitorDisplaySection.CAMERA_VALUES, MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.BATTERIES,
         MonitorDisplaySection.REC_READOUT, MonitorDisplaySection.TIMECODE, MonitorDisplaySection.FORMAT,
-        MonitorDisplaySection.COLOR, MonitorDisplaySection.STORAGE, MonitorDisplaySection.FPS,
+        MonitorDisplaySection.CODEC, MonitorDisplaySection.COLOR, MonitorDisplaySection.STORAGE, MonitorDisplaySection.FPS,
         MonitorDisplaySection.RAIL_RECORD, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_SETTINGS,
         MonitorDisplaySection.ZOOM_CHIP, MonitorDisplaySection.GIMBAL_STICK, MonitorDisplaySection.FOCUS_BOX)
-    MonitorDisplaySections(MonitorDisplayMode.entries.map { mode ->
-        val value = if (mode == MonitorDisplayMode.CLEAN) clean else live
+    MonitorDisplaySections(modes.map { mode ->
+        val value = chrome(mode)
         DisplaySection(id = mode.name, title = mode.settingsTitle, caption = mode.settingsCaption,
             reset = {
                 feedback()
-                onChange(mode, if (mode == MonitorDisplayMode.CLEAN) MonitorDisplayChrome.cleanDefaults
-                    else MonitorDisplayChrome.liveDefaults)
+                onChange(mode, MonitorDisplayChrome.defaults(mode))
             }, editHint = "Arrange the bars, readouts and tools directly on the monitor.",
             edit = edit?.let { action -> { action(mode) } },
             unavailableEditHelp = "Connect to arrange this on the monitor.",
-            visibility = order.filter { it in available }.map { section ->
+            visibility = order.filter { it in available && MonitorDisplayChrome.isConfigurable(it, mode) }.map { section ->
                 MonitorDisplayToggle(id = mode.name + "." + section.name,
                     title = if (section == MonitorDisplaySection.FOCUS_BOX) "AF Box" else section.title,
                     isOn = value.isVisible(section), help = displayHelp(section)) {
@@ -66,6 +66,7 @@ private fun displayHelp(section: MonitorDisplaySection): String = when (section)
     MonitorDisplaySection.REC_READOUT -> "Standby / recording chip on the status bar."
     MonitorDisplaySection.TIMECODE -> "Running timecode on the status bar."
     MonitorDisplaySection.FORMAT -> "Recording resolution and frame rate."
+    MonitorDisplaySection.CODEC -> "Recording codec chip on the status bar."
     MonitorDisplaySection.COLOR -> "Color mode chip on the status bar."
     MonitorDisplaySection.STORAGE -> "Remaining media time on the status bar."
     MonitorDisplaySection.FPS -> "Live-view rate and link bars."

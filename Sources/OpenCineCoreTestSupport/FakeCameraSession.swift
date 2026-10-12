@@ -6,12 +6,12 @@ public struct FakeMode: Sendable {
     public var mode: CaptureMode
     public var descriptors: [SettingDescriptor]
     public var unsupported: Set<SettingKey>
-    public var timecode: SupportStatus
+    public var timecode: TimecodeCapability
     public var audioLevels: SupportStatus
 
     public init(
         _ mode: CaptureMode, _ descriptors: [SettingDescriptor], unsupported: Set<SettingKey>,
-        timecode: SupportStatus = .unknown, audioLevels: SupportStatus = .unknown
+        timecode: TimecodeCapability = .unknown, audioLevels: SupportStatus = .unknown
     ) {
         self.mode = mode
         self.descriptors = descriptors
@@ -142,6 +142,12 @@ public actor FakeCameraSession: CameraSession {
         if let reportAttempt, reportAttempt != attempt { return }
         guard current.connection == .ready, !reportsSilenced else { return }
         report()
+    }
+
+    /// The camera's counter advances (a live-view header, a status push): only the timecode changes.
+    public func cameraReportsTimecode(_ timecode: CameraTimecode?) {
+        device.timecode = timecode
+        cameraReportsStatus()
     }
 
     /// The operator turns the mode dial. Values the new mode cannot hold move to its first choice.
@@ -415,7 +421,7 @@ public actor FakeCameraSession: CameraSession {
             current.storage = ObservedValue([volume], origin: .cameraReported, at: now)
         }
         current.timecode = .unknown
-        if current.capabilities.timecode == .supported, let timecode = device.timecode {
+        if current.capabilities.timecode.support == .supported, let timecode = device.timecode {
             current.timecode = ObservedValue(timecode, origin: behavior.timecodeOrigin, at: now)
         }
         current.audioLevels = .unknown

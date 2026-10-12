@@ -1,4 +1,5 @@
 #if os(iOS)
+import Foundation
 import MetalKit
 import MonitorPresentation
 import MonitorUI
@@ -9,53 +10,165 @@ import OpenCineCore
 import OpenCineMedia
 import SwiftUI
 
-/// Stable source facts used to lay out the operator surface. Unknown capabilities stay absent.
-public struct MonitorOperatorLivePresentation {
-    public let pictureAspect: Double
-    public let pictureWaiting: Bool
-    public let verticalPicture: Bool
+/// Actual source identity, independent of camera names, displayed values and decoded frames.
+public struct MonitorOperatorLiveIdentity: Hashable {
+    public let monitor: UUID?
+    public let camera: CameraSessionID?
+    public let epoch: ControlEpoch?
+    public let picture: String
+    public let pictureOwner: ObjectIdentifier?
+    public init(monitor: UUID?, camera: CameraSessionID?, epoch: ControlEpoch?, picture: String,
+        pictureOwner: ObjectIdentifier? = nil) {
+        self.monitor = monitor; self.camera = camera; self.epoch = epoch; self.picture = picture
+        self.pictureOwner = pictureOwner
+    }
+}
+
+/// A camera battery may report a coarse gauge rather than a percentage. The source supplies
+/// the measurement and urgency; common chrome never infers them from the manufacturer.
+public struct MonitorOperatorPowerReading: Identifiable {
+    public let id: String
+    public let title: String
+    public let camera: Bool
+    public let percent: Int?
+    public let bars: Int?
+    public let barCount: Int
+    public let warning: Bool
+    public let exhausted: Bool
+    public let charging: Bool?
+    public init(id: String, title: String, camera: Bool, percent: Int? = nil, bars: Int? = nil,
+        barCount: Int = 5, warning: Bool = false, exhausted: Bool = false, charging: Bool? = nil) {
+        self.id = id; self.title = title; self.camera = camera; self.percent = percent; self.bars = bars
+        self.barCount = barCount; self.warning = warning; self.exhausted = exhausted; self.charging = charging
+    }
+}
+
+/// Status content is observed data. The common owner renders the readouts and their captured
+/// actions; body codecs, card capacity and photography counters stay source facts.
+public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
+    public let recording: MonitorStatusPresentation
+    public let showsTimecode: Bool
+    public let showsRecording: Bool
+    public let storage: MonitorOperatorLiveReadout<Key, Section>?
+    public let format: [MonitorOperatorLiveReadout<Key, Section>]
+    public let portraitFormat: MonitorOperatorLiveReadout<Key, Section>?
+    public let portraitCaption: String?
+    public let color: MonitorOperatorLiveReadout<Key, Section>?
+    public let mode: MonitorOperatorLiveReadout<Key, Section>?
+    public let storageAlternative: String?
+    public let fps: String?
+    public let signalBars: Int?
+    public let fpsSection: Section?
+    public init(recording: MonitorStatusPresentation, showsTimecode: Bool, showsRecording: Bool,
+        storage: MonitorOperatorLiveReadout<Key, Section>? = nil,
+        format: [MonitorOperatorLiveReadout<Key, Section>] = [], fps: String? = nil,
+        signalBars: Int? = nil, fpsSection: Section? = nil,
+        portraitFormat: MonitorOperatorLiveReadout<Key, Section>? = nil, portraitCaption: String? = nil,
+        color: MonitorOperatorLiveReadout<Key, Section>? = nil, mode: MonitorOperatorLiveReadout<Key, Section>? = nil,
+        storageAlternative: String? = nil) {
+        self.recording = recording; self.showsTimecode = showsTimecode; self.showsRecording = showsRecording
+        self.storage = storage; self.format = format; self.fps = fps; self.signalBars = signalBars; self.fpsSection = fpsSection
+        self.portraitFormat = portraitFormat; self.portraitCaption = portraitCaption
+        self.color = color; self.mode = mode; self.storageAlternative = storageAlternative
+    }
+}
+
+/// An optional external recording service, for a forwarded observation without a local
+/// control binding. Native receipt capture and submission remain in the integration adapter.
+@MainActor public struct MonitorOperatorExternalRecordSource {
+    public let recording: Bool?
+    public let confirmation: Bool?
+    public let request: () -> Void
+    public let cancel: () -> Void
+    public let confirm: () -> Void
+    public init(recording: Bool?, confirmation: Bool?, request: @escaping () -> Void,
+        cancel: @escaping () -> Void, confirm: @escaping () -> Void) {
+        self.recording = recording; self.confirmation = confirmation
+        self.request = request; self.cancel = cancel; self.confirm = confirm
+    }
+}
+
+/// The picture the source delivers: its aspect, whether the first frame is still awaited,
+/// whether the camera shows it vertically or upside down, and whether the link is recovering.
+public struct MonitorOperatorLivePicture: Equatable {
+    public let aspect: Double
+    public let waiting: Bool
+    public let vertical: Bool
+    public let flipped: Bool
     public let recovering: Bool
-    public let zoom: Bool?
-    public let gimbal: Bool?
-    public let headTracking: Bool?
-    public let watching: Bool
-
-    public init(pictureAspect: Double, pictureWaiting: Bool, verticalPicture: Bool,
-        recovering: Bool, zoom: Bool?, gimbal: Bool?, headTracking: Bool?, watching: Bool) {
-        self.pictureAspect = pictureAspect; self.pictureWaiting = pictureWaiting
-        self.verticalPicture = verticalPicture; self.recovering = recovering
-        self.zoom = zoom; self.gimbal = gimbal; self.headTracking = headTracking; self.watching = watching
+    public init(aspect: Double, waiting: Bool, vertical: Bool, flipped: Bool, recovering: Bool) {
+        self.aspect = aspect; self.waiting = waiting; self.vertical = vertical
+        self.flipped = flipped; self.recovering = recovering
     }
 }
 
-/// Camera-coordinate focus observations. The surface owns projection, admission and cancel placement.
-public struct MonitorOperatorFocusObservation {
-    public let point: CGPoint
-    public let overlay: FocusOverlay
-    public let faces: [TrackingBox]
-    public let resetAvailable: Bool
-    public let supportsTapFocus: Bool?
-    public let tracking: Bool
-    public let search: TrackingBox?
-    public let subject: TrackingBox?
-
-    public init(point: CGPoint, overlay: FocusOverlay, faces: [TrackingBox], resetAvailable: Bool,
-        supportsTapFocus: Bool?, tracking: Bool, search: TrackingBox?, subject: TrackingBox?) {
-        self.point = point; self.overlay = overlay; self.faces = faces; self.resetAvailable = resetAvailable
-        self.supportsTapFocus = supportsTapFocus; self.tracking = tracking; self.search = search; self.subject = subject
-    }
-
-    public var trackedSubject: TrackingBox? {
-        if case .subject(let box) = FocusOverlayPolicy.resolve(tracking: tracking, search: search, subject: subject) { return box }
-        return nil
+/// How this source records. Photo mode releases through the native shutter view; a source
+/// without a local control binding forwards record to `external`.
+@MainActor public struct MonitorOperatorRecordSource {
+    public let photo: Bool
+    public let confirm: Bool
+    public let busy: Bool
+    public let openMode: (() -> Void)?
+    public let external: MonitorOperatorExternalRecordSource?
+    public init(photo: Bool, confirm: Bool, busy: Bool, openMode: (() -> Void)?,
+        external: MonitorOperatorExternalRecordSource?) {
+        self.photo = photo; self.confirm = confirm; self.busy = busy
+        self.openMode = openMode; self.external = external
     }
 }
 
-@MainActor public struct MonitorOperatorFocusSource {
-    public let read: () -> MonitorOperatorFocusObservation
-    public let cancelTracking: () -> Void
-    public init(read: @escaping () -> MonitorOperatorFocusObservation, cancelTracking: @escaping () -> Void) {
-        self.read = read; self.cancelTracking = cancelTracking
+/// Metered audio and the input sensitivity caption.
+public struct MonitorOperatorLiveAudio {
+    public let levels: MonitorAudioMeterLevels
+    public let caption: String?
+    public init(levels: MonitorAudioMeterLevels, caption: String?) {
+        self.levels = levels; self.caption = caption
+    }
+}
+
+/// Everything a source knows about its live monitor. Volatile facts are read inside the
+/// surface's body, so status and telemetry changes invalidate the surface, not the app screen.
+/// Unknown values stay absent: a source without an exposure meter or a level passes nil.
+@MainActor public struct MonitorOperatorLiveSource<Key: Hashable, NativeIdentity: Hashable & Sendable> {
+    public let identity: () -> MonitorOperatorLiveIdentity
+    /// The sections something can fill right now. Chrome the operator switched on still hides
+    /// when nothing feeds it: an empty readout looks like an attached, silent camera.
+    public let available: () -> Set<MonitorDisplayChrome.Section>
+    public let picture: () -> MonitorOperatorLivePicture
+    public let status: () -> MonitorOperatorLiveStatus<Key, MonitorDisplayChrome.Section>
+    public let cameraBattery: () -> MonitorOperatorPowerReading?
+    public let capture: () -> MonitorOperatorCaptureInputs<Key, MonitorDisplayChrome.Section, NativeIdentity>
+    public let record: () -> MonitorOperatorRecordSource
+    public let exposure: (() -> ExposureMeterReading)?
+    public let level: ((TimeInterval, Bool) -> MonitorLevelDisplay)?
+    public let audio: () -> MonitorOperatorLiveAudio?
+    /// Control surrendered to another operator: presentation stays, commands are refused.
+    public let readOnly: () -> Bool
+    /// A multicam member lent to this monitor: Media stays with the stage.
+    public let borrowed: () -> Bool
+    public let returnToStage: (() -> Void)?
+    public let coverOpen: () -> Bool
+    /// The one note sink. Refusals, interruptions and hints appear in one placement.
+    public let note: Binding<String?>
+    public let settings: () -> Void
+    public let media: () -> Void
+
+    public init(identity: @escaping () -> MonitorOperatorLiveIdentity,
+        available: @escaping () -> Set<MonitorDisplayChrome.Section>,
+        picture: @escaping () -> MonitorOperatorLivePicture,
+        status: @escaping () -> MonitorOperatorLiveStatus<Key, MonitorDisplayChrome.Section>,
+        cameraBattery: @escaping () -> MonitorOperatorPowerReading?,
+        capture: @escaping () -> MonitorOperatorCaptureInputs<Key, MonitorDisplayChrome.Section, NativeIdentity>,
+        record: @escaping () -> MonitorOperatorRecordSource,
+        exposure: (() -> ExposureMeterReading)?, level: ((TimeInterval, Bool) -> MonitorLevelDisplay)?,
+        audio: @escaping () -> MonitorOperatorLiveAudio?, readOnly: @escaping () -> Bool,
+        borrowed: @escaping () -> Bool, returnToStage: (() -> Void)?, coverOpen: @escaping () -> Bool,
+        note: Binding<String?>, settings: @escaping () -> Void, media: @escaping () -> Void) {
+        self.identity = identity; self.available = available; self.picture = picture; self.status = status
+        self.cameraBattery = cameraBattery; self.capture = capture; self.record = record
+        self.exposure = exposure; self.level = level; self.audio = audio; self.readOnly = readOnly
+        self.borrowed = borrowed; self.returnToStage = returnToStage; self.coverOpen = coverOpen
+        self.note = note; self.settings = settings; self.media = media
     }
 }
 
@@ -88,410 +201,576 @@ public struct MonitorOperatorFocusObservation {
     }
 }
 
-/// Only the optional native photo operation varies; record confirmation and mode UI stay shared.
-@MainActor public struct MonitorOperatorLiveCaptureSource {
-    public let confirmRecording: Bool
-    public let busy: () -> Bool
-    public let takePhoto: () -> Void
-    public init(confirmRecording: Bool, busy: @escaping () -> Bool, takePhoto: @escaping () -> Void) {
-        self.confirmRecording = confirmRecording; self.busy = busy; self.takePhoto = takePhoto
+/// The assist palette the source offers. `scopes` nil renders the palette without scopes
+/// or inspectors; `rendered` nil renders every offered tool.
+@MainActor public struct MonitorOperatorLiveAssists {
+    public let scopes: MonitorOperatorLiveAssistSource?
+    public let tools: () -> [MonitorAssistSelection]
+    public let rendered: () -> Set<MonitorAssistSelection>?
+    public let fitted: () -> [MonitorAssistSelection]
+    public let signalOptions: MonitorOperatorSignalOptions
+    public let usage: Binding<MonitorToolUsage>
+    public let usageSeed: [String: Int]
+    public let toggle: (MonitorAssistSelection) -> Void
+    public init(scopes: MonitorOperatorLiveAssistSource?, tools: @escaping () -> [MonitorAssistSelection],
+        rendered: @escaping () -> Set<MonitorAssistSelection>?, fitted: @escaping () -> [MonitorAssistSelection],
+        signalOptions: MonitorOperatorSignalOptions, usage: Binding<MonitorToolUsage>,
+        usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void) {
+        self.scopes = scopes; self.tools = tools; self.rendered = rendered; self.fitted = fitted
+        self.signalOptions = signalOptions; self.usage = usage; self.usageSeed = usageSeed; self.toggle = toggle
     }
 }
 
-/// Optional motion input adapter. The common surface owns the button and diagnostic presentation.
-@MainActor public struct MonitorOperatorHeadTrackingSource {
-    public let enabled: Bool
-    public let title: String
-    public let readPose: () -> HeadTrackAxisPose?
-    public let readIMU: () -> String
-    public let calibrate: () -> Void
-    public init(enabled: Bool, title: String, readPose: @escaping () -> HeadTrackAxisPose?,
-        readIMU: @escaping () -> String, calibrate: @escaping () -> Void) {
-        self.enabled = enabled; self.title = title; self.readPose = readPose
-        self.readIMU = readIMU; self.calibrate = calibrate
+/// Coherent body extensions. These are individual hardware controls; their placement,
+/// input admission and surrounding monitor remain owned by the common surface.
+@MainActor public struct MonitorOperatorBodyViews {
+    public let focusDrive: AnyView?
+    public let dashboard: AnyView?
+    public let connection: AnyView?
+    public let comparison: AnyView?
+    public let resetFocus: (() -> Void)?
+    public let feedMarks: AnyView?
+    public let feedGestures: AnyView?
+    public let focusControls: AnyView?
+    public let motion: MonitorOperatorMotionViews?
+    /// Why the picture is missing and how to recover it (a relay's refusal and retry), under
+    /// the shared waiting plate while the first frame is awaited.
+    public let waiting: AnyView?
+    public init(focusDrive: AnyView? = nil, dashboard: AnyView? = nil, connection: AnyView? = nil,
+        comparison: AnyView? = nil, resetFocus: (() -> Void)? = nil,
+        feedMarks: AnyView? = nil, feedGestures: AnyView? = nil, focusControls: AnyView? = nil,
+        motion: MonitorOperatorMotionViews? = nil, waiting: AnyView? = nil) {
+        self.focusDrive = focusDrive; self.dashboard = dashboard; self.connection = connection
+        self.comparison = comparison; self.resetFocus = resetFocus
+        self.feedMarks = feedMarks; self.feedGestures = feedGestures; self.focusControls = focusControls
+        self.motion = motion; self.waiting = waiting
     }
 }
 
-/// Full live chrome, camera drawers, assist/scopes, focus and optional motion assembly.
-/// Native picture/inspector images and the coherent look catalogue are the only view seams.
-public struct MonitorOperatorLiveSurface<Host: LiveChromeHost & GimbalPanelHost & GimbalStickHost,
-    Picture: View, Preview: View, LookMenu: View>: View {
+/// Optional coherent motion controls. Their callbacks and observed movement remain with the
+/// supplied service; the common live owner decides the layer and admission of these controls.
+/// `dimmed` darkens the monitor under an open motion editor; `covering` hides the transient
+/// controls and raises the panels while it is mounted.
+public struct MonitorOperatorMotionViews {
+    public let controls: AnyView
+    public let editor: AnyView
+    public let feedback: AnyView
+    public let dimmed: Bool
+    public let covering: Bool
+    public init(controls: AnyView, editor: AnyView, feedback: AnyView, dimmed: Bool, covering: Bool) {
+        self.controls = controls; self.editor = editor; self.feedback = feedback
+        self.dimmed = dimmed; self.covering = covering
+    }
+}
+
+/// The one live monitor every app composes. The source supplies what it knows, the session
+/// supplies the operator's display intent (mode, chrome, editor, lock, arming), and every
+/// policy lives here once: input admission, record confirmation, borrowed media, the note
+/// and reconnect banners, phone and camera power, the waiting picture and the instruments.
+public struct MonitorOperatorLiveSurface<Host: ChromeEditHost, Key: Hashable, NativeIdentity: Hashable & Sendable,
+    Looks: MonitorLookProvider, Picture: View, CameraPanel: View, PhotoRelease: View,
+    Preview: View, LookMenu: View>: View
+where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == MonitorDisplayMode {
     private let host: Host
+    private let control: MonitorControlModel
+    private let session: MonitorOperatorSessionModel<Looks>
     private let layout: LiveMonitorLayout
-    private let interaction: MonitorOperatorInteraction
-    private let source: MonitorOperatorLivePresentation
-    private let capture: MonitorOperatorLiveCaptureSource
-    private let zoom: MonitorOperatorZoomPresentation
-    private let focus: MonitorOperatorFocusSource
-    private let assists: MonitorOperatorLiveAssistSource
-    private let headTracking: MonitorOperatorHeadTrackingSource?
-    private let readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)?
-    private let controlNote: Binding<String?>
-    private let orientation: MonitorDeviceOrientation
+    private let source: MonitorOperatorLiveSource<Key, NativeIdentity>
+    private let assists: MonitorOperatorLiveAssists
+    private let views: MonitorOperatorBodyViews
+    private let portraitAspect: Binding<PortraitFeedAspect>
     private let picture: () -> Picture
+    private let cameraPanel: (Key, MonitorCapturePopupLayout) -> CameraPanel
+    private let photoRelease: (CGFloat) -> PhotoRelease
     private let preview: (MonitorAssistSelection) -> Preview
     private let lookMenu: () -> LookMenu
-    @Binding private var portraitAspect: PortraitFeedAspect
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(host: Host, layout: LiveMonitorLayout, interaction: MonitorOperatorInteraction,
-        source: MonitorOperatorLivePresentation, capture: MonitorOperatorLiveCaptureSource,
-        zoom: MonitorOperatorZoomPresentation, focus: MonitorOperatorFocusSource,
-        assists: MonitorOperatorLiveAssistSource, portraitAspect: Binding<PortraitFeedAspect>,
-        orientation: MonitorDeviceOrientation, controlNote: Binding<String?>,
-        headTracking: MonitorOperatorHeadTrackingSource? = nil,
-        readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)? = nil,
+    public init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
+        layout: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
+        assists: MonitorOperatorLiveAssists, views: MonitorOperatorBodyViews,
+        portraitAspect: Binding<PortraitFeedAspect>,
         @ViewBuilder picture: @escaping () -> Picture,
+        @ViewBuilder cameraPanel: @escaping (Key, MonitorCapturePopupLayout) -> CameraPanel,
+        @ViewBuilder photoRelease: @escaping (CGFloat) -> PhotoRelease,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
-        self.host = host; self.layout = layout; self.interaction = interaction; self.source = source
-        self.capture = capture; self.zoom = zoom; self.focus = focus; self.assists = assists
-        _portraitAspect = portraitAspect; self.orientation = orientation; self.controlNote = controlNote
-        self.headTracking = headTracking; self.readLevel = readLevel
-        self.picture = picture; self.preview = preview; self.lookMenu = lookMenu
+        self.host = host; self.control = control; self.session = session; self.layout = layout
+        self.source = source; self.assists = assists; self.views = views; self.portraitAspect = portraitAspect
+        self.picture = picture; self.cameraPanel = cameraPanel; self.photoRelease = photoRelease
+        self.preview = preview; self.lookMenu = lookMenu
     }
 
     public var body: some View {
-        @Bindable var host = host
-        let identity = MonitorOperatorLiveIdentity(monitor: nil, camera: host.control.snapshot?.session,
-            epoch: host.control.snapshot?.epoch, picture: "live")
-        let captureInputs = MonitorOperatorCaptureInputs<CaptureSheet, Host.ChromeSection,
-            MonitorOperatorLegacyCaptureIdentity>.captureSheetHost(host, section: .cameraValues,
-                columns: layout.capture.height > 60 ? 3 : 6,
-                presentedSheet: {
-                    host.captureSheet ?? interaction.topMenu.map { $0 == .color ? .color : .resolution }
-                }, open: { sheet in
-                    if sheet == .resolution { interaction.topMenu = interaction.topMenu == .recFormat ? nil : .recFormat }
-                    else if sheet == .color { interaction.topMenu = interaction.topMenu == .color ? nil : .color }
-                    else { host.captureSheet = CaptureReadoutAdmission.replacing(host.captureSheet,
-                        with: CaptureReadoutAdmission.opening(sheet, isPhoto: host.cameraStatus.isPhoto)) }
-                }, dismiss: { host.captureSheet = nil; interaction.topMenu = nil })
-        let tools = MonitorAssistSelection.toolbarCases + (host.cameraStatus.isPhoto || !host.captureCapabilities.audio ? [] : [.audioMeters])
-        let percent = host.cameraStatus.batteryPercent
-        let native = MonitorOperatorLegacyAccessories(host: host, layout: layout, interaction: interaction,
-            source: source, capture: capture, zoom: zoom, focus: focus, assists: assists,
-            headTracking: headTracking, readLevel: readLevel, controlNote: controlNote,
-            portraitAspect: $portraitAspect, orientation: orientation, reduceMotion: reduceMotion)
-        MonitorOperatorLiveBody(host: host, control: host.control, identity: identity,
-            current: { value in host.control.snapshot?.session == value.camera && host.control.snapshot?.epoch == value.epoch },
-            layout: layout.presentation ?? FieldMonitorLayout(width: layout.viewport.width, height: layout.viewport.height),
-            safeArea: .init(top: layout.safeArea.top, leading: layout.safeArea.leading,
-                bottom: layout.safeArea.bottom, trailing: layout.safeArea.trailing), sourceAspect: source.pictureAspect,
-            sections: .init(status: .statusBar, power: .batteries, capture: .cameraValues,
-                assists: .toolBar, lock: .lockButton, settings: .railSettings, media: .railMedia, record: .railRecord),
-            mounted: Set(host.chromeEditSections.filter(host.chromeSectionMounts)), editing: host.chromeEditorMode,
-            locked: Bindable(interaction).locked, covered: host.coverOpen,
-            clean: host.assist.clean, command: false, readOnly: host.sessionLocked,
-            recovering: source.recovering, status: statusProjection,
-            power: [.init(id: "camera", title: "Camera battery", camera: true,
-                percent: (0...100).contains(percent) ? percent : nil)],
-            captureInputs: captureInputs, settings: host.openSettings, media: host.openMedia,
-            cycleDisplay: { host.setDisplayMode(clean: !host.assist.clean); if host.assist.clean { host.captureSheet = nil } },
-            displayTitle: host.assist.clean ? "DISP 2 clean" : "DISP 1 live", displayIndex: host.assist.clean ? 1 : 0, displayCount: 2,
-            photo: host.cameraStatus.isPhoto, confirmRecord: capture.confirmRecording,
-            assist: host.assist, tools: tools, usage: $host.assistToolUsage,
-            toggleTool: host.assist.toggle, assistSource: assists,
-            readAudio: { !source.watching && host.captureCapabilities.audio && !host.cameraStatus.isPhoto ? host.cameraStatus.audioMeters : nil },
-            cameraViews: native.views, retireEditor: host.endChromeEditing, returnToStage: host.multiviewExit,
-            automaticPhoneBattery: true, borrowed: host.multiviewBorrowed, pictureWaiting: source.pictureWaiting,
-            recordEnabled: !capture.busy(), openMode: { host.captureSheet = .mode },
-            recordConfirmationPolicy: .unchangedRecording, audioCaption: host.cameraStatus.audioChannel?.label,
-            interactionEnabled: host.liveChromeInteractive, dimmed: interaction.zoomVisible,
-            transientControlsHidden: interaction.zoomMounted, panelsRaised: interaction.zoomMounted,
-            expanded: Bindable(interaction).assistsExpanded,
-            picture: picture, cameraPanel: { key, popup in
-                CaptureSheetPanel<Host>(sheet: key, maximumHeight: popup.maximumHeight,
-                    isPresented: { host.control.snapshot?.session == identity.camera && host.control.snapshot?.epoch == identity.epoch
-                        && (host.captureSheet == key || interaction.topMenu.map { $0 == .color ? CaptureSheet.color : .resolution } == key) },
-                    onSelectRecordingCategory: [.resolution, .color, .mode].contains(key) ? { host.captureSheet = $0 } : nil,
-                    showsRecordingCategories: layout.viewport.height > layout.viewport.width,
-                    controlsEnabled: !host.sessionLocked, chromeless: true) { host.captureSheet = nil }
-            }, photoRelease: { diameter in
-                MonitorCaptureButton(control: host.control, diameter: diameter,
-                    enabled: !interaction.locked && !host.sessionLocked && !capture.busy(), photo: true,
-                    confirm: capture.confirmRecording, haptics: host.hapticsEnabled, takePhoto: capture.takePhoto,
-                    openMode: { host.captureSheet = .mode })
-            }, preview: preview, lookMenu: lookMenu)
-            .onChange(of: host.cameraStatus.isPhoto) { _, photo in
-                host.captureSheet = CaptureReadoutAdmission.retained(host.captureSheet, isPhoto: photo)
-                if CaptureReadoutAdmission.retainedDrum(host.captureDrum?.sheet, isPhoto: photo) == nil {
-                    host.captureDrum = nil
-                }
-                if photo { interaction.topMenu = nil }
-                if photo, host.assist.configureTool == .audioMeters { host.assist.configureTool = nil }
-            }
-    }
-
-    private var statusProjection: MonitorOperatorLiveStatus<CaptureSheet, Host.ChromeSection> {
-        let value = host.cameraStatus
-        let photo = value.isPhoto
-        func row(_ key: CaptureSheet, _ title: String, _ text: String,
-            _ section: Host.ChromeSection? = nil, _ identifier: String) -> MonitorOperatorLiveReadout<CaptureSheet, Host.ChromeSection> {
-            .init(id: key, title: title, value: text, section: section, accessibilityIdentifier: identifier)
-        }
-        let free = value.storageFreeMb > 0 ? value.storageFreeMb : value.sdFreeMb
-        let total = value.storageTotalMb > 0 ? value.storageTotalMb : value.sdTotalMb
-        let storage = host.chromeSectionMounts(.storage)
-            ? row(.resolution, "Storage remaining", free > 0 ? "\(free / 1024) GB" : "\u{2014}", .storage, "monitor.storage") : nil
-        let format = host.chromeSectionMounts(.format) ? [row(photo ? .mode : .resolution,
-            photo ? "Shooting mode" : "Recording format",
-            photo ? host.currentShootingMode?.label(for: host.connectedBody) ?? "Photo" : value.videoFormat?.chipLabel ?? "\u{2014}",
-            .format, photo ? "monitor.capture.mode" : "monitor.capture.format")] : []
-        let setup = row(photo ? .mode : .resolution, photo ? "Shooting mode" : "Recording options",
-            photo ? "MODE" : value.videoFormat.map { "\($0.resolution.tabTitle)\($0.frameRate.drumLabel)" } ?? "REC SETUP",
-            .format, photo ? "monitor.capture.mode" : "monitor.capture.format")
-        let color = !photo && host.chromeSectionMounts(.color)
-            ? row(.color, "Color mode", value.colorMode?.label(in: host.labelProfile) ?? "\u{2014}", .color, "monitor.capture.color") : nil
-        let mode = !photo ? row(.mode, "Shooting mode", host.currentShootingMode?.label(for: host.connectedBody) ?? "Video",
-            nil, "monitor.capture.mode") : nil
-        return .init(recording: host.liveStatus, showsTimecode: host.chromeSectionMounts(.timecode) && !photo && host.timecodeAvailable,
-            showsRecording: host.chromeSectionMounts(.recReadout) && !photo, storage: storage, format: format,
-            fps: host.chromeSectionMounts(.batteries) ? host.liveFPS : nil,
-            signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,
-            portraitFormat: setup, portraitCaption: photo ? nil : value.colorMode?.label(for: host.bodyFamily, in: host.labelProfile),
-            color: color, mode: mode, storageAlternative: total > 0 ? "\(Int((Double(max(0, free)) / Double(total) * 100).rounded()))%" : nil)
+        let tools = assists.tools()
+        MonitorOperatorLiveBody(host: host, control: control, session: session, live: layout, source: source,
+            facts: .init(identity: source.identity(), available: source.available(), picture: source.picture(), status: source.status(),
+                cameraBattery: source.cameraBattery(), capture: source.capture(), record: source.record(),
+                audio: source.audio(), readOnly: source.readOnly(), borrowed: source.borrowed(),
+                covered: source.coverOpen(), tools: tools, rendered: assists.rendered() ?? Set(tools),
+                fitted: assists.fitted()),
+            assists: assists, views: views, portraitAspect: portraitAspect, picture: picture,
+            nativePanel: cameraPanel, photoRelease: photoRelease, preview: preview, lookMenu: lookMenu)
     }
 }
 
-/// Coherent native focus and motion content, borrowed by the common live owner. This adapter
-/// produces no status, system rail, assist palette, inspector or camera-popup chrome.
-@MainActor private struct MonitorOperatorLegacyAccessories<Host: LiveChromeHost & GimbalPanelHost & GimbalStickHost> {
-    let host: Host
-    let layout: LiveMonitorLayout
-    let interaction: MonitorOperatorInteraction
-    let source: MonitorOperatorLivePresentation
-    let capture: MonitorOperatorLiveCaptureSource
-    let zoom: MonitorOperatorZoomPresentation
-    let focus: MonitorOperatorFocusSource
-    let assists: MonitorOperatorLiveAssistSource
-    let headTracking: MonitorOperatorHeadTrackingSource?
-    let readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)?
-    let controlNote: Binding<String?>
-    @Binding var portraitAspect: PortraitFeedAspect
-    let orientation: MonitorDeviceOrientation
-    let reduceMotion: Bool
+/// One evaluation of the source, taken in the surface's body.
+struct MonitorOperatorLiveFacts<Key: Hashable, NativeIdentity: Hashable & Sendable> {
+    let identity: MonitorOperatorLiveIdentity
+    let available: Set<MonitorDisplayChrome.Section>
+    let picture: MonitorOperatorLivePicture
+    let status: MonitorOperatorLiveStatus<Key, MonitorDisplayChrome.Section>
+    let cameraBattery: MonitorOperatorPowerReading?
+    let capture: MonitorOperatorCaptureInputs<Key, MonitorDisplayChrome.Section, NativeIdentity>
+    let record: MonitorOperatorRecordSource
+    let audio: MonitorOperatorLiveAudio?
+    let readOnly: Bool
+    let borrowed: Bool
+    let covered: Bool
+    let tools: [MonitorAssistSelection]
+    let rendered: Set<MonitorAssistSelection>
+    let fitted: [MonitorAssistSelection]
+}
 
-    private var editing: MonitorDisplayMode? { host.chromeEditorMode }
-    private var interactive: Bool { !host.isEditingChrome }
-    private var visible: Bool { !host.coverOpen || host.isEditingChrome }
-    private var capturePresented: Bool { host.captureSheet != nil || host.captureDrum != nil }
-    private var showsStatus: Bool { host.chromeSectionMounts(.statusBar) }
-    private var showsGimbal: Bool { source.gimbal == true && host.chromeSectionMounts(.gimbalStick) }
-    private var cluster: GimbalCluster { layout.gimbalCluster(showGimbalButton: showsGimbal) }
+/// The composition behind the surface. Section roles are the shared DISP sections.
+struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, NativeIdentity: Hashable & Sendable,
+    Looks: MonitorLookProvider, Picture: View, CameraPanel: View, PhotoRelease: View,
+    Preview: View, LookMenu: View>: View
+where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == MonitorDisplayMode {
+    private typealias Section = MonitorDisplayChrome.Section
+    private let host: Host
+    private let control: MonitorControlModel
+    private let session: MonitorOperatorSessionModel<Looks>
+    private let live: LiveMonitorLayout
+    private let source: MonitorOperatorLiveSource<Key, NativeIdentity>
+    private let facts: MonitorOperatorLiveFacts<Key, NativeIdentity>
+    private let assists: MonitorOperatorLiveAssists
+    private let cameraViews: MonitorOperatorBodyViews
+    @Binding private var portraitAspect: PortraitFeedAspect
+    private let picture: () -> Picture
+    private let nativePanel: (Key, MonitorCapturePopupLayout) -> CameraPanel
+    private let photoRelease: (CGFloat) -> PhotoRelease
+    private let preview: (MonitorAssistSelection) -> Preview
+    private let lookMenu: () -> LookMenu
+    @State private var storagePercent = false
+    @State private var expanded = false
+    @State private var lifecycle = MonitorInteractionLifecycle()
+    @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
 
-    var views: MonitorOperatorBodyViews {
-        .init(feedMarks: AnyView(MonitorOperatorLiveMarks(host: host, focus: focus, aspect: source.pictureAspect)),
-            feedGestures: AnyView(MonitorOperatorFeedGestures(host: host, focus: focus, layout: layout, cluster: cluster,
-                source: source, enabled: !interaction.locked && !host.coverOpen && interactive,
-                headTracking: headTracking?.enabled == true)),
-            focusControls: AnyView(focusContent),
-            motion: .init(controls: AnyView(motionControls), editor: AnyView(editor), feedback: AnyView(feedback)))
+    init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
+        live: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
+        facts: MonitorOperatorLiveFacts<Key, NativeIdentity>, assists: MonitorOperatorLiveAssists,
+        views: MonitorOperatorBodyViews, portraitAspect: Binding<PortraitFeedAspect>,
+        picture: @escaping () -> Picture, nativePanel: @escaping (Key, MonitorCapturePopupLayout) -> CameraPanel,
+        photoRelease: @escaping (CGFloat) -> PhotoRelease, preview: @escaping (MonitorAssistSelection) -> Preview,
+        lookMenu: @escaping () -> LookMenu) {
+        self.host = host; self.control = control; self.session = session; self.live = live
+        self.source = source; self.facts = facts; self.assists = assists; self.cameraViews = views
+        _portraitAspect = portraitAspect; self.picture = picture; self.nativePanel = nativePanel
+        self.photoRelease = photoRelease; self.preview = preview; self.lookMenu = lookMenu
     }
+
+    private var layout: FieldMonitorLayout {
+        live.presentation ?? FieldMonitorLayout(width: live.viewport.width, height: live.viewport.height)
+    }
+    private var safeArea: MonitorSafeArea {
+        .init(top: live.safeArea.top, leading: live.safeArea.leading,
+            bottom: live.safeArea.bottom, trailing: live.safeArea.trailing)
+    }
+    private var identity: MonitorOperatorLiveIdentity { facts.identity }
+    private func current(_ value: MonitorOperatorLiveIdentity) -> Bool { source.identity() == value }
+    private var assist: MonitorAssistState<Looks> { session.assist }
+    private var assistSource: MonitorOperatorLiveAssistSource? { assists.scopes }
+    private var stores: AssistPanelStores? { assists.scopes?.stores }
+    private var editing: MonitorDisplayMode? { session.editingMode }
+    private var locked: Bool { session.locked }
+    private var command: Bool { session.mode == .command }
+    private var covered: Bool { facts.covered }
+    private var readOnly: Bool { facts.readOnly }
+    private var status: MonitorOperatorLiveStatus<Key, Section> { facts.status }
+    private var captureInputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity> { facts.capture }
+    private var panel: MonitorOperatorCameraPanel<Key>? { captureInputs.panel }
+    private var open: (Key) -> Void { captureInputs.open }
+    private var dismiss: () -> Void { captureInputs.dismiss }
+    private var photo: Bool { facts.record.photo }
+    private var recordEnabled: Bool { !facts.record.busy }
+    private var tools: [MonitorAssistSelection] { facts.tools }
+    private var motionCovering: Bool { cameraViews.motion?.covering == true }
+    private var captureSource: MonitorCaptureSourceIdentity {
+        .init(camera: identity.camera, epoch: identity.epoch, monitor: identity.monitor,
+            pictureOwner: identity.pictureOwner, picture: identity.picture)
+    }
+    private func mounts(_ section: Section) -> Bool { facts.available.contains(section) && session.mounts(section) }
+
+    private var exposed: Bool { !covered && current(identity) }
+    private var presentationAdmitted: Bool { exposed && !locked && editing == nil && session.interactive }
+    private var admitted: Bool { presentationAdmitted && !readOnly }
+    private var transient: Bool { panel != nil || captureState.preview != nil || assist.configureTool != nil }
+    private var assistInspectorPresented: Bool {
+        assist.configureTool != nil && presentationAdmitted && assistSource != nil && stores != nil
+    }
+    private var context: MonitorInteractionContext {
+        .init(locked: locked, covered: covered, editing: editing != nil, clean: session.mode == .clean,
+            toolbarMounted: mounts(.toolBar), transientPanelPresented: transient,
+            camera: identity.camera, orientationRevision: layout.portrait ? 1 : 0)
+    }
+    private var lockBinding: Binding<Bool> {
+        Binding(get: { session.locked }, set: { if exposed { session.locked = $0 } })
+    }
+    private var captureHidden: Bool {
+        if let preview = captureState.preview { return !captureInputs.isTop(preview.key) }
+        if let panel { return !panel.top }
+        return false
+    }
+
+    var body: some View {
+        MonitorScreen(control: control, layout: layout, sourceAspect: facts.picture.aspect,
+            presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
+                dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
+                pictureWaiting: facts.picture.waiting,
+                statusMounted: mounts(.statusBar), powerMounted: mounts(.batteries),
+                captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
+                locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
+                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
+            picture: { picture().opacity(facts.picture.waiting || command ? 0 : 1).transaction { $0.animation = nil } },
+            assists: { feedMarks.opacity(facts.picture.waiting ? 0 : 1) },
+            signal: { if facts.picture.waiting { MonitorOperatorWaitingPicture<Host.Palette>(waiting: true, camera: identity.camera) } },
+            status: { statusChrome }, power: { powerChrome }, capture: { captureChrome },
+            system: { systemChrome }, tools: { toolsChrome }, panels: { panelsChrome },
+            cover: { EmptyView() }, recovery: { EmptyView() })
+            .environment(host).environment(\.interfaceLocked, locked)
+            .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
+            .overlayPreferenceValue(ChromeEditSectionBoundsKey<Section>.self) { boxes in
+                if let editing {
+                    ChromeEditBadges<Host>(mode: editing, boxes: boxes, viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height))
+                }
+            }.overlay(alignment: .bottom) {
+                if let editing { ChromeEditDoneBanner<Host>(mode: editing).padding(.bottom, max(16, safeArea.bottom)) }
+            }
+            .onChange(of: context, initial: true) { _, value in apply(lifecycle.update(value)) }
+            .onChange(of: identity) { _, _ in
+                captureState.retire(); captureState.frames = [:]; dismiss(); session.finishEditing()
+            }
+            .onChange(of: motionCovering) { _, covering in if covering { expanded = false } }
+            // The dashboard replaces the picture: no popup or inspector survives entering it.
+            .onChange(of: command) { _, command in if command { dismiss(); assist.configureTool = nil } }
+            .onChange(of: photo) { _, photo in if photo, assist.configureTool == .audioMeters { assist.configureTool = nil } }
+            .onDisappear { apply(lifecycle.close()); assist.liveCovered = false }
+    }
+
+    private func apply(_ transition: MonitorInteractionTransition) {
+        if transition.retireReadout { captureState.retire() }
+        if transition.collapseAssists { expanded = false }
+        if transition.dismissTransients { dismiss(); assist.configureTool = nil }
+        assist.liveCovered = covered && editing == nil
+    }
+
+    @ViewBuilder private var feedMarks: some View {
+        if let marks = cameraViews.feedMarks { marks } else {
+            GeometryReader { proxy in
+                MonitorOperatorFramingMarks(assist: assist, feed: CGRect(origin: .zero, size: proxy.size),
+                    visible: Set([MonitorAssistSelection.guides, .grid, .crosshair].filter(assist.isVisible)))
+            }
+        }
+    }
+
+    private var statusChrome: some View {
+        MonitorStatusChrome(layout: layout, status: status.recording,
+            showsTimecode: status.showsTimecode, showsRecording: status.showsRecording,
+            storage: { if let storage = status.storage { storageReadout(storage) } },
+            format: {
+                if layout.portrait, let value = status.portraitFormat {
+                    headerReadout(value, portrait: true, caption: status.portraitCaption)
+                } else {
+                    HStack(spacing: layout.tablet ? 24 : 8) { ForEach(status.format) { headerReadout($0) } }
+                }
+            }, color: { if let color = status.color { headerReadout(color) } },
+            mode: { if layout.viewport.width >= 800, let mode = status.mode { headerReadout(mode, alwaysAccent: true) } },
+            link: { telemetry(horizontal: true, showsLink: true, showsPower: false) })
+            .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
+    }
+    private func storageReadout(_ value: MonitorOperatorLiveReadout<Key, Section>) -> some View {
+        Button {
+            if exposed && !locked && editing == nil {
+                if status.storageAlternative != nil { storagePercent.toggle() }
+                else if let action = value.action { action() }
+                else { open(value.id) }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                MonitorIcon.cardSim.frame(width: 12, height: 12)
+                Text(storagePercent ? status.storageAlternative ?? value.value : value.value)
+                    .font(MonitorTheme.font(layout.portrait ? 14 : (layout.tablet ? 18 : 16), weight: .medium))
+                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
+            }
+        }.buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
+            .accessibilityValue(storagePercent ? status.storageAlternative ?? value.value : value.value)
+            .modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
+    }
+    private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
+        portrait: Bool = false, caption: String? = nil, alwaysAccent: Bool = false) -> some View {
+        MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
+            source: captureSource, readout: value, enabled: presentationAdmitted, commandEnabled: !readOnly,
+            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name) {
+            Text(value.value).font(MonitorTheme.font(portrait ? (photo ? 12 : (layout.tablet ? 25 : 23)) : (layout.tablet ? 18 : 16), weight: .medium))
+                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                .overlay(alignment: .bottomTrailing) {
+                    if let caption { Text(caption).font(MonitorTheme.font(11, weight: .semibold))
+                        .lineLimit(1).fixedSize().offset(y: 18) }
+                }
+                .foregroundStyle(alwaysAccent || panel?.key == value.id ? MonitorTheme.accent : .white)
+        }.modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
+            .background(frameReader(value.id))
+    }
+    private func telemetry(horizontal: Bool, showsLink: Bool, showsPower: Bool) -> some View {
+        MonitorOperatorTelemetry<Host.Palette>(fps: status.fps, signalBars: status.signalBars,
+            camera: facts.cameraBattery, horizontal: horizontal, showsLink: showsLink, showsPower: showsPower)
+            .modifier(DescriptorEditable<Host>(section: status.fpsSection, mode: editing))
+    }
+    private var powerChrome: some View {
+        telemetry(horizontal: layout.portrait && !layout.tablet,
+            showsLink: !layout.portrait || layout.tablet, showsPower: true)
+            .modifier(ChromeEditableModifier<Host>(section: .batteries, mode: editing))
+    }
+    private var captureChrome: some View {
+        MonitorOperatorCaptureStrip(inputs: captureInputs, control: control, state: captureState,
+            source: captureSource, enabled: presentationAdmitted, commandEnabled: !readOnly,
+            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name)
+            .modifier(ChromeEditableModifier<Host>(section: .cameraValues, mode: editing))
+    }
+    private func frameReader(_ key: Key) -> some View {
+        GeometryReader { geometry in
+            Color.clear.onChange(of: geometry.frame(in: .named(ChromeEditSpace.name)), initial: true) { _, frame in
+                if current(identity) { captureState.frames[key] = frame }
+            }.onDisappear { if current(identity) { captureState.frames[key] = nil } }
+        }
+    }
+    private var systemChrome: some View {
+        let modes = session.modes
+        let index = modes.firstIndex(of: session.mode)
+        return MonitorSystemControls(layout: layout, visibility: .init(lock: mounts(.lockButton),
+            settings: mounts(.railSettings), media: mounts(.railMedia), record: mounts(.railRecord), display: true)
+            .resolved(locked: locked, recording: control.isRecording, borrowed: facts.borrowed),
+            capturePresented: transient, visible: !motionCovering, interactive: editing == nil,
+            navigationHidden: captureState.preview != nil || (panel != nil && !layout.portrait)) {
+            if let returnToStage = source.returnToStage {
+                MonitorChromeButton("Return to Multicam", size: CGSize(width: layout.lock.width, height: layout.lock.height),
+                    action: { if exposed { returnToStage() } }) { Image(systemName: "square.grid.2x2") }
+                    .accessibilityIdentifier("monitor.system.multicamReturn")
+            } else {
+                MonitorLockButton(locked: lockBinding, side: layout.lock.width)
+            }
+        } settings: { systemButton(.settings, "Open Operator Setup", "monitor.system.settings", .railSettings, layout.settings, source.settings)
+        } media: { systemButton(photo ? .image : .film, "Open Media", "monitor.system.media", .railMedia, layout.media, source.media)
+        } record: {
+            Group {
+                if photo { photoRelease(layout.record.width).allowsHitTesting(admitted && recordEnabled) }
+                else if let external = facts.record.external { externalRecordButton(external) }
+                else { MonitorCaptureButton(control: control, diameter: layout.record.width, enabled: admitted && recordEnabled,
+                    confirm: facts.record.confirm, haptics: host.hapticsEnabled, confirmationPolicy: .unchangedRecording,
+                    openMode: facts.record.openMode.map { action in { if admitted && recordEnabled { action() } } }) }
+            }.modifier(ChromeEditableModifier<Host>(section: .railRecord, mode: editing))
+        } display: {
+            MonitorDisplayButton(selectedIndex: index, modeCount: modes.count,
+                title: index.map { "DISP \($0 + 1) \(session.mode.title.lowercased())" } ?? "DISP",
+                size: CGSize(width: layout.display.width, height: layout.display.height), enabled: !locked,
+                action: { if exposed && !locked { session.cycle() } })
+        }
+    }
+    private func systemButton(_ icon: MonitorIcon, _ title: String, _ id: String,
+        _ section: Section, _ frame: MonitorRect, _ action: @escaping () -> Void) -> some View {
+        MonitorChromeButton(title, size: CGSize(width: frame.width, height: frame.height),
+            action: { if exposed && !locked { action() } }) { icon.frame(width: frame.width * 29 / 54, height: frame.height * 29 / 54) }
+            .disabled(locked).accessibilityIdentifier(id)
+            .modifier(ChromeEditableModifier<Host>(section: section, mode: editing))
+    }
+    private func externalRecordButton(_ source: MonitorOperatorExternalRecordSource) -> some View {
+        Button { if admitted && recordEnabled { source.request() } } label: {
+            MonitorRecordLamp(diameter: layout.record.width, recording: source.recording == true)
+        }.buttonStyle(.plain).accessibilityIdentifier("monitor.system.record").disabled(!admitted || !recordEnabled || source.recording == nil)
+            .alert(source.confirmation == true ? "Start recording?" : "Stop recording?",
+                isPresented: Binding(get: { source.confirmation != nil }, set: { if !$0 { source.cancel() } })) {
+                Button("Cancel", role: .cancel, action: source.cancel)
+                Button(source.confirmation == true ? "Start" : "Stop") { if admitted && recordEnabled { source.confirm() } }
+            }
+    }
+    @ViewBuilder private var toolsChrome: some View {
+        ZStack(alignment: .topLeading) {
+            if let gestures = cameraViews.feedGestures { gestures.allowsHitTesting(presentationAdmitted) }
+            if !command { scopes }
+            if let focus = cameraViews.focusControls { focus.allowsHitTesting(admitted).zIndex(4) }
+            if !command { instruments }
+            MonitorOperatorLiveBanners<Host.Palette>(layout: live, camera: identity.camera,
+                recovering: facts.picture.recovering, note: source.note, showsStatus: mounts(.statusBar))
+            if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
+            if command, let dashboard = cameraViews.dashboard {
+                dashboard.frame(width: max(1, layout.picture.width - 32), height: max(44, layout.picture.height - 100))
+                    .position(x: layout.picture.midX, y: layout.picture.midY + 12).allowsHitTesting(admitted)
+            }
+            if !command, let drive = cameraViews.focusDrive {
+                drive.frame(height: min(280, layout.viewport.height * 0.55))
+                    .position(x: max(layout.picture.x + 30, layout.record.x - 34), y: layout.picture.midY).allowsHitTesting(admitted)
+            }
+            if facts.picture.waiting, let detail = cameraViews.waiting {
+                detail.frame(maxWidth: min(400, layout.picture.width - 32))
+                    .position(x: layout.picture.midX, y: layout.picture.midY + 64).allowsHitTesting(presentationAdmitted)
+            }
+            if !locked, editing == nil, let accessory = cameraViews.connection {
+                accessory.position(x: layout.picture.midX, y: layout.values.y - 28)
+            }
+            if !locked, editing == nil, let focusReset = cameraViews.resetFocus {
+                MonitorFocusResetButton(foreground: Host.Palette.text, outline: Host.Palette.hairline) {
+                    if admitted { focusReset() }
+                }
+                .position(x: layout.focusReset.midX, y: layout.focusReset.midY)
+            }
+            if !locked, editing == nil, let comparison = cameraViews.comparison {
+                comparison.position(x: layout.focusReset.midX, y: layout.focusReset.midY - 50)
+            }
+        }
+        if mounts(.toolBar), !command {
+            let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
+            MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
+                enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || assists.signalOptions.offers($0),
+                accessibilityLabel: $0.title) }, layout: metrics,
+                usageSeed: assists.usageSeed, usage: assists.usage, expanded: $expanded,
+                onToggle: { id in
+                    if presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) {
+                        assistSource?.haptics.selection()
+                        if presentationAdmitted { assists.toggle(tool) }
+                    }
+                }, onOptions: openOptions) { id in
+                    if let tool = tools.first(where: { $0.rawValue == id })?.sharedTool { MonitorAssistToolGlyph(tool: tool, size: nil) }
+                    else { MonitorIcon.image }
+                }.modifier(ChromeEditableModifier<Host>(section: .toolBar, mode: editing))
+                .opacity(locked ? 0.4 : 1).allowsHitTesting(!locked).position(x: frame.midX, y: frame.midY).zIndex(6)
+        }
+    }
+    private func openOptions(_ id: String) {
+        guard presentationAdmitted, let tool = tools.first(where: { $0.rawValue == id }) else { return }
+        if let permitted = assistSource?.configurableTools, !permitted.contains(tool) {
+            if let note = assistSource?.optionsUnavailableNotice { control.onNote(note) }
+            return
+        }
+        dismiss()
+        if presentationAdmitted { assist.configureTool = tool }
+    }
+
+    /// The feed area the instruments sit on, desqueezed when the assist stretches the picture.
     private var meterFeed: CGRect {
-        host.assist.isVisible(.desqueeze)
-            ? DesqueezeAssist.presentationRect(sourceSize: CGSize(width: source.pictureAspect, height: 1),
-                in: layout.onFeed, effects: host.assist.effects).intersection(layout.onFeed) : layout.onFeed
+        assist.isVisible(.desqueeze)
+            ? DesqueezeAssist.presentationRect(sourceSize: CGSize(width: facts.picture.aspect, height: 1),
+                in: live.onFeed, effects: assist.effects).intersection(live.onFeed) : live.onFeed
     }
-    @ViewBuilder private var focusContent: some View {
-        MonitorOperatorFocusControls(host: host, focus: focus, layout: layout, interactive: interactive && !interaction.locked)
-        if host.assist.isVisible(.evMeter) {
-            MonitorOperatorLiveExposure(host: host, feed: meterFeed, layout: layout,
-                interaction: interaction, recovering: source.recovering)
-                .accessibilityHidden(!visible || interaction.zoomMounted)
+    private var instrumentsHidden: Bool { (covered && editing == nil) || motionCovering }
+    @ViewBuilder private var instruments: some View {
+        if assist.isVisible(.evMeter), let exposure = source.exposure {
+            let palette = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
+            let footprint = palette.layout.resolving(expanded: expanded)
+                .anchored(leading: palette.frame.x, bottom: palette.frame.maxY)
+            let frame = MonitorOperatorExposureGeometry.frame(in: meterFeed,
+                avoiding: mounts(.toolBar) ? footprint.cgRect : nil)
+            let reading = facts.picture.recovering ? ExposureMeterReading(cameraValue: nil) : exposure()
+            MonitorExposureGauge(value: reading.label, needleFraction: reading.needleFraction)
+                .frame(width: frame.width, height: frame.height).position(x: frame.midX, y: frame.midY)
+                .accessibilityElement(children: .ignore).accessibilityLabel("EV meter")
+                .accessibilityValue(reading.accessibilityValue).accessibilityIdentifier("monitor.ev.meter")
+                .accessibilityHidden(frame.isEmpty || instrumentsHidden).opacity(frame.isEmpty ? 0 : 1).allowsHitTesting(false)
         }
-        if host.assist.isVisible(.level), let readLevel {
+        if assist.isVisible(.level), let level = source.level {
+            let flipped = facts.picture.flipped != assist.flipsVertically
             TimelineView(.periodic(from: .now, by: 0.1)) { _ in
-                MonitorLevelOverlay(display: readLevel(ProcessInfo.processInfo.systemUptime,
-                    host.livePictureViewFlip != host.assist.flipsVertically), feed: meterFeed,
-                    viewport: CGRect(origin: .zero, size: layout.viewport), portrait: layout.viewport.height > layout.viewport.width)
-            }.allowsHitTesting(false).accessibilityHidden(!visible || interaction.zoomMounted)
+                MonitorLevelOverlay(display: level(ProcessInfo.processInfo.systemUptime, flipped), feed: meterFeed,
+                    viewport: CGRect(origin: .zero, size: live.viewport), portrait: live.viewport.height > live.viewport.width)
+            }.allowsHitTesting(false).accessibilityHidden(instrumentsHidden)
         }
-        if let p = layout.presentation, p.portrait, !source.verticalPicture, editing == nil, !host.assist.isVisible(.desqueeze) {
+        if layout.portrait, !facts.picture.vertical, editing == nil, !assist.isVisible(.desqueeze) {
             PortraitAspectToggle<Host.Palette>(aspect: $portraitAspect)
-                .accessibilityHidden(!visible || interaction.zoomMounted).liveModuleFrame(p.aspectToggle.cgRect)
-                .allowsHitTesting(!interaction.locked)
-        }
-        MonitorOperatorLiveBanners(host: host, layout: layout, source: source, headTracking: headTracking,
-            note: controlNote, showsStatus: showsStatus)
-    }
-    @ViewBuilder private var motionControls: some View {
-        if source.zoom == true && host.chromeSectionMounts(.zoomChip) {
-            ZoomChip<Host>(onOpenDial: openZoom)
-                .chromeEditable(.zoomChip, editing: editing, in: Host.self).liveModuleFrame(rect(cluster.zoom))
-                .opacity(capturePresented ? 0 : 1).allowsHitTesting(!interaction.locked && !capturePresented)
-                .accessibilityHidden(capturePresented || !visible || interaction.zoomMounted).zIndex(2)
-        }
-        if showsGimbal {
-            LiveGimbalButton<Host, Host.Palette>().liveModuleFrame(rect(cluster.controls))
-                .opacity(capturePresented ? 0 : 1).allowsHitTesting(!interaction.locked && !capturePresented)
-                .accessibilityHidden(capturePresented || !visible || interaction.zoomMounted).zIndex(2)
-            LiveGimbalStick<Host, Host.Palette>(enabled: !interaction.locked && !host.coverOpen && interactive && !capturePresented,
-                frame: rect(cluster.stick), feed: layout.feed)
-                .id("live-gimbal-stick").transaction(value: orientation) { $0.animation = nil }
-                .chromeEditable(.gimbalStick, editing: editing, in: Host.self).liveModuleFrame(rect(cluster.stick))
-                .opacity(capturePresented ? 0 : 1)
-                .accessibilityHidden(capturePresented || !visible || interaction.zoomMounted).zIndex(3)
-        }
-        if source.headTracking == true, let headTracking, headTracking.enabled,
-            !interaction.locked, interactive, !host.coverOpen {
-            HeadTrackCalibrateButton<Host.Palette>(title: headTracking.title, onTap: headTracking.calibrate)
-                .liveModuleFrame(layout.gimbalCalibrate).opacity(capturePresented ? 0 : 1)
-                .allowsHitTesting(!capturePresented && !interaction.zoomMounted)
-                .accessibilityHidden(capturePresented || !visible || interaction.zoomMounted).zIndex(3)
+                .accessibilityHidden(instrumentsHidden).liveModuleFrame(layout.aspectToggle.cgRect)
+                .allowsHitTesting(presentationAdmitted).zIndex(4)
         }
     }
 
-    @ViewBuilder private var editor: some View {
-        if interactive, showsGimbal, host.liveGimbalPanel == .sheet, !interaction.locked {
-            LiveGimbalSheetHost<Host>(layout: layout, cluster: cluster)
+    @ViewBuilder private var scopes: some View {
+        if let assistSource, let stores {
+        let canvas = CGRect(x: 0, y: 0, width: layout.viewport.width, height: layout.viewport.height)
+        let feed = CGRect(x: layout.picture.x, y: layout.picture.y, width: layout.picture.width, height: layout.picture.height)
+        let floor = layout.portrait ? layout.system.y : layout.viewport.height
+        let right = layout.portrait ? layout.viewport.width - safeArea.trailing : layout.settings.x - 6
+        let clearance = EdgeInsets(top: safeArea.top, leading: safeArea.leading,
+            bottom: max(0, layout.viewport.height - floor), trailing: max(0, layout.viewport.width - right))
+        if layout.portrait && !layout.fillsPicture && !facts.fitted.isEmpty {
+                let room = max(0, layout.values.y - layout.picture.maxY - 32)
+                MonitorScopeFitStack(tools: facts.fitted, assist: assist, stores: stores, haptics: assistSource.haptics,
+                    readBundle: assistSource.readBundle, configureDisplay: assistSource.configureDisplay,
+                    paradeIntensityScale: assistSource.paradeIntensityScale)
+                    .frame(width: max(0, layout.picture.width - 28), height: min(184, room))
+                    .position(x: layout.picture.midX, y: layout.picture.maxY + 16 + min(184, room) / 2)
         }
-        if interaction.zoomMounted, interactive, !interaction.locked {
-            MonitorOperatorZoomDial<Host>(layout: layout, interaction: interaction, source: zoom, onClose: closeZoom)
+        MonitorScopeOverlays(assist: assist, stores: stores, haptics: assistSource.haptics,
+                canvas: canvas, feed: feed, chromeClearance: clearance, readBundle: assistSource.readBundle,
+                configureDisplay: assistSource.configureDisplay,
+                available: layout.portrait && !layout.fillsPicture ? facts.rendered.subtracting(facts.fitted) : facts.rendered,
+                paradeIntensityScale: assistSource.paradeIntensityScale)
+        if facts.rendered.contains(.audioMeters), assist.isVisible(.audioMeters), let audio = facts.audio {
+            AudioMeterOverlay(stores: stores, levels: audio.levels, sensitivity: audio.caption, bounds: canvas,
+                chromeClearance: clearance, hapticsEnabled: host.hapticsEnabled,
+                onConfigure: { if admitted { assist.configureTool = .audioMeters } })
+        }
+        if facts.rendered.contains(.falseColor), assist.isVisible(.falseColor), assist.falseColorReference,
+            assists.signalOptions.referenceAvailable != false {
+            let transfer = assistSource.readTransfer()
+            FalseColorReferenceOverlay(stores: stores, looks: assistSource.looks, scale: assist.falseColorScale,
+                transfer: transfer, rec709: assist.falseColorRec709, clipByte: assistSource.readClipByte(transfer),
+                bounds: canvas, chromeClearance: clearance, hapticsEnabled: host.hapticsEnabled,
+                onConfigure: { if admitted { assist.configureTool = .falseColor } }, referenceValues: assists.signalOptions.reference)
+        }
         }
     }
-    @ViewBuilder private var feedback: some View {
-        if showsGimbal, interactive, !interaction.locked, !host.coverOpen {
-            LiveGimbalOverlay<Host, Host.Palette>(layout: layout, feed: layout.onFeed,
-                joystickBounds: host.chromeSectionMounts(.gimbalStick) && !capturePresented ? rect(cluster.stick) : .zero,
-                zoomBounds: source.zoom == true && host.chromeSectionMounts(.zoomChip) && !capturePresented ? rect(cluster.zoom) : .zero,
-                coveredByZoom: interaction.zoomMounted)
-                .opacity(interaction.zoomVisible ? 0.16 : 1)
-                .animation(MonitorMotion.dim(reduceMotion), value: interaction.zoomVisible)
-                .allowsHitTesting(host.liveChromeInteractive && !interaction.zoomMounted)
-        }
-    }
-    private func openZoom() { interaction.openZoom(host: host, motion: Bindable(host).liveGimbalPanel) }
-    private func closeZoom() { interaction.closeZoom(host: host, reduceMotion: reduceMotion) }
-    private func rect(_ region: MonitorLayoutRegion) -> CGRect {
-        CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
-    }
-}
-
-private struct MonitorOperatorLiveMarks<Host: LiveChromeHost>: View {
-    let host: Host
-    let focus: MonitorOperatorFocusSource
-    let aspect: Double
-    var body: some View {
-        let value = focus.read()
-        let show = host.chromeSectionMounts(.focusBox)
-        ZStack {
-            FeedAssistMarks<Host>(grid: host.assist.isVisible(.grid), crosshair: host.assist.isVisible(.crosshair),
-                guides: host.assist.isVisible(.guides), guideAspect: host.assist.guideAspect,
-                focusPoint: value.point, overlay: value.overlay, sceneFaces: show ? value.faces : [],
-                showFocusChrome: show, showTapFocusBox: value.supportsTapFocus == true,
-                aeLocked: host.autoExposureLocked, focusLocked: host.focusBoxLocked, sourceAspect: CGFloat(aspect),
-                pictureAspect: CGFloat(host.cameraStatus.videoFormat?.resolution.ratio ?? host.cameraStatus.videoResolution?.ratio ?? aspect),
-                pictureMirrored: host.livePictureViewFlip)
-                .opacity(host.chromeEditorMode.map { host.chrome(for: $0).focusBox ? 1 : 0.3 } ?? 1)
-                .animation(.easeOut(duration: 0.20), value: value.resetAvailable)
-            if let editing = host.chromeEditorMode {
-                GeometryReader { proxy in
-                    let feed = DesqueezeAssist.presentationRect(sourceSize: CGSize(width: aspect, height: 1),
-                        in: CGRect(origin: .zero, size: proxy.size), effects: host.assist.effects)
-                    let rect = LiveChromeEditGeometry.focusEditRect(overlay: value.overlay, faces: value.faces,
-                        focusPoint: value.point, mirrored: host.livePictureViewFlip,
-                        flippedVertically: host.assist.flipsVertically, in: feed)
-                    Color.clear.frame(width: rect.width, height: rect.height)
-                        .chromeEditable(.focusBox, editing: editing, in: Host.self).position(x: rect.midX, y: rect.midY)
+    @ViewBuilder private var panelsChrome: some View {
+        if let tool = assist.configureTool, assistInspectorPresented, let assistSource, let stores {
+            let transfer = assistSource.readTransfer()
+            MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores, looks: assistSource.looks,
+                palette: Host.Palette.self, haptics: assistSource.haptics,
+                sourceTransfer: assistSource.readBundle().levelAxis?.supportsCalibratedReferences == false ? nil : transfer,
+                clipByte: assistSource.readClipByte(transfer),
+                viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height),
+                safeArea: .init(top: safeArea.top, leading: safeArea.leading, bottom: safeArea.bottom, trailing: safeArea.trailing),
+                available: Set(tools), signalOptions: assists.signalOptions, audioAvailable: assistSource.audioAvailable,
+                onDismiss: { assist.configureTool = nil }, preview: preview, lookMenu: lookMenu)
+                .environment(\.audioInspectorLevels, facts.audio?.levels)
+        } else {
+            MonitorOperatorCapturePopup(inputs: captureInputs, control: control, state: captureState,
+                layout: layout, safeArea: safeArea, enabled: presentationAdmitted, commandEnabled: !readOnly,
+                currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name) { key, popup in
+                    nativePanel(key, popup)
                 }
-            }
+        }
+        if let motion = cameraViews.motion {
+            motion.editor.allowsHitTesting(presentationAdmitted)
+            motion.feedback.allowsHitTesting(admitted).zIndex(15)
         }
     }
 }
 
-private struct MonitorOperatorFeedGestures<Host: LiveChromeHost>: View {
-    let host: Host
-    let focus: MonitorOperatorFocusSource
-    let layout: LiveMonitorLayout
-    let cluster: GimbalCluster
-    let source: MonitorOperatorLivePresentation
-    let enabled: Bool
-    let headTracking: Bool
-    var body: some View {
-        let value = focus.read()
-        let feed = host.assist.isVisible(.desqueeze)
-            ? DesqueezeAssist.presentationRect(sourceSize: CGSize(width: source.pictureAspect, height: 1),
-                in: layout.onFeed, effects: host.assist.effects) : layout.onFeed
-        FeedGestureWell<Host>(feed: feed, chip: rect(cluster.zoom), stick: rect(cluster.stick),
-            gimbalButton: rect(cluster.controls), reset: value.resetAvailable ? layout.focusReset : .zero,
-            aeUnlock: host.autoExposureLocked ? layout.aeUnlock : .zero, cancel: cancelRect(value.trackedSubject),
-            calibrate: headTracking && source.headTracking == true ? layout.gimbalCalibrate : .zero,
-            enabled: enabled)
-            .animation(.easeOut(duration: 0.20), value: value.resetAvailable)
-    }
-    private func rect(_ region: MonitorLayoutRegion) -> CGRect {
-        CGRect(x: region.x, y: region.y, width: region.width, height: region.height)
-    }
-    private func cancelRect(_ subject: TrackingBox?) -> CGRect {
-        guard let subject else { return .zero }
-        return MonitorTrackingGeometry.cancelRect(box: subject, feed: layout.onFeed,
-            mirrored: host.livePictureViewFlip, flippedVertically: host.assist.flipsVertically)
+private struct DescriptorEditable<Host: ChromeEditHost>: ViewModifier {
+    let section: Host.ChromeSection?
+    let mode: Host.ChromeMode?
+    @ViewBuilder func body(content: Content) -> some View {
+        if let section { content.modifier(ChromeEditableModifier<Host>(section: section, mode: mode)) }
+        else { content }
     }
 }
 
-private struct MonitorOperatorFocusControls<Host: LiveChromeHost>: View {
-    let host: Host
-    let focus: MonitorOperatorFocusSource
+/// The reconnect capsule and the one note placement, under the status deck. A note clears
+/// after the hold unless a newer note or another camera replaced it.
+private struct MonitorOperatorLiveBanners<Palette: LiveChromePalette>: View {
     let layout: LiveMonitorLayout
-    let interactive: Bool
-    var body: some View {
-        let value = focus.read()
-        Group {
-            if interactive, value.resetAvailable {
-                FocusResetButton<Host>().liveModuleFrame(layout.focusReset)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity)).zIndex(3)
-            }
-            if interactive, host.autoExposureLocked {
-                AutoExposureUnlockButton<Host>().liveModuleFrame(layout.aeUnlock)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity)).zIndex(3)
-            }
-            if interactive, let subject = value.trackedSubject {
-                Button(action: focus.cancelTracking) {
-                    MonitorIcon.x.frame(width: 11, height: 11).foregroundStyle(Host.Palette.background)
-                        .frame(width: MonitorTrackingGeometry.cancelSize, height: MonitorTrackingGeometry.cancelSize)
-                        .background(Host.Palette.good, in: Circle())
-                }.buttonStyle(.monitorTapTarget).accessibilityLabel("Stop subject tracking")
-                    .accessibilityIdentifier("monitor.system.trackCancel")
-                    .liveModuleFrame(MonitorTrackingGeometry.cancelRect(box: subject, feed: layout.onFeed,
-                        mirrored: host.livePictureViewFlip, flippedVertically: host.assist.flipsVertically))
-                    .zIndex(4)
-            }
-        }.animation(.easeOut(duration: 0.20), value: value.resetAvailable)
-    }
-}
-
-private struct MonitorOperatorLiveExposure<Host: LiveChromeHost>: View {
-    let host: Host
-    let feed: CGRect
-    let layout: LiveMonitorLayout
-    let interaction: MonitorOperatorInteraction
+    let camera: CameraSessionID?
     let recovering: Bool
-    var body: some View {
-        let geometry = layout.presentation ?? FieldMonitorLayout(width: layout.viewport.width, height: layout.viewport.height)
-        let palette = MonitorAssistPaletteLayout.fieldMonitor(geometry,
-            toolCount: MonitorAssistSelection.toolbarCases.count + (host.cameraStatus.isPhoto ? 0 : 1), safeTop: layout.safeArea.top)
-        let footprint = palette.layout.resolving(expanded: interaction.assistsExpanded || interaction.assistsRevealing)
-            .anchored(leading: palette.frame.x, bottom: palette.frame.maxY)
-        let obstacle = host.chromeSectionMounts(.toolBar) ? footprint.cgRect : nil
-        let frame = MonitorOperatorExposureGeometry.frame(in: feed, avoiding: obstacle)
-        let reading = ExposureMeterReading(cameraValue: host.sessionRecovery.isRecovering || recovering ? nil : host.cameraStatus.meteredEv)
-        MonitorExposureGauge(value: reading.label, needleFraction: reading.needleFraction)
-            .frame(width: frame.width, height: frame.height).position(x: frame.midX, y: frame.midY)
-            .accessibilityElement(children: .ignore).accessibilityLabel("EV meter")
-            .accessibilityValue(reading.accessibilityValue).accessibilityIdentifier("monitor.ev.meter")
-            .accessibilityHidden(frame.isEmpty).opacity(frame.isEmpty ? 0 : 1).allowsHitTesting(false)
-    }
-}
-
-private struct MonitorOperatorLiveBanners<Host: LiveChromeHost>: View {
-    let host: Host
-    let layout: LiveMonitorLayout
-    let source: MonitorOperatorLivePresentation
-    let headTracking: MonitorOperatorHeadTrackingSource?
     @Binding var note: String?
     let showsStatus: Bool
     private struct Context: Equatable {
-        let source: CameraSessionID?
+        let camera: CameraSessionID?
         let note: String?
         let recovering: Bool
     }
@@ -499,37 +778,54 @@ private struct MonitorOperatorLiveBanners<Host: LiveChromeHost>: View {
         let chromeBottom = showsStatus && layout.topDeck.height > 1 ? Double(layout.topDeck.maxY) : nil
         let y = CGFloat(ControlHud.toastCenterY(feedMinY: Double(layout.onFeed.minY), chromeBottomY: chromeBottom))
         Group {
-            if source.recovering { capsule("Reconnecting", size: 11).position(x: layout.onFeed.midX, y: y) }
-            if let note, !note.isEmpty, !source.recovering {
+            if recovering { capsule("Reconnecting", size: 11).position(x: layout.onFeed.midX, y: y) }
+            if let note, !note.isEmpty, !recovering {
                 capsule(note, size: 12).opacity(ControlHud.toastOpacity).position(x: layout.onFeed.midX, y: y)
-                    .transition(.opacity)
-            }
-            if let headTracking, headTracking.enabled, let pose = headTracking.readPose() {
-                VStack(alignment: .leading, spacing: 6) {
-                    LiveHeadTrackAxisDials<Host.Palette>(pose: pose)
-                    if !headTracking.readIMU().isEmpty {
-                        Text(headTracking.readIMU()).font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Host.Palette.text).multilineTextAlignment(.leading)
-                            .frame(maxWidth: 220, alignment: .leading).padding(.horizontal, 8).padding(.vertical, 6)
-                            .liveChromeGlass(in: Capsule())
-                    }
-                }.position(x: layout.onFeed.minX + 118, y: layout.onFeed.minY + 118)
-                    .zIndex(5).allowsHitTesting(false).transaction { $0.animation = nil }
+                    .transition(.opacity).accessibilityIdentifier("monitor.note")
             }
         }.animation(.easeOut(duration: 0.18), value: note).animation(.easeOut(duration: 0.18), value: y)
-            .task(id: Context(source: host.control.snapshot?.session, note: note, recovering: source.recovering)) {
-                let owner = host.control.snapshot?.session
+            .task(id: Context(camera: camera, note: note, recovering: recovering)) {
                 let captured = note
-                guard captured?.isEmpty == false, !source.recovering else { return }
+                guard captured?.isEmpty == false, !recovering else { return }
                 try? await Task.sleep(for: .seconds(ControlHud.toastHoldSeconds))
-                guard !Task.isCancelled, host.control.snapshot?.session == owner, note == captured else { return }
+                guard !Task.isCancelled, note == captured else { return }
                 note = nil
             }
     }
     private func capsule(_ text: String, size: CGFloat) -> some View {
-        Text(text).font(MonitorTheme.font(size, weight: .semibold)).foregroundStyle(Host.Palette.text.opacity(0.92))
+        Text(text).font(MonitorTheme.font(size, weight: .semibold)).foregroundStyle(Palette.text.opacity(0.92))
             .padding(.horizontal, size == 11 ? 10 : 12).padding(.vertical, size == 11 ? 4 : 6)
             .liveChromeGlass(in: Capsule()).zIndex(3).allowsHitTesting(false)
+    }
+}
+
+private struct MonitorOperatorWaitingPicture<Palette: LiveChromePalette>: View {
+    let waiting: Bool
+    let camera: CameraSessionID?
+    @State private var showVPNHint = false
+    private struct Context: Equatable { let camera: CameraSessionID?; let waiting: Bool }
+    var body: some View {
+        ZStack {
+            Color.black
+            VStack(spacing: 12) {
+                if waiting { ProgressView().controlSize(.large).tint(Palette.text.opacity(0.72)) }
+                Text("WAITING FOR LIVE VIEW").font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Palette.text.opacity(0.72))
+                if showVPNHint {
+                    Text(LocalVPNFilter.liveHint).font(MonitorTheme.font(12)).foregroundStyle(Palette.muted)
+                        .multilineTextAlignment(.center).padding(.horizontal, 28)
+                }
+            }
+        }.allowsHitTesting(false).accessibilityElement(children: .combine)
+            .accessibilityLabel(showVPNHint ? "Waiting for live view. \(LocalVPNFilter.liveHint)" : "Waiting for live view")
+            .task(id: Context(camera: camera, waiting: waiting)) {
+                showVPNHint = false
+                guard waiting else { return }
+                try? await Task.sleep(for: .seconds(LocalVPNFilter.liveHintDelaySeconds))
+                guard !Task.isCancelled else { return }
+                showVPNHint = LocalVPNFilter.shouldHintOnLiveWait(vpnActive: LocalVPNProbe.isActive(),
+                    hadVideo: !waiting, secondsWithoutVideo: LocalVPNFilter.liveHintDelaySeconds)
+            }
     }
 }
 

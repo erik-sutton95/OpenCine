@@ -18,7 +18,7 @@ public struct MonitorOperatorCaptureOverlays<Host: LiveChromeHost>: View {
         self.topFrames = topFrames; self.captureFrames = captureFrames
     }
 
-    private var interactive: Bool { !host.isEditingChrome && !interaction.locked }
+    private var interactive: Bool { !host.isEditingChrome && !host.operatorSession.locked }
     private var captureCeiling: CGFloat {
         max(layout.safeArea.top + LivePopupPlacement.assistTopInset, LivePopupPlacement.edgeMargin)
     }

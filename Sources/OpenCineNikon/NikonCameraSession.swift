@@ -28,12 +28,15 @@ public struct NikonControlFacts: Sendable {
     /// Actual descriptor choices for active movie shutter and aperture, excluding UI fallbacks.
     public var shutterLabels: [String] = []
     public var apertureLabels: [String] = []
+    /// The live-view header's running timecode, frames included. `nil` while the body's header
+    /// says timecode is off or no header has been read: never a frozen counter.
+    public var timecode: CameraTimecode?
 
     public init(
         holdsControl: Bool = true, liveViewReady: Bool = false,
         reported: PTPCameraPropertySnapshot = PTPCameraPropertySnapshot(), recording: Bool? = nil,
         whiteBalancePresets: [String] = [], connection: ConnectionState = .ready,
-        shutterLabels: [String] = [], apertureLabels: [String] = []
+        shutterLabels: [String] = [], apertureLabels: [String] = [], timecode: CameraTimecode? = nil
     ) {
         self.holdsControl = holdsControl
         self.liveViewReady = liveViewReady
@@ -43,6 +46,14 @@ public struct NikonControlFacts: Sendable {
         self.shutterLabels = shutterLabels
         self.apertureLabels = apertureLabels
         self.connection = connection
+        self.timecode = timecode
+    }
+}
+
+extension Timecode {
+    /// The header timecode as a common observation: unknown unless the body says it runs.
+    public var running: CameraTimecode? {
+        on ? CameraTimecode(hours: hour, minutes: minute, seconds: second, frames: frame) : nil
     }
 }
 
@@ -386,11 +397,15 @@ public final class NikonCameraSession: CameraSession {
         // firmware-dependent, tint as WB fine-tune), so what this slice does not describe is
         // unknown, not unsupported (MULTI-03 F6).
         let descriptors = Self.descriptors(facts)
+        let timecode = Self.timecodeCapability(facts.reported)
         let revision = next.capabilities.revision
-        if CapabilitySnapshot(revision: revision, descriptors: descriptors) != next.capabilities {
+        if CapabilitySnapshot(revision: revision, descriptors: descriptors, timecode: timecode)
+            != next.capabilities
+        {
             next.capabilities = CapabilitySnapshot(
-                revision: revision.next(), descriptors: descriptors)
+                revision: revision.next(), descriptors: descriptors, timecode: timecode)
         }
+        Self.observe(&next.timecode, facts.timecode, at: at)
         Self.observe(&next.mode, Self.mode(facts.reported), at: at)
         Self.observe(&next.recording, facts.recording.map { $0 ? .recording : .idle }, at: at)
         Self.observe(
@@ -422,6 +437,13 @@ public final class NikonCameraSession: CameraSession {
     /// Movie ISO (the picker's enumerated ladder plus the camera's current value), white balance
     /// (advertised presets plus the documented Kelvin range) and record. All readback-confirmed
     /// and not yet hardware-qualified.
+    /// Every Z body's live-view header carries a frame-counting timecode field, at the movie rate
+    /// the body reports (its screen-size token encodes whole frames per second). Whether it runs
+    /// is the observation, not the capability.
+    static func timecodeCapability(_ reported: PTPCameraPropertySnapshot) -> TimecodeCapability {
+        .supported(reported.fps.map { .frames(rate: Rational($0), dropFrame: nil) })
+    }
+
     public static func descriptors(_ facts: NikonControlFacts) -> [SettingDescriptor] {
         let reported = facts.reported
         let codec = reported.fileType ?? ""

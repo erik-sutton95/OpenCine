@@ -81,7 +81,7 @@ import Testing
         // An observation is reported only where it is supported; a derived time says so.
         let capabilities = reported.capabilities
         #expect(capabilities.timecode != .unknown && capabilities.audioLevels != .unknown)
-        #expect(reported.timecode.isKnown == (capabilities.timecode == .supported && device.timecode != nil))
+        #expect(reported.timecode.isKnown == (capabilities.timecode.support == .supported && device.timecode != nil))
         #expect(
             reported.audioLevels.isKnown
                 == (capabilities.audioLevels == .supported && device.audioLevels != nil))

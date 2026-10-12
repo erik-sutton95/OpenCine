@@ -35,12 +35,12 @@ extension FakeCameraSession {
                 video,
                 [iso, shutter([50, 100, 200, 400]), ev, wb, fps([24, 25, 30, 48, 50, 60]), zoom,
                  SettingDescriptor(.recording)],
-                unsupported: [.aperture], timecode: .supported, audioLevels: .supported),
+                unsupported: [.aperture], timecode: .supported(.seconds), audioLevels: .supported),
             0x02: FakeMode(
                 slow,
                 [iso, shutter([250, 500, 1000]), ev, wb, fps([120, 240]), zoom,
                  SettingDescriptor(.recording)],
-                unsupported: [.aperture], timecode: .supported, audioLevels: .supported),
+                unsupported: [.aperture], timecode: .supported(.seconds), audioLevels: .supported),
             0x05: FakeMode(
                 photo,
                 [iso, shutter([50, 100, 200, 400]), ev, wb, zoom,
@@ -99,7 +99,8 @@ extension FakeCameraSession {
                     .focusPoint, semantics: SettingSemantics(confirmation: .acknowledgementOnly)),
                 SettingDescriptor(.recording),
             ],
-            unsupported: [.zoom], timecode: .supported, audioLevels: .supported)
+            unsupported: [.zoom], timecode: .supported(.frames(rate: Rational(24), dropFrame: false)),
+            audioLevels: .supported)
         return FakeCameraSession(
             behavior: FakeCameraBehavior(
                 integration: IntegrationID("test.nikon-like"), reportDelay: .milliseconds(200),
@@ -143,7 +144,7 @@ extension FakeCameraSession {
                     .focusMode, domain: choices([FocusMode.single, .continuous]) { .focusMode($0) }),
                 SettingDescriptor(.recording),
             ],
-            unsupported: [], timecode: .supported, audioLevels: .unsupported)
+            unsupported: [], timecode: .supported(.seconds), audioLevels: .unsupported)
         return FakeCameraSession(
             behavior: FakeCameraBehavior(
                 integration: IntegrationID("test.luna-like"), reportDelay: .milliseconds(2500),
@@ -157,7 +158,7 @@ extension FakeCameraSession {
                     .frameRate(Rational(30)), .zoom(1), .focusMode(.continuous),
                 ],
                 batteryPercent: 55,
-                timecode: CameraTimecode(hours: 9, minutes: 30, seconds: 0, frames: 12)))
+                timecode: CameraTimecode(hours: 9, minutes: 30, seconds: 0)))
     }
 }
 

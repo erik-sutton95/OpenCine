@@ -50,7 +50,6 @@ public struct CameraDisplayState: Equatable, Sendable {
         media: String,
         liveFPS: String,
         cameraBatteryPercent: Int,
-        phoneBatteryPercent: Int,
         cameraName: String,
         lens: String,
         temperature: String,
@@ -64,7 +63,6 @@ public struct CameraDisplayState: Equatable, Sendable {
         self.media = media
         self.liveFPS = liveFPS
         self.cameraBatteryPercent = cameraBatteryPercent
-        self.phoneBatteryPercent = phoneBatteryPercent
         self.cameraName = cameraName
         self.lens = lens
         self.temperature = temperature
@@ -79,7 +77,6 @@ public struct CameraDisplayState: Equatable, Sendable {
     public let media: String
     public let liveFPS: String
     public let cameraBatteryPercent: Int
-    public let phoneBatteryPercent: Int
     public let cameraName: String
     public let lens: String
     public let temperature: String
@@ -115,7 +112,6 @@ public struct CameraDisplayState: Equatable, Sendable {
         media: unavailableValue,
         liveFPS: unavailableValue,
         cameraBatteryPercent: 0,
-        phoneBatteryPercent: 0,
         cameraName: unavailableValue,
         lens: unavailableValue,
         temperature: unavailableValue,
@@ -138,7 +134,6 @@ public struct CameraDisplayState: Equatable, Sendable {
         media: "521 GB · 47 min",
         liveFPS: "25.00",
         cameraBatteryPercent: 80,
-        phoneBatteryPercent: 84,
         cameraName: "Nikon ZR",
         lens: "Z 24-70mm f/2.8",
         temperature: "OK",
