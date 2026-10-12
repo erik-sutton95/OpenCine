@@ -109,8 +109,11 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         if nikonControlFacts.holdsControl, !facts.holdsControl {
             dropCommands(preservingAdmitted: true)
         }
+        // The link lifecycle and the header timecode are this runtime's own observations.
+        let timecode = nikonControlFacts.timecode
         nikonControlFacts = facts
         nikonControlFacts.connection = connection
+        nikonControlFacts.timecode = timecode
         common.refresh()
     }
 
@@ -124,6 +127,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
         propertyBootstrap = nil
         nikonControlFacts.connection = .recovering(recoveryAttempt)
         nikonControlFacts.liveViewReady = false
+        nikonControlFacts.timecode = nil
         common.refresh()
     }
 
@@ -303,6 +307,7 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                         demand: demand, isCurrent: { self.previewIsCurrent(current) },
                         consume: { frame, delivery in
                             let accepted = await consume(frame, delivery)
+                            if accepted { self.observeHeader(timecode: frame.timecode) }
                             if accepted, delivery.first {
                                 self.startFailures = 0
                                 lastGood = Date()
@@ -360,6 +365,15 @@ public final class NikonMonitorRuntime: NikonControlDriver {
                 }
             }
         }
+    }
+
+    /// Publishes the header timecode per frame (A5-04). The common model observes the counter
+    /// apart from the rest of the snapshot, so only the clock re-renders.
+    func observeHeader(timecode: Timecode) {
+        let running = timecode.running
+        guard !closed, nikonControlFacts.timecode != running else { return }
+        nikonControlFacts.timecode = running
+        common.refresh()
     }
 
     /// Retires the sole reader. Its fetch drains without cancellation on a borrowed/kept link.
