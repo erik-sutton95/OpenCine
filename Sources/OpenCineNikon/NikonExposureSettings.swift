@@ -75,6 +75,9 @@ public enum NikonExposureSettings {
     ) -> [SettingDescriptor] {
         guard properties.captureSelector == .video else { return [] }
         let reported = Self.reported(properties)
+        // Flatten unknown dictionary values before admission checks.
+        let reportedShutter: SettingValue? = reported[.shutter].flatMap { $0 }
+        let reportedAperture: SettingValue? = reported[.aperture].flatMap { $0 }
         let shutter = unique(
             shutterLabels.compactMap(Self.shutter).filter {
                 switch ($0, properties.shutterMode) {
@@ -84,7 +87,7 @@ public enum NikonExposureSettings {
             })
         let aperture = unique(apertureLabels.compactMap(Self.aperture))
         var result: [SettingDescriptor] = []
-        if !shutter.isEmpty || (reported[.shutter] ?? nil) != nil {
+        if !shutter.isEmpty || reportedShutter != nil {
             result.append(
                 SettingDescriptor(
                     .shutter, domain: SettingDomain(choices: shutter),
@@ -92,7 +95,7 @@ public enum NikonExposureSettings {
                         ? .unavailable(.notReady)
                         : properties.shutterLocked == true ? .unavailable(.busy) : .available))
         }
-        if !aperture.isEmpty || (reported[.aperture] ?? nil) != nil {
+        if !aperture.isEmpty || reportedAperture != nil {
             result.append(
                 SettingDescriptor(
                     .aperture, domain: SettingDomain(choices: aperture),
