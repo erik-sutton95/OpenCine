@@ -131,6 +131,14 @@ internal fun <K> ladderActivationWrites(tab: LadderTab<K>, landed: String): List
     return writes
 }
 
+/**
+ * What the sheet's remembered tab, landed and applied values belong to: the tab keys and the tab
+ * the host opens on. A new picker, a gained or lost tab, or a camera circuit change (a new initial
+ * tab) starts fresh instead of carrying positional values onto other tabs.
+ */
+internal fun <K> ladderIdentity(presentation: LadderSheetPresentation<K>): Any =
+    presentation.tabs.map { it.key } to presentation.initialTab
+
 /** Labels on the drum: a host-grown ladder when the tab has one, otherwise the camera's list. */
 internal fun <K> ladderOptions(tab: LadderTab<K>, landed: String): List<String> =
     tab.values?.invoke(landed) ?: tab.ladder.values
@@ -161,13 +169,14 @@ fun <K> LadderSheet(
     val haptics = LocalOperatorHaptics.current
     val portrait = viewportIsPortrait()
     val last = presentation.tabs.lastIndex
-    var selected by remember { mutableIntStateOf(presentation.initialTab.coerceIn(0, last)) }
+    val identity = ladderIdentity(presentation)
+    var selected by remember(identity) { mutableIntStateOf(presentation.initialTab.coerceIn(0, last)) }
     val index = selected.coerceIn(0, last)
     val tab = presentation.tabs[index]
-    val landed = remember {
+    val landed = remember(identity) {
         mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
     }
-    val applied = remember {
+    val applied = remember(identity) {
         mutableStateListOf(*presentation.tabs.map { it.ladder.current.orEmpty() }.toTypedArray())
     }
     val commandEnabled = LocalMonitorCaptureCommandEnabled.current

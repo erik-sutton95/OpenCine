@@ -74,6 +74,24 @@ class LadderSheetTest {
         assertEquals("5550K", kelvin.value)
     }
 
+    @Test
+    fun theSheetStartsFreshForANewPickerTabSetOrCircuit() {
+        // A3-19: positional state must not survive a different presentation.
+        fun sheet(vararg keys: String, initial: Int = 0) = LadderSheetPresentation(
+            title = "SHUTTER",
+            subtitle = "",
+            tabs = keys.map { tab().copy(key = it) },
+            initialTab = initial,
+        )
+        val angle = sheet("angle", "speed")
+        val echoed = angle.copy(tabs = angle.tabs.map { it.copy(ladder = it.ladder.copy(current = "400")) })
+
+        assertEquals(ladderIdentity(angle), ladderIdentity(echoed))
+        assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("angle", "speed", initial = 1)))
+        assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("kelvin", "preset")))
+        assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("angle")))
+    }
+
     private fun tab(activate: LadderWrite<String>? = null, apply: Boolean = true) = LadderTab(
         label = "ISO",
         key = "iso",
