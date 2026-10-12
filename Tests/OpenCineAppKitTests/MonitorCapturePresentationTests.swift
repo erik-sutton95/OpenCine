@@ -144,6 +144,35 @@ import Testing
         #expect(values[3] == .whiteBalance(.kelvin(1000)) && values.last == .whiteBalance(.kelvin(101_000)))
     }
 
+    /// R-03: the cache keys on everything a drum is built from, the key and the advertised domain
+    /// (its listed values, range and step). A camera that re-advertises its list over the same
+    /// range rebuilds the drum, and the shown value is read fresh on every pass, never cached.
+    @available(macOS 14, *)
+    @Test func aReadvertisedListRebuildsTheDrumAndTheShownValueStaysLive() async throws {
+        var behavior = FakeCameraSession.lunaLike().behavior
+        var presets = try #require(behavior.modes[0x01])
+        let index = try #require(presets.descriptors.firstIndex { $0.key == .whiteBalance })
+        presets.descriptors[index] = SettingDescriptor(.whiteBalance, domain: SettingDomain(
+            choices: [.whiteBalance(.auto), .whiteBalance(.preset("Sunny"))], range: 2700...6500, step: 100))
+        behavior.modes[0x02] = presets
+        let camera = FakeCameraSession(
+            behavior: behavior, device: FakeDevice(rawMode: 0x01, settings: [.whiteBalance(.kelvin(4000))]))
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.whiteBalance)?.isEditable == true })
+        let field = try #require(control.captureField(.whiteBalance))
+        #expect(field.choices.count == 40 && field.label == "4000K")
+        let choice = try #require(field.choices.first { $0.value == .whiteBalance(.kelvin(5600)) })
+        #expect(control.commit(choice, from: field))
+        let shown = try #require(control.captureField(.whiteBalance))
+        #expect(shown.label == "5600K")
+        #expect(shown.choices.withUnsafeBufferPointer { $0.baseAddress } == field.choices.withUnsafeBufferPointer { $0.baseAddress })
+        await camera.cameraSwitchesMode(raw: 0x02)
+        #expect(await eventually { control.captureField(.whiteBalance)?.choices.count == 41 })
+        #expect(control.captureField(.whiteBalance)?.choices.prefix(2).map(\.label) == ["Auto", "Sunny"])
+    }
+
     @available(macOS 14, *)
     @Test func kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
         let values = MonitorCapturePresentation.choices(
