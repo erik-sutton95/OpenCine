@@ -63,7 +63,17 @@ public struct MonitorDeliveryState<Progress: Sendable, Share: Sendable>: Sendabl
     public fileprivate(set) var localOverlayDepth = 0
     public var showsLocalOverlay: Bool { localOverlayDepth > 0 }
     public var showsGlobalChrome: Bool { progress != nil && !showsLocalOverlay }
+    /// The root chrome yields while any media surface is mounted; a surface always shows its run.
+    public func progress(in scope: MonitorDeliveryChromeScope) -> Progress? {
+        scope == .root && showsLocalOverlay ? nil : progress
+    }
+    public func toast(in scope: MonitorDeliveryChromeScope) -> String? {
+        scope == .root && showsLocalOverlay ? nil : toast
+    }
 }
+
+/// Where a delivery chrome is mounted: once at the app root, or on a media surface.
+public enum MonitorDeliveryChromeScope: Sendable { case root, surface }
 
 /// One app-scoped delivery lifetime, including cancellation and presentation resource leases.
 /// Export, transfer, network admission and OS presentation stay in the supplied operation.

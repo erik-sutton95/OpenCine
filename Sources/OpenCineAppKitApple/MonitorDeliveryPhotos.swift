@@ -1,5 +1,6 @@
 #if os(iOS)
 import Foundation
+import OpenCineMedia
 import Photos
 
 public enum MonitorDeliveryNativeFileFailure: LocalizedError {
@@ -13,28 +14,34 @@ public enum MonitorDeliveryNativeFileFailure: LocalizedError {
 }
 /// One native OS transaction. Permission may suspend; retired work cannot enter creation afterward.
 @MainActor public enum MonitorDeliveryPhotosSaver {
-    public static func saveVideos(at urls: [URL], ifCurrent: @MainActor () -> Bool = { true }) async throws -> Int {
+    /// Saves movies as videos and stills (delivered as originals) as photos.
+    public static func save(at urls: [URL], ifCurrent: @MainActor () -> Bool = { true }) async throws -> Int {
         guard !Task.isCancelled, ifCurrent(), !Task.isCancelled else { throw CancellationError() }
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard !Task.isCancelled, ifCurrent(), !Task.isCancelled else { throw CancellationError() }
         guard status == .authorized || status == .limited else { throw MonitorDeliveryNativeFileFailure.photosDenied }
-        let videos = urls.filter { ["mp4", "mov", "m4v"].contains($0.pathExtension.lowercased()) }
+        let videos = urls.filter { MonitorMediaShareStaging.videoExtensions.contains($0.pathExtension.lowercased()) }
+        let stills = urls.filter(MonitorMediaShareStaging.isStill)
         guard !Task.isCancelled, ifCurrent(), !Task.isCancelled else { throw CancellationError() }
         // Entered PHPhotoLibrary work retains its actual OS transaction contract. Immutable
         // selection also preserves the prior count without a mutable cross-executor counter.
         try await PHPhotoLibrary.shared().performChanges {
             for url in videos { PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url) }
+            for url in stills { PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url) }
         }
-        return videos.count
+        return videos.count + stills.count
     }
 }
 /// The deployed share selection returns the camera/export files themselves and no disposable root.
 public enum MonitorDeliveryShareStaging {
-    public static let shareableVideoExtensions: Set<String> = ["mp4", "mov", "m4v"]
-    public static func prepareForShare(videoURLs: [URL]) throws -> (urls: [URL], stagingCleanupURL: URL?) {
-        let videos = videoURLs.filter { shareableVideoExtensions.contains($0.pathExtension.lowercased()) }
-        guard !videos.isEmpty else { throw MonitorDeliveryNativeFileFailure.emptySelection }
-        return (videos, nil)
+    public static let shareableVideoExtensions: Set<String> = MonitorMediaShareStaging.videoExtensions
+    /// Movies and stills reach the share sheet; sidecars and other files do not.
+    public static func prepareForShare(urls: [URL]) throws -> (urls: [URL], stagingCleanupURL: URL?) {
+        let files = urls.filter {
+            shareableVideoExtensions.contains($0.pathExtension.lowercased()) || MonitorMediaShareStaging.isStill($0)
+        }
+        guard !files.isEmpty else { throw MonitorDeliveryNativeFileFailure.emptySelection }
+        return (files, nil)
     }
 }
 #endif
