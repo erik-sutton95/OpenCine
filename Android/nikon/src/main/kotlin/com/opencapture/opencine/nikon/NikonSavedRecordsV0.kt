@@ -37,10 +37,11 @@ private val GENERIC_NAMES = setOf("camera", "nikon camera", "nikon zr", "nikon c
  * `custom-name` -> camera name; `wifi-ssid` (access point) or `network-name` (Wi-Fi) -> route
  * network; the other fields ride in the route's extras ([Extra]).
  *
- * The app keeps writing these records with its own save rules. A patch edits only what the shared
- * flow changes: a renamed camera (on every record of the body), setup names, and removed cameras
- * and setups. A document route with no record is appended from its extras. Unknown fields and
- * undecodable records are kept.
+ * The app keeps writing these records with its own save rules ([SavedCameraRecords], through
+ * [encode]; [decode] reads them back). A patch edits only what the shared flow changes: a renamed
+ * camera (on every record of the body), setup names, and removed cameras and setups. A document
+ * route with no record is appended from its extras. Unknown fields and undecodable records are
+ * kept.
  */
 class NikonSavedRecordsV0 : LegacySavedCameraCodec {
     /** Route extras: the record fields the document has no field for. */
@@ -135,16 +136,64 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
         return if (changed) out.toString() else null
     }
 
-    internal companion object {
-        /** Each element as the app parses it: an object with a host, else undecodable (kept). */
-        fun read(data: String): List<Record>? = runCatching { JSONArray(data) }.getOrNull()?.let(::records)
+    companion object {
+        /** The app's records, canonicalized; an element without a host or not an object is skipped. */
+        fun decode(data: String?): List<SavedCameraRecord> {
+            val array = data?.let { runCatching { JSONArray(it) }.getOrNull() } ?: return emptyList()
+            return SavedCameraRecords.canonicalized((0 until array.length()).mapNotNull { (array.opt(it) as? JSONObject)?.let(::savedRecord) })
+        }
 
-        fun records(array: JSONArray): List<Record> = (0 until array.length()).mapNotNull { index ->
+        /** [records] canonicalized, as the app writes them: absent values are omitted. */
+        fun encode(records: List<SavedCameraRecord>): String {
+            val array = JSONArray()
+            for (record in SavedCameraRecords.canonicalized(records)) {
+                array.put(
+                    JSONObject()
+                        .put("host", record.host)
+                        .put("camera-name", record.cameraName)
+                        .put("transport", record.transport.persistedValue)
+                        .putOpt("last-seen-at", record.lastSeenAtEpochMillis)
+                        .putOpt("wifi-ssid", record.wifiSsid)
+                        .putOpt("custom-name", record.customName)
+                        .put("profile-id", record.profileID)
+                        .putOpt("network-name", record.networkName)
+                        .putOpt("setup-name", record.setupName)
+                        // By name, never ordinal: the ordinals belong to the Swift bridge.
+                        .putOpt("stream-preset", record.streamPreset)
+                        .putOpt("quality-bias", record.qualityBias),
+                )
+            }
+            return array.toString()
+        }
+
+        private fun savedRecord(json: JSONObject): SavedCameraRecord? {
+            val host = json.optString("host").trim().takeIf(String::isNotEmpty) ?: return null
+            return SavedCameraRecord(
+                host = host,
+                cameraName = json.optString("camera-name"),
+                transport = SavedCameraTransport.fromPersistedValue(json.optString("transport")),
+                lastSeenAtEpochMillis = if (json.isNull("last-seen-at")) null else json.optLong("last-seen-at"),
+                wifiSsid = blankless(json, "wifi-ssid"),
+                customName = blankless(json, "custom-name"),
+                profileID = blankless(json, "profile-id") ?: host,
+                networkName = blankless(json, "network-name"),
+                setupName = blankless(json, "setup-name"),
+                streamPreset = blankless(json, "stream-preset"),
+                qualityBias = blankless(json, "quality-bias"),
+            )
+        }
+
+        private fun blankless(json: JSONObject, key: String): String? = json.optString(key).takeIf(String::isNotBlank)
+
+        /** Each element as the app parses it: an object with a host, else undecodable (kept). */
+        internal fun read(data: String): List<Record>? = runCatching { JSONArray(data) }.getOrNull()?.let(::records)
+
+        internal fun records(array: JSONArray): List<Record> = (0 until array.length()).mapNotNull { index ->
             (array.opt(index) as? JSONObject)?.let { Record(index, it) }?.takeIf { it.host.isNotEmpty() }
         }
 
         /** Cameras in the order of each body's first record; routes most recently seen first. */
-        fun layout(records: List<Record>): List<Placed> {
+        internal fun layout(records: List<Record>): List<Placed> {
             val groups = LinkedHashMap<String, MutableList<Record>>()
             for (record in records) {
                 val key = nikonAssignedName(record.cameraName)?.let { "name:$it" } ?: "record:${record.index}"
@@ -179,9 +228,9 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
         )
 
         /** The app's reading: an unknown or legacy value is the hotspot. */
-        fun kind(transport: String): RouteKind = TRANSPORTS[transport] ?: RouteKind.PHONE_HOTSPOT
+        internal fun kind(transport: String): RouteKind = TRANSPORTS[transport] ?: RouteKind.PHONE_HOTSPOT
 
-        fun transport(kind: RouteKind): String = TRANSPORTS.entries.firstOrNull { it.value == kind }?.key ?: "phone-hotspot"
+        internal fun transport(kind: RouteKind): String = TRANSPORTS.entries.firstOrNull { it.value == kind }?.key ?: "phone-hotspot"
 
         private fun route(record: Record, key: String): SavedRoute {
             val extras = linkedMapOf(
@@ -222,16 +271,12 @@ class NikonSavedRecordsV0 : LegacySavedCameraCodec {
         }
 
         /** The subnet label an unnamed Wi-Fi route carries (Swift `CameraDiscovery.subnetBase` + ".x"). */
-        fun subnetLabel(host: String): String? {
-            val octets = host.split('.')
-            if (octets.size != 4 || octets.any { octet -> octet.toIntOrNull()?.takeIf { it in 0..255 } == null }) return null
-            return octets.take(3).joinToString(".") + ".x"
-        }
+        internal fun subnetLabel(host: String): String? = NikonHosts.subnetBase(host)?.plus(".x")
 
-        fun text(json: JSONObject, key: String): String? =
+        internal fun text(json: JSONObject, key: String): String? =
             if (json.isNull(key)) null else json.optString(key).trim().takeIf { it.isNotEmpty() }
 
-        fun hash(json: JSONObject): String = LegacyRecordHash.fnv1a(canonical(json))
+        internal fun hash(json: JSONObject): String = LegacyRecordHash.fnv1a(canonical(json))
 
         private fun canonical(value: Any?): String = when (value) {
             null, JSONObject.NULL -> "null"
