@@ -1,4 +1,4 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.platform
 
 /** Identity fence for callbacks, queued starts and cancellation across reconnects. */
 class CallbackOperationOwner<Resource : Any> {
@@ -20,6 +20,12 @@ class CallbackOperationOwner<Resource : Any> {
         if (current === token) token.resource = resource
     }
 
+    /** Drops [token]'s resource: its callbacks no longer match. */
+    @Synchronized
+    fun detach(token: Token<Resource>) {
+        token.resource = null
+    }
+
     @Synchronized
     fun runIfCurrent(token: Token<Resource>, resource: Resource? = null, action: () -> Unit): Boolean {
         if (current !== token || (resource != null && token.resource !== resource)) return false
@@ -30,17 +36,5 @@ class CallbackOperationOwner<Resource : Any> {
     @Synchronized
     fun finish(token: Token<Resource>) {
         if (current === token) current = null
-    }
-}
-
-/** Even a start rejected before installation must complete its local caller. */
-internal fun <Resource : Any> runOwnedConnectionStart(
-    owner: CallbackOperationOwner<Resource>,
-    token: CallbackOperationOwner.Token<Resource>,
-    continuation: kotlinx.coroutines.CancellableContinuation<Unit>,
-    start: () -> Unit,
-) {
-    if (!owner.runIfCurrent(token, action = start) && continuation.isActive) {
-        continuation.resumeWith(Result.failure(IllegalStateException("Bluetooth connection replaced")))
     }
 }

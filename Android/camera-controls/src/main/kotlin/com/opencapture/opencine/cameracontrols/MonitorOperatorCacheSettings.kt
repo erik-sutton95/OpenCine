@@ -34,7 +34,10 @@ public fun <P> monitorSettingsCacheSource(library: MonitorMediaLibraryModel<P>):
     return library.settingsCacheSource(value)
 }
 
-/** SDK adapters provide captured IO; this owner presents count, confirmation, progress and errors. */
+/**
+ * SDK adapters provide captured IO; this owner presents count, confirmation, progress and errors.
+ * Clearing always asks first (the Pocket baseline): one policy for every app.
+ */
 @Composable
 public fun MonitorOperatorCacheSettings(
     source: MonitorSettingsCacheSource,
@@ -48,7 +51,6 @@ public fun MonitorOperatorCacheSettings(
     checkingLabel: String = "Checking…",
     readFailureLabel: String = "Could not read the cache.",
     clearFailureLabel: String = "Could not clear the cache. Try again.",
-    confirmClear: Boolean = true,
     summaryColor: Color = MonitorPalette.accent,
 ) {
     val context = LocalContext.current
@@ -62,14 +64,11 @@ public fun MonitorOperatorCacheSettings(
             formatBytes?.invoke(bytes) ?: if (bytes == 0L) "Empty" else Formatter.formatFileSize(context, bytes)
         } ?: checkingLabel,
         clearing = value.clearing, cacheHelp = cacheHelp, scopeHelp = scopeHelp, clearHelp = clearHelp,
-        onCacheOriginals = onCacheOriginals, clear = {
-            model.requestClear()
-            if (!confirmClear) model.clear()
-        }, feedback = feedback)
+        onCacheOriginals = onCacheOriginals, clear = model::requestClear, feedback = feedback)
     value.clearSummary?.let { Text(it, color = summaryColor) }
     if (value.readFailed || value.clearFailed) Text(value.failure ?: if (value.clearFailed) clearFailureLabel else readFailureLabel,
         color = MonitorPalette.accent)
-    if (confirmClear && value.confirmationPresented) AlertDialog(
+    if (value.confirmationPresented) AlertDialog(
         onDismissRequest = model::cancelConfirmation,
         title = { Text("Clear cache?", color = LiveDesign.text) },
         text = { Text("Removes downloaded clip files from this phone. The clip list is kept.", color = LiveDesign.muted) },
@@ -77,7 +76,7 @@ public fun MonitorOperatorCacheSettings(
         dismissButton = { TextButton(onClick = model::cancelConfirmation) { Text("Cancel", color = LiveDesign.muted) } },
         containerColor = LiveDesign.surface,
     )
-    if (confirmClear && value.clearFailed) AlertDialog(onDismissRequest = model::dismissError,
+    if (value.clearFailed) AlertDialog(onDismissRequest = model::dismissError,
         title = { Text(value.failure ?: clearFailureLabel) },
         confirmButton = { TextButton(onClick = model::dismissError) { Text("OK") } })
 }

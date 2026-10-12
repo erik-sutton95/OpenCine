@@ -2,6 +2,7 @@
 
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.platform.CallbackOperationOwner
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test

@@ -1,4 +1,4 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.platform
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -6,17 +6,19 @@ import android.net.wifi.WifiManager
 import android.util.Log
 
 /**
- * Holds Wi-Fi in low-latency mode while a wireless camera session is live.
+ * Holds Wi-Fi in low-latency mode while a wireless camera session is live, for every product.
  *
- * Ported from OpenZCine `WifiLowLatencyLock`. Live view is a strict request /
- * response pull; Wi-Fi power save is built for bursty traffic, so between
- * frames the radio dozes and every packet pays a wake. `WIFI_MODE_FULL_LOW_LATENCY`
- * is the platform mode for this case. It only applies in the foreground.
+ * Live view is a strict request/response pull: power save is built for bursty traffic, so between
+ * frames the radio dozes and every packet pays a wake, and how hard it dozes is vendor firmware.
+ * `WIFI_MODE_FULL_LOW_LATENCY` is the platform mode for this case. It only takes effect in the
+ * foreground, where a monitor is watched, and the platform drops it otherwise, so a backgrounded
+ * session costs no battery. Cable sessions do not take it: no radio to keep awake.
  */
 class WifiLowLatencyLock(context: Context) {
     private val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
     private var lock: WifiManager.WifiLock? = null
 
+    /** Idempotent. */
     @SuppressLint("MissingPermission")
     fun acquire() {
         if (lock?.isHeld == true) return
@@ -36,6 +38,7 @@ class WifiLowLatencyLock(context: Context) {
         if (held?.isHeld == true) Log.i(TAG, "wifi low-latency lock held")
     }
 
+    /** Idempotent, and safe for a lock that was never taken. */
     @SuppressLint("MissingPermission")
     fun release() {
         val current = lock ?: return

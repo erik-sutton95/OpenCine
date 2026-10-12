@@ -266,10 +266,11 @@ Apps with an existing structured preferences document can bind its values direct
 shared settings views instead of changing that document's storage format.
 
 On Android, the deployed `OperatorSetupScreen`, configured `MonitorOperatorSettingsScreen` and
-Scene's session settings overload all delegate to
+Scene's session settings overload each build one `MonitorOperatorSettingsConfiguration` and
+delegate to
 [`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
 It owns the full-cover input barrier, safe-drawing clearance, Back action, page spacing, tab
-and row dispatch, and legal/LUT presentation. Typed source records carry existing preferences,
+and row dispatch (one recipe per tab), and legal/LUT presentation. Typed source records carry existing preferences,
 reported values, optional services and bounded native content; they do not replace the page.
 SwiftUI retains its complete `MonitorOperatorSettingsScreen` and shared `MonitorSettingsPage`,
 including the typed borrowed-display entry. This describes source adoption; consumer checks

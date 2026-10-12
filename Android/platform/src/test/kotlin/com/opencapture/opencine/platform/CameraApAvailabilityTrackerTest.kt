@@ -1,4 +1,4 @@
-package com.opencapture.opencine.dji
+package com.opencapture.opencine.platform
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -6,7 +6,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Copied from OpenZCine `CameraApAvailabilityTrackerTest`. */
+/** The join's loss and restart contract, shared by every product. */
 class CameraApAvailabilityTrackerTest {
     @Test
     fun duplicateAvailabilityDoesNotCountAsARestart() {
@@ -86,5 +86,29 @@ class CameraApAvailabilityTrackerTest {
         tracker.onAvailable("original")
         assertTrue(tracker.onLost("original"))
         assertTrue(tracker.hasEstablishedNetwork(), "live session must keep the SoftAP request")
+    }
+
+    @Test
+    fun unavailableBlocksNewRestartWaitsWithoutPretendingTheNetworkWasLost() {
+        val tracker = CameraApAvailabilityTracker<String>()
+        tracker.requestStarted()
+        tracker.onAvailable("original")
+        tracker.onUnavailable()
+        assertNull(tracker.nextReassociationGeneration())
+        assertFalse(tracker.onLost("stale"))
+        assertTrue(tracker.onLost("original"))
+    }
+
+    @Test
+    fun releaseClearsTheOldRequestBeforeANewOneBegins() {
+        val tracker = CameraApAvailabilityTracker<String>()
+        tracker.requestStarted()
+        tracker.onAvailable("original")
+        tracker.release()
+        assertNull(tracker.nextReassociationGeneration())
+        assertEquals(
+            CameraApAvailabilityTracker.AvailableResult(shouldBind = false, reassociationGeneration = null),
+            tracker.onAvailable("stale"),
+        )
     }
 }

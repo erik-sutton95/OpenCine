@@ -1,5 +1,6 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.platform.withCredentialIO
 import com.opencapture.opencine.core.CameraValuePin
 import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect
@@ -32,6 +33,7 @@ import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.motion.SnapOutcome
 import com.opencapture.opencine.motion.WorldLevelSnap
 import com.opencapture.opencine.platform.LocalVPNProbe
+import com.opencapture.opencine.platform.WifiLowLatencyLock
 import com.opencapture.opencine.vocabulary.AudioPin
 import com.opencapture.opencine.vocabulary.AutoExposureLock
 import com.opencapture.opencine.vocabulary.CamFov
@@ -224,7 +226,8 @@ class PocketCameraSession(
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val ble = BleLink(context)
-    private val joiner = CameraApJoiner(context)
+    private val joiner = DjiCameraAp.joiner(context)
+    private val joinerPath = joiner.asNetworkPath()
     /** The operator's Wi-Fi or this phone's hotspot for the Wi-Fi and Hotspot setups (#406). */
     private val station = SharedWiFi(context)
     val cadence = LivePipelineCadence()
@@ -422,7 +425,7 @@ class PocketCameraSession(
     private val _setupProgress = MutableStateFlow<String?>(null)
     override val setupProgress: StateFlow<String?> = _setupProgress.asStateFlow()
     private val cameraPath: CameraNetworkPath
-        get() = if (connectionSetup.movesCamera) station else joiner
+        get() = if (connectionSetup.movesCamera) station else joinerPath
 
     /** iOS `CameraSession.supportsFocusMode`. Unknown camera defaults on. */
     val supportsFocusMode: Boolean
@@ -1136,7 +1139,9 @@ class PocketCameraSession(
 
         publishPhase(ConnectionPhase.JOINING_WIFI)
         if (!joiner.isProcessBound()) {
-            val joined = joiner.join(ssid, pass, camera.model.wpa3)
+            // Core `CameraSoftAPSwitch.joinDeadlineSeconds`: a 5.8 GHz SoftAP in a DFS region
+            // beacons about 60 s after power-on; 45 s gave up first (#235).
+            val joined = joiner.join(ssid, pass, timeoutMillis = 90_000, wpa3 = camera.model.wpa3)
             if (!joined) {
                 // iOS parity: a Pocket "Reset Wi-Fi" regenerates the passphrase.
                 // Drop cached creds so the next tap re-reads them over BLE.

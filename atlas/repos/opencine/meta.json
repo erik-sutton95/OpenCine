@@ -276,6 +276,12 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:nikon-wire"
+    },
+    {
+      "name": ":media3",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:media3"
     }
   ],
   "layers": {
@@ -327,7 +333,8 @@
       ":appkit",
       ":appkit-sentry",
       ":camera-controls",
-      ":frameio"
+      ":frameio",
+      ":media3"
     ],
     "multicam": [
       "OpenCineMulticam",
