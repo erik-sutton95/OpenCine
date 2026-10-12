@@ -207,7 +207,6 @@
             .padding(.trailing, 6)
             .padding(.vertical, 6)
             .liquidGlass(in: Capsule())
-            .accessibilityIdentifier("monitor.chromeEdit.banner")
         }
     }
 
