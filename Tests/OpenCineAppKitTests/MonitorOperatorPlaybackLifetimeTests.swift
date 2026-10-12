@@ -156,7 +156,7 @@ import Testing
                     targets: [MonitorMediaDeletionTarget(value: f.records[1], locations: [1])], selectedCount: 1,
                     preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
                         try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
-                    }))
+                    }, finish: { await f.library.relist(after: authority) }))
             })
         })))
         f.model.confirmDeletion(admitted: copy.id)
@@ -179,7 +179,7 @@ import Testing
                         targets: removed.map { MonitorMediaDeletionTarget(value: $0, locations: [1]) }, selectedCount: 1,
                         preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
                             try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
-                        }))
+                        }, finish: { await f.library.relist(after: authority) }))
                 })
             })))
             f.model.confirmDeletion(admitted: copy.id)
@@ -235,7 +235,7 @@ import Testing
                     preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
                         try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken)
                         return true
-                    }))
+                    }, finish: { await f.library.relist(after: authority) }))
             })
         })
         let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: operations))
