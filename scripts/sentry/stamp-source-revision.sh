@@ -2,6 +2,8 @@
 # Stamp the built application, before signing, with its source identity: OPCSourceRevision (the
 # app's commit, -dirty for local edits) and OPCBuildIdentity (build-identity.py). Shared by the
 # OpenCine apps as an Xcode post-build phase: bash "${SRCROOT}/../../OpenCine/scripts/sentry/stamp-source-revision.sh".
+# The phase must name $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH) as an input: otherwise an incremental
+# build may process Info.plist after this script and drop the stamp.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
