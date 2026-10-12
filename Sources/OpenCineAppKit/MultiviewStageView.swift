@@ -790,17 +790,28 @@
 
         /// The camera battery pill without its glyph.
         private var battery: some View {
-            MultiviewBatteryPill(percent: tile.battery)
+            MultiviewBatteryPill(
+                percent: tile.battery, bars: tile.batteryBars, barCount: tile.batteryBarCount)
         }
     }
 
-    /// One glass pill with the camera's battery percent, colored by charge.
+    /// One glass pill with the camera's battery percent, or the bars of a coarse gauge, colored by
+    /// charge.
     struct MultiviewBatteryPill: View {
         let percent: Int?
+        var bars: Int? = nil
+        var barCount: Int = 5
 
         var body: some View {
             let tablet = UIDevice.current.userInterfaceIdiom == .pad
-            Text(percent.map { "\($0)%" } ?? MultiviewTally.unavailable)
+            Group {
+                if let bars {
+                    MonitorGaugeBars(
+                        fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color)
+                } else {
+                    Text(percent.map { "\($0)%" } ?? MultiviewTally.unavailable)
+                }
+            }
                 .font(MonitorTheme.font(tablet ? 11 : 10, weight: .semibold)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(color)
@@ -809,12 +820,15 @@
                 .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
-                    percent.map { "Camera battery \($0) percent" } ?? "Camera battery unavailable")
+                    bars.map { "Camera battery \($0) of \(barCount) bars" }
+                        ?? percent.map { "Camera battery \($0) percent" } ?? "Camera battery unavailable")
         }
 
         /// Phone and camera batteries share one scale.
         private var color: Color {
-            guard let percent else { return MonitorTheme.text }
+            guard let percent = bars.map({ $0 * 100 / max(1, barCount) }) ?? percent else {
+                return MonitorTheme.text
+            }
             return percent <= 20
                 ? MonitorTheme.recording
                 : percent <= 40
@@ -843,7 +857,9 @@
                     HStack {
                         Text(tile.format)
                         Spacer()
-                        MultiviewBatteryRow(percent: tile.battery, charging: tile.charging)
+                        MultiviewBatteryRow(
+                            percent: tile.battery, charging: tile.charging, bars: tile.batteryBars,
+                            barCount: tile.batteryBarCount)
                         Text(tile.storage)
                     }.font(MonitorTheme.font(11))
                     if let timecode = tile.timecode {
@@ -904,6 +920,8 @@
     struct MultiviewBatteryRow: View {
         let percent: Int?
         let charging: Bool
+        var bars: Int? = nil
+        var barCount: Int = 5
 
         var body: some View {
             HStack(spacing: 5) {
@@ -914,7 +932,16 @@
                     if charging {
                         MonitorIcon.zap.frame(width: 7, height: 7).foregroundStyle(tint)
                     }
-                    Text(readout)
+                    Group {
+                        if let bars {
+                            MonitorGaugeBars(
+                                fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: tint,
+                                barHeight: 7
+                            ).padding(.horizontal, 2)
+                        } else {
+                            Text(readout)
+                        }
+                    }
                         .font(.system(size: 10, weight: .medium, design: .default))
                         .monospacedDigit()
                         .foregroundStyle(tint)
@@ -934,14 +961,16 @@
                 }
             }
             .accessibilityLabel("Camera battery")
-            .accessibilityValue(readout)
+            .accessibilityValue(bars.map { "\($0) of \(barCount) bars" } ?? readout)
         }
 
         private var readout: String { percent.map(String.init) ?? MultiviewTally.unavailable }
 
         /// Three or more of five bars (41 and up) green, two (21 to 40) yellow, one red.
         private var tint: Color {
-            guard let percent else { return MonitorTheme.faint }
+            guard let percent = bars.map({ $0 * 100 / max(1, barCount) }) ?? percent else {
+                return MonitorTheme.faint
+            }
             if percent <= 20 { return .red }
             if percent <= 40 { return .yellow }
             return MonitorTheme.linkHealthColor(.stable)
