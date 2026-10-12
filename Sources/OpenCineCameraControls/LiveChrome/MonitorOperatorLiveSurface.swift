@@ -566,7 +566,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 if photo { photoRelease(layout.record.width).allowsHitTesting(admitted && recordEnabled) }
                 else if let external = facts.record.external { externalRecordButton(external) }
                 else { MonitorCaptureButton(control: control, diameter: layout.record.width, enabled: admitted && recordEnabled,
-                    confirm: facts.record.confirm, haptics: host.hapticsEnabled, confirmationPolicy: .unchangedRecording,
+                    confirm: facts.record.confirm, haptics: host.hapticsEnabled,
                     openMode: facts.record.openMode.map { action in { if admitted && recordEnabled { action() } } }) }
             }.modifier(ChromeEditableModifier<Host>(section: .railRecord, mode: editing))
         } display: {

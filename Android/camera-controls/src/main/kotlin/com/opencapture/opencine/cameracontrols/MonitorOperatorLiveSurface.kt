@@ -227,7 +227,6 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         cameraViews = bodyViews, chromeBoxes = boxes, audio = source.audioLevels,
         modifier = modifier, displayTitle = index?.let { "DISP ${it + 1} ${mode.title.lowercase()}" },
         openMode = source.record.openMode,
-        recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
         interactionEnabled = session.interactive, borrowed = source.borrowed, returnToStage = source.returnToStage,
         safeLeading = layout.safeLeading, safeTrailing = layout.safeTrailing, safeTop = layout.safeTop,
         safeBottom = layout.safeBottom, scopeFeed = feed, framingFrame = framing,

@@ -186,7 +186,6 @@ public fun MonitorOperatorScreen(
             displayTitle = index?.let { "DISP ${it + 1} ${session.mode.title.lowercase()}" },
             assist = assist, assists = null, palette = tools, usage = usage, setUsage = { usage = it }, usageSeed = emptyMap(),
             renderedTools = availableAssistTools, fittedScopes = emptyList(), scopeZone = null,
-            recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
             interactionEnabled = session.interactive, borrowed = shellState.monitor?.isBorrowed == true,
             safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom,
             scopeFloating = true, assistHost = assistHost, lookOptions = lookOptions,

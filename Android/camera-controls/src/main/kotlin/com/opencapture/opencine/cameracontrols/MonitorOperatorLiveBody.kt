@@ -142,7 +142,6 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     audio: MonitorOperatorLiveAudio? = null,
     displayTitle: String? = null,
     openMode: (() -> Unit)? = null,
-    recordConfirmationPolicy: MonitorControlModel.RecordConfirmationPolicy,
     interactionEnabled: Boolean, borrowed: Boolean, returnToStage: (() -> Unit)? = null,
     safeLeading: Float = viewport.x, safeTrailing: Float = max(0f, layout.viewport.maxX - viewport.maxX),
     safeTop: Float = viewport.y, safeBottom: Float = max(0f, layout.viewport.maxY - viewport.maxY),
@@ -279,7 +278,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     val decoration = edit(sections.record).testTag("monitor.system.record")
                     if (photo) photoRelease?.invoke(enabled && admitted && recordEnabled, decoration)
                     else MonitorCaptureButton(control, layout.record.width, enabled && admitted && recordEnabled, decoration,
-                        confirm = confirmRecord, confirmationPolicy = recordConfirmationPolicy,
+                        confirm = confirmRecord,
                         openMode = openMode?.let { action -> { if (admits() && recordEnabled) action() } }, onConfirmingChange = onRecordConfirming)
                 }, display = { enabled -> MonitorDisplayButton(displayIndex, displayCount,
                     displayTitle ?: displayIndex?.let { "DISP ${it + 1}" } ?: "Display mode unavailable",
