@@ -120,14 +120,16 @@ public enum MonitorClipDeliveryError: LocalizedError {
         MonitorDeliveryPreparedRequest<LogColorTransform, Format, Project, Context, Lease>
     public typealias Preparation<Project: Sendable, Context: Sendable, Lease: Sendable> =
         MonitorDeliveryPreparationModel<LogColorTransform, Format, Project, Context, Lease>
+    // The option, naming and metadata helpers are plain values: callable off the main actor,
+    // as the apps' own helpers were.
 
-    public static func defaultConfiguration() -> Configuration {
+    public nonisolated static func defaultConfiguration() -> Configuration {
         .init(logTransform: .dLogToDLog2, exportFormat: .mov)
     }
 
     /// Convert log is video-only. An unknown shot color stays available until export reads the
     /// original; a curve with no conversion disables the toggle.
-    public static func convertLogAvailable(files: [MediaFile], shotColors: [ColorMode?]) -> Bool {
+    public nonisolated static func convertLogAvailable(files: [MediaFile], shotColors: [ColorMode?]) -> Bool {
         files.enumerated().contains { index, file in
             guard file.kind == .video else { return false }
             guard shotColors.indices.contains(index), let color = shotColors[index] else { return true }
@@ -135,7 +137,7 @@ public enum MonitorClipDeliveryError: LocalizedError {
         }
     }
 
-    public static func filename(
+    public nonisolated static func filename(
         for file: MediaFile, configuration: Configuration, transform: LogColorTransform? = nil
     ) -> String {
         MonitorDeliveryFileNaming.filename(
@@ -143,7 +145,7 @@ public enum MonitorClipDeliveryError: LocalizedError {
             formatExtension: configuration.exportFormat.rawValue, transformToken: transform?.filenameToken)
     }
 
-    public static func metadata(
+    public nonisolated static func metadata(
         for file: MediaFile, configuration: Configuration, lutName: String?, cameraName: String?,
         lutExposureStops: Double = 0, convertLog: LogColorTransform? = nil
     ) -> MonitorClipDeliveryMetadata? {
@@ -156,7 +158,7 @@ public enum MonitorClipDeliveryError: LocalizedError {
             convertLog: selection.convertedCurve ? convertLog?.label : nil, exportedAt: Date())
     }
 
-    public static func metadataSummary(for files: [MediaFile]) -> String {
+    public nonisolated static func metadataSummary(for files: [MediaFile]) -> String {
         MonitorDeliveryMetadataSummary.text(
             files: files.map {
                 .init(filename: $0.filename, captureDate: $0.filenameTimestamp, sizeBytes: $0.sizeBytes > 0 ? $0.sizeBytes : nil)
