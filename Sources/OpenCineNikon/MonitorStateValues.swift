@@ -1,5 +1,5 @@
 import Foundation
-import MonitorPresentation
+import OpenCineMedia
 
 /// Current record-state indicator.
 public enum RecordState: String, Codable, Equatable, Sendable {

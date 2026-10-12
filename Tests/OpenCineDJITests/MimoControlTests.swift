@@ -616,7 +616,6 @@ import Testing
             CameraStatusDecoder.applySubscribePush(
                 SubscribePush.pack(name: "timecode_info", value: value), to: &s))
         #expect(s.timecode == expected, "the bytes decode straight into the typed timecode")
-        #expect(s.timecode == "05:22:47:18")
     }
 
     @Test func gimbalBuilders() {

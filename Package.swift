@@ -220,7 +220,7 @@ let package = Package(
         // MARK: Nikon
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and
         // NikonCameraSession (OpenCineCore.CameraSession over the app's NikonControlDriver).
-        .target(name: "OpenCineNikon", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineCameraVocabulary", "MonitorPresentation"]),
+        .target(name: "OpenCineNikon", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineCameraVocabulary"]),
         // OpenCineMulticam is a test-only dependency: the multi-body tests run real
         // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
         .testTarget(
