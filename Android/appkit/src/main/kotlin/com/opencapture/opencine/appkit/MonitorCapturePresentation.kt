@@ -82,11 +82,13 @@ public object MonitorCapturePresentation {
                 range.start >= 0 && range.endInclusive <= Int.MAX_VALUE.toDouble() &&
                 (range.endInclusive - range.start) / step <= 1_000) {
                 val count = floor((range.endInclusive - range.start) / step).toInt()
+                // Every detent lies on the domain's own grid; a set keeps the merge linear (R-03).
+                val listed = values.toHashSet()
                 for (index in 0..count) {
                     val kelvin = range.start + index * step
                     if (round(kelvin) == kelvin) {
                         val value = SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(kelvin.toInt()))
-                        if (value in domain && value !in values) values += value
+                        if (listed.add(value)) values += value
                     }
                 }
             }
@@ -105,8 +107,14 @@ public fun MonitorControlModel.captureField(key: SettingKey): MonitorCaptureFiel
     val authorized = snapshot.authority == ControlAuthority.Owner || snapshot.authority is ControlAuthority.Lease
     val writable = authorized && snapshot.connection == ConnectionState.Ready &&
         descriptor.access == SettingAccess.READ_WRITE && descriptor.availability == Availability.Available
-    return MonitorCaptureField(key, title, shown(key), MonitorCapturePresentation.choices(key, descriptor.domain),
-        if (writable) edit(key) else null)
+    return MonitorCaptureField(key, title, shown(key), drum(key, descriptor.domain), if (writable) edit(key) else null)
+}
+
+/** The drum for a domain, built once per domain rather than on every read. */
+private fun MonitorControlModel.drum(key: SettingKey, domain: SettingDomain?): List<MonitorCaptureChoice> {
+    if (domain == null) return emptyList()
+    captureChoices[key]?.takeIf { it.first == domain }?.let { return it.second }
+    return MonitorCapturePresentation.choices(key, domain).also { captureChoices[key] = domain to it }
 }
 
 /** Both held gestures and persistent drums commit the editor they opened, never a new one. */

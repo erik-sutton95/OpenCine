@@ -115,6 +115,35 @@ import Testing
         #expect(await camera.wire.isEmpty)
     }
 
+    /// R-03: a body pass reads the same drum, built once per domain. The base rebuilt every Kelvin
+    /// detent (up to a thousand, with a quadratic membership scan) on each read.
+    @available(macOS 14, *)
+    @Test func aFieldsDrumIsBuiltOncePerDomain() async throws {
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.whiteBalance) != nil })
+        let first = try #require(control.captureField(.whiteBalance)).choices
+        let second = try #require(control.captureField(.whiteBalance)).choices
+        #expect(first.count == 40, "Auto plus 39 detents")
+        // Copies of one built array share its storage; a rebuild allocates new storage while
+        // `first` is still alive, so equal addresses mean no rebuild.
+        #expect(first.withUnsafeBufferPointer { $0.baseAddress } == second.withUnsafeBufferPointer { $0.baseAddress })
+    }
+
+    /// R-03: a thousand-step Kelvin domain keeps the explicit choices first and adds each detent once.
+    @Test func aThousandStepKelvinDomainKeepsOrderWithoutDuplicates() {
+        let explicit: [SettingValue] = [.whiteBalance(.auto), .whiteBalance(.kelvin(5600)), .whiteBalance(.preset("Sunny"))]
+        let values = MonitorCapturePresentation.choices(
+            .whiteBalance, domain: SettingDomain(choices: explicit, range: 1000...101_000, step: 100)
+        ).map(\.value)
+        #expect(values.count == 3 + 1000, "1001 detents, 5600 K already listed")
+        #expect(Set(values).count == values.count)
+        #expect(Array(values.prefix(3)) == explicit)
+        #expect(values[3] == .whiteBalance(.kelvin(1000)) && values.last == .whiteBalance(.kelvin(101_000)))
+    }
+
     @available(macOS 14, *)
     @Test func kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
         let values = MonitorCapturePresentation.choices(
