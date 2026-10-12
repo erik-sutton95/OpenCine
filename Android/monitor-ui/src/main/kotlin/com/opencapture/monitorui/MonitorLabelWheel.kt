@@ -63,6 +63,8 @@ fun <T> MonitorLabelWheel(
     rowHeight: Dp,
     wheelHeight: Dp,
     onClickFeedback: () -> Unit = {},
+    /** A long press on a removable entry (a stored look's delete); null keeps the wheel select-only. */
+    onLongPress: ((T) -> Unit)? = null,
 ) {
     if (entries.isEmpty()) return
     val optionKey = entries.joinToString { key(it) }
@@ -164,7 +166,10 @@ fun <T> MonitorLabelWheel(
                     Box(
                         Modifier.fillMaxWidth()
                             .requiredHeight(rowHeight)
-                            .monitorChromeClickable(onClickFeedback = onClickFeedback, onClick = { onSelect(entry) }),
+                            .monitorChromeClickable(
+                                onLongClick = onLongPress?.let { press -> { press(entry) } },
+                                onClickFeedback = onClickFeedback, onClick = { onSelect(entry) },
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
