@@ -98,6 +98,13 @@ their own notices.
   battery gauges. The adapter supplies its delivery-health and battery readouts.
 - `MonitorLayoutPolicy`: pure portrait frame/layout policy, preserving the
   actual source aspect. `MonitorCapabilities` defaults unsupported modules off.
+- `MonitorCommandDashboard`: the command dashboard (three-column grid with long
+  press drag reorder, health strip, side column). The adapter supplies typed
+  `MonitorCommandTile<K, R>` values (`K` the persisted reorder identity, `R` its
+  write request), the write state and a trailing health chip; `moveMonitorCommandTile`
+  keeps an order complete and appkit `MonitorCommandTileOrderPreferences` stores
+  it under the app's key. Android only: the iOS dashboard is still OpenZCine's
+  `MonitorPanels.swift`.
 
 ## Interaction and rendering contracts
 
