@@ -102,7 +102,8 @@ public struct MonitorOperatorPhotoScreen<Payload: Sendable, Looks: MonitorLookPr
                         MonitorStarRating(stars: stars, levels: rating.levels, enabled: model.isCurrent) {
                             haptics.selection(); model.setRating($0, service: rating)
                         }
-                    } else if rating == nil {
+                    } else if rating == nil || !model.ratingReading {
+                    // Favorite is the fallback whenever stars are unavailable (A2-44).
                     Button { model.toggleFavorite(operations) } label: {
                         MonitorIcon.star.view(filled: model.favorite).frame(width: 17, height: 17)
                             .foregroundStyle(model.favorite ? MonitorTheme.accent : MonitorTheme.text)

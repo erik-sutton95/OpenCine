@@ -48,6 +48,8 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
     public private(set) var variantSwitching = false
     public private(set) var preparingShare = false
     public private(set) var ratingStars: Int?
+    /// A rating read is in flight; the photo screen shows neither control until it answers.
+    public private(set) var ratingReading = false
     public private(set) var ratingPending = false
     public private(set) var ratingNotice: String?
     public private(set) var failure: String?
@@ -325,8 +327,9 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
     public func readRating(_ service: MonitorMediaPictureRatingService<Payload>?) {
         guard let service, let request = request(for: baseRecord, variant: false) else { return }
         let id = UUID(), revision = ratingRevision
+        ratingReading = true
         tasks[id] = Task { @MainActor [weak self] in
-            defer { self?.tasks[id] = nil }
+            defer { self?.tasks[id] = nil; self?.ratingReading = false }
             let value = await service.read(request)
             guard !Task.isCancelled, request.isCurrent(), self?.ratingRevision == revision else { return }
             self?.ratingStars = value; self?.confirmedRating = value
