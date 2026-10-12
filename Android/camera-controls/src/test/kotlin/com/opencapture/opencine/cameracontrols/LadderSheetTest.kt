@@ -92,6 +92,17 @@ class LadderSheetTest {
         assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("angle")))
     }
 
+    @Test
+    fun anUnknownCurrentStillWritesTheFirstPick() {
+        // A3-29: nothing is applied while the camera has not reported a value.
+        val unknown = tab().copy(ladder = CaptureLadder(current = null, values = listOf("400", "800")))
+        val applied = unknown.ladder.current.orEmpty()
+
+        assertEquals(LadderWrite("iso", "400"), ladderPickWrite(unknown, applied, "400"))
+        assertNull(ladderPickWrite(unknown, "400", "400"))
+        assertNull(ladderPickWrite(tab(), "800", "800"))
+    }
+
     private fun tab(activate: LadderWrite<String>? = null, apply: Boolean = true) = LadderTab(
         label = "ISO",
         key = "iso",

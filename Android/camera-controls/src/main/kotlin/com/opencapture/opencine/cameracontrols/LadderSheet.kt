@@ -139,6 +139,13 @@ internal fun <K> ladderActivationWrites(tab: LadderTab<K>, landed: String): List
 internal fun <K> ladderIdentity(presentation: LadderSheetPresentation<K>): Any =
     presentation.tabs.map { it.key } to presentation.initialTab
 
+/**
+ * The write a drum pick sends, or null when [value] is already applied. An unknown current applies
+ * nothing, so picking the first label (where the drum seats an unknown value) still writes.
+ */
+internal fun <K> ladderPickWrite(tab: LadderTab<K>, applied: String, value: String): LadderWrite<K>? =
+    if (value.isBlank() || value == applied) null else LadderWrite(tab.key, value)
+
 /** Labels on the drum: a host-grown ladder when the tab has one, otherwise the camera's list. */
 internal fun <K> ladderOptions(tab: LadderTab<K>, landed: String): List<String> =
     tab.values?.invoke(landed) ?: tab.ladder.values
@@ -261,16 +268,17 @@ fun <K> LadderSheet(
                 }
                 else -> LabelDrum(
                     options = options,
-                    selection = shown.ifBlank { options.firstOrNull().orEmpty() },
+                    // Unknown stays blank: the drum seats on its first label without claiming it.
+                    selection = shown,
                     marked = tab.ladder.marked,
                     enabled = gates.drumEnabled,
                     steps = tab.steps?.invoke(shown),
                     onSelect = { value ->
                         if (!gates.drumEnabled || value.isBlank()) return@LabelDrum
                         if (index in landed.indices) landed[index] = value
-                        if (applied.getOrNull(index) != value) {
+                        ladderPickWrite(tab, applied.getOrNull(index).orEmpty(), value)?.let { write ->
                             if (index in applied.indices) applied[index] = value
-                            onWrite(LadderWrite(tab.key, value))
+                            onWrite(write)
                         }
                     },
                     onStep = { step ->
