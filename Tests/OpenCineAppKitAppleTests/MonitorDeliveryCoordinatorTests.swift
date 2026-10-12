@@ -135,10 +135,12 @@ import XCTest
         caching.isCaching = false
         caching.clipFraction = 0.4
         report?(caching)
-        await barrier.value
-        XCTAssertTrue(released)
-        XCTAssertTrue(coordinator.isActive, "The run goes on: uploading never holds the camera")
-        await coordinator.cameraTransferReleased()
+        // Bounded, so a barrier that joins the whole run fails here instead of hanging.
+        await settle { released }
+        barrier.cancel()
+        XCTAssertTrue(released, "Playback goes on once the run stops caching")
+        XCTAssertTrue(coordinator.isActive, "The run goes on beside playback")
+        XCTAssertFalse(coordinator.holdsCameraTransfer, "Uploading never holds the camera")
         gate.release(.uploaded(summary: "Uploaded 1"))
         await settle { !coordinator.isActive }
         XCTAssertEqual(coordinator.lifetime.state.toast, "Uploaded 1")
