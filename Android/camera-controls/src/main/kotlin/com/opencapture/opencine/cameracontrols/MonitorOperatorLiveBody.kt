@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -170,14 +171,20 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
     val hasOptions = { item: MonitorOperatorPaletteItem -> item.hasOptions || signalOptions.offers(item.tool) }
     val inspectorTools = palette.filter(hasOptions).mapNotNull { it.tool }
-    val assistInspectorPresented = interactive && assist.configureTool?.let { it in inspectorTools } == true
-    LaunchedEffect(assist.configureTool, clean, command, locked, inspectorTools, mounted) {
-        if (clean || command || locked || sections.assists !in mounted ||
-            assist.configureTool !in inspectorTools) assist.configureTool = null
+    // The source's toolless item (PLAY) opens its instant review menu as one more inspector tab.
+    val reviewItem = signalOptions.reviewItem(palette)
+    var reviewing by remember { mutableStateOf(false) }
+    val inspecting = assist.configureTool != null || reviewing
+    val closeInspector = { assist.configureTool = null; reviewing = false }
+    val assistInspectorPresented = interactive && (assist.configureTool?.let { it in inspectorTools } ?: (reviewing && reviewItem != null))
+    LaunchedEffect(assist.configureTool, reviewing, clean, command, locked, inspectorTools, reviewItem != null, mounted) {
+        val closes = clean || command || locked || sections.assists !in mounted
+        if (closes || assist.configureTool !in inspectorTools) assist.configureTool = null
+        if (closes || reviewItem == null || assist.configureTool != null) reviewing = false
     }
-    LaunchedEffect(assist.configureTool) { if (assist.configureTool != null) dismiss() }
-    BackHandler(enabled = interactive && panel != null && assist.configureTool == null, onBack = dismiss)
-    BackHandler(enabled = interactive && assist.configureTool != null) { assist.configureTool = null }
+    LaunchedEffect(assist.configureTool, reviewing) { if (inspecting) dismiss() }
+    BackHandler(enabled = interactive && panel != null && !inspecting, onBack = dismiss)
+    BackHandler(enabled = interactive && inspecting, onBack = closeInspector)
     fun currentSource(): Boolean = current(identity) && control.state.value.snapshot?.let { it.session to it.epoch } ==
         identity.camera?.let { it to identity.epoch }
     fun admits(): Boolean = admitted && currentSource()
@@ -217,10 +224,10 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     }
     val context = MonitorInteractionContext(locked, covered, editing != null, clean,
         sections.assists in mounted, camera = identity.camera,
-        transientPanelPresented = panel != null || state.preview != null || assist.configureTool != null,
+        transientPanelPresented = panel != null || state.preview != null || inspecting,
         orientationRevision = if (layout.portrait) 1 else 0)
     MonitorInteractionEffect(context) { value ->
-        if (value.dismissTransients) { dismiss(); assist.configureTool = null }
+        if (value.dismissTransients) { dismiss(); closeInspector() }
         if (value.retireReadout) { state.retire(); retireReadout() }
         if (value.collapseAssists) paletteRevision++
         transitionChanged(value)
@@ -231,7 +238,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         powerMounted = sections.power in mounted, captureMounted = sections.capture in mounted && !command,
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
-        capturePresented = panel != null || state.preview != null || assist.configureTool != null, recovering = recovering,
+        capturePresented = panel != null || state.preview != null || inspecting, recovering = recovering,
         statusInteractive = !assistInspectorPresented),
         modifier, picture = picture,
         status = {
@@ -300,7 +307,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
                         width = max(0f, (scopePlacement ?: viewport).maxX - safeLeading)),
                     audioChannels = audioChannels, transfer = scopeTransfer ?: bundle.transfer,
-                    onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; assist.configureTool = tool } },
+                    onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; reviewing = false; assist.configureTool = tool } },
                     referenceValues = signalOptions.reference, panelPlacement = assists?.panelPlacement,
                     onScopeStackMoved = assists?.scopeStackMoved ?: {}, showsReference = showsReference,
                     visibleTools = if (scopesFloat) floatingTools else floatingTools - fittedScopes.toSet(),
@@ -322,11 +329,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
                     }
                 }
-                if (sections.assists in mounted && assist.configureTool == null) MonitorAssistPalette(palette,
+                if (sections.assists in mounted && !inspecting) MonitorAssistPalette(palette,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
                     { it.tool?.chipLabel ?: it.label }, hasOptions,
                     onToggle = { if (interactive && currentSource()) it.toggle() },
-                    onOptions = { if (interactive && currentSource()) assist.configureTool = it.tool },
+                    onOptions = { if (interactive && currentSource()) { assist.configureTool = it.tool; reviewing = it.tool == null } },
                     glyph = { item, tint, decoration ->
                         val custom = item.glyph
                         if (custom != null) custom(tint, decoration)
@@ -390,16 +397,20 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom) { key, frame, top ->
                 cameraPanel(key, frame, top, state)
             }
-            assist.configureTool?.let { configured -> if (assistInspectorPresented) {
-                val preview: (@Composable () -> Unit)? = assists?.preview?.let { render -> { render(configured) } }
+            if (assistInspectorPresented) {
+                val configured = assist.configureTool
+                val preview: (@Composable () -> Unit)? =
+                    if (configured == null) null else assists?.preview?.let { render -> { render(configured) } }
                 AssistInspectorFrame(configured, assist, layout.viewport.width, layout.viewport.height,
-                    safeLeading, safeTop, safeBottom, { assist.configureTool = null }, safeTrailing = safeTrailing,
-                    trailing = true, tabs = inspectorTools) { maximum ->
-                    AssistOptionsPanel(configured, assist, { assist.configureTool = null }, assistHost, lookOptions,
+                    safeLeading, safeTop, safeBottom, closeInspector, safeTrailing = safeTrailing,
+                    trailing = true, tabs = inspectorTools, review = reviewItem,
+                    onSelect = { assist.configureTool = it; reviewing = it == null }) { maximum ->
+                    if (configured == null) signalOptions.instantReview?.let { menu -> MonitorOptionGroup { menu() } }
+                    else AssistOptionsPanel(configured, assist, closeInspector, assistHost, lookOptions,
                         maxHeightDp = maximum, transfer = if (assist.scopeBundle.levelAxis?.supportsCalibratedReferences == false) null else scopeTransfer ?: assist.scopeBundle.transfer,
                         embedded = true, isPhoto = photo, imagePreview = preview, lookMenu = assists?.lookMenu, signalOptions = signalOptions)
                 }
-            } }
+            }
             cameraViews.motion?.editor?.invoke(this, accepts && interactive)
             cameraViews.feedback?.invoke(this)
         })

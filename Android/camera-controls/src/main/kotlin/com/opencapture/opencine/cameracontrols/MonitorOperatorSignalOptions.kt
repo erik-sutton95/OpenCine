@@ -13,11 +13,19 @@ public data class MonitorOperatorSignalOptions(
     public val level: (@Composable () -> Unit)? = null,
     public val instantReview: (@Composable () -> Unit)? = null,
 ) {
-    /** Whether the source supplies a menu for [tool]; such a tool has options whatever its stock flag says. */
+    /**
+     * Whether the source supplies a menu for [tool]; such a tool has options whatever its stock flag says.
+     * No tool is the source's own palette item, whose menu is [instantReview] (Swift `.instantReview`).
+     */
     public fun offers(tool: MonitorAssistTool?): Boolean = when (tool) {
+        null -> instantReview != null
         MonitorAssistTool.FALSE -> falseColor != null
         MonitorAssistTool.ZEBRA -> zebra != null
         MonitorAssistTool.LEVEL -> level != null
         else -> false
     }
+
+    /** The toolless palette item that opens [instantReview] in the inspector, when the source supplies it. */
+    public fun reviewItem(palette: List<MonitorOperatorPaletteItem>): MonitorOperatorPaletteItem? =
+        if (offers(null)) palette.firstOrNull { it.tool == null } else null
 }
