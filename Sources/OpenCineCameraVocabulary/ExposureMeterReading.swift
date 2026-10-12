@@ -1,5 +1,6 @@
-/// Presentation of the camera's exposure meter. Never derived from preview pixels
-/// or from the operator's configured exposure compensation.
+/// Presentation of the exposure meter: the camera's metered EV, or for a camera that meters
+/// none a picture estimate its source supplies, marked as estimated. Never the operator's
+/// configured exposure compensation.
 public struct ExposureMeterReading: Equatable, Sendable {
     private let cameraValue: EvComp?
     /// The value is estimated from the picture, not reported by the camera.

@@ -95,6 +95,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
         orientation: MonitorDeviceOrientation, controlNote: Binding<String?>,
         headTracking: MonitorOperatorHeadTrackingSource? = nil,
         readLevel: ((TimeInterval, Bool) -> MonitorLevelDisplay)? = nil,
+        pictureEV: (() -> EvComp?)? = nil,
         @ViewBuilder picture: @escaping () -> Picture,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
@@ -128,7 +129,9 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                         openMode: { host.captureSheet = .mode }, external: nil)
                 },
                 exposure: {
-                    ExposureMeterReading(cameraValue: host.sessionRecovery.isRecovering ? nil : host.cameraStatus.meteredEv)
+                    if host.sessionRecovery.isRecovering { return ExposureMeterReading(cameraValue: nil) }
+                    if let metered = host.cameraStatus.meteredEv { return ExposureMeterReading(cameraValue: metered) }
+                    return ExposureMeterReading(cameraValue: pictureEV?(), imageEstimated: true)
                 },
                 level: readLevel,
                 audio: {
