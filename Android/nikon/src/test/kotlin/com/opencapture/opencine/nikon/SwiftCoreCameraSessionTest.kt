@@ -277,6 +277,26 @@ class SwiftCoreCameraSessionTest {
     }
 
     @Test
+    fun `a typed Swift failure reaches the connection progress beside its message`() = runTest {
+        val bridge = FakeBridge()
+        val session = SwiftCoreCameraSession("192.168.1.1", { _, _ -> }, bridge)
+
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onFailed(CameraConnectionFailure.REJECTED_INITIATOR.wireCode, "Camera says no.")
+        connecting.await()
+
+        assertEquals(
+            CameraConnectionProgress(
+                CameraConnectionPhase.FAILED,
+                "Camera says no.",
+                CameraConnectionFailure.REJECTED_INITIATOR,
+            ),
+            session.connectionProgress.value,
+        )
+    }
+
+    @Test
     fun `USB connection hands only a raw transport to the Swift bridge and cancellation cleans it up`() =
         runTest {
             val bridge = FakeBridge()
