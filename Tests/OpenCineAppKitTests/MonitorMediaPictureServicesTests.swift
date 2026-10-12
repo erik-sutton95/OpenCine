@@ -140,6 +140,21 @@ private enum PictureServiceError: Error { case stagingFailed }
         #expect(selections == 0 && f.library.record(f.records[2].asset.id) != nil)
         #expect(try Data(contentsOf: f.root.appendingPathComponent("successor")) == Data([9]))
     }
+    /// A2-44: a read that answers no rating ends the read, so the screen falls back to Favorite.
+    @Test func aRatingReadThatAnswersNothingEndsTheRead() async {
+        guard #available(macOS 14, *) else { return }
+        let f = PictureServiceFixture(), model = f.model(), gate = PictureServiceGate()
+        defer { gate.release(); model.retire(); f.close() }
+        let rating = MonitorMediaPictureRatingService<String>(levels: [1, 2, 3, 4, 5],
+            read: { _ in await gate.wait(); return nil }, commit: { _, _ in .unavailable })
+        #expect(!model.ratingReading)
+        model.readRating(rating)
+        #expect(model.ratingReading, "Neither control shows while the camera answers")
+        #expect(await settled { gate.entered == 1 })
+        gate.release()
+        #expect(await settled { !model.ratingReading })
+        #expect(model.ratingStars == nil)
+    }
     @Test func latestConfirmedRatingWinsOverAnOlderRefusalAndUnknownStaysNil() async {
         guard #available(macOS 14, *) else { return }
         let f = PictureServiceFixture(), model = f.model(), gate = PictureServiceGate()

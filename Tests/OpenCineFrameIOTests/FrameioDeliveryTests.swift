@@ -155,3 +155,36 @@ final class MemoryHistory: FrameioUploadHistory, @unchecked Sendable {
         #expect(released == 1)
     }
 }
+
+/// A2-53: the bounded upload history shared by every app (the Kotlin twin keeps the same rules).
+@Suite struct FrameioUploadHistoryIndexTests {
+    final class Storage: @unchecked Sendable {
+        let lock = NSLock()
+        var value: String?
+    }
+
+    @Test func recordsConfirmedUploadsAndForgetsTheOldestPastCapacity() {
+        let storage = Storage()
+        let history = FrameioUploadHistoryIndex(
+            capacity: 2, load: { storage.lock.withLock { storage.value } },
+            save: { value in storage.lock.withLock { storage.value = value }; return true })
+        #expect(!history.wasUploaded("a"))
+        #expect(history.recordUploaded("a") && history.recordUploaded("b"))
+        #expect(history.wasUploaded("a") && history.wasUploaded("b"))
+        #expect(history.recordUploaded("c"))
+        #expect(!history.wasUploaded("a") && history.wasUploaded("b") && history.wasUploaded("c"))
+        #expect(!history.recordUploaded("not/safe") && !history.wasUploaded(""))
+    }
+
+    @Test func identityIsStableSafeAndDistinguishesItsParts() {
+        let one = FrameioUploadHistoryIndex.identity(["camera-1", "DCIM/A001.MOV", "1000"])
+        #expect(one == FrameioUploadHistoryIndex.identity(["camera-1", "DCIM/A001.MOV", "1000"]))
+        #expect(one != FrameioUploadHistoryIndex.identity(["camera-1", "DCIM/A001.MOV", "1001"]))
+        #expect(one != FrameioUploadHistoryIndex.identity(["camera-1DCIM/A001.MOV", "1000"]))
+        let storage = Storage()
+        let history = FrameioUploadHistoryIndex(
+            load: { storage.lock.withLock { storage.value } },
+            save: { value in storage.lock.withLock { storage.value = value }; return true })
+        #expect(history.recordUploaded(one) && history.wasUploaded(one))
+    }
+}

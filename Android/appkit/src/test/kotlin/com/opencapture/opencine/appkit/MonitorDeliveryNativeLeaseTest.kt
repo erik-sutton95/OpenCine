@@ -37,9 +37,9 @@ class MonitorDeliveryNativeLeaseTest {
             load = { MonitorDeliveryProjectListing(1, emptyList()) },
             create = { _, _ -> MonitorDeliveryProject("p", "Project", true, "p") }, persist = { _, _ -> },
             internet = internet, transfer = { token -> onTransfer?.invoke()
-                if (owned == token) { owned = token + 1; calls += "transfer $token"; token + 1 } else null })
+                if (owned == token) { owned = token + 1; calls += "transfer $token"; token + 1 } else null }, skipsUploaded = false)
     }
-    private fun request(scope: CoroutineScope, facts: Facts): MonitorDeliveryPreparedRequest<Int, Int, Int>? {
+    private fun request(scope: CoroutineScope, facts: Facts): MonitorDeliveryPreparedRequest<Int, Int, String, Int, Int>? {
         val popup = MonitorDeliveryPreparationModel<Int, Int, String, Int, Int>(scope,
             observeSelection = { MonitorDeliverySelectionFacts(listOf(MonitorDeliveryFileFacts("original.mov", 1)), 1, false) },
             configuration = null, exportOptions = null, remote = facts.remote, sourceCurrent = { facts.current },
@@ -55,8 +55,8 @@ class MonitorDeliveryNativeLeaseTest {
             exporter = MonitorDeliveryExportService<Int, String>(release = { facts.calls += "release $it" }, prepare = { _, _ ->
                 facts.calls += "prepare"
                 withContext(NonCancellable) { facts.entered?.await() }
-                "file" }), share = { files -> facts.calls += "stage"; MonitorDeliveryShareFiles(files, "staging") },
-            photos = MonitorDeliveryPhotosService.PerItem { facts.calls += "save"; true },
+                "file" }), share = { files -> facts.calls += "stage"; MonitorDeliveryShareFiles(files, cleanup = "staging") },
+            photos = MonitorDeliveryPhotosService { facts.calls += "save"; true },
             upload = MonitorDeliveryUploadService { _, _ -> facts.calls += "upload" }, internet = facts.internet, initialLease = lease,
             filename = { "original.mov" }, progress = { })
 

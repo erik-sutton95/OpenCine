@@ -1185,6 +1185,13 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
                         await port.finish()
                         guard !Task.isCancelled, authority.isCompleting,
                             self.finishingDeletions[authority.id] === finish else { return }
+                        // A retired gallery returns to browsing by default (R-01); a caller that
+                        // already relisted from finish makes this a refused repeat.
+                        if case .retireGallery = preparation, !finish.relisted {
+                            await self.relist(after: authority)
+                            guard !Task.isCancelled, authority.isCompleting,
+                                self.finishingDeletions[authority.id] === finish else { return }
+                        }
                         let admission = self.actionToken
                         finish.admission = admission
                         authority.sealCompletion(removed: finishedCount, admission: admission)

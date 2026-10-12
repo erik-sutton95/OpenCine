@@ -50,6 +50,8 @@ struct AppKitRules {
         let system: Set<String> = [
             "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
             "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
+            // The delivery share sheet's typed file items.
+            "LinkPresentation", "UniformTypeIdentifiers",
         ]
         let directory = root.appending(path: "Sources/OpenCineAppKitApple")
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
@@ -103,6 +105,8 @@ struct AppKitRules {
         let package: Set<String> = [
             "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit",
             "OpenCineAppKitApple", "OpenCineCore", "OpenCineMedia", "OpenCineMotion",
+            // The shared clip delivery exports through the Apple media exporter.
+            "OpenCineApple",
         ]
         let system: Set<String> = [
             "CoreHaptics", "CoreVideo", "Foundation", "GameController", "Observation", "SwiftUI", "UIKit",

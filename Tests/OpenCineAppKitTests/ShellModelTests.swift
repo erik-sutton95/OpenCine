@@ -170,6 +170,21 @@ import Testing
         #expect(shell.route == .cameras && shell.cover == .settings)
     }
 
+    /// A2-07: an internet hop leaves the monitor with the gallery cover still open, so the
+    /// cover page (and its scroll, filter and selection) is never torn down and rebuilt.
+    @available(macOS 14, *)
+    @Test func leavingTheMonitorCanRetainItsCover() async {
+        let shell = shell()
+        let camera = Counted(FakeCameraSession.lunaLike())
+        await camera.fake.cameraReportsStatus()
+        #expect(await connect(shell, T.camera, camera))
+        shell.open(.media)
+        shell.close(.retain)
+        #expect(shell.monitor == nil && shell.route == .cameras)
+        #expect(shell.cover == .media, "the cover is never cleared, so its page keeps its identity")
+        #expect(await eventuallyAsync { await camera.closes == [.requested] })
+    }
+
     @available(macOS 14, *)
     @Test func liveLinkLossRetainsTheHeldPicture() async throws {
         let shell = shell()

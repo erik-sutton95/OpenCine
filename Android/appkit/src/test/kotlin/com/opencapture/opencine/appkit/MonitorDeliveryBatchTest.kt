@@ -76,7 +76,7 @@ class MonitorDeliveryBatchTest {
         assertTrue(facts.progress.any { it.stage == MonitorDeliveryBatchProgress.Stage.EXPORTING && kotlin.math.abs(it.clipFraction - 0.36) < 0.000001 })
         assertTrue(facts.progress.any { it.stage == MonitorDeliveryBatchProgress.Stage.UPLOADING && kotlin.math.abs(it.clipFraction - 0.725) < 0.000001 })
     }
-    @Test fun nativeFailureStopsBeforeNextPreparation() = runTest {
+    @Test fun nativeFailureContinuesToTheNextPreparation() = runTest {
         val facts = Facts(); facts.cached += listOf(1, 2)
         val outcome = MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1, 2),
             MonitorDeliveryDestination.NATIVE_SHARE, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
@@ -85,7 +85,30 @@ class MonitorDeliveryBatchTest {
             }, share = { facts.calls += "share"; MonitorDeliveryShareFiles(it) }, photos = null,
             filename = { "$it" }, progress = facts.progress::add)
         assertEquals("native failed", (outcome as MonitorDeliveryBatchOutcome.Failed<String>).message)
-        assertEquals(listOf("prepare 1"), facts.calls)
+        assertEquals(listOf("prepare 1", "prepare 2"), facts.calls)
+    }
+    @Test fun shareCompletionCarriesTheMetadataText() {
+        val completion = MonitorDeliveryBatchOutcome.Share(listOf("1.mov"), "1.mov · 2026-10-12 · 5 MB", "staging").completion()
+        assertEquals(listOf("1.mov"), completion.share?.urls)
+        assertEquals("1.mov · 2026-10-12 · 5 MB", completion.share?.metadataText)
+        assertEquals("staging", completion.share?.cleanup)
+        assertNull(MonitorDeliveryBatchOutcome.Share(listOf("1.mov"), null, null).completion().share?.metadataText)
+    }
+    @Test fun uploadHistorySkipsAConfirmedRecordUnlessReuploadIsOn() = runTest {
+        val facts = Facts(); facts.cached += 1
+        val confirmed = mutableSetOf<Int>()
+        val history = MonitorDeliveryUploadHistory<Int>(wasUploaded = { it in confirmed }, recordUploaded = { confirmed += it })
+        suspend fun upload(reupload: Boolean) = MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
+            MonitorDeliveryDestination.REMOTE_UPLOAD, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
+            MonitorDeliveryAdmission { true }, originals(facts), exporter(facts), share = null, photos = null,
+            upload = MonitorDeliveryUploadService { artifact, _ -> facts.calls += "upload $artifact" },
+            uploadHistory = history, reupload = reupload, filename = { "$it" }, progress = facts.progress::add)
+        assertEquals("1 uploaded", (upload(false) as MonitorDeliveryBatchOutcome.Uploaded<String>).summary)
+        assertEquals(setOf(1), confirmed)
+        assertEquals("1 skipped", (upload(false) as MonitorDeliveryBatchOutcome.Uploaded<String>).summary)
+        assertEquals(listOf("prepare 1", "upload 1"), facts.calls)
+        assertEquals("1 uploaded", (upload(true) as MonitorDeliveryBatchOutcome.Uploaded<String>).summary)
+        assertEquals(listOf("prepare 1", "upload 1", "prepare 1", "upload 1"), facts.calls)
     }
     @Test fun manualCacheProgressIgnoresUnknownAndLateTicks() = runTest {
         val facts = Facts(); val clock = Gate<Unit>(); val acquire = Gate<Unit>()
@@ -174,7 +197,7 @@ class MonitorDeliveryBatchTest {
             completion(MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
                 MonitorDeliveryDestination.NATIVE_SHARE, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
                 admission, originals(facts), exporter(facts), share = { urls ->
-                    model.begin { gate.value() }; MonitorDeliveryShareFiles(urls, "old staging")
+                    model.begin { gate.value() }; MonitorDeliveryShareFiles(urls, cleanup = "old staging")
                 }, photos = null, filename = { "$it" }, progress = progress))
         }
         runCurrent(); assertEquals(1, gate.count); assertEquals(listOf("old staging"), released)
@@ -196,5 +219,17 @@ class MonitorDeliveryBatchTest {
             filename = { "$it" }, progress = facts.progress::add)
         assertEquals("1 uploaded", (outcome as MonitorDeliveryBatchOutcome.Uploaded<String>).summary)
         assertEquals(0, began); assertEquals(listOf(7), waited); assertEquals(listOf(7), restored); assertNull(owned)
+    }
+    @Test fun refusedRouteBeginFailsWithTheInternetMessageWithoutUploading() = runTest {
+        val facts = Facts(); facts.cached += 1
+        var uploads = 0
+        val internet = MonitorDeliveryInternetService<Int>({ true }, { null }, { false }, { true }, { })
+        val outcome = MonitorDeliveryModel.runBatch<Int, String, Int>(listOf(1),
+            MonitorDeliveryDestination.REMOTE_UPLOAD, MonitorDeliveryPostExportAction.SYSTEM_SHARE,
+            MonitorDeliveryAdmission { true }, originals(facts), exporter(facts), share = null, photos = null,
+            upload = MonitorDeliveryUploadService { _, _ -> uploads++ }, internet = internet,
+            filename = { "$it" }, progress = facts.progress::add)
+        assertEquals(MonitorDeliveryBatchPolicy.INTERNET_FAILURE, (outcome as MonitorDeliveryBatchOutcome.Failed<String>).message)
+        assertEquals(0, uploads)
     }
 }

@@ -12,7 +12,7 @@ repository, consumed by the three apps on main through one sibling path
 | Layer | Swift products (targets) | Gradle modules | Area docs |
 |---|---|---|---|
 | core | OpenCineCore, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineRelayApple, OpenCineApple, OpenCineCoreTestSupport | `:core`, `:media`, `:vulkan` | `docs/core/` |
-| ui | MonitorPresentation, MonitorUI, OpenCineAppKit (app shell), OpenCineAppKitApple (its Apple layer), OpenCineCameraControls (app composition) | `:monitor-ui`, `:appkit`, `:camera-controls` (app composition) | `docs/ui/`, `docs/appkit/` |
+| ui | MonitorPresentation, MonitorUI, OpenCineAppKit (app shell), OpenCineAppKitApple (its Apple layer), OpenCineFrameIOApple (Frame.io's Apple host), OpenCineCameraControls (app composition) | `:monitor-ui`, `:appkit`, `:camera-controls` (app composition) | `docs/ui/`, `docs/appkit/` |
 | multicam | OpenCineMulticam | `:multicam` | `docs/multicam/` |
 | vendor | OpenCineCameraVocabulary, OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport (CKcp target) | `:camera-vocabulary`, `:insta360-shell`, `:insta360-luna` | `docs/dji/`, `docs/nikon/`, `docs/insta360/` |
 | harness | none (HarnessEngine, HarnessComposition, HarnessTests: dev-only, SIMULATED) | none | `docs/harness/` |

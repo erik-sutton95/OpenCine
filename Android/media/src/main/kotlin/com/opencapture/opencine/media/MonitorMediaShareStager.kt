@@ -574,6 +574,8 @@ public data class MonitorMediaShareIntentSpec(
     public val clipDataLabel: String,
     public val grantsReadUriPermission: Boolean,
     public val chooserTitle: String,
+    /** The "Include metadata" summary sent as `EXTRA_TEXT` beside the files, when not blank. */
+    public val text: String? = null,
 ) {
     public companion object {
         /** Builds the immutable policy for one staged clip. */
@@ -587,7 +589,8 @@ public data class MonitorMediaShareIntentSpec(
          * shared MIME type would hide one of the selected assets from many
          * native share targets.
          */
-        public fun forShares(shares: List<MonitorStagedMediaShare>, batchLabel: String): MonitorMediaShareIntentSpec {
+        public fun forShares(shares: List<MonitorStagedMediaShare>, batchLabel: String,
+            metadataText: String? = null): MonitorMediaShareIntentSpec {
             require(shares.isNotEmpty()) { "At least one staged media file is required." }
             val first = shares.first()
             val single = shares.size == 1
@@ -600,6 +603,7 @@ public data class MonitorMediaShareIntentSpec(
                 grantsReadUriPermission = true,
                 chooserTitle =
                     if (single) "Share ${first.displayName}" else "Share ${shares.size} items",
+                text = metadataText?.takeIf { it.isNotBlank() },
             )
         }
 

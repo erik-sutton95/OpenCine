@@ -156,22 +156,25 @@ public enum MonitorDeliveryCacheError: LocalizedError, Equatable, Sendable {
     case uncached(Int)
     public var errorDescription: String? {
         switch self {
-        case .uncached(let count): MonitorDeliveryBatchPolicy().cacheFailure(count)
+        case .uncached(let count): MonitorDeliveryBatchPolicy.cacheFailure(count)
         }
     }
 }
 public struct MonitorDeliveryShareFiles<Artifact: Sendable>: Sendable {
     public let urls: [Artifact]
+    /// The "Include metadata" summary, shared as a text item beside the files.
+    public let metadataText: String?
     public let cleanup: Artifact?
-    public init(urls: [Artifact], cleanup: Artifact? = nil) {
+    public init(urls: [Artifact], metadataText: String? = nil, cleanup: Artifact? = nil) {
         self.urls = urls
+        self.metadataText = metadataText
         self.cleanup = cleanup
     }
 }
-/// An OS batch transaction and per-item insert have different real permission/commit contracts.
-@MainActor public enum MonitorDeliveryPhotosService<Artifact: Sendable> {
-    case batch(@MainActor ([Artifact]) async throws -> Int)
-    case perItem(@MainActor (Artifact) async throws -> Bool)
+/// One OS insert per item, so a rejected item never discards the others (A2-56).
+@MainActor public struct MonitorDeliveryPhotosService<Artifact: Sendable> {
+    public let save: @MainActor (Artifact) async throws -> Bool
+    public init(save: @escaping @MainActor (Artifact) async throws -> Bool) { self.save = save }
 }
 /// The existing OS authorization transaction, admitted before any cache or export work.
 @MainActor public struct MonitorDeliveryPhotosAuthorizationService {
@@ -199,16 +202,30 @@ public struct MonitorDeliveryShareFiles<Artifact: Sendable>: Sendable {
         self.upload = upload
     }
 }
+/// The remote's record of confirmed uploads (A2-53): a record already uploaded is skipped
+/// before any export unless the operator asks to re-upload; every confirmed upload is recorded.
+@MainActor public struct MonitorDeliveryUploadHistory<Record: Sendable> {
+    public let wasUploaded: @MainActor (Record) -> Bool
+    public let recordUploaded: @MainActor (Record) -> Void
+    public init(
+        wasUploaded: @escaping @MainActor (Record) -> Bool,
+        recordUploaded: @escaping @MainActor (Record) -> Void
+    ) {
+        self.wasUploaded = wasUploaded
+        self.recordUploaded = recordUploaded
+    }
+}
 /// Actual network lease operations, not a second route or reconnect owner.
 @MainActor public struct MonitorDeliveryInternetService<Lease: Sendable> {
     public let needsHop: @MainActor () -> Bool
-    public let begin: @MainActor () -> Lease
+    /// Leaves the camera network; nil when the route refuses (another hop is running).
+    public let begin: @MainActor () -> Lease?
     public let owns: @MainActor (Lease) -> Bool
     public let wait: @MainActor (Lease) async -> Bool
     public let restore: @MainActor (Lease) -> Void
     public let restoreEntered: @MainActor (Lease) async -> Void
     public init(
-        needsHop: @escaping @MainActor () -> Bool, begin: @escaping @MainActor () -> Lease,
+        needsHop: @escaping @MainActor () -> Bool, begin: @escaping @MainActor () -> Lease?,
         owns: @escaping @MainActor (Lease) -> Bool,
         wait: @escaping @MainActor (Lease) async -> Bool,
         restore: @escaping @MainActor (Lease) -> Void
@@ -221,7 +238,7 @@ public struct MonitorDeliveryShareFiles<Artifact: Sendable>: Sendable {
         self.restoreEntered = { restore($0) }
     }
     public init(
-        needsHop: @escaping @MainActor () -> Bool, begin: @escaping @MainActor () -> Lease,
+        needsHop: @escaping @MainActor () -> Bool, begin: @escaping @MainActor () -> Lease?,
         owns: @escaping @MainActor (Lease) -> Bool,
         wait: @escaping @MainActor (Lease) async -> Bool,
         restoreEntered: @escaping @MainActor (Lease) async -> Void,
@@ -233,26 +250,6 @@ public struct MonitorDeliveryShareFiles<Artifact: Sendable>: Sendable {
         self.wait = wait
         self.restore = restore
         self.restoreEntered = restoreEntered
-    }
-}
-
-public enum MonitorDeliveryItemFailurePolicy: Equatable, Sendable { case stop, continueItems }
-
-/// Immutable exercised differences in native transactions and empty upload summaries.
-public struct MonitorDeliveryBatchBehavior: Sendable {
-    public let nativeFailures: MonitorDeliveryItemFailurePolicy
-    public let photosFailures: MonitorDeliveryItemFailurePolicy
-    public let emptyUploadSucceeds: Bool
-    public let singleUploadFailureUsesDetail: Bool
-    public init(
-        nativeFailures: MonitorDeliveryItemFailurePolicy = .stop,
-        photosFailures: MonitorDeliveryItemFailurePolicy = .stop, emptyUploadSucceeds: Bool = false,
-        singleUploadFailureUsesDetail: Bool = true
-    ) {
-        self.nativeFailures = nativeFailures
-        self.photosFailures = photosFailures
-        self.emptyUploadSucceeds = emptyUploadSucceeds
-        self.singleUploadFailureUsesDetail = singleUploadFailureUsesDetail
     }
 }
 
@@ -271,38 +268,27 @@ public struct MonitorDeliveryBatchCounts: Sendable {
     }
 }
 
-/// Shared batch order/progress; platform messages preserve their existing native presentation.
-public struct MonitorDeliveryBatchPolicy: Sendable {
-    public var cacheFailure: @Sendable (Int) -> String
-    public var emptySelection = "Select at least one clip."
-    public var noPrepared: String?
-    public var internetFailure =
-        "Couldn't reach the internet after leaving the camera's Wi‑Fi. Check cellular or home Wi‑Fi and try again."
-    public var behavior: MonitorDeliveryBatchBehavior
-    public var nativeSummary: @Sendable (MonitorDeliveryBatchCounts) -> String?
-    public var photosFailure: @Sendable (Int, Int) -> String?
-    public init(
-        cacheFailure: @escaping @Sendable (Int) -> String = {
-            "Couldn't cache \($0) clip(s) from the camera. Check the connection and try again."
-        }
-    ) {
-        self.cacheFailure = cacheFailure
-        self.behavior = .init()
-        self.nativeSummary = { _ in nil }
-        self.photosFailure = { _, _ in nil }
+/// The one batch policy every app runs (A2-56): a failing item never stops the others, Photos
+/// access is asked before any cache or export work, and the outcome counts every item.
+public enum MonitorDeliveryBatchPolicy {
+    public static func cacheFailure(_ count: Int) -> String {
+        "Couldn't cache \(count) clip(s) from the camera. Check the connection and try again."
     }
-    public init(
-        behavior: MonitorDeliveryBatchBehavior,
-        nativeSummary: @escaping @Sendable (MonitorDeliveryBatchCounts) -> String? = { _ in nil },
-        photosFailure: @escaping @Sendable (Int, Int) -> String? = { _, _ in nil },
-        cacheFailure: @escaping @Sendable (Int) -> String = {
-            "Couldn't cache \($0) clip(s) from the camera. Check the connection and try again."
+    public static let emptySelection = "Select at least one clip."
+    public static let internetFailure =
+        "Couldn't reach the internet after leaving the camera's Wi‑Fi. Check cellular or home Wi‑Fi and try again."
+    /// The note shared beside a partial native share, or nil when every item was prepared.
+    public static func nativeSummary(_ counts: MonitorDeliveryBatchCounts) -> String? {
+        var parts: [String] = []
+        if counts.failed > 0 { parts.append("Prepared \(counts.prepared); \(counts.failed) failed.") }
+        if counts.uncached > 0 {
+            parts.append("\(counts.uncached) clip(s) couldn't be cached from the camera.")
         }
-    ) {
-        self.cacheFailure = cacheFailure
-        self.behavior = behavior
-        self.nativeSummary = nativeSummary
-        self.photosFailure = photosFailure
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+    /// A Photos save that saved nothing or rejected an item fails with its exact counts.
+    public static func photosFailure(saved: Int, failed: Int) -> String? {
+        saved == 0 || failed > 0 ? "Saved \(saved); \(failed) couldn't be saved to Photos." : nil
     }
 }
 
@@ -310,8 +296,8 @@ extension MonitorDeliveryBatchOutcome {
     public func completion() -> MonitorDeliveryCompletion<Self, MonitorDeliveryShareFiles<Artifact>>
     {
         switch self {
-        case .share(let urls, _, let cleanup):
-            return .init(self, share: .init(urls: urls, cleanup: cleanup))
+        case .share(let urls, let metadataText, let cleanup):
+            return .init(self, share: .init(urls: urls, metadataText: metadataText, cleanup: cleanup))
         case .savedToPhotos(let count):
             return .init(self, toast: "Saved \(count) clip\(count == 1 ? "" : "s") to Photos")
         case .uploaded(let summary): return .init(self, toast: summary)

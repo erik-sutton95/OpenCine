@@ -76,6 +76,8 @@ public final class MonitorDeliveryPreparationModel<
         step = preferredDestination == nil ? .destination : .options
     }
     public var remotePresentation: MonitorDeliveryRemotePresentation? { remote?.presentation }
+    /// Re-upload is a choice only where the remote skips already uploaded records.
+    public var offersReupload: Bool { destination == .remoteUpload && remote?.skipsUploaded == true }
     public var selectedProject: MonitorDeliveryProject<Project>? {
         listing?.projects.first { $0.id == selectedProjectID }
     }
@@ -308,7 +310,14 @@ public final class MonitorDeliveryPreparationModel<
         _ captured: UUID, _ request: UUID,
         _ remote: MonitorDeliveryRemoteService<Project, Context, Lease>
     ) -> Lease? {
-        let acquired = remote.internet.begin()
+        guard let acquired = remote.internet.begin() else {
+            // Another hop holds the route; this popup never steals it.
+            guard current(captured), hopRequest == request else { return nil }
+            hopping = false
+            hopTask = nil
+            projectsError = "Couldn't leave the camera's Wi‑Fi while another network switch is running."
+            return nil
+        }
         guard current(captured), hopRequest == request, remote.internet.owns(acquired),
             current(captured)
         else {
@@ -356,7 +365,8 @@ public final class MonitorDeliveryPreparationModel<
         step = .options
         return current(captured) && remote.internet.owns(acquired) && current(captured)
     }
-    public func takeRequest() -> MonitorDeliveryPreparedRequest<Curve, Format, Lease>? {
+    public typealias Request = MonitorDeliveryPreparedRequest<Curve, Format, Project, Context, Lease>
+    public func takeRequest() -> Request? {
         let captured = epoch
         guard current(captured), canContinue, current(captured), let destination else { return nil }
         var transferred: Lease?
@@ -371,9 +381,11 @@ public final class MonitorDeliveryPreparationModel<
             }
             lease = nil
         }
-        let request = MonitorDeliveryPreparedRequest(
+        let remote = destination == .remoteUpload
+        let request = Request(
             destination: destination, configuration: configuration, action: action,
-            internetLease: transferred)
+            internetLease: transferred, project: remote ? selectedProject : nil,
+            projectContext: remote && selectedProject != nil ? listing?.context : nil)
         close()
         return request
     }

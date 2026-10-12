@@ -599,6 +599,11 @@ public class MonitorMediaLibraryModel<P>(
                             authority.beginCompletion { finishingCurrent(finish) }
                             if (authority.isCompleting && finishingDeletions[authority.id] === finish) {
                                 port.finish()
+                                // A retired gallery returns to browsing by default (R-01); a caller that
+                                // already relisted from finish makes this a refused repeat.
+                                if (preparation == MonitorMediaDeletionPreparation.RETIRE_GALLERY && !finish.relisted &&
+                                    currentCoroutineContext().isActive && authority.isCompleting && finishingDeletions[authority.id] === finish)
+                                    relist(authority)
                                 if (currentCoroutineContext().isActive && authority.isCompleting && finishingDeletions[authority.id] === finish) {
                                     val admission = actionToken
                                     finish.admission = admission

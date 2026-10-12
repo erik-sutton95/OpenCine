@@ -93,6 +93,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineFrameIOApple",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineAppUITesting",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -243,6 +248,12 @@
       "coordinates": "com.opencapture.opencine:camera-controls"
     },
     {
+      "name": ":frameio",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:frameio"
+    },
+    {
       "name": ":relay",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -306,6 +317,8 @@
       "OpenCineAppKitTests",
       "OpenCineAppKitApple",
       "OpenCineAppKitAppleTests",
+      "OpenCineFrameIOApple",
+      "OpenCineFrameIOAppleTests",
       "OpenCineAppUITesting",
       "OpenCineHostedAccessibility",
       "OpenCineHostedAccessibilityTests",
@@ -313,7 +326,8 @@
       "OpenCineCameraControlsTests",
       ":appkit",
       ":appkit-sentry",
-      ":camera-controls"
+      ":camera-controls",
+      ":frameio"
     ],
     "multicam": [
       "OpenCineMulticam",
@@ -329,6 +343,8 @@
       "OpenCineDJIAppleTests",
       "OpenCineJNI",
       "OpenCineJNISupport",
+      "OpenCineFrameIOAndroid",
+      "OpenCineFrameIOAndroidTests",
       "OpenCineDJIAndroid",
       "OpenCineDJIAndroidTests",
       "OpenCineNikon",
