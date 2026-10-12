@@ -573,6 +573,6 @@ public enum DjiAppleMediaAssets {
             id: id, filename: file.filename, kind: kind, capturedAt: file.captureDate,
             durationSeconds: file.durationSeconds > 0 ? Double(file.durationSeconds) : nil,
             pixelSize: pixels, frameRate: file.fps.flatMap { $0 > 0 ? Double($0) : nil },
-            representations: representations, deletable: nil)
+            representations: representations, deletable: file.isDeletable)
     }
 }
