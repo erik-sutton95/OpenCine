@@ -33,6 +33,26 @@ class ScopeSamplingTest {
         assertEquals(100, owner.resolvedISO())
     }
 
+    @Test fun bundleFromASourcesOwnSamplesMatchesTheOnePassTap() {
+        // A grey frame with a clipped blue patch: lamps, histogram and clip must agree with sample().
+        val bytes = ByteArray(8 * 4 * 4) { index -> if (index % 4 == 3) 255.toByte() else 96 }
+        for (pixel in 0 until 8) bytes[pixel * 4 + 2] = 250.toByte()
+        val tap = ScopeSampler.sample(bytes, 8, 4, 32, MonitorTransfer.LOG3G10, includePoints = true,
+            ceiling = ScopeExposureCeiling().apply { declare(180, MonitorTransfer.LOG3G10) })
+        val raw = ScopeSampler.sampleRaw(bytes, 8, 4, 32, MonitorTransfer.LOG3G10, includePoints = true)
+        val bundle = ScopeSampler.bundle(raw, MonitorTransfer.LOG3G10, includePoints = true,
+            ceiling = ScopeClipSnapshot(MonitorTransfer.LOG3G10, 180))
+        assertEquals(tap.traffic, bundle.traffic)
+        assertEquals(tap.histogramDisplay.blue.toList(), bundle.histogramDisplay.blue.toList())
+        assertEquals(tap.samples.points, bundle.samples.points)
+        assertEquals(180, bundle.ceiling.clipByte(MonitorTransfer.LOG3G10))
+        assertEquals(true, bundle.traffic.blue.clip)
+        val traceless = ScopeSampler.bundle(raw, MonitorTransfer.LOG3G10, includePoints = false, previous = bundle)
+        assertEquals(2L, traceless.revision)
+        assertEquals(emptyList(), traceless.samples.points)
+        assertSame(bundle.samples, traceless.trailSamples)
+    }
+
     @Test fun histogramRemapConservesCounts() {
         val bins = IntArray(256)
         bins[16] = 10; bins[78] = 20; bins[247] = 30
