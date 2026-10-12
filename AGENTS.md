@@ -82,7 +82,9 @@ on that SDK. The Swift adapter is a separate package so the OpenCine package its
 dependencies (resolving OpenCine never fetches the SDK). Only the adapter and its tests name the
 SDK; no other module depends on the adapter or imports it (`AppKitRules`, `AdapterIsolationTest`),
 so an app that links no adapter links no SDK. An app links the adapter beside the app shell and
-keeps only host values (names, DSN, Sentry project, CI secrets).
+keeps only host values (names, DSN, Sentry project, CI secrets). On Android the DSN reaches
+`BuildConfig.SENTRY_DSN_ANDROID` through the `com.opencapture.opencine.reporting` Gradle plugin
+(`Android/build-logic`, included by each app's `pluginManagement`).
 
 - Core (`OpenCineCore`) imports Foundation only and names no manufacturer; it never imports UI, an
   integration, Multicam or an app. `OpenCineMedia`, `OpenCineMotion`, `OpenCineFrameIO`,
