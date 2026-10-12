@@ -859,13 +859,18 @@ private struct PhysicalMigrationProbe: Decodable {
             var previous: [CGRect] = []
             var stableSince = Date()
             try wait("Rotation must settle with reachable capture controls", timeout: 10) {
+                let appFrame = self.app.frame
+                guard (appFrame.height > appFrame.width) == portrait else { return false }
                 let record = self.app.buttons["monitor.system.record"]
-                guard record.isHittable, self.app.frame.contains(record.frame),
-                    (self.app.frame.height > self.app.frame.width) == portrait
-                else { return false }
-                let frames = [self.app.frame, record.frame]
+                guard record.exists else { return false }
+                let recordFrame = record.frame
+                guard !recordFrame.isEmpty, appFrame.contains(recordFrame) else { return false }
+                let frames = [appFrame, recordFrame]
                 if frames != previous { previous = frames; stableSince = Date(); return false }
-                return Date().timeIntervalSince(stableSince) >= 0.4
+                // XCTest can abort on an invalid activation point while rotation is still laying
+                // out. Read hittability only after the expected orientation and frames settle.
+                guard Date().timeIntervalSince(stableSince) >= 0.4 else { return false }
+                return record.isHittable
             }
             _ = try advancingLive("rotation-owner-" + String(orientation.rawValue), from: source)
             try pictureEvidence("rotation-picture-" + String(orientation.rawValue), role: "live", identity: source.identity)
