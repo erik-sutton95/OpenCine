@@ -1,27 +1,24 @@
 #if os(iOS)
+import MonitorPresentation
 import XCTest
 
-/// Visits production Share options with an actual cached, generated review clip.
+/// Visits production Share options with an actual cached, generated review clip: every app's
+/// review harness writes `ReviewClip` into its media cache for `ReviewLaunch(screen: .playback)`,
+/// so a missing clip fails here instead of skipping.
 /// Never starts export, Photos access, system sharing, uploads, or a network hop.
 open class ShareUIFlowTests: SharedAppUITestCase {
     func testCachedClipOptionsSurviveRotationAndReturnToSamePlayer() throws {
         continueAfterFailure = false
-        guard let clip = ProcessInfo.processInfo.environment["OPV_SIM_FEED_CLIP"],
-            FileManager.default.fileExists(atPath: clip)
-        else { throw XCTSkip("Pass OPV_SIM_FEED_CLIP pointing to the generated review video") }
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
-        app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "playback"
-        app.launchEnvironment["OPV_SIM_FEED_CLIP"] = clip
-        app.launch()
+        let app = launch(ReviewLaunch(screen: .playback))
         defer {
             app.terminate()
             XCUIDevice.shared.orientation = .portrait
         }
 
         let share = app.buttons["Share clip"]
-        XCTAssertTrue(share.waitForExistence(timeout: 10))
-        XCTAssertFalse(app.staticTexts["monitor.review.cacheError"].exists)
+        XCTAssertTrue(share.waitForExistence(timeout: 15), "The staged clip must open in playback")
+        XCTAssertTrue(app.staticTexts["monitor.playback.title"].exists)
         let loop = app.buttons["Loop playback"]
         if loop.value as? String == "Off" { loop.tap() }
         share.tap()

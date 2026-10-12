@@ -52,7 +52,7 @@ public abstract class ScreenMatrix(subject: ConformanceApp) : ConformanceTest(su
             for (landscape in listOf(false, true)) {
                 rotate(landscape)
                 // Every cell is captured even when an earlier one breaks an invariant.
-                runCatching { checkpoint("$screen-${if (dark) "dark" else "light"}") }
+                runCatching { checkpoint("$screen-${if (dark) "dark" else "light"}", safeArea = true) }
                     .onFailure { failures += it.message.orEmpty() }
             }
         }

@@ -281,36 +281,45 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         automation.windows.filter { it.root?.packageName?.toString() == target }.minByOrNull { it.layer }
             ?.let { window -> Rect().also(window::getBoundsInScreen).box() }
 
-    /** The window less its system bars and display cutout, in screen pixels. */
-    public fun safeArea(): Box {
-        var safe = mainWindow() ?: Box(0, 0, 0, 0)
+    /**
+     * What hides part of the app's window, in screen pixels: each visible system bar and the display
+     * cutout's own outline (not its inset band: controls may use the corners beside a punch hole).
+     */
+    public fun hiddenAreas(): List<Pair<String, Box>> {
+        val areas = mutableListOf<Pair<String, Box>>()
         scenario?.onActivity { activity ->
             val decor = activity.window.decorView
             val insets = decor.rootWindowInsets ?: return@onActivity
             val origin = IntArray(2).also(decor::getLocationOnScreen)
+            val frame = Box(origin[0], origin[1], origin[0] + decor.width, origin[1] + decor.height)
             val (left, top, right, bottom) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    .let { listOf(it.left, it.top, it.right, it.bottom) }
+                insets.getInsets(WindowInsets.Type.systemBars()).let { listOf(it.left, it.top, it.right, it.bottom) }
             } else {
                 @Suppress("DEPRECATION")
-                listOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight,
-                    insets.systemWindowInsetBottom)
+                listOf(insets.stableInsetLeft, insets.stableInsetTop, insets.stableInsetRight, insets.stableInsetBottom)
             }
-            safe = Box(origin[0] + left, origin[1] + top, origin[0] + decor.width - right, origin[1] + decor.height - bottom)
+            if (left > 0) areas += "system bar" to Box(frame.left, frame.top, frame.left + left, frame.bottom)
+            if (top > 0) areas += "system bar" to Box(frame.left, frame.top, frame.right, frame.top + top)
+            if (right > 0) areas += "system bar" to Box(frame.right - right, frame.top, frame.right, frame.bottom)
+            if (bottom > 0) areas += "system bar" to Box(frame.left, frame.bottom - bottom, frame.right, frame.bottom)
+            insets.displayCutout?.boundingRects?.forEach { cutout ->
+                areas += "display cutout" to Rect(cutout).apply { offset(origin[0], origin[1]) }.box()
+            }
         }
-        return safe
+        return areas
     }
 
     // MARK: Checkpoints and evidence
 
     /**
      * A scenario's key state. Every enabled, clickable `monitor.*` control outside a scrolling list
-     * must lie inside its window and the safe area, and no two uncovered ones whose tags start with
-     * [operable] may overlap within one window (a mode that makes the rest inert, the chrome editor,
-     * names its own controls). The screen is then saved as
+     * must lie inside its window, and no two uncovered ones whose tags start with [operable] may
+     * overlap within one window (a mode that makes the rest inert, the chrome editor, names its own
+     * controls). The screenshot matrix also requires that none lies under a system bar or the display
+     * cutout ([safeArea], [hiddenAreas]); the behavior scenarios leave layout to it. The screen is then saved as
      * `<app>-<device>-<orientation>-<scenario>-<name>.png`, before any failure is reported.
      */
-    public fun checkpoint(name: String, operable: String = "monitor.") {
+    public fun checkpoint(name: String, operable: String = "monitor.", safeArea: Boolean = false) {
         val snapshot = snapshot()
         val controls = snapshot.nodes.filter {
             it.visible && it.tag?.startsWith("monitor.") == true && it.info.isClickable && it.info.isEnabled &&
@@ -318,9 +327,12 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         }.map { CheckpointControl(it.tag!!, it.bounds, it.window.id, it.window.bounds, snapshot.covers(it)) }
         val window = mainWindow()
         val landscape = window != null && window.width > window.height
-        capture(CheckpointGeometry.evidenceName(profile.app, device, landscape, javaClass.simpleName, name))
+        val evidence = CheckpointGeometry.evidenceName(profile.app, device, landscape, javaClass.simpleName, name)
+        capture(evidence)
+        // Each message starts with the screenshot's name, so a report puts it next to the screenshot.
         val problems = CheckpointGeometry.violations(
-            name, controls, safeArea(), operable, tolerance = 1, overlapSlack = ceil(density).toInt())
+            evidence, controls, if (safeArea) hiddenAreas() else emptyList(), operable, tolerance = 1,
+            overlapSlack = ceil(density).toInt())
         if (problems.isNotEmpty()) fail(problems.joinToString("\n"), dump = false)
     }
 

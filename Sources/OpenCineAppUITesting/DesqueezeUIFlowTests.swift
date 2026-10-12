@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import UIKit
 import XCTest
 
@@ -105,16 +106,14 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
         close.tap()
     }
 
+    /// The app's review harness stages the generated clip (`ReviewClip`): a missing one fails.
     func testCachedPlaybackExposesTheSameDesqueezeOptions() throws {
-        guard let clip = ProcessInfo.processInfo.environment["OPV_SIM_FEED_CLIP"],
-            FileManager.default.fileExists(atPath: clip)
-        else { throw XCTSkip("Pass OPV_SIM_FEED_CLIP pointing to a generated review video") }
-        app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "playback"
-        app.launch()
+        launch(ReviewLaunch(screen: .playback))
         XCUIDevice.shared.orientation = .landscapeLeft
         waitForOrientation(.landscapeLeft)
-        XCTAssertTrue(app.buttons["Back to media"].waitForExistence(timeout: 15))
-        XCTAssertFalse(app.staticTexts["monitor.review.cacheError"].exists)
+        XCTAssertTrue(
+            app.buttons["Back to media"].waitForExistence(timeout: 15), "The staged clip must open in playback")
+        XCTAssertTrue(app.staticTexts["monitor.playback.title"].exists)
         let chip = try revealDesqueeze()
         if chip.value as? String == "Off" { chip.tap() }
         waitForValue(chip, "On")
@@ -138,18 +137,17 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
     }
 
     private func revealDesqueeze() throws -> XCUIElement {
-        let expand = app.buttons["monitor.assists.expand"]
-        if expand.waitForExistence(timeout: 10) { expand.tap() }
-        let chip = app.buttons["monitor.assist.DE-SQ"]
-        for _ in 0..<5 where !chip.isHittable {
-            let palette = app.scrollViews.allElementsBoundByIndex.first {
-                $0.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'monitor.assist.'"))
-                    .count > 0
-            }
+        // Over cached playback the covered live palette is still in the tree: use the reachable one.
+        let expand = app.buttons.matching(identifier: "monitor.assists.expand")
+        if expand.firstMatch.waitForExistence(timeout: 10) { reachable(expand)?.tap() }
+        let chips = app.buttons.matching(identifier: "monitor.assist.DE-SQ")
+        let tools = NSPredicate(format: "identifier BEGINSWITH 'monitor.assist.'")
+        for _ in 0..<5 where reachable(chips) == nil {
+            let palettes = app.scrollViews.allElementsBoundByIndex.filter { $0.buttons.matching(tools).count > 0 }
+            let palette = palettes.first(where: \.isHittable) ?? palettes.first
             try XCTUnwrap(palette, "View Assist palette must be scrollable").swipeLeft()
         }
-        XCTAssertTrue(chip.isHittable)
-        return chip
+        return try XCTUnwrap(reachable(chips), "The Desqueeze chip must be reachable")
     }
 
     private func revealOption(_ element: XCUIElement) {

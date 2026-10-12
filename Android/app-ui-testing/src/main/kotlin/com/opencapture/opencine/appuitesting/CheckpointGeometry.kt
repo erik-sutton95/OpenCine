@@ -25,15 +25,16 @@ public data class CheckpointControl(val tag: String, val bounds: Box, val window
 
 /**
  * The checkpoint invariants, kept free of the device so the kit's unit tests prove them: every
- * control lies inside its window and the safe area (system bars and display cutout excluded), and no
- * two uncovered operable controls of one window overlap by more than [overlapSlack] pixels each way.
- * Returns one message per broken invariant.
+ * control lies inside its window, no uncovered one lies under the [hidden] areas (the screenshot
+ * matrix passes the visible system bars and the display cutout), and no two uncovered operable controls of one
+ * window overlap by more than [overlapSlack] pixels each way. Returns one message per broken
+ * invariant.
  */
 public object CheckpointGeometry {
     public fun violations(
         checkpoint: String,
         controls: List<CheckpointControl>,
-        safeArea: Box,
+        hidden: List<Pair<String, Box>>,
         operable: String,
         tolerance: Int,
         overlapSlack: Int,
@@ -41,8 +42,14 @@ public object CheckpointGeometry {
         for (control in controls) {
             if (!control.windowBounds.contains(control.bounds, tolerance)) {
                 add("$checkpoint: ${control.tag} ${control.bounds} leaves its window ${control.windowBounds}")
-            } else if (!safeArea.contains(control.bounds, tolerance)) {
-                add("$checkpoint: ${control.tag} ${control.bounds} leaves the safe area $safeArea")
+            }
+            // A covered control (under a page, panel or player) is not seen; only a visible one can hide under hardware.
+            if (control.covered) continue
+            for ((part, area) in hidden) {
+                val shared = control.bounds.intersection(area)
+                if (shared.width > tolerance && shared.height > tolerance) {
+                    add("$checkpoint: ${control.tag} ${control.bounds} lies under the $part $area")
+                }
             }
         }
         val operated = controls.filter { it.tag.startsWith(operable) && !it.covered }
