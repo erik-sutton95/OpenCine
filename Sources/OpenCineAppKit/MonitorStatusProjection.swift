@@ -4,14 +4,15 @@ import OpenCineCore
 
 @available(macOS 14, *)
 extension MonitorControlModel {
-    /// Elapsed capture time is optional integration telemetry; the common snapshot owns state and
-    /// timecode, formatted at the precision the source declares.
+    /// Explicit integration duration takes precedence. Otherwise use the independent clock-derived
+    /// counter from a fresh camera-confirmed start; an unknown start or lost link stays unknown.
+    /// The common snapshot owns recording state and source-declared timecode precision.
     public func statusPresentation(elapsedSeconds: Int? = nil) -> MonitorStatusPresentation {
         let label = timecode.value.flatMap {
             MonitorTimecodeFormat.label($0, precision: snapshot?.capabilities.timecode.precision)
         }
         return MonitorStatusPresentation(recording: isRecording,
-            elapsedSeconds: isRecording == nil ? nil : elapsedSeconds, timecode: label)
+            elapsedSeconds: isRecording == nil ? nil : (elapsedSeconds ?? recordingElapsed.value), timecode: label)
     }
 }
 

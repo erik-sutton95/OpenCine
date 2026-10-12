@@ -22,6 +22,10 @@ import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.ObservedValue
+import com.opencapture.opencine.core.MonotonicInstant
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.ObservationPrecision
+import com.opencapture.opencine.core.ObservationValidity
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SettingDomain
@@ -136,6 +140,75 @@ public class MonitorControlModel(
     private val editRevisions = HashMap<SettingKey, Long>()
     private var recordOperation: OperationID? = null
 
+
+    /** Clock-derived counter from a fresh camera-confirmed start; an unknown start stays unknown. */
+    public var recordingElapsed: ObservedValue<Int> by mutableStateOf(ObservedValue.unknown)
+        private set
+    private var recordingStartedAt: MonotonicInstant? = null
+    private var recordingTicker: Job? = null
+    private var recordingNow: () -> MonotonicInstant = { MonotonicInstant.now() }
+    private var recordingDelay: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) }
+
+    /** Additive deterministic timing overload; the existing positional/trailing-delay API is intact. */
+    public constructor(scope: CoroutineScope, now: () -> MonotonicInstant,
+        recordingDelay: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) },
+        coalescingMs: Long = 120, delay: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) }) :
+        this(scope, coalescingMs, delay) {
+        recordingNow = now
+        this.recordingDelay = recordingDelay
+    }
+
+    private fun retireRecordingElapsed() {
+        recordingTicker?.cancel(); recordingTicker = null
+        recordingStartedAt = null
+        recordingElapsed = ObservedValue.unknown
+    }
+
+    private fun updateRecordingElapsed(at: MonotonicInstant) {
+        val start = recordingStartedAt
+        if (start == null || at < start) { retireRecordingElapsed(); return }
+        val seconds = (at - start).inWholeSeconds
+        if (seconds > Int.MAX_VALUE) { retireRecordingElapsed(); return }
+        if (recordingElapsed.value != seconds.toInt()) {
+            recordingElapsed = ObservedValue(seconds.toInt(), ObservationOrigin.CLOCK_DERIVED, at,
+                precision = ObservationPrecision.Quantized(1.0))
+        }
+    }
+
+    private fun observeRecordingElapsed(value: CameraSnapshot) {
+        val previous = mutable.value.snapshot
+        val sameOwner = previous?.session == value.session && previous.epoch == value.epoch
+        if (!sameOwner) retireRecordingElapsed()
+        if (value.connection != ConnectionState.Ready || value.recording.validity != ObservationValidity.Valid) {
+            retireRecordingElapsed(); return
+        }
+        when (value.recording.value) {
+            RecordingState.IDLE -> {
+                recordingTicker?.cancel(); recordingTicker = null
+                recordingStartedAt = null
+                if (recordingElapsed.value != 0) {
+                    recordingElapsed = ObservedValue(0, ObservationOrigin.CLOCK_DERIVED, recordingNow(),
+                        precision = ObservationPrecision.Quantized(1.0))
+                }
+            }
+            RecordingState.RECORDING -> {
+                if (recordingStartedAt != null || !sameOwner || previous?.recording?.value != RecordingState.IDLE ||
+                    previous.recording.validity != ObservationValidity.Valid) return
+                recordingStartedAt = recordingNow()
+                updateRecordingElapsed(recordingNow())
+                val current = binding
+                recordingTicker = scope.launch {
+                    while (isActive && binding == current && recordingStartedAt != null) {
+                        recordingDelay(1000)
+                        if (!isActive || binding != current || recordingStartedAt == null) return@launch
+                        updateRecordingElapsed(recordingNow())
+                    }
+                }
+            }
+            else -> retireRecordingElapsed()
+        }
+    }
+
     // Binding
 
     /**
@@ -153,6 +226,7 @@ public class MonitorControlModel(
                 .collect { if (binding == current) apply(it) }
             if (binding != current) return@launch
             feed = null
+            retireRecordingElapsed()
             onEnded()
         }
     }
@@ -162,6 +236,7 @@ public class MonitorControlModel(
      * editor. Never closes the session and never sends a command.
      */
     public fun unbind() {
+        retireRecordingElapsed()
         binding += 1
         feed?.cancel()
         feed = null
@@ -176,6 +251,7 @@ public class MonitorControlModel(
     }
 
     private fun apply(snapshot: CameraSnapshot) {
+        observeRecordingElapsed(snapshot)
         val previous = mutable.value.snapshot
         if (previous?.copy(timecode = snapshot.timecode, revision = snapshot.revision) != snapshot) {
             mutable.update { it.copy(snapshot = snapshot) }

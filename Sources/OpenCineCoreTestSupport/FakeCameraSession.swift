@@ -150,6 +150,13 @@ public actor FakeCameraSession: CameraSession {
         cameraReportsStatus()
     }
 
+    /// A camera-body recording report, independent of any app command.
+    public func cameraReportsRecording(_ recording: Bool?) {
+        device.recording = recording
+        if recording == nil { current.recording = .unknown }
+        cameraReportsStatus()
+    }
+
     /// The operator turns the mode dial. Values the new mode cannot hold move to its first choice.
     public func cameraSwitchesMode(raw: UInt8) {
         device.rawMode = raw
