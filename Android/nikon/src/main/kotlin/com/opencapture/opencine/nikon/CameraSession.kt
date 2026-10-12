@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -9,6 +10,8 @@ private val noCameraSessionEvents: SharedFlow<CameraSessionEvent> =
     MutableSharedFlow<CameraSessionEvent>()
 
 private val noReportedRecording: StateFlow<Boolean?> = MutableStateFlow<Boolean?>(null)
+
+private val noLiveTimecode: StateFlow<CameraTimecode?> = MutableStateFlow<CameraTimecode?>(null)
 
 private val noCameraProperties: StateFlow<CameraPropertySnapshot> =
     MutableStateFlow(CameraPropertySnapshot())
@@ -872,6 +875,15 @@ public interface CameraSession {
      */
     public val reportedRecording: StateFlow<Boolean?>
         get() = noReportedRecording
+
+    /**
+     * The live-view header's running timecode, frames included, observed from the session's own
+     * live-view pump (no extra stream demand). `null` while the header says timecode is off, while no
+     * header is being read, or once the session leaves [CameraSessionState.Connected]: never a frozen
+     * counter. Sessions without a camera header (relay, capture card, test fakes) stay `null`.
+     */
+    public val liveTimecode: StateFlow<CameraTimecode?>
+        get() = noLiveTimecode
 
     /**
      * The latest display snapshot, including a session's pending control projection.

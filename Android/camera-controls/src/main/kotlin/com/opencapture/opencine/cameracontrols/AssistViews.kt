@@ -406,11 +406,12 @@ fun DesqueezeOptions(state: MonitorAssistState) {
 
 /**
  * Assist options on the shared inspector frame: the [tabs] strip and [options] (the app's options panel,
- * given the height it may fill). Preview work stays in the options panel.
+ * given the height it may fill). Preview work stays in the options panel. A [review] item (the source's
+ * toolless palette item) follows the tabs; a null [tool] selects it, and its options scroll here.
  */
 @Composable
 fun AssistInspectorFrame(
-    tool: MonitorAssistTool, state: MonitorAssistState,
+    tool: MonitorAssistTool?, state: MonitorAssistState,
     viewportWidth: Float, viewportHeight: Float, safeLeading: Float,
     safeTop: Float, safeBottom: Float,
     onDismiss: () -> Unit,
@@ -418,17 +419,23 @@ fun AssistInspectorFrame(
     safeTrailing: Float = 0f,
     tabs: List<MonitorAssistTool> = MonitorAssistTool.settingsCases,
     trailing: Boolean = false,
+    review: MonitorOperatorPaletteItem? = null,
+    onSelect: (MonitorAssistTool?) -> Unit = { state.configureTool = it },
     options: @Composable (maxHeightDp: Float) -> Unit,
 ) {
     val haptics = LocalOperatorHaptics.current
-    fun descriptor(item: MonitorAssistTool) = com.opencapture.monitorui.MonitorInspectorTool(
-        value = item, title = item.chipLabel, label = item.chipLabel)
-    com.opencapture.monitorui.MonitorToolInspector(selection = descriptor(tool), tools = tabs.map(::descriptor),
+    fun descriptor(item: MonitorAssistTool?) = (item?.chipLabel ?: review?.label.orEmpty()).let {
+        com.opencapture.monitorui.MonitorInspectorTool(value = item, title = it, label = it)
+    }
+    val entries: List<MonitorAssistTool?> = if (review != null) tabs + null else tabs
+    com.opencapture.monitorui.MonitorToolInspector(selection = descriptor(tool), tools = entries.map(::descriptor),
         viewportWidth = viewportWidth, viewportHeight = viewportHeight,
         safeLeading = safeLeading, safeTop = safeTop, safeBottom = safeBottom, safeTrailing = safeTrailing,
-        trailing = trailing,
-        onSelect = { haptics.selection(); state.configureTool = it }, onDismiss = onDismiss,
-        glyph = { item, tint, modifier -> AssistToolGlyph(item, tint, modifier) }) { height ->
+        trailing = trailing, scrollContents = tool == null,
+        onSelect = { haptics.selection(); onSelect(it) }, onDismiss = onDismiss,
+        glyph = { item, tint, modifier ->
+            if (item != null) AssistToolGlyph(item, tint, modifier) else review?.glyph?.invoke(tint, modifier)
+        }) { height ->
         key(tool, playback) { options(height) }
     }
 }

@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.SessionCloseReason
 import com.opencapture.opencine.core.SettingKey
@@ -521,6 +522,52 @@ class SwiftCoreCameraSessionTest {
 
         session.disconnect()
         assertNull(session.latestCommandRoundTripMilliseconds.value)
+    }
+
+    /** A5-04: the header timecode rides the existing pump and is never a frozen counter. */
+    @Test
+    fun `live header timecode publishes while connected and clears on disconnect`() = runTest {
+        val bridge = FakeBridge()
+        val session = quietSession(bridge)
+        val connecting = async { session.connect() }
+        runCurrent()
+        bridge.listeners.single().onConnected("ZR", "NIKON ZR", "6001234")
+        connecting.await()
+        val feed = launch(Dispatchers.Default) { session.liveFrames.frames.collect {} }
+        assertTrue(bridge.liveViewStarted.await(5, TimeUnit.SECONDS))
+        val live = checkNotNull(bridge.liveListener)
+        fun header(on: Boolean, frame: Int, hour: Int = 1, minute: Int = 2, second: Int = 3) =
+            live.onFrameWithFullMetadata(
+                jpeg = byteArrayOf(1), timestampNanos = frame.toLong(), isRecording = false,
+                leftLevelDb = -60.0, leftPeakDb = -60.0, rightLevelDb = -60.0, rightPeakDb = -60.0,
+                hasAudioLevels = false, hasFocus = false, focusCoordinateWidth = 0,
+                focusCoordinateHeight = 0, focusResult = 0, subjectDetectionActive = false,
+                trackingAFActive = false, selectedBoxIndex = -1, focusBoxes = intArrayOf(),
+                hasLevel = false, levelRollDegrees = 0.0, levelPitchDegrees = 0.0, levelYawDegrees = 0.0,
+                timecodeOn = on, timecodeHour = hour, timecodeMinute = minute, timecodeSecond = second,
+                timecodeFrame = frame,
+            )
+        assertNull(session.liveTimecode.value)
+
+        header(on = true, frame = 17)
+        assertEquals(CameraTimecode(1, 2, 3, frames = 17), session.liveTimecode.value)
+        header(on = true, frame = 18)
+        assertEquals(CameraTimecode(1, 2, 3, frames = 18), session.liveTimecode.value)
+        header(on = false, frame = 19)
+        assertNull(session.liveTimecode.value, "an off header with digits is unknown")
+        header(on = true, frame = 20)
+        live.onFrame(byteArrayOf(1), 21L, false)
+        assertNull(session.liveTimecode.value, "a frame without a header timecode is unknown")
+        header(on = false, frame = 0, hour = 0, minute = 0, second = 0)
+        assertNull(session.liveTimecode.value, "an off 00:00:00:00 header is unknown")
+        header(on = true, frame = 22)
+        assertEquals(CameraTimecode(1, 2, 3, frames = 22), session.liveTimecode.value)
+
+        session.disconnect()
+        assertNull(session.liveTimecode.value)
+        header(on = true, frame = 23)
+        assertNull(session.liveTimecode.value, "a late header after disconnect is ignored")
+        feed.cancel()
     }
 
     @Test
@@ -1703,6 +1750,7 @@ class SwiftCoreCameraSessionTest {
             synchronized(ownedCalls) { ownedCalls += entryPoint to connectionOwner }
         }
 
+        @Volatile var liveListener: NikonNative.LiveFrameListener? = null
         val liveViewStarted = CountDownLatch(1)
         val liveViewStopped = CountDownLatch(1)
 
@@ -1847,6 +1895,7 @@ class SwiftCoreCameraSessionTest {
 
         override fun startLiveView(connectionOwner: Long, listener: NikonNative.LiveFrameListener) {
             owned("startLiveView", connectionOwner)
+            liveListener = listener
             liveViewStarted.countDown()
         }
 

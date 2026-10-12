@@ -14,10 +14,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,6 +42,7 @@ import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorToolUsageState
 import com.opencapture.monitorui.PortraitZones
 import com.opencapture.monitorui.monitorMaterial
+import com.opencapture.monitorui.portraitAspectToggle
 import com.opencapture.monitorui.portraitAssistToolbar
 import com.opencapture.opencine.appkit.ChromeEditHost
 import com.opencapture.opencine.appkit.MonitorControlModel
@@ -76,9 +79,12 @@ public class MonitorOperatorAssistSource(public val host: AssistHost,
 public data class MonitorOperatorLivePicture(public val aspect: Float, public val waiting: Boolean,
     public val vertical: Boolean, public val flipped: Boolean, public val recovering: Boolean)
 
-/** How this source records. Photo mode releases through the native shutter slot. */
+/** How this source records. Photo mode releases through the native shutter slot. [confirmingChanged]
+ * reports the record confirmation opening and closing, for record paths outside the monitor (a watch, a
+ * hardware shutter) that stand down while it is up. */
 public class MonitorOperatorRecordSource(public val photo: Boolean, public val confirm: Boolean,
-    public val busy: Boolean, public val openMode: (() -> Unit)?)
+    public val busy: Boolean, public val openMode: (() -> Unit)?,
+    public val confirmingChanged: (Boolean) -> Unit = {})
 
 /**
  * Everything a source knows about its live monitor, read at the call site. Unknown values stay absent:
@@ -113,26 +119,32 @@ public class MonitorOperatorLiveSource<K, N>(
     public val vpnActive: () -> Boolean,
     public val settings: () -> Unit,
     public val media: () -> Unit,
+    /** The camera's own level meter with its caption, for a source that reports one apart from [audio]. */
+    public val audioLevels: MonitorOperatorLiveAudio? = null,
 )
 
-/** The assist palette the source offers. [scopes] null renders the palette without scopes or inspectors. */
+/** The assist palette the source offers. [scopes] null renders the palette without scopes or inspectors.
+ * [fitted] scopes stack under a portrait fit picture instead of floating over it. */
 public class MonitorOperatorLiveAssists(
     public val scopes: MonitorOperatorAssistSource?, public val palette: List<MonitorOperatorPaletteItem>,
     public val rendered: Set<MonitorAssistTool>, public val transfer: MonitorTransfer?,
     public val signalOptions: MonitorOperatorSignalOptions, public val usage: MonitorToolUsageState,
     public val setUsage: (MonitorToolUsageState) -> Unit, public val usageSeed: Map<String, Int>,
+    public val fitted: List<MonitorAssistTool> = emptyList(),
 )
 
 /**
  * The one live monitor every app composes. The source supplies what it knows, the session supplies the
  * operator's display intent (mode, chrome, editor, lock, arming), and every policy lives here once:
  * record confirmation, connect-tap arming, borrowed media, the note banner, phone and camera power,
- * the waiting picture, the instruments and the command mode. Swift twin: `MonitorOperatorLiveSurface`.
+ * the waiting picture, the instruments, the portrait fit/fill key and the command mode. A source that offers
+ * no fit/fill choice now passes a null [portraitAspect]. Swift twin: `MonitorOperatorLiveSurface`.
  */
 @Composable
 public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, session: MonitorOperatorSessionModel,
     geometry: MonitorOperatorLiveLayout, source: MonitorOperatorLiveSource<K, N>, assists: MonitorOperatorLiveAssists,
     views: MonitorOperatorBodyViews, modifier: Modifier = Modifier,
+    portraitAspect: PortraitFeedAspect? = null, setPortraitAspect: (PortraitFeedAspect) -> Unit = {},
     transitionChanged: (MonitorInteractionTransition) -> Unit = {},
     picture: @Composable BoxScope.() -> Unit,
     cameraPanel: @Composable (K, MonitorRect, Boolean, MonitorOperatorCaptureState<K, N>) -> Unit,
@@ -163,7 +175,19 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         portraitAssistToolbar(zones.assistToolbar.minY, minOf(layout.viewportWidth, layout.viewportHeight) >= 600f) else layout.assist
     val feed = if (desqueezed) geometry.pictureContent else layout.onFeed.fittedContent(source.picture.aspect)
     val framing = if (desqueezed) geometry.pictureContent.fittedContent(assist.presentedAspect(source.picture.aspect)) else null
+    val field = checkNotNull(layout.field)
+    // Portrait fit stacks the fitted scopes between the picture and the camera values.
+    val scopeZone = if (assists.fitted.isNotEmpty()) monitorOperatorFittedScopeZone(field) else null
+    val aspect = portraitAspect?.takeIf { field.portrait && !source.picture.vertical && session.editingMode == null &&
+        !desqueezed && !command }?.let { current ->
+        val fills = current == PortraitFeedAspect.FILL
+        MonitorOperatorAspectControl(zones?.let { portraitAspectToggle(layout.viewportWidth, it.assistToolbar.minY) }
+            ?: field.aspectToggle, fills) { setPortraitAspect(if (fills) PortraitFeedAspect.FIT_16X9 else PortraitFeedAspect.FILL) }
+    }
+    val boxes = remember { mutableStateMapOf<MonitorDisplaySection, MonitorRect>() }
+    val chromeEdit = MonitorOperatorChromeEdit(host, session.editingMode, boxes)
     val bodyViews = MonitorOperatorBodyViews(focusDrive = views.focusDrive, dashboard = views.dashboard,
+        resetFocus = views.resetFocus, comparison = views.comparison,
         focusMarks = views.focusMarks, feedGestures = views.feedGestures, motion = views.motion, focusControls = { enabled ->
             source.exposure?.let { read ->
                 if (assist.evMeter && mode == MonitorDisplayMode.LIVE) {
@@ -187,7 +211,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
     val viewport = MonitorRect(layout.safeLeading, layout.safeTop,
         maxOf(0f, layout.viewportWidth - layout.safeLeading - layout.safeTrailing),
         maxOf(0f, layout.viewportHeight - layout.safeTop - layout.safeBottom))
-    MonitorOperatorLiveComposition(control, identity, { it == source.identity() }, checkNotNull(layout.field), viewport,
+    MonitorOperatorLiveComposition(control, identity, { it == source.identity() }, field, viewport,
         MonitorOperatorLiveSections(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.BATTERIES,
             MonitorDisplaySection.CAMERA_VALUES, MonitorDisplaySection.TOOL_BAR, MonitorDisplaySection.LOCK_BUTTON,
             MonitorDisplaySection.RAIL_SETTINGS, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_RECORD, null),
@@ -195,19 +219,24 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         mode == MonitorDisplayMode.CLEAN, command, source.readOnly, source.picture.recovering, source.status,
         listOfNotNull(MonitorOperatorPowerReading(false, phone.percent, phone.externalPower), source.cameraBattery),
         source.capture, {}, source.settings, source.media, { session.cycle() }, index, session.modes.size,
-        source.record.photo, source.record.confirm, !source.record.busy, assist = assist, assists = assists.scopes,
+        source.record.photo, source.record.confirm, !source.record.busy, onRecordConfirming = source.record.confirmingChanged,
+        assist = assist, assists = assists.scopes,
         palette = assists.palette, usage = assists.usage, setUsage = assists.setUsage, usageSeed = assists.usageSeed,
-        renderedTools = assists.rendered, fittedScopes = emptyList(), scopeZone = null,
-        signalOptions = assists.signalOptions, audioChannels = source.audio, cameraViews = bodyViews,
+        renderedTools = assists.rendered, fittedScopes = if (scopeZone != null) assists.fitted else emptyList(), scopeZone = scopeZone,
+        signalOptions = assists.signalOptions, audioChannels = source.audio, aspect = aspect, focusResetFrame = layout.focusReset,
+        cameraViews = bodyViews, chromeBoxes = boxes, audio = source.audioLevels,
         modifier = modifier, displayTitle = index?.let { "DISP ${it + 1} ${mode.title.lowercase()}" },
         openMode = source.record.openMode,
-        recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
         interactionEnabled = session.interactive, borrowed = source.borrowed, returnToStage = source.returnToStage,
         safeLeading = layout.safeLeading, safeTrailing = layout.safeTrailing, safeTop = layout.safeTop,
         safeBottom = layout.safeBottom, scopeFeed = feed, framingFrame = framing,
-        scopePlacement = geometry.scopePlacement, scopeFloating = true, scopeTransfer = assists.transfer,
+        scopePlacement = geometry.scopePlacement, scopeFloating = scopeZone == null, scopeTransfer = assists.transfer,
         paletteFrameChanged = { paletteBounds = it }, transitionChanged = transitionChanged,
-        picture = { Box(Modifier.matchParentSize().then(if (command) Modifier.alpha(0f) else Modifier)) { picture() } },
+        picture = {
+            CompositionLocalProvider(LocalMonitorOperatorChromeEdit provides chromeEdit) {
+                Box(Modifier.matchParentSize().then(if (command) Modifier.alpha(0f) else Modifier)) { picture() }
+            }
+        },
         cameraPanel = cameraPanel, photoRelease = photoRelease)
 }
 
@@ -249,9 +278,15 @@ private fun BoxScope.OperatorToast(note: String?, layout: LiveMonitorLayout, sta
 
 private fun Modifier.frame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
 
+private val BADGE_ORDER: List<MonitorDisplaySection> =
+    listOf(MonitorDisplaySection.LOCK_BUTTON, MonitorDisplaySection.BATTERIES) +
+        MonitorDisplaySection.entries.filter { it != MonitorDisplaySection.LOCK_BUTTON && it != MonitorDisplaySection.BATTERIES }
+
 internal fun operatorChromeHost(session: MonitorOperatorSessionModel): ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode> =
     object : ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode> {
-        override val chromeEditSections = MonitorDisplaySection.entries
+        // The lock and batteries take their corners first: on a phone with no top cutout the battery band sits on
+        // the status row, and the status bar's eye would otherwise land on the batteries'.
+        override val chromeEditSections = BADGE_ORDER
         override fun chromeSectionTitle(section: MonitorDisplaySection) = section.title
         override fun chromeSectionID(section: MonitorDisplaySection) = section.key
         override fun chromeModeTitle(mode: MonitorDisplayMode) = mode.title

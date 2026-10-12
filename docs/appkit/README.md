@@ -297,6 +297,11 @@ missing or malformed data, unknown tool IDs survive, and a failed nonfinite writ
 the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
 ranking inputs, empty values, separate app/key namespaces and these codec differences.
 
+`MonitorCommandTileOrderPreferences` (Android) stores the command dashboard tile order as
+comma-joined enum names under the app's storage and key, normalized on read and write
+(`monitorCommandTileOrder`: duplicates and retired names drop, new tiles join at the end).
+OpenZCine keeps its existing `display.commandGrid.order.v1` key, so stored orders carry over.
+
 ## Multiview stage
 
 One stage for every app's multicam (feature name Multiview): `MultiviewStage` (SwiftUI,

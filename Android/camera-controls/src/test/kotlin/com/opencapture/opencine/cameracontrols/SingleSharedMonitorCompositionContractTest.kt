@@ -34,16 +34,15 @@ class SingleSharedMonitorCompositionContractTest {
         assertFalse("CameraStatus" in identifiers, "The surface must consume neutral observed facts")
     }
 
-    /** The composition stays internal; the public body only forwards for Z Android until F05 migrates it. */
+    /** The composition stays internal and no public body sits beside the surface (Z Android adopted it in F05). */
     @Test fun theCompositionBehindTheSurfaceIsNotASecondEntry() {
         val source = File(directory, "MonitorOperatorLiveBody.kt").readText()
         val declaration = Regex("""(\w+)\s+fun\s+<[^>]*>\s+MonitorOperatorLiveComposition\(""").find(source)
         assertEquals("internal", declaration?.groupValues?.get(1), "The composition must stay internal")
-        val tokens = tokens(source)
-        val compat = tokens.indices.single { tokens[it] == "MonitorOperatorLiveBody" && tokens.getOrNull(it - 1) == ">" }
-        val forwarded = calls(tokens.subList(compat, (compat until tokens.size).first { tokens[it] == "fun" }))
-        assertTrue("MonitorOperatorLiveComposition" in forwarded && forwarded.none { it in regions },
-            "The Z Android entry must only forward to the composition")
+        val entries = directory.listFiles().orEmpty().filter { it.extension == "kt" }.flatMap { file ->
+            Regex("""fun\s+(?:<[^>]*>\s+)?(MonitorOperatorLiveBody)\(""").findAll(file.readText()).map { file.name }.toList()
+        }
+        assertTrue(entries.isEmpty(), "A second public live entry returned: $entries")
     }
 
     @Test fun commonCompositionOwnsStatusRailAssistsInspectorAndPopupOnce() {

@@ -5,6 +5,7 @@ import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.MonitorEntryDescriptor
+import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.UnavailableReason
@@ -73,9 +74,12 @@ public data class MultiviewTile(
     val model: String = "",
     /** Resolution, rate and look, on roomy tiles and in the options. */
     val format: String = "",
-    /** 0..100, null when unknown. */
+    /** 0..100, null when unknown or when the camera reports [batteryBars] instead. */
     val battery: Int? = null,
     val charging: Boolean = false,
+    /** Filled steps of [batteryBarCount] when the camera reports a coarse gauge, never a percent. */
+    val batteryBars: Int? = null,
+    val batteryBarCount: Int = 5,
     val storage: String = MultiviewTally.UNAVAILABLE,
     val timecode: String? = null,
     /** [MultiviewTally] copy, or the app's own. */
@@ -131,9 +135,16 @@ public data class MultiviewTile(
                 null -> MultiviewTileStatus("Waiting for the camera", inProgress = true) to "Waiting for the camera"
                 else -> MultiviewTileStatus("Connecting…", inProgress = true) to "Connecting…"
             }
+            val battery = snapshot?.power?.battery
+            // A reading declared in coarse steps (a five-bar gauge) is drawn as bars, never a percent.
+            val steps = (battery?.precision as? ObservationPrecision.Quantized)?.step
+                ?.takeIf { it > 0.0 && kotlin.math.abs(1 / it - (1 / it).roundToInt()) < 0.000001 }
+                ?.let { (1 / it).roundToInt() }?.takeIf { it in 2..10 }
             return MultiviewTile(
                 name = entry.name,
-                battery = snapshot?.power?.battery?.value?.let { (it * 100).roundToInt() },
+                battery = battery?.value?.takeIf { steps == null }?.let { (it * 100).roundToInt() },
+                batteryBars = steps?.let { count -> battery?.value?.let { (it * count).roundToInt().coerceIn(0, count) } },
+                batteryBarCount = steps ?: 5,
                 charging = snapshot?.power?.charging?.value ?: false,
                 timecode = snapshot?.timecode?.value?.let {
                     MonitorTimecodeFormat.label(it, snapshot.capabilities.timecode.precision)
