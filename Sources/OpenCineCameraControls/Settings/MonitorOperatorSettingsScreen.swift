@@ -377,30 +377,31 @@ private struct MonitorSettingsConfiguredSupport: View {
     }
 }
 
-private struct MonitorSettingsSupportPresentation: ViewModifier {
+/// Gates bindings, never the content: the page keeps one identity whichever support source
+/// (closure, model or none) the host supplies, so tab scroll, sheets and cache state survive.
+struct MonitorSettingsSupportPresentation: ViewModifier {
     let source: MonitorSettingsSupportSource?
     private struct ReportFile: Identifiable { var id: URL { url }; let url: URL }
-    @ViewBuilder func body(content: Content) -> some View {
-        if let source, source.model != nil {
-            content
-                .onAppear { bind() }
-                .onChange(of: source.actions?.identity) { _, _ in bind() }
-                .onChange(of: source.actions?.requiresInternetConsent) { _, _ in bind() }
-                .sheet(item: Binding(get: { source.model?.reportURL.map { ReportFile(url: $0) } },
-                    set: { if $0 == nil { source.model?.dismissReport() } })) { source.shareReport($0.url) }
-                .alert("Leave camera Wi-Fi?", isPresented: Binding(
-                    get: { source.model?.destination != nil }, set: { if !$0 { source.model?.cancelConfirmation() } })) {
-                    Button("Cancel", role: .cancel) { source.model?.cancelConfirmation() }
-                    Button("Continue") { source.model?.confirmBrowser() }
-                } message: { if let destination = source.model?.destination { Text(destination.confirmationMessage) } }
-                .alert(source.model?.reportFailed == true ? "Couldn’t Share Diagnostics" : "Couldn’t Reach the Internet",
-                    isPresented: Binding(get: { source.model?.reportFailed == true || source.model?.browserFailed == true },
-                        set: { if !$0 { source.model?.dismissError() } })) {
-                    Button("OK", role: .cancel) { source.model?.dismissError() }
-                } message: {
-                    if let reason = source.model?.reportFailure ?? source.model?.browserFailure { Text(reason) }
-                }
-        } else { content }
+    func body(content: Content) -> some View {
+        let model = source?.model
+        content
+            .onAppear { bind() }
+            .onChange(of: source?.actions?.identity) { _, _ in bind() }
+            .onChange(of: source?.actions?.requiresInternetConsent) { _, _ in bind() }
+            .sheet(item: Binding(get: { model?.reportURL.map { ReportFile(url: $0) } },
+                set: { if $0 == nil { model?.dismissReport() } })) { file in source?.shareReport(file.url) }
+            .alert("Leave camera Wi-Fi?", isPresented: Binding(
+                get: { model?.destination != nil }, set: { if !$0 { model?.cancelConfirmation() } })) {
+                Button("Cancel", role: .cancel) { model?.cancelConfirmation() }
+                Button("Continue") { model?.confirmBrowser() }
+            } message: { if let destination = model?.destination { Text(destination.confirmationMessage) } }
+            .alert(model?.reportFailed == true ? "Couldn’t Share Diagnostics" : "Couldn’t Reach the Internet",
+                isPresented: Binding(get: { model?.reportFailed == true || model?.browserFailed == true },
+                    set: { if !$0 { model?.dismissError() } })) {
+                Button("OK", role: .cancel) { model?.dismissError() }
+            } message: {
+                if let reason = model?.reportFailure ?? model?.browserFailure { Text(reason) }
+            }
     }
     private func bind() { if let actions = source?.actions { source?.model?.bind(actions) } }
 }

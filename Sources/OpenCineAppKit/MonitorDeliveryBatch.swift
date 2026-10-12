@@ -72,6 +72,36 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
         return .init(ready: ready, uncached: uncached)
     }
 
+    /// Remote delivery from the camera network needs every original first. This caches them as a
+    /// captured run of this owner (same chrome and cancel) and throws unless all are cached, so a
+    /// caller never leaves the camera network with clips still on the camera (A2-05). A caller
+    /// that tracks an earlier captured run passes it as `outgoing`; it is joined first.
+    public func cacheBeforeInternetHop<Record: Sendable>(
+        records: [Record], originals: MonitorDeliveryOriginalService<Record>,
+        after outgoing: MonitorDeliveryRunHandle? = nil,
+        source: MonitorDeliveryAdmission, filename: @escaping @MainActor (Record) -> String,
+        completion: Outcome, uploadCaption: String? = nil,
+        progress: @escaping @MainActor (MonitorDeliveryBatchProgress) -> Progress,
+        onStarted: (MonitorDeliveryRunHandle) -> Void = { _ in }
+    ) async throws {
+        let run = beginCaptured { report, admission in
+            await outgoing?.cancelAndJoin()
+            _ = await Self.cacheOriginals(
+                records: records, destination: .remoteUpload,
+                admission: .init { admission.isCurrent() && source.isCurrent() },
+                originals: originals, filename: filename, uploadCaption: uploadCaption
+            ) { report(progress($0)) }
+            return .init(completion)
+        }
+        guard let run else { throw CancellationError() }
+        onStarted(run)
+        await run.awaitEnteredCleanup()
+        guard source.isCurrent() else { throw CancellationError() }
+        // The cache itself is the truth: a cancelled or superseded run leaves clips uncached.
+        let missing = records.filter { !originals.available($0) }.count
+        if missing > 0 { throw MonitorDeliveryCacheError.uncached(missing) }
+    }
+
     /// Ordering and progress use this existing delivery run. Original bytes, native preparation,
     /// OS transactions and route leases remain in their existing bounded owners.
     public static func runBatch<Record: Sendable, Artifact: Sendable, Lease: Sendable>(
@@ -208,16 +238,22 @@ public struct MonitorDeliveryCachedOriginals<Record: Sendable>: Sendable {
                 progress(value)
                 guard accepts() else { return cancelled() }
                 do {
-                    let artifact = try await exporter.prepare(record) { fraction in
-                        guard gate.active, accepts() else { return }
-                        var next = value
-                        next.stage = .exporting
-                        next.clipFraction =
-                            destination == .remoteUpload ? fraction * 0.45 : fraction
-                        gate.latestProgress = next
-                        progress(next)
+                    let artifact: Artifact?
+                    if let original = exporter.original?(record) {
+                        // A still travels as its cached original: borrowed, never released.
+                        artifact = original
+                    } else {
+                        artifact = try await exporter.prepare(record) { fraction in
+                            guard gate.active, accepts() else { return }
+                            var next = value
+                            next.stage = .exporting
+                            next.clipFraction =
+                                destination == .remoteUpload ? fraction * 0.45 : fraction
+                            gate.latestProgress = next
+                            progress(next)
+                        }
+                        if let artifact { retainedArtifacts.append(artifact) }
                     }
-                    if let artifact { retainedArtifacts.append(artifact) }
                     gate.active = false
                     guard accepts() else { return cancelled() }
                     guard let artifact else {

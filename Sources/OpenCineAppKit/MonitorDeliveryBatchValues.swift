@@ -126,15 +126,21 @@ public enum MonitorDeliveryBatchOutcome<Artifact: Sendable>: Sendable {
             Artifact?
     /// Releases only the returned transient lease; borrowed originals use the default no-op.
     public let release: @MainActor (Artifact) async -> Void
+    /// The cached original of a record delivered as-is (a still: no transcode, look or
+    /// container change), or nil to export it. Originals are borrowed and never released.
+    public let original: (@MainActor (Record) -> Artifact?)?
     public init(
+        original: (@MainActor (Record) -> Artifact?)? = nil,
         prepare:
             @escaping @MainActor (Record, @escaping @MainActor @Sendable (Double) -> Void)
             async throws -> Artifact?
     ) {
         self.prepare = prepare
         self.release = { _ in }
+        self.original = original
     }
     public init(
+        original: (@MainActor (Record) -> Artifact?)? = nil,
         release: @escaping @MainActor (Artifact) async -> Void,
         prepare:
             @escaping @MainActor (Record, @escaping @MainActor @Sendable (Double) -> Void)
@@ -142,6 +148,16 @@ public enum MonitorDeliveryBatchOutcome<Artifact: Sendable>: Sendable {
     ) {
         self.prepare = prepare
         self.release = release
+        self.original = original
+    }
+}
+/// Remote delivery could not cache every original before leaving the camera network.
+public enum MonitorDeliveryCacheError: LocalizedError, Equatable, Sendable {
+    case uncached(Int)
+    public var errorDescription: String? {
+        switch self {
+        case .uncached(let count): MonitorDeliveryBatchPolicy().cacheFailure(count)
+        }
     }
 }
 public struct MonitorDeliveryShareFiles<Artifact: Sendable>: Sendable {
