@@ -77,11 +77,9 @@ public class NikonAndroidGalleryProjectionPolicy(
     /** The unchanged viewer/deletion widening looks through the full captured bucket. */
     public fun rawCompanion(id: MediaAssetID): MediaAssetID? {
         val item = byID[id] ?: return null
-        if (format(item.clip) != "JPEG") return null
-        return items.firstOrNull { format(it.clip) == "NEF" && pairKey(it) == pairKey(item) }?.id
+        return NikonMediaDeletionPlan.rawPartner(items, item, { it.clip }, { it.namespace })?.id
     }
-    private fun pairKey(item: NikonGallerySourceItem): String =
-        "${item.namespace}/${item.clip.storageId}/${item.clip.filename.substringBeforeLast('.').lowercase(Locale.US)}"
+    private fun pairKey(item: NikonGallerySourceItem): String = NikonMediaDeletionPlan.pairKey(item.namespace, item.clip)
     public companion object {
         public fun compareClips(left: NikonMediaClipRecord, right: NikonMediaClipRecord, sort: MonitorMediaProjectionSort): Int {
         val names = left.filename.lowercase(Locale.US).compareTo(right.filename.lowercase(Locale.US))
