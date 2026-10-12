@@ -15,8 +15,6 @@
     where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
         /// The status row's recording state and clock, as this app projects it.
         var liveStatus: MonitorStatusPresentation { get }
-        /// Whether the body reports a timecode the status row can show.
-        var timecodeAvailable: Bool { get }
         /// Live link health, 0 to 4 bars (frame delivery, not radio RSSI).
         var liveSignalBars: Int { get }
         /// The feed rate label ("25.00", or LINK / RECOV / FAIL).

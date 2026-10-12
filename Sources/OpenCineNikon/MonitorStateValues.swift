@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 
 /// Current record-state indicator.
 public enum RecordState: String, Codable, Equatable, Sendable {
@@ -38,14 +39,15 @@ public struct Timecode: Codable, Equatable, Sendable {
     /// Frame component.
     public let frame: Int
 
-    /// Formatted timecode string.
+    /// Formatted by the shared rule at the frame precision every Z body declares; components out
+    /// of range read as the empty clock rather than a plausible-looking one.
     public var label: String {
-        "\(Self.pad(hour)):\(Self.pad(minute)):\(Self.pad(second)):\(Self.pad(frame))"
+        MonitorTimecodeFormat.label(hours: hour, minutes: minute, seconds: second, frames: frame)
+            ?? Self.placeholder
     }
 
-    private static func pad(_ value: Int) -> String {
-        String(format: "%02d", value)
-    }
+    /// The empty clock at frame precision.
+    public static var placeholder: String { MonitorTimecodeFormat.placeholder(frames: true) }
 }
 
 /// Remaining media capacity, rendered as either a capacity or a duration readout.

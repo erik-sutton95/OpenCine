@@ -89,7 +89,7 @@ import Testing
         let seam = DJICameraSessionAdapter(session: port)
         #expect(seam.current.timecode == .unknown)
         #expect(seam.current.audioLevels == .unknown, "no report is unknown, never silence")
-        port.status.timecode = "05:22:47:18"
+        port.status.timecode = CameraTimecode(hours: 5, minutes: 22, seconds: 47, frames: 18)
         port.status.audioMeters = AudioMeterLevels(
             left: AudioMeterChannel(levelDB: -18, peakDB: -12, peakAge: 0.4),
             right: AudioMeterChannel(levelDB: -20, peakDB: -14))
@@ -100,7 +100,7 @@ import Testing
             snapshot.audioLevels.value
                 == AudioLevels(left: .init(level: -18, peak: -12), right: .init(level: -20, peak: -14)))
         #expect(snapshot.audioLevels.origin == .cameraReported)
-        port.status.timecode = "--:--"
+        port.status.timecode = nil
         #expect(seam.current.timecode == .unknown)
     }
 

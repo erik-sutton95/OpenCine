@@ -142,7 +142,7 @@ public enum CameraStatusDecoder {
         guard let item = SubscribePush.parse(payload) else { return false }
         switch item.name {
         case "timecode_info" where item.value.count >= 8:
-            status.timecode = Self.timecodeString(item.value)
+            status.timecode = Self.timecode(item.value)
             return true
         case CamCapShutter.subscribeKey:
             let denoms = CamCapShutter.parseDenoms(item.value)
@@ -233,11 +233,8 @@ public enum CameraStatusDecoder {
 
     /// `timecode_info` 8 B: `@3–6` = HH MM SS FF (2026-08-14 Mimo: `00 00 00 05 16 2f 12 00` → `05:22:47:18`).
     /// `@0–2` stay 0; `@7` unused. Older live1 decode used `@4–7` and showed 22:xx as hours.
-    public static func timecodeString(_ value: [UInt8]) -> String {
-        let hh = Int(value[3])
-        let mm = Int(value[4])
-        let ss = Int(value[5])
-        return String(format: "%02d:%02d:%02d:%02d", hh, mm, ss, Int(value[6]))
+    public static func timecode(_ value: [UInt8]) -> CameraTimecode {
+        CameraTimecode(hours: Int(value[3]), minutes: Int(value[4]), seconds: Int(value[5]), frames: Int(value[6]))
     }
 
     /// Osmosis `VideoFrameRate` table (Nano / Pocket share the index).

@@ -22,6 +22,15 @@ struct SingleSharedMonitorCompositionContractTests {
         #expect(Set(Self.calls(in: scene)).isDisjoint(with: Self.regions), "The scene retains region composition")
     }
 
+    /// A5-14: no app declares the single-camera clock slot. It follows the DISP section in every
+    /// app; the source's declared precision decides what it shows (Nano: the seconds placeholder).
+    @Test func noAppDeclaresTheClockSlot() throws {
+        for file in ["LiveChromeHost.swift", "LiveStatusChrome.swift", "MonitorOperatorVocabularySurface.swift"] {
+            #expect(!Self.tokens(in: try Self.read(Self.directory + file)).contains("timecodeAvailable"),
+                "\(file) gates the clock on an app flag")
+        }
+    }
+
     @Test func theSurfaceOwnsStatusRailAssistsInspectorAndPopupOnce() throws {
         let source = try Self.read(Self.directory + Self.surface)
         let calls = Self.calls(in: source)

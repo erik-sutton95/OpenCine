@@ -4,7 +4,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.util.Base64
-import java.util.Locale
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -157,10 +156,6 @@ public data class WatchTimecode(
     /** Frame component. */
     public val frame: Int,
 ) {
-    /** Renders the fixed-width monitor readout. */
-    public fun label(): String =
-        String.format(Locale.ROOT, "%02d:%02d:%02d:%02d", hour, minute, second, frame)
-
     /** Explicit placeholder used before an authoritative camera frame arrives. */
     public companion object {
         /** Returns the non-fabricated unavailable timecode. */

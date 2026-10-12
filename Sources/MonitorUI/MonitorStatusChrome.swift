@@ -31,7 +31,7 @@
                 if layout.portrait {
                     MonitorPortraitStatusLayout(minimumHeight: layout.status.height) {
                         HStack(spacing: 0) { if showsRecording { MonitorRecordingReadout(status: status) } }
-                        HStack(spacing: 0) { if showsTimecode { MonitorClock(status.timecode, fontSize: layout.tablet ? 25 : 23) } }
+                        HStack(spacing: 0) { if showsTimecode { MonitorClock(status.timecode, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23) } }
                         HStack(spacing: 0) { format() }
                     }
                 } else {
@@ -40,7 +40,7 @@
                         Spacer(minLength: 4)
                         HStack(spacing: 10) {
                             if showsRecording { MonitorRecordingReadout(status: status) }
-                            if showsTimecode { MonitorClock(status.timecode, fontSize: layout.tablet ? 25 : 23) }
+                            if showsTimecode { MonitorClock(status.timecode, placeholder: status.timecodePlaceholder, fontSize: layout.tablet ? 25 : 23) }
                         }
                         .padding(.trailing, layout.recordingReadoutTrailingInset)
                     }

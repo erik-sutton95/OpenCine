@@ -658,10 +658,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             : .unknown
         next.power = Self.power(status)
         next.storage = Self.storage(status)
-        next.timecode =
-            Self.timecode(status.timecode).map {
-                ObservedValue($0, origin: .cameraReported, at: nil)
-            } ?? .unknown
+        next.timecode = status.timecode.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown
         next.audioLevels =
             status.audioMeters.map {
                 ObservedValue(Self.audioLevels($0), origin: .cameraReported, at: nil)
@@ -757,14 +754,6 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     // body once one is captured without `cam_audio_status_v2`.
     static func audioLevelsSupport(_ model: CameraModel?) -> SupportStatus {
         model == nil ? .unknown : .supported
-    }
-
-    /// `timecode_info` as decoded (`HH:MM:SS:FF`); `nil` when absent or malformed.
-    static func timecode(_ raw: String?) -> CameraTimecode? {
-        guard let parts = raw?.split(separator: ":").compactMap({ Int($0) }), parts.count == 4
-        else { return nil }
-        return CameraTimecode(
-            hours: parts[0], minutes: parts[1], seconds: parts[2], frames: parts[3])
     }
 
     /// The camera-held meter in dBFS. `AudioMeterChannel.peakAge` is display ballistics, not a

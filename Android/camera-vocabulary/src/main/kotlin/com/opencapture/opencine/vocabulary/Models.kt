@@ -1,5 +1,7 @@
 package com.opencapture.opencine.vocabulary
 
+import com.opencapture.opencine.core.CameraTimecode
+
 data class CameraModel(
     val name: String,
     val datalinkPort: Int = 9004,
@@ -60,7 +62,8 @@ data class CameraStatus(
     val shootingMode: Int = -1,
     val recordElapsedSec: Int = 0,
     val recordRemainingSec: Int = 0,
-    val timecode: String? = null,
+    /** `timecode_info` (`@3-6` = HH MM SS FF) as the Swift decoder read it from the bytes. */
+    val timecode: CameraTimecode? = null,
     val iso: Int = -1,
     val shutterDenom: Int = -1,
     val fps: Int = 0,
@@ -193,9 +196,6 @@ data class CameraStatus(
 
     val videoFormat: VideoFormat?
         get() = VideoFormat.parse(resolutionCode, fpsIndex)
-
-    /** Display-only clock; the raw timecode retains its frame field for protocol/state. */
-    val timecodeClock: String? get() = timecodeClock(timecode)
 
     val wbLabel: String
         get() =
@@ -359,8 +359,3 @@ data class CameraStatus(
     }
 }
 
-/** Shared by the single-camera and Multiview readouts; never rewrites decoded status. */
-fun timecodeClock(value: String?): String? = value?.takeIf { it.isNotBlank() }?.let {
-    val parts = it.split(':')
-    if (parts.size >= 4) parts.take(3).joinToString(":") else it
-}

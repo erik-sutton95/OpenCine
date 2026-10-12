@@ -7,15 +7,26 @@ extension MonitorControlModel {
     /// Elapsed capture time is optional integration telemetry; the common snapshot owns state and
     /// timecode, formatted at the precision the source declares.
     public func statusPresentation(elapsedSeconds: Int? = nil) -> MonitorStatusPresentation {
-        let label = timecode.value.flatMap {
-            MonitorTimecodeFormat.label($0, precision: snapshot?.capabilities.timecode.precision)
-        }
+        let precision = snapshot?.capabilities.timecode.precision
+        let label = timecode.value.flatMap { MonitorTimecodeFormat.label($0, precision: precision) }
         return MonitorStatusPresentation(recording: isRecording,
-            elapsedSeconds: isRecording == nil ? nil : elapsedSeconds, timecode: label)
+            elapsedSeconds: isRecording == nil ? nil : elapsedSeconds, timecode: label,
+            timecodePlaceholder: MonitorTimecodeFormat.placeholder(precision))
     }
 }
 
 extension MonitorTimecodeFormat {
+    /// A snapshot's clock at the precision its source declares; `nil` until one is reported.
+    public static func label(_ snapshot: CameraSnapshot?) -> String? {
+        snapshot?.timecode.value.flatMap { label($0, precision: snapshot?.capabilities.timecode.precision) }
+    }
+
+    /// The empty clock for a declared precision; seconds when the source has not said.
+    public static func placeholder(_ precision: TimecodePrecision?) -> String {
+        if case .frames = precision { return placeholder(frames: true) }
+        return placeholder(frames: false)
+    }
+
     /// The one timecode label for a reported value: the frame field shows only when the source
     /// declares frame precision and reported a frame count. Seconds-only otherwise, never derived.
     public static func label(_ value: CameraTimecode, precision: TimecodePrecision?) -> String? {

@@ -146,9 +146,7 @@ public data class MultiviewTile(
                 batteryBars = steps?.let { count -> battery?.value?.let { (it * count).roundToInt().coerceIn(0, count) } },
                 batteryBarCount = steps ?: 5,
                 charging = snapshot?.power?.charging?.value ?: false,
-                timecode = snapshot?.timecode?.value?.let {
-                    MonitorTimecodeFormat.label(it, snapshot.capabilities.timecode.precision)
-                },
+                timecode = MonitorTimecodeFormat.label(snapshot),
                 tally = MultiviewTally.text(recording, waiting = waiting, failed = control is ConnectionState.Disconnected),
                 recording = state == RecordingState.RECORDING,
                 readouts = listOf(

@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import OpenCineMedia
 
 /// The decoded live status the camera pushes unprompted over the datalink. Ported from Osmosis
@@ -28,8 +29,9 @@ public struct CameraStatus: Equatable, Sendable {
     public var recordElapsedSec: Int = 0
     /// Best-effort remaining record time from `0x02/0x80` `@17` (seconds). 0 = unknown/idle.
     public var recordRemainingSec: Int = 0
-    /// SMPTE-style readout from `timecode_info` (`@3–6` = HH MM SS FF). HUD uses `timecodeClock`.
-    public var timecode: String?
+    /// `timecode_info` (`@3–6` = HH MM SS FF), decoded once from the bytes; the shared
+    /// `MonitorTimecodeFormat` renders it at the declared precision.
+    public var timecode: CameraTimecode?
     /// Auto/manual from `cam_expo_param` `@7`. nil unknown. Not a DUML GET — Mimo never GETs `0x1E`.
     public var expoMode: ExpoMode?
     /// ISO number from `cam_expo_param` u16-LE `@16`. `-1` unknown. `@13` is not ISO.
@@ -129,16 +131,6 @@ public struct CameraStatus: Equatable, Sendable {
     /// Action 6 `camcap_aperture_ctrl_strategy`; empty until pushed.
     public var availableApertureStrategies: [ApertureStrategy] = []
     public init() {}
-
-    /// Osmo live bar: hours:minutes:seconds. Frames stay in `timecode` (`@6`).
-    public var timecodeClock: String { Self.clockDisplay(timecode) }
-
-    public static func clockDisplay(_ raw: String?) -> String {
-        guard let raw, !raw.isEmpty else { return "--:--:--" }
-        let parts = raw.split(separator: ":")
-        guard parts.count >= 3 else { return raw }
-        return parts.prefix(3).joined(separator: ":")
-    }
 
     public var shootingModeLabel: String {
         if let mode = ShootingMode.fromStatus(shootingMode) {

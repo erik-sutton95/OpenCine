@@ -1,5 +1,6 @@
 package com.opencapture.opencine.vocabulary
 
+import com.opencapture.opencine.core.CameraTimecode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -7,7 +8,7 @@ class LiveChromeThrottleTest {
     private val base = CameraStatus()
 
     @Test fun telemetryMetersAndTimecodeWaitForTheHudInterval() {
-        val next = base.copy(timecode = "01:02:03:04", audioMetersLeft = -12.0, batteryPercent = 80, iso = 800)
+        val next = base.copy(timecode = CameraTimecode(1, 2, 3, 4), audioMetersLeft = -12.0, batteryPercent = 80, iso = 800)
         assertEquals(150L, LiveChromeThrottle.holdMs(base, next, fromTelemetry = true, publishedAtMs = 1_000, nowMs = 1_050))
         assertEquals(0L, LiveChromeThrottle.holdMs(base, next, fromTelemetry = true, publishedAtMs = 1_000, nowMs = 1_200))
     }

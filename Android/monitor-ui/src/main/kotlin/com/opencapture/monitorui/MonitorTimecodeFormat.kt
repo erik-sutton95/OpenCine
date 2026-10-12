@@ -14,6 +14,9 @@ public object MonitorTimecodeFormat {
         return clock + (if (dropFrame == true) ";" else ":") + String.format(Locale.ROOT, "%02d", frames)
     }
 
+    /** The empty clock at the declared precision: a frame-counting source keeps its frame field. */
+    public fun placeholder(frames: Boolean): String = if (frames) "--:--:--:--" else "--:--:--"
+
     /** Splits the final seconds or frames field for the shared clock's accent color. */
     public fun accentComponents(label: String): Pair<String, String> {
         val separator = label.indexOfLast { it == ':' || it == ';' }

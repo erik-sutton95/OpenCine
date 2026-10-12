@@ -297,9 +297,7 @@ extension MultiviewTile {
             charging: snapshot?.power.charging.value ?? false,
             batteryBars: steps.flatMap { count in battery?.value.map { min(count, max(0, Int(($0 * Double(count)).rounded()))) } },
             batteryBarCount: steps ?? 5,
-            timecode: snapshot?.timecode.value.flatMap {
-                MonitorTimecodeFormat.label($0, precision: snapshot?.capabilities.timecode.precision)
-            },
+            timecode: MonitorTimecodeFormat.label(snapshot),
             tally: MultiviewTally.text(
                 recording: recording, waiting: waiting,
                 failed: control.map { if case .disconnected = $0 { true } else { false } } ?? false),

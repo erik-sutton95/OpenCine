@@ -17,6 +17,9 @@ public enum MonitorTimecodeFormat {
         return clock + separator + (digits.count < 2 ? "0" + digits : digits)
     }
 
+    /// The empty clock at the declared precision: a frame-counting source keeps its frame field.
+    public static func placeholder(frames: Bool) -> String { frames ? "--:--:--:--" : "--:--:--" }
+
     /// Splits the final seconds or frames field for the shared clock's accent color.
     public static func accentComponents(in label: String) -> (base: String, accent: String) {
         guard let separator = label.lastIndex(where: { $0 == ":" || $0 == ";" }) else {

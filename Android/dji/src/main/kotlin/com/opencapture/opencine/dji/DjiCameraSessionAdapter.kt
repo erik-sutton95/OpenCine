@@ -110,8 +110,8 @@ data class PocketControlState(
     val storageFreeMb: Int? = null,
     /** The connected body; `null` while none is known. */
     val model: CameraModel? = null,
-    /** `timecode_info` as decoded (`HH:MM:SS:FF`); `null` until reported. */
-    val timecode: String? = null,
+    /** `timecode_info` as decoded from the bytes; `null` until reported. */
+    val timecode: CameraTimecode? = null,
     /** `cam_audio_status_v2` in dBFS; `null` until reported ([audioLevels]). */
     val audioLevels: AudioLevels? = null,
 )
@@ -618,7 +618,7 @@ class DjiCameraSessionAdapter(
                     val free = ObservedValue(it.toLong() * 1_048_576L, ObservationOrigin.CAMERA_REPORTED, null)
                     ObservedValue(listOf(StorageVolume("active", freeBytes = free)), ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,
-                timecode = timecode(state.timecode)?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) }
+                timecode = state.timecode?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) }
                     ?: ObservedValue.unknown,
                 audioLevels = state.audioLevels?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) }
                     ?: ObservedValue.unknown,
@@ -713,12 +713,6 @@ class DjiCameraSessionAdapter(
         // body once one is captured without `cam_audio_status_v2`.
         fun audioLevelsSupport(model: CameraModel?): SupportStatus =
             if (model == null) SupportStatus.UNKNOWN else SupportStatus.SUPPORTED
-
-        /** `timecode_info` as decoded (`HH:MM:SS:FF`); `null` when absent or malformed. */
-        fun timecode(raw: String?): CameraTimecode? {
-            val parts = raw?.split(':')?.mapNotNull(String::toIntOrNull)?.takeIf { it.size == 4 } ?: return null
-            return CameraTimecode(parts[0], parts[1], parts[2], parts[3])
-        }
 
         /** The camera-held meter in dBFS, `null` until `cam_audio_status_v2` arrives. */
         fun audioLevels(status: CameraStatus): AudioLevels? =
