@@ -48,6 +48,8 @@ data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraM
                 }
                 // Auto/Starburst strategy stays typed; measured iris is a read-only common f-number.
                 if (body.supportsAperture) add(SettingDescriptor(SettingKey.APERTURE, access = SettingAccess.READ_ONLY))
+                // The recording rate is a common read-only observation; the format picker stays native.
+                add(SettingDescriptor(SettingKey.FRAME_RATE, access = SettingAccess.READ_ONLY))
             }
         }
 
@@ -70,5 +72,7 @@ data class DjiCaptureControlState(val reported: CameraStatus, val model: CameraM
             }
             if (reported.irisHundredths in 100..2_200)
                 report(SettingValue.Aperture(reported.irisHundredths / 100.0))
+            // `cam_video_param_v2` carries an index into whole rates (`VideoFrameRate`).
+            if (reported.fps > 0) report(SettingValue.FrameRate(Rational(reported.fps)))
         }
 }

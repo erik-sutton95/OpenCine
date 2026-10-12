@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
@@ -38,6 +39,7 @@ public object MonitorCapturePresentation {
         SettingKey.WHITE_BALANCE -> "WB"
         SettingKey.EXPOSURE_COMPENSATION -> "EV"
         SettingKey.FOCUS_MODE -> "FOCUS"
+        SettingKey.FRAME_RATE -> "FPS"
         else -> null
     }
 
@@ -67,6 +69,7 @@ public object MonitorCapturePresentation {
             com.opencapture.opencine.core.FocusMode.SINGLE -> "AF-S"
             com.opencapture.opencine.core.FocusMode.CONTINUOUS -> "AF-C"
         }
+        is SettingValue.FrameRate -> frameRate(value.fps)
         else -> ""
     }
 
@@ -95,6 +98,11 @@ public object MonitorCapturePresentation {
         }
         return values.map { MonitorCaptureChoice(it, label(it)) }
     }
+
+    /** Whole rates print whole (24); the rest print two decimals (24000/1001 shows 23.98). Swift twin. */
+    public fun frameRate(rate: Rational): String =
+        if (rate.denominator == 1) rate.numerator.toString()
+        else String.format(java.util.Locale.ROOT, "%.2f", rate.doubleValue)
 
     private fun number(value: Double): String = if (value == round(value)) value.toLong().toString() else value.toString()
 }

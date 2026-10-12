@@ -36,6 +36,7 @@ public enum MonitorCapturePresentation {
         case .whiteBalance: "WB"
         case .exposureCompensation: "EV"
         case .focusMode: "FOCUS"
+        case .frameRate: "FPS"
         default: nil
         }
     }
@@ -59,6 +60,7 @@ public enum MonitorCapturePresentation {
         case .focusMode(.manual): "MF"
         case .focusMode(.single): "AF-S"
         case .focusMode(.continuous): "AF-C"
+        case .frameRate(let rate): frameRate(rate)
         default: ""
         }
     }
@@ -87,6 +89,14 @@ public enum MonitorCapturePresentation {
             }
         }
         return values.map { MonitorCaptureChoice(value: $0, label: label($0)) }
+    }
+
+    /// Whole rates print whole (24); the rest print two decimals (24000/1001 shows 23.98).
+    /// Kotlin twin: `MonitorCapturePresentation.frameRate`.
+    public static func frameRate(_ rate: Rational) -> String {
+        rate.denominator == 1
+            ? String(rate.numerator)
+            : String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), rate.doubleValue)
     }
 
     private static func number(_ value: Double) -> String {

@@ -31,6 +31,23 @@ public class Rational(numerator: Int, denominator: Int = 1) {
     override fun hashCode(): Int = 31 * numerator + denominator
 
     override fun toString(): String = "$numerator/$denominator"
+
+    public companion object {
+        /**
+         * The exact rate for a source that reports frames per second as a decimal: whole rates stay
+         * whole, the NTSC family (23.976, 29.97, 59.94, ...) is N*1000/1001, anything else keeps
+         * thousandths. `null` when not a positive finite rate. Swift twin: `Rational.frameRate`.
+         */
+        public fun frameRate(framesPerSecond: Double): Rational? {
+            if (!framesPerSecond.isFinite() || framesPerSecond <= 0 || framesPerSecond >= 100_000) return null
+            // Half up, as Swift's rounded() for positive values.
+            val whole = Math.round(framesPerSecond)
+            if (abs(framesPerSecond - whole) < 0.005) return Rational(whole.toInt())
+            val ntsc = Math.round(framesPerSecond * 1.001)
+            if (abs(framesPerSecond - ntsc / 1.001) < 0.005) return Rational(ntsc.toInt() * 1000, 1001)
+            return Rational(Math.round(framesPerSecond * 1000).toInt(), 1000)
+        }
+    }
 }
 
 /**

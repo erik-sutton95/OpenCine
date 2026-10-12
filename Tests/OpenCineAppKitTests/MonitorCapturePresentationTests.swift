@@ -24,6 +24,19 @@ import Testing
         #expect(MonitorCapturePresentation.title(.focusMode) == "FOCUS")
     }
 
+    /// A5-09: one frame-rate label for every integration; the NTSC family keeps its decimals.
+    @Test func frameRateLabelsKeepTheExactRate() {
+        let table: [(Rational, String)] = [
+            (Rational(24000, 1001), "23.98"), (Rational(24), "24"), (Rational(25), "25"),
+            (Rational(30000, 1001), "29.97"), (Rational(60000, 1001), "59.94"),
+            (Rational(120000, 1001), "119.88"), (Rational(50), "50"),
+        ]
+        for (rate, label) in table {
+            #expect(MonitorCapturePresentation.label(.frameRate(rate)) == label, "\(rate)")
+        }
+        #expect(MonitorCapturePresentation.title(.frameRate) == "FPS")
+    }
+
     @Test func apertureUsesTheCommonCapturePresentation() {
         #expect(MonitorCapturePresentation.title(.aperture) == "IRIS")
         #expect(MonitorCapturePresentation.label(.aperture(2.8)) == "f/2.8")

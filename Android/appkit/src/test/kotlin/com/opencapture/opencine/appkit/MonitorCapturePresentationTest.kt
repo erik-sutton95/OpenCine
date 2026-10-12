@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.CommandStage
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
@@ -28,6 +29,17 @@ import kotlin.time.Duration.Companion.seconds
 /** SIMULATED descriptor and confirmation scenarios; Swift mirrors the same names. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorCapturePresentationTest {
+    /** A5-09: one frame-rate label for every integration; the NTSC family keeps its decimals. */
+    @Test fun frameRateLabelsKeepTheExactRate() {
+        val table = listOf(
+            Rational(24000, 1001) to "23.98", Rational(24) to "24", Rational(25) to "25",
+            Rational(30000, 1001) to "29.97", Rational(60000, 1001) to "59.94",
+            Rational(120000, 1001) to "119.88", Rational(50) to "50",
+        )
+        for ((rate, label) in table) assertEquals(label, MonitorCapturePresentation.label(SettingValue.FrameRate(rate)), "$rate")
+        assertEquals("FPS", MonitorCapturePresentation.title(SettingKey.FRAME_RATE))
+    }
+
     @Test fun commonExposureAndFocusLabelsPreserveTypedDomainValues() {
         val values = listOf(
             SettingValue.ExposureCompensation(com.opencapture.opencine.core.Rational(-1, 3)),

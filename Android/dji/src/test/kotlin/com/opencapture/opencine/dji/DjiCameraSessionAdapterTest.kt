@@ -17,6 +17,7 @@ import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.PowerStatus
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
@@ -178,6 +179,20 @@ class DjiCameraSessionAdapterTest {
         assertEquals(SettingValue.Aperture(2.8), seam.current.value(SettingKey.APERTURE).value)
         assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
             seam.request(CameraCommandIntent.Set(SettingValue.Aperture(2.0))).stage)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    /** A5-09: the recording rate is a typed read-only Rational from the wire index, never written. */
+    @Test
+    fun recordingFrameRateIsAReadOnlyRational() = runTest {
+        val port = capturePort()
+        val seam = adapter(port)
+        assertEquals(SettingAccess.READ_ONLY, seam.current.capabilities[SettingKey.FRAME_RATE]?.access)
+        assertNull(seam.current.value(SettingKey.FRAME_RATE).value, "no report is unknown")
+        port.capture = port.capture?.let { it.copy(reported = it.reported.copy(fps = 25)) }
+        assertEquals(SettingValue.FrameRate(Rational(25)), seam.current.value(SettingKey.FRAME_RATE).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
+            seam.request(CameraCommandIntent.Set(SettingValue.FrameRate(Rational(24)))).stage)
         assertTrue(port.fired.isEmpty())
     }
 

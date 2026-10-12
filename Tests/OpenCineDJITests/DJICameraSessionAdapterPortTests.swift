@@ -183,6 +183,18 @@ import Testing
         #expect(port.fired.isEmpty)
     }
 
+    /// A5-09: the recording rate is a typed read-only Rational from the wire index, never written.
+    @Test func recordingFrameRateIsAReadOnlyRational() {
+        let port = Self.capturePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.capabilities[.frameRate]?.access == .readOnly)
+        #expect(seam.current.value(of: .frameRate).value == nil, "no report is unknown")
+        port.captureControlState?.reported.fps = 25
+        #expect(seam.current.value(of: .frameRate).value == .frameRate(Rational(25)))
+        #expect(seam.request(.set(.frameRate(Rational(24)))).stage == .rejected(.readOnly))
+        #expect(port.fired.isEmpty)
+    }
+
     private static func capturePort() -> FakePort {
         let port = FakePort()
         var actual = CameraStatus()

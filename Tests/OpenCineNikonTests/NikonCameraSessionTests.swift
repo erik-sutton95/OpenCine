@@ -81,6 +81,26 @@ struct NikonCameraSessionTests {
         #expect(session.refresh().timecode == .unknown)
     }
 
+    /// A5-09: the movie rate is a typed read-only Rational, the same one the timecode counts at.
+    @Test("The movie rate publishes as a read-only Rational")
+    func movieRatePublishesAsAReadOnlyRational() {
+        var facts = Self.movieFacts()
+        facts.reported = PTPCameraPropertySnapshot(
+            iso: 800, isoAuto: false, exposureMode: "M", fps: 25, fileType: "H.265 10-bit MOV",
+            captureSelector: .video)
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let snapshot = session.refresh()
+        #expect(snapshot.value(of: .frameRate).value == .frameRate(Rational(25)))
+        #expect(snapshot.capabilities[.frameRate]?.access == .readOnly)
+        #expect(session.request(.set(.frameRate(Rational(24)))).stage == .rejected(.readOnly))
+        #expect(driver.queued.isEmpty)
+        driver.nikonControlFacts.reported = PTPCameraPropertySnapshot(
+            iso: 800, isoAuto: false, exposureMode: "M", fps: 0, fileType: "H.265 10-bit MOV",
+            captureSelector: .video)
+        #expect(session.refresh().value(of: .frameRate).value == nil, "no rate is unknown")
+    }
+
     /// A5-01: BatteryLevel is a five-step gauge, so the common reading declares fifths, not percent.
     @Test("The camera battery is declared at the body's five-step precision")
     func batteryDeclaresFiveSteps() {

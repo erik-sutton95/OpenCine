@@ -53,6 +53,20 @@ final class LunaLensControlTests: XCTestCase {
         XCTAssertEqual(receipt.stage, stage, file: file, line: line)
     }
 
+    /// A5-09: option 31's schema rate is a typed read-only Rational, never rounded or written.
+    func testRecordRateIsAReadOnlyRationalFromTheResolutionOption() async throws {
+        let session = session()
+        XCTAssertEqual(session.current.capabilities[.frameRate]?.access, .readOnly)
+        XCTAssertNil(session.current.value(of: .frameRate).value, "no report is unknown")
+        var settings = try LunaPhotographySettings(response: Data())
+        settings.types = [31]
+        settings.functionMode = 7
+        settings.recordResolution = 48  // 4K25
+        session.ingest(settings: settings)
+        XCTAssertEqual(session.current.value(of: .frameRate).value, .frameRate(Rational(25)))
+        await expect(command(.frameRate(Rational(24)), session), session, .rejected(.readOnly))
+    }
+
     func testLensDescriptorsRequireConfiguredZoomAndNeverInventReports() {
         let session = session()
         XCTAssertEqual(session.current.capabilities.support(of: .zoom), .unknown)
