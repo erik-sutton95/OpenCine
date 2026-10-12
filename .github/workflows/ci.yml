@@ -147,6 +147,39 @@ jobs:
           OPENCAPTURE_WORKSPACE: ${{ runner.temp }}/ws
         run: python3 atlas/tools/atlas.py dupes --check --top 3
 
+  # The conformance kit's own checks (docs/conformance/SCENARIOS.md): the hosted accessibility walk's
+  # self-test and the native view tests that use it, on a private simulator with accessibility on.
+  kit-ios:
+    name: Conformance kit, iOS (hosted walk self-test)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: Create a private simulator with accessibility enabled
+        run: |
+          mkdir -p "$RUNNER_TEMP/kit-ios"
+          udid=$(scripts/ios-private-simulator.py create "opc-kit-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --report "$RUNNER_TEMP/kit-ios/simulator-setup.json")
+          echo "KIT_IOS_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+      - name: Hosted walk self-test and native view tests
+        run: |
+          xcodebuild -scheme OpenCine-Package -destination "platform=iOS Simulator,id=$KIT_IOS_DEVICE_ID" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/kit-ios/kit.xcresult" \
+            -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests test
+      - name: Delete the private simulator
+        if: always()
+        run: if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: kit-ios-evidence
+          path: ${{ runner.temp }}/kit-ios
+          if-no-files-found: warn
+
   # SHELL-05: an app fresh from `atlas new-app` builds against this commit and passes its SIMULATED
   # contract test (OpenCine's fake integration; no camera, no hardware).
   template-ios:
@@ -204,7 +237,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas, template-ios, template-android]
+    needs: [meta, swift, android, atlas, kit-ios, template-ios, template-android]
     runs-on: ubuntu-latest
     steps:
       - name: Require every shared and template check to pass

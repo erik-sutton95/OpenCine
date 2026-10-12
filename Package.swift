@@ -177,11 +177,14 @@ let package = Package(
                 "OpenCineMedia", "OpenCineMotion",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
-        // XCUITest cases that drive an app only by accessibility identifiers and launch
-        // environment; iOS only, empty elsewhere. Depends on nothing in this package.
+        // XCUITest cases that drive an app only by accessibility identifiers and the typed review
+        // launch (MonitorPresentation `ReviewLaunch`); iOS only, empty elsewhere
+        // (docs/conformance/SCENARIOS.md).
         // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6
         // with a MainActor pass over XCTest's expectation waits.
-        .target(name: "OpenCineAppUITesting", swiftSettings: [.swiftLanguageMode(.v5)]),
+        .target(
+            name: "OpenCineAppUITesting", dependencies: ["MonitorPresentation"],
+            swiftSettings: [.swiftLanguageMode(.v5)]),
         // Hosted test bundles link this beside their host app, so it depends on nothing here: no
         // second copy of a module the host already holds. iOS only, empty elsewhere.
         .target(name: "OpenCineHostedAccessibility"),
