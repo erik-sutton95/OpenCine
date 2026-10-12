@@ -111,10 +111,10 @@ import Testing
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
         var replace = false
-        let authority = try #require(f.library.captureDeletion(key: .init("reentrant-delete"), ifCurrent: {
+        let authority = f.library.captureDeletion(key: .init("reentrant-delete"), ifCurrent: {
             if replace { replace = false; _ = f.open(2) }
             return true
-        }))
+        })
         replace = true
         let copy = f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
             .init(confirmation: .init(title: "Remove A"), authority: authority, perform: {})
@@ -126,7 +126,7 @@ import Testing
         guard #available(macOS 14, *) else { return }
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
-        let authority = try #require(f.library.captureDeletion(key: .init("cleanup-delete"), ifCurrent: { true }))
+        let authority = f.library.captureDeletion(key: .init("cleanup-delete"), ifCurrent: { true })
         let gate = OperatorPlaybackPending(); var deletes = 0
         let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { record in
             .init(confirmation: .init(title: "Remove A"), authority: authority, perform: {
@@ -148,7 +148,7 @@ import Testing
         guard #available(macOS 14, *) else { return }
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
-        let authority = try #require(f.library.captureDeletion(key: .init("partial-delete"), ifCurrent: { true }))
+        let authority = f.library.captureDeletion(key: .init("partial-delete"), ifCurrent: { true })
         let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
             .init(confirmation: .init(title: "Remove A and companion"), authority: authority, perform: {
                 owner.close()
@@ -156,7 +156,7 @@ import Testing
                     targets: [MonitorMediaDeletionTarget(value: f.records[1], locations: [1])], selectedCount: 1,
                     preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
                         try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
-                    }))
+                    }, finish: { await f.library.relist(after: authority) }))
             })
         })))
         f.model.confirmDeletion(admitted: copy.id)
@@ -170,7 +170,7 @@ import Testing
         for allRemoved in [false, true] {
             let f = try Fixture(); defer { f.close() }
             #expect(f.open(0)); let owner = try #require(f.model.playback)
-            let authority = try #require(f.library.captureDeletion(key: .init("related-delete"), ifCurrent: { true }))
+            let authority = f.library.captureDeletion(key: .init("related-delete"), ifCurrent: { true })
             let removed = allRemoved ? f.records : Array(f.records.prefix(2))
             let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
                 .init(confirmation: .init(title: "Remove A and companions"), authority: authority, perform: {
@@ -179,7 +179,7 @@ import Testing
                         targets: removed.map { MonitorMediaDeletionTarget(value: $0, locations: [1]) }, selectedCount: 1,
                         preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
                             try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
-                        }))
+                        }, finish: { await f.library.relist(after: authority) }))
                 })
             })))
             f.model.confirmDeletion(admitted: copy.id)
@@ -195,7 +195,7 @@ import Testing
         guard #available(macOS 14, *) else { return }
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
-        let authority = try #require(f.library.captureDeletion(key: .init("declined-delete"), ifCurrent: { true }))
+        let authority = f.library.captureDeletion(key: .init("declined-delete"), ifCurrent: { true })
         let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
             .init(confirmation: .init(title: "Remove A"), authority: authority, perform: { owner.close() })
         })))
@@ -209,7 +209,7 @@ import Testing
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
         var calls = 0
-        let authority = try #require(f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true }))
+        let authority = f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true })
         let operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion: { _ in
             .init(confirmation: .init(title: "Remove A", message: "Its related copies too"),
                 authority: authority, perform: { calls += 1 })
@@ -226,7 +226,7 @@ import Testing
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
         let original = f.library.actionToken
-        let authority = try #require(f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true }))
+        let authority = f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true })
         let operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion: { record in
             .init(confirmation: .init(title: "Remove A"), authority: authority, perform: {
                 owner.close()
@@ -235,7 +235,7 @@ import Testing
                     preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
                         try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken)
                         return true
-                    }))
+                    }, finish: { await f.library.relist(after: authority) }))
             })
         })
         let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: operations))
@@ -249,7 +249,7 @@ import Testing
         guard #available(macOS 14, *) else { return }
         let f = try Fixture(); defer { f.close() }
         #expect(f.open(0)); let owner = try #require(f.model.playback)
-        let authority = try #require(f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true }))
+        let authority = f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true })
         var calls = 0
         let copy = try #require(f.model.captureDeletion(admitted: owner.token,
             operations: .init(captureDeletion: { _ in
