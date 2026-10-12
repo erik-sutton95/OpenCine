@@ -81,7 +81,7 @@ private class FakeLunaPort(private val scope: CoroutineScope) : LunaConnectPort 
     }
     override fun openSession(): CameraSession = FakeCameraSession.lunaLike()
     override fun mediaService(session: CameraSessionID): CameraMediaService? = makeMediaService?.invoke(session)
-    override fun forget(id: String) { forgotten += id }
+    override suspend fun forget(id: String) { forgotten += id }
 }
 
 /** Swift suite `LunaIntegrationTests`, same method names. */

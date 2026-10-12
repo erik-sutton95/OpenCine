@@ -1,10 +1,14 @@
 package com.opencapture.opencine.appkit
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.SettingAccess
@@ -17,6 +21,7 @@ import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ControlEpoch
+import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SettingDomain
@@ -84,7 +89,10 @@ public class MonitorControlModel(
     public data class State(
         /** The session the controls drive; `null` when nothing is bound. */
         public val session: CameraSession? = null,
-        /** The latest snapshot of [session]. */
+        /**
+         * The latest snapshot of [session]. A report that changes only the timecode is not
+         * re-emitted, so its timecode and revision may lag: read [MonitorControlModel.timecode].
+         */
         public val snapshot: CameraSnapshot? = null,
         /** Operator targets whose operations are unfinished. */
         public val pending: Map<SettingKey, SettingValue> = emptyMap(),
@@ -95,6 +103,13 @@ public class MonitorControlModel(
     private val sleep = delay
     private val mutable = MutableStateFlow(State())
     public val state: StateFlow<State> = mutable.asStateFlow()
+
+    /**
+     * The latest reported timecode, observed on its own (Compose state): a per-frame counter
+     * re-renders the clock that reads it, not every collector of [state].
+     */
+    public var timecode: ObservedValue<CameraTimecode> by mutableStateOf(ObservedValue.unknown)
+        private set
 
     /** Operator copy for an outcome that is not a confirmation (and for refusing to send). */
     public var onNote: (String) -> Unit = {}
@@ -157,11 +172,16 @@ public class MonitorControlModel(
         editRevisions.clear()
         recordOperation = null
         mutable.value = State()
+        timecode = ObservedValue.unknown
         if (changed) onChange()
     }
 
     private fun apply(snapshot: CameraSnapshot) {
-        mutable.update { it.copy(snapshot = snapshot) }
+        val previous = mutable.value.snapshot
+        if (previous?.copy(timecode = snapshot.timecode, revision = snapshot.revision) != snapshot) {
+            mutable.update { it.copy(snapshot = snapshot) }
+        }
+        timecode = snapshot.timecode
         onChange()
     }
 

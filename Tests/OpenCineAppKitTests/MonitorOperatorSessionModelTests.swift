@@ -117,4 +117,65 @@ import Testing
             #expect(model.interactive && model.returnedMode == .live && clock.pendingSleeps == 0)
         }
     }
+
+    /// A1-08: the one display owner. Pocket and Insta keep Live and Clean; a source that supplies
+    /// a camera dashboard declares Command, and a mode leaving the set falls back to the first.
+    @Test func declaredModesCycleInOrderAndLockRefusesTheCycle() async throws {
+        guard #available(macOS 14, *) else { return }
+        try await withModel { model, _, assist, _ in
+            #expect(model.modes == [.live, .clean] && model.mode == .live)
+            #expect(!model.select(.command), "an undeclared mode is refused")
+            model.declare(modes: [.live, .clean, .command])
+            #expect(model.cycle() && model.mode == .clean && assist.clean)
+            #expect(model.cycle() && model.mode == .command && !assist.clean)
+            model.locked = true
+            #expect(!model.cycle() && model.mode == .command, "the lock holds the mode")
+            model.locked = false
+            #expect(model.cycle() && model.mode == .live)
+            model.declare(modes: [.live, .clean, .command])
+            #expect(model.select(.command))
+            model.locked = true
+            model.declare(modes: [.live, .clean])
+            #expect(model.mode == .live, "a capability that leaves overrides the lock")
+        }
+    }
+
+    @Test func commandOwnsOnlyTheRailAndPersistsUnderItsKey() async throws {
+        guard #available(macOS 14, *) else { return }
+        let domain = "opencine-operator-session-tests." + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let keys = MonitorDisplayPreferences.Keys(live: "z.live", clean: "z.clean", command: "z.command")
+        let display = MonitorDisplayPreferences(storage: defaults, keys: keys)
+        let assist = MonitorAssistState(looks: StateTestLooks(), storage: defaults,
+            keys: .init(assist: "assist", cleanPins: "pins", playback: "playback"), cleanPinCases: [])
+        let cameras = CamerasModel(integrations: [], store: SavedCamerasStore(document: Defaults([:]).at("document")))
+        let model = MonitorOperatorSessionModel(shell: ShellModel(cameras: cameras), assist: assist, display: display)
+        model.declare(modes: [.live, .clean, .command])
+        model.toggle(.statusBar, in: .command)
+        model.toggle(.railMedia, in: .command)
+        #expect(model.command.statusBar && !model.command.railMedia, "only rail sections are configurable")
+        #expect(!MonitorDisplayPreferences(storage: defaults, keys: keys).command.railMedia)
+        #expect(model.select(.command) && model.mounts(.statusBar) && !model.mounts(.railMedia))
+        model.beginEditing(.command)
+        #expect(model.mounts(.railMedia) && model.mounts(.statusBar))
+    }
+
+    /// A1-50: the lock lives with the monitor lifetime in the one owner, not in a view.
+    @Test func lockLastsOneMonitorLifetime() async throws {
+        guard #available(macOS 14, *) else { return }
+        try await withModel { model, _, _, _ in
+            let source = UUID()
+            model.synchronize(source: source)
+            model.locked = true
+            model.synchronize(source: source)
+            #expect(model.locked, "a cover or re-render keeps the lock")
+            model.synchronize(source: UUID())
+            #expect(!model.locked, "a new monitor starts unlocked")
+            model.locked = true
+            model.close()
+            #expect(!model.locked)
+        }
+    }
 }
+

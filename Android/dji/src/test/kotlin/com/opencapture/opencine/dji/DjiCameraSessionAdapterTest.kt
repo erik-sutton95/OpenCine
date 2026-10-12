@@ -21,6 +21,8 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.motion.GimbalWaypoint
 import com.opencapture.opencine.motion.MotionAxis
@@ -384,11 +386,12 @@ class DjiCameraSessionAdapterTest {
         fun expected(gimbal: Boolean, zoom: Boolean, focus: Boolean, iris: Boolean, timecode: Boolean) = base.copy(
             gimbal = gimbal, headTracking = gimbal, zoom = zoom, focus = focus, iris = iris, timecode = timecode, audio = true,
         )
+        val seconds = TimecodeCapability.supported(TimecodePrecision.Seconds)
         val bodies = listOf(
-            Triple(body("Osmo Pocket 4 Pro", "pocket"), expected(true, true, true, false, true), SupportStatus.SUPPORTED),
-            Triple(body("Osmo Pocket 3", "pocket"), expected(true, true, true, false, true), SupportStatus.SUPPORTED),
-            Triple(body("Osmo Action 6", "other", aperture = true), expected(false, false, false, true, true), SupportStatus.SUPPORTED),
-            Triple(body("Osmo Nano", "nano"), expected(false, false, false, false, false), SupportStatus.UNSUPPORTED),
+            Triple(body("Osmo Pocket 4 Pro", "pocket"), expected(true, true, true, false, true), seconds),
+            Triple(body("Osmo Pocket 3", "pocket"), expected(true, true, true, false, true), seconds),
+            Triple(body("Osmo Action 6", "other", aperture = true), expected(false, false, false, true, true), seconds),
+            Triple(body("Osmo Nano", "nano"), expected(false, false, false, false, false), TimecodeCapability.unsupported),
         )
         for ((model, layout, timecode) in bodies) {
             val port = FakePort()
@@ -402,7 +405,7 @@ class DjiCameraSessionAdapterTest {
         // No camera: nothing is claimed, so the layout is the base.
         val seam = adapter(FakePort())
         assertEquals(base, seam.layout(base))
-        assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.timecode)
+        assertEquals(TimecodeCapability.unknown, seam.current.capabilities.timecode)
         assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.audioLevels)
     }
 

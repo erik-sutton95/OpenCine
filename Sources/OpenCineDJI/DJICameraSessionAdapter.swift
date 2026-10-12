@@ -745,10 +745,11 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     }
 
     /// Every body reports `timecode_info` except Nano, whose live and Multi View readouts never
-    /// showed one. Unknown body: unknown.
-    static func timecodeSupport(_ model: CameraModel?) -> SupportStatus {
+    /// showed one. Unknown body: unknown. Declared in whole seconds: the frame field rides the
+    /// throttled status push and is not proven to count per frame (A5 runtime check).
+    static func timecodeSupport(_ model: CameraModel?) -> TimecodeCapability {
         guard let model else { return .unknown }
-        return model.family == .nano ? .unsupported : .supported
+        return model.family == .nano ? .unsupported : .supported(.seconds)
     }
 
     /// `cam_audio_status_v2` levels. Unknown body: unknown.

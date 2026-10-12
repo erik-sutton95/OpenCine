@@ -102,9 +102,12 @@ public class MonitorOperatorMotionViews(
     public val editor: @Composable BoxScope.(Boolean) -> Unit,
 )
 
-/** The one monitor recipe is shared by native legacy, descriptor and generated-app adapters. */
+/**
+ * The one monitor recipe behind [MonitorOperatorLiveSurface] and the generated-app scene. The record
+ * confirmation, connect-tap arming and borrowed-media policies are the surface's to decide.
+ */
 @Composable
-public fun <K, S, M, N> MonitorOperatorLiveBody(
+internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     control: MonitorControlModel, identity: MonitorOperatorLiveIdentity,
     current: (MonitorOperatorLiveIdentity) -> Boolean, layout: MonitorFieldLayout, viewport: MonitorRect,
     sections: MonitorOperatorLiveSections<S>, mounted: Set<S>, host: ChromeEditHost<S, M>, editing: M?,
@@ -133,8 +136,8 @@ public fun <K, S, M, N> MonitorOperatorLiveBody(
     displayTitle: String? = null,
     onPanelFrameChanged: ((MonitorAssistTool, MonitorRect?) -> Unit)? = null,
     openMode: (() -> Unit)? = null,
-    recordConfirmationPolicy: MonitorControlModel.RecordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET,
-    interactionEnabled: Boolean = true, borrowed: Boolean = false, returnToStage: (() -> Unit)? = null,
+    recordConfirmationPolicy: MonitorControlModel.RecordConfirmationPolicy,
+    interactionEnabled: Boolean, borrowed: Boolean, returnToStage: (() -> Unit)? = null,
     safeLeading: Float = viewport.x, safeTrailing: Float = max(0f, layout.viewport.maxX - viewport.maxX),
     safeTop: Float = viewport.y, safeBottom: Float = max(0f, layout.viewport.maxY - viewport.maxY),
     scopeFeed: MonitorRect = layout.picture, framingFrame: MonitorRect? = null,
@@ -387,6 +390,52 @@ public fun <K, S, M, N> MonitorOperatorLiveBody(
         }
     }
 }
+
+/**
+ * Until F05 migrates Z Android to [MonitorOperatorLiveSurface]: the composition with the policy Z Android
+ * had before the surface folded it (explicit-target record confirmation, no connect-tap arming, never
+ * borrowed). Then it goes, and the composition stays internal.
+ */
+@Composable
+public fun <K, S, M, N> MonitorOperatorLiveBody(
+    control: MonitorControlModel, identity: MonitorOperatorLiveIdentity,
+    current: (MonitorOperatorLiveIdentity) -> Boolean, layout: MonitorFieldLayout, viewport: MonitorRect,
+    sections: MonitorOperatorLiveSections<S>, mounted: Set<S>, host: ChromeEditHost<S, M>, editing: M?,
+    locked: Boolean, setLocked: (Boolean) -> Unit, covered: Boolean, clean: Boolean, command: Boolean,
+    readOnly: Boolean, recovering: Boolean,
+    status: MonitorOperatorLiveStatus<K, S>, power: List<MonitorOperatorPowerReading>,
+    captureInputs: MonitorOperatorCaptureInputs<K, S, N>, retireReadout: () -> Unit,
+    settings: () -> Unit, media: () -> Unit, cycleDisplay: () -> Unit, displayIndex: Int?, displayCount: Int,
+    displayTitle: String?, photo: Boolean, confirmRecord: Boolean, recordEnabled: Boolean,
+    onRecordConfirming: (Boolean) -> Unit, assist: MonitorAssistState, assists: MonitorOperatorAssistSource?,
+    palette: List<MonitorOperatorPaletteItem>, usage: MonitorToolUsageState,
+    setUsage: (MonitorToolUsageState) -> Unit, usageSeed: Map<String, Int>,
+    renderedTools: Set<MonitorAssistTool>, fittedScopes: List<MonitorAssistTool>, scopeZone: MonitorRect?,
+    signalOptions: MonitorOperatorSignalOptions, audio: MonitorOperatorLiveAudio?,
+    reference: MonitorFalseColorReferenceValues?, aspect: MonitorOperatorAspectControl?,
+    resetFocus: MonitorOperatorFocusReset?, comparison: MonitorOperatorLookComparison?,
+    cameraViews: MonitorOperatorBodyViews, modifier: Modifier, chromeBoxes: MutableMap<S, MonitorRect>?,
+    resumed: Boolean, retainsPanel: Boolean, nativeFraming: Boolean, floatingBounds: MonitorRect?,
+    floatingPlacement: MonitorRect?, onPanelFrameChanged: ((MonitorAssistTool, MonitorRect?) -> Unit)?,
+    picture: @Composable BoxScope.() -> Unit,
+    cameraPanel: @Composable (K, MonitorRect, Boolean, MonitorOperatorCaptureState<K, N>) -> Unit,
+    photoRelease: (@Composable (Boolean, Modifier) -> Unit)?,
+): Unit = MonitorOperatorLiveComposition(control = control, identity = identity, current = current, layout = layout,
+    viewport = viewport, sections = sections, mounted = mounted, host = host, editing = editing, locked = locked,
+    setLocked = setLocked, covered = covered, clean = clean, command = command, readOnly = readOnly,
+    recovering = recovering, status = status, power = power, captureInputs = captureInputs,
+    retireReadout = retireReadout, settings = settings, media = media, cycleDisplay = cycleDisplay,
+    displayIndex = displayIndex, displayCount = displayCount, displayTitle = displayTitle, photo = photo,
+    confirmRecord = confirmRecord, recordEnabled = recordEnabled, onRecordConfirming = onRecordConfirming,
+    assist = assist, assists = assists, palette = palette, usage = usage, setUsage = setUsage, usageSeed = usageSeed,
+    renderedTools = renderedTools, fittedScopes = fittedScopes, scopeZone = scopeZone, signalOptions = signalOptions,
+    audio = audio, reference = reference, aspect = aspect, resetFocus = resetFocus, comparison = comparison,
+    cameraViews = cameraViews, modifier = modifier, chromeBoxes = chromeBoxes, resumed = resumed,
+    retainsPanel = retainsPanel, nativeFraming = nativeFraming, floatingBounds = floatingBounds,
+    floatingPlacement = floatingPlacement, onPanelFrameChanged = onPanelFrameChanged,
+    recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET,
+    interactionEnabled = true, borrowed = false,
+    picture = picture, cameraPanel = cameraPanel, photoRelease = photoRelease)
 
 @Composable
 private fun DescriptorRoundAction(frame: MonitorRect, title: String, icon: MonitorIcon, tag: String,

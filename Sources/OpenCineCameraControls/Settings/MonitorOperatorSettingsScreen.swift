@@ -19,9 +19,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private let availableAssistTools: Set<MonitorAssistSelection>
     private let assistPanels: AssistPanelStores?
     private let falseColorLooks: FalseColorLooks
-    @State private var operatorSession: MonitorOperatorSessionModel<Looks>?
+    @State private var operatorSession: MonitorOperatorSessionModel<Looks>
     private let configuration: MonitorOperatorSettingsConfiguration<Looks>?
-    private let borrowedDisplay: MonitorOperatorBorrowedDisplay?
     private let borrowedSelection: Binding<MonitorSettingsTab>?
     private let borrowedScrollOffsets: Binding<[String: CGFloat]>?
     private let sourceIdentity: UUID?
@@ -47,22 +46,22 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         self.preferences = preferences; self.display = display; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
         self.configuration = configuration; self.coverSafeArea = safeArea
-        self.borrowedDisplay = nil; self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
+        self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
         self.assistPanels = assistPanels; self.falseColorLooks = falseColorLooks
         _operatorSession = State(initialValue: operatorSession ?? MonitorOperatorSessionModel(shell: shell, assist: assist, display: display))
     }
 
-    /// Complete configured flow over a source's existing display storage and page state.
+    /// Complete configured flow over a source's page state and the one display owner.
     public init(brand: String, configuration: MonitorOperatorSettingsConfiguration<Looks>,
         library: MonitorMediaLibraryModel<Payload>?, selectedTab: Binding<MonitorSettingsTab>,
-        scrollOffsets: Binding<[String: CGFloat]>, borrowedDisplay: MonitorOperatorBorrowedDisplay,
+        scrollOffsets: Binding<[String: CGFloat]>, operatorSession: MonitorOperatorSessionModel<Looks>,
         sourceIdentity: UUID?, initialReportPresented: Bool = false, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
         self.preferences = nil; self.display = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
-        self.configuration = configuration; self.coverSafeArea = safeArea; self.borrowedDisplay = borrowedDisplay
+        self.configuration = configuration; self.coverSafeArea = safeArea
         self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
-        _operatorSession = State(initialValue: nil)
+        _operatorSession = State(initialValue: operatorSession)
         _showReport = State(initialValue: initialReportPresented)
     }
 
@@ -73,7 +72,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
 
     private var selectedTab: Binding<MonitorSettingsTab> {
         if let borrowedSelection { return borrowedSelection }
-        return Binding(get: { operatorSession?.settingsTab ?? .link }, set: { operatorSession?.settingsTab = $0 })
+        return Binding(get: { operatorSession.settingsTab }, set: { operatorSession.settingsTab = $0 })
     }
 
     public var body: some View {
@@ -183,7 +182,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     private var editChrome: ((MonitorDisplayMode) -> Void)? {
-        guard configuration?.isLive ?? (shell?.monitor != nil), let operatorSession else { return nil }
+        guard configuration?.isLive ?? (shell?.monitor != nil) else { return nil }
         return operatorSession.beginEditing
     }
 
@@ -196,17 +195,11 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             MonitorPanelSettings(hdrDisplay: preference(\.hdrDisplay),
                 help: "Show the native monitor in HDR when the display supports it.", feedback: {})
         }
-        if let value = borrowedDisplay {
-            MonitorDisplaySettings(layoutHelp: value.layoutHelp, choices: value.choices,
-                selection: value.selection, expandedSection: value.expandedSection,
-                sections: value.sections, order: value.order).onAppear(perform: value.returnedFromEditor)
-        } else {
-            MonitorOperatorDisplaySections(live: displayValue(.live), clean: displayValue(.clean), assist: assist,
-                available: configuration?.availableDisplay ?? [.statusBar, .cameraValues, .lockButton, .recReadout,
-                    .timecode, .toolBar, .railRecord, .railMedia, .railSettings], edit: editChrome,
-                feedback: configuration?.feedback ?? {})
-                .onAppear { operatorSession?.returnedMode = nil }
-        }
+        MonitorOperatorDisplaySections(modes: operatorSession.modes, chrome: displayValue, assist: assist,
+            available: configuration?.availableDisplay ?? [.statusBar, .cameraValues, .lockButton, .recReadout,
+                .timecode, .toolBar, .railRecord, .railMedia, .railSettings], edit: editChrome,
+            feedback: configuration?.feedback ?? {})
+            .onAppear { operatorSession.returnedMode = nil }
     }
 
     @ViewBuilder private func linkRows(_ link: MonitorSettingsLinkSource, isLive: Bool) -> some View {
@@ -343,9 +336,12 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         })
     }
     private func displayValue(_ mode: MonitorDisplayMode) -> Binding<MonitorDisplayChrome> {
-        guard let operatorSession else { preconditionFailure("Borrowed layouts require their explicit display bindings") }
-        return Binding(get: { operatorSession.chrome(for: mode) }, set: {
-            if mode == .clean { operatorSession.clean = $0 } else { operatorSession.live = $0 }
+        Binding(get: { operatorSession.chrome(for: mode) }, set: {
+            switch mode {
+            case .live: operatorSession.live = $0
+            case .clean: operatorSession.clean = $0
+            case .command: operatorSession.command = $0
+            }
             preferenceRevision += 1
         })
     }
@@ -381,30 +377,31 @@ private struct MonitorSettingsConfiguredSupport: View {
     }
 }
 
-private struct MonitorSettingsSupportPresentation: ViewModifier {
+/// Gates bindings, never the content: the page keeps one identity whichever support source
+/// (closure, model or none) the host supplies, so tab scroll, sheets and cache state survive.
+struct MonitorSettingsSupportPresentation: ViewModifier {
     let source: MonitorSettingsSupportSource?
     private struct ReportFile: Identifiable { var id: URL { url }; let url: URL }
-    @ViewBuilder func body(content: Content) -> some View {
-        if let source, source.model != nil {
-            content
-                .onAppear { bind() }
-                .onChange(of: source.actions?.identity) { _, _ in bind() }
-                .onChange(of: source.actions?.requiresInternetConsent) { _, _ in bind() }
-                .sheet(item: Binding(get: { source.model?.reportURL.map { ReportFile(url: $0) } },
-                    set: { if $0 == nil { source.model?.dismissReport() } })) { source.shareReport($0.url) }
-                .alert("Leave camera Wi-Fi?", isPresented: Binding(
-                    get: { source.model?.destination != nil }, set: { if !$0 { source.model?.cancelConfirmation() } })) {
-                    Button("Cancel", role: .cancel) { source.model?.cancelConfirmation() }
-                    Button("Continue") { source.model?.confirmBrowser() }
-                } message: { if let destination = source.model?.destination { Text(destination.confirmationMessage) } }
-                .alert(source.model?.reportFailed == true ? "Couldn’t Share Diagnostics" : "Couldn’t Reach the Internet",
-                    isPresented: Binding(get: { source.model?.reportFailed == true || source.model?.browserFailed == true },
-                        set: { if !$0 { source.model?.dismissError() } })) {
-                    Button("OK", role: .cancel) { source.model?.dismissError() }
-                } message: {
-                    if let reason = source.model?.reportFailure ?? source.model?.browserFailure { Text(reason) }
-                }
-        } else { content }
+    func body(content: Content) -> some View {
+        let model = source?.model
+        content
+            .onAppear { bind() }
+            .onChange(of: source?.actions?.identity) { _, _ in bind() }
+            .onChange(of: source?.actions?.requiresInternetConsent) { _, _ in bind() }
+            .sheet(item: Binding(get: { model?.reportURL.map { ReportFile(url: $0) } },
+                set: { if $0 == nil { model?.dismissReport() } })) { file in source?.shareReport(file.url) }
+            .alert("Leave camera Wi-Fi?", isPresented: Binding(
+                get: { model?.destination != nil }, set: { if !$0 { model?.cancelConfirmation() } })) {
+                Button("Cancel", role: .cancel) { model?.cancelConfirmation() }
+                Button("Continue") { model?.confirmBrowser() }
+            } message: { if let destination = model?.destination { Text(destination.confirmationMessage) } }
+            .alert(model?.reportFailed == true ? "Couldn’t Share Diagnostics" : "Couldn’t Reach the Internet",
+                isPresented: Binding(get: { model?.reportFailed == true || model?.browserFailed == true },
+                    set: { if !$0 { model?.dismissError() } })) {
+                Button("OK", role: .cancel) { model?.dismissError() }
+            } message: {
+                if let reason = model?.reportFailure ?? model?.browserFailure { Text(reason) }
+            }
     }
     private func bind() { if let actions = source?.actions { source?.model?.bind(actions) } }
 }

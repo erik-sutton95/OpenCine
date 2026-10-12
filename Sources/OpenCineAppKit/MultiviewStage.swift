@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 import OpenCineCore
 import OpenCineMulticam
 
@@ -280,8 +281,8 @@ extension MultiviewTile {
             name: entry.name,
             battery: snapshot?.power.battery.value.map { Int(($0 * 100).rounded()) },
             charging: snapshot?.power.charging.value ?? false,
-            timecode: snapshot?.timecode.value.map {
-                String(format: "%02d:%02d:%02d", $0.hours, $0.minutes, $0.seconds)
+            timecode: snapshot?.timecode.value.flatMap {
+                MonitorTimecodeFormat.label($0, precision: snapshot?.capabilities.timecode.precision)
             },
             tally: MultiviewTally.text(
                 recording: recording, waiting: waiting,

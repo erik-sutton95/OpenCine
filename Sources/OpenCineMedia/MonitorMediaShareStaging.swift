@@ -33,6 +33,14 @@ public enum MonitorMediaShareStaging {
         }
     }
 
+    /// Movie containers every app exports, and the still formats its cameras record. Stills
+    /// are delivered as their cached original, so they join the share selection unchanged.
+    public static let videoExtensions: Set<String> = ["mp4", "mov", "m4v"]
+    public static let stillExtensions: Set<String> = [
+        "jpg", "jpeg", "heic", "heif", "hif", "png", "dng", "tif", "tiff", "nef", "nrw", "pano",
+    ]
+    public static func isStill(_ url: URL) -> Bool { stillExtensions.contains(url.pathExtension.lowercased()) }
+
     public static func isShareableVideo(_ url: URL, extensions: Set<String>) -> Bool {
         extensions.contains(url.pathExtension.lowercased())
     }

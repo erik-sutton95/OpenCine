@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit
 
+import com.opencapture.monitorui.MonitorTimecodeFormat
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CommandRejection
 import com.opencapture.opencine.core.ConnectionState
@@ -135,7 +136,7 @@ public data class MultiviewTile(
                 battery = snapshot?.power?.battery?.value?.let { (it * 100).roundToInt() },
                 charging = snapshot?.power?.charging?.value ?: false,
                 timecode = snapshot?.timecode?.value?.let {
-                    String.format(Locale.ROOT, "%02d:%02d:%02d", it.hours, it.minutes, it.seconds)
+                    MonitorTimecodeFormat.label(it, snapshot.capabilities.timecode.precision)
                 },
                 tally = MultiviewTally.text(recording, waiting = waiting, failed = control is ConnectionState.Disconnected),
                 recording = state == RecordingState.RECORDING,

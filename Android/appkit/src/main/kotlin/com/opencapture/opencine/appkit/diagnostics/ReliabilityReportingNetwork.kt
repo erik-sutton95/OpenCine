@@ -12,7 +12,24 @@ public interface ReliabilityReportingCancellable {
 }
 
 /**
- * Upload gate: no report leaves while a camera session is live or the camera's IPv4 path is up.
+ * One connection owner's hold on the camera path, from its connect attempt (recovery included)
+ * until it retires. Closing it again does nothing.
+ */
+public class ReliabilityCameraPathLease internal constructor(release: () -> Unit) : AutoCloseable {
+    private val release = java.util.concurrent.atomic.AtomicReference<(() -> Unit)?>(release)
+
+    public val isEnded: Boolean
+        get() = release.get() == null
+
+    public fun end() {
+        release.getAndSet(null)?.invoke()
+    }
+
+    override fun close(): Unit = end()
+}
+
+/**
+ * Upload gate: no report leaves while a camera path is held or the camera's IPv4 path is up.
  * [cameraIPv4Prefix] is the camera network's address prefix; [extraCameraPathProbe] lets the
  * host report a process bound to the camera network.
  */
@@ -22,19 +39,20 @@ public class ReliabilityReportingGate(
     public val cameraIPv4Prefix: String,
 ) {
     private val lock = Any()
-    @Volatile private var cameraSessionActive = false
+    private val cameraPathHolders = HashSet<Any>()
     @Volatile private var ipv4Override: Boolean? = null
     @Volatile private var validInternet = true
     @Volatile public var extraCameraPathProbe: (() -> Boolean)? = null
     private val pending = CopyOnWriteArrayList<ReliabilityReportingCancellable>()
 
+    /** A connection owner holds the camera path ([beginCameraPath]). */
     public val isCameraSessionActive: Boolean
-        get() = synchronized(lock) { cameraSessionActive }
+        get() = synchronized(lock) { cameraPathHolders.isNotEmpty() }
 
-    /** Blocks SDK upload while a camera session is live or the camera IPv4 path is up. */
+    /** Blocks SDK upload while a camera path is held or the camera IPv4 path is up. */
     public val shouldBlockUpload: Boolean
         get() {
-            val session = synchronized(lock) { cameraSessionActive }
+            val session = synchronized(lock) { cameraPathHolders.isNotEmpty() }
             val ipv4 = ipv4Override ?: cameraIPv4PathReady()
             return session || ipv4
         }
@@ -46,19 +64,23 @@ public class ReliabilityReportingGate(
     public val isConnected: Boolean
         get() = consent.isOptedIn && !shouldBlockUpload && hasValidInternet
 
-    public fun setCameraSessionActive(active: Boolean) {
+    /**
+     * Holds the camera path until the lease ends and cancels uploads in flight. Every connection
+     * owner takes its own lease at its connect attempt and ends it when it retires, so a stale
+     * owner ending late never reopens a successor's hold. [onClear] runs when the last lease ends.
+     */
+    public fun beginCameraPath(onClear: () -> Unit = {}): ReliabilityCameraPathLease {
+        val holder = Any()
         val toCancel = synchronized(lock) {
-            cameraSessionActive = active
-            if (active) {
-                val copy = pending.toList()
-                pending.clear()
-                copy
-            } else {
-                emptyList()
-            }
+            cameraPathHolders.add(holder)
+            val copy = pending.toList()
+            pending.clear()
+            copy
         }
-        if (active) {
-            for (task in toCancel) task.cancel()
+        for (task in toCancel) task.cancel()
+        return ReliabilityCameraPathLease {
+            val cleared = synchronized(lock) { cameraPathHolders.remove(holder) && cameraPathHolders.isEmpty() }
+            if (cleared) onClear()
         }
     }
 
@@ -74,7 +96,7 @@ public class ReliabilityReportingGate(
     public fun register(task: ReliabilityReportingCancellable) {
         val blockNow = synchronized(lock) {
             pending.add(task)
-            val cameraBlock = cameraSessionActive || cameraIPv4PathReady()
+            val cameraBlock = cameraPathHolders.isNotEmpty() || cameraIPv4PathReady()
             val consentBlock =
                 !task.independentOfAutomaticConsent && !consent.isOptedIn
             cameraBlock || consentBlock
@@ -98,7 +120,7 @@ public class ReliabilityReportingGate(
     public fun resetForTests() {
         hostPolicy.requireHttps = true
         val toCancel = synchronized(lock) {
-            cameraSessionActive = false
+            cameraPathHolders.clear()
             ipv4Override = false
             validInternet = true
             extraCameraPathProbe = null

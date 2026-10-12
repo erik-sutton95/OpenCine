@@ -33,6 +33,8 @@ jobs:
           args: "detect --source=. --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
+      - name: Sentry release tooling shared by the apps (offline)
+        run: bash scripts/sentry/sentry-test.sh
       - name: Spell check
         uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
       - name: Markdown lint
@@ -90,6 +92,15 @@ jobs:
         run: xcodebuild -scheme MonitorUI -destination 'generic/platform=iOS Simulator' build
       - name: Build OpenCineApple (iOS Simulator)
         run: xcodebuild -scheme OpenCineApple -destination 'generic/platform=iOS Simulator' build
+      # The optional Sentry adapter is its own package (it alone takes sentry-cocoa) and starts the
+      # SDK in its tests, so they run in an iOS simulator rather than the shared macOS test process.
+      - name: Test OpenCineSentryApple (iOS Simulator)
+        working-directory: Packages/OpenCineSentryApple
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl create opencine-sentry "iPhone 16 Pro")"
+          trap 'xcrun simctl delete "$udid"' EXIT
+          xcodebuild -scheme OpenCineSentryApple -destination "platform=iOS Simulator,id=$udid" test
       # The device branch of LunaWiFi (NEHotspotConfiguration) compiles only for iOS hardware.
       - name: Build Insta360Apple (iOS devices)
         run: xcodebuild -scheme Insta360Apple -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
@@ -111,9 +122,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Test, lint and assemble (Kotlin warnings are errors in core, media, multicam)
         run: ./gradlew test lint assembleRelease
+      - name: Apps' Gradle plugins (build-logic)
+        run: ./gradlew -p build-logic test
       - name: Vulkan present synchronization regression (host CPU)
         working-directory: .
         run: scripts/android-vulkan-sync-test.sh
+      - name: Release dex check for reflectively created ML Kit components
+        working-directory: .
+        run: scripts/android-verify-component-registrars-test.sh
 
   atlas:
     # Nothing here builds an app, writes to another repository, publishes, schedules or merges.

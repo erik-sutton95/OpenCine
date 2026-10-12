@@ -287,6 +287,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         set { commit { $0.lifetimeToken = newValue } }
     }
     @ObservationIgnored private var listing = UUID()
+    @ObservationIgnored private var batchTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var openTask: Task<Void, Never>?
     @ObservationIgnored private var acquisitionTask: Task<Void, Never>?
     @ObservationIgnored private var acquisition = UUID()
@@ -657,6 +658,22 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
             }
         }
     }
+    /// Caches originals in order for as long as this library lifetime lasts. The batch outlives
+    /// gallery covers and Back, as the original unstructured download did; close, rebind and a
+    /// source change end it before the next record.
+    public func cacheBatch(_ records: [MonitorMediaRecord<Payload>], admitted token: MonitorMediaLibraryActionToken,
+        download: @escaping @MainActor (MonitorMediaRecord<Payload>) async -> Void) {
+        guard !records.isEmpty, !disposed, isCurrent(token) else { return }
+        let id = UUID()
+        batchTasks[id] = Task { @MainActor [weak self] in
+            defer { self?.batchTasks[id] = nil }
+            for record in records {
+                guard !Task.isCancelled, let self, !self.disposed, self.isCurrent(token),
+                    self.record(record.asset.id) != nil else { return }
+                await download(record)
+            }
+        }
+    }
     public func close() { _ = retireGallery() }
     /// Final host disposal drains captured leases; borrowed covers should only call close.
     public func dispose() async {
@@ -691,6 +708,8 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         let oldCursor = cursor
         let oldEntries = entryTask
         let closed = browse
+        let oldBatches = batchTasks.values
+        batchTasks.removeAll()
         openTask = nil
         listTask = nil
         reconciliationTask = nil
@@ -717,6 +736,7 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         oldReconciliation?.cancel()
         oldCursor?.close()
         oldEntries?.cancel()
+        oldBatches.forEach { $0.cancel() }
         retired.dispose()
         return token
     }

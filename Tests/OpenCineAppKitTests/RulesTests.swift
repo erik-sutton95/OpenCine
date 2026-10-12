@@ -71,6 +71,30 @@ struct AppKitRules {
         #expect(!dependencies.isEmpty && Set(dependencies).isSubset(of: package))
     }
 
+    /// The reporting adapter is optional and its own package (`Packages/OpenCineSentryApple`), so
+    /// the OpenCine package names no third-party package and no OpenCine module imports the SDK or
+    /// the adapter (Kotlin: `AdapterIsolationTest` in `appkit-sentry`).
+    @Test func sentryAdapterStaysOutOfThePackageGraph() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let manifest = try String(contentsOf: root.appending(path: "Package.swift"), encoding: .utf8)
+        #expect(!manifest.contains(".package("))
+        let adapter = try String(
+            contentsOf: root.appending(path: "Packages/OpenCineSentryApple/Package.swift"), encoding: .utf8)
+        #expect(adapter.contains(#".package(url: "https://github.com/getsentry/sentry-cocoa", exact: "#))
+        for directory in ["Sources", "Tests"] {
+            let files = (FileManager.default.enumerator(
+                at: root.appending(path: directory), includingPropertiesForKeys: nil)?
+                .allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+            for file in files {
+                let text = try String(contentsOf: file, encoding: .utf8)
+                for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+                    #expect(line != "import Sentry" && line != "import OpenCineSentryApple", "\(file.lastPathComponent)")
+                }
+            }
+        }
+    }
+
     /// Camera controls are app composition over the camera vocabulary: never OpenCineDJI or another
     /// integration, an app or a third-party package (AGENTS.md, camera controls).
     @Test func cameraControlsImportOnlyTheVocabularyAppShellAndUI() throws {

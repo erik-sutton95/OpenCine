@@ -177,7 +177,7 @@ Use internal folders before introducing additional public targets. `OpenCineMedi
 
 An Apple capture source can live in `OpenCineApple` even though it is not a manufacturer integration. This is how HDMI/UVC/capture-device picture sources participate without being forced into a Nikon package.
 
-Optional products should keep their dependencies out of the linked target closure. Verify actual package resolution behavior for any heavy third-party dependencies; multiple products in one package do not magically make all manifest dependencies invisible to the resolver.
+Optional products should keep their dependencies out of the linked target closure. Verify actual package resolution behavior for any heavy third-party dependencies; multiple products in one package do not magically make all manifest dependencies invisible to the resolver. Measured 2026-10-12 (F01): a sentry-cocoa dependency in the OpenCine manifest made every dependent package (OpenZCine's root package, the Android Swift builds) resolve and download the SDK's binary artifacts although no target used it. The optional reporting adapter therefore is its own package, `Packages/OpenCineSentryApple` (Android `:appkit-sentry`, which Gradle resolves only for modules that use it); the OpenCine package keeps no dependencies, and no OpenCine target or module depends on the adapter.
 
 ### 3.3 Products within the UI repository
 
@@ -284,7 +284,7 @@ Paths in this section are repository-relative to the baselines in section 2. Poc
 | Android `opc_vulkan.cpp`, `VulkanPresentBatch.h`, native present/capture support | Core media runtime's Android implementation | Preserve upright-raster/aspect fixes and latest valid image/surface lifetime. Reconcile Pocket's Oct 1 unmerged fix before donor freeze. |
 | `PortraitFeedAspect.swift`, overlays, safe areas, aspect calculations | Core/Media values; UI drawing in UI | Distinguish sensor/raster orientation, clean aperture, mirror, user rotation, display fit, and recording framing. |
 | `ReconnectBackoff.swift`, value pinning/mailbox policy | Core only after protocol assumptions are removed | Per-session clock/operation identity. Keep vendor retry/ACK strategies in adapters. |
-| `FeedIncident*`, connection timelines, health models | Core diagnostic event model plus app-configured sinks | Redact sensitive network/credential fields; preserve per-camera/attempt correlation. Sentry initialization stays app-owned. |
+| `FeedIncident*`, connection timelines, health models | Core diagnostic event model plus app-configured sinks | Redact sensitive network/credential fields; preserve per-camera/attempt correlation. The Sentry sink, transport and upload are the optional adapter products `OpenCineSentryApple` and `:appkit-sentry` (the one exception to "no third-party package", 2026-10-12, F01); the app keeps its host values, DSN and project. |
 | Frame.io model/request/upload logic | Optional `OpenCineFrameIO` product | Separate HTTP state machine from authentication presentation, callback URL schemes, secrets, and app storage. Compare Nikon donor before choosing implementation. |
 | Recording/export/local conform utilities | Media and optional workflow module within Core repo | Distinguish remote camera recording from phone-side capture, playback downloads, transcoding and upload jobs. Extract exercised shared behavior only. |
 | Network helpers | Core/native runtime only where neutral | Generic reachability/path facts and HTTP helpers may share. DUML/PTP/Luna sockets, discovery safety and provisioning remain vendor-owned. |

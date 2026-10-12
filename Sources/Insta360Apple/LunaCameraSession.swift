@@ -710,7 +710,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         // Timecode is host-derived time of day (`ingest(timecode:)`); Luna reports no audio levels.
         var declared = CapabilitySnapshot(
             revision: current.capabilities.revision, descriptors: descriptors,
-            unsupported: Self.unsupported, timecode: .supported, audioLevels: .unsupported)
+            unsupported: Self.unsupported, timecode: .supported(.seconds), audioLevels: .unsupported)
         guard declared != current.capabilities else { return }
         declared.revision = declared.revision.next()
         current.capabilities = declared

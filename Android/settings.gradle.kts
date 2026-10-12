@@ -44,6 +44,9 @@ include(
     ":insta360-shell", ":insta360-luna",
     // Shared app shell: saved cameras, connection model, cameras and pair screens.
     ":appkit",
+    // Optional reporting adapter: appkit's reporting sink on the Sentry SDK (the one module with a
+    // third-party SDK; nothing else here depends on it).
+    ":appkit-sentry",
     // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
     ":camera-controls",
     // The shared conformance kit apps run from their androidTest source sets.

@@ -5,14 +5,12 @@ import Observation
 import OpenCineAppKit
 import SwiftUI
 
-/// Owns mutually exclusive live panels and the delayed zoom dismissal.
-/// Camera, gamepad and headphone input remain adapters to the shared admission transition.
+/// Owns mutually exclusive live panels and the delayed zoom dismissal for camera-vocabulary
+/// hosts. The interface lock is the session's. Camera, gamepad and headphone input remain
+/// adapters to the shared admission transition.
 @MainActor @Observable
 public final class MonitorOperatorInteraction {
-    public var locked = false
     public var topMenu: LiveTopMenu?
-    public var assistsExpanded = false
-    public var assistsRevealing = false
     public private(set) var zoomVisible = false
     public private(set) var zoomMounted = false
     @ObservationIgnored private var zoomDismissal: Task<Void, Never>?
@@ -26,8 +24,7 @@ public final class MonitorOperatorInteraction {
     public enum Panel: Equatable { case top, capture, drum, assist, motion, zoom }
 
     public func openZoom<Host: LiveChromeHost>(host: Host, motion: Binding<LiveGimbalPanel>) {
-        guard !locked else { return }
-        assistsExpanded = false
+        guard !host.operatorSession.locked else { return }
         select(.zoom, host: host, motion: motion, reduceMotion: false)
         zoomDismissal?.cancel(); zoomDismissal = nil
         zoomMounted = true; zoomVisible = true
@@ -52,7 +49,7 @@ public final class MonitorOperatorInteraction {
 
     public func select<Host: LiveChromeHost>(_ panel: Panel, host: Host,
         motion: Binding<LiveGimbalPanel>, reduceMotion: Bool) {
-        guard !locked else {
+        guard !host.operatorSession.locked else {
             dismiss(host: host, motion: motion, reduceMotion: reduceMotion)
             return
         }
@@ -87,7 +84,6 @@ public final class MonitorOperatorInteraction {
         input: (MonitorInputAdmission) -> Void) {
         if transition.dismissTransients { dismiss(host: host, motion: motion, reduceMotion: reduceMotion) }
         if transition.retireReadout { host.captureDrum = nil }
-        if transition.collapseAssists { assistsExpanded = false }
         if let admission = transition.inputAdmission { input(admission) }
     }
 
@@ -121,7 +117,7 @@ private struct MonitorOperatorInteractionModifier<Host: LiveChromeHost>: ViewMod
     @State private var orientationRevision = 0
 
     private var context: MonitorInteractionContext {
-        MonitorInteractionContext(locked: interaction.locked, covered: covered,
+        MonitorInteractionContext(locked: host.operatorSession.locked, covered: covered,
             editing: host.isEditingChrome, clean: host.assist.clean,
             toolbarMounted: host.chromeSectionMounts(.toolBar),
             camera: host.control.snapshot?.session, orientationRevision: orientationRevision)
@@ -138,6 +134,13 @@ private struct MonitorOperatorInteractionModifier<Host: LiveChromeHost>: ViewMod
             .onChange(of: host.captureDrum?.id) { _, drum in if drum != nil { select(.drum) } }
             .onChange(of: host.assist.configureTool) { _, tool in if tool != nil { select(.assist) } }
             .onChange(of: motion.wrappedValue) { _, panel in if panel != .none { select(.motion) } }
+            .onChange(of: host.cameraStatus.isPhoto) { _, photo in
+                host.captureSheet = CaptureReadoutAdmission.retained(host.captureSheet, isPhoto: photo)
+                if CaptureReadoutAdmission.retainedDrum(host.captureDrum?.sheet, isPhoto: photo) == nil {
+                    host.captureDrum = nil
+                }
+                if photo { interaction.topMenu = nil }
+            }
             .onDisappear { interaction.disappear(host: host, motion: motion, input: input) }
     }
 

@@ -42,7 +42,7 @@ public data class MonitorLayoutCapabilities(
         clipDelete = base.clipDelete,
         clipStar = base.clipStar,
         requiresInternetHop = base.requiresInternetHop,
-        timecode = capabilities.timecode.shown(base.timecode),
+        timecode = capabilities.timecode.support.shown(base.timecode),
     )
 }
 

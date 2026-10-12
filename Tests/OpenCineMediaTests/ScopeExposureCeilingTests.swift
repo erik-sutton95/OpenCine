@@ -25,4 +25,23 @@ import Testing
         #expect(source.clipByte(transfer: .dlog2) == 247)
         #expect(held.clipByte == 247)
     }
+    @Test func aDeclaredClipReplacesCalibrationUntilWithdrawn() {
+        let source = ScopeExposureCeiling(profile: ScopeClipProfile(calibrations: [
+            .dlog2: ScopeClipCalibration(referenceISO: 1600, referenceByte: 247, refinementMaximumByte: 248),
+        ], defaultISO: 1600))
+        // A camera that publishes its warning code states it; no tap may ratchet past it.
+        source.declare(clipByte: 180, for: .log3G10)
+        #expect(source.clipByte(transfer: .log3G10) == 180)
+        #expect(source.observeTapMax(200, transfer: .log3G10).clip == 180)
+        source.declare(clipByte: 230, for: .dlog2)
+        let held = source.observeTapMax(248, transfer: .dlog2)
+        #expect(held.clip == 230 && !held.maxRose)
+        #expect(source.clipByte(transfer: .dlog2, iso: 800) == 230)
+        source.declare(clipByte: nil, for: .dlog2)
+        #expect(source.clipByte(transfer: .dlog2) == 247)
+        source.declare(clipByte: 900, for: .nlog)
+        #expect(source.clipByte(transfer: .nlog) == 255)
+        source.reset()
+        #expect(source.clipByte(transfer: .log3G10) == 255)
+    }
 }

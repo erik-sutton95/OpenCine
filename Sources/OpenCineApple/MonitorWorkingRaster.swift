@@ -39,6 +39,22 @@ public final class MonitorWorkingRaster: @unchecked Sendable {
             bounds: CGRect(x: 0, y: 0, width: target.width, height: target.height), colorSpace: nil)
         return destination
     }
+    /// A decoded still (motion JPEG) on this raster: its codes copied unmanaged into a pooled
+    /// BGRA buffer at the working size, scaled the way a wider video frame is. Nil when no
+    /// buffer can be made.
+    public func prepared(_ image: CGImage) -> CVPixelBuffer? {
+        let target = Self.targetSize(width: image.width, height: image.height)
+        guard target.width > 0, target.height > 0,
+            let destination = allocate(width: target.width, height: target.height)
+        else { return nil }
+        let source = CIImage(cgImage: image, options: MonitorWorkingSpace.imageOptions)
+        let scaled = source.transformed(by: CGAffineTransform(
+            scaleX: CGFloat(target.width) / max(source.extent.width, 1),
+            y: CGFloat(target.height) / max(source.extent.height, 1)))
+        context.render(scaled, to: destination,
+            bounds: CGRect(x: 0, y: 0, width: target.width, height: target.height), colorSpace: nil)
+        return destination
+    }
     public func reset() { lock.lock(); pools.removeAll(); lock.unlock() }
     private func allocate(width: Int, height: Int) -> CVPixelBuffer? {
         lock.lock(); defer { lock.unlock() }
