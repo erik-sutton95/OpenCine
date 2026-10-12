@@ -630,7 +630,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         if mounts(.toolBar), !command {
             let (metrics, frame) = MonitorAssistPaletteLayout.fieldMonitor(layout, toolCount: tools.count, safeTop: safeArea.top)
             MonitorAssistPalette(tools: tools.map { .init(id: $0.rawValue, title: $0.rawValue,
-                enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || ($0 == .instantReview && assists.signalOptions.instantReview != nil),
+                enabled: assist.isOn($0), hasOptions: $0.hasConfiguration || assists.signalOptions.offers($0),
                 accessibilityLabel: $0.title) }, layout: metrics,
                 usageSeed: assists.usageSeed, usage: assists.usage, expanded: $expanded,
                 onToggle: { id in
