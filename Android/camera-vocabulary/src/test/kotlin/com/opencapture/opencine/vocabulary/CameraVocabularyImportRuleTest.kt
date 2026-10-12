@@ -14,6 +14,9 @@ class CameraVocabularyImportRuleTest {
             "import kotlin.", "import java.", "import com.opencapture.opencine.core.",
             "import com.opencapture.opencine.motion.", "import com.opencapture.opencine.media.",
             "import com.opencapture.opencine.vocabulary.",
+            // The coroutine library `:core` exports: the Kotlin twin of Swift concurrency, which the
+            // shared recovery episode runs on in both languages.
+            "import kotlinx.coroutines.",
         )
         for (file in files) {
             val imports = file.readLines().filter { it.startsWith("import ") }
