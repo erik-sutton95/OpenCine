@@ -50,6 +50,8 @@ struct AppKitRules {
         let system: Set<String> = [
             "Foundation", "Observation", "Network", "SwiftUI", "UIKit", "CoreMotion", "CoreImage.CIFilterBuiltins", "os",
             "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
+            // The delivery share sheet's typed file items.
+            "LinkPresentation", "UniformTypeIdentifiers",
         ]
         let directory = root.appending(path: "Sources/OpenCineAppKitApple")
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
