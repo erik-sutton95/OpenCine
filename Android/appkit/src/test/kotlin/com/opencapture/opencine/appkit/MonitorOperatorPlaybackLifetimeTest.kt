@@ -133,7 +133,7 @@ class MonitorOperatorPlaybackLifetimeTest {
                     f.library.deleteHostBatch(authority, listOf(MonitorMediaDeletionTarget(f.records[1], listOf(1))), 1,
                         preparation = MonitorMediaDeletionPreparation.RETIRE_GALLERY,
                         port = MonitorMediaDeletionPort(remove = { MonitorMediaDeleteAcknowledgement.REMOVED }, commit = { row, _ ->
-                            f.library.applyLocalRemoval(listOf(row.asset.id), authority.actionToken); true
+                            f.library.applyLocalRemoval(setOf(row.asset.id), authority.actionToken); true
                         }))
                 })
             })
@@ -159,7 +159,7 @@ class MonitorOperatorPlaybackLifetimeTest {
                         f.library.deleteHostBatch(authority, removed.map { MonitorMediaDeletionTarget(it, listOf(1)) }, 1,
                             preparation = MonitorMediaDeletionPreparation.RETIRE_GALLERY,
                             port = MonitorMediaDeletionPort(remove = { MonitorMediaDeleteAcknowledgement.REMOVED }, commit = { row, _ ->
-                                f.library.applyLocalRemoval(listOf(row.asset.id), authority.actionToken); true
+                                f.library.applyLocalRemoval(setOf(row.asset.id), authority.actionToken); true
                             }))
                     })
                 })
