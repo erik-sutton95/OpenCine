@@ -8,6 +8,7 @@ import Testing
     var counts: [Count] = []
     var clears: [Clear] = []
     var current = true
+    var cleared: [String] = []
     func source(_ identity: MonitorSettingsCacheIdentity, revision: UInt64 = 0) -> MonitorSettingsCacheSource {
         .init(identity: identity, revision: revision, isCurrent: { self.current },
             count: { await withCheckedContinuation { self.counts.append(.init(continuation: $0)) } },
@@ -116,6 +117,22 @@ import Testing
         #expect(!model.clearing && model.bytes == nil)
         io.counts[1].continuation.resume(returning: 0)
         #expect(await settled { model.bytes == 0 })
+        model.retire()
+    }
+
+    /// A2-58: delivery exports count toward Settings storage and clear with the cache.
+    @Test func anAddedStoreIsCountedAndClearedWithTheCache() async {
+        guard #available(macOS 14, *) else { return }
+        let io = SettingsCacheIO()
+        let base = MonitorSettingsCacheSource(
+            identity: .init(namespace: "A", source: nil), revision: 0, isCurrent: { true },
+            count: { 100 }, clear: { io.cleared.append("cache") })
+        let model = MonitorSettingsCacheModel()
+        model.refresh(base.adding(count: { 23 }, clear: { io.cleared.append("exports") }))
+        #expect(await settled { model.bytes == 123 })
+        model.requestClear()
+        model.clear()
+        #expect(await settled { io.cleared == ["cache", "exports"] })
         model.retire()
     }
 }

@@ -3,21 +3,25 @@ import OpenCineMedia
 import Testing
 
 @Suite struct MonitorMediaShareStagingTests {
-    @Test func stableExportsAreBorrowedAndNeverDisposable() throws {
+    /// A2-58: a run's export is linked into the share's own lease, so the run can release its
+    /// export while the share sheet still reads the file.
+    @Test func runExportsAreLinkedIntoTheirOwnShareLease() throws {
         try withRoot { root in
             let exports = root.appendingPathComponent("exports", isDirectory: true)
             let staging = root.appendingPathComponent("staging", isDirectory: true)
-            try FileManager.default.createDirectory(at: exports, withIntermediateDirectories: true)
-            let video = exports.appendingPathComponent("C0001.MOV")
+            let run = exports.appendingPathComponent("run", isDirectory: true)
+            try FileManager.default.createDirectory(at: run, withIntermediateDirectories: true)
+            let video = run.appendingPathComponent("C0001.MOV")
             try Data([1, 2, 3]).write(to: video)
             let prepared = try prepare([video], exports: exports, staging: staging)
-            #expect(prepared.urls == [video])
-            #expect(prepared.stagingCleanupURL == nil)
-            MonitorMediaShareStaging.cleanupStaging(at: nil, stagingDirectory: staging)
-            MonitorMediaShareStaging.cleanupStaging(at: video, stagingDirectory: staging)
-            MonitorMediaShareStaging.cleanupStaging(at: exports, stagingDirectory: staging)
-            #expect(try Data(contentsOf: video) == Data([1, 2, 3]))
-            #expect(!FileManager.default.fileExists(atPath: staging.path))
+            let lease = try #require(prepared.stagingCleanupURL)
+            #expect(prepared.urls.map(\.lastPathComponent) == ["C0001.MOV"])
+            #expect(prepared.urls.first?.deletingLastPathComponent().standardizedFileURL
+                == lease.standardizedFileURL)
+            try FileManager.default.removeItem(at: run)
+            #expect(try Data(contentsOf: prepared.urls[0]) == Data([1, 2, 3]))
+            MonitorMediaShareStaging.cleanupStaging(at: lease, stagingDirectory: staging)
+            #expect(!FileManager.default.fileExists(atPath: lease.path))
         }
     }
 

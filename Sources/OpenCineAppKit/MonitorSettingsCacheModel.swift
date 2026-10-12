@@ -30,6 +30,29 @@ public struct MonitorSettingsCacheSource {
         self.isCurrent = isCurrent; self.count = count; self.clear = clear
         self.clearSummary = clearSummary; self.readObserved = readObserved
     }
+
+    /// The same cache together with another store the operator counts and clears with it, such
+    /// as the delivery exports (A2-58).
+    public func adding(
+        count more: @escaping @MainActor () async -> UInt64,
+        clear also: @escaping @MainActor () async throws -> Void
+    ) -> MonitorSettingsCacheSource {
+        let count = count, clear = clear
+        var observed: (@MainActor () async throws -> UInt64?)?
+        if let read = readObserved {
+            observed = {
+                guard let bytes = try await read() else { return nil }
+                return bytes + (await more())
+            }
+        }
+        return .init(
+            identity: identity, revision: revision, isCurrent: isCurrent,
+            count: { await count() + more() },
+            clear: {
+                try await clear()
+                try await also()
+            }, clearSummary: clearSummary, readObserved: observed)
+    }
 }
 
 /// Owns cache presentation and captured actions; the host remains the only cache IO owner.
