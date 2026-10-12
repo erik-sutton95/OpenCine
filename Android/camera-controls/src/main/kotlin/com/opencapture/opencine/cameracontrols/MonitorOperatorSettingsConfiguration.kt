@@ -56,18 +56,12 @@ public class MonitorSettingsAccountSource(
     public val refresh: () -> Unit,
 )
 
-/** The deployed display store supplies values and actions; the common page owns its form. */
-public class MonitorOperatorBorrowedDisplay(
-    public val layoutTitle: String,
-    public val layoutHelp: String,
-    public val choices: List<MonitorDisplayChoice>,
-    public val selection: String,
-    public val onSelect: (String) -> Unit,
-    public val expandedSection: String?,
-    public val onExpand: (String?) -> Unit,
-    public val sections: List<MonitorDisplaySection>,
-    public val order: MonitorDisplayOrderGroup,
-    public val returnedFromEditor: () -> Unit = {},
+/** Display rows over the one display owner: the modes the source declares, each mode's chrome, the clean-view
+ * pins and, when a live monitor can host it, the Edit view. [available] is what the source can fill. */
+public class MonitorOperatorDisplaySource(
+    public val session: com.opencapture.opencine.appkit.MonitorOperatorSessionModel,
+    public val available: Set<com.opencapture.opencine.appkit.MonitorDisplaySection>,
+    public val edit: ((com.opencapture.opencine.appkit.MonitorDisplayMode) -> Unit)?,
 )
 
 /** An actual setting descriptor, including its observed selection and admitted write. */
@@ -152,7 +146,7 @@ public class MonitorOperatorSettingsConfiguration(
 @Composable
 public fun MonitorOperatorSettingsScreen(
     configuration: MonitorOperatorSettingsConfiguration,
-    borrowedDisplay: MonitorOperatorBorrowedDisplay,
+    display: MonitorOperatorDisplaySource,
     initialTab: MonitorSettingsTab = MonitorSettingsTab.LINK,
     sourceIdentity: Any? = null,
 ): Unit {
@@ -161,7 +155,7 @@ public fun MonitorOperatorSettingsScreen(
         brand = configuration.brand, selection = selectedTab, onSelect = { selectedTab = it },
         isLive = configuration.isLive, phase = configuration.phase, close = configuration.close,
         disconnect = configuration.disconnect, feedback = configuration.feedback,
-        source = MonitorOperatorSettingsSource.Configured(configuration, borrowedDisplay),
+        source = MonitorOperatorSettingsSource.Configured(configuration, display),
         sourceIdentity = sourceIdentity,
         sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
     ))

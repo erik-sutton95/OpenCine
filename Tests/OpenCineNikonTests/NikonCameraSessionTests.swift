@@ -81,6 +81,18 @@ struct NikonCameraSessionTests {
         #expect(session.refresh().timecode == .unknown)
     }
 
+    /// A5-01: BatteryLevel is a five-step gauge, so the common reading declares fifths, not percent.
+    @Test("The camera battery is declared at the body's five-step precision")
+    func batteryDeclaresFiveSteps() {
+        let session = NikonCameraSession(driver: Driver(Self.movieFacts()), serialNumber: "3000123")
+        let battery = session.refresh().power.battery
+        #expect(battery.value == 0.8)
+        #expect(battery.precision == .quantized(step: 0.2))
+        #expect(NikonCameraSession.batteryFraction(58) == 0.6)
+        #expect(NikonCameraSession.batteryFraction(1) == 0.2)
+        #expect(NikonCameraSession.batteryFraction(0) == nil)
+    }
+
     @Test("Every advertised writable value reaches the write queue; none is silently unsupported")
     func advertisedValuesAreImplemented() {
         var photo = Self.movieFacts()

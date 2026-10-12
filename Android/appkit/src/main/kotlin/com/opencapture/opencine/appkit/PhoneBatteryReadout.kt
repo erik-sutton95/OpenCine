@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,13 +57,6 @@ public fun rememberPhoneBatteryReadout(): PhoneBatteryReadout {
         }
     }
     return readout
-}
-
-/** Calls [onChange] with every new readout, in its own composition scope. */
-@Composable
-public fun ObservePhoneBattery(onChange: (PhoneBatteryReadout) -> Unit) {
-    val readout = rememberPhoneBatteryReadout()
-    LaunchedEffect(readout) { onChange(readout) }
 }
 
 public fun readPhoneBatteryReadout(intent: Intent?, manager: BatteryManager?): PhoneBatteryReadout =

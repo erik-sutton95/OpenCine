@@ -34,18 +34,10 @@ public final class MonitorControlModel {
         let localRevision: Int
     }
 
-    /// Which reported state changes retire an operator's captured record target.
-    public enum RecordConfirmationPolicy: Hashable, Sendable {
-        /// A changed recording report requires a new approval.
-        case unchangedRecording
-        /// Preserve the captured Start or Stop while recording remains known and control ready.
-        case explicitTarget
-    }
-
     /// An explicit record confirmation authorizes one target under captured control assumptions.
+    /// A recording report that changes the captured Start or Stop retires it: approval never inverts.
     public struct RecordEditor: Hashable, Sendable {
         public let recording: Bool
-        public let policy: RecordConfirmationPolicy
         let editor: Editor
         let mode: CaptureMode
     }
@@ -310,16 +302,12 @@ public final class MonitorControlModel {
     // MARK: Record
 
     /// Unknown recording, mode, access or control readiness cannot be confirmed.
-    public func recordEditor(policy: RecordConfirmationPolicy = .unchangedRecording)
-        -> RecordEditor?
-    {
+    public func recordEditor() -> RecordEditor? {
         guard !recordPending, let snapshot else { return nil }
-        return recordEditor(in: snapshot, policy: policy)
+        return recordEditor(in: snapshot)
     }
 
-    private func recordEditor(in snapshot: CameraSnapshot, policy: RecordConfirmationPolicy)
-        -> RecordEditor?
-    {
+    private func recordEditor(in snapshot: CameraSnapshot) -> RecordEditor? {
         guard snapshot.connection == .ready, let mode = snapshot.mode.value, mode.role == .video,
             let descriptor = snapshot.capabilities[.recording], descriptor.access == .readWrite,
             descriptor.availability == .available
@@ -335,7 +323,7 @@ public final class MonitorControlModel {
         default: return nil
         }
         return RecordEditor(
-            recording: recording, policy: policy,
+            recording: recording,
             editor: Editor(
                 key: .recording, binding: binding, session: snapshot.session,
                 epoch: snapshot.epoch, authority: snapshot.authority, domain: descriptor.domain,
@@ -343,17 +331,17 @@ public final class MonitorControlModel {
             mode: mode)
     }
 
-    /// Checks mode, epoch, authority, binding, readiness and the captured observation policy.
+    /// Checks mode, epoch, authority, binding, readiness and the captured recording observation.
     public func canCommitRecord(from editor: RecordEditor) -> Bool {
         guard !recordPending, let snapshot else { return false }
         return recordApprovalMatches(editor, snapshot: snapshot)
     }
 
     private func recordApprovalMatches(_ editor: RecordEditor, snapshot: CameraSnapshot) -> Bool {
-        guard let current = recordEditor(in: snapshot, policy: editor.policy),
+        guard let current = recordEditor(in: snapshot),
             current.editor == editor.editor, current.mode == editor.mode
         else { return false }
-        return editor.policy == .explicitTarget || current.recording == editor.recording
+        return current.recording == editor.recording
     }
 
     /// Sends the captured target. A fresh snapshot is checked again immediately before dispatch.

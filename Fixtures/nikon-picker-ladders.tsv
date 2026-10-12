@@ -1,0 +1,49 @@
+# Golden vectors for the Nikon picker ladders, shared by both shells.
+#
+# Swift owns them in `Sources/OpenCineNikon/NikonPickerLadders.swift` (plus `WhiteBalanceTint`);
+# Kotlin re-implements them in `Android/nikon` (`ShutterPickerPolicy`, `FocusPickerPolicy`,
+# `StillPickerLadders`, `WhiteBalanceTint`). Nothing links the two, so both test suites read this
+# file and a ladder edited on one side only fails a test instead of drifting.
+#
+# Rows (tab separated):
+#   ladder  <name>  <value>...          the drum's labels in order
+#   base    <name>  <value>             the circuit's base value
+#   tint    <amberBlueCell>  <greenMagentaCell>  <label>   WhiteBalanceTint.label (cells clamp to -6...6)
+ladder	shutter.angle	5.6°	11.2°	22.5°	45°	72°	86.4°	90°	108°	144°	172°	180°	216°	288°	346°	360°
+ladder	shutter.speed	1/6	1/8	1/10	1/13	1/15	1/20	1/25	1/30	1/40	1/50	1/60	1/80	1/100	1/125	1/160	1/200	1/250	1/320	1/400	1/500	1/640	1/800	1/1000	1/1250	1/1600	1/2000	1/2500	1/3200	1/4000	1/5000	1/6400	1/8000	1/10000	1/13000	1/16000
+base	shutter.angle	180°
+base	shutter.speed	1/50
+ladder	focus.afMode	MF	AF-S	AF-C	AF-F
+ladder	focus.area	Single	Wide-S	Wide-L	Auto	Subject tracking
+ladder	focus.subject	Auto	People	Animal	Bird	Vehicle	Airplane
+base	focus.afMode	AF-F
+base	focus.area	Single
+base	focus.subject	Auto
+ladder	still.iso	100	125	160	200	250	320	400	500	640	800	1000	1250	1600	2000	2500	3200	4000	5000	6400	8000	10000	12800	16000	20000	25600	32000	40000	51200
+ladder	still.shutter	30s	15s	8s	4s	2s	1s	1/2	1/4	1/8	1/15	1/30	1/60	1/125	1/200	1/250	1/500	1/1000	1/2000	1/4000	1/8000	Bulb
+ladder	still.iris	f/1.2	f/1.4	f/1.8	f/2.0	f/2.2	f/2.5	f/2.8	f/3.2	f/3.5	f/4.0	f/4.5	f/5.0	f/5.6	f/6.3	f/7.1	f/8.0	f/9.0	f/10.0	f/11.0	f/13.0	f/14.0	f/16.0	f/18.0	f/20.0	f/22.0
+ladder	still.drive	Single	Continuous L	Continuous H	Continuous H+	C15	C30	C60	C120
+ladder	still.appTimer	Off	1s	2s	3s	5s	10s	20s	30s	60s
+ladder	still.focusMode	AF-S	AF-C	AF-A	MF
+ladder	still.focusArea	Pinpoint	Single	Dyn-S	Dyn-M	Dyn-L	Wide-S	Wide-L	3D tracking	Auto
+ladder	still.focusSubject	Off	Auto	People	Animal	Vehicle	Bird	Airplane
+ladder	still.mode	Auto	P	S	A	M
+ladder	still.userMode	P	S	A	M
+ladder	still.meter	Matrix	Center	Spot	Highlight
+ladder	still.picture	Auto	Standard	Neutral	Vivid	Monochrome	Portrait	Landscape	Flat	Flat Mono	Deep Tone Mono	Rich Tone Portrait	Dream	Morning	Pop	Sunday	Somber	Drama	Silence	Bleach	Melancholic	Pure	Denim	Toy	Sepia	Blue	Red	Pink	Charcoal	Graphite	Binary	Carbon	Custom 1	Custom 2	Custom 3	Custom 4	Custom 5	Custom 6	Custom 7	Custom 8	Custom 9	Cloud 1	Cloud 2	Cloud 3	Cloud 4	Cloud 5	Cloud 6	Cloud 7	Cloud 8	Cloud 9
+ladder	still.area	FX	DX	1:1	16:9
+ladder	still.size	Size L	Size M	Size S
+ladder	still.quality	RAW	RAW+JPEG Fine	RAW+JPEG Normal	RAW+JPEG Basic	JPEG Fine	JPEG Normal	JPEG Basic
+ladder	still.nef	High efficiency	High efficiency★	Lossless compression
+tint	0	0	Neutral
+tint	1	0	A0.5
+tint	-1	0	B0.5
+tint	0	1	G0.25
+tint	0	-1	M0.25
+tint	2	4	A1 · G1
+tint	3	-3	A1.5 · M0.75
+tint	-5	5	B2.5 · G1.25
+tint	-6	6	B3 · G1.5
+tint	6	-6	A3 · M1.5
+tint	9	0	A3
+tint	-7	-9	B3 · M1.5

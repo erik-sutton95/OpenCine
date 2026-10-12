@@ -17,16 +17,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -53,8 +59,9 @@ public class MonitorOperatorLiveSections<S>(
     public val status: S, public val power: S, public val capture: S, public val assists: S,
     public val lock: S, public val settings: S, public val media: S, public val record: S, public val display: S? = null,
 )
+/** [recording] is read where the status deck draws, so a frame-rate timecode redraws the deck, not the screen. */
 public class MonitorOperatorLiveStatus<K, S>(
-    public val recording: MonitorStatusPresentation, public val showsTimecode: Boolean,
+    public val recording: () -> MonitorStatusPresentation, public val showsTimecode: Boolean,
     public val showsRecording: Boolean, public val storage: MonitorOperatorLiveReadout<K, S>?,
     public val format: List<MonitorOperatorLiveReadout<K, S>>, public val fps: String?, public val signalBars: Int?,
     public val fpsSection: S?,
@@ -75,12 +82,13 @@ public class MonitorOperatorPaletteItem(
     public val glyph: (@Composable (Color, Modifier) -> Unit)? = null,
     public val accessibilityIdentifier: String? = null,
 )
-public class MonitorOperatorAspectControl(public val frame: MonitorRect, public val fills: Boolean,
-    public val title: String, public val change: () -> Unit)
-public class MonitorOperatorFocusReset(public val frame: MonitorRect, public val title: String,
-    public val enabled: Boolean, public val pending: Boolean, public val action: () -> Unit)
-public class MonitorOperatorLookComparison(public val frame: MonitorRect, public val title: String,
-    public val muted: Boolean, public val toggle: () -> Unit)
+/** The portrait fit/fill key, placed and admitted by the surface. */
+internal class MonitorOperatorAspectControl(val frame: MonitorRect, val fills: Boolean, val change: () -> Unit)
+/** The source's focus recenter. The surface places it and admits the action. */
+public class MonitorOperatorFocusReset(public val title: String, public val enabled: Boolean,
+    public val pending: Boolean, public val action: () -> Unit)
+/** The look's 50/50 comparison key. The surface places it above the focus reset. */
+public class MonitorOperatorLookComparison(public val title: String, public val muted: Boolean, public val toggle: () -> Unit)
 /** Captured native audio facts; a missing sample keeps its unavailable presentation. */
 public class MonitorOperatorLiveAudio(
     public val levels: MonitorAudioMeterLevels?, public val caption: String?, public val unavailable: String?,
@@ -88,7 +96,9 @@ public class MonitorOperatorLiveAudio(
 )
 /** Coherent hardware-only surfaces, independently optional and bounded to their own domain. */
 public class MonitorOperatorBodyViews(
+    /** Placed by the surface beside the record well; input is refused there while commands are not admitted. */
     public val focusDrive: (@Composable (Boolean) -> Unit)? = null,
+    /** The command dashboard in place of the picture, placed by the surface with the same refusal. */
     public val dashboard: (@Composable (Boolean) -> Unit)? = null,
     public val focusMarks: (@Composable () -> Unit)? = null,
     public val feedGestures: (@Composable BoxScope.(Boolean) -> Unit)? = null,
@@ -96,6 +106,8 @@ public class MonitorOperatorBodyViews(
     public val motion: MonitorOperatorMotionViews? = null,
     public val waitingPicture: (@Composable () -> Unit)? = null,
     public val feedback: (@Composable BoxScope.() -> Unit)? = null,
+    public val resetFocus: MonitorOperatorFocusReset? = null,
+    public val comparison: MonitorOperatorLookComparison? = null,
 )
 public class MonitorOperatorMotionViews(
     public val controls: @Composable BoxScope.(Boolean) -> Unit,
@@ -124,24 +136,18 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     renderedTools: Set<MonitorAssistTool>, fittedScopes: List<MonitorAssistTool>, scopeZone: MonitorRect?,
     signalOptions: MonitorOperatorSignalOptions = MonitorOperatorSignalOptions(),
     audioChannels: Pair<AudioMeterReading, AudioMeterReading>? = null,
-    reference: MonitorFalseColorReferenceValues? = null,
-    aspect: MonitorOperatorAspectControl? = null, resetFocus: MonitorOperatorFocusReset? = null,
-    comparison: MonitorOperatorLookComparison? = null, cameraViews: MonitorOperatorBodyViews = MonitorOperatorBodyViews(),
+    aspect: MonitorOperatorAspectControl? = null, focusResetFrame: MonitorRect = layout.focusReset,
+    cameraViews: MonitorOperatorBodyViews = MonitorOperatorBodyViews(),
     modifier: Modifier = Modifier, onCaptureFrame: (MonitorRect) -> Unit = {},
     chromeBoxes: MutableMap<S, MonitorRect>? = null,
-    resumed: Boolean = true, retainsPanel: Boolean = true,
-    nativeFraming: Boolean = false, floatingBounds: MonitorRect? = null,
-    floatingPlacement: MonitorRect? = null,
     audio: MonitorOperatorLiveAudio? = null,
     displayTitle: String? = null,
-    onPanelFrameChanged: ((MonitorAssistTool, MonitorRect?) -> Unit)? = null,
     openMode: (() -> Unit)? = null,
-    recordConfirmationPolicy: MonitorControlModel.RecordConfirmationPolicy,
     interactionEnabled: Boolean, borrowed: Boolean, returnToStage: (() -> Unit)? = null,
     safeLeading: Float = viewport.x, safeTrailing: Float = max(0f, layout.viewport.maxX - viewport.maxX),
     safeTop: Float = viewport.y, safeBottom: Float = max(0f, layout.viewport.maxY - viewport.maxY),
     scopeFeed: MonitorRect = layout.picture, framingFrame: MonitorRect? = null,
-    scopePlacement: MonitorRect? = floatingPlacement, scopeFloating: Boolean? = null,
+    scopePlacement: MonitorRect? = null, scopeFloating: Boolean? = null,
     scopeTransfer: com.opencapture.opencine.media.MonitorTransfer? = null,
     showsReference: Boolean = true, assistHost: AssistHost = assists?.host ?: MonitorDefaultAssistHost,
     lookOptions: AssistLutPicker? = assists?.lookPicker,
@@ -160,19 +166,25 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val dismiss = captureInputs.dismiss
     var paletteRevision by remember { mutableLongStateOf(0) }
     val exposed = !covered && current(identity)
-    val interactive = exposed && !locked && editing == null && resumed && interactionEnabled
+    val interactive = exposed && !locked && editing == null && interactionEnabled
     val admitted = interactive && !readOnly
     val linkMounted = status.fpsSection == null || status.fpsSection in mounted
-    val inspectorTools = palette.filter { it.hasOptions }.mapNotNull { it.tool }
-    val assistInspectorPresented = interactive && assist.configureTool?.let { it in inspectorTools } == true
-    LaunchedEffect(assist.configureTool, clean, command, locked, resumed, inspectorTools, mounted) {
-        if (clean || command || locked || !resumed || sections.assists !in mounted ||
-            assist.configureTool !in inspectorTools) assist.configureTool = null
+    val hasOptions = { item: MonitorOperatorPaletteItem -> item.hasOptions || signalOptions.offers(item.tool) }
+    val inspectorTools = palette.filter(hasOptions).mapNotNull { it.tool }
+    // The source's toolless item (PLAY) opens its instant review menu as one more inspector tab.
+    val reviewItem = signalOptions.reviewItem(palette)
+    var reviewing by remember { mutableStateOf(false) }
+    val inspecting = assist.configureTool != null || reviewing
+    val closeInspector = { assist.configureTool = null; reviewing = false }
+    val assistInspectorPresented = interactive && (assist.configureTool?.let { it in inspectorTools } ?: (reviewing && reviewItem != null))
+    LaunchedEffect(assist.configureTool, reviewing, clean, command, locked, inspectorTools, reviewItem != null, mounted) {
+        val closes = clean || command || locked || sections.assists !in mounted
+        if (closes || assist.configureTool !in inspectorTools) assist.configureTool = null
+        if (closes || reviewItem == null || assist.configureTool != null) reviewing = false
     }
-    LaunchedEffect(panel?.key, retainsPanel) { if (!retainsPanel) dismiss() }
-    LaunchedEffect(assist.configureTool) { if (assist.configureTool != null) dismiss() }
-    BackHandler(enabled = interactive && panel != null && assist.configureTool == null, onBack = dismiss)
-    BackHandler(enabled = interactive && assist.configureTool != null) { assist.configureTool = null }
+    LaunchedEffect(assist.configureTool, reviewing) { if (inspecting) dismiss() }
+    BackHandler(enabled = interactive && panel != null && !inspecting, onBack = dismiss)
+    BackHandler(enabled = interactive && inspecting, onBack = closeInspector)
     fun currentSource(): Boolean = current(identity) && control.state.value.snapshot?.let { it.session to it.epoch } ==
         identity.camera?.let { it to identity.epoch }
     fun admits(): Boolean = admitted && currentSource()
@@ -212,10 +224,10 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     }
     val context = MonitorInteractionContext(locked, covered, editing != null, clean,
         sections.assists in mounted, camera = identity.camera,
-        transientPanelPresented = panel != null || state.preview != null || assist.configureTool != null,
+        transientPanelPresented = panel != null || state.preview != null || inspecting,
         orientationRevision = if (layout.portrait) 1 else 0)
     MonitorInteractionEffect(context) { value ->
-        if (value.dismissTransients) { dismiss(); assist.configureTool = null }
+        if (value.dismissTransients) { dismiss(); closeInspector() }
         if (value.retireReadout) { state.retire(); retireReadout() }
         if (value.collapseAssists) paletteRevision++
         transitionChanged(value)
@@ -226,11 +238,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         powerMounted = sections.power in mounted, captureMounted = sections.capture in mounted && !command,
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
-        capturePresented = panel != null || state.preview != null || assist.configureTool != null, recovering = recovering,
+        capturePresented = panel != null || state.preview != null || inspecting, recovering = recovering,
         statusInteractive = !assistInspectorPresented),
         modifier, picture = picture,
         status = {
-            MonitorStatusChrome(layout, status.recording, status.showsTimecode, status.showsRecording,
+            MonitorStatusChrome(layout, status.recording(), status.showsTimecode, status.showsRecording,
                 edit(sections.status),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
@@ -273,37 +285,41 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     val decoration = edit(sections.record).testTag("monitor.system.record")
                     if (photo) photoRelease?.invoke(enabled && admitted && recordEnabled, decoration)
                     else MonitorCaptureButton(control, layout.record.width, enabled && admitted && recordEnabled, decoration,
-                        confirm = confirmRecord, confirmationPolicy = recordConfirmationPolicy,
+                        confirm = confirmRecord,
                         openMode = openMode?.let { action -> { if (admits() && recordEnabled) action() } }, onConfirmingChange = onRecordConfirming)
                 }, display = { enabled -> MonitorDisplayButton(displayIndex, displayCount,
                     displayTitle ?: displayIndex?.let { "DISP ${it + 1}" } ?: "Display mode unavailable",
                     layout.display.width, layout.display.height, (sections.display?.let { edit(it) } ?: Modifier).testTag("monitor.system.display"), enabled = enabled && interactive, onClick = cycleDisplay) })
         }, tools = { accepts ->
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
-            if (command) cameraViews.dashboard?.invoke(accepts && admitted)
-            else {
+            if (command) cameraViews.dashboard?.let { dashboard ->
+                // A hardware slot cannot outlive its admission: input is refused here, whatever the slot does.
+                Box(Modifier.descriptorFrame(MonitorRect(layout.picture.x + 16f, layout.picture.y + 12f,
+                    max(1f, layout.picture.width - 32f), max(44f, layout.picture.height - 24f)))
+                    .refusingInput(!(accepts && admitted))) { dashboard(accepts && admitted) }
+            } else {
                 val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value ?: assist.scopeBundle
-                val scopesFloat = scopeFloating ?: (!layout.portrait || floatingBounds != null)
-                val floatingTools = renderedTools - if (nativeFraming) setOf(MonitorAssistTool.GUIDES,
-                    MonitorAssistTool.GRID, MonitorAssistTool.CROSS, MonitorAssistTool.AUDIO) else emptySet()
+                val scopesFloat = scopeFloating ?: !layout.portrait
+                // A source with its own level meter draws it once, in the audio overlay below.
+                val floatingTools = renderedTools - if (audio != null) setOf(MonitorAssistTool.AUDIO) else emptySet()
                 AssistOverlayLayer(assist, bundle, assistHost, locked = !interactive,
                     feedFrame = scopeFeed, framingFrame = framingFrame, placementFrame = scopePlacement ?: viewport,
                     audioPlacementFrame = (scopePlacement ?: viewport).copy(x = safeLeading,
                         width = max(0f, (scopePlacement ?: viewport).maxX - safeLeading)),
                     audioChannels = audioChannels, transfer = scopeTransfer ?: bundle.transfer,
-                    onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; assist.configureTool = tool } },
-                    referenceValues = reference, panelPlacement = assists?.panelPlacement,
+                    onOpenOptions = { tool, frame -> if (interactive) { assist.longPressAnchor = frame; reviewing = false; assist.configureTool = tool } },
+                    referenceValues = signalOptions.reference, panelPlacement = assists?.panelPlacement,
                     onScopeStackMoved = assists?.scopeStackMoved ?: {}, showsReference = showsReference,
                     visibleTools = if (scopesFloat) floatingTools else floatingTools - fittedScopes.toSet(),
-                    onPanelFrameChanged = onPanelFrameChanged, canvasFrame = floatingBounds,
+                    canvasFrame = null,
                     paradeIntensityScale = assists?.paradeIntensityScale ?: 1.0,
                     placementPaddingDp = assists?.panelPlacement?.movementInsetDp ?: 8f,
                     focusLayer = { cameraViews.focusMarks?.invoke() })
                 if (!scopesFloat) MonitorOperatorFittedScopes(assist, bundle, fittedScopes, scopeZone,
                     assists?.paradeIntensityScale ?: 1.0)
-                if (scopesFloat && audio != null && MonitorAssistTool.AUDIO in renderedTools) {
-                    val canvas = floatingBounds ?: layout.viewport
-                    val clamp = floatingPlacement ?: viewport
+                if (audio != null && MonitorAssistTool.AUDIO in renderedTools) {
+                    val canvas = layout.viewport
+                    val clamp = scopePlacement ?: viewport
                     with(density) {
                         AssistAudioOverlay(assist, audio.levels,
                             MonitorScopeRect(canvas.x.dp.toPx(), canvas.y.dp.toPx(), canvas.width.dp.toPx(), canvas.height.dp.toPx()),
@@ -313,11 +329,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             caption = audio.caption, unavailableLabel = audio.unavailable, provenance = audio.provenance, spokenValue = audio.spokenValue)
                     }
                 }
-                if (sections.assists in mounted && assist.configureTool == null) MonitorAssistPalette(palette,
+                if (sections.assists in mounted && !inspecting) MonitorAssistPalette(palette,
                     layout.portrait, !interactive, { it.isOn }, { it.tool?.title ?: it.title },
-                    { it.tool?.chipLabel ?: it.label }, { it.hasOptions },
+                    { it.tool?.chipLabel ?: it.label }, hasOptions,
                     onToggle = { if (interactive && currentSource()) it.toggle() },
-                    onOptions = { if (interactive && currentSource()) assist.configureTool = it.tool },
+                    onOptions = { if (interactive && currentSource()) { assist.configureTool = it.tool; reviewing = it.tool == null } },
                     glyph = { item, tint, decoration ->
                         val custom = item.glyph
                         if (custom != null) custom(tint, decoration)
@@ -334,21 +350,41 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             (it.left - origin.x).toDp().value, (it.top - origin.y).toDp().value,
                             it.width.toDp().value, it.height.toDp().value) } })
                     })
-                cameraViews.focusDrive?.invoke(accepts && admitted)
+                cameraViews.focusDrive?.let { drive ->
+                    val height = minOf(280f, layout.viewport.height * .55f)
+                    val center = max(layout.picture.x + 30f, layout.record.x - 34f)
+                    Box(Modifier.descriptorFrame(MonitorRect(center - FOCUS_DRIVE_WIDTH / 2f, layout.picture.midY - height / 2f,
+                        FOCUS_DRIVE_WIDTH, height)).refusingInput(!(accepts && admitted))) { drive(accepts && admitted) }
+                }
                 cameraViews.focusControls?.invoke(this, accepts && admitted)
                 cameraViews.motion?.controls?.invoke(this, accepts && admitted)
-                if (interactive) {
-                    aspect?.let { value -> DescriptorRoundAction(value.frame, value.title,
-                        if (value.fills) MonitorIcon.MINIMIZE else MonitorIcon.MAXIMIZE, "portrait_aspect_toggle") { if (admits()) value.change() } }
-                    resetFocus?.let { value -> MonitorFocusResetButton(
-                        modifier = Modifier.descriptorFrame(value.frame), title = value.title,
-                        enabled = value.enabled, pending = value.pending, size = value.frame.width.dp,
-                        accessibilityIdentifier = "focus_reset_button",
-                    ) { if (admits()) value.action() } }
-                    comparison?.let { value -> Box(Modifier.descriptorFrame(value.frame)
+                aspect?.let { value ->
+                    val haptics = LocalOperatorHaptics.current
+                    Box(Modifier.descriptorFrame(value.frame).alpha(if (locked) .4f else 1f)
+                        .clip(CircleShape).background(Color.Black.copy(alpha = .55f))
+                        .border(1.dp, LiveDesign.hairline, CircleShape)
+                        .monitorChromeClickable(enabled = interactive) { if (interactive && currentSource()) { haptics.selection(); value.change() } }
+                        .testTag("portrait_aspect_toggle")
+                        .semantics { contentDescription = if (value.fills) "Fit feed in frame" else "Fill frame with feed" },
+                        contentAlignment = Alignment.Center) {
+                        MonitorIcon(if (value.fills) MonitorIcon.MINIMIZE else MonitorIcon.MAXIMIZE, null,
+                            Modifier.size(15.dp), LiveDesign.text)
+                    }
+                }
+                if (!locked && editing == null) {
+                    cameraViews.resetFocus?.let { value ->
+                        val haptics = LocalOperatorHaptics.current
+                        MonitorFocusResetButton(modifier = Modifier.descriptorFrame(focusResetFrame), title = value.title,
+                            enabled = value.enabled && admitted, pending = value.pending, size = focusResetFrame.width.dp,
+                            foreground = LiveDesign.text, outline = LiveDesign.hairline,
+                            onClickFeedback = { haptics.selection() }) { if (admits()) value.action() }
+                    }
+                    cameraViews.comparison?.let { value -> Box(Modifier.descriptorFrame(MonitorRect(
+                        focusResetFrame.midX - 22f, focusResetFrame.midY - 50f - 15f, 44f, 30f))
                         .background(Color.Black.copy(alpha = .55f), CircleShape)
                         .border(1.dp, if (value.muted) MonitorPalette.border else MonitorPalette.accent.copy(alpha = .25f), CircleShape)
-                        .monitorChromeClickable { if (admits()) value.toggle() }.testTag("split_comparison_key")
+                        .monitorChromeClickable(enabled = interactive) { if (interactive && currentSource()) value.toggle() }
+                        .testTag("split_comparison_key")
                         .semantics { contentDescription = value.title }, contentAlignment = Alignment.Center) {
                         Text("50/50", style = MonitorTypography.text(11f, FontWeight.Bold), color = if (value.muted) MonitorPalette.muted else MonitorPalette.accent)
                     } }
@@ -361,16 +397,20 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom) { key, frame, top ->
                 cameraPanel(key, frame, top, state)
             }
-            assist.configureTool?.let { configured -> if (assistInspectorPresented) {
-                val preview: (@Composable () -> Unit)? = assists?.preview?.let { render -> { render(configured) } }
+            if (assistInspectorPresented) {
+                val configured = assist.configureTool
+                val preview: (@Composable () -> Unit)? =
+                    if (configured == null) null else assists?.preview?.let { render -> { render(configured) } }
                 AssistInspectorFrame(configured, assist, layout.viewport.width, layout.viewport.height,
-                    safeLeading, safeTop, safeBottom, { assist.configureTool = null }, safeTrailing = safeTrailing,
-                    trailing = true, tabs = inspectorTools) { maximum ->
-                    AssistOptionsPanel(configured, assist, { assist.configureTool = null }, assistHost, lookOptions,
+                    safeLeading, safeTop, safeBottom, closeInspector, safeTrailing = safeTrailing,
+                    trailing = true, tabs = inspectorTools, review = reviewItem,
+                    onSelect = { assist.configureTool = it; reviewing = it == null }) { maximum ->
+                    if (configured == null) signalOptions.instantReview?.let { menu -> MonitorOptionGroup { menu() } }
+                    else AssistOptionsPanel(configured, assist, closeInspector, assistHost, lookOptions,
                         maxHeightDp = maximum, transfer = if (assist.scopeBundle.levelAxis?.supportsCalibratedReferences == false) null else scopeTransfer ?: assist.scopeBundle.transfer,
                         embedded = true, isPhoto = photo, imagePreview = preview, lookMenu = assists?.lookMenu, signalOptions = signalOptions)
                 }
-            } }
+            }
             cameraViews.motion?.editor?.invoke(this, accepts && interactive)
             cameraViews.feedback?.invoke(this)
         })
@@ -391,62 +431,30 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     }
 }
 
-/**
- * Until F05 migrates Z Android to [MonitorOperatorLiveSurface]: the composition with the policy Z Android
- * had before the surface folded it (explicit-target record confirmation, no connect-tap arming, never
- * borrowed). Then it goes, and the composition stays internal.
- */
-@Composable
-public fun <K, S, M, N> MonitorOperatorLiveBody(
-    control: MonitorControlModel, identity: MonitorOperatorLiveIdentity,
-    current: (MonitorOperatorLiveIdentity) -> Boolean, layout: MonitorFieldLayout, viewport: MonitorRect,
-    sections: MonitorOperatorLiveSections<S>, mounted: Set<S>, host: ChromeEditHost<S, M>, editing: M?,
-    locked: Boolean, setLocked: (Boolean) -> Unit, covered: Boolean, clean: Boolean, command: Boolean,
-    readOnly: Boolean, recovering: Boolean,
-    status: MonitorOperatorLiveStatus<K, S>, power: List<MonitorOperatorPowerReading>,
-    captureInputs: MonitorOperatorCaptureInputs<K, S, N>, retireReadout: () -> Unit,
-    settings: () -> Unit, media: () -> Unit, cycleDisplay: () -> Unit, displayIndex: Int?, displayCount: Int,
-    displayTitle: String?, photo: Boolean, confirmRecord: Boolean, recordEnabled: Boolean,
-    onRecordConfirming: (Boolean) -> Unit, assist: MonitorAssistState, assists: MonitorOperatorAssistSource?,
-    palette: List<MonitorOperatorPaletteItem>, usage: MonitorToolUsageState,
-    setUsage: (MonitorToolUsageState) -> Unit, usageSeed: Map<String, Int>,
-    renderedTools: Set<MonitorAssistTool>, fittedScopes: List<MonitorAssistTool>, scopeZone: MonitorRect?,
-    signalOptions: MonitorOperatorSignalOptions, audio: MonitorOperatorLiveAudio?,
-    reference: MonitorFalseColorReferenceValues?, aspect: MonitorOperatorAspectControl?,
-    resetFocus: MonitorOperatorFocusReset?, comparison: MonitorOperatorLookComparison?,
-    cameraViews: MonitorOperatorBodyViews, modifier: Modifier, chromeBoxes: MutableMap<S, MonitorRect>?,
-    resumed: Boolean, retainsPanel: Boolean, nativeFraming: Boolean, floatingBounds: MonitorRect?,
-    floatingPlacement: MonitorRect?, onPanelFrameChanged: ((MonitorAssistTool, MonitorRect?) -> Unit)?,
-    picture: @Composable BoxScope.() -> Unit,
-    cameraPanel: @Composable (K, MonitorRect, Boolean, MonitorOperatorCaptureState<K, N>) -> Unit,
-    photoRelease: (@Composable (Boolean, Modifier) -> Unit)?,
-): Unit = MonitorOperatorLiveComposition(control = control, identity = identity, current = current, layout = layout,
-    viewport = viewport, sections = sections, mounted = mounted, host = host, editing = editing, locked = locked,
-    setLocked = setLocked, covered = covered, clean = clean, command = command, readOnly = readOnly,
-    recovering = recovering, status = status, power = power, captureInputs = captureInputs,
-    retireReadout = retireReadout, settings = settings, media = media, cycleDisplay = cycleDisplay,
-    displayIndex = displayIndex, displayCount = displayCount, displayTitle = displayTitle, photo = photo,
-    confirmRecord = confirmRecord, recordEnabled = recordEnabled, onRecordConfirming = onRecordConfirming,
-    assist = assist, assists = assists, palette = palette, usage = usage, setUsage = setUsage, usageSeed = usageSeed,
-    renderedTools = renderedTools, fittedScopes = fittedScopes, scopeZone = scopeZone, signalOptions = signalOptions,
-    audio = audio, reference = reference, aspect = aspect, resetFocus = resetFocus, comparison = comparison,
-    cameraViews = cameraViews, modifier = modifier, chromeBoxes = chromeBoxes, resumed = resumed,
-    retainsPanel = retainsPanel, nativeFraming = nativeFraming, floatingBounds = floatingBounds,
-    floatingPlacement = floatingPlacement, onPanelFrameChanged = onPanelFrameChanged,
-    recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET,
-    interactionEnabled = true, borrowed = false,
-    picture = picture, cameraPanel = cameraPanel, photoRelease = photoRelease)
+/** Lets picture content that stands for a display section (a source's focus box) join the chrome editor. */
+public class MonitorOperatorChromeEdit internal constructor(
+    internal val host: ChromeEditHost<MonitorDisplaySection, MonitorDisplayMode>,
+    internal val editing: MonitorDisplayMode?,
+    internal val boxes: MutableMap<MonitorDisplaySection, MonitorRect>,
+)
+internal val LocalMonitorOperatorChromeEdit = compositionLocalOf<MonitorOperatorChromeEdit?> { null }
 
+/** The editor's outline, dimming and eye badge for picture content standing for [section]. A no-op outside
+ * the surface's picture. The badge leaves with the content. */
 @Composable
-private fun DescriptorRoundAction(frame: MonitorRect, title: String, icon: MonitorIcon, tag: String,
-    enabled: Boolean = true, text: String? = null, action: () -> Unit) {
-    Box(Modifier.descriptorFrame(frame).background(Color.Black.copy(alpha = .55f), CircleShape)
-        .monitorChromeClickable(enabled = enabled, onClick = action).testTag(tag)
-        .semantics { contentDescription = title }, contentAlignment = Alignment.Center) {
-        if (text != null) Text(text, color = MonitorPalette.text, style = MonitorTypography.text(18f, FontWeight.SemiBold))
-        else MonitorIcon(icon, null, Modifier.size(17.dp), MonitorPalette.text)
-    }
+public fun Modifier.monitorOperatorChromeEditable(section: MonitorDisplaySection): Modifier {
+    val edit = LocalMonitorOperatorChromeEdit.current ?: return this
+    DisposableEffect(edit.boxes, section) { onDispose { edit.boxes.remove(section) } }
+    return chromeEditable(edit.host, section, edit.editing) { key, rect -> edit.boxes[key] = rect }
 }
+
+/** Hardware slots keep their look but take no touch while commands are not admitted. */
+private fun Modifier.refusingInput(refused: Boolean): Modifier = if (!refused) this else pointerInput(Unit) {
+    awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } }
+}
+
+private const val FOCUS_DRIVE_WIDTH = 44f
+
 @Composable
 private fun MonitorOperatorFittedScopes(state: MonitorAssistState, bundle: ScopeAssistBundle,
     tools: List<MonitorAssistTool>, zone: MonitorRect?, paradeIntensityScale: Double) {

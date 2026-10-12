@@ -25,6 +25,7 @@ import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
 import com.opencapture.opencine.core.SettingDescriptor
@@ -32,6 +33,8 @@ import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingSemantics
 import com.opencapture.opencine.core.SettingValue
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.core.rejection
@@ -95,7 +98,9 @@ class NikonOpenCineSession(
         refresh()
         feed =
             scope.launch {
-                combine(session.state, session.reportedCameraProperties, session.reportedRecording) { _, _, _ -> }
+                combine(
+                    session.state, session.reportedCameraProperties, session.reportedRecording, session.liveTimecode,
+                ) { _, _, _, _ -> }
                     .collect { refresh() }
             }
     }
@@ -311,11 +316,12 @@ class NikonOpenCineSession(
         wasReady = ready
         everReady = everReady || ready
         val descriptors = descriptors(properties, reported)
+        val timecode = timecodeCapability(properties)
         val capabilities =
-            if (CapabilitySnapshot(current.capabilities.revision, descriptors) == current.capabilities) {
+            if (CapabilitySnapshot(current.capabilities.revision, descriptors, timecode = timecode) == current.capabilities) {
                 current.capabilities
             } else {
-                CapabilitySnapshot(current.capabilities.revision.next(), descriptors)
+                CapabilitySnapshot(current.capabilities.revision.next(), descriptors, timecode = timecode)
             }
         val serial = (state as? CameraSessionState.Connected)?.identity?.serialNumber.orEmpty()
         val photography = properties.captureSelector.equals("photo", ignoreCase = true)
@@ -335,6 +341,8 @@ class NikonOpenCineSession(
                     else -> ControlAuthority.Unavailable(UnavailableReason.Authority)
                 },
                 capabilities = capabilities,
+                // The header counter is the runtime's own observation; unknown off the link (A5-04).
+                timecode = current.timecode.observe(if (ready) session.liveTimecode.value else null, at),
                 mode = current.mode.observe(properties.captureSelector?.let { captureMode(photography) }, at),
                 recording =
                     current.recording.observe(
@@ -345,9 +353,10 @@ class NikonOpenCineSession(
                     current.power.copy(
                         battery =
                             current.power.battery.observe(
-                                properties.batteryPercent?.let { it / 100.0 },
+                                properties.batteryPercent?.let(::batteryFraction),
                                 at,
-                                ObservationPrecision.Quantized(0.01),
+                                // Nikon BatteryLevel is a five-step gauge (A5-01), not a percent.
+                                BATTERY_PRECISION,
                             ),
                     ),
                 settings =
@@ -371,6 +380,21 @@ class NikonOpenCineSession(
 
     companion object {
         val INTEGRATION: IntegrationID = IntegrationID("org.opencapture.nikon-ptp")
+
+        /** The body's battery gauge steps: five bars, so a reading is never finer than a fifth. */
+        val BATTERY_PRECISION: ObservationPrecision = ObservationPrecision.Quantized(1.0 / NikonCameraBatteryGauge.BAR_COUNT)
+
+        /** The bars the body shows, as a fraction on [BATTERY_PRECISION]'s steps; no reading stays unknown. */
+        fun batteryFraction(rawBatteryLevel: Int): Double? = NikonCameraBatteryGauge.gauge(rawBatteryLevel)
+            .takeIf { it != NikonCameraBatteryGauge.Unknown }
+            ?.let { it.filledBars.toDouble() / NikonCameraBatteryGauge.BAR_COUNT }
+
+        /**
+         * Every Z body's live-view header carries a frame-counting timecode at the movie rate the body
+         * reports. Whether it runs is the observation, not the capability (Swift `timecodeCapability`).
+         */
+        fun timecodeCapability(properties: CameraPropertySnapshot): TimecodeCapability =
+            TimecodeCapability.supported(properties.frameRate?.takeIf { it > 0 }?.let { TimecodePrecision.Frames(Rational(it)) })
 
         /** Movie controls offered through the common seam; stills retain their typed adapter. */
         val CONTROLS: Set<CameraControl> =
