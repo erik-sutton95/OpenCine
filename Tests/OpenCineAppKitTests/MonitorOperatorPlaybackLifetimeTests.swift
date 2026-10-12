@@ -165,6 +165,29 @@ import Testing
         #expect(f.model.playback?.playlist.map { $0.payload } == ["A", "C"])
     }
 
+    /// R-01: a retire-gallery deletion returns to playback even when the port's finish does not
+    /// relist; Core relists once after finish unless the caller already did.
+    @Test func capturedRetireGalleryDeletionRelistsWithoutACallerRelist() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let authority = f.library.captureDeletion(key: .init("default-relist"), ifCurrent: { true })
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
+            .init(confirmation: .init(title: "Remove A's companion"), authority: authority, perform: {
+                owner.close()
+                _ = await f.library.deleteHostBatch(authority,
+                    targets: [MonitorMediaDeletionTarget(value: f.records[1], locations: [1])], selectedCount: 1,
+                    preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
+                        try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
+                    }))
+            })
+        })))
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(await settled { f.model.playback !== owner && f.model.playback?.active?.payload == "A" })
+        #expect(f.library.browsing)
+        #expect(f.model.playback?.playlist.map { $0.payload } == ["A", "C"])
+    }
+
     @Test func capturedDeletionSkipsRemovedCompanionsAndClosesWhenNoPlaylistSurvives() async throws {
         guard #available(macOS 14, *) else { return }
         for allRemoved in [false, true] {
