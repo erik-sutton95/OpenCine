@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.CameraTimecode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -484,6 +485,9 @@ class SwiftCoreCameraSession internal constructor(
     private val _reportedRecording = MutableStateFlow<Boolean?>(null)
     override val reportedRecording: StateFlow<Boolean?> = _reportedRecording.asStateFlow()
 
+    private val _liveTimecode = MutableStateFlow<CameraTimecode?>(null)
+    override val liveTimecode: StateFlow<CameraTimecode?> = _liveTimecode.asStateFlow()
+
     private val _cameraProperties = MutableStateFlow(CameraPropertySnapshot())
     override val cameraProperties: StateFlow<CameraPropertySnapshot> = _cameraProperties.asStateFlow()
 
@@ -568,6 +572,7 @@ class SwiftCoreCameraSession internal constructor(
                 connectionOwner?.let { core.configureLiveView(it, request) } ?: false
             },
             onRecordingState = ::applyCameraRecordingState,
+            onTimecode = ::applyLiveTimecode,
             onCommandRoundTrip = { updateRoundTripMeasurement() },
             onStreamExhausted = ::markLiveViewStreamExhausted,
             onFailurePhase = { phase -> phaseLogger(phase, "") },
@@ -607,6 +612,7 @@ class SwiftCoreCameraSession internal constructor(
                             cameraRecordingEventVersion = 0L
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
+                            _liveTimecode.value = null
                             _cameraProperties.value = CameraPropertySnapshot()
                             _reportedCameraProperties.value = CameraPropertySnapshot()
                             _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
@@ -625,6 +631,7 @@ class SwiftCoreCameraSession internal constructor(
                             cameraRecordingEventVersion = 0L
                             _recordingState.value = CameraRecordingState.STANDBY
                             _reportedRecording.value = null
+                            _liveTimecode.value = null
                             stopPropertyRefresh(clearSnapshot = true)
                             _latestCommandRoundTripMilliseconds.value = null
                             _connectionProgress.value =
@@ -1123,6 +1130,7 @@ class SwiftCoreCameraSession internal constructor(
                     cameraRecordingEventVersion = 0L
                     _recordingState.value = CameraRecordingState.STANDBY
                     _reportedRecording.value = null
+                    _liveTimecode.value = null
                     _cameraProperties.value = CameraPropertySnapshot()
                     _reportedCameraProperties.value = CameraPropertySnapshot()
                     _propertyRefreshStatus.value = CameraPropertyRefreshStatus.Idle
@@ -1143,6 +1151,12 @@ class SwiftCoreCameraSession internal constructor(
         if (!force && System.nanoTime() < ignoreLiveRecordingStateUntilNanos) return
         _recordingState.value =
             if (recording) CameraRecordingState.RECORDING else CameraRecordingState.STANDBY
+    }
+
+    /** Publishes a live-view header's timecode while connected (A5-04); off reads as unknown. */
+    private fun applyLiveTimecode(timecode: LiveFrameTimecode?) {
+        if (_state.value !is CameraSessionState.Connected) return
+        _liveTimecode.value = timecode?.running
     }
 
     /** Starts the native event drain after the current connection is established. */
@@ -1232,6 +1246,7 @@ class SwiftCoreCameraSession internal constructor(
         cameraRecordingEventVersion = 0L
         _recordingState.value = CameraRecordingState.STANDBY
         _reportedRecording.value = null
+        _liveTimecode.value = null
         stopPropertyRefresh(clearSnapshot = true)
         _connectionProgress.value = CameraConnectionProgress(CameraConnectionPhase.FAILED, message)
         phaseLogger("eventChannelEnded", message)
