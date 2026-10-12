@@ -87,8 +87,10 @@ public enum MonitorCapturePresentation {
         return values.map { MonitorCaptureChoice(value: $0, label: label($0)) }
     }
 
+    /// C `%g` (no locale: a locale switches Foundation to `1.5E-05` and `1000000`). The Kotlin
+    /// twin mirrors it; both read `Fixtures/capture-label-vectors.tsv`.
     private static func number(_ value: Double) -> String {
-        String(format: "%g", locale: Locale(identifier: "en_US_POSIX"), value)
+        String(format: "%g", value)
     }
 }
 

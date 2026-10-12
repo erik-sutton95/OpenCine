@@ -1,0 +1,32 @@
+# Golden vectors for the shared capture numbers and labels, read by both shells.
+#
+# Swift owns `ShutterAngle` (OpenCineMedia) and `MonitorCapturePresentation`
+# (OpenCineAppKit); Kotlin keeps hand-written twins in `Android/media` and
+# `Android/appkit`. `CaptureLabelVectorTests` (Swift) and `CaptureLabelVectorTest`
+# (Kotlin) assert every row, so a rounding or formatting rule that lands on one
+# side only fails a test instead of reading differently per platform.
+#
+# Tab-separated: kind, inputs..., expected text.
+#
+#   denom      degrees  fps          -> 1/N sent for a host-emulated angle (ties round up)
+#   duration   num      den          -> MonitorCapturePresentation shutter label (C %g)
+#   angle      degrees               -> MonitorCapturePresentation angle label (C %g)
+#   aperture   f-number              -> MonitorCapturePresentation iris label (C %g)
+denom	144	25	63
+denom	288	50	63
+denom	180	24	48
+denom	172.8	25	52
+denom	5.6	24	1543
+duration	1	50	1/50
+duration	1001	48000	0.0208542s
+duration	2	3	0.666667s
+duration	3	2	1.5s
+duration	30	1	30s
+duration	3	200000	1.5e-05s
+duration	1234565	1	1.23456e+06s
+duration	1999999	2	1e+06s
+angle	144	144°
+angle	172.8	172.8°
+angle	11.25	11.25°
+aperture	2.8	f/2.8
+aperture	22	f/22
