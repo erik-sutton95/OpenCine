@@ -55,10 +55,12 @@ public class NikonAndroidGalleryProjectionPolicy(
         return MonitorMediaProjectionCategoryFacts(rows, offered(scoped.map { it.clip }, today))
     }
 
+    /** RATING is the shared library order: favorites first, then newest. */
     override fun compare(lhs: MediaAssetID, rhs: MediaAssetID, sort: MonitorMediaProjectionSort): Int {
-        val left = byID[lhs]?.clip ?: return 0
-        val right = byID[rhs]?.clip ?: return 0
-        return compareClips(left, right, sort)
+        val left = byID[lhs] ?: return 0
+        val right = byID[rhs] ?: return 0
+        if (sort == MonitorMediaProjectionSort.RATING && left.favorite != right.favorite) return if (left.favorite) -1 else 1
+        return compareClips(left.clip, right.clip, sort)
     }
     override fun groups(ids: List<MediaAssetID>): List<MonitorMediaProjectionGroup> {
         val survivors = ids.mapNotNull(byID::get)
@@ -85,11 +87,11 @@ public class NikonAndroidGalleryProjectionPolicy(
         val names = left.filename.lowercase(Locale.US).compareTo(right.filename.lowercase(Locale.US))
         return when (sort) {
             MonitorMediaProjectionSort.NAME -> names
-            MonitorMediaProjectionSort.NEWEST -> right.captureDate.ifEmpty { right.filename }
+            // A clip carries no favorite; the policy orders favorites first and ties fall to newest.
+            MonitorMediaProjectionSort.NEWEST, MonitorMediaProjectionSort.RATING -> right.captureDate.ifEmpty { right.filename }
                 .compareTo(left.captureDate.ifEmpty { left.filename }).takeIf { it != 0 } ?: -names
             MonitorMediaProjectionSort.OLDEST -> left.captureDate.ifEmpty { left.filename }
                 .compareTo(right.captureDate.ifEmpty { right.filename }).takeIf { it != 0 } ?: names
-            MonitorMediaProjectionSort.RATING -> error("Numeric rating ordering is unavailable in this source policy")
         }
         }
         public fun formatKey(clip: NikonMediaClipRecord): String? = format(clip)
