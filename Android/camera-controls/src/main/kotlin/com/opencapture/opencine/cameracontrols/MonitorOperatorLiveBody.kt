@@ -376,8 +376,15 @@ public fun <K, S, M, N> MonitorOperatorLiveBody(
             while (true) awaitPointerEvent().changes.forEach { it.consume() }
         } })
         ChromeEditBadges(host, mode, boxes.toMap(), layout.viewport.width, layout.viewport.height)
-        Box(Modifier.fillMaxSize()) { ChromeEditDoneBanner(host, mode, Modifier.align(Alignment.TopCenter)
-            .offset(y = (if (layout.portrait) layout.picture.maxY - 12f else layout.assists.y - 18f).dp)) }
+        // Never on the rail and its eye badges: in portrait above the picture's bottom edge or the
+        // capture row, whichever is higher (a full-height picture runs behind the rail); in
+        // landscape above the assist strip.
+        Box(Modifier.fillMaxSize()) {
+            ChromeEditDoneBanner(host, mode, if (layout.portrait) {
+                Modifier.align(Alignment.BottomCenter).padding(
+                    bottom = (layout.viewport.height - minOf(layout.picture.maxY, layout.values.y) + 16f).dp)
+            } else Modifier.align(Alignment.TopCenter).offset(y = (layout.assists.y - 18f).dp))
+        }
     }
 }
 

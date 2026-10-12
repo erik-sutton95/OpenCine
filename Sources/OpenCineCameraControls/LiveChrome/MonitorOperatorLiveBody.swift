@@ -316,9 +316,19 @@ public struct MonitorOperatorLiveBody<Host: ChromeEditHost, Key: Hashable, Nativ
                 if let editing {
                     ChromeEditBadges<Host>(mode: editing, boxes: boxes, viewport: CGSize(width: layout.viewport.width, height: layout.viewport.height))
                 }
+            }.overlay(alignment: layout.portrait ? .bottom : .top) {
+                // Seated on the picture, as Compose seats it, never on the rail and its eye badges:
+                // in portrait above the picture's bottom edge or the capture row, whichever is
+                // higher (a full-height picture runs behind the rail); in landscape above the
+                // assist strip.
+                if let editing {
+                    ChromeEditDoneBanner<Host>(mode: editing)
+                        .padding(.bottom, layout.portrait
+                            ? layout.viewport.height - min(layout.picture.maxY, layout.values.y) + 16 : 0)
+                        .offset(y: layout.portrait ? 0 : layout.assists.y - 18)
+                }
             }.overlay(alignment: .bottom) {
-                if let editing { ChromeEditDoneBanner<Host>(mode: editing).padding(.bottom, max(16, safeArea.bottom)) }
-                else if !notice.isEmpty {
+                if editing == nil, !notice.isEmpty {
                     MonitorTransientNotice(text: notice, revision: noticeRevision)
                         .padding(.bottom, layout.viewport.height - layout.picture.maxY + 16)
                 }
