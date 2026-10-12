@@ -78,6 +78,14 @@ crash-guard, diagnostic and display-policy callbacks. The renderer's legacy `Opc
 and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axis values and
 imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.
 
+Bitmap delivery keeps JPEG decoding on `MonitorFrameDecodeWorker`. A consumer whose picture
+owner is confined to a different context supplies that context to
+`monitorPumpFramesWithSourceFrame`; the source event and decoded bitmap cross together without
+copying or resampling. Retirement and cancellation are checked after dispatch, before publication.
+OpenZCine supplies Main for its Bitmap presentation, Vulkan submission and preview callbacks.
+The original pump overload retains caller-context delivery for existing consumers. This is
+Android scheduling infrastructure; Apple retains its existing native presentation ownership.
+
 Apple `MonitorLiveVideoRuntime` owns Annex-B format admission, the retained display layer,
 one sticky VideoToolbox decoder, assist/decoded-source/preview demand and layer/Metal handoff.
 Source configuration supplies calibration, transfer interpretation and diagnostics. The runtime
