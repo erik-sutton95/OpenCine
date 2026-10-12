@@ -178,7 +178,7 @@ public fun MonitorOperatorScreen(
             mounts, host, session.editingMode, locked, { session.locked = it }, covered,
             session.mode == MonitorDisplayMode.CLEAN, session.mode == MonitorDisplayMode.COMMAND, false,
             control.snapshot?.connection is com.opencapture.opencine.core.ConnectionState.Recovering,
-            MonitorOperatorLiveStatus(shell.control.statusPresentation(), session.mounts(MonitorDisplaySection.TIMECODE),
+            MonitorOperatorLiveStatus({ shell.control.statusPresentation() }, session.mounts(MonitorDisplaySection.TIMECODE),
                 session.mounts(MonitorDisplaySection.REC_READOUT), null, format?.let { listOf(it) } ?: emptyList(), null, null, null),
             emptyList(), inputs, { field = null; captureKeys.forEach(shell.control::cancelEdit) },
             { shell.open(ShellModel.Cover.SETTINGS) }, { shell.open(ShellModel.Cover.MEDIA) }, { session.cycle() },
