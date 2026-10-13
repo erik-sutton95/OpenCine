@@ -398,6 +398,9 @@ class PocketCameraSession(
 
     var connectedCamera: FoundCamera? = null
         private set
+    val nativeISOCapabilities: com.opencapture.opencine.vocabulary.CaptureNativeISOCapabilities
+        get() = connectedCamera?.model?.captureProfile?.nativeISO
+            ?: com.opencapture.opencine.vocabulary.CaptureNativeISOCapabilities()
     override var joinedSSID: String? = null
         private set
 
@@ -3287,6 +3290,7 @@ class PocketCameraSession(
     }
 
     fun setIsoLimit(raw: Int) {
+        if (nativeISOCapabilities.ceiling != true) return
         val previous = _status.value.isoLimit
         isoLimitPin =
             IsoLimitPin(expected = raw, deadlineElapsedRealtime = SystemClock.elapsedRealtime() + 2_000L)
@@ -3335,6 +3339,7 @@ class PocketCameraSession(
 
     /** GET only when Auto ISO exists. D-Log2 has no ceiling. */
     suspend fun refreshIsoLimit(): Boolean {
+        if (nativeISOCapabilities.ceiling != true) return false
         if (!CameraCommands.shouldGetIsoLimit(_status.value.colorMode)) return false
         return sendKind(DjiNative.CMD_GET_ISO_LIMIT, null, "ISO limit GET")
     }
@@ -4655,6 +4660,7 @@ class PocketCameraSession(
 
     /** iOS `hopNativeISO`; fires immediately, does not wait for the color ACK. */
     private fun hopNativeISO(from: Int, to: Int, hopEnabled: Boolean) {
+        if (nativeISOCapabilities.hop != true) return
         val hop =
             CameraCommands.nativeIsoHop(from, to, _status.value.isoIndex, hopEnabled) ?: return
         Log.i(

@@ -2,6 +2,17 @@ import Testing
 @testable import OpenCineCameraVocabulary
 
 @Suite struct CameraCaptureProfileTests {
+    @Test func nativeIsoDeclarationsPreserveUnknownAndKnownUnsupported() {
+        let legacy = CameraCaptureProfile(supportsFocusMode: true)
+        #expect(legacy.nativeISO.hop == nil)
+        #expect(legacy.nativeISO.ceiling == nil)
+        let declared = CameraCaptureProfile(supportsFocusMode: true,
+            nativeISO: .init(hop: false, ceiling: true))
+        #expect(declared.supportsFocusMode == legacy.supportsFocusMode)
+        #expect(declared.nativeISO.hop == false)
+        #expect(declared.nativeISO.ceiling == true)
+    }
+
     @Test func displayNamesCannotCreateCapabilities() {
         let named = CameraModel(name: "Osmo Pocket 3")
         #expect(named.captureProfile == nil)
