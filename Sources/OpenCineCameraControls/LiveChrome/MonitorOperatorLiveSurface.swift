@@ -478,7 +478,26 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             showsTimecode: status.showsTimecode, showsRecording: status.showsRecording,
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
-                if layout.portrait, let value = status.portraitFormat {
+                if layout.portrait && !layout.tablet && !photo {
+                    if let primary = status.portraitFormat {
+                        MonitorPortraitFormatGroup(showsDetail: status.portraitCaption != nil,
+                            primary: { headerReadout(primary, portrait: true, grouped: true, decoratesSection: false) },
+                            detail: {
+                                if let caption = status.portraitCaption {
+                                    MonitorBoundedReadoutText(caption, maximumSize: 11, minimumSize: 11)
+                                        .frame(minHeight: 44, alignment: .topTrailing)
+                                }
+                            }).modifier(DescriptorEditable<Host>(section: primary.section, mode: editing))
+                    } else if let primary = status.format.first {
+                        MonitorPortraitFormatGroup(showsDetail: status.format.count > 1,
+                            primary: { headerReadout(primary, portrait: true, grouped: true) },
+                            detail: {
+                                HStack(spacing: 24) {
+                                    ForEach(Array(status.format.dropFirst())) { headerReadout($0, grouped: true, detail: true) }
+                                }
+                            })
+                    }
+                } else if layout.portrait, let value = status.portraitFormat {
                     headerReadout(value, portrait: true, caption: status.portraitCaption)
                 } else {
                     HStack(spacing: 24) { ForEach(status.format) { headerReadout($0) } }
@@ -498,27 +517,38 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         } label: {
             HStack(spacing: 5) {
                 MonitorIcon.cardSim.frame(width: 12, height: 12)
-                Text(storagePercent ? status.storageAlternative ?? value.value : value.value)
-                    .font(MonitorTheme.font(layout.portrait ? 14 : (layout.tablet ? 18 : 16), weight: .medium))
-                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
+                if layout.portrait && !layout.tablet {
+                    MonitorBoundedReadoutText(storagePercent ? status.storageAlternative ?? value.value : value.value)
+                } else {
+                    Text(storagePercent ? status.storageAlternative ?? value.value : value.value)
+                        .font(MonitorTheme.font(layout.portrait ? 14 : (layout.tablet ? 18 : 16), weight: .medium))
+                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
+                }
             }
         }.buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
             .accessibilityValue(storagePercent ? status.storageAlternative ?? value.value : value.value)
             .modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
-        portrait: Bool = false, caption: String? = nil, alwaysAccent: Bool = false) -> some View {
+        portrait: Bool = false, caption: String? = nil, alwaysAccent: Bool = false,
+        grouped: Bool = false, detail: Bool = false, decoratesSection: Bool = true) -> some View {
         MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, readout: value, enabled: presentationAdmitted, commandEnabled: !readOnly,
             currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name) {
-            Text(value.value).font(MonitorTheme.font(portrait ? (photo ? 12 : (layout.tablet ? 25 : 23)) : (layout.tablet ? 18 : 16), weight: .medium))
-                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-                .overlay(alignment: .bottomTrailing) {
+            Group {
+                if grouped {
+                    MonitorBoundedReadoutText(value.value, maximumSize: detail ? 11 : 23, minimumSize: detail ? 11 : 16)
+                        .frame(minHeight: 44, alignment: detail ? .topTrailing : .bottomTrailing)
+                } else {
+                    Text(value.value).font(MonitorTheme.font(portrait ? (photo ? 12 : (layout.tablet ? 25 : 23)) : (layout.tablet ? 18 : 16), weight: .medium))
+                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                }
+            }.overlay(alignment: .bottomTrailing) {
                     if let caption { Text(caption).font(MonitorTheme.font(11, weight: .semibold))
                         .lineLimit(1).fixedSize().offset(y: 18) }
                 }
                 .foregroundStyle(alwaysAccent || panel?.key == value.id ? MonitorTheme.accent : .white)
-        }.modifier(DescriptorEditable<Host>(section: value.section, mode: editing))
+        }.modifier(DescriptorEditable<Host>(section: decoratesSection ? value.section : nil, mode: editing))
             .background(frameReader(value.id))
     }
     private func telemetry(horizontal: Bool, showsLink: Bool, showsPower: Bool) -> some View {

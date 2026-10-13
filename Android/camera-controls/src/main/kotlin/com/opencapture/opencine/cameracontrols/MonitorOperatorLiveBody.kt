@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -192,18 +194,27 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val source = MonitorCaptureSourceIdentity(identity.camera, identity.epoch, identity.pictureOwner,
         identity.monitor, identity.picture, identity.phase)
     @Composable fun Readout(value: MonitorOperatorLiveReadout<K, S>, portrait: Boolean = false,
-        caption: String? = null, opens: Boolean = true, accent: Boolean = false) {
-        val decoration = (value.section?.let { edit(it) } ?: Modifier).then(value.itemModifier)
+        caption: String? = null, opens: Boolean = true, accent: Boolean = false, storageReadout: Boolean = false, grouped: Boolean = false, detail: Boolean = false,
+        decoratesSection: Boolean = true) {
+        val decoration = (value.section?.takeIf { decoratesSection }?.let { edit(it) } ?: Modifier).then(value.itemModifier)
             .onGloballyPositioned { coordinates ->
                 val r = coordinates.boundsInRoot()
                 if (currentSource()) with(density) { state.frames[value.id] = MonitorRect(r.left.toDp().value,
                     r.top.toDp().value, r.width.toDp().value, r.height.toDp().value) }
             }
         val label: @Composable () -> Unit = {
-            Box(contentAlignment = Alignment.BottomEnd) {
+            val groupFrame = if (grouped) Modifier.height(LocalViewConfiguration.current.minimumTouchTargetSize.height) else Modifier
+            Box(groupFrame, contentAlignment = if (grouped && detail) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
-                    Text(value.value ?: "--", style = MonitorTypography.readout(if (portrait) {
+                    if (grouped) {
+                        MonitorBoundedReadoutText(value.value ?: "--", maximumSize = if (detail) 11f else 23f,
+                            minimumSize = if (detail) 11f else 16f,
+                            color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
+                    } else if (storageReadout && layout.portrait && !layout.tablet) {
+                        MonitorBoundedReadoutText(value.value ?: "--",
+                            color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
+                    } else Text(value.value ?: "--", style = MonitorTypography.readout(if (portrait) {
                         if (photo) 12f else if (layout.tablet) 25f else 23f
                     } else if (layout.tablet) 18f else 16f, FontWeight.Medium),
                         color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text,
@@ -246,9 +257,27 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 edit(sections.status),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
-                storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false) } },
+                storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true) } },
                 format = {
-                    if (layout.portrait && status.portraitFormat != null) {
+                    if (layout.portrait && !layout.tablet && !photo) {
+                        val values = status.format.filter { it.section == null || it.section in mounted }
+                        val primary = status.portraitFormat ?: values.firstOrNull()
+                        if (primary != null && (primary.section == null || primary.section in mounted)) {
+                            val caption = status.portraitCaption.takeIf { status.portraitFormat != null }
+                            val details = if (status.portraitFormat == null) values.drop(1) else emptyList()
+                            val ownsCaption = status.portraitFormat != null
+                            Box(if (ownsCaption) primary.section?.let { edit(it) } ?: Modifier else Modifier) {
+                                MonitorPortraitFormatGroup(caption != null || details.isNotEmpty(),
+                                    primary = { Readout(primary, portrait = true, grouped = true, decoratesSection = !ownsCaption) },
+                                    detail = {
+                                        if (caption != null) MonitorBoundedReadoutText(caption, maximumSize = 11f, minimumSize = 11f)
+                                        else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                                            details.forEach { Readout(it, grouped = true, detail = true) }
+                                        }
+                                    })
+                            }
+                        }
+                    } else if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
                     } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         status.format.filter { it.section == null || it.section in mounted }.forEach { Readout(it) }

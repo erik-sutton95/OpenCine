@@ -268,4 +268,17 @@ class MonitorLayoutPolicyTest {
         assertTrue(s25.gauges.maxX <= s25.picture.x + .01f)
     }
 
+
+    @Test fun fieldMonitorPhoneReservesSafeTelemetryWithoutChangingThePicture() {
+        for (width in listOf(320f, 360f, 440f)) {
+            val legacy = MonitorLayoutPolicy.portrait(width, 956f, 59f, 34f, false, true, 16f / 9f)
+            val field = MonitorLayoutPolicy.fieldMonitor(width, 956f, safeTop = 59f, safeBottom = 34f,
+                safeLeading = 20f, safeTrailing = 20f)
+            assertEquals(123f, field.status.y, .05f)
+            assertTrue(field.telemetry.y >= 67f)
+            assertTrue(field.status.y >= field.telemetry.maxY + 8f)
+            assertTrue(field.status.x >= 28f)
+            assertEquals(legacy.picture, field.picture)
+        }
+    }
 }

@@ -103,9 +103,9 @@
                 }
                 if presentation.powerMounted {
                     MonitorScreenSlot(content: power)
-                        .frame(width: layout.gauges.width, height: layout.gauges.height,
+                        .frame(width: layout.telemetry.width, height: layout.telemetry.height,
                             alignment: layout.portrait && !layout.tablet ? .topTrailing : .topLeading)
-                        .position(x: layout.gauges.midX, y: layout.gauges.midY)
+                        .position(x: layout.telemetry.midX, y: layout.telemetry.midY)
                         .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
                 }
                 if presentation.captureMounted {

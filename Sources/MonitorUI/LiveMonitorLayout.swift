@@ -414,7 +414,7 @@
                 topControlInset: topControlInset, joystick: joystick)
             return Self(
                 presentation: p, viewport: size, feed: p.picture.cgRect, picture: p.picture.cgRect,
-                lock: p.lock.cgRect, battery: p.gauges.cgRect, topDeck: p.status.cgRect,
+                lock: p.lock.cgRect, battery: p.telemetry.cgRect, topDeck: p.status.cgRect,
                 assist: p.assists.cgRect, capture: p.values.cgRect,
                 rail: p.system.cgRect, settings: p.settings.cgRect, media: p.media.cgRect,
                 record: p.record.cgRect, disp: p.display.cgRect,

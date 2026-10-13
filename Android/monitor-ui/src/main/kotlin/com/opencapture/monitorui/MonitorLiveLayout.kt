@@ -522,7 +522,7 @@ data class LiveMonitorLayout(
                 feed = slot(p.picture),
                 picture = slot(p.picture),
                 lock = slot(p.lock),
-                battery = slot(p.gauges),
+                battery = slot(p.telemetry),
                 topDeck = slot(p.status),
                 assist = slot(p.assists),
                 capture = slot(p.values),

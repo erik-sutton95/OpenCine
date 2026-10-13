@@ -77,6 +77,8 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public let system: MonitorRect
     public let lock: MonitorRect
     public let gauges: MonitorRect
+    /// Live telemetry render bounds; gauges retains the prior corner geometry for existing compositions.
+    public let telemetry: MonitorRect
     public let settings: MonitorRect
     public let media: MonitorRect
     public let record: MonitorRect
@@ -112,7 +114,6 @@ public struct FieldMonitorLayout: Equatable, Sendable {
         let edge = 14.0
         let floor: Double
         if portrait {
-            let top = max(0, safeArea.top - 24)
             let systemH = tablet ? 116.0 : 100.0
             // Record still clears the home indicator; the whole portrait stack sits low.
             let systemY = max(0, h - max(0, safeArea.bottom - 24) - systemH)
@@ -125,9 +126,15 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             let ratio = fillsPicture ? min(aspect, 9 / 16) : aspect
             // STBY / clock / REC SETUP sit just below the notch, independent of the feed.
             let statusH = tablet ? 52.0 : 44.0
+            let headerLeading = tablet ? edge : max(16, safeArea.leading + 8)
+            let headerTrailing = tablet ? edge : max(16, safeArea.trailing + 8)
+            let telemetryTop = max(0, safeArea.top) + 8 + controlInset
             status = .init(
-                x: edge, y: max(0, safeArea.top) + controlInset, width: w - 28, height: statusH)
-            let ceiling = status.maxY
+                x: headerLeading, y: tablet ? max(0, safeArea.top) + controlInset : telemetryTop + 48 + 8,
+                width: max(0, w - headerLeading - headerTrailing), height: statusH)
+            // Telemetry clearance moves chrome only; retain the existing picture's framing anchor.
+            let pictureAnchor = max(0, safeArea.top) + controlInset
+            let ceiling = pictureAnchor + statusH
             let pillarbox = tablet && w / ratio > max(0, floor - ceiling)
             let pictureH = pillarbox ? max(1, floor - ceiling) : w / ratio
             let pictureW = pillarbox ? pictureH * ratio : w
@@ -137,11 +144,11 @@ public struct FieldMonitorLayout: Equatable, Sendable {
                 // A vertical camera is shown whole: fit it above the opaque system
                 // bar (the status row is a transparent overlay and may sit on it).
                 // Centring the full-width picture on the canvas hid ~5% under the bar.
-                let room = max(1, systemY - status.y)
+                let room = max(1, systemY - pictureAnchor)
                 let fittedH = min(w / aspect, room)
                 let fittedW = fittedH * aspect
                 // Rest it on the bar so the free space goes above, not below.
-                pictureY = max(status.y, systemY - fittedH)
+                pictureY = max(pictureAnchor, systemY - fittedH)
                 verticalRect = .init(
                     x: (w - fittedW) / 2, y: pictureY, width: fittedW, height: fittedH)
             } else if pictureH > h || pictureH > floor - ceiling {
@@ -165,12 +172,15 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             settings = .init(x: w - edge - button, y: lock.y, width: button, height: button)
             media = .init(
                 x: settings.x - button - Self.settingsMediaGap, y: lock.y, width: button, height: button)
-            let gaugeTop = (tablet ? 82.0 : max(4, top - 16)) + controlInset
+            let cornerTop = max(0, safeArea.top - 24)
+            let gaugeTop = (tablet ? 82 : max(4, cornerTop - 16)) + controlInset
             // Phone: the two battery pills trail the Dynamic Island (the link pill
             // sits left of it with storage). Tablet: all three stacked.
             gauges = .init(
                 x: tablet ? edge : w - edge - 122, y: gaugeTop,
                 width: tablet ? 64 : 122, height: tablet ? 76 : 22)
+            telemetry = tablet ? gauges : .init(
+                x: w - headerTrailing - 122, y: telemetryTop + 13, width: 122, height: 22)
             // Portrait tools belong to the lower control area. Picture crop,
             // aspect and FIT/FILL must not move their touch targets.
             assists = .init(
@@ -222,6 +232,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
                 x: 18, y: cornerTop, width: button, height: button)
             gauges = .init(
                 x: 18, y: lock.maxY + 6, width: tablet ? 64 : 58, height: tablet ? 76 : 68)
+            telemetry = gauges
             // Keep the full 44pt touch target inside the screen. A 35pt band
             // centred at 21.5pt put its accessibility bounds above the window,
             // causing automatic hit-point selection to miss the top buttons.

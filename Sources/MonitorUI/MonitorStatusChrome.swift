@@ -50,8 +50,17 @@
             .monitorReadoutShadow()
             .overlay(alignment: .topLeading) {
                 if layout.portrait {
-                    HStack(spacing: 10) { storage().monitorReadoutShadow(); if !layout.tablet { link() } }
-                        .offset(y: (layout.tablet ? 52 : layout.gauges.y) - layout.status.y)
+                    if layout.tablet {
+                        HStack(spacing: 10) { storage().monitorReadoutShadow() }
+                            .offset(y: 52 - layout.status.y)
+                    } else {
+                        HStack(spacing: 8) {
+                            storage().monitorReadoutShadow().frame(maxWidth: .infinity, alignment: .leading)
+                            link().fixedSize(horizontal: true, vertical: false)
+                        }
+                        .frame(width: max(0, layout.telemetry.x - layout.status.x - 8), height: 48, alignment: .leading)
+                        .offset(y: layout.telemetry.y - 13 - layout.status.y)
+                    }
                 }
             }
         }

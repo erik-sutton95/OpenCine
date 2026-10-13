@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -76,9 +77,15 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
                 }
             }
         }
-        if (layout.portrait) Row(Modifier.offset(y = ((if (layout.tablet) 52f else layout.gauges.y) - layout.status.y).dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            storage(); if (!layout.tablet) link()
+        if (layout.portrait) {
+            if (layout.tablet) Row(Modifier.offset(y = (52f - layout.status.y).dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { storage() }
+            else Row(Modifier.offset(y = (layout.telemetry.y - 13f - layout.status.y).dp)
+                .width(maxOf(0f, layout.telemetry.x - layout.status.x - 8f).dp).heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) { storage() }
+                Box { link() }
+            }
         }
     }
 }
