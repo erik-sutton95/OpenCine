@@ -170,7 +170,7 @@ let package = Package(
             name: "OpenCineAppKitTests",
             dependencies: [
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
-                "MonitorPresentation", "MonitorUI",
+                "MonitorPresentation", "MonitorUI", "OpenCineMedia",
             ]),
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and

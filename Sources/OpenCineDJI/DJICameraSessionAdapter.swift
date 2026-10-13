@@ -1,6 +1,7 @@
 import Foundation
 import OpenCineCore
 import OpenCineMotion
+import OpenCineMedia
 
 /// Wire progress of one camera SET, reported by the app session's `fireCamera` so the
 /// OpenCineCore seam can tell an ACK from a camera-reported value (CORE-02).
@@ -57,6 +58,9 @@ public protocol DJIControlPort: AnyObject {
     var captureControlState: DJICaptureControlState? { get }
     func writeShutter(
         _ denominator: Int, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeHostShutterAngle(
+        _ degrees: Double, denominator: Int, admission: DJICommandAdmission?,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeExposureCompensation(
         _ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeFocusMode(
@@ -101,6 +105,11 @@ public protocol DJIControlPort: AnyObject {
 /// native implementation into a direct write.
 extension DJIControlPort {
     public var commandOwner: DJICommandOwner? { nil }
+    public func writeHostShutterAngle(
+        _ degrees: Double, denominator: Int, admission: DJICommandAdmission?,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) { onStage(.notSent) }
+
     public func writeShutter(
         _ denominator: Int, admission: DJICommandAdmission,
         onStage: @escaping @MainActor (ControlWireEvent) -> Void
@@ -406,6 +415,15 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                         session.writeShutter(denominator, onStage: $0)
                     }
                 }, requiresReport: true)
+        case .set(.shutter(.angle(let degrees))):
+            guard let state = session.captureControlState, state.shutterPresentation == .emulatedAngle,
+                let denominator = HostShutterAngle.denominator(degrees: degrees,
+                    framesPerSecond: state.reported.fps > 0 ? Double(state.reported.fps) : nil,
+                    available: state.reported.availableShutterDenoms) else { return nil }
+            return WirePlan(
+                shows: { _ in session.captureControlState?.reported.shutterDenom == denominator },
+                fire: { session.writeHostShutterAngle(degrees, denominator: denominator,
+                    admission: admission, onStage: $0) }, requiresReport: true)
         case .set(.exposureCompensation(let stops)):
             guard
                 let value = EvComp.allCases.first(where: {

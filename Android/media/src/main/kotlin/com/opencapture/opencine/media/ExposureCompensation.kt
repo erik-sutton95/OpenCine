@@ -1,18 +1,23 @@
 package com.opencapture.opencine.media
 
+import java.math.BigDecimal
+import java.math.RoundingMode
 import kotlin.math.abs
 
-/** Display and parse exposure offsets in thirds of a stop; no camera wire encoding. */
+/** Display and parse exposure offsets; no camera wire encoding. */
 object ExposureCompensation {
     const val MINUS = "\u2212"
 
-    fun label(thirds: Int): String {
-        if (thirds == 0) return "0.0"
-        val sign = if (thirds > 0) "+" else MINUS
-        val absolute = abs(thirds.toLong())
-        val fraction = listOf(".0", ".3", ".7")[(absolute % 3).toInt()]
-        return "$sign${absolute / 3}$fraction"
+    /**
+     * The one EV spelling every readout uses (Swift `ExposureCompensation.label(stops:)`): `0.0`,
+     * `+0.3`, `−0.7` with U+2212, one decimal rounded from the exact value like C `%.1f`.
+     */
+    fun label(stops: Double): String {
+        val magnitude = BigDecimal(abs(stops)).setScale(1, RoundingMode.HALF_EVEN).toPlainString()
+        return if (magnitude == "0.0") magnitude else (if (stops < 0) MINUS else "+") + magnitude
     }
+
+    fun label(thirds: Int): String = label(thirds / 3.0)
 
     fun fromLabel(label: String, supportedThirds: IntRange): Int? {
         if (label == "0.0") return 0.takeIf { it in supportedThirds }

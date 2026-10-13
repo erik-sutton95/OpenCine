@@ -2,6 +2,8 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.core.AudioLevels
 import com.opencapture.opencine.core.Availability
+import com.opencapture.opencine.media.HostShutterAngle
+import com.opencapture.opencine.media.HostShutterPresentation
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraDeviceID
@@ -124,6 +126,7 @@ interface PocketControlPort {
     fun controlState(): PocketControlState
     fun captureControlState(): DjiCaptureControlState? = null
     fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
+    fun writeHostShutterAngle(degrees: Double, denominator: Int, admission: DjiCommandAdmission?, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
     fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
     fun writeFocusMode(continuous: Boolean, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
     fun writeZoom(ratio: Double, onStage: (ControlWireEvent) -> Unit) = onStage(ControlWireEvent.NOT_SENT)
@@ -422,11 +425,24 @@ class DjiCameraSessionAdapter(
             is CameraCommandIntent.Set ->
                 when (val value = intent.value) {
                     is SettingValue.Shutter -> {
-                        val duration = (value.value as? com.opencapture.opencine.core.ShutterValue.Duration)?.seconds
-                        if (duration == null || duration.numerator != 1 || duration.denominator <= 0) null
-                        else WirePlan({ port.captureControlState()?.reported?.shutterDenom == duration.denominator }, true) {
-                            if (admission == null) port.writeShutter(duration.denominator, it)
-                            else port.writeShutter(duration.denominator, admission, it)
+                        when (val shutter = value.value) {
+                            is com.opencapture.opencine.core.ShutterValue.Duration -> {
+                                val duration = shutter.seconds
+                                if (duration.numerator != 1 || duration.denominator <= 0) null
+                                else WirePlan({ port.captureControlState()?.reported?.shutterDenom == duration.denominator }, true) {
+                                    if (admission == null) port.writeShutter(duration.denominator, it)
+                                    else port.writeShutter(duration.denominator, admission, it)
+                                }
+                            }
+                            is com.opencapture.opencine.core.ShutterValue.Angle -> {
+                                val state = port.captureControlState()?.takeIf { it.shutterPresentation == HostShutterPresentation.EMULATED_ANGLE }
+                                val denominator = state?.let { HostShutterAngle.denominator(shutter.degrees,
+                                    it.reported.fps.takeIf { rate -> rate > 0 }?.toDouble(), it.reported.availableShutterDenoms) }
+                                denominator?.let { target -> WirePlan({ port.captureControlState()?.reported?.shutterDenom == target }, true) {
+                                    port.writeHostShutterAngle(shutter.degrees, target, admission, it)
+                                } }
+                            }
+                            com.opencapture.opencine.core.ShutterValue.Auto -> null
                         }
                     }
                     is SettingValue.ExposureCompensation -> EvComp.allCases.firstOrNull {

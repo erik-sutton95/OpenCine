@@ -76,9 +76,7 @@ public enum MonitorNDFilterRecommendation: Sendable {
 
     public static func stopsLabel(_ stops: Double, noneLabel: String = noneLabel) -> String {
         guard stops.isFinite else { return noneLabel }
-        if abs(stops) < 0.05 { return "0.0" }
-        let sign = stops > 0 ? "+" : "−"
-        return sign + String(format: "%.1f", abs(stops))
+        return ExposureCompensation.label(stops: stops)
     }
 
     /// Optical density of the picture (`ND 0.4`). Signed when under.

@@ -1,15 +1,22 @@
 import Foundation
 import OpenCineCore
+import OpenCineMedia
 
 /// Actual decoded camera reports, before any pending UI value is applied.
 /// A connection owner keeps this separate from its presentation status.
 public struct DJICaptureControlState: Sendable {
     public var reported: CameraStatus
     public var model: CameraModel?
+    public var shutterPresentation: HostShutterPresentation
 
     public init(reported: CameraStatus, model: CameraModel?) {
+        self.init(reported: reported, model: model, shutterPresentation: .cameraValue)
+    }
+
+    public init(reported: CameraStatus, model: CameraModel?, shutterPresentation: HostShutterPresentation) {
         self.reported = reported
         self.model = model
+        self.shutterPresentation = shutterPresentation
     }
 
     var descriptors: [SettingDescriptor] {
@@ -17,11 +24,16 @@ public struct DJICaptureControlState: Sendable {
         let shutter = reported.availableShutterDenoms.filter { $0 > 0 }.map {
             SettingValue.shutter(.duration(Rational(1, $0)))
         }
+        let emulated = shutterPresentation == .emulatedAngle
+        let video = UInt8(exactly: reported.shootingMode).flatMap(ShootingMode.init(rawValue:))?.offersVideoFormat == true
+        let ready = reported.expoMode == .manual
+            && (!emulated || (video && reported.fps > 0 && reported.shutterDenom > 0))
         var result = [
             SettingDescriptor(
                 .shutter, access: shutter.isEmpty ? .readOnly : .readWrite,
-                domain: SettingDomain(choices: shutter),
-                availability: reported.expoMode == .manual ? .available : .unavailable(.mode)),
+                domain: SettingDomain(choices: emulated ? HostShutterAngle.choices : shutter),
+                availability: ready ? .available : .unavailable(.mode),
+                semantics: SettingSemantics(implementation: emulated ? .emulated : .native)),
             SettingDescriptor(
                 .exposureCompensation,
                 domain: SettingDomain(choices: EvComp.allCases.map {
@@ -57,7 +69,12 @@ public struct DJICaptureControlState: Sendable {
         func report(_ value: SettingValue) {
             result[value.key] = ObservedValue(value, origin: .cameraReported, at: nil)
         }
-        if reported.shutterDenom > 0 {
+        if shutterPresentation == .emulatedAngle {
+            if let angle = HostShutterAngle.reported(denominator: reported.shutterDenom,
+                framesPerSecond: reported.fps > 0 ? Double(reported.fps) : nil) {
+                result[.shutter] = ObservedValue(.shutter(.angle(angle)), origin: .protocolDerived, at: nil)
+            }
+        } else if reported.shutterDenom > 0 {
             report(.shutter(.duration(Rational(1, reported.shutterDenom))))
         }
         if let value = reported.evComp {

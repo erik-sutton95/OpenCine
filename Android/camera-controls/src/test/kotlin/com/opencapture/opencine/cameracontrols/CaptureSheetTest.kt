@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.vocabulary.CameraCommands

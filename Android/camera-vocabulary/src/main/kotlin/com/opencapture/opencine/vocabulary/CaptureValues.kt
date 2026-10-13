@@ -8,11 +8,12 @@ object ShutterAngle {
 
     fun effectiveFps(fps: Int): Int = com.opencapture.opencine.media.ShutterAngle.effectiveFps(fps)
 
-    fun rematchesFormat(
-        usesAngle: Boolean, manual: Boolean, isPhoto: Boolean,
-        previousFps: Int, nextFps: Int, alreadyPending: Boolean = false,
-    ): Boolean = com.opencapture.opencine.media.ShutterAngle.rematchesFormat(
-        usesAngle, manual, isPhoto, previousFps, nextFps, alreadyPending,
+    /** What a format change owes the host-emulated angle; null = no shutter write (Core decides, A5-07). */
+    fun formatRematch(
+        degrees: Double, usesAngle: Boolean, manual: Boolean, isPhoto: Boolean,
+        previousFps: Int, nextFps: Int, available: List<Int>, alreadyPending: Boolean = false,
+    ) = com.opencapture.opencine.media.ShutterAngle.formatRematch(
+        degrees, usesAngle, manual, isPhoto, previousFps, nextFps, available, alreadyPending,
     )
 
     fun label(value: Double): String = com.opencapture.opencine.media.ShutterAngle.label(value)

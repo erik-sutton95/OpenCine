@@ -46,6 +46,7 @@ import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.media.recordingTimeLabel
 import com.opencapture.opencine.media.StorageReadout
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
+import com.opencapture.opencine.vocabulary.EvComp
 import com.opencapture.opencine.vocabulary.FocusOverlay
 import com.opencapture.opencine.vocabulary.LiveFeedFocusGesture
 import com.opencapture.opencine.vocabulary.TrackingBox
@@ -131,7 +132,8 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
         record = MonitorOperatorRecordSource(status.isPhoto, chrome.capture.confirmRecording(), busy,
             openMode = { state.sheet = LiveSheet.MODE }),
-        exposure = { readExposure().takeIf { exposureAvailable } }, level = level, levelViewFlip = levelViewFlip,
+        exposure = { readExposure().takeIf { exposureAvailable }?.let { EvComp.fromRaw(it)?.thirds?.div(3.0) } },
+        level = level, levelViewFlip = levelViewFlip,
         audio = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
         readOnly = false, borrowed = shell.monitor?.isBorrowed == true, returnToStage = chrome.returnToStage,
         coverOpen = shell.cover != null, note = note, clearNote = clearNote, vpnActive = vpnActive,

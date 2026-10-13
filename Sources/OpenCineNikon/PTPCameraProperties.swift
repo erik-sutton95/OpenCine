@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 
 /// Camera controls currently backed by known Nikon movie property writes.
 ///
@@ -1423,8 +1424,7 @@ public enum PTPCameraPropertyDecoders {
         if abs(ev) > 5 {
             return hex(UInt32(UInt16(bitPattern: raw)))
         }
-        if ev == 0 { return "±0.0" }
-        return String(format: "%+.1f", ev)
+        return ExposureCompensation.label(stops: ev)
     }
 
     /// Best-effort decode of a PTP string property (ImageSize and similar).

@@ -2,7 +2,6 @@ package com.opencapture.opencine.media
 
 import kotlin.math.abs
 import kotlin.math.round
-import java.util.Locale
 
 /**
  * iOS `LUTExposureCompensation`. Input-referred stops before the Rec.709 cube.
@@ -20,10 +19,5 @@ object MonitorLUTExposureCompensation {
         return if (abs(snapped) < 0.0001) 0.0 else snapped
     }
 
-    fun label(stops: Double): String {
-        val value = snap(stops)
-        if (value == 0.0) return "0.0"
-        val formatted = String.format(Locale.US, "%+.1f", value)
-        return formatted.replace("-", "−")
-    }
+    fun label(stops: Double): String = ExposureCompensation.label(snap(stops))
 }

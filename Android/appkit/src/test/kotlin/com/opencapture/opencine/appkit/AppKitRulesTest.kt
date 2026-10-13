@@ -16,7 +16,7 @@ class AppKitRulesTest {
         val files = File("src/main").walk().filter { it.extension == "kt" }.toList()
         assertTrue(files.isNotEmpty())
         val allowed = listOf(
-            "import kotlin.", "import kotlinx.", "import java.util.", "import java.lang.ref.WeakReference", "import java.io.", "import org.json.", "import android.",
+            "import kotlin.", "import kotlinx.", "import java.util.", "import java.math.", "import java.lang.ref.WeakReference", "import java.io.", "import org.json.", "import android.",
             "import androidx.", "import com.opencapture.opencine.core.", "import com.opencapture.opencine.multicam.",
             "import com.opencapture.opencine.appkit.", "import com.opencapture.opencine.media.", "import com.opencapture.monitorui.",
             "import com.opencapture.opencine.motion.", // Motion value types are owned by Core.

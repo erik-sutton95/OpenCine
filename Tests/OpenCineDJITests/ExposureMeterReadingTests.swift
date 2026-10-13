@@ -3,6 +3,19 @@ import Testing
 @testable import OpenCineDJI
 
 @Suite struct ExposureMeterReadingTests {
+    @Test func invalidSamplesStayUnknownAndSixthsKeepTheirMeteredValue() {
+        for value in [Double.nan, Double.infinity, -Double.infinity] {
+            let reading = ExposureMeterReading(stops: value)
+            #expect(reading.stops == nil)
+            #expect(reading.needleFraction == nil)
+            #expect(reading.label == "\u{2014}")
+        }
+        let sixth = ExposureMeterReading(stops: -1.0 / 6)
+        #expect(sixth.stops == -1.0 / 6)
+        #expect(sixth.label == "−0.2")
+        #expect(sixth.needleFraction == 8.5 / 18)
+    }
+
     @Test func cameraMeterStaysSeparateFromConfiguredCompensation() {
         for mode: UInt8 in [0x01, 0x04] {
             var value = [UInt8](repeating: 0, count: 44)
