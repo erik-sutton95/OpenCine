@@ -250,7 +250,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 format = {
                     if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
-                    } else Row(horizontalArrangement = Arrangement.spacedBy(if (layout.tablet) 24.dp else 8.dp)) {
+                    } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         status.format.filter { it.section == null || it.section in mounted }.forEach { Readout(it) }
                     }
                 }, color = { status.color?.let { if (it.section == null || it.section in mounted) Readout(it) } },

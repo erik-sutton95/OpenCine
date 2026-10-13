@@ -2755,7 +2755,7 @@ Java_com_opencapture_openpocketcine_feed_OpcVulkan_nativeSubmitBitmap(
     }
     AndroidBitmap_unlockPixels(env, bitmap);
     if (!uploadBitmapFeedImage(r, &r->bitmap.source, info.width, info.height,
-            VK_FORMAT_B8G8R8A8_UNORM, packed.data(), packed.size())) return JNI_FALSE;
+            VK_FORMAT_R8G8B8A8_UNORM, packed.data(), packed.size())) return JNI_FALSE;
     r->bitmap.params.sourceSize[0] = info.width;
     r->bitmap.params.sourceSize[1] = info.height;
     r->bitmap.hasFrame = true;

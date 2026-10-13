@@ -125,7 +125,7 @@ fun MonitorClock(timecode: String?, tablet: Boolean = false, modifier: Modifier 
     Text(buildAnnotatedString {
         withStyle(SpanStyle(color = MonitorPalette.text)) { append(base) }
         withStyle(SpanStyle(color = MonitorPalette.accent)) { append(accent) }
-    }, style = MonitorTypography.text(if (compact) 15f else if (tablet) 25f else 23f, FontWeight.Medium),
+    }, style = MonitorTypography.readout(if (compact) 15f else if (tablet) 25f else 23f, FontWeight.Medium),
         maxLines = 1, softWrap = false,
         modifier = modifier.clearAndSetSemantics { contentDescription = timecode?.let { "Timecode $it" } ?: "Timecode not available" })
 }

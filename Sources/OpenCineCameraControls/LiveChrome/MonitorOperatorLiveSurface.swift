@@ -490,7 +490,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 if layout.portrait, let value = status.portraitFormat {
                     headerReadout(value, portrait: true, caption: status.portraitCaption)
                 } else {
-                    HStack(spacing: layout.tablet ? 24 : 8) { ForEach(status.format) { headerReadout($0) } }
+                    HStack(spacing: 24) { ForEach(status.format) { headerReadout($0) } }
                 }
             }, color: { if let color = status.color { headerReadout(color) } },
             mode: { if layout.viewport.width >= 800, let mode = status.mode { headerReadout(mode, alwaysAccent: true) } },
