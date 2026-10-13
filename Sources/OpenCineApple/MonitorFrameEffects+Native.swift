@@ -18,7 +18,7 @@ extension MonitorFrameEffects {
         result.peakingColor = OpenCineApple.MonitorRGB(peakingColor.rgb)
         result.peakingSensitivity = OpenCineApple.MonitorPeakingSensitivity(
             ratioThreshold: peakingSensitivity.ratioThreshold, noiseGate: peakingSensitivity.noiseGate)
-        result.peakingGateScale = transfer == .rec709 || transfer == .hdr ? 1.57 * 1.57 : 1
+        result.peakingGateScale = transfer.peakingGateScale
         result.transfer = transfer; result.clipByte = resolvedClipByte
         result.zebraSpec = OpenCineApple.MonitorZebraSpec(
             highlightEnabled: zebraHighlight, highlightIRE: zebraHighlightIRE,
@@ -39,6 +39,7 @@ extension MonitorFrameEffects {
         result.histogram = histogram; result.waveform = waveform; result.parade = parade
         result.vectorscope = vectorscope; result.trafficLights = trafficLights
         result.ndMeter = ndMeter; result.evMeter = evMeter
+        result.inspectorSample = inspectorSample
         result.trafficThreshold = trafficThreshold
         result.allowsTransferInference = allowsTransferInference
         switch falseColorScale {

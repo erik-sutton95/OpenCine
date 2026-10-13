@@ -260,6 +260,12 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:nikon-wire"
+    },
+    {
+      "name": ":appkit-native",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:appkit-native"
     }
   ],
   "layers": {
@@ -305,7 +311,8 @@
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
-      ":camera-controls"
+      ":camera-controls",
+      ":appkit-native"
     ],
     "multicam": [
       "OpenCineMulticam",
@@ -356,6 +363,16 @@
       "from": "OpenCineCameraControls",
       "to": "OpenCineCameraVocabulary",
       "reason": "The Swift twin of :camera-controls (app composition, next to OpenCineAppKit) reads the camera vocabulary; ui -> vendor stays forbidden everywhere else (AGENTS.md, camera controls)."
+    },
+    {
+      "from": ":appkit-native",
+      "to": ":decoder",
+      "reason": "Optional native app composition, the Android counterpart of OpenCineAppKitApple. Camera controls and monitor-ui retain value/action-only native seams."
+    },
+    {
+      "from": ":appkit-native",
+      "to": ":native-runtime",
+      "reason": "Optional native app composition, the Android counterpart of OpenCineAppKitApple. Camera controls and monitor-ui retain value/action-only native seams."
     }
   ],
   "instructions": [

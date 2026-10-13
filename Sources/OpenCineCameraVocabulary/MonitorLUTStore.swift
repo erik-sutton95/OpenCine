@@ -173,16 +173,51 @@ public final class LUTPreferences: @unchecked Sendable {
     }
 }
 
+/// Caps on one archive import, so a malformed or hostile pack (many entries, a zip bomb) cannot
+/// fill the app container. A `.cube` is tens of KB to a few MB.
+public struct CustomLUTArchiveLimits: Sendable, Equatable {
+    public var maxEntryBytes: UInt64
+    public var maxTotalBytes: UInt64
+    public var maxFiles: Int
+
+    public init(
+        maxEntryBytes: UInt64 = 64 << 20, maxTotalBytes: UInt64 = 512 << 20, maxFiles: Int = 512
+    ) {
+        self.maxEntryBytes = maxEntryBytes
+        self.maxTotalBytes = maxTotalBytes
+        self.maxFiles = maxFiles
+    }
+}
+
 /// On-disk custom slots: one `.cube` for Rec.709/HLG, D-Log, and D-Log2, plus imported files.
+/// Named libraries (a vendor download beside the imports) are stores in folders under `root`.
 public final class CustomLUTStore: @unchecked Sendable {
     public let root: URL
     private let preferences: LUTPreferences
     private let lock = NSLock()
     private var cubeCache: [String: CubeLUT] = [:]
+    /// Parse order, oldest first. A 33-point cube is about 0.5 MB, so an operator auditioning a
+    /// downloaded library keeps only the latest few.
+    private var cacheOrder: [String] = []
+    private var libraries: [String: CustomLUTStore] = [:]
+    static let cachedCubeLimit = 8
 
     public init(root: URL, preferences: LUTPreferences) {
         self.root = root
         self.preferences = preferences
+    }
+
+    /// The store for one named library in `<root>/<name>`, created once and kept, so its parsed
+    /// cubes stay cached. Nil for a name that is not a single safe folder name.
+    public func library(_ name: String) -> CustomLUTStore? {
+        guard CustomLUTIndex.isSafeFileName(name) else { return nil }
+        return lock.withLock {
+            if let library = libraries[name] { return library }
+            let library = CustomLUTStore(
+                root: root.appendingPathComponent(name, isDirectory: true), preferences: preferences)
+            libraries[name] = library
+            return library
+        }
     }
 
     public func list() -> [StoredCustomLUT] {
@@ -243,6 +278,79 @@ public final class CustomLUTStore: @unchecked Sendable {
         return stored
     }
 
+    /// Imports file-backed entries with actual-size validation and atomic replacement.
+    /// Streaming readers should use the `read` overload to refuse excess bytes before writing.
+    @discardableResult
+    public func importArchive<Entry>(
+        _ entries: some Sequence<Entry>, path: (Entry) -> String, size: (Entry) -> UInt64,
+        limits: CustomLUTArchiveLimits = .init(), extract: (Entry, URL) throws -> Void
+    ) throws -> [StoredCustomLUT] {
+        try importArchiveFiles(entries, path: path, size: size, limits: limits) { entry, temporary, budget in
+            try extract(entry, temporary)
+            let facts = try temporary.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard facts.isRegularFile == true, let count = facts.fileSize, count >= 0,
+                UInt64(count) <= budget else { throw CustomLUTStoreError.archiveLimitExceeded }
+            return UInt64(count)
+        }
+    }
+
+    /// Streams archive data into bounded temporary files, then replaces each admitted entry.
+    /// The reader must propagate a consumer error; header sizes never authorize extra output.
+    @discardableResult
+    public func importArchive<Entry>(
+        _ entries: some Sequence<Entry>, path: (Entry) -> String, size: (Entry) -> UInt64,
+        limits: CustomLUTArchiveLimits = .init(),
+        read: (Entry, (Data) throws -> Void) throws -> Void
+    ) throws -> [StoredCustomLUT] {
+        try importArchiveFiles(entries, path: path, size: size, limits: limits) { entry, temporary, budget in
+            guard FileManager.default.createFile(atPath: temporary.path, contents: nil) else {
+                throw CustomLUTStoreError.unreadable
+            }
+            let handle = try FileHandle(forWritingTo: temporary)
+            defer { try? handle.close() }
+            var written: UInt64 = 0
+            try read(entry) { data in
+                let count = UInt64(data.count)
+                guard count <= budget - written else { throw CustomLUTStoreError.archiveLimitExceeded }
+                try handle.write(contentsOf: data)
+                written += count
+            }
+            try handle.close()
+            return written
+        }
+    }
+
+    private func importArchiveFiles<Entry>(
+        _ entries: some Sequence<Entry>, path: (Entry) -> String, size: (Entry) -> UInt64,
+        limits: CustomLUTArchiveLimits, write: (Entry, URL, UInt64) throws -> UInt64
+    ) throws -> [StoredCustomLUT] {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        var extractedBytes: UInt64 = 0
+        var extractedFiles = 0
+        for entry in entries {
+            guard extractedFiles < limits.maxFiles else { break }
+            let fileName = (path(entry) as NSString).lastPathComponent
+            let declared = size(entry)
+            let budget = min(limits.maxEntryBytes, limits.maxTotalBytes - extractedBytes)
+            guard fileName.lowercased().hasSuffix(".cube"), CustomLUTIndex.isSafeFileName(fileName),
+                declared <= budget else { continue }
+            let temporary = root.appendingPathComponent(".import-" + UUID().uuidString + ".tmp")
+            defer { try? FileManager.default.removeItem(at: temporary) }
+            let written = try write(entry, temporary, budget)
+            guard written <= budget else { throw CustomLUTStoreError.archiveLimitExceeded }
+            let destination = root.appendingPathComponent(fileName)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                _ = try FileManager.default.replaceItemAt(destination, withItemAt: temporary)
+            } else {
+                try FileManager.default.moveItem(at: temporary, to: destination)
+            }
+            cache(nil, for: fileName)
+            extractedBytes += max(declared, written)
+            extractedFiles += 1
+        }
+        return list()
+    }
+
     public func cube(_ lut: StoredCustomLUT) -> CubeLUT? {
         cube(fileName: lut.fileName)
     }
@@ -282,20 +390,35 @@ public final class CustomLUTStore: @unchecked Sendable {
         slot.others.contains { preferences.customFileName(for: $0) == fileName }
     }
 
+    // ponytail: first in, first out; least recently used if auditioning a library thrashes.
     private func cache(_ cube: CubeLUT?, for fileName: String) {
-        lock.withLock { cubeCache[fileName] = cube }
+        lock.withLock {
+            cacheOrder.removeAll { $0 == fileName }
+            cubeCache[fileName] = cube
+            guard cube != nil else { return }
+            cacheOrder.append(fileName)
+            if cacheOrder.count > Self.cachedCubeLimit {
+                cubeCache[cacheOrder.removeFirst()] = nil
+            }
+        }
     }
+
+    /// Cubes held parsed, for the cache bound's test.
+    var cachedCubeCount: Int { lock.withLock { cubeCache.count } }
 }
 
 public enum CustomLUTStoreError: LocalizedError {
     case invalidFileName
     case unreadable
+    case archiveLimitExceeded
     case deletionFailed(String)
 
     public var errorDescription: String? {
         switch self {
         case .invalidFileName:
             return "The LUT file name is not valid."
+        case .archiveLimitExceeded:
+            return "The archive exceeds the allowed extracted size."
         case .unreadable:
             return "The .cube file could not be read."
         case .deletionFailed(let name):

@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -82,12 +84,93 @@ data class LutPickerCopy(
     val cameraLooksCaption: String,
 )
 
-private enum class LutTab { CAMERA, CREATIVE, CUSTOM }
+/** One look in a [LutPickerLibrary]; [title] is what its drum or file row shows. */
+data class LutPickerEntry(val id: String, val title: String)
 
-private fun LutTab.label(copy: LutPickerCopy): String = when (this) {
-    LutTab.CAMERA -> copy.cameraTab
-    LutTab.CREATIVE -> "Creative"
-    LutTab.CUSTOM -> "Custom"
+/** A drum of looks, or the imported-file list under an import button. */
+enum class LutPickerLayout { DRUM, FILES }
+
+/** A choice row in the caption slot that narrows the drum (RED's output colour space on Z). */
+data class LutPickerFilter(val options: List<String>, val selected: String, val onSelect: (String) -> Unit)
+
+/** A button under an empty library (a vendor download). */
+data class LutPickerAction(val title: String, val onClick: () -> Unit)
+
+/** What an empty library shows: why it is empty and, optionally, how to fill it. */
+data class LutPickerEmpty(val title: String? = null, val hint: String, val action: LutPickerAction? = null)
+
+/**
+ * One tab of the shared LUT picker (iOS `LUTPickerLibrary`), supplied by the app as a value: its
+ * official looks, a library the operator downloaded from a vendor (RED's IPP2 presets on Z) or
+ * imported cubes. [isCurrent] opens the picker on this tab; [representative] is the look a switch
+ * to this tab applies while another tab's look is current, and the drum's resting row.
+ */
+data class LutPickerLibrary(
+    val title: String,
+    val entries: List<LutPickerEntry>,
+    val isCurrent: Boolean,
+    val selectedId: String?,
+    val onSelect: (LutPickerEntry) -> Unit,
+    val layout: LutPickerLayout = LutPickerLayout.DRUM,
+    val representative: LutPickerEntry? = null,
+    val caption: String = "",
+    val filter: LutPickerFilter? = null,
+    /** Looks flagged with a star (a recommended default). */
+    val markedIds: Set<String> = emptySet(),
+    val empty: LutPickerEmpty? = null,
+    /** Removes a stored look once the picker has confirmed; the app reports a failure. */
+    val onDelete: ((LutPickerEntry) -> Unit)? = null,
+    /** Opens the app's document picker for a `.cube`. */
+    val onImport: (() -> Unit)? = null,
+) {
+    /** The drum row: the applied look, else the representative, else the first look. */
+    val drumId: String?
+        get() = selectedId?.takeIf { id -> entries.any { it.id == id } }
+            ?: representative?.id ?: entries.firstOrNull()?.id
+
+    fun label(entry: LutPickerEntry): String = if (entry.id in markedIds) "★ ${entry.title}" else entry.title
+}
+
+/** Camera / Creative / Custom over one app's camera looks, as the shared picker's libraries. */
+internal fun lutPickerLibraries(
+    copy: LutPickerCopy,
+    selection: String,
+    cameraEntries: List<LutEntry>,
+    creativeEntries: List<LutEntry>,
+    customEntries: List<LutEntry>,
+    colorMode: Int,
+    profile: CameraLUTProfile?,
+    isPhoto: Boolean,
+    onPick: (String) -> Unit,
+    onImport: () -> Unit,
+    onClear: (LutEntry) -> Unit,
+): List<LutPickerLibrary> {
+    val category = LutCatalog.categoryOf(selection)
+    fun entry(look: LutEntry) = LutPickerEntry(look.id, look.title)
+    fun selected(entries: List<LutEntry>) = entries.firstOrNull { LutCatalog.matches(it, selection) }?.id
+    fun representative(entries: List<LutEntry>, id: String) =
+        LutPickerEntry(id, entries.firstOrNull { it.id == id }?.title ?: id)
+    val pick: (LutPickerEntry) -> Unit = { onPick(it.id) }
+    return listOf(
+        LutPickerLibrary(
+            title = copy.cameraTab, entries = cameraEntries.map(::entry),
+            isCurrent = category == LutCategory.CAMERA, selectedId = selected(cameraEntries),
+            onSelect = pick, representative = representative(cameraEntries, copy.autoId),
+            caption = cameraCaption(copy, selection, colorMode, profile, isPhoto),
+        ),
+        LutPickerLibrary(
+            title = "Creative", entries = creativeEntries.map(::entry),
+            isCurrent = category == LutCategory.CREATIVE, selectedId = selected(creativeEntries),
+            onSelect = pick, representative = representative(creativeEntries, "creativeMono"),
+            caption = creativeCaption(copy, selection, colorMode, profile, isPhoto),
+        ),
+        LutPickerLibrary(
+            title = "Custom", entries = customEntries.map(::entry), layout = LutPickerLayout.FILES,
+            isCurrent = category == LutCategory.CUSTOM, selectedId = selected(customEntries),
+            onSelect = pick, empty = LutPickerEmpty(hint = copy.customHint), onImport = onImport,
+            onDelete = { look -> customEntries.firstOrNull { it.id == look.id }?.let(onClear) },
+        ),
+    )
 }
 
 /** iOS `LUTPicker` landscape metrics: caption + drum, not a stretched well.
@@ -139,17 +222,7 @@ fun LUTPicker(
             else if (isPhoto) listOf(LutCatalog.auto) else LutCatalog.cameraEntries(names, looks = profile?.cameraLooks.orEmpty())
         }
     val creativeEntries = remember { LutCatalog.creative }
-    var tab by remember {
-        mutableStateOf(
-            when (LutCatalog.categoryOf(selection)) {
-                LutCategory.CREATIVE -> LutTab.CREATIVE
-                LutCategory.CUSTOM -> LutTab.CUSTOM
-                LutCategory.CAMERA -> LutTab.CAMERA
-            }
-        )
-    }
     var customRevision by remember { mutableIntStateOf(0) }
-    var pendingDeletion by remember { mutableStateOf<String?>(null) }
     var deletionError by remember { mutableStateOf<String?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
     val customDir = remember(context) { LutCatalog.customDirectory(context.filesDir) }
@@ -171,59 +244,43 @@ fun LUTPicker(
                     importError = error.message ?: "The .cube file could not be read."
                 }
         }
-
-    val onTab: (LutTab) -> Unit = { next ->
-        if (next != tab) {
-            tab = next
-            when (next) {
-                LutTab.CAMERA ->
-                    if (LutCatalog.categoryOf(selection) != LutCategory.CAMERA) {
-                        onSelect(copy.autoId)
-                        onArmLut()
+    val libraries =
+        lutPickerLibraries(
+            copy, selection, cameraEntries, creativeEntries, customEntries, colorMode, profile, isPhoto,
+            onPick = { id ->
+                onSelect(id)
+                onArmLut()
+            },
+            onImport = { importer.launch(arrayOf("*/*")) },
+            onClear = { look ->
+                val fileName = look.fileName ?: return@lutPickerLibraries
+                runCatching { LutCatalog.deleteCustom(fileName, customDir) }
+                    .onSuccess {
+                        customRevision += 1
+                        if (selection == LutCatalog.customId(fileName)) {
+                            onSelect(LutCatalog.AUTO)
+                            onArmLut()
+                        }
                     }
-                LutTab.CREATIVE ->
-                    if (LutCatalog.categoryOf(selection) != LutCategory.CREATIVE) {
-                        onSelect("creativeMono")
-                        onArmLut()
-                    }
-                LutTab.CUSTOM -> Unit
+                    .onFailure { error -> deletionError = error.message ?: "The LUT could not be deleted." }
+            },
+        )
+    val footer: (@Composable () -> Unit)? =
+        if (embedded) null else {
+            {
+                LUTSplitComparisonBar(
+                    splitComparison = splitComparison,
+                    splitVertical = splitVertical,
+                    lutExposureStops = lutExposureStops,
+                    onToggleSplit = onToggleSplit,
+                    onSplitVertical = onSplitVertical,
+                    onExposure = onExposure,
+                )
             }
-        }
-    }
-    val onPick: (String) -> Unit = { id ->
-        onSelect(id)
-        onArmLut()
-    }
-    val body =
-        @Composable {
-            LUTPickerBody(
-                copy = copy,
-                modifier = modifier,
-                tab = tab,
-                onTab = onTab,
-                selection = selection,
-                onSelect = onPick,
-                creativeEntries = creativeEntries,
-                cameraEntries = cameraEntries,
-                customEntries = customEntries,
-                onImport = { importer.launch(arrayOf("*/*")) },
-                onClear = { pendingDeletion = it },
-                importError = importError,
-                embedded = embedded,
-                splitComparison = splitComparison,
-                splitVertical = splitVertical,
-                lutExposureStops = lutExposureStops,
-                onToggleSplit = onToggleSplit,
-                onSplitVertical = onSplitVertical,
-                onExposure = onExposure,
-                colorMode = colorMode,
-                profile = profile,
-                isPhoto = isPhoto,
-            )
         }
 
     if (embedded) {
-        body()
+        LUTPicker(libraries, modifier, embedded = true, message = importError)
     } else {
         BackHandler(enabled = onClose != null, onBack = { onClose?.invoke() })
         Column(
@@ -249,37 +306,10 @@ fun LUTPicker(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            body()
+            LUTPicker(libraries, modifier, embedded = false, footer = footer, message = importError)
         }
     }
 
-    val pending = pendingDeletion
-    if (pending != null) {
-        AlertDialog(
-            onDismissRequest = { pendingDeletion = null },
-            title = { Text("Clear ${LutCatalog.displayName(pending)}?") },
-            text = { Text("This removes the stored LUT from this device. This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pendingDeletion = null
-                        runCatching { LutCatalog.deleteCustom(pending, customDir) }
-                            .onSuccess {
-                                customRevision += 1
-                                if (selection == LutCatalog.customId(pending)) {
-                                    onSelect(LutCatalog.AUTO)
-                                    onArmLut()
-                                }
-                            }
-                            .onFailure { error ->
-                                deletionError = error.message ?: "The LUT could not be deleted."
-                            }
-                    }
-                ) { Text("Clear LUT", color = LiveDesign.destructive) }
-            },
-            dismissButton = { TextButton(onClick = { pendingDeletion = null }) { Text("Cancel") } },
-        )
-    }
     if (deletionError != null) {
         AlertDialog(
             onDismissRequest = { deletionError = null },
@@ -290,31 +320,23 @@ fun LUTPicker(
     }
 }
 
+/**
+ * The shared LUT picker over an app's libraries (iOS `LUTPickerView`): the tabs, the open tab's
+ * drum or file list, then [footer] (the sheet's comparison) and [message] (an import error). A
+ * stored look's delete is confirmed here before the library's [LutPickerLibrary.onDelete] runs.
+ */
 @Composable
-private fun LUTPickerBody(
-    copy: LutPickerCopy,
+fun LUTPicker(
+    libraries: List<LutPickerLibrary>,
     modifier: Modifier = Modifier,
-    tab: LutTab,
-    onTab: (LutTab) -> Unit,
-    selection: String,
-    onSelect: (String) -> Unit,
-    creativeEntries: List<LutEntry>,
-    cameraEntries: List<LutEntry>,
-    customEntries: List<LutEntry>,
-    onImport: () -> Unit,
-    onClear: (String) -> Unit,
-    importError: String?,
-    embedded: Boolean,
-    splitComparison: Boolean,
-    splitVertical: Boolean,
-    lutExposureStops: Double,
-    onToggleSplit: () -> Unit,
-    onSplitVertical: (Boolean) -> Unit,
-    onExposure: (Double) -> Unit,
-    colorMode: Int,
-    profile: CameraLUTProfile?,
-    isPhoto: Boolean,
+    embedded: Boolean = true,
+    footer: (@Composable () -> Unit)? = null,
+    message: String? = null,
 ) {
+    var tab by remember { mutableStateOf((libraries.firstOrNull { it.isCurrent } ?: libraries.firstOrNull())?.title) }
+    var pendingDeletion by remember { mutableStateOf<Pair<String, LutPickerEntry>?>(null) }
+    val open = libraries.firstOrNull { it.title == tab } ?: libraries.firstOrNull { it.isCurrent } ?: libraries.firstOrNull()
+    val haptics = LocalOperatorHaptics.current
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
@@ -332,79 +354,87 @@ private fun LUTPickerBody(
             Modifier.fillMaxWidth().wrapContentHeight(),
             verticalArrangement = Arrangement.spacedBy(tabGap),
         ) {
-        val haptics = LocalOperatorHaptics.current
-        Row(Modifier.fillMaxWidth().monitorTabStrip()) {
-            LutTab.entries.forEachIndexed { index, item ->
-                MonitorTab(item == tab, { haptics.selection(); onTab(item) }, Modifier.weight(1f),
-                    separator = index > 0, accessibilityLabel = item.label(copy)) {
-                    Text(item.label(copy), style = LiveType.ui(13f, FontWeight.SemiBold),
-                        color = if (item == tab) LiveDesign.accent else LiveDesign.muted, maxLines = 1)
+            Row(Modifier.fillMaxWidth().monitorTabStrip()) {
+                libraries.forEachIndexed { index, library ->
+                    val selected = library.title == open?.title
+                    MonitorTab(selected, {
+                        haptics.selection()
+                        if (!selected) {
+                            tab = library.title
+                            if (!library.isCurrent) library.representative?.let(library.onSelect)
+                        }
+                    }, Modifier.weight(1f).testTag("monitor.lut.tab.${library.title}"),
+                        separator = index > 0, accessibilityLabel = library.title) {
+                        Text(library.title, style = LiveType.ui(13f, FontWeight.SemiBold),
+                            color = if (selected) LiveDesign.accent else LiveDesign.muted, maxLines = 1)
+                    }
                 }
             }
-        }
-        Box(Modifier.fillMaxWidth().height(contentH)) {
-            when (tab) {
-                LutTab.CAMERA ->
-                    CatalogTab(
-                        caption = cameraCaption(copy, selection, colorMode, profile, isPhoto),
-                        entries = cameraEntries,
-                        selection = selection,
-                        fallbackId = copy.autoId,
-                        onSelect = onSelect,
-                        contentHeight = contentH,
-                    )
-                LutTab.CREATIVE ->
-                    CatalogTab(
-                        caption = creativeCaption(copy, selection, colorMode, profile, isPhoto),
-                        entries = creativeEntries,
-                        selection = selection,
-                        fallbackId = "creativeMono",
-                        onSelect = onSelect,
-                        contentHeight = contentH,
-                    )
-                LutTab.CUSTOM ->
-                    CustomTab(
-                        hint = copy.customHint,
-                        imported = customEntries,
-                        selection = selection,
-                        onImport = onImport,
-                        onSelect = onSelect,
-                        onClear = onClear,
-                    )
+            Box(Modifier.fillMaxWidth().height(contentH)) {
+                if (open != null) {
+                    key(open.title) {
+                        when (open.layout) {
+                            LutPickerLayout.DRUM ->
+                                DrumTab(open, contentH) { pendingDeletion = open.title to it }
+                            LutPickerLayout.FILES ->
+                                FilesTab(open) { pendingDeletion = open.title to it }
+                        }
+                    }
+                }
+            }
+            footer?.invoke()
+            if (message != null) {
+                Text(message, color = LiveDesign.destructive, fontSize = 12.sp)
             }
         }
-        if (!embedded) {
-            LUTSplitComparisonBar(
-                splitComparison = splitComparison,
-                splitVertical = splitVertical,
-                lutExposureStops = lutExposureStops,
-                onToggleSplit = onToggleSplit,
-                onSplitVertical = onSplitVertical,
-                onExposure = onExposure,
-            )
-        }
-        if (importError != null) {
-            Text(
-                importError,
-                color = LiveDesign.destructive,
-                fontSize = 12.sp,
-            )
-        }
-        }
+    }
+
+    pendingDeletion?.let { (library, look) ->
+        AlertDialog(
+            onDismissRequest = { pendingDeletion = null },
+            title = { Text("Clear ${look.title}?") },
+            text = { Text("This removes the stored LUT from this device. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDeletion = null
+                        libraries.firstOrNull { it.title == library }?.onDelete?.invoke(look)
+                    }
+                ) { Text("Clear LUT", color = LiveDesign.destructive) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeletion = null }) { Text("Cancel") } },
+        )
     }
 }
 
 @Composable
-private fun CatalogTab(
-    caption: String,
-    entries: List<LutEntry>,
-    selection: String,
-    fallbackId: String,
-    onSelect: (String) -> Unit,
-    contentHeight: Dp = LutContentHeight,
-) {
-    val inCatalog = entries.any { LutCatalog.matches(it, selection) }
-    val wheelSelection = if (inCatalog) selection else fallbackId
+private fun DrumTab(library: LutPickerLibrary, contentHeight: Dp, onDelete: (LutPickerEntry) -> Unit) {
+    val empty = library.empty
+    if (library.entries.isEmpty() && library.filter == null && empty != null) {
+        Column(
+            Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            empty.title?.let {
+                Text(it, color = LiveDesign.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(empty.hint, color = LiveDesign.muted, fontSize = 12.sp, textAlign = TextAlign.Center)
+            empty.action?.let { action ->
+                Box(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(50))
+                        .background(LiveDesign.glassBright)
+                        .chromeClickable(onClick = action.onClick)
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(action.title, color = LiveDesign.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        return
+    }
     val gap = LutPickerMetrics.WHEEL_GAP_DP.dp
     val captionH = if (contentHeight >= LutContentHeight) LutCaptionHeight else 18.dp
     val minCaptioned = captionH + LutDrumRowHeight
@@ -425,55 +455,74 @@ private fun CatalogTab(
                 Modifier.fillMaxWidth().height(captionH),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    caption,
-                    style = LiveType.ui(11f, FontWeight.Medium),
-                    color = LiveDesign.muted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                val filter = library.filter
+                if (filter != null) {
+                    LutFilterRow(filter)
+                } else {
+                    Text(
+                        library.caption,
+                        style = LiveType.ui(11f, FontWeight.Medium),
+                        color = LiveDesign.muted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
         val haptics = LocalOperatorHaptics.current
         MonitorLabelWheel(
-            entries = entries,
-            selection = wheelSelection,
-            matches = LutCatalog::matches,
+            entries = library.entries,
+            selection = library.drumId.orEmpty(),
+            matches = { entry, id -> entry.id == id },
             key = { it.id },
-            label = { it.title },
-            onSelect = { onSelect(it.id) },
+            label = library::label,
+            onSelect = library.onSelect,
             rowHeight = LutDrumRowHeight,
             wheelHeight = drumH,
             onClickFeedback = { haptics.selection() },
+            onLongPress = if (library.onDelete != null) onDelete else null,
         )
     }
 }
 
 @Composable
-private fun CustomTab(
-    hint: String,
-    imported: List<LutEntry>,
-    selection: String,
-    onImport: () -> Unit,
-    onSelect: (String) -> Unit,
-    onClear: (String) -> Unit,
-) {
-    Column(Modifier.fillMaxSize()) {
-        Box(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(50))
-                .background(LiveDesign.glassBright)
-                .clickable(onClick = onImport)
-                .padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("Import .cube", color = LiveDesign.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+private fun LutFilterRow(filter: LutPickerFilter) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
+        filter.options.forEach { option ->
+            val on = option == filter.selected
+            Box(
+                Modifier.clip(RoundedCornerShape(50))
+                    .background(if (on) LiveDesign.accentDim else LiveDesign.glassBright)
+                    .chromeClickable { filter.onSelect(option) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(option, style = LiveType.ui(12f, FontWeight.SemiBold),
+                    color = if (on) LiveDesign.accent else LiveDesign.muted, maxLines = 1)
+            }
         }
-        Spacer(Modifier.height(6.dp))
-        if (imported.isEmpty()) {
+    }
+}
+
+@Composable
+private fun FilesTab(library: LutPickerLibrary, onDelete: (LutPickerEntry) -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        library.onImport?.let { onImport ->
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(50))
+                    .background(LiveDesign.glassBright)
+                    .clickable(onClick = onImport)
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Import .cube", color = LiveDesign.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+        if (library.entries.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    hint,
+                    library.empty?.hint.orEmpty(),
                     color = LiveDesign.muted,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
@@ -482,9 +531,8 @@ private fun CustomTab(
         } else {
             val importedScroll = rememberScrollState()
             Column(Modifier.weight(1f).fillMaxWidth().monitorScrollFade(importedScroll).verticalScroll(importedScroll)) {
-                imported.forEach { entry ->
-                    val selected = LutCatalog.matches(entry, selection)
-                    val fileName = entry.fileName ?: return@forEach
+                library.entries.forEach { entry ->
+                    val selected = entry.id == library.selectedId
                     Row(
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(LiveDesign.CORNER_RADIUS_DP.dp))
@@ -502,16 +550,18 @@ private fun CustomTab(
                             overflow = TextOverflow.Ellipsis,
                             modifier =
                                 Modifier.weight(1f)
-                                    .clickable { onSelect(entry.id) }
+                                    .clickable { library.onSelect(entry) }
                                     .padding(vertical = 6.dp),
                         )
-                        Box(
-                            Modifier.clip(RoundedCornerShape(50))
-                                .background(LiveDesign.glassBright)
-                                .clickable { onClear(fileName) }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                        ) {
-                            Text("Clear", color = LiveDesign.destructive, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        if (library.onDelete != null) {
+                            Box(
+                                Modifier.clip(RoundedCornerShape(50))
+                                    .background(LiveDesign.glassBright)
+                                    .clickable { onDelete(entry) }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                            ) {
+                                Text("Clear", color = LiveDesign.destructive, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                     }
                     Spacer(Modifier.height(6.dp))

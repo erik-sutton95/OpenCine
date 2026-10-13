@@ -62,7 +62,7 @@
         }
         private enum Field: CaseIterable {
             case bundle, playbackBundle, transfer, reportedTransfer, generation, publishedScopes,
-                inspectorSourceEpoch
+                inspectorSourceEpoch, inspectorSource
         }
         @ObservationIgnored private var snapshot = Snapshot()
         @ObservationIgnored private var pendingNotifications = Set<Field>()
@@ -119,6 +119,7 @@
             usesPlaybackSource ? (playbackBundle ?? .empty) : bundle
         }
         public var inspectorSource: (buffer: CVPixelBuffer, transfer: MonitorTransfer)? {
+            access(keyPath: \.inspectorSource)
             if usesPlaybackSource {
                 return playbackSourcePixelBuffer.map { ($0, playbackSourceTransfer) }
             }
@@ -152,7 +153,10 @@
                 case .reportedTransfer: withMutation(keyPath: \.reportedTransfer) {}
                 case .generation: withMutation(keyPath: \.generation) {}
                 case .publishedScopes: withMutation(keyPath: \.publishedScopes) {}
-                case .inspectorSourceEpoch: withMutation(keyPath: \.inspectorSourceEpoch) {}
+                case .inspectorSourceEpoch:
+                    withMutation(keyPath: \.inspectorSourceEpoch) {}
+                    withMutation(keyPath: \.inspectorSource) {}
+                case .inspectorSource: withMutation(keyPath: \.inspectorSource) {}
                 }
             }
             isNotifying = false
@@ -258,6 +262,10 @@
             switch owner.role {
             case .live:
                 var fields: Set<Field> = [.transfer, .reportedTransfer]
+                // Raw availability changes inspector meaning once, without observing every raster.
+                if source != nil && snapshot.sourcePixelBuffer == nil && snapshot.playbackSource == nil {
+                    fields.insert(.inspectorSource)
+                }
                 if bundle != nil { fields.formUnion([.bundle, .publishedScopes, .generation]) }
                 commit(notifying: fields) {
                     $0.livePublication &+= 1
@@ -273,7 +281,11 @@
                 }
                 return isCurrent(owner) && snapshot.livePublication == admitted
             case .playback:
-                commit(notifying: bundle == nil ? [] : [.playbackBundle]) {
+                var fields: Set<Field> = bundle == nil ? [] : [.playbackBundle]
+                if source != nil && snapshot.playbackSourcePixelBuffer == nil {
+                    fields.insert(.inspectorSource)
+                }
+                commit(notifying: fields) {
                     $0.playbackPublication &+= 1
                     admitted = $0.playbackPublication
                     if let source {

@@ -34,6 +34,7 @@ public data class MonitorScreenPresentation(
     public val panelsRaised: Boolean = false, public val recovering: Boolean = false,
     /** Keeps status telemetry mounted while excluding an occluded status slot from input and accessibility. */
     public val statusInteractive: Boolean = true,
+    public val modalPresented: Boolean = false,
 )
 
 /** Fixed picture/assist hosts and common chrome placement survive rotation and coverage. */
@@ -46,7 +47,7 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
     capture: @Composable BoxScope.(Boolean) -> Unit = {}, system: @Composable BoxScope.(Boolean) -> Unit = {},
     tools: @Composable BoxScope.(Boolean) -> Unit = {}, panels: @Composable BoxScope.(Boolean) -> Unit = {},
     cover: @Composable BoxScope.() -> Unit = {}, recovery: @Composable BoxScope.() -> Unit = {}) {
-    val commonVisible = presentation.visible
+    val commonVisible = presentation.visible && !presentation.modalPresented
     val commonInteractive = commonVisible && presentation.interactive && !presentation.transientControlsHidden
     val commonAccessibility = if (presentation.transientControlsHidden) Modifier.clearAndSetSemantics {} else Modifier
     val dim = if (presentation.dimmed) .16f else 1f
@@ -79,7 +80,7 @@ public fun MonitorScreen(control: MonitorControlModel, layout: MonitorFieldLayou
         Box(Modifier.fillMaxSize().visible(commonVisible, dim).then(commonAccessibility)
             .zIndex(if (presentation.capturePresented) 11f else 0f)) { system(commonInteractive) }
         MonitorCameraRecordingBorder(control, presentation.visible)
-        Box(Modifier.fillMaxSize().visible(presentation.visible).zIndex(if (presentation.panelsRaised) 16f else 10f)) { panels(presentation.visible && presentation.popupInteractive) }
+        Box(Modifier.fillMaxSize().visible(presentation.visible).zIndex(if (presentation.panelsRaised || presentation.modalPresented) 16f else 10f)) { panels(presentation.visible && presentation.popupInteractive) }
         Box(Modifier.fillMaxSize().zIndex(20f), content = cover)
         Box(Modifier.fillMaxSize().zIndex(30f), content = recovery)
     }

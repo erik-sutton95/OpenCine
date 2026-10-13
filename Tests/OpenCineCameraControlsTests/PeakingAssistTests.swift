@@ -91,6 +91,7 @@
         var cube: CubeLUT? { nil }
         var transfer = MonitorTransfer.rec709
         var referenceClipByte = 255
+        var appliesLUTExposure: Bool { true }
         func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
     }
 #endif

@@ -118,6 +118,135 @@ import Testing
         }
     }
 
+    /// A1-57: a named library (Z's RED download beside its imports) is a kept store in its own
+    /// folder; only a single safe folder name opens one.
+    @Test func namedLibrariesAreKeptStoresInTheirOwnFolders() throws {
+        let store = CustomLUTStore(root: folder(), preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        let red = try #require(store.library("red"))
+        #expect(red.root == store.root.appendingPathComponent("red", isDirectory: true))
+        #expect(store.library("red") === red)
+        #expect(store.library("..") == nil && store.library("a/b") == nil && store.library("") == nil)
+
+        try red.importFile(from: source("Look.cube"))
+        #expect(red.list().map(\.fileName) == ["Look.cube"])
+        #expect(store.list().isEmpty)
+    }
+
+    /// A1-57: the bounded archive import flattens folders, skips other entries and unsafe names,
+    /// replaces a same-named cube and stops at each limit.
+    @Test func archiveImportFlattensSkipsAndStopsAtTheLimits() throws {
+        let store = CustomLUTStore(root: folder(), preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        try store.importFile(from: source("B.cube"))
+        #expect(store.cube(fileName: "B.cube")?.size == 2)
+        let entries: [(path: String, bytes: UInt64)] = [
+            ("Pack/Rec709/A.cube", 40), ("Pack/readme.txt", 10), ("Pack/Bad:Name.cube", 10),
+            ("Pack/..", 10), ("Pack/Huge.cube", 101), ("Pack/B.cube", 40), ("Pack/C.cube", 40),
+            ("Pack/D.cube", 40), ("Pack/E.cube", 40),
+        ]
+        var extracted: [String] = []
+        let stored = try store.importArchive(
+            entries, path: { $0.path }, size: { $0.bytes },
+            limits: CustomLUTArchiveLimits(maxEntryBytes: 100, maxTotalBytes: 130, maxFiles: 4)
+        ) { entry, destination in
+            extracted.append(entry.path)
+            #expect(destination.deletingLastPathComponent().standardizedFileURL == store.root.standardizedFileURL)
+            try "replaced".write(to: destination, atomically: true, encoding: .utf8)
+        }
+        // A, B and C take 120 of the 130 bytes; D and E would pass the total.
+        #expect(extracted == ["Pack/Rec709/A.cube", "Pack/B.cube", "Pack/C.cube"])
+        #expect(stored.map(\.fileName) == ["A.cube", "B.cube", "C.cube"])
+        // The replaced cube is not served from the old parse.
+        #expect(store.cube(fileName: "B.cube") == nil)
+
+        let few = try store.importArchive(
+            ["X.cube", "Y.cube"], path: { $0 }, size: { _ in 1 },
+            limits: CustomLUTArchiveLimits(maxFiles: 1)
+        ) { _, destination in try Self.cubeText.write(to: destination, atomically: true, encoding: .utf8) }
+        #expect(few.map(\.fileName).contains("X.cube") && !few.map(\.fileName).contains("Y.cube"))
+    }
+
+    @Test func archiveImportChecksActualBytesAndPreservesTheExistingCube() throws {
+        let store = CustomLUTStore(root: folder(), preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        try store.importFile(from: source("Existing.cube"))
+        let original = try Data(contentsOf: store.root.appendingPathComponent("Existing.cube"))
+        #expect(throws: CustomLUTStoreError.self) {
+            try store.importArchive(["Existing.cube"], path: { $0 }, size: { _ in 1 },
+                limits: .init(maxEntryBytes: 4, maxTotalBytes: 4)) { _, destination in
+                    try Data(repeating: 1, count: 8).write(to: destination)
+                }
+        }
+        #expect(try Data(contentsOf: store.root.appendingPathComponent("Existing.cube")) == original)
+        #expect(store.cube(fileName: "Existing.cube")?.size == 2)
+        #expect(store.list().map(\.fileName) == ["Existing.cube"])
+    }
+
+    @Test func aFailedArchiveReplacementPreservesTheExistingCube() throws {
+        let store = CustomLUTStore(root: folder(), preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        try store.importFile(from: source("Existing.cube"))
+        let original = try Data(contentsOf: store.root.appendingPathComponent("Existing.cube"))
+        #expect(throws: CocoaError.self) {
+            try store.importArchive(["Existing.cube"], path: { $0 }, size: { _ in 1 }) { _, destination in
+                try Data([1]).write(to: destination)
+                throw CocoaError(.fileWriteUnknown)
+            }
+        }
+        #expect(try Data(contentsOf: store.root.appendingPathComponent("Existing.cube")) == original)
+        #expect(store.cube(fileName: "Existing.cube")?.size == 2)
+    }
+
+    @Test func streamedArchiveRefusesExcessActualBytesBeforeWritingThem() throws {
+        let store = CustomLUTStore(root: folder(), preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        try store.importFile(from: source("Existing.cube"))
+        let original = try Data(contentsOf: store.root.appendingPathComponent("Existing.cube"))
+        var chunks = 0
+        #expect(throws: CustomLUTStoreError.self) {
+            try store.importArchive(["Existing.cube"], path: { $0 }, size: { _ in 1 },
+                limits: .init(maxEntryBytes: 4, maxTotalBytes: 4), read: { _, consume in
+                    for _ in 0..<3 {
+                        chunks += 1
+                        try consume(Data(repeating: 1, count: 3))
+                    }
+                })
+        }
+        #expect(chunks == 2)
+        #expect(try Data(contentsOf: store.root.appendingPathComponent("Existing.cube")) == original)
+        #expect(store.list().map(\.fileName) == ["Existing.cube"])
+    }
+
+    /// A1-57: `.` and `..` name the library and its parent, so removal refuses them.
+    @Test func removingDotNamesLeavesTheLibraryAndItsParent() throws {
+        let parent = folder()
+        let store = CustomLUTStore(
+            root: parent.appendingPathComponent("library", isDirectory: true),
+            preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: parent) }
+        try FileManager.default.createDirectory(at: store.root, withIntermediateDirectories: true)
+        let keep = parent.appendingPathComponent("keep.cube")
+        try Self.cubeText.write(to: keep, atomically: true, encoding: .utf8)
+
+        for name in [".", ".."] {
+            #expect(throws: CustomLUTStoreError.self) { try store.remove(StoredCustomLUT(fileName: name)) }
+        }
+        #expect(FileManager.default.fileExists(atPath: keep.path))
+        #expect(FileManager.default.fileExists(atPath: store.root.path))
+    }
+
+    /// A1-57: parsed cubes stay bounded while an operator auditions a large library.
+    @Test func parsedCubesStayBounded() throws {
+        let store = CustomLUTStore(root: folder(), preferences: LUTPreferences(storage: defaults(), namespace: "App"))
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        for index in 0..<(CustomLUTStore.cachedCubeLimit + 4) {
+            try store.importFile(from: source("Look \(index).cube"))
+        }
+        #expect(store.cachedCubeCount == CustomLUTStore.cachedCubeLimit)
+        #expect(store.cube(fileName: "Look 0.cube")?.size == 2)
+    }
+
     /// Live Photo is Rec.709: technical log conversions resolve to Off, creative looks stay.
     @Test func livePhotoSuppressesTechnicalLogConversions() {
         let photo = { (selection: LUTSelection) in

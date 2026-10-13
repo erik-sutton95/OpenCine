@@ -213,7 +213,7 @@ public struct MonitorOperatorLiveAudio {
     public let usageSeed: [String: Int]
     public let toggle: (MonitorAssistSelection) -> Void
     public init(scopes: MonitorOperatorLiveAssistSource?, tools: @escaping () -> [MonitorAssistSelection],
-        rendered: @escaping () -> Set<MonitorAssistSelection>?, fitted: @escaping () -> [MonitorAssistSelection],
+        rendered: @escaping () -> Set<MonitorAssistSelection>?, fitted: @escaping () -> [MonitorAssistSelection] = { [] },
         signalOptions: MonitorOperatorSignalOptions, usage: Binding<MonitorToolUsage>,
         usageSeed: [String: Int], toggle: @escaping (MonitorAssistSelection) -> Void) {
         self.scopes = scopes; self.tools = tools; self.rendered = rendered; self.fitted = fitted
@@ -430,7 +430,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 statusMounted: mounts(.statusBar), powerMounted: mounts(.batteries),
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
-                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
+                panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented, modalPresented: assistInspectorPresented),
             picture: { picture().opacity(facts.picture.waiting || command ? 0 : 1).transaction { $0.animation = nil } },
             assists: { feedMarks.opacity(facts.picture.waiting ? 0 : 1) },
             signal: { if facts.picture.waiting { MonitorOperatorWaitingPicture<Host.Palette>(waiting: true, camera: identity.camera) } },

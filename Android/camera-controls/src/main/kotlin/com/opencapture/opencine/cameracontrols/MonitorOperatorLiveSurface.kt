@@ -101,8 +101,8 @@ public class MonitorOperatorLiveSource<K, N>(
     public val cameraBattery: MonitorOperatorPowerReading?,
     public val capture: MonitorOperatorCaptureInputs<K, MonitorDisplaySection, N>,
     public val record: MonitorOperatorRecordSource,
-    /** The camera's metered EV in raw thirds; null when the source has no meter, a null reading while unknown. */
-    public val exposure: (() -> Int?)?,
+    /** The camera's metered exposure in stops; null when the source has no meter, a null reading while unknown. */
+    public val exposure: (() -> Double?)?,
     public val level: LevelReading?,
     public val levelViewFlip: Boolean,
     public val audio: Pair<AudioMeterReading, AudioMeterReading>?,
@@ -191,8 +191,7 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
         focusMarks = views.focusMarks, feedGestures = views.feedGestures, motion = views.motion, focusControls = { enabled ->
             source.exposure?.let { read ->
                 if (assist.evMeter && mode == MonitorDisplayMode.LIVE) {
-                    val raw = read()
-                    MonitorOperatorExposureMeter(raw ?: 0, raw != null && !source.picture.recovering, meterFeed, mode,
+                    MonitorOperatorExposureMeter(read(), !source.picture.recovering, meterFeed, mode,
                         Modifier.zIndex(1f), paletteBoundsForMeter)
                 }
             }

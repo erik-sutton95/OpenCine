@@ -58,6 +58,8 @@
         public var referenceClipByte: Int {
             OpenCineMedia.ScopeExposureCeiling(profile: colorSourceProfile.clip).clipByte(transfer: transfer)
         }
+        /// The shared cube preparation compensates the exposure offset (`MonitorAssistState.cache`).
+        public var appliesLUTExposure: Bool { true }
         public func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer {
             transfer.lutExposureTransfer
         }

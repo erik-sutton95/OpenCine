@@ -28,6 +28,16 @@ public enum MonitorTransfer: String, CaseIterable, Sendable, Identifiable {
 
     public var id: String { rawValue }
 
+    /// Noise-gate calibration on encoded source gradients. Display-referred curves use the
+    /// measured 1.57 gradient ratio squared; log sources retain the detector's original gate.
+    /// HLG shares this approximation until a separate physical calibration is available.
+    public var peakingGateScale: Double {
+        switch self {
+        case .rec709, .hdr, .srgb: 1.57 * 1.57
+        case .dlog, .dlog2, .dlogm, .ilog, .nlog, .log3G10: 1
+        }
+    }
+
     public var label: String {
         switch self {
         case .rec709: "Rec.709"

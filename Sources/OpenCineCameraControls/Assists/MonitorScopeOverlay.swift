@@ -56,7 +56,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
                     revision: bundle.revision, intensity: WaveformAssist.intensity(options.brightness),
                     guides: options.guides, size: size, configureDisplay: configureDisplay)
             }
-        }.accessibilityLabel(options.mode == .rgb ? "RGB waveform" : "Luma waveform")
+        }.accessibilityElement(children: .ignore).accessibilityLabel(options.mode == .rgb ? "RGB waveform" : "Luma waveform")
         if hasCanvas {
             WaveformAssist.overlay(stores: stores, haptics: haptics, canvas: canvas, feed: feed,
                 chromeClearance: clearance, onOpenOptions: { WaveformAssist.presentOptions(anchor: $0, assist: assist) }) { plot }
@@ -74,7 +74,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
                     revision: bundle.revision, intensity: ParadeAssist.intensity(options.brightness, scale: paradeIntensityScale),
                     guides: options.guides, size: size, configureDisplay: configureDisplay)
             }
-        }.accessibilityLabel(ParadeAssist.accessibilityLabel(options.mode))
+        }.accessibilityElement(children: .ignore).accessibilityLabel(ParadeAssist.accessibilityLabel(options.mode))
         if hasCanvas { ParadeAssist.overlay(stores: stores, canvas: canvas, feed: feed, chromeClearance: clearance) { plot } }
         else { plot }
     }
@@ -87,7 +87,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
                 MonitorHistogramScopePlot(display: bundle.histogramDisplay, traffic: bundle.traffic,
                     showTrafficLights: options.trafficLights && bundle.levelAxis?.supportsCalibratedReferences != false)
             }
-        }.accessibilityLabel("RGB histogram, scale 0 to 100")
+        }.accessibilityElement(children: .ignore).accessibilityLabel("RGB histogram, scale 0 to 100")
         if hasCanvas { HistogramAssist.overlay(stores: stores, canvas: canvas, feed: feed, chromeClearance: clearance) { plot } }
         else { plot }
     }
@@ -101,7 +101,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
                     zoom: options.zoom, brightness: options.brightness, revision: bundle.revision,
                     configureDisplay: configureDisplay)
             }
-        }.accessibilityLabel("Vectorscope")
+        }.accessibilityElement(children: .ignore).accessibilityLabel("Vectorscope")
         if hasCanvas { VectorscopeAssist.overlay(stores: stores, canvas: canvas, feed: feed, chromeClearance: clearance) { plot } }
         else { plot }
     }

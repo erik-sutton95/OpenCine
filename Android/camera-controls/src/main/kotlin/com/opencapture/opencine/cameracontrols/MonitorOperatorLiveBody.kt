@@ -239,7 +239,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
         capturePresented = panel != null || state.preview != null || inspecting, recovering = recovering,
-        statusInteractive = !assistInspectorPresented),
+        statusInteractive = !assistInspectorPresented, modalPresented = assistInspectorPresented),
         modifier, picture = picture,
         status = {
             MonitorStatusChrome(layout, status.recording(), status.showsTimecode, status.showsRecording,

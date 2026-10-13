@@ -121,6 +121,7 @@ private final class RecordBodyLooks: MonitorLookProvider {
     var cube: CubeLUT? { nil }
     var transfer: MonitorTransfer { .rec709 }
     var referenceClipByte: Int { 255 }
+    var appliesLUTExposure: Bool { true }
     func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
 }
 
@@ -143,7 +144,7 @@ private struct RecordContractSurface: View {
                 },
                 exposure: nil, level: nil, audio: { nil }, readOnly: { probe.readOnly }, borrowed: { false },
                 returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
-            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
+            assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, signalOptions: .init(),
                 usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
             views: .init(), portraitAspect: $probe.portraitAspect,
             picture: { Color.black }, cameraPanel: { _, _ in EmptyView() },

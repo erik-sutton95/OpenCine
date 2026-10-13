@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 
@@ -118,6 +119,7 @@ fun MonitorMovableScopePanel(
                 .offset(gripOverhang.x.dp, gripOverhang.y.dp)
                 .size(sizeDp.width.dp, sizeDp.height.dp)
                 .align(Alignment.TopStart)
+                .testTag("monitor.scope.panel.$identity")
                 .then(if (onOpenOptions != null) Modifier.onGloballyPositioned {
                     val position = it.positionInRoot()
                     val d = density.density

@@ -376,24 +376,12 @@
 
         public static func segments(
             scale: MonitorFalseColorSelection, transfer: MonitorTransfer, rec709: Bool,
-            clipByte: Int,
-            looks: FalseColorLooks
+            clipByte: Int, looks: FalseColorLooks
         ) -> [Segment] {
-            let clip = looks.falseColorClip(
-                scale: scale.liveScale, transfer: transfer, rec709: rec709, clipByte: clipByte)
-            return LiveColorScience.falseColorBands(
-                scale.liveScale, transfer: clip.transfer, clipEncoded: clip.ceiling
-            ).enumerated().map {
-                index, band in
-                Segment(
-                    id: index,
-                    lowerFraction: fraction(
-                        band.lowerBound, scale: scale, transfer: transfer, rec709: rec709,
-                        clipByte: clipByte, looks: looks, infiniteFallback: 0),
-                    upperFraction: fraction(
-                        band.upperBound, scale: scale, transfer: transfer, rec709: rec709,
-                        clipByte: clipByte, looks: looks, infiniteFallback: 1),
-                    band: band)
+            MonitorFalseColorReferencePlan(scale: scale.liveScale, transfer: transfer, clipByte: clipByte,
+                lookCurve: looks.rec709LookCurve(transfer), readThroughLook: rec709).segments.enumerated().map {
+                Segment(id: $0.offset, lowerFraction: $0.element.lowerFraction,
+                    upperFraction: $0.element.upperFraction, band: $0.element.band)
             }
         }
 
@@ -424,22 +412,11 @@
         /// CineStop axis: every second stop from −6, stopping 1½ stops short of this
         /// curve's clip so no label collides with the clip mark, then clip.
         public static func sceneStopMarkers(
-            transfer: MonitorTransfer, rec709: Bool, clipByte: Int,
-            looks: FalseColorLooks
+            transfer: MonitorTransfer, rec709: Bool, clipByte: Int, looks: FalseColorLooks
         ) -> [AxisMarker] {
-            let clip = sceneStopClip(
-                transfer: transfer, rec709: rec709, clipByte: clipByte, looks: looks)
-            var marks: [(String, Double)] = []
-            for stop in stride(from: -6, to: clip - 1.5, by: 2) {
-                marks.append((stopLabel(Int(stop)), stop))
-            }
-            marks.append(("clip", clip))
-            return marks.enumerated().map { index, mark in
-                AxisMarker(
-                    id: index, label: mark.0,
-                    fraction: fraction(
-                        mark.1, scale: .sceneStops, transfer: transfer, rec709: rec709,
-                        clipByte: clipByte, looks: looks, infiniteFallback: 1))
+            MonitorFalseColorReferencePlan(scale: .sceneStops, transfer: transfer, clipByte: clipByte,
+                lookCurve: looks.rec709LookCurve(transfer), readThroughLook: rec709).markers.enumerated().map {
+                AxisMarker(id: $0.offset, label: $0.element.label, fraction: $0.element.fraction)
             }
         }
 

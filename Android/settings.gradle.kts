@@ -46,4 +46,6 @@ include(
     ":appkit",
     // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
     ":camera-controls",
+    // Optional native app composition, above the portable shell and native picture owners.
+    ":appkit-native",
 )

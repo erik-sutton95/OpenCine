@@ -43,6 +43,7 @@ import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
+import com.opencapture.opencine.vocabulary.EvComp
 import com.opencapture.opencine.vocabulary.FocusOverlay
 import com.opencapture.opencine.vocabulary.LiveFeedFocusGesture
 import com.opencapture.opencine.vocabulary.TrackingBox
@@ -128,7 +129,9 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
         record = MonitorOperatorRecordSource(status.isPhoto, chrome.capture.confirmRecording(), busy,
             openMode = { state.sheet = LiveSheet.MODE }),
-        exposure = { readExposure().takeIf { exposureAvailable } }, level = level, levelViewFlip = levelViewFlip,
+        // The vocabulary's raw thirds become the meter's typed value here; out of range reads as unknown.
+        exposure = { readExposure().takeIf { exposureAvailable }?.let(EvComp::fromRaw)?.thirds?.div(3.0) },
+        level = level, levelViewFlip = levelViewFlip,
         audio = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
         readOnly = false, borrowed = shell.monitor?.isBorrowed == true, returnToStage = chrome.returnToStage,
         coverOpen = shell.cover != null, note = note, clearNote = clearNote, vpnActive = vpnActive,

@@ -109,7 +109,8 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     ) {
         let still = Still(image: image)
         queue.async { [self] in
-            guard effects.needsScopes, CFAbsoluteTimeGetCurrent() >= nextScopeAt,
+            guard effects.needsScopes || effects.inspectorSample,
+                (!effects.needsScopes || CFAbsoluteTimeGetCurrent() >= nextScopeAt),
                 let buffer = raster.prepared(still.image)
             else { return }
             pendingBuffer = buffer
@@ -237,7 +238,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
             unmanagedBake = false
         }
 
-        if presents {
+        if presents || fx.inspectorSample {
             completion(
                 Result(
                     output: output,
@@ -248,7 +249,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
                     unmanagedBake: unmanagedBake,
                     bundle: nil,
                     transfer: transfer,
-                    shouldPresent: true,
+                    shouldPresent: presents,
                     timeNs: timeNs))
         }
 

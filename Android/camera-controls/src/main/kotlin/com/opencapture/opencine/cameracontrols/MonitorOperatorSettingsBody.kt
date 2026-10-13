@@ -32,7 +32,6 @@ import com.opencapture.monitorui.settings.MonitorSettingsPage
 import com.opencapture.monitorui.settings.MonitorSettingsRowCard
 import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
-import com.opencapture.monitorui.settings.MonitorViewAssistSettings
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
@@ -146,7 +145,7 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.ASSIST -> when (source) {
             is MonitorOperatorSettingsSource.Deployed -> AssistRows(source.model, source.state, source.app, onOpenLut)
-            is MonitorOperatorSettingsSource.Configured -> MonitorViewAssistSettings(source.configuration.assistSections)
+            is MonitorOperatorSettingsSource.Configured -> MonitorOperatorAssistSettings(source.configuration.assist)
             is MonitorOperatorSettingsSource.Session<*> -> SessionAssistSettings(source)
         }
         MonitorSettingsTab.CONTROLS -> when (source) {

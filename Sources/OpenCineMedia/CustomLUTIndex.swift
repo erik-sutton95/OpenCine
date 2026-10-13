@@ -33,9 +33,10 @@ public enum CustomLUTIndex {
         fileName.lowercased().hasSuffix(".cube") ? String(fileName.dropLast(5)) : fileName
     }
 
-    /// Rejects path components so a hostile name cannot escape the library directory.
+    /// Rejects path components so a hostile name cannot escape the library directory: `.` and
+    /// `..` would name the library or its parent.
     public static func isSafeFileName(_ name: String) -> Bool {
-        !name.isEmpty
+        !name.isEmpty && name != "." && name != ".."
             && name == (name as NSString).lastPathComponent
             && !name.contains("/")
             && !name.contains("\\")

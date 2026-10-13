@@ -147,14 +147,14 @@ fun MonitorViewAssistSettings(sections: List<MonitorAssistSettingsSection>): Uni
         // Keep full fraction targets and the card inset before admitting two columns.
         if (maxWidth < 584.dp) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ordered.forEach { section -> key(section.tool) { AssistSettingsCard(section) } }
+                ordered.forEach { section -> key(section.tool) { MonitorAssistSettingsCard(section) } }
             }
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 for (column in 0..1) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ordered.filterIndexed { index, _ -> index % 2 == column }.forEach { section ->
-                            key(section.tool) { AssistSettingsCard(section) }
+                            key(section.tool) { MonitorAssistSettingsCard(section) }
                         }
                     }
                 }
@@ -163,8 +163,9 @@ fun MonitorViewAssistSettings(sections: List<MonitorAssistSettingsSection>): Uni
     }
 }
 
+/** One section's card, tagged `settings.assist.<name>`; a recipe places a camera's own signal card with it. */
 @Composable
-private fun AssistSettingsCard(section: MonitorAssistSettingsSection): Unit {
+fun MonitorAssistSettingsCard(section: MonitorAssistSettingsSection): Unit {
     val tag = when (section.tool) {
         MonitorAssistTool.FALSE -> "falseColor"
         MonitorAssistTool.ZEBRA -> "zebra"

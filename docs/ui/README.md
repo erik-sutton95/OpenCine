@@ -375,3 +375,16 @@ and vertically in portrait; the collapsed favorites keep the common system-butto
 Expanded cells keep the collapsed square size (48 points in SwiftUI; 48 dp on phones
 and 52 dp on tablets in Compose), with the same palette-sized icons and single-line
 captions through the reveal.
+
+## Assist inspector ownership
+
+The shared live composition sets `MonitorScreenPresentation.modalPresented` while an admitted
+assist inspector is open. The modal owns input and accessibility above retained monitor chrome;
+closing restores the same controls and picture owner. Ordinary capture popups retain their
+existing system-control priority. The new value defaults to false for existing composition slots.
+
+Look pickers accept a typed provider and library groups. A host supplies extra catalogues as
+values, and `appliesLUTExposure` controls whether the common comparison row offers an exposure
+slider. There is one comparison row in the inspector. Floating scope graphs expose their plot
+bounds as labelled accessibility elements; resizing the histogram also fits all three channel
+lamps inside its actual height on SwiftUI and Compose.

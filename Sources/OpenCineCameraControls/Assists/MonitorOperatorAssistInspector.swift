@@ -200,24 +200,21 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
 }
 
 /// Input exposure and split controls stay pinned below the catalogue in either orientation.
+/// Exposure shows only for a provider whose picture applies it (`appliesLUTExposure`).
 public struct MonitorOperatorLookComparison<Looks: MonitorLookProvider>: View {
     private let assist: MonitorAssistState<Looks>
     private let haptics: OperatorHaptics
-    private let exposureAvailable: Bool?
-    private let onArm: (() -> Void)?
     private let exposureTitle = "Exposure"
     private let exposureHelp = "Input stops before the cube. Pull 1–2 after ETTR."
 
-    public init(assist: MonitorAssistState<Looks>, haptics: OperatorHaptics,
-        exposureAvailable: Bool? = true, onArm: (() -> Void)? = nil) {
+    public init(assist: MonitorAssistState<Looks>, haptics: OperatorHaptics) {
         self.assist = assist; self.haptics = haptics
-        self.exposureAvailable = exposureAvailable; self.onArm = onArm
     }
 
     public var body: some View {
         MonitorInspectorCard {
             VStack(spacing: 0) {
-                if exposureAvailable == true {
+                if assist.looks.appliesLUTExposure {
                     MonitorSettingsInlineRow(title: exposureTitle, help: exposureHelp,
                         showTopDivider: false, stacked: true) {
                         HStack(spacing: 9) {
@@ -239,10 +236,7 @@ public struct MonitorOperatorLookComparison<Looks: MonitorLookProvider>: View {
                 MonitorSettingsSwitchInlineRow(title: "50 / 50 split", isOn: assist.splitComparison,
                     feedback: haptics.selection) {
                     assist.splitComparison.toggle()
-                    if assist.splitComparison {
-                        if let onArm { onArm() }
-                        else if !assist.lutArmed { assist.armLastLUT() }
-                    }
+                    if assist.splitComparison, !assist.lutArmed { assist.armLastLUT() }
                     assist.persist()
                 }
                 if assist.splitComparison {

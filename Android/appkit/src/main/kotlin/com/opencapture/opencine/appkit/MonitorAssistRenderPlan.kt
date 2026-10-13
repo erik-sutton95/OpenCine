@@ -75,7 +75,8 @@ public fun MonitorAssistState.renderPlan(
         peaking = shown(MonitorAssistTool.PEAK),
         peakingColor = floatArrayOf(peak.first.toFloat(), peak.second.toFloat(), peak.third.toFloat()),
         peakingRatioThreshold = peakingSensitivity.ratioThreshold.toFloat(),
-        peakingNoiseGate = (peakingSensitivity.noiseGate * (raster.noiseGateScale ?: 1f)).toFloat(),
+        peakingNoiseGate = (peakingSensitivity.noiseGate *
+            (raster.noiseGateScale?.toDouble() ?: transfer.peakingGateScale)).toFloat(),
         zebraHighlightOn = shown(MonitorAssistTool.ZEBRA) && zebraHighlight,
         zebraHighlightCode = raster.highlightCode ?: (zebraHighlightIRE / 100.0).toFloat(),
         zebraHighlightColor = floatArrayOf(highlight.first.toFloat(), highlight.second.toFloat(), highlight.third.toFloat()),

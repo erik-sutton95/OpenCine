@@ -134,7 +134,7 @@ public class MonitorOperatorSettingsConfiguration(
     public val close: () -> Unit, public val disconnect: (() -> Unit)?, public val feedback: () -> Unit,
     public val link: MonitorSettingsLinkSource, public val sharing: MonitorSettingsSharingSource?,
     public val sharingSubtitle: String?, public val sharingRail: String?,
-    public val assistSections: List<MonitorAssistSettingsSection>,
+    public val assist: MonitorOperatorAssistSettingsSource,
     public val controls: MonitorSettingsControlsSource,
     public val cache: MonitorSettingsCachePresentation?,
     public val account: MonitorSettingsAccountSource? = null,

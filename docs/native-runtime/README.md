@@ -78,6 +78,14 @@ crash-guard, diagnostic and display-policy callbacks. The renderer's legacy `Opc
 and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axis values and
 imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.
 
+Bitmap delivery keeps JPEG decoding on `MonitorFrameDecodeWorker`. A consumer whose picture
+owner is confined to a different context supplies that context to
+`monitorPumpFramesWithSourceFrame`; the source event and decoded bitmap cross together without
+copying or resampling. Retirement and cancellation are checked after dispatch, before publication.
+OpenZCine supplies Main for its Bitmap presentation, Vulkan submission and preview callbacks.
+The original pump overload retains caller-context delivery for existing consumers. This is
+Android scheduling infrastructure; Apple retains its existing native presentation ownership.
+
 Apple `MonitorLiveVideoRuntime` owns Annex-B format admission, the retained display layer,
 one sticky VideoToolbox decoder, assist/decoded-source/preview demand and layer/Metal handoff.
 Source configuration supplies calibration, transfer interpretation and diagnostics. The runtime
@@ -229,3 +237,19 @@ does not change those render/export policies.
 
 See the [CI workflow](../../.github/workflows/ci.yml) and
 [package manifest](../../Package.swift) for the exact targets and checks.
+
+## Decoded stills and inspector demand
+
+A JPEG picture source can lend its decoded native frame to `MonitorAssistEngine.sample`. The
+source declares its actual transfer and clip ceiling and may provide its default scope look.
+The engine owns sampling cadence, thermal admission, axis, lamp hysteresis and empty-successor
+retirement. Inspector-only demand admits a raw frame without enabling monitor scopes or GPU
+presentation. Source availability is observable at the first raw publication and retirement;
+ordinary frame replacements keep the existing producer epoch.
+
+`MonitorLookInspectorPreview` renders through the shared bounded preview session for any
+`MonitorLookProvider`. The original `MonitorOperatorInspectorPreview` alias remains available.
+Apps supply source facts and look cubes; they do not start another sampler or image-render loop.
+False colour uses the Media encoded-signal lattice and zebra uses the shared zones. Peaking gate
+calibration follows the source transfer on both platforms; HLG currently shares the measured
+1.57 squared display-gradient approximation and needs separate physical calibration.

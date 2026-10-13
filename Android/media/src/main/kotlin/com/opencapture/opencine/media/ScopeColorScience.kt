@@ -24,6 +24,13 @@ enum class MonitorTransfer {
     LOG3G10,
     ;
 
+    /** Encoded source-gradient calibration, matching the Swift monitor's squared gate. */
+    val peakingGateScale: Double
+        get() = when (this) {
+            REC709, HDR, SRGB -> 1.57 * 1.57
+            DLOG, DLOG2, DLOGM, ILOG, NLOG, LOG3G10 -> 1.0
+        }
+
     val peakLinear: Double
         get() =
             when (this) {

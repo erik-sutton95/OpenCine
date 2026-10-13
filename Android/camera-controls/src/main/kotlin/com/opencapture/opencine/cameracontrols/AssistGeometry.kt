@@ -2,6 +2,7 @@ package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.appkit.signalScale
 import com.opencapture.opencine.media.LiveFalseColorBand
+import com.opencapture.opencine.media.MonitorFalseColorReferencePlan
 import com.opencapture.opencine.media.LiveFalseColorScale
 import com.opencapture.opencine.media.falseColorBands
 import com.opencapture.opencine.media.falseColorClip
@@ -271,39 +272,20 @@ object FalseColorReference {
             MonitorFalseColorSelection.LIMITS -> listOf("crushed", "midtones untouched", "clipped")
         }
 
-    fun segments(
-        scale: MonitorFalseColorSelection,
-        transfer: MonitorTransfer,
-        rec709: Boolean = false,
-        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
-        lookCurve: List<Double>? = null,
-    ): List<Segment> =
-        FalseColorBands.bands(scale, transfer, rec709, ceiling, lookCurve).map { band ->
-            Segment(
-                lowerFraction = fraction(band.lowerBound, scale, transfer, rec709, ceiling, lookCurve, infiniteFallback = 0.0),
-                upperFraction = fraction(band.upperBound, scale, transfer, rec709, ceiling, lookCurve, infiniteFallback = 1.0),
-                band = band,
-            )
+    fun segments(scale: MonitorFalseColorSelection, transfer: MonitorTransfer, rec709: Boolean = false,
+        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED, lookCurve: List<Double>? = null): List<Segment> =
+        MonitorFalseColorReferencePlan.signal(scale.signalScale, transfer, ceiling.clipByte(transfer),
+            lookCurve, rec709).segments.map { value ->
+            val band = value.band
+            Segment(value.lowerFraction, value.upperFraction,
+                FalseColorBands.Band(band.lowerBound, band.upperBound, band.red, band.green, band.blue, band.label))
         }
 
     /** iOS `FalseColorReference.sceneStopMarkers`: every second stop, 1½ stops clear of clip. */
-    fun sceneStopMarkers(
-        transfer: MonitorTransfer,
-        rec709: Boolean = false,
-        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED,
-        lookCurve: List<Double>? = null,
-    ): List<AxisMarker> {
-        val clip = FalseColorBands.clipStops(transfer, rec709, ceiling, lookCurve)
-        val marks =
-            generateSequence(-6) { it + 2 }.takeWhile { it < clip - 1.5 }
-                .map { stop ->
-                    val label = if (stop == 0) "18%" else if (stop < 0) "−${-stop}" else "+$stop"
-                    label to stop.toDouble()
-                }.toList() + ("clip" to clip)
-        return marks.map { (label, stop) ->
-            AxisMarker(label, fraction(stop, MonitorFalseColorSelection.SCENE_STOPS, transfer, rec709, ceiling, lookCurve, infiniteFallback = 1.0))
-        }
-    }
+    fun sceneStopMarkers(transfer: MonitorTransfer, rec709: Boolean = false,
+        ceiling: ScopeClipSource = ScopeExposureCeiling.UNOBSERVED, lookCurve: List<Double>? = null): List<AxisMarker> =
+        MonitorFalseColorReferencePlan.signal(LiveFalseColorScale.SCENE_STOPS, transfer, ceiling.clipByte(transfer),
+            lookCurve, rec709).markers.map { AxisMarker(it.label, it.fraction) }
 
     private fun fraction(
         value: Double,

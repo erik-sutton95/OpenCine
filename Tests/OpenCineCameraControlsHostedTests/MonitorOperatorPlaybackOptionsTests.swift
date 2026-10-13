@@ -295,6 +295,7 @@ private final class PlaybackOptionsLooks: MonitorLookProvider {
     var cube: CubeLUT? { nil }
     var transfer: MonitorTransfer { .rec709 }
     var referenceClipByte: Int { 255 }
+    var appliesLUTExposure: Bool { true }
     func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
 }
 

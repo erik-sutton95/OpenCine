@@ -122,6 +122,9 @@ import Testing
         #expect(!CustomLUTIndex.isSafeFileName("sub/Look.cube"))
         #expect(!CustomLUTIndex.isSafeFileName("Look:cube"))
         #expect(!CustomLUTIndex.isSafeFileName(""))
+        // A1-57: these name the library folder and its parent.
+        #expect(!CustomLUTIndex.isSafeFileName("."))
+        #expect(!CustomLUTIndex.isSafeFileName(".."))
     }
 }
 

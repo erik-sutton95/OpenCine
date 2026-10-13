@@ -186,14 +186,17 @@ private fun histogramPaths(bins: FloatArray, plot: Rect, peak: Float, density: F
 
 private fun DrawScope.drawTrafficLamps(traffic: ScopeTrafficLightsReading, density: Float) {
     val w = MonitorHistogramGeometry.TRAFFIC_LAMP_WIDTH * density
-    val h = MonitorHistogramGeometry.TRAFFIC_LAMP_HEIGHT * density
+    val top = 12f * density
+    val gap = 3f * density
+    val h = minOf(MonitorHistogramGeometry.TRAFFIC_LAMP_HEIGHT * density,
+        maxOf(0f, size.height - top - 2f * density - gap * 2) / 3)
     val left = MonitorHistogramGeometry.TRAFFIC_OUTER_PAD * density
     val right = size.width - MonitorHistogramGeometry.TRAFFIC_OUTER_PAD * density - w
     val crush = listOf(traffic.red.crush, traffic.green.crush, traffic.blue.crush)
     val clip = listOf(traffic.red.clip, traffic.green.clip, traffic.blue.clip)
     val colors = listOf(MeterRed, MeterGreen, MeterBlue)
     colors.forEachIndexed { i, color ->
-        val y = 12f * density + i * (h + 3f * density)
+        val y = top + i * (h + gap)
         drawLamp(left, y, w, h, color, crush[i])
         drawLamp(right, y, w, h, color, clip[i])
     }

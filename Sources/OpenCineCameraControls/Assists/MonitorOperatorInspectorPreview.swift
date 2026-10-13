@@ -9,59 +9,65 @@ import OpenCineMedia
 import SwiftUI
 
 /// Cheap image meaning; LUT preparation remains inside the native admission.
-private struct MonitorInspectorImageMeaning: Equatable {
+private struct MonitorInspectorImageMeaning<Selection: Equatable>: Equatable {
     let source: ObjectIdentifier
     let epoch: UInt64
     let playback: Bool
     let tool: MonitorAssistSelection
     let options: MonitorFrameEffects
     let transfer: MonitorTransfer
-    let selection: LUTSelection
+    let selection: Selection
     let exposureStops: Double
     let customName: String?
-    let colorMode: ColorMode?
-    let family: CameraBodyFamily
-    let cameraName: String?
+    let lookContext: LUTPickerContext?
 }
+
+/// The existing official-look preview interface remains source compatible.
+public typealias MonitorOperatorInspectorPreview = MonitorLookInspectorPreview<MonitorLUTLooks>
 
 /// Complete draw-only inspector preview. Native preparation is one bounded
 /// source/effects port; scopes consume the existing immutable sample bundle.
-public struct MonitorOperatorInspectorPreview: View {
+public struct MonitorLookInspectorPreview<Looks: MonitorLookProvider>: View {
     private let tool: MonitorAssistSelection
-    private let assist: MonitorAssistState<MonitorLUTLooks>
+    private let assist: MonitorAssistState<Looks>
     private let stores: AssistPanelStores
     private let haptics: OperatorHaptics
     private let source: MonitorInspectorImageSource
     private let readCustomName: @MainActor () -> String?
+    private let readLookContext: @MainActor () -> LUTPickerContext?
     private let pictureEffects: MonitorFrameEffects?
     private let prepareEffects: @MainActor (MonitorInspectorImageFrame) -> MonitorFrameEffects
     private let readBundle: @MainActor () -> ScopeAssistBundle
     private let readAudio: @MainActor () -> AudioMeterLevels?
     private let readAudioSensitivity: @MainActor () -> String?
     private let configureDisplay: @MainActor (MTKView) -> MonitorScopeDisplayOptions
+    private let onImage: @MainActor (CGImage?) -> Void
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.audioInspectorLevels) private var audioInspectorLevels
-    @State private var session = MonitorInspectorPreviewSession<MonitorInspectorImageMeaning>()
+    @State private var session = MonitorInspectorPreviewSession<MonitorInspectorImageMeaning<Looks.Selection>>()
     @State private var availableWidth: CGFloat = 0
 
-    public init(tool: MonitorAssistSelection, assist: MonitorAssistState<MonitorLUTLooks>,
+    public init(tool: MonitorAssistSelection, assist: MonitorAssistState<Looks>,
         stores: AssistPanelStores, haptics: OperatorHaptics,
         source: MonitorInspectorImageSource, readCustomName: @escaping @MainActor () -> String?,
+        readLookContext: @escaping @MainActor () -> LUTPickerContext?,
         pictureEffects: MonitorFrameEffects? = nil,
         prepareEffects: @escaping @MainActor (MonitorInspectorImageFrame) -> MonitorFrameEffects,
         readBundle: @escaping @MainActor () -> ScopeAssistBundle,
         readAudio: @escaping @MainActor () -> AudioMeterLevels? = { nil },
         readAudioSensitivity: @escaping @MainActor () -> String? = { nil },
-        configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr }) {
+        configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr },
+        onImage: @escaping @MainActor (CGImage?) -> Void = { _ in }) {
         self.tool = tool; self.assist = assist; self.stores = stores; self.haptics = haptics
         self.source = source; self.readCustomName = readCustomName; self.pictureEffects = pictureEffects
+        self.readLookContext = readLookContext
         self.prepareEffects = prepareEffects; self.readBundle = readBundle
         self.readAudio = readAudio; self.readAudioSensitivity = readAudioSensitivity
-        self.configureDisplay = configureDisplay
+        self.configureDisplay = configureDisplay; self.onImage = onImage
     }
 
     private var isActive: Bool { scenePhase == .active && assist.inspectorSceneActive }
-    private var meaning: MonitorInspectorImageMeaning? {
+    private var meaning: MonitorInspectorImageMeaning<Looks.Selection>? {
         guard isActive, MonitorInspectorPreviewPolicy.isImage(tool),
             let snapshot = source.snapshot else { return nil }
         return MonitorInspectorImageMeaning(source: snapshot.source, epoch: snapshot.epoch,
@@ -69,10 +75,9 @@ public struct MonitorOperatorInspectorPreview: View {
             options: pictureEffects ?? assist.inspectorImageOptions(tool: tool,
                 transfer: snapshot.transfer,
                 clipByte: snapshot.exposureCeiling.clipByte(transfer: snapshot.transfer)),
-            transfer: snapshot.transfer, selection: assist.lutSelection,
+            transfer: snapshot.transfer, selection: assist.looks.selection,
             exposureStops: assist.lutExposureStops, customName: readCustomName(),
-            colorMode: assist.monitorColorMode, family: assist.monitorFamily,
-            cameraName: assist.monitorCameraName)
+            lookContext: readLookContext())
     }
 
     private struct Activity: Equatable {
@@ -93,16 +98,33 @@ public struct MonitorOperatorInspectorPreview: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(MonitorTheme.border))
             .allowsHitTesting(false)
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(tool.title) preview")
+            .accessibilityAddTraits(.isImage)
             .accessibilityIdentifier("monitor.inspector.preview")
+            .accessibilityValue(previewAvailable ? "Picture" : "Waiting for picture")
             .task(id: activity) {
                 guard activity != nil else { return }
                 synchronize()
                 await session.run(source: source)
             }
             .onChange(of: meaning) { _, _ in synchronize() }
+            .onChange(of: previewImage.map(ObjectIdentifier.init)) { _, _ in
+                onImage(previewImage)
+            }
             .onDisappear { session.deactivate() }
+    }
+
+    private var previewImage: CGImage? {
+        meaning.flatMap { session.image(matching: $0) }
+    }
+
+    private var previewAvailable: Bool {
+        if MonitorInspectorPreviewPolicy.isImage(tool) {
+            return meaning.flatMap { session.image(matching: $0) } != nil
+        }
+        if tool == .audioMeters { return audioInspectorLevels != nil || readAudio() != nil }
+        return readBundle() != .empty
     }
 
     private func synchronize() {
@@ -190,6 +212,29 @@ public struct MonitorOperatorInspectorPreview: View {
             plot.frame(width: size.width, height: size.height).scaleEffect(scale)
                 .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
+    }
+}
+
+extension MonitorLookInspectorPreview where Looks == MonitorLUTLooks {
+    /// The original initializer retains all official-look preparation facts and callbacks.
+    public init(tool: MonitorAssistSelection, assist: MonitorAssistState<MonitorLUTLooks>,
+        stores: AssistPanelStores, haptics: OperatorHaptics,
+        source: MonitorInspectorImageSource, readCustomName: @escaping @MainActor () -> String?,
+        pictureEffects: MonitorFrameEffects? = nil,
+        prepareEffects: @escaping @MainActor (MonitorInspectorImageFrame) -> MonitorFrameEffects,
+        readBundle: @escaping @MainActor () -> ScopeAssistBundle,
+        readAudio: @escaping @MainActor () -> AudioMeterLevels? = { nil },
+        readAudioSensitivity: @escaping @MainActor () -> String? = { nil },
+        configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr }) {
+        self.init(tool: tool, assist: assist, stores: stores, haptics: haptics,
+            source: source, readCustomName: readCustomName,
+            readLookContext: {
+                LUTPickerContext(colorMode: assist.monitorColorMode, isPhoto: assist.looks.liveIsPhoto,
+                    inPlayback: assist.gradesClip, family: assist.monitorFamily,
+                    cameraName: assist.monitorCameraName, isWatching: false)
+            }, pictureEffects: pictureEffects, prepareEffects: prepareEffects,
+            readBundle: readBundle, readAudio: readAudio,
+            readAudioSensitivity: readAudioSensitivity, configureDisplay: configureDisplay)
     }
 }
 #endif

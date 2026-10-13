@@ -11,6 +11,16 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class MonitorAssistRenderPlanTest {
+    @Test fun peakingGateFollowsTheSourcesTransferWithoutRequiringWireScalars() {
+        val assist = MonitorAssistState(encoded = """{"tools":["PEAK"]}""")
+        for (transfer in MonitorTransfer.entries) {
+            val expected = if (transfer in listOf(MonitorTransfer.REC709, MonitorTransfer.HDR,
+                    MonitorTransfer.SRGB)) 1.57 * 1.57 else 1.0
+            assertEquals((assist.peakingSensitivity.noiseGate * expected).toFloat(),
+                assist.renderPlan(transfer).peakingNoiseGate, transfer.name)
+        }
+    }
+
     @Test fun scopeChangesDoNotRebuildTheNativePlaybackLook() {
         val assist = MonitorAssistState()
         val before = assist.renderPlan(MonitorTransfer.REC709)

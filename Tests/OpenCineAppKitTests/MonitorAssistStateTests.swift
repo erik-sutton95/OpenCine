@@ -6,6 +6,10 @@ import Testing
 
 @MainActor
 @Suite struct MonitorAssistStateTests {
+    @Test func existingLookProvidersRetainExposureWithoutANewRequirement() {
+        #expect(StateTestLooks().appliesLUTExposure)
+    }
+
     private func storage() throws -> (UserDefaults, String) {
         let domain = "opencine-assist-state-tests." + UUID().uuidString
         return (try #require(UserDefaults(suiteName: domain)), domain)
@@ -293,6 +297,7 @@ import Testing
     var referenceClipByte = 255
     var available = true
     private(set) var resolverCalls = 0
+    var appliesLUTExposure: Bool { true }
     func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
     var cube: CubeLUT? {
         resolverCalls += 1
@@ -318,6 +323,7 @@ import Testing
     var referenceClipByte = 255
     var ready = false
     private(set) var nativeRequests: [Request] = []
+    var appliesLUTExposure: Bool { true }
     func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer { transfer }
     var cube: CubeLUT? {
         guard ready else { return nil }
