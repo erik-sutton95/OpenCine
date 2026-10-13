@@ -115,7 +115,7 @@ public enum DjiNativeWire {
         let zoomFactorJSON = status.zoomFactor.map { String($0) } ?? "null"
         // `[HH, MM, SS, FF]` as decoded from `timecode_info`; Kotlin reads the same array.
         let timecodeJSON =
-            status.timecode.map { ints([$0.hours, $0.minutes, $0.seconds] + ($0.frames.map { [$0] } ?? [])) } ?? "null"
+            status.timecodeValue.map { ints([$0.hours, $0.minutes, $0.seconds] + ($0.frames.map { [$0] } ?? [])) } ?? "null"
         let glamourJSON = status.glamourEnabled.map { bool($0) } ?? "null"
         let selfieFlipJSON = status.selfieFlip.map { bool($0.isOn) } ?? "null"
         return """
@@ -193,7 +193,7 @@ public enum DjiNativeWire {
         status.shutterDenom = int("shutterDenom", default: -1)
         status.fps = int("fps", default: 0)
         let timecode = intArray("timecode")
-        status.timecode =
+        status.timecodeValue =
             timecode.count >= 3
             ? CameraTimecode(
                 hours: timecode[0], minutes: timecode[1], seconds: timecode[2], frames: timecode.dropFirst(3).first)

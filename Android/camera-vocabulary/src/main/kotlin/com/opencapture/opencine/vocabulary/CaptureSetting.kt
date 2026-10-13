@@ -47,4 +47,7 @@ interface CaptureSessionState {
     val focusModeSupported: Boolean
     val irisSupported: Boolean
     val nativeIsoHopSupported: Boolean
+    /** Original hosts remain compatible; new sources preserve unknown declarations explicitly. */
+    val nativeISO: CaptureNativeISOCapabilities
+        get() = CaptureNativeISOCapabilities(hop = nativeIsoHopSupported)
 }

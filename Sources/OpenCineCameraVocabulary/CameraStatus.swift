@@ -31,7 +31,46 @@ public struct CameraStatus: Equatable, Sendable {
     public var recordRemainingSec: Int = 0
     /// `timecode_info` (`@3–6` = HH MM SS FF), decoded once from the bytes; the shared
     /// `MonitorTimecodeFormat` renders it at the declared precision.
-    public var timecode: CameraTimecode?
+    public var timecodeValue: CameraTimecode? {
+        didSet { legacyTimecode = nil }
+    }
+    private var legacyTimecode: String?
+    @available(*, deprecated, message: "Use timecodeValue and the shared formatter")
+    public var timecode: String? {
+        get {
+            legacyTimecode ?? timecodeValue.flatMap {
+                MonitorTimecodeFormat.label(hours: $0.hours, minutes: $0.minutes, seconds: $0.seconds,
+                    frames: $0.frames, dropFrame: $0.dropFrame)
+            }
+        }
+        set {
+            timecodeValue = Self.parseLegacyTimecode(newValue)
+            legacyTimecode = newValue
+        }
+    }
+    @available(*, deprecated, message: "Use timecodeValue and the declared precision")
+    public var timecodeClock: String { Self.clockDisplay(legacyTimecode ?? timecodeValue.flatMap {
+        MonitorTimecodeFormat.label(hours: $0.hours, minutes: $0.minutes, seconds: $0.seconds,
+            frames: $0.frames, dropFrame: $0.dropFrame)
+    }) }
+    @available(*, deprecated, message: "Use the shared component formatter")
+    public static func clockDisplay(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "--:--:--" }
+        let parts = raw.split(separator: ":")
+        guard parts.count >= 3 else { return raw }
+        return parts.prefix(3).joined(separator: ":")
+    }
+    private static func parseLegacyTimecode(_ raw: String?) -> CameraTimecode? {
+        guard let raw else { return nil }
+        let parts = raw.split(whereSeparator: { $0 == ":" || $0 == ";" })
+        guard (3...4).contains(parts.count) else { return nil }
+        let values = parts.compactMap { Int($0) }
+        guard values.count == parts.count,
+            MonitorTimecodeFormat.label(hours: values[0], minutes: values[1], seconds: values[2],
+                frames: values.count == 4 ? values[3] : nil) != nil else { return nil }
+        return CameraTimecode(hours: values[0], minutes: values[1], seconds: values[2],
+            frames: values.count == 4 ? values[3] : nil, dropFrame: raw.contains(";") ? true : nil)
+    }
     /// Auto/manual from `cam_expo_param` `@7`. nil unknown. Not a DUML GET — Mimo never GETs `0x1E`.
     public var expoMode: ExpoMode?
     /// ISO number from `cam_expo_param` u16-LE `@16`. `-1` unknown. `@13` is not ISO.

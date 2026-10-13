@@ -46,7 +46,7 @@ struct LiveChromeThrottleTests {
 
     @Test func timecodeAndMetersWaitForInterval() {
         var next = CameraStatus()
-        next.timecode = CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 4)
+        next.timecodeValue = CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 4)
         next.audioMeters = AudioMeterLevels(
             left: AudioMeterChannel(levelDB: -12, peakDB: -6),
             right: AudioMeterChannel(levelDB: -14, peakDB: -8)

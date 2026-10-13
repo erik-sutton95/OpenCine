@@ -1,25 +1,15 @@
 package com.opencapture.monitorui
 
-import java.util.Locale
+import com.opencapture.opencine.media.MonitorTimecodeFormat as ComponentTimecodeFormat
 
-/** Display precision follows supplied telemetry. Missing frames stay seconds-only. */
+/** Existing presentation entry point forwards to the portable component formatter. */
 public object MonitorTimecodeFormat {
-    /** Formats reported components without deriving frames, rates, or drop-frame mode. */
-    public fun label(
-        hours: Int, minutes: Int, seconds: Int, frames: Int? = null, dropFrame: Boolean? = null,
-    ): String? {
-        if (hours !in 0..23 || minutes !in 0..59 || seconds !in 0..59 || (frames != null && frames < 0)) return null
-        val clock = String.format(Locale.ROOT, "%02d:%02d:%02d", hours, minutes, seconds)
-        if (frames == null) return clock
-        return clock + (if (dropFrame == true) ";" else ":") + String.format(Locale.ROOT, "%02d", frames)
-    }
+    public fun label(hours: Int, minutes: Int, seconds: Int, frames: Int? = null,
+        dropFrame: Boolean? = null): String? =
+        ComponentTimecodeFormat.label(hours, minutes, seconds, frames, dropFrame)
 
-    /** The empty clock at the declared precision: a frame-counting source keeps its frame field. */
-    public fun placeholder(frames: Boolean): String = if (frames) "--:--:--:--" else "--:--:--"
+    public fun placeholder(frames: Boolean): String = ComponentTimecodeFormat.placeholder(frames)
 
-    /** Splits the final seconds or frames field for the shared clock's accent color. */
-    public fun accentComponents(label: String): Pair<String, String> {
-        val separator = label.indexOfLast { it == ':' || it == ';' }
-        return if (separator < 0) label to "" else label.substring(0, separator + 1) to label.substring(separator + 1)
-    }
+    public fun accentComponents(label: String): Pair<String, String> =
+        ComponentTimecodeFormat.accentComponents(label)
 }

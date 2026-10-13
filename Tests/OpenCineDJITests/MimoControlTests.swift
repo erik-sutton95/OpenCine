@@ -610,12 +610,13 @@ import Testing
     @Test func timecodeAt3to6() {
         let value: [UInt8] = [0x00, 0x00, 0x00, 0x05, 0x16, 0x2F, 0x12, 0x00]
         let expected = CameraTimecode(hours: 5, minutes: 22, seconds: 47, frames: 18)
-        #expect(CameraStatusDecoder.timecode(value) == expected)
+        #expect(CameraStatusDecoder.timecodeValue(value) == expected)
+        #expect(CameraStatusDecoder.timecodeString(value) == "05:22:47:18", "Original text decoder remains a compatibility boundary")
         var s = CameraStatus()
         #expect(
             CameraStatusDecoder.applySubscribePush(
                 SubscribePush.pack(name: "timecode_info", value: value), to: &s))
-        #expect(s.timecode == expected, "the bytes decode straight into the typed timecode")
+        #expect(s.timecodeValue == expected, "the bytes decode straight into the typed timecode")
     }
 
     @Test func gimbalBuilders() {

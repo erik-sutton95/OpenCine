@@ -11,7 +11,7 @@
     /// `SessionRecoveryHost` and the chrome editor's `ChromeEditHost` over the shared DISP
     /// sections. App differences arrive as values.
     @MainActor
-    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost, ChromeEditHost
+    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost, ChromeEditHost, LegacyLiveClockAvailability
     where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
         /// The status row's recording state and clock, as this app projects it.
         var liveStatus: MonitorStatusPresentation { get }

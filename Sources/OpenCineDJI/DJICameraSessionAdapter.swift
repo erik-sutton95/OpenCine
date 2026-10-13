@@ -658,7 +658,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             : .unknown
         next.power = Self.power(status)
         next.storage = Self.storage(status)
-        next.timecode = status.timecode.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown
+        next.timecode = status.timecodeValue.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown
         next.audioLevels =
             status.audioMeters.map {
                 ObservedValue(Self.audioLevels($0), origin: .cameraReported, at: nil)

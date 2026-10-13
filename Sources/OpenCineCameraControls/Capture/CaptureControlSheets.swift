@@ -452,7 +452,7 @@
             case .shutter:
                 if isEvSheet {
                     VStack(alignment: .leading, spacing: 12) {
-                        if host.captureCapabilities.commonExposureCompensation {
+                        if host.captureRouting.commonExposureCompensation {
                             commonDrum(
                                 .exposureCompensation,
                                 editingAllowed: !host.facePriorityExposureEnabled)
@@ -804,6 +804,7 @@
             case .iso:
                 reseatIso()
                 guard preview == nil,
+                    host.captureCapabilities.nativeISO.ceiling == true,
                     CaptureLists.shouldGetIsoLimit(from: host.cameraStatus)
                 else { return }
                 Task {
@@ -903,10 +904,10 @@
                 switch sheet {
                 case .iso: .iso
                 case .shutter:
-                    isEvSheet && host.captureCapabilities.commonExposureCompensation
+                    isEvSheet && host.captureRouting.commonExposureCompensation
                         ? .exposureCompensation : .shutter
                 case .wb: .whiteBalance
-                case .focus: host.captureCapabilities.commonFocusMode ? .focusMode : nil
+                case .focus: host.captureRouting.commonFocusMode ? .focusMode : nil
                 default: nil
                 }
             commonField = key.flatMap { host.control.captureField($0) }
@@ -947,7 +948,7 @@
             switch sheet {
             case .iso:
                 if isIsoAutoTab {
-                    guard
+                    guard host.captureCapabilities.nativeISO.ceiling == true,
                         let limit = CaptureLists.isoLimit(
                             from: value, status: host.cameraStatus, model: connectedBody)
                     else { return }

@@ -69,7 +69,7 @@ fun CameraStatus.toJson(): String =
         .put("shootingMode", shootingMode)
         .put("recordElapsedSec", recordElapsedSec)
         .put("recordRemainingSec", recordRemainingSec)
-        .put("timecode", timecode?.let { JSONArray(listOfNotNull(it.hours, it.minutes, it.seconds, it.frames)) } ?: JSONObject.NULL)
+        .put("timecode", timecodeValue?.let { JSONArray(listOfNotNull(it.hours, it.minutes, it.seconds, it.frames)) } ?: JSONObject.NULL)
         .put("iso", iso)
         .put("shutterDenom", shutterDenom)
         .put("fps", fps)
@@ -145,6 +145,8 @@ fun CameraStatus.Companion.fromJson(raw: String?): CameraStatus {
     if (raw.isNullOrBlank()) return CameraStatus()
     return runCatching {
         val obj = JSONObject(raw)
+        val decodedTimecode = intList(obj.optJSONArray("timecode")).takeIf { it.size >= 3 }
+            ?.let { CameraTimecode(it[0], it[1], it[2], it.getOrNull(3)) }
         CameraStatus(
             batteryPercent = obj.optInt("batteryPercent", -1),
             batteryMilliVolts = obj.optInt("batteryMilliVolts", 0),
@@ -163,9 +165,6 @@ fun CameraStatus.Companion.fromJson(raw: String?): CameraStatus {
             shootingMode = obj.optInt("shootingMode", -1),
             recordElapsedSec = obj.optInt("recordElapsedSec", 0),
             recordRemainingSec = obj.optInt("recordRemainingSec", 0),
-            // `[HH, MM, SS, FF]` as the Swift wire decoded it from `timecode_info`.
-            timecode = intList(obj.optJSONArray("timecode")).takeIf { it.size >= 3 }
-                ?.let { CameraTimecode(it[0], it[1], it[2], it.getOrNull(3)) },
             iso = obj.optInt("iso", -1),
             shutterDenom = obj.optInt("shutterDenom", -1),
             fps = obj.optInt("fps", 0),
@@ -211,7 +210,7 @@ fun CameraStatus.Companion.fromJson(raw: String?): CameraStatus {
             audioPeakLeft = obj.optDouble("audioPeakLeft", -60.0),
             audioPeakRight = obj.optDouble("audioPeakRight", -60.0),
             audioMetersReported = obj.optBoolean("audioMetersReported", false),
-        ).withAudioDspAt2()
+        ).withTimecodeValue(decodedTimecode).withAudioDspAt2()
     }.getOrElse { CameraStatus() }
 }
 

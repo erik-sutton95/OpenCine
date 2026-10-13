@@ -439,10 +439,10 @@ class DjiCameraSessionAdapterTest {
         assertEquals(ObservedValue.unknown, seam.current.timecode)
         assertEquals(ObservedValue.unknown, seam.current.audioLevels, "no report is unknown, never silence")
         val reported = CameraStatus(
-            timecode = CameraTimecode(5, 22, 47, 18), audioMetersLeft = -18.0, audioPeakLeft = -12.0,
+            audioMetersLeft = -18.0, audioPeakLeft = -12.0,
             audioMetersRight = -20.0, audioPeakRight = -14.0, audioMetersReported = true,
-        )
-        port.state = port.state.copy(timecode = reported.timecode, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
+        ).withTimecodeValue(CameraTimecode(5, 22, 47, 18))
+        port.state = port.state.copy(timecode = reported.timecodeValue, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
         val snapshot = seam.current
         assertEquals(CameraTimecode(5, 22, 47, 18), snapshot.timecode.value)
         assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.timecode.origin)
@@ -451,7 +451,7 @@ class DjiCameraSessionAdapterTest {
         port.state = port.state.copy(timecode = null)
         assertEquals(ObservedValue.unknown, seam.current.timecode)
         // The facade JSON carries the decoded fields, never a display string to re-parse.
-        assertEquals(CameraTimecode(5, 22, 47, 18), CameraStatus.fromJson(reported.toJson()).timecode)
+        assertEquals(CameraTimecode(5, 22, 47, 18), CameraStatus.fromJson(reported.toJson()).timecodeValue)
         // The status JSON the session round-trips through the facade keeps "not reported" apart from silence.
         assertNull(DjiCameraSessionAdapter.audioLevels(CameraStatus.fromJson(CameraStatus().toJson())))
         assertEquals(

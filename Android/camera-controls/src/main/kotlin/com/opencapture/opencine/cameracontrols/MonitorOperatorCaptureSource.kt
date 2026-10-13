@@ -60,10 +60,10 @@ public class MonitorOperatorCaptureSource(
 
     public fun commonField(sheet: LiveSheet, status: CameraStatus): MonitorCaptureField? {
         val key = when (sheet) {
-            LiveSheet.ISO -> if (CaptureLists.shouldGetIsoLimit(status)) null else SettingKey.ISO
+            LiveSheet.ISO -> if (readSessionState().nativeISO.ceiling == true && CaptureLists.shouldGetIsoLimit(status)) null else SettingKey.ISO
             LiveSheet.SHUTTER -> when {
                 CaptureLists.isEvSheet(sheet, status.expoMode) ->
-                    if (nativeExposureCompensation) null else SettingKey.EXPOSURE_COMPENSATION
+                    if (nativeExposureCompensation || !host.captureRouting.commonExposureCompensation) null else SettingKey.EXPOSURE_COMPENSATION
                 host.capturePreferences.shutterUsesAngle && !CameraCommands.isPhotoMode(status.shootingMode) -> null
                 else -> SettingKey.SHUTTER
             }
@@ -97,9 +97,9 @@ public class MonitorOperatorCaptureSource(
         }
         return when (sheet) {
             LiveSheet.ISO -> {
-                val seat = IsoSheetLogic.reseat(status, body, floor)
+                val seat = IsoSheetLogic.reseat(status, body, floor, state.nativeISO.ceiling == true)
                 captured(MonitorQuickControl(if (IsoSheetLogic.isAutoTab(status, seat.selectedMode))
-                    CaptureLists.isoAutoLabels(status, body, floor) else CaptureLists.isoDrumLabels(status),
+                    IsoSheetLogic.autoLabels(status, body, floor, state.nativeISO.ceiling == true) else CaptureLists.isoDrumLabels(status),
                     seat.drumSelection, CaptureLists.isoMarkedLabels(status), context = "${status.colorMode}"))
             }
             LiveSheet.SHUTTER -> {
@@ -148,7 +148,8 @@ public class MonitorOperatorCaptureSource(
                 val body = host.camera?.name.orEmpty()
                 val floor = host.camera?.captureProfile?.isoAutoRangeFloor
                 when (val command = IsoSheetLogic.applyDrum(value, status,
-                    IsoSheetLogic.reseat(status, body, floor).selectedMode, body, floor)) {
+                    IsoSheetLogic.reseat(status, body, floor, readSessionState().nativeISO.ceiling == true).selectedMode, body, floor,
+                    readSessionState().nativeISO.ceiling == true)) {
                     is IsoSheetLogic.Command.SetIndex -> commit(CaptureSetting.IsoIndex(command.index))
                     is IsoSheetLogic.Command.SetLimit -> commit(CaptureSetting.IsoLimitRaw(command.raw))
                     null -> Unit
