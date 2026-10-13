@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCameraVocabulary
 
 /// PTP-IP `Operation_Request` DataPhaseInfo values.
 public enum PTPDataPhase: UInt32, Sendable {
@@ -432,6 +433,17 @@ public struct PTPStorageInfo: Equatable, Sendable {
     public let totalCapacityBytes: UInt64
     /// Free space in bytes (`FreeSpaceInBytes` @ offset 14).
     public let freeSpaceBytes: UInt64
+
+    public init(totalCapacityBytes: UInt64, freeSpaceBytes: UInt64) {
+        self.totalCapacityBytes = totalCapacityBytes
+        self.freeSpaceBytes = freeSpaceBytes
+    }
+
+    /// The shared storage readout (A5-11); nil when free space exceeds a known capacity.
+    public var readout: StorageReadout? {
+        guard totalCapacityBytes == 0 || freeSpaceBytes <= totalCapacityBytes else { return nil }
+        return StorageReadout(freeBytes: freeSpaceBytes, totalBytes: totalCapacityBytes)
+    }
 
     /// Parses a raw `GetStorageInfo` dataset. Returns nil when the payload is too short.
     public init?(_ bytes: [UInt8]) {

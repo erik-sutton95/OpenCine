@@ -677,6 +677,7 @@ class LunaCameraSession internal constructor(
                 media = media?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown,
                 // Free space only means something on a usable card.
                 freeBytes = if (storage.isUsable) ObservedValue(storage.freeBytes, ObservationOrigin.CAMERA_REPORTED, at) else ObservedValue.unknown,
+                totalBytes = if (storage.isUsable && storage.totalBytes > 0) ObservedValue(storage.totalBytes, ObservationOrigin.CAMERA_REPORTED, at) else ObservedValue.unknown,
             )
         }
     }

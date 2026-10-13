@@ -358,7 +358,7 @@ private fun operatorSetupConfiguration(
                 controllerHelp = app.help.GAMEPAD,
             ),
         ),
-        cache = MonitorSettingsCachePresentation(cacheSource, formatBytes = { if (it == 0L) "Empty" else formatCacheSize(it) },
+        cache = MonitorSettingsCachePresentation(cacheSource, formatBytes = ::formatCacheSize,
             scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
             cacheOriginals = model.cacheFullResolution, setCacheOriginals = model::updateCacheFullResolution,
             cacheHelp = app.help.CACHE_FULL_RESOLUTION),

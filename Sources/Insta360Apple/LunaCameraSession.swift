@@ -795,6 +795,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             media: media.map { ObservedValue($0, origin: .cameraReported, at: at) } ?? .unknown,
             // Free space only means something on a usable card.
             freeBytes: storage.isUsable
-                ? ObservedValue(storage.freeBytes, origin: .cameraReported, at: at) : .unknown)
+                ? ObservedValue(storage.freeBytes, origin: .cameraReported, at: at) : .unknown,
+            totalBytes: storage.isUsable && storage.totalBytes > 0
+                ? ObservedValue(storage.totalBytes, origin: .cameraReported, at: at) : .unknown)
     }
 }

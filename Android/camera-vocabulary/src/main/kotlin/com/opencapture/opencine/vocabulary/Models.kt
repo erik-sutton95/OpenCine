@@ -251,15 +251,8 @@ data class CameraStatus(
                 glamourEnabled != null ||
                 selfieFlip != null
 
-    val storageLabel: String
-        get() {
-            val total = if (sdTotalMb > 0) sdTotalMb else storageTotalMb
-            val free = if (sdTotalMb > 0) sdFreeMb else storageFreeMb
-            if (total <= 0) return "—"
-            val gb = free / 1024
-            val pct = ((free.toLong() * 100L) / total).toInt().coerceIn(0, 100)
-            return "$gb GB · $pct%"
-        }
+    @Deprecated("Use common storage observations and StorageReadout")
+    val storageLabel: String get() = storageReadout?.label ?: StorageReadout.UNAVAILABLE
 
     fun clearedModeDependentCapabilities(): CameraStatus =
         copy(

@@ -31,12 +31,15 @@ public struct NikonControlFacts: Sendable {
     /// The live-view header's running timecode, frames included. `nil` while the body's header
     /// says timecode is off or no header has been read: never a frozen counter.
     public var timecode: CameraTimecode?
+    /// The active card's storage readback, `nil` until read.
+    public var storage: PTPStorageInfo?
 
     public init(
         holdsControl: Bool = true, liveViewReady: Bool = false,
         reported: PTPCameraPropertySnapshot = PTPCameraPropertySnapshot(), recording: Bool? = nil,
         whiteBalancePresets: [String] = [], connection: ConnectionState = .ready,
-        shutterLabels: [String] = [], apertureLabels: [String] = [], timecode: CameraTimecode? = nil
+        shutterLabels: [String] = [], apertureLabels: [String] = [], timecode: CameraTimecode? = nil,
+        storage: PTPStorageInfo? = nil
     ) {
         self.holdsControl = holdsControl
         self.liveViewReady = liveViewReady
@@ -47,6 +50,7 @@ public struct NikonControlFacts: Sendable {
         self.apertureLabels = apertureLabels
         self.connection = connection
         self.timecode = timecode
+        self.storage = storage
     }
 }
 
@@ -412,6 +416,7 @@ public final class NikonCameraSession: CameraSession {
             &next.power.battery, facts.reported.batteryPercent.flatMap(Self.batteryFraction), at: at,
             // BatteryLevel is the body's five-step gauge, never a percent (A5-01).
             precision: .quantized(step: 1.0 / Double(NikonCameraBatteryGauge.barCount)))
+        Self.observe(&next.storage, Self.storageVolumes(facts, previous: next.storage.value, at: at), at: at)
         for (key, value) in Self.reportedSettings(facts.reported) {
             var observation = next.value(of: key)
             Self.observe(&observation, value, at: at)
@@ -442,6 +447,33 @@ public final class NikonCameraSession: CameraSession {
     /// the body reports (its screen-size token encodes whole frames per second). Whether it runs
     /// is the observation, not the capability.
     /// The body's gauge as a fraction on its declared fifths; an absent reading stays unknown.
+    /// The integration publishes exact bytes and a separately marked estimate. An unknown
+    /// recording format contributes no duration; valid zero remains a known empty capacity.
+    static func storageVolumes(
+        _ facts: NikonControlFacts, previous: [StorageVolume]? = nil, at: MonotonicInstant? = nil
+    ) -> [StorageVolume]? {
+        guard let storage = facts.storage, storage.readout != nil else { return nil }
+        let old = previous?.first { $0.id == "active" }
+        func observation<T: Equatable & Sendable>(
+            _ value: T?, _ previous: ObservedValue<T>?, origin: ObservationOrigin
+        ) -> ObservedValue<T> {
+            guard let value else { return .unknown }
+            if let previous, previous.value == value, previous.origin == origin { return previous }
+            return ObservedValue(value, origin: origin, at: at)
+        }
+        let minutes = facts.reported.captureSelector == .video
+            ? RecordDurationEstimator.estimateMinutes(
+                codec: facts.reported.fileType, resolution: facts.reported.resolution,
+                frameRate: facts.reported.fps, freeBytes: storage.freeSpaceBytes) : nil
+        return [StorageVolume(
+            id: "active",
+            freeBytes: observation(storage.freeSpaceBytes, old?.freeBytes, origin: .cameraReported),
+            totalBytes: observation(storage.totalCapacityBytes > 0 ? storage.totalCapacityBytes : nil,
+                old?.totalBytes, origin: .cameraReported),
+            remainingRecordingTime: observation(minutes.map { Duration.seconds($0 * 60) },
+                old?.remainingRecordingTime, origin: .estimated))]
+    }
+
     public static func batteryFraction(_ rawBatteryLevel: Int) -> Double? {
         let gauge = NikonCameraBatteryGauge.gauge(rawBatteryLevel: rawBatteryLevel)
         return gauge == .unknown ? nil : Double(gauge.filledBars) / Double(NikonCameraBatteryGauge.barCount)

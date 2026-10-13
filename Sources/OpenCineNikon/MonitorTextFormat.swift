@@ -8,15 +8,17 @@ import Foundation
 public enum MonitorTextFormat {
     /// Formats a resolution + frame rate as a compact label such as `6K · 24p`. The resolution
     /// class (`8K`/`6K`/`4K`) comes from the pixel width; smaller widths fall back to the raw
-    /// pixel count so the readout never inflates. The frame rate rounds to an integer `p` value.
+    /// pixel count so the readout never inflates. The frame rate rounds to an integer `p` value;
+    /// an unknown rate (zero or less) is left out rather than shown as `0p`. Kotlin twin:
+    /// `Android/nikon` `MonitorTextFormat`, both read `Fixtures/nikon-monitor-text.tsv`.
     public static func resolutionLabel(
         pixelWidth: Int,
         pixelHeight: Int,
         frameRate: Double
     ) -> String {
         let resolution = resolutionClass(pixelWidth: pixelWidth)
-        let rate = Int((frameRate).rounded())
-        return "\(resolution) · \(rate)p"
+        let rate = frameRate.isFinite ? Int(frameRate.rounded()) : 0
+        return rate > 0 ? "\(resolution) · \(rate)p" : resolution
     }
 
     /// Formats a PTP camera-property `"WxH"` resolution string (`"6048x3402"`) + integer frame

@@ -4,6 +4,7 @@ import android.content.Context
 import com.opencapture.monitorui.MonitorLinkHealth
 import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.LutLookResolver
+import com.opencapture.opencine.vocabulary.MediaClipFormatting
 import java.io.File
 import java.util.Locale
 
@@ -115,17 +116,8 @@ enum class CleanPinTool(val key: String, val title: String) {
     AUDIO("AUDIO", "Audio Levels"),
 }
 
-fun formatCacheSize(bytes: Long): String {
-    if (bytes <= 0L) return "Empty"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    var value = bytes.toDouble()
-    var unit = 0
-    while (value >= 1024.0 && unit < units.lastIndex) {
-        value /= 1024.0
-        unit++
-    }
-    return if (unit == 0) "$bytes B" else String.format(Locale.US, "%.1f %s", value, units[unit])
-}
+/** The cache size line: the shared decimal byte label, "Empty" for nothing cached. */
+fun formatCacheSize(bytes: Long): String = if (bytes <= 0L) "Empty" else MediaClipFormatting.byteLabel(bytes)
 
 fun formatAppVersion(versionName: String, versionCode: Long): String = "$versionName ($versionCode)"
 

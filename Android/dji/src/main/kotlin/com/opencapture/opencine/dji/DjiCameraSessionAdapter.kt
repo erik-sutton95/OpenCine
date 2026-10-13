@@ -114,6 +114,8 @@ data class PocketControlState(
     val timecode: CameraTimecode? = null,
     /** `cam_audio_status_v2` in dBFS; `null` until reported ([audioLevels]). */
     val audioLevels: AudioLevels? = null,
+    val storage: com.opencapture.opencine.core.StorageStatus? = null,
+    val storageTotalMb: Int? = null,
 )
 
 /** The Pocket session as the seam drives it. `PocketCameraSession` and the JVM tests implement it. */
@@ -614,9 +616,10 @@ class DjiCameraSessionAdapter(
                         ),
                     )
                 } ?: PowerStatus.unknown,
-                storage = state.storageFreeMb?.let {
+                storage = state.storage ?: state.storageFreeMb?.takeIf { it >= 0 }?.let {
                     val free = ObservedValue(it.toLong() * 1_048_576L, ObservationOrigin.CAMERA_REPORTED, null)
-                    ObservedValue(listOf(StorageVolume("active", freeBytes = free)), ObservationOrigin.CAMERA_REPORTED, null)
+                    ObservedValue(listOf(StorageVolume("active", freeBytes = free,
+                        totalBytes = state.storageTotalMb?.takeIf { it > 0 }?.let { ObservedValue(it.toLong() * 1_048_576, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown)), ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,
                 timecode = state.timecode?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) }
                     ?: ObservedValue.unknown,

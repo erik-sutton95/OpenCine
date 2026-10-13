@@ -162,7 +162,7 @@ public enum MonitorClipDeliveryError: LocalizedError {
         MonitorDeliveryMetadataSummary.text(
             files: files.map {
                 .init(filename: $0.filename, captureDate: $0.filenameTimestamp, sizeBytes: $0.sizeBytes > 0 ? $0.sizeBytes : nil)
-            }, formatBytes: { ByteCountFormatter.string(fromByteCount: Int64(clamping: $0), countStyle: .file) })
+            }, formatBytes: MediaClipFormatting.byteLabel)
     }
 
     /// The popup of one selection and the begin of its accepted request. The remote run binds

@@ -817,11 +817,15 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     }
 
     private static func storage(_ status: CameraStatus) -> StorageStatus {
-        guard status.storageTotalMb > 0 else { return .unknown }
-        let free = ObservedValue(
-            UInt64(status.storageFreeMb) * 1_048_576, origin: .cameraReported, at: nil)
-        return ObservedValue(
-            [StorageVolume(id: "active", freeBytes: free)], origin: .cameraReported, at: nil)
+        let readout = status.storageReadout
+        let remaining = status.recordRemainingSec > 0 ? Duration.seconds(status.recordRemainingSec) : nil
+        guard readout != nil || remaining != nil else { return .unknown }
+        return ObservedValue([StorageVolume(
+            id: "active",
+            freeBytes: readout.map { ObservedValue($0.freeBytes, origin: .cameraReported, at: nil) } ?? .unknown,
+            totalBytes: readout?.totalBytes.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown,
+            remainingRecordingTime: remaining.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown
+        )], origin: .cameraReported, at: nil)
     }
 }
 

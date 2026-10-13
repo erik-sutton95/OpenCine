@@ -1,6 +1,5 @@
 package com.opencapture.opencine.cameracontrols
 
-import android.text.format.Formatter
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -11,7 +10,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.settings.MonitorCacheSettings
@@ -53,7 +51,6 @@ public fun MonitorOperatorCacheSettings(
     clearFailureLabel: String = "Could not clear the cache. Try again.",
     summaryColor: Color = MonitorPalette.accent,
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val model = remember { MonitorSettingsCacheModel(scope) }
     val value by model.state.collectAsState()
@@ -61,7 +58,7 @@ public fun MonitorOperatorCacheSettings(
     LaunchedEffect(model, source.identity, source.revision) { model.refresh(source) }
     MonitorCacheSettings(cacheOriginals = cacheOriginals,
         sizeLabel = value.bytes?.let { bytes ->
-            formatBytes?.invoke(bytes) ?: if (bytes == 0L) "Empty" else Formatter.formatFileSize(context, bytes)
+            formatBytes?.invoke(bytes) ?: formatCacheSize(bytes)
         } ?: checkingLabel,
         clearing = value.clearing, cacheHelp = cacheHelp, scopeHelp = scopeHelp, clearHelp = clearHelp,
         onCacheOriginals = onCacheOriginals, clear = model::requestClear, feedback = feedback)
