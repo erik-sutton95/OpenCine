@@ -223,7 +223,51 @@ data class FeedIncidentDecoder(
     val lastIrapAge: Double? = null,
     val lastSuccessfulOutputAge: Double? = null,
     val rebuildReason: String? = null,
+    /** Bitstream facts behind the first decoder error of the current error episode. */
+    val firstError: FeedIncidentDecodeErrorContext? = null,
 )
+
+/**
+ * The access unit behind the first decoder error of an episode: NAL types in unit order, its
+ * size, how long since the last accepted IRAP and the last parameter-set change, and the
+ * access-unit rate over the second before it. Types, sizes, ages and rates only: no payload
+ * bytes and no user data. Apple fills it from VideoToolbox callbacks; MediaCodec reports
+ * failures per codec rather than per access unit, so Android producers leave it null.
+ */
+class FeedIncidentDecodeErrorContext(
+    status: Int,
+    nalTypes: List<Int>,
+    accessUnitBytes: Int,
+    irapAge: Double? = null,
+    parameterSetChangeAge: Double? = null,
+    inputHz: Double = 0.0,
+) {
+    private val values = Values(
+        status, nalTypes.take(MAX_NAL_TYPES).map { it.coerceIn(0, 63) },
+        accessUnitBytes.coerceAtLeast(0), normalizedAge(irapAge),
+        normalizedAge(parameterSetChangeAge), FeedIncidentPrivacy.rate(inputHz).let { if (it == 0.0) 0.0 else it },
+    )
+    val status: Int get() = values.status
+    val nalTypes: List<Int> get() = values.nalTypes
+    val accessUnitBytes: Int get() = values.accessUnitBytes
+    val irapAge: Double? get() = values.irapAge
+    val parameterSetChangeAge: Double? get() = values.parameterSetChangeAge
+    val inputHz: Double get() = values.inputHz
+
+    override fun equals(other: Any?): Boolean = other is FeedIncidentDecodeErrorContext && values == other.values
+    override fun hashCode(): Int = values.hashCode()
+
+    private data class Values(
+        val status: Int, val nalTypes: List<Int>, val accessUnitBytes: Int,
+        val irapAge: Double?, val parameterSetChangeAge: Double?, val inputHz: Double,
+    )
+
+    companion object {
+        const val MAX_NAL_TYPES = 16
+        private fun normalizedAge(value: Double?): Double? =
+            FeedIncidentPrivacy.age(value)?.let { if (it == 0.0) 0.0 else it }
+    }
+}
 
 data class FeedIncidentLifecycle(
     val foreground: Boolean = true,

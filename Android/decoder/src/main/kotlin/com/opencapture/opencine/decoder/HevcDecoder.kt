@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.opencapture.opencine.media.CodecFailureAction
+import com.opencapture.opencine.media.CodecFailurePolicy
 import com.opencapture.opencine.media.DecoderErrorLifetime
 import com.opencapture.opencine.media.DecoderErrorOrigin
 import com.opencapture.opencine.media.DecoderErrorRecord
@@ -344,8 +346,11 @@ class HevcDecoder(
         val decoder = codec
         codec = null
         runCatching { decoder?.stop() }
-        out?.interrupt()
-        runCatching { out?.join(400) }
+        // A codec failure caught on the output thread retires the codec from that thread.
+        if (out !== Thread.currentThread()) {
+            out?.interrupt()
+            runCatching { out?.join(400) }
+        }
         runCatching { decoder?.release() }
     }
 
@@ -413,6 +418,33 @@ class HevcDecoder(
             randomAccess.reset()
         }
     }
+
+    /** Applies [CodecFailurePolicy] to one codec exception's code and action flags. */
+    internal fun onCodecFailure(errorCode: Int, isTransient: Boolean, isRecoverable: Boolean) =
+        synchronized(lock) { onCodecFailureLocked(errorCode, isTransient, isRecoverable) }
+
+    private fun onCodecFailureLocked(
+        errorCode: Int,
+        isTransient: Boolean,
+        isRecoverable: Boolean,
+    ): CodecFailureAction {
+        val action = CodecFailurePolicy.action(errorCode, isTransient, isRecoverable)
+        if (action == CodecFailureAction.REBUILD) {
+            // Mark the loss first: a rebuild alone forgets that a picture was established,
+            // and only the loss makes the watchdog ask the camera for an IRAP at once.
+            randomAccess.noteBrokenReferences()
+            releaseCodecLocked()
+            configured = false
+            pendingIdr = null
+            randomAccess.onNewDecoder()
+        }
+        return action
+    }
+
+    private fun onCodecFailureLocked(error: Throwable): CodecFailureAction =
+        (error as? MediaCodec.CodecException)?.let {
+            onCodecFailureLocked(it.errorCode, it.isTransient, it.isRecoverable)
+        } ?: CodecFailureAction.REPORT
 
     /** Drop P-frames until IDR. Do not release the codec; the last frame stays on the surface. */
     fun flushForRecovery() {
@@ -541,8 +573,12 @@ class HevcDecoder(
                                 try {
                                     started.dequeueOutputBuffer(info, 10_000)
                                 } catch (error: Exception) {
-                                    noteOutputError(started, DecoderErrorOrigin.OUTPUT, error)
-                                    break
+                                    val action = noteOutputError(started, DecoderErrorOrigin.OUTPUT, error)
+                                    if (action != CodecFailureAction.RETRY) break
+                                    // ponytail: fixed 10 ms pause so a persisting transient
+                                    // error cannot spin; a backoff if field data asks for one.
+                                    runCatching { Thread.sleep(TRANSIENT_RETRY_MS) }
+                                    continue
                                 }
                             // Stamp before ownership admission. A stamp taken before retirement
                             // is rejected by the replacement presentation probe even if release races it.
@@ -596,7 +632,7 @@ class HevcDecoder(
         }
     }
 
-    private fun queue(accessUnit: ByteArray, keyframe: Boolean): Boolean {
+    private fun queue(accessUnit: ByteArray, keyframe: Boolean, retried: Boolean = false): Boolean {
         val decoder = codec ?: return false
         return try {
             val index = decoder.dequeueInputBuffer(LiveViewPresentTiming.inputWaitUs(keyframe))
@@ -618,7 +654,9 @@ class HevcDecoder(
             true
         } catch (e: Exception) {
             noteError(DecoderErrorOrigin.QUEUE, e, inputIsIrap = keyframe)
-            false
+            // Callers hold the codec lock. A rebuild here leaves the next IRAP to configure.
+            val action = onCodecFailureLocked(e)
+            action == CodecFailureAction.RETRY && !retried && queue(accessUnit, keyframe, retried = true)
         }
     }
 
@@ -642,13 +680,19 @@ class HevcDecoder(
         lastDecoderOutputAt = SystemClock.elapsedRealtime()
     }
 
-    private fun noteOutputError(started: MediaCodec, origin: DecoderErrorOrigin, error: Throwable) {
-        val record = synchronized(lock) {
-            if (ownsOutput(started)) recordError(origin, error) else null
+    private fun noteOutputError(
+        started: MediaCodec,
+        origin: DecoderErrorOrigin,
+        error: Throwable,
+    ): CodecFailureAction {
+        val (record, action) = synchronized(lock) {
+            if (!ownsOutput(started)) return CodecFailureAction.REPORT
+            recordError(origin, error) to onCodecFailureLocked(error)
         }
         // The admitted record retains its original generation. Host callbacks do not run under
         // the codec lock and cannot mutate a replacement decoder's error lifetime.
         record?.let(errorJournal)
+        return action
     }
 
     private fun noteError(
@@ -695,5 +739,6 @@ class HevcDecoder(
         private const val TAG = "HevcDecoder"
         private const val LIVE_WIDTH = 1280
         private const val LIVE_HEIGHT = 720
+        private const val TRANSIENT_RETRY_MS = 10L
     }
 }
