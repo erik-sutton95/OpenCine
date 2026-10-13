@@ -9,7 +9,9 @@ import com.opencapture.opencine.core.CommandStage
 import com.opencapture.opencine.core.FocusMode
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.SupportStatus
@@ -41,6 +43,19 @@ private class LensHarness(scope: CoroutineScope) {
 }
 
 class LunaLensControlTest {
+    /** A5-09: option 31's schema rate is a typed read-only Rational, never rounded or written. */
+    @Test fun recordRateIsAReadOnlyRationalFromTheResolutionOption() = runTest {
+        val h = LensHarness(backgroundScope)
+        assertEquals(SettingAccess.READ_ONLY, h.current.capabilities[SettingKey.FRAME_RATE]?.access)
+        assertNull(h.current.value(SettingKey.FRAME_RATE).value, "no report is unknown")
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7, recordResolution = 48L)) // 4K25
+        assertEquals(SettingValue.FrameRate(Rational(25)), h.current.value(SettingKey.FRAME_RATE).value)
+        assertEquals(
+            CommandStage.Rejected(CommandRejection.ReadOnly),
+            h.session.submit(h.command(SettingValue.FrameRate(Rational(24)))).stage,
+        )
+    }
+
     @Test fun lensDescriptorsRequireConfiguredZoomAndNeverInventReports() = runTest {
         val h = LensHarness(backgroundScope)
         assertEquals(SupportStatus.UNKNOWN, h.current.capabilities.support(SettingKey.ZOOM))

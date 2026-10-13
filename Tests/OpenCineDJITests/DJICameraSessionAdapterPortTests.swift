@@ -89,7 +89,7 @@ import Testing
         let seam = DJICameraSessionAdapter(session: port)
         #expect(seam.current.timecode == .unknown)
         #expect(seam.current.audioLevels == .unknown, "no report is unknown, never silence")
-        port.status.timecode = "05:22:47:18"
+        port.status.timecodeValue = CameraTimecode(hours: 5, minutes: 22, seconds: 47, frames: 18)
         port.status.audioMeters = AudioMeterLevels(
             left: AudioMeterChannel(levelDB: -18, peakDB: -12, peakAge: 0.4),
             right: AudioMeterChannel(levelDB: -20, peakDB: -14))
@@ -100,7 +100,7 @@ import Testing
             snapshot.audioLevels.value
                 == AudioLevels(left: .init(level: -18, peak: -12), right: .init(level: -20, peak: -14)))
         #expect(snapshot.audioLevels.origin == .cameraReported)
-        port.status.timecode = "--:--"
+        port.status.timecodeValue = nil
         #expect(seam.current.timecode == .unknown)
     }
 
@@ -180,6 +180,18 @@ import Testing
         port.captureControlState?.reported.irisHundredths = 280
         #expect(seam.current.value(of: .aperture).value == .aperture(2.8))
         #expect(seam.request(.set(.aperture(2))).stage == .rejected(.readOnly))
+        #expect(port.fired.isEmpty)
+    }
+
+    /// A5-09: the recording rate is a typed read-only Rational from the wire index, never written.
+    @Test func recordingFrameRateIsAReadOnlyRational() {
+        let port = Self.capturePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.capabilities[.frameRate]?.access == .readOnly)
+        #expect(seam.current.value(of: .frameRate).value == nil, "no report is unknown")
+        port.captureControlState?.reported.fps = 25
+        #expect(seam.current.value(of: .frameRate).value == .frameRate(Rational(25)))
+        #expect(seam.request(.set(.frameRate(Rational(24)))).stage == .rejected(.readOnly))
         #expect(port.fired.isEmpty)
     }
 

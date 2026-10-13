@@ -448,7 +448,13 @@ public final class NikonCameraSession: CameraSession {
     }
 
     static func timecodeCapability(_ reported: PTPCameraPropertySnapshot) -> TimecodeCapability {
-        .supported(reported.fps.map { .frames(rate: Rational($0), dropFrame: nil) })
+        .supported(frameRate(reported).map { .frames(rate: $0, dropFrame: nil) })
+    }
+
+    /// The movie rate as the screen-size token reports it, in whole frames per second. Whether a
+    /// body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
+    static func frameRate(_ reported: PTPCameraPropertySnapshot) -> Rational? {
+        reported.fps.flatMap { $0 > 0 ? Rational($0) : nil }
     }
 
     public static func descriptors(_ facts: NikonControlFacts) -> [SettingDescriptor] {
@@ -494,6 +500,8 @@ public final class NikonCameraSession: CameraSession {
             SettingDescriptor(
                 .recording,
                 availability: facts.liveViewReady ? .available : .unavailable(.notReady)),
+            // The movie rate is a common read-only observation; the format picker stays native.
+            SettingDescriptor(.frameRate, access: .readOnly),
         ]
             + NikonExposureSettings.descriptors(
                 reported, shutterLabels: facts.shutterLabels, apertureLabels: facts.apertureLabels)
@@ -557,7 +565,10 @@ public final class NikonCameraSession: CameraSession {
             ? reported.wbKelvin.map { .whiteBalance(.kelvin(Int($0))) }
             : wbMode.map(whiteBalance(preset:))
         // Photo chrome reports the stills ISO, which is not this slice's movie ISO setting.
-        return [.iso: photography ? nil : iso, .whiteBalance: whiteBalance]
+        return [
+            .iso: photography ? nil : iso, .whiteBalance: whiteBalance,
+            .frameRate: frameRate(reported).map(SettingValue.frameRate),
+        ]
             .merging(NikonExposureSettings.reported(reported)) { _, exposure in exposure }
     }
 

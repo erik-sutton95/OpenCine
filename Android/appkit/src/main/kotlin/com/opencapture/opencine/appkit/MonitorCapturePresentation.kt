@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
@@ -38,6 +39,7 @@ public object MonitorCapturePresentation {
         SettingKey.WHITE_BALANCE -> "WB"
         SettingKey.EXPOSURE_COMPENSATION -> "EV"
         SettingKey.FOCUS_MODE -> "FOCUS"
+        SettingKey.FRAME_RATE -> "FPS"
         else -> null
     }
 
@@ -67,6 +69,7 @@ public object MonitorCapturePresentation {
             com.opencapture.opencine.core.FocusMode.SINGLE -> "AF-S"
             com.opencapture.opencine.core.FocusMode.CONTINUOUS -> "AF-C"
         }
+        is SettingValue.FrameRate -> frameRate(value.fps)
         else -> ""
     }
 
@@ -82,17 +85,24 @@ public object MonitorCapturePresentation {
                 range.start >= 0 && range.endInclusive <= Int.MAX_VALUE.toDouble() &&
                 (range.endInclusive - range.start) / step <= 1_000) {
                 val count = floor((range.endInclusive - range.start) / step).toInt()
+                // Every detent lies on the domain's own grid; a set keeps the merge linear (R-03).
+                val listed = values.toHashSet()
                 for (index in 0..count) {
                     val kelvin = range.start + index * step
                     if (round(kelvin) == kelvin) {
                         val value = SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(kelvin.toInt()))
-                        if (value in domain && value !in values) values += value
+                        if (listed.add(value)) values += value
                     }
                 }
             }
         }
         return values.map { MonitorCaptureChoice(it, label(it)) }
     }
+
+    /** Whole rates print whole (24); the rest print two decimals (24000/1001 shows 23.98). Swift twin. */
+    public fun frameRate(rate: Rational): String =
+        if (rate.denominator == 1) rate.numerator.toString()
+        else String.format(java.util.Locale.ROOT, "%.2f", rate.doubleValue)
 
     private fun number(value: Double): String = if (value == round(value)) value.toLong().toString() else value.toString()
 }
@@ -105,8 +115,14 @@ public fun MonitorControlModel.captureField(key: SettingKey): MonitorCaptureFiel
     val authorized = snapshot.authority == ControlAuthority.Owner || snapshot.authority is ControlAuthority.Lease
     val writable = authorized && snapshot.connection == ConnectionState.Ready &&
         descriptor.access == SettingAccess.READ_WRITE && descriptor.availability == Availability.Available
-    return MonitorCaptureField(key, title, shown(key), MonitorCapturePresentation.choices(key, descriptor.domain),
-        if (writable) edit(key) else null)
+    return MonitorCaptureField(key, title, shown(key), drum(key, descriptor.domain), if (writable) edit(key) else null)
+}
+
+/** The drum for a domain, built once per domain rather than on every read. */
+private fun MonitorControlModel.drum(key: SettingKey, domain: SettingDomain?): List<MonitorCaptureChoice> {
+    if (domain == null) return emptyList()
+    captureChoices[key]?.takeIf { it.first == domain }?.let { return it.second }
+    return MonitorCapturePresentation.choices(key, domain).also { captureChoices[key] = domain to it }
 }
 
 /** Both held gestures and persistent drums commit the editor they opened, never a new one. */

@@ -118,7 +118,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         }.toSet(),
         picture = MonitorOperatorLivePicture(VideoResolution.fromRaw(status.resolutionCode)?.ratio ?: geometry.pictureAspect,
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
-        status = operatorStatusProjection(chrome, geometry.layout, status, capabilities, fps, bars,
+        status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
             state.showStorageDuration) { state.showStorageDuration = !state.showStorageDuration },
         // The vocabulary cannot tell "not charging" from "not reported", so only a charging report shows.
         cameraBattery = MonitorOperatorPowerReading(true, status.batteryPercent.takeIf { it in 0..100 },
@@ -283,7 +283,7 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
 private fun Modifier.operatorFrame(rect: MonitorRect): Modifier = offset(rect.x.dp, rect.y.dp).size(rect.width.dp, rect.height.dp)
 
 private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSource<Host>, layout: LiveMonitorLayout,
-    status: CameraStatus, capabilities: MonitorLayoutCapabilities, fps: String, bars: Int,
+    status: CameraStatus, fps: String, bars: Int,
     duration: Boolean, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
@@ -294,7 +294,9 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     val format = if (source.session.mounts(MonitorDisplaySection.FORMAT) && !CameraCommands.isPhotoMode(status.shootingMode))
         listOf(row(LiveSheet.FORMAT, "Recording format", CaptureLists.recFormatChipLabel(status), MonitorDisplaySection.FORMAT)) else emptyList()
     return MonitorOperatorLiveStatus({ source.capture.control.statusPresentation(status.recordElapsedSec) },
-        CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && capabilities.timecode && source.session.mounts(MonitorDisplaySection.TIMECODE),
+        // The single-camera clock slot follows the DISP section (placeholder by declared precision
+        // when the body has no timecode, as main showed it); Multi View tiles follow the declaration.
+        CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.TIMECODE),
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
             CaptureLists.storageLabel(status, if (field.portrait) false else duration).substringBefore(" ·"), MonitorDisplaySection.STORAGE,

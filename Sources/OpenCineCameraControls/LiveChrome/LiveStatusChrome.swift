@@ -94,9 +94,10 @@
             }
         }
 
+        /// One rule for every app: the single-camera clock slot follows the operator's DISP section
+        /// in video; a body without timecode shows the placeholder at its declared precision.
         private var showsTimecode: Bool {
             host.chromeSectionMounts(.timecode) && !host.cameraStatus.isPhoto
-                && host.timecodeAvailable
         }
 
         private var storageButton: some View {

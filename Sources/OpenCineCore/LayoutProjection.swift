@@ -1,10 +1,9 @@
 import Foundation
 
-/// A compact layout projection for shared UI, kept apart from the domain model.
-///
-/// The ten fields mirror the UI's existing `MonitorCapabilities` one to one, so the UI can keep
-/// its type and map this value into it. They answer "is there a control section to lay out", not
-/// "is the control enabled now": availability and observations still come from the snapshot, and
+/// A compact layout projection for shared UI, kept apart from the domain model, and the one
+/// layout type (the conformance profile declares its review body in it too). The ten fields
+/// answer "is there a control section to lay out", not "is the control enabled now":
+/// availability and observations still come from the snapshot, and
 /// read-only settings are readouts, not sections. A setting whose support is still unknown
 /// projects to `false` (reserve no space until discovered); an observation whose support is
 /// still unknown keeps the `base` value. Neither is a statement about telemetry.
@@ -20,7 +19,22 @@ public struct MonitorLayoutCapabilities: Hashable, Sendable {
     public var requiresInternetHop = false
     public var timecode = false
 
-    public init() {}
+    public init(
+        gimbal: Bool = false, zoom: Bool = false, focus: Bool = false, iris: Bool = false,
+        audio: Bool = false, headTracking: Bool = false, clipDelete: Bool = false,
+        clipStar: Bool = false, requiresInternetHop: Bool = false, timecode: Bool = false
+    ) {
+        self.gimbal = gimbal
+        self.zoom = zoom
+        self.focus = focus
+        self.iris = iris
+        self.audio = audio
+        self.headTracking = headTracking
+        self.clipDelete = clipDelete
+        self.clipStar = clipStar
+        self.requiresInternetHop = requiresInternetHop
+        self.timecode = timecode
+    }
 
     /// Derives `zoom`, `focus` and `iris` from writable settings, and `timecode` and `audio`
     /// from observation support (audio means live levels; clip audio metadata never turns it on).

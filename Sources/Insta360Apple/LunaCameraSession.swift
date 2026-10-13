@@ -227,6 +227,13 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 reportedAt[.whiteBalance] = at
             }
         }
+        // Option 31: the record resolution's schema name carries the exact rate.
+        if carries(31), let raw = settings.recordResolution,
+            let rate = LunaVideoResolution(rawValue: raw).flatMap({ Rational.frameRate($0.framesPerSecond) })
+        {
+            current.settings[.frameRate] = ObservedValue(.frameRate(rate), origin: .cameraReported, at: at)
+            reportedAt[.frameRate] = at
+        }
         if carries(35), let color = settings.color {
             recordingProfile = ObservedValue(Self.profileID(color), origin: .cameraReported, at: at)
         }
@@ -703,6 +710,8 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
             SettingDescriptor(
                 .focusMode,
                 domain: SettingDomain(choices: [.focusMode(.single), .focusMode(.continuous)])),
+            // The record rate is a common read-only observation; the format picker stays native.
+            SettingDescriptor(.frameRate, access: .readOnly),
         ]
         if let zoomDomain {
             descriptors.append(SettingDescriptor(.zoom, domain: SettingDomain(range: zoomDomain)))

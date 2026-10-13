@@ -171,6 +171,24 @@ class NikonOpenCineSessionTest {
                 ),
         )
 
+    /** A5-09: the movie rate is a typed read-only Rational, the same one the timecode counts at. */
+    @Test
+    fun movieRatePublishesAsAReadOnlyRational() =
+        runTest {
+            val camera = FakeNikon(movie().copy(frameRate = 25))
+            val seam = NikonOpenCineSession(camera, backgroundScope)
+            val snapshot = seam.snapshots.value
+            assertEquals(SettingValue.FrameRate(Rational(25)), snapshot.value(SettingKey.FRAME_RATE).value)
+            assertEquals(SettingAccess.READ_ONLY, snapshot.capabilities[SettingKey.FRAME_RATE]?.access)
+            assertEquals(
+                CommandStage.Rejected(CommandRejection.ReadOnly),
+                seam.request(CameraCommandIntent.Set(SettingValue.FrameRate(Rational(24)))).stage,
+            )
+            camera.cameraProperties.value = movie().copy(frameRate = 0)
+            assertNull(seam.refresh().value(SettingKey.FRAME_RATE).value, "no rate is unknown")
+            seam.closeNow(SessionCloseReason.REQUESTED)
+        }
+
     /**
      * A5-04: the header sequence reaches the common snapshot with frames at the body's movie rate. A
      * per-frame change moves only the timecode and the revision; off, absent, or off the link is

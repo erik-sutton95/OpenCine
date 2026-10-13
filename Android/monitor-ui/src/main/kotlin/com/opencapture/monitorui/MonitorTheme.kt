@@ -4,7 +4,6 @@ import android.graphics.Paint
 import android.os.Build
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -158,18 +157,3 @@ object MonitorTypography {
     fun readout(size: Float, weight: FontWeight = FontWeight.Medium): TextStyle =
         text(size, weight).copy(fontFeatureSettings = "tnum")
 }
-
-/** Additive capabilities are supplied by an adapter, never inferred from a brand here. */
-@Immutable
-data class MonitorCapabilities(
-    val gimbal: Boolean = false,
-    val zoom: Boolean = false,
-    val focus: Boolean = false,
-    val iris: Boolean = false,
-    val audio: Boolean = false,
-    val headTracking: Boolean = false,
-    val clipDelete: Boolean = false,
-    val clipStar: Boolean = false,
-    val requiresInternetHop: Boolean = false,
-    val timecode: Boolean = false,
-)

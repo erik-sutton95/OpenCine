@@ -179,13 +179,16 @@
 
     public struct MonitorClock: View {
         private let clock: String?
+        private let placeholder: String
         private let fontSize: CGFloat
-        public init(_ clock: String?, fontSize: CGFloat = 23) {
+        public init(_ clock: String?, placeholder: String = MonitorTimecodeFormat.placeholder(frames: false),
+            fontSize: CGFloat = 23) {
             self.clock = clock
+            self.placeholder = placeholder
             self.fontSize = fontSize
         }
         public var body: some View {
-            let displayed = clock ?? "--:--:--"
+            let displayed = clock ?? placeholder
             let components = MonitorTimecodeFormat.accentComponents(in: displayed)
             (Text(components.base).foregroundColor(.white)
                 + Text(components.accent).foregroundColor(MonitorTheme.accent))

@@ -163,12 +163,13 @@ class CapturePanelEffects(private val preview: Boolean) {
     fun run(action: () -> Unit) { if (!preview) action() }
 
     suspend fun mount(sheet: LiveSheet, status: CameraStatus, supportsFocus: Boolean,
-        refresh: suspend (CaptureRefresh) -> Unit, seed: () -> Unit, reseatIso: () -> Unit) {
+        refresh: suspend (CaptureRefresh) -> Unit, seed: () -> Unit, reseatIso: () -> Unit,
+        ceilingSupported: Boolean = true) {
         if (preview) return
         if (CaptureLists.shouldRefreshAudio(sheet)) refresh(CaptureRefresh.AUDIO)
         if (sheet == LiveSheet.FOCUS && CaptureLists.shouldRefreshFocusTrack(status, supportsFocus)) refresh(CaptureRefresh.FOCUS_TRACK)
         seed()
-        if (sheet == LiveSheet.ISO && CaptureLists.shouldGetIsoLimit(status)) {
+        if (sheet == LiveSheet.ISO && ceilingSupported && CaptureLists.shouldGetIsoLimit(status)) {
             refresh(CaptureRefresh.ISO_LIMIT)
             reseatIso()
         }

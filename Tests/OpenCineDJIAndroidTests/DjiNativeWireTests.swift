@@ -1,5 +1,6 @@
 import Foundation
 @testable import OpenCineDJIAndroid
+import struct OpenCineCore.CameraTimecode
 import OpenCineDJI
 import Testing
 
@@ -230,7 +231,7 @@ struct DjiNativeWireTests {
         status.batteryMilliAmps = -350
         status.charging = true
         status.firmware = "01.02,[iso]:7}"
-        status.timecode = "01:02:03:04"
+        status.timecodeValue = CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 4)
         status.iso = 400
         status.isRecording = true
         status.expoMode = .manual
@@ -246,6 +247,7 @@ struct DjiNativeWireTests {
         let decoded = DjiNativeWire.status(fromJSON: json)
         #expect(DjiNativeWire.statusJSON(decoded) == json)
         #expect(decoded.iso == 400)
+        #expect(decoded.timecodeValue == CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 4))
         #expect(decoded.charging)
         #expect(decoded.batteryMilliAmps == -350)
         #expect(decoded.audioMeters?.right.peakDB == -1e-3)
@@ -255,7 +257,7 @@ struct DjiNativeWireTests {
         let fromKotlin = DjiNativeWire.status(fromJSON: kotlin)
         #expect(fromKotlin.batteryPercent == 7)
         #expect(fromKotlin.firmware == "v1\\/2")
-        #expect(fromKotlin.timecode == nil)
+        #expect(fromKotlin.timecodeValue == nil)
         #expect(fromKotlin.docked)
         #expect(fromKotlin.audioMeters == CameraStatus().audioMeters)
         // Meters the camera never sent stay unknown across the round trip, never silence.

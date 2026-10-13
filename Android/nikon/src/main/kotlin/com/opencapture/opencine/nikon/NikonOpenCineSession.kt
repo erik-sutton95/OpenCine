@@ -28,6 +28,7 @@ import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
@@ -394,7 +395,13 @@ class NikonOpenCineSession(
          * reports. Whether it runs is the observation, not the capability (Swift `timecodeCapability`).
          */
         fun timecodeCapability(properties: CameraPropertySnapshot): TimecodeCapability =
-            TimecodeCapability.supported(properties.frameRate?.takeIf { it > 0 }?.let { TimecodePrecision.Frames(Rational(it)) })
+            TimecodeCapability.supported(frameRate(properties)?.let { TimecodePrecision.Frames(it) })
+
+        /**
+         * The movie rate as the screen-size token reports it, in whole frames per second. Whether a
+         * body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
+         */
+        fun frameRate(properties: CameraPropertySnapshot): Rational? = properties.frameRate?.takeIf { it > 0 }?.let { Rational(it) }
 
         /** Movie controls offered through the common seam; stills retain their typed adapter. */
         val CONTROLS: Set<CameraControl> =
@@ -444,6 +451,8 @@ class NikonOpenCineSession(
                 SettingDescriptor(SettingKey.ISO, domain = SettingDomain(iso), availability = isoAvailability),
                 SettingDescriptor(SettingKey.WHITE_BALANCE, domain = whiteBalance),
                 SettingDescriptor(SettingKey.RECORDING),
+                // The movie rate is a common read-only observation; the format picker stays native.
+                SettingDescriptor(SettingKey.FRAME_RATE, access = SettingAccess.READ_ONLY),
             ) + NikonExposureSettings.descriptors(properties)
         }
 
@@ -505,7 +514,11 @@ class NikonOpenCineSession(
                 } else {
                     mode?.let { SettingValue.WhiteBalance(whiteBalance(it)) }
                 }
-            return mapOf(SettingKey.ISO to iso, SettingKey.WHITE_BALANCE to whiteBalance) + NikonExposureSettings.reported(properties)
+            return mapOf(
+                SettingKey.ISO to iso,
+                SettingKey.WHITE_BALANCE to whiteBalance,
+                SettingKey.FRAME_RATE to frameRate(properties)?.let { SettingValue.FrameRate(it) },
+            ) + NikonExposureSettings.reported(properties)
         }
 
         private fun captureMode(photography: Boolean): CaptureMode =

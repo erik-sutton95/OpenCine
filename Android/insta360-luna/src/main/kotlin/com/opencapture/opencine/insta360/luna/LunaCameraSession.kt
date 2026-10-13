@@ -32,6 +32,7 @@ import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
 import com.opencapture.opencine.core.SessionCloseReason
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
@@ -271,6 +272,13 @@ class LunaCameraSession internal constructor(
                     val origin = if (kelvin == null) ObservationOrigin.PROTOCOL_DERIVED else ObservationOrigin.CAMERA_REPORTED
                     values[SettingKey.WHITE_BALANCE] = ObservedValue(SettingValue.WhiteBalance(value), origin, at)
                     reportedAt[SettingKey.WHITE_BALANCE] = at
+                }
+            }
+            // Option 31: the record resolution's schema name carries the exact rate.
+            if (carries(31)) {
+                settings.videoResolution?.let { Rational.frameRate(it.framesPerSecond) }?.let {
+                    values[SettingKey.FRAME_RATE] = ObservedValue(SettingValue.FrameRate(it), ObservationOrigin.CAMERA_REPORTED, at)
+                    reportedAt[SettingKey.FRAME_RATE] = at
                 }
             }
             if (carries(35)) {
@@ -590,6 +598,8 @@ class LunaCameraSession internal constructor(
                 SettingKey.FOCUS_MODE,
                 domain = SettingDomain(listOf(SettingValue.FocusMode(FocusMode.SINGLE), SettingValue.FocusMode(FocusMode.CONTINUOUS))),
             ),
+            // The record rate is a common read-only observation; the format picker stays native.
+            SettingDescriptor(SettingKey.FRAME_RATE, access = SettingAccess.READ_ONLY),
         )
         zoomDomain?.let { descriptors += SettingDescriptor(SettingKey.ZOOM, domain = SettingDomain(range = it)) }
         // Timecode is host-derived time of day ([ingest]); Luna reports no audio levels.

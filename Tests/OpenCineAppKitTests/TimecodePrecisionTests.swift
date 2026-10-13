@@ -32,6 +32,32 @@ import Testing
         #expect(MonitorTimecodeFormat.label(nonDrop, precision: declared) == "01:02:03:17")
     }
 
+    /// A5-13: the empty clock follows the declaration too: a frame-counting source keeps its
+    /// frame field, seconds and undeclared sources show seconds. No surface hard-codes one.
+    @Test func placeholderFollowsTheDeclaredPrecision() {
+        #expect(MonitorTimecodeFormat.placeholder(.frames(rate: Rational(25), dropFrame: nil)) == "--:--:--:--")
+        #expect(MonitorTimecodeFormat.placeholder(.seconds) == "--:--:--")
+        #expect(MonitorTimecodeFormat.placeholder(nil) == "--:--:--")
+        let empty = MonitorStatusPresentation(recording: nil, timecodePlaceholder: "--:--:--:--")
+        #expect(empty.clock == "--:--:--:--")
+        #expect(MonitorStatusPresentation(recording: nil, timecode: "01:02:03").clock == "01:02:03")
+    }
+
+    @available(macOS 14, *)
+    @Test(arguments: [("dji", "--:--:--"), ("nikon", "--:--:--:--"), ("luna", "--:--:--")])
+    func statusPlaceholderFollowsEachSourceDeclaration(source: String, placeholder: String) async throws {
+        let camera: FakeCameraSession =
+            switch source {
+            case "dji": .djiLike()
+            case "nikon": .nikonLike()
+            default: .lunaLike()
+            }
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        control.bind(camera)
+        #expect(await eventually { control.statusPresentation().timecodePlaceholder == placeholder })
+    }
+
     @Test func capabilityKeepsPrecisionOnlyWhileSupported() {
         #expect(TimecodeCapability(support: .unknown, precision: .seconds).precision == nil)
         #expect(TimecodeCapability.unsupported.precision == nil)

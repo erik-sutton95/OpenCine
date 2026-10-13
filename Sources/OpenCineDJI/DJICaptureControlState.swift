@@ -47,6 +47,8 @@ public struct DJICaptureControlState: Sendable {
             // The measured mechanical iris is a common read-only observation.
             result.append(SettingDescriptor(.aperture, access: .readOnly))
         }
+        // The recording rate is a common read-only observation; the format picker stays native.
+        result.append(SettingDescriptor(.frameRate, access: .readOnly))
         return result
     }
 
@@ -69,6 +71,10 @@ public struct DJICaptureControlState: Sendable {
         }
         if let value = reported.irisHundredths, (100...2_200).contains(value) {
             report(.aperture(Double(value) / 100))
+        }
+        // `cam_video_param_v2` carries an index into whole rates (`VideoFrameRate`).
+        if reported.fps > 0 {
+            report(.frameRate(Rational(reported.fps)))
         }
         return result
     }

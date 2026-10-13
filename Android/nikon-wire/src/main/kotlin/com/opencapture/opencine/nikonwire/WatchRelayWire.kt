@@ -157,7 +157,8 @@ public data class WatchTimecode(
     /** Frame component. */
     public val frame: Int,
 ) {
-    /** Renders the fixed-width monitor readout. */
+    /** Compatibility readout for existing consumers; migrate presentation before retiring it. */
+    @Deprecated("Format reported components at the presentation boundary")
     public fun label(): String =
         String.format(Locale.ROOT, "%02d:%02d:%02d:%02d", hour, minute, second, frame)
 

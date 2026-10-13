@@ -283,23 +283,20 @@ extension MultiviewTile {
                 (MultiviewTileStatus(text: "Waiting for the camera", inProgress: true),
                  "Waiting for the camera")
             }
-        let battery = snapshot?.power.battery
-        let steps: Int?
-        if case .quantized(let step) = battery?.precision, step.isFinite, step > 0,
-            (2...10).contains((1 / step).rounded()), abs(1 / step - (1 / step).rounded()) < 0.000_001 {
-            steps = Int((1 / step).rounded())
-        } else {
-            steps = nil
+        let battery = snapshot?.power.batteryReading
+        let percent: Int?, bars: Int?, barCount: Int
+        switch battery {
+        case .fraction(let value)?: (percent, bars, barCount) = (Int((value * 100).rounded()), nil, 5)
+        case .steps(let filled, let count)?: (percent, bars, barCount) = (nil, filled, count)
+        case nil: (percent, bars, barCount) = (nil, nil, 5)
         }
         self.init(
             name: entry.name,
-            battery: steps == nil ? battery?.value.map { Int(($0 * 100).rounded()) } : nil,
+            battery: percent,
             charging: snapshot?.power.charging.value ?? false,
-            batteryBars: steps.flatMap { count in battery?.value.map { min(count, max(0, Int(($0 * Double(count)).rounded()))) } },
-            batteryBarCount: steps ?? 5,
-            timecode: snapshot?.timecode.value.flatMap {
-                MonitorTimecodeFormat.label($0, precision: snapshot?.capabilities.timecode.precision)
-            },
+            batteryBars: bars,
+            batteryBarCount: barCount,
+            timecode: MonitorTimecodeFormat.label(snapshot),
             tally: MultiviewTally.text(
                 recording: recording, waiting: waiting,
                 failed: control.map { if case .disconnected = $0 { true } else { false } } ?? false),

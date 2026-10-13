@@ -3170,7 +3170,7 @@ class PocketCameraSession(
             batteryPercent = status.batteryPercent.takeIf { it in 0..100 },
             storageFreeMb = status.storageFreeMb.takeIf { status.storageTotalMb > 0 },
             model = connectedCamera?.model,
-            timecode = status.timecode,
+            timecode = status.timecodeValue,
             audioLevels = DjiCameraSessionAdapter.audioLevels(status),
         )
     }

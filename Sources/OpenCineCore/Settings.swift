@@ -27,6 +27,18 @@ public struct Rational: Hashable, Codable, Sendable, CustomStringConvertible {
 
     public var doubleValue: Double { Double(numerator) / Double(denominator) }
     public var description: String { "\(numerator)/\(denominator)" }
+
+    /// The exact rate for a source that reports frames per second as a decimal: whole rates stay
+    /// whole, the NTSC family (23.976, 29.97, 59.94, ...) is N*1000/1001, anything else keeps
+    /// thousandths. `nil` when not a positive finite rate. Kotlin twin: `Rational.frameRate`.
+    public static func frameRate(_ framesPerSecond: Double) -> Rational? {
+        guard framesPerSecond.isFinite, framesPerSecond > 0, framesPerSecond < 100_000 else { return nil }
+        let whole = framesPerSecond.rounded()
+        if abs(framesPerSecond - whole) < 0.005 { return Rational(Int(whole)) }
+        let ntsc = (framesPerSecond * 1.001).rounded()
+        if abs(framesPerSecond - ntsc / 1.001) < 0.005 { return Rational(Int(ntsc) * 1000, 1001) }
+        return Rational(Int((framesPerSecond * 1000).rounded()), 1000)
+    }
 }
 
 /// The small common setting vocabulary. Expand only for a real use case.

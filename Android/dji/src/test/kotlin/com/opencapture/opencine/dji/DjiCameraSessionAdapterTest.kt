@@ -17,6 +17,7 @@ import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.PowerStatus
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.RecordingState
+import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
@@ -178,6 +179,20 @@ class DjiCameraSessionAdapterTest {
         assertEquals(SettingValue.Aperture(2.8), seam.current.value(SettingKey.APERTURE).value)
         assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
             seam.request(CameraCommandIntent.Set(SettingValue.Aperture(2.0))).stage)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    /** A5-09: the recording rate is a typed read-only Rational from the wire index, never written. */
+    @Test
+    fun recordingFrameRateIsAReadOnlyRational() = runTest {
+        val port = capturePort()
+        val seam = adapter(port)
+        assertEquals(SettingAccess.READ_ONLY, seam.current.capabilities[SettingKey.FRAME_RATE]?.access)
+        assertNull(seam.current.value(SettingKey.FRAME_RATE).value, "no report is unknown")
+        port.capture = port.capture?.let { it.copy(reported = it.reported.copy(fps = 25)) }
+        assertEquals(SettingValue.FrameRate(Rational(25)), seam.current.value(SettingKey.FRAME_RATE).value)
+        assertEquals(CommandStage.Rejected(CommandRejection.ReadOnly),
+            seam.request(CameraCommandIntent.Set(SettingValue.FrameRate(Rational(24)))).stage)
         assertTrue(port.fired.isEmpty())
     }
 
@@ -424,17 +439,19 @@ class DjiCameraSessionAdapterTest {
         assertEquals(ObservedValue.unknown, seam.current.timecode)
         assertEquals(ObservedValue.unknown, seam.current.audioLevels, "no report is unknown, never silence")
         val reported = CameraStatus(
-            timecode = "05:22:47:18", audioMetersLeft = -18.0, audioPeakLeft = -12.0,
+            audioMetersLeft = -18.0, audioPeakLeft = -12.0,
             audioMetersRight = -20.0, audioPeakRight = -14.0, audioMetersReported = true,
-        )
-        port.state = port.state.copy(timecode = reported.timecode, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
+        ).withTimecodeValue(CameraTimecode(5, 22, 47, 18))
+        port.state = port.state.copy(timecode = reported.timecodeValue, audioLevels = DjiCameraSessionAdapter.audioLevels(reported))
         val snapshot = seam.current
         assertEquals(CameraTimecode(5, 22, 47, 18), snapshot.timecode.value)
         assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.timecode.origin)
         assertEquals(AudioLevels(AudioLevels.Channel(-18.0, -12.0), AudioLevels.Channel(-20.0, -14.0)), snapshot.audioLevels.value)
         assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.audioLevels.origin)
-        port.state = port.state.copy(timecode = "--:--")
+        port.state = port.state.copy(timecode = null)
         assertEquals(ObservedValue.unknown, seam.current.timecode)
+        // The facade JSON carries the decoded fields, never a display string to re-parse.
+        assertEquals(CameraTimecode(5, 22, 47, 18), CameraStatus.fromJson(reported.toJson()).timecodeValue)
         // The status JSON the session round-trips through the facade keeps "not reported" apart from silence.
         assertNull(DjiCameraSessionAdapter.audioLevels(CameraStatus.fromJson(CameraStatus().toJson())))
         assertEquals(

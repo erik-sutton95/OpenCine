@@ -28,6 +28,24 @@ class SingleSharedMonitorCompositionContractTest {
         }
     }
 
+    /**
+     * A5-14: no app declares the single-camera clock slot. It follows the DISP section in every app,
+     * never a layout Boolean an app overrides; the declared precision decides what it shows.
+     */
+    @Test fun noAppDeclaresTheClockSlot() {
+        val source = File(directory, "MonitorOperatorVocabularySurface.kt").readText()
+        assertFalse("capabilities.timecode" in source, "The clock slot is gated on an app-overridable layout flag")
+    }
+
+    /** A5-08: `MonitorLayoutCapabilities` is the one layout type; no presentation twin survives. */
+    @Test fun oneLayoutCapabilityType() {
+        val monitorUi = File("../monitor-ui/src/main/kotlin/com/opencapture/monitorui")
+        assertTrue(monitorUi.isDirectory)
+        for (file in monitorUi.walk().filter { it.extension == "kt" }) {
+            assertFalse("class MonitorCapabilities(" in file.readText(), "${file.name} keeps a layout twin")
+        }
+    }
+
     @Test fun theSurfaceConsumesNeutralFacts() {
         val identifiers = tokens(File(directory, "MonitorOperatorLiveSurface.kt").readText()).toSet()
         assertFalse("CaptureSheetHost" in identifiers)

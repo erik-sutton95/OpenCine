@@ -196,7 +196,7 @@ let package = Package(
         // ponytail: Swift 5 mode, the mode the apps' UI test bundles compile them in; move to 6
         // with a MainActor pass over XCTest's expectation waits.
         .target(
-            name: "OpenCineAppUITesting", dependencies: ["MonitorPresentation"],
+            name: "OpenCineAppUITesting", dependencies: ["MonitorPresentation", "OpenCineCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // Hosted test bundles link this beside their host app, so it depends on nothing here: no
         // second copy of a module the host already holds. iOS only, empty elsewhere.
@@ -210,7 +210,7 @@ let package = Package(
         // integration and the Insta360 shell. Wire-free: no protocol frames or byte parsers.
         .target(name: "OpenCineCameraVocabulary", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
         .testTarget(
-            name: "OpenCineCameraVocabularyTests", dependencies: ["OpenCineCameraVocabulary", "OpenCineMedia"]),
+            name: "OpenCineCameraVocabularyTests", dependencies: ["OpenCineCameraVocabulary", "OpenCineCore", "OpenCineMedia"]),
 
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,
@@ -226,8 +226,8 @@ let package = Package(
         .testTarget(name: "OpenCineDJIAppleTests", dependencies: ["OpenCineDJIApple", "OpenCineDJI", "OpenCineMedia", "OpenCineMotion"]),
         // Header-only shim for the NDK's <jni.h>; empty on Darwin.
         .target(name: "OpenCineJNI"),
-        .target(name: "OpenCineDJIAndroid", dependencies: ["OpenCineDJI", "OpenCineJNISupport"]),
-        .testTarget(name: "OpenCineDJIAndroidTests", dependencies: ["OpenCineDJIAndroid", "OpenCineDJI"]),
+        .target(name: "OpenCineDJIAndroid", dependencies: ["OpenCineCore", "OpenCineDJI", "OpenCineJNISupport"]),
+        .testTarget(name: "OpenCineDJIAndroidTests", dependencies: ["OpenCineCore", "OpenCineDJIAndroid", "OpenCineDJI"]),
 
         // MARK: Nikon
         // PTP/IP and PTP/USB wire, property codes, discovery/session policy and

@@ -189,7 +189,9 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             ? row(.color, "Color mode", value.colorMode?.label(in: host.labelProfile) ?? "\u{2014}", .color, "monitor.capture.color") : nil
         let mode = !photo ? row(.mode, "Shooting mode", host.currentShootingMode?.label(for: host.connectedBody) ?? "Video",
             nil, "monitor.capture.mode") : nil
-        return .init(recording: host.liveStatus, showsTimecode: host.chromeSectionMounts(.timecode) && !photo && host.timecodeAvailable,
+        // The single-camera clock slot follows the DISP section (placeholder by declared precision
+        // when the body has no timecode, as main showed it); Multi View tiles follow the declaration.
+        return .init(recording: host.liveStatus, showsTimecode: host.chromeSectionMounts(.timecode) && !photo,
             showsRecording: host.chromeSectionMounts(.recReadout) && !photo, storage: storage, format: format,
             fps: host.chromeSectionMounts(.batteries) ? host.liveFPS : nil,
             signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,

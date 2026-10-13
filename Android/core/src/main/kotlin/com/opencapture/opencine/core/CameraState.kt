@@ -85,8 +85,45 @@ public data class PowerStatus(
     public val charging: ObservedValue<Boolean> = ObservedValue.unknown,
     public val externalPower: ObservedValue<Boolean> = ObservedValue.unknown,
 ) {
+    /**
+     * The battery as its source declared it; `null` when unknown, which shared chrome shows as
+     * absent rather than an empty gauge (D11).
+     */
+    public val batteryReading: BatteryReading?
+        get() {
+            val value = battery.value?.takeIf { it.isFinite() } ?: return null
+            val fraction = value.coerceIn(0.0, 1.0)
+            val steps = BatteryReading.gaugeSteps(battery.precision) ?: return BatteryReading.Fraction(fraction)
+            return BatteryReading.Steps(Math.round(fraction * steps).toInt().coerceIn(0, steps), steps)
+        }
+
     public companion object {
         public val unknown: PowerStatus = PowerStatus()
+    }
+}
+
+/**
+ * What a battery observation says, at the precision its source declared. Shared chrome renders
+ * this value; it never guesses a gauge from a brand or a percent from a gauge.
+ */
+public sealed interface BatteryReading {
+    /** A charge fraction, 0..1 (a percentage report or a phone). */
+    public data class Fraction(public val value: Double) : BatteryReading
+
+    /** [filled] of [of] gauge steps (a five-bar gauge); never a percentage. */
+    public data class Steps(public val filled: Int, public val of: Int) : BatteryReading
+
+    public companion object {
+        /**
+         * The step count a declared precision implies: a source reporting in steps of 1/2 to 1/10
+         * has a gauge, a finer one (percent) reports a fraction.
+         */
+        internal fun gaugeSteps(precision: ObservationPrecision?): Int? {
+            val step = (precision as? ObservationPrecision.Quantized)?.step ?: return null
+            if (!step.isFinite() || step <= 0.0) return null
+            val count = Math.round(1 / step).toDouble()
+            return if (count in 2.0..10.0 && kotlin.math.abs(1 / step - count) < 0.000001) count.toInt() else null
+        }
     }
 }
 

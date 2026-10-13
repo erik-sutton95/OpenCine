@@ -46,7 +46,8 @@ public class MonitorWristCopy(
     public val noCamera: String = "No camera connected",
     public val feedPaused: String = "Feed paused",
     public val waitingForPreview: String = "Waiting for preview",
-    public val timecodeUnavailable: String = "--:--:--:--",
+    /** The empty clock at the source's declared precision ([MonitorTimecodeFormat.placeholder]). */
+    public val timecodeUnavailable: String = com.opencapture.monitorui.MonitorTimecodeFormat.placeholder(frames = false),
     public val unavailable: String = "--",
     public val startRecording: String = "Start recording",
     public val stopRecording: String = "Stop recording",

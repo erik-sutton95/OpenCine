@@ -201,11 +201,9 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
         if shell.control.snapshot?.capabilities.support(of: .recording) != .supported { value.remove(.railRecord) }
         return value
     }
-    /// The reported battery; an unknown fraction stays a dash, never 0%.
+    /// The reported battery at its declared precision (bars or percent); unknown is absent.
     private var cameraBattery: MonitorOperatorPowerReading? {
-        guard let power = shell.control.snapshot?.power else { return nil }
-        return .init(id: "camera", title: "Camera battery", camera: true,
-            percent: power.battery.value.map { Int(($0 * 100).rounded()) }, charging: power.charging.value)
+        shell.control.snapshot.flatMap { MonitorOperatorPowerReading.camera($0.power) }
     }
     private var recovering: Bool {
         if case .some(.recovering) = shell.control.snapshot?.connection { return true }

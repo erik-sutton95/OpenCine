@@ -1,4 +1,5 @@
 import Foundation
+import struct OpenCineCore.CameraTimecode
 import Testing
 
 @testable import OpenCineCameraVocabulary
@@ -45,7 +46,7 @@ struct LiveChromeThrottleTests {
 
     @Test func timecodeAndMetersWaitForInterval() {
         var next = CameraStatus()
-        next.timecode = "01:02:03:04"
+        next.timecodeValue = CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 4)
         next.audioMeters = AudioMeterLevels(
             left: AudioMeterChannel(levelDB: -12, peakDB: -6),
             right: AudioMeterChannel(levelDB: -14, peakDB: -8)

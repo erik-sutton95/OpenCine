@@ -43,6 +43,23 @@ public struct MonitorOperatorPowerReading: Identifiable {
     }
 }
 
+extension MonitorOperatorPowerReading {
+    /// The camera battery as its source declared it: a gauge keeps its bars (and reads as a
+    /// warning at two fifths or less), a fraction prints a percentage,
+    /// and an unknown battery is absent rather than an empty gauge (D11).
+    public static func camera(_ power: PowerStatus) -> MonitorOperatorPowerReading? {
+        guard let reading = power.batteryReading else { return nil }
+        switch reading {
+        case .fraction(let value):
+            return .init(id: "camera", title: "Camera battery", camera: true,
+                percent: Int((value * 100).rounded()), charging: power.charging.value)
+        case .steps(let filled, let count):
+            return .init(id: "camera", title: "Camera battery", camera: true, bars: filled, barCount: count,
+                warning: filled * 5 <= count * 2, charging: power.charging.value)
+        }
+    }
+}
+
 /// Status content is observed data. The common owner renders the readouts and their captured
 /// actions; body codecs, card capacity and photography counters stay source facts.
 public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
