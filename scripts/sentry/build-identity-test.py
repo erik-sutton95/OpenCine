@@ -158,7 +158,7 @@ class BuildIdentityTests(unittest.TestCase):
 
     def test_other_integrations_change_neither_identity(self):
         names = ["Sources/OpenCineNikon/Ptp.swift", "Sources/Insta360Apple/Luna.swift",
-                 "Android/insta360-luna/Luna.kt", "atlas/README.md"]
+                "Android/insta360-luna/Luna.kt", "atlas/README.md"]
         opencine, nested = self.opencine_sibling({name: "1\n" for name in names})
         for name in names:
             self.assertEqual((False, False), self.changes(nested, opencine, name, "2\n"), name)

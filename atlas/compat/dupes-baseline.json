@@ -1,66 +1,66 @@
 {
   "code_lines": {
-    "opencine": 185659,
-    "openinstacine": 123010,
-    "openpocketcine": 130423,
-    "openzcine": 151242
+    "opencine": 362989,
+    "openinstacine": 40402,
+    "openpocketcine": 56662,
+    "openzcine": 119312
   },
-  "note": "Written by atlas dupes --write-baseline at the reviewed852 local integration. Pocket/Insta copied lines56659->55295. Shared/Pocket+144 and shared/Nikon+42 are explicit add/migrate remainders from new common playback/conform owners while those apps retain their donor implementations; exact candidate-dupe-deltas evidence identifies the blocks. Net duplicated lines across all pairs decrease1255. Retire those app donors in P2/Z2; this checkpoint does not declare thin-app completion.",
+  "note": "Written by atlas dupes --write-baseline at OpenCine 3c6f470e against the exact registered public-main app commits in sources. The shared/OpenZCine pair grows from 672 to 3070 normalized lines because the cumulative shared extraction lands before that app removes its donor copies in a reviewed pin move, as allowed by atlas/docs/MAINTENANCE.md. The measured accepted app candidates (Pocket 1679ddd8, Insta db515403, Z 35ccdacb) reduce the shared pairs to 193, 663 and 388 lines respectively, including Z below the old 672-line baseline; they are not yet integrated or released. All six current public-source pairs remain checked and their total decreases from 80089 to 16206 lines. No scanner rules, registry refs, compatibility results, pins or CI checks changed; regenerate this baseline after the app changes land.",
   "pairs": {
     "opencine|openinstacine": {
-      "block_lines": 10135,
-      "blocks": 611,
-      "exact_files": 13,
-      "file_lines": 9079,
-      "files": 76,
-      "lines": 19214
+      "block_lines": 1262,
+      "blocks": 84,
+      "exact_files": 0,
+      "file_lines": 0,
+      "files": 0,
+      "lines": 1262
     },
     "opencine|openpocketcine": {
-      "block_lines": 2021,
-      "blocks": 167,
-      "exact_files": 2,
-      "file_lines": 484,
-      "files": 8,
-      "lines": 2505
+      "block_lines": 931,
+      "blocks": 65,
+      "exact_files": 0,
+      "file_lines": 0,
+      "files": 0,
+      "lines": 931
     },
     "opencine|openzcine": {
-      "block_lines": 523,
-      "blocks": 47,
-      "exact_files": 1,
-      "file_lines": 149,
+      "block_lines": 2758,
+      "blocks": 168,
+      "exact_files": 0,
+      "file_lines": 312,
       "files": 3,
-      "lines": 672
+      "lines": 3070
     },
     "openinstacine|openpocketcine": {
-      "block_lines": 25897,
-      "blocks": 1438,
-      "exact_files": 149,
-      "file_lines": 29398,
-      "files": 228,
-      "lines": 55295
+      "block_lines": 8198,
+      "blocks": 505,
+      "exact_files": 2,
+      "file_lines": 1638,
+      "files": 36,
+      "lines": 9836
     },
     "openinstacine|openzcine": {
-      "block_lines": 517,
-      "blocks": 48,
+      "block_lines": 190,
+      "blocks": 17,
       "exact_files": 0,
-      "file_lines": 199,
-      "files": 3,
-      "lines": 716
+      "file_lines": 394,
+      "files": 2,
+      "lines": 584
     },
     "openpocketcine|openzcine": {
-      "block_lines": 1339,
-      "blocks": 90,
-      "exact_files": 3,
-      "file_lines": 348,
-      "files": 6,
-      "lines": 1687
+      "block_lines": 498,
+      "blocks": 34,
+      "exact_files": 0,
+      "file_lines": 25,
+      "files": 1,
+      "lines": 523
     }
   },
   "schema_version": 1,
   "sources": {
-    "opencine": "working tree at 4c547de63b245b256bbbaa038dbb1d8bb0d6bb70",
-    "openinstacine": "opencine/integration 51086b73a7d88dcf506298b15c8b76edfa1d6798",
-    "openpocketcine": "opencine/integration de40e9291fe433012f8f535cb3e91d0217822256",
-    "openzcine": "opencine/integration b7a25cca0867b17bfa20330bf059f5a04165e48c"
+    "opencine": "working tree at 3c6f470ed9693a1827647317d1d34cbbb8eae7eb",
+    "openinstacine": "main cd6c86f02e675ab2e76c0a5d8b177b458b961a37",
+    "openpocketcine": "main 5e57d277cb301a846de9f0a2c0e97b217f6acffc",
+    "openzcine": "main f4b8c734cfc0b7d814fdd10015c6825fb602e8a8"
   }
 }

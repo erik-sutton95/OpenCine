@@ -7,12 +7,17 @@ committed source; maintainers must verify both after changing the policy.
 
 - Require the strict `CI gate` status check and an up-to-date branch.
 - Require one approving review, dismiss stale approvals and resolve conversations.
-- Require linear history; disallow force pushes and branch deletion.
+- Allow merge commits to retain the reviewed source history; disallow force pushes and branch deletion.
 - Administrators retain the same bypass as OpenPocketCine (`enforce_admins: false`).
-- Use squash merges; automatically delete merged branches and allow branch updates.
+- Use merge commits for cumulative changes; automatically delete merged branches and allow branch updates.
 - Auto-merge is available, but enabling it on a PR is a separate maintainer action.
 
-The SDK gate requires Meta, Swift, Android, Atlas and both SIMULATED new-app jobs to succeed.
+Linear-history enforcement is disabled in OpenCine and the three thin apps so their cumulative
+PRs can retain every original source commit. Strict checks, fresh review, stale-approval
+dismissal, conversation resolution and force-push/deletion/admin/signature policy are preserved.
+Source extraction still lands in OpenCine first, followed by each app's reviewed pin move.
+
+The SDK gate requires Meta, Swift, Android, Atlas, hosted conformance and both SIMULATED new-app jobs to succeed.
 A skipped, cancelled or failed SDK job fails the gate. SIMULATED acceptance does not qualify
 camera behavior on hardware or ship a consuming app.
 

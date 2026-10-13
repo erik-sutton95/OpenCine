@@ -205,7 +205,7 @@ class SentryUploadTests(unittest.TestCase):
         result = run_upload(
             env,
             ["--platform", "android", "--repo-root", str(repo),
-             "--android-module", "app", "--android-module", "monitor"],
+                "--android-module", "app", "--android-module", "monitor"],
             self.dir,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -509,7 +509,7 @@ class SentryUploadTests(unittest.TestCase):
     def test_android_duplicate_files_already_on_server_are_verified_by_id(self) -> None:
         native = make_so(self.dir / "jni")
         env = self.enabled_env(SENTRY_PROJECT="host-android",
-                               SENTRY_UPLOADER=str(self.duplicate_android_uploader()))
+                                SENTRY_UPLOADER=str(self.duplicate_android_uploader()))
         result = run_upload(env, ["--platform", "android", "--paths", str(native)], self.dir)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         rechecks = [line for line in self.argv_text().splitlines() if "--id" in line]
@@ -520,7 +520,7 @@ class SentryUploadTests(unittest.TestCase):
         native = make_so(self.dir / "jni")
         missing_id = "33333333-3333-3333-3333-333333333333"
         env = self.enabled_env(SENTRY_PROJECT="host-android",
-                               SENTRY_UPLOADER=str(self.duplicate_android_uploader(missing_id)))
+                                SENTRY_UPLOADER=str(self.duplicate_android_uploader(missing_id)))
         result = run_upload(env, ["--platform", "android", "--paths", str(native)], self.dir)
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertIn("1 missing", result.stderr)
@@ -569,31 +569,33 @@ class SentryUploadTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
-        output = """
-{
-  "type": "dsym",
-  "variants": [
-    {
-      "debug_id": "6b7ba26f-1983-3a45-81d5-37a2f597b23f",
-      "code_id": "6b7ba26f19833a4581d537a2f597b23f",
-      "arch": "arm64"
-    }
-  ],
-  "is_usable": true
-}
-"""
+        output = (
+            '\n'
+            '{\n'
+            '  "type": "dsym",\n'
+            '  "variants": [\n'
+            '    {\n'
+            '      "debug_id": "6b7ba26f-1983-3a45-81d5-37a2f597b23f",\n'
+            '      "code_id": "6b7ba26f19833a4581d537a2f597b23f",\n'
+            '      "arch": "arm64"\n'
+            '    }\n'
+            '  ],\n'
+            '  "is_usable": true\n'
+            '}\n'
+        )
         self.assertEqual(
             module.parse_check_ids(output),
             ["6b7ba26f-1983-3a45-81d5-37a2f597b23f"],
         )
-        text = """
-Debug Info File Check
-  Contained debug identifiers:
-    > Debug ID: 48ca8f44-c525-3461-bb69-cd1b7e789e89
-      Code ID:  48ca8f44c5253461bb69cd1b7e789e89
-      Arch:     arm64
-  Usable: yes
-"""
+        text = (
+            '\n'
+            'Debug Info File Check\n'
+            '  Contained debug identifiers:\n'
+            '    > Debug ID: 48ca8f44-c525-3461-bb69-cd1b7e789e89\n'
+            '      Code ID:  48ca8f44c5253461bb69cd1b7e789e89\n'
+            '      Arch:     arm64\n'
+            '  Usable: yes\n'
+        )
         self.assertEqual(
             module.parse_check_ids(text),
             ["48ca8f44-c525-3461-bb69-cd1b7e789e89"],

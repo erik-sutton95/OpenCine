@@ -83,7 +83,7 @@ class MonitorLutLibraryTest {
         assertEquals(MonitorLutFailure.MISSING, library.failures.value[imported.selection])
     }
 
-    @Test fun deletionRemovesOnlyTheLibrarysOwnState() = runTest {
+    @Test fun deletionRemovesOnlyItsLibraryState() = runTest {
         val library = library()
         val imported = library.imported("on-set.cube")
         val outside = File(root, "outside.cube").apply { writeBytes(byteArrayOf(1)) }

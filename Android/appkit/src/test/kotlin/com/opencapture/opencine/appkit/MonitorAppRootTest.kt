@@ -15,15 +15,14 @@ import kotlin.test.assertTrue
 class MonitorAppRootTest {
     @Test
     fun manifestCheckNamesEveryUndeclaredFlag() {
-        val manifest = """
-            <application>
-              <activity android:name=".Other" android:configChanges="orientation" />
-              <activity
-                  android:name=".MainActivity"
-                  android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
-              </activity>
-            </application>
-        """.trimIndent()
+        val manifest =
+            "<application>\n" +
+            "  <activity android:name=\".Other\" android:configChanges=\"orientation\" />\n" +
+            "  <activity\n" +
+            "      android:name=\".MainActivity\"\n" +
+            "      android:configChanges=\"orientation|screenSize|screenLayout|keyboardHidden\">\n" +
+            "  </activity>\n" +
+            "</application>"
         assertEquals(
             listOf("smallestScreenSize", "keyboard", "navigation", "uiMode", "density", "fontScale"),
             MonitorActivityConfigChanges.missingIn(manifest, ".MainActivity"),
