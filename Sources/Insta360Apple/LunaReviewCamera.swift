@@ -1,6 +1,7 @@
 #if DEBUG
     import Foundation
     import Insta360Protocol
+    import OpenCineMedia
 
     /// A SIMULATED Luna camera behind `LunaCameraBackend`'s control link (`connect(review:)`), for the
     /// apps' Debug review harnesses. Its card holds `clips`; it answers the media commands (album
@@ -34,12 +35,17 @@
             }
         }
 
-        /// The card. A harness may stage it after the camera connects; a delete removes the clip.
-        public var clips: [Clip]
+        /// The card (the shared SIMULATED `ReviewCard`): a delete removes the clip it names.
+        public let card: ReviewCard<Clip>
+        /// The card's clips. A harness may stage them after the camera connects.
+        public var clips: [Clip] {
+            get { card.clips }
+            set { card.clips = newValue }
+        }
         /// Every request the link carried, in order.
         public private(set) var received: [LunaRequest] = []
 
-        public init(clips: [Clip]) { self.clips = clips }
+        public init(clips: [Clip]) { card = ReviewCard(clips: clips) }
 
         func answer(_ request: LunaRequest) throws -> Data {
             received.append(request)
@@ -58,10 +64,7 @@
                 }
             case .deleteFiles:
                 let uri = try body.string(1)
-                guard let index = clips.firstIndex(where: { $0.uri == uri }) else {
-                    throw LunaProtocolError.cameraRejectedRequest
-                }
-                clips.remove(at: index)
+                guard card.delete(where: { $0.uri == uri }) else { throw LunaProtocolError.cameraRejectedRequest }
                 return Data()
             default: throw LunaProtocolError.cameraRejectedRequest
             }
