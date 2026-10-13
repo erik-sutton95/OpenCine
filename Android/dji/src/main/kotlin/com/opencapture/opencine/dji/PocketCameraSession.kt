@@ -1,6 +1,10 @@
 package com.opencapture.opencine.dji
 
+import kotlin.time.Duration.Companion.seconds
 import com.opencapture.opencine.core.CameraValuePin
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.StorageVolume
+import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect
 import com.opencapture.opencine.media.RecoveryReason
@@ -39,6 +43,7 @@ import com.opencapture.opencine.vocabulary.CaptureWheels
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraFocusPolicy
 import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.storageReadout
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.ColorPin
@@ -3166,6 +3171,7 @@ class PocketCameraSession(
     override fun controlState(): PocketControlState {
         val dl = datalink
         val status = _status.value
+        val storage = status.storageReadout
         return PocketControlState(
             linkReady = dl != null && endpointCommandAdmission.allows(dl.isClosed, dl.isRebuilding),
             authorized = controlLeaseAllows(),
@@ -3180,7 +3186,18 @@ class PocketCameraSession(
             pendingWhiteBalance = whiteBalancePin?.let { ReportedWhiteBalance(it.wbMode, it.wbKelvin, it.wbTint) },
             recording = reportedRecording,
             batteryPercent = status.batteryPercent.takeIf { it in 0..100 },
+            storage = if (storage != null || status.recordRemainingSec > 0) {
+                ObservedValue(listOf(StorageVolume(
+                    "active",
+                    freeBytes = storage?.let { ObservedValue(it.freeBytes, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                    totalBytes = storage?.totalBytes?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                    remainingRecordingTime = status.recordRemainingSec.takeIf { it > 0 }?.let {
+                        ObservedValue(it.seconds, ObservationOrigin.CAMERA_REPORTED, null)
+                    } ?: ObservedValue.unknown,
+                )), ObservationOrigin.CAMERA_REPORTED, null)
+            } else ObservedValue.unknown,
             storageFreeMb = status.storageFreeMb.takeIf { status.storageTotalMb > 0 },
+            storageTotalMb = status.storageTotalMb.takeIf { it > 0 },
             model = connectedCamera?.model,
             timecode = status.timecode,
             audioLevels = DjiCameraSessionAdapter.audioLevels(status),

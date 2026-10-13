@@ -1,6 +1,5 @@
 package com.opencapture.opencine.cameracontrols
 
-import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -151,7 +150,6 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
             MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND,
         )
     } else suppliedTools
-    val context = LocalContext.current
     val rate = player.rate
     fun clock(seconds: Double): String {
         val duration = MonitorConformPreview.conformedDuration(seconds, rate)
@@ -180,7 +178,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         row("Frame rate", asset.frameRate?.let { number(it) + " fps" }); row("Duration", clock(duration))
         row("Playback source", sourceLabel)
         row("Size", asset.representations.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }
-            ?.byteCount?.takeIf { it > 0 }?.let { Formatter.formatShortFileSize(context, it) })
+            ?.byteCount?.takeIf { it > 0 }?.let(MediaClipFormatting::byteLabel))
         row("Created", asset.capturedAt?.let { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
             .withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(it)) })
         row("Favorite", if (favorite) "Yes" else "No")

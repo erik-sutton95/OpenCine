@@ -3,6 +3,7 @@
     import MonitorPresentation
     import MonitorUI
     import OpenCineAppKit
+    import OpenCineCameraVocabulary
     import SwiftUI
 
     /// Complete popup and preparation presentation. Native exporter/account/route operations are
@@ -224,8 +225,7 @@
                 let sum = total.addingReportingOverflow(value)
                 return sum.overflow ? UInt64.max : sum.partialValue
             }
-            let size = ByteCountFormatter.string(
-                fromByteCount: Int64(clamping: bytes), countStyle: .file)
+            let size = bytes == 0 ? "0 B" : MediaClipFormatting.byteLabel(bytes)
             let label =
                 known.isEmpty
                 ? "Size unavailable" : known.count == files.count ? size : "At least \(size)"

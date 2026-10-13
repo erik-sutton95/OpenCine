@@ -176,6 +176,8 @@ public data class WatchMediaStatus(
     public val percentFree: Int,
     /** Remaining record time when available; Android currently leaves this unavailable. */
     public val minutesRemaining: Int,
+    /** Exact bytes from newer phones; absent in older payloads. */
+    public val freeBytes: Long? = null,
 )
 
 /** Phone-to-watch monitor/camera snapshot. */
@@ -357,6 +359,7 @@ public object WatchRelayEnvelope {
             .put("gigabytesFree", status.gigabytesFree)
             .put("percentFree", status.percentFree)
             .put("minutesRemaining", status.minutesRemaining)
+            .put("freeBytes", status.freeBytes ?: JSONObject.NULL)
 
     private fun decodeState(value: JSONObject): WatchRelayState =
         WatchRelayState(
@@ -411,6 +414,7 @@ public object WatchRelayEnvelope {
             gigabytesFree = value.requireInt("gigabytesFree"),
             percentFree = value.requireInt("percentFree"),
             minutesRemaining = value.requireInt("minutesRemaining"),
+            freeBytes = if (!value.has("freeBytes") || value.isNull("freeBytes")) null else value.getLong("freeBytes").takeIf { it >= 0 },
         )
 
     private fun decodeJSON(payload: ByteArray): Any {

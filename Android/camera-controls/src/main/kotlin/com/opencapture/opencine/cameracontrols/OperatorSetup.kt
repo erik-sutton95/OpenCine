@@ -804,7 +804,7 @@ internal fun StorageRows(model: OperatorSetupModel, app: OperatorSetupApp) {
         cacheHelp = app.help.CACHE_FULL_RESOLUTION,
         scopeHelp = app.help.LOCAL_CACHE, clearHelp = app.help.CLEAR_CACHE,
         onCacheOriginals = model::updateCacheFullResolution,
-        formatBytes = { bytes -> if (bytes == 0L) "Empty" else formatCacheSize(bytes) },
+        formatBytes = ::formatCacheSize,
         feedback = { operatorHaptic(view, model.hapticsEnabled) },
     )
 }

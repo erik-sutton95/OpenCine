@@ -74,6 +74,7 @@ public data class StorageVolume(
     public val freeBytes: ObservedValue<Long> = ObservedValue.unknown,
     /** Reported or estimated; the observation origin says which. */
     public val remainingRecordingTime: ObservedValue<Duration> = ObservedValue.unknown,
+    public val totalBytes: ObservedValue<Long> = ObservedValue.unknown,
 )
 
 /** Unknown storage is `value == null`; a camera reporting no volumes is an empty list. */

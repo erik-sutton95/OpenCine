@@ -2,6 +2,7 @@
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineCameraVocabulary
 import OpenCineMedia
 import SwiftUI
 
@@ -481,7 +482,7 @@ private struct MonitorSettingsCapturedCache: View {
     }
     private var sizeLabel: String {
         guard let bytes = model.bytes else { return model.readFailed ? "Unavailable" : "Checking…" }
-        return bytes == 0 ? "Empty" : ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file)
+        return bytes == 0 ? "Empty" : MediaClipFormatting.byteLabel(bytes)
     }
 }
 

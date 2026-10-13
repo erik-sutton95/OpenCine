@@ -1,6 +1,7 @@
 package com.opencapture.opencine.nikon
 
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.vocabulary.StorageReadout
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -306,7 +307,12 @@ public data class CameraStorageStatus(
     val totalCapacityBytes: Long,
     /** Currently free capacity in bytes. */
     val freeSpaceBytes: Long,
-)
+) {
+    /** The shared storage readout (A5-11); null for a negative free space or one above a known capacity. */
+    val readout: StorageReadout?
+        get() = if (freeSpaceBytes < 0 || (totalCapacityBytes > 0 && freeSpaceBytes > totalCapacityBytes)) null
+        else StorageReadout(freeSpaceBytes, totalCapacityBytes)
+}
 
 /** Capacity and identity for one connected camera recording card. */
 public data class CameraStorageSlotStatus(

@@ -7,6 +7,9 @@ public enum ObservationOrigin: String, Hashable, Codable, Sendable {
     case imageEstimated
     case clockDerived
     case operatorProvided
+    /// Computed by the integration from other reported values (a model, not a reading), e.g. the
+    /// remaining recording time from codec bitrate and free bytes.
+    case estimated
     case unknown
 }
 

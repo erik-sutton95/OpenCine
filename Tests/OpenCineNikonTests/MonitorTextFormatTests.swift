@@ -32,6 +32,13 @@ import Testing
             == "1920 · 24p")
 }
 
+/// A5-12: an unknown frame rate is left out, never shown as `0p`; the Kotlin twin reads the same
+/// vectors (`Fixtures/nikon-monitor-text.tsv`).
+@Test func resolutionLabelLeavesOutAnUnknownRate() {
+    #expect(MonitorTextFormat.resolutionLabel(fromProperty: "3840x2160", frameRate: 0) == "4K")
+    #expect(MonitorTextFormat.resolutionLabel(pixelWidth: 6048, pixelHeight: 3402, frameRate: 0) == "6K")
+}
+
 // MARK: - Media status
 
 @Test func mediaCapacityLabelCombinesGigabytesAndPercent() {
@@ -41,7 +48,7 @@ import Testing
 
 @Test func mediaDurationLabelUsesMinutes() {
     let status = MediaStatus(gigabytesFree: 521, percentFree: 47, minutesRemaining: 47)
-    #expect(status.durationLabel == "47 Min")
+    #expect(status.durationLabel == "~47 Min")
 }
 
 // MARK: - Resolution label from camera property string

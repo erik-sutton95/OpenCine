@@ -3,6 +3,7 @@
     import MonitorUI
     import OpenCineAppKit
     import OpenCineCameraVocabulary
+    import OpenCineMedia
     import SwiftUI
     import UIKit
 
@@ -119,13 +120,8 @@
         }
 
         private var storage: String {
-            let s = host.cameraStatus
-            let free = s.storageFreeMb > 0 ? s.storageFreeMb : s.sdFreeMb
-            let total = s.storageTotalMb > 0 ? s.storageTotalMb : s.sdTotalMb
-            if storagePercent && total > 0 {
-                return "\(Int((Double(max(0, free)) / Double(total) * 100).rounded()))%"
-            }
-            return free > 0 ? "\(free / 1024) GB" : "\u{2014}"
+            guard let readout = host.control.snapshot?.storage.storageReadout else { return StorageReadout.unavailable }
+            return storagePercent ? readout.percent ?? readout.free : readout.free
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {

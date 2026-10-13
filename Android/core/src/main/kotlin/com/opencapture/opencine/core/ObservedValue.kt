@@ -9,6 +9,8 @@ public enum class ObservationOrigin {
     IMAGE_ESTIMATED,
     CLOCK_DERIVED,
     OPERATOR_PROVIDED,
+    /** Computed by the integration from other reported values (a model, not a reading). */
+    ESTIMATED,
     UNKNOWN,
 }
 

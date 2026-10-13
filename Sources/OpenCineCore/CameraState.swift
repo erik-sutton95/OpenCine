@@ -70,19 +70,31 @@ public struct StorageVolume: Hashable, Codable, Sendable {
     public var id: String
     public var media: ObservedValue<MediaState>
     public var freeBytes: ObservedValue<UInt64>
+    public var totalBytes: ObservedValue<UInt64>
     /// Reported or estimated; the observation origin says which.
     public var remainingRecordingTime: ObservedValue<Duration>
 
     public init(
         id: String, media: ObservedValue<MediaState> = .unknown,
-        freeBytes: ObservedValue<UInt64> = .unknown,
+        freeBytes: ObservedValue<UInt64> = .unknown, totalBytes: ObservedValue<UInt64> = .unknown,
         remainingRecordingTime: ObservedValue<Duration> = .unknown
     ) {
         self.id = id
         self.media = media
         self.freeBytes = freeBytes
+        self.totalBytes = totalBytes
         self.remainingRecordingTime = remainingRecordingTime
     }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try values.decode(String.self, forKey: .id),
+            media: try values.decodeIfPresent(ObservedValue<MediaState>.self, forKey: .media) ?? .unknown,
+            freeBytes: try values.decodeIfPresent(ObservedValue<UInt64>.self, forKey: .freeBytes) ?? .unknown,
+            totalBytes: try values.decodeIfPresent(ObservedValue<UInt64>.self, forKey: .totalBytes) ?? .unknown,
+            remainingRecordingTime: try values.decodeIfPresent(ObservedValue<Duration>.self, forKey: .remainingRecordingTime) ?? .unknown)
+    }
+
 }
 
 /// Unknown storage is `value == nil`; a camera reporting no volumes is `[]`.
