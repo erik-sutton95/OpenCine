@@ -24,7 +24,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.services.storage.TestStorage
+import androidx.test.platform.io.PlatformTestStorageRegistry
 import com.opencapture.monitorui.ReviewLaunch
 import java.io.File
 import java.io.OutputStream
@@ -394,7 +394,7 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
 
     private fun output(name: String): OutputStream {
         val path = "conformance/$name"
-        return runCatching { TestStorage().openOutputFile(path) }.getOrElse {
+        return runCatching { PlatformTestStorageRegistry.getInstance().openOutputFile(path) }.getOrElse {
             File(instrumentation.targetContext.getExternalFilesDir(null), path).apply { parentFile?.mkdirs() }.outputStream()
         }
     }

@@ -1,6 +1,7 @@
 package com.opencapture.opencine.appuitesting
 
 import android.graphics.Rect
+import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 
 /** One window of the app (the activity, a dialog, a popup) as the accessibility service sees it. */
@@ -30,7 +31,8 @@ public class UiNode internal constructor(
     public val selected: Boolean get() = info.isSelected
     public val enabled: Boolean get() = info.isEnabled
     /** The state TalkBack announces (`On`, `Shown`), the twin of an iOS accessibility value. */
-    public val state: String? get() = info.stateDescription?.toString()
+    public val state: String? get() =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) info.stateDescription?.toString() else null
 }
 
 /** Every node of every app window at one moment. */

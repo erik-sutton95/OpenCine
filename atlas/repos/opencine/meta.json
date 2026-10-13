@@ -318,6 +318,7 @@
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
+      ":appkit-sentry",
       ":camera-controls",
       ":app-ui-testing"
     ],
