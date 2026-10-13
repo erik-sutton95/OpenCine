@@ -3,6 +3,15 @@ import OpenCineCore
 import Testing
 
 struct TimecodeCompatibilityTests {
+    @Test func malformedLegacyDelimitersDoNotManufactureTypedComponents() {
+        for raw in ["01::02:03", ":01:02:03", "01:02:03:", ";01:02:03", "01:02:03;", "01:02;;03"] {
+            var status = CameraStatus()
+            status.timecode = raw
+            #expect(status.timecodeValue == nil, "Malformed legacy timecode: \(raw)")
+            #expect(status.timecode == raw, "The original text API preserves its caller's bytes")
+        }
+    }
+
     @Test func legacyTextBoundaryRetainsReportedComponents() {
         var status = CameraStatus()
         status.timecode = "01:02:03:04"

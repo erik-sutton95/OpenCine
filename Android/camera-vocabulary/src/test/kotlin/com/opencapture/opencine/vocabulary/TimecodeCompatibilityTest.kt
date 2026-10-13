@@ -7,6 +7,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class TimecodeCompatibilityTest {
+    @Test fun malformedLegacyDelimitersDoNotManufactureTypedComponents() {
+        for (raw in listOf("01::02:03", ":01:02:03", "01:02:03:", ";01:02:03", "01:02:03;", "01:02;;03")) {
+            val status = CameraStatus().withTimecodeValue(CameraTimecode(1, 2, 3, 4)).copy(timecode = raw)
+            assertNull(status.timecodeValue, "Malformed legacy timecode: $raw")
+            assertEquals(raw, status.timecode, "The original text API preserves its caller's bytes")
+        }
+    }
+
     @Test fun legacyConstructorAndCopyKeepTheirTextBoundary() {
         val status = CameraStatus(timecode = "01:02:03:04", iso = 400)
         assertEquals(CameraTimecode(1, 2, 3, 4), status.timecodeValue)

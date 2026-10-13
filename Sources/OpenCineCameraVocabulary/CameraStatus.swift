@@ -62,7 +62,7 @@ public struct CameraStatus: Equatable, Sendable {
     }
     private static func parseLegacyTimecode(_ raw: String?) -> CameraTimecode? {
         guard let raw else { return nil }
-        let parts = raw.split(whereSeparator: { $0 == ":" || $0 == ";" })
+        let parts = raw.split(omittingEmptySubsequences: false, whereSeparator: { $0 == ":" || $0 == ";" })
         guard (3...4).contains(parts.count) else { return nil }
         let values = parts.compactMap { Int($0) }
         guard values.count == parts.count,
