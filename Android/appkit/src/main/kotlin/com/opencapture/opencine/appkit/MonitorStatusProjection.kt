@@ -6,14 +6,15 @@ import com.opencapture.opencine.core.CameraTimecode
 import com.opencapture.opencine.core.TimecodePrecision
 
 /**
- * Elapsed capture time is optional integration telemetry; the common snapshot owns state and
- * timecode, formatted at the precision the source declares.
+ * Explicit integration duration takes precedence. Otherwise use the independent clock-derived
+ * counter from a fresh camera-confirmed start; an unknown start or lost link stays unknown.
+ * The common snapshot owns recording state and source-declared timecode precision.
  */
 public fun MonitorControlModel.statusPresentation(elapsedSeconds: Int? = null): MonitorStatusPresentation {
     val label = timecode.value?.let {
         MonitorTimecodeFormat.label(it, state.value.snapshot?.capabilities?.timecode?.precision)
     }
-    return MonitorStatusPresentation(isRecording, if (isRecording == null) null else elapsedSeconds, label)
+    return MonitorStatusPresentation(isRecording, if (isRecording == null) null else (elapsedSeconds ?: recordingElapsed.value), label)
 }
 
 /**
