@@ -282,6 +282,15 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
                 MonitorSettingsInlineRow(title: "Status", help: nil) {
                     MonitorSettingsValueText(value: gyro.status)
                 }
+                if let configureMount = gyro.configureMount {
+                    MonitorSettingsInlineRow(title: "Phone mount",
+                        help: "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                        HStack(spacing: 8) {
+                            if let name = gyro.mountName { MonitorSettingsValueText(value: name) }
+                            MonitorSettingsActionPill(title: "Configure", action: configureMount)
+                        }
+                    }
+                }
             }
         }
         MonitorOperatorSafetySettings(recordConfirmation: source.recordConfirmation, haptics: source.haptics,
@@ -308,7 +317,9 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         if let gyro = source.gyro {
             MonitorSettingsRowCard(title: "Gyro logs") {
                 MonitorSettingsInlineRow(title: "Saved motion logs",
-                    help: "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow.",
+                    help: gyro.configureMount == nil
+                        ? "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                        : "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
                     showTopDivider: false) {
                     MonitorSettingsActionPill(title: "Open", action: gyro.openLogs)
                 }

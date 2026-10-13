@@ -134,12 +134,16 @@ public struct MonitorSettingsGyroSource {
     let status: String
     let available: Bool
     let openLogs: () -> Void
+    let mountName: String?
+    let configureMount: (() -> Void)?
 
-    /// Creates host-owned controls and a callback to the host's saved motion logs.
+    /// Creates host-owned controls and optional callbacks for logs and phone mount configuration.
     public init(enabled: Binding<Bool>, status: String, available: Bool = true,
-        openLogs: @escaping () -> Void) {
+        openLogs: @escaping () -> Void, mountName: String? = nil,
+        configureMount: (() -> Void)? = nil) {
         self.enabled = enabled; self.status = status
         self.available = available; self.openLogs = openLogs
+        self.mountName = mountName; self.configureMount = configureMount
     }
 }
 

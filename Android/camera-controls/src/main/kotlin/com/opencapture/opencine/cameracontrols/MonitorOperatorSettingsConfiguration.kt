@@ -140,6 +140,8 @@ public class MonitorSettingsGyroSource(
     public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
     public val status: String, public val available: Boolean = true,
     public val openLogs: () -> Unit,
+    public val mountName: String? = null,
+    public val configureMount: (() -> Unit)? = null,
 )
 public class MonitorOperatorSettingsConfiguration(
     public val brand: String, public val isLive: Boolean, public val phase: String,

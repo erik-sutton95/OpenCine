@@ -3,7 +3,9 @@ package com.opencapture.opencine.cameracontrols
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -19,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -173,6 +176,16 @@ private fun MonitorOperatorSettingsRows(
                         MonitorSettingsInlineRow("Status", null) {
                             MonitorSettingsValueText(gyro.status)
                         }
+                        gyro.configureMount?.let { configureMount ->
+                            MonitorSettingsInlineRow("Phone mount",
+                                "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    gyro.mountName?.let { MonitorSettingsValueText(it) }
+                                    MonitorSettingsActionPill("Configure", onClick = configureMount)
+                                }
+                            }
+                        }
                     }
                 }
                 MonitorOperatorSafetySettings(controls.recordConfirmation, controls.haptics, controls.keepAwake,
@@ -211,7 +224,9 @@ private fun MonitorOperatorSettingsRows(
                 source.configuration.gyro?.let { gyro ->
                     MonitorSettingsRowCard("Gyro logs") {
                         MonitorSettingsInlineRow("Saved motion logs",
-                            "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow.",
+                            if (gyro.configureMount == null)
+                                "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                            else "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
                             showTopDivider = false) {
                             MonitorSettingsActionPill("Open", onClick = gyro.openLogs)
                         }
