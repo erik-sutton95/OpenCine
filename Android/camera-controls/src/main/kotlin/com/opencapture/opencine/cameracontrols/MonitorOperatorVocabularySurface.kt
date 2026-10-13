@@ -101,6 +101,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
     val status = chrome.status
     val capabilities = chrome.capabilities
     val shell by chrome.shell.state.collectAsState()
+    val control by chrome.capture.control.state.collectAsState()
     return MonitorOperatorLiveSource(
         identity = {
             val snapshot = chrome.capture.control.state.value.snapshot
@@ -120,9 +121,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
         status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
             state.showStorageDuration) { state.showStorageDuration = !state.showStorageDuration },
-        // The vocabulary cannot tell "not charging" from "not reported", so only a charging report shows.
-        cameraBattery = MonitorOperatorPowerReading(true, status.batteryPercent.takeIf { it in 0..100 },
-            status.charging.takeIf { it }),
+        cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
         capture = captureSheetHostInputs(chrome.capture, status, capabilities, state.sheet, { state.sheet = it },
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),

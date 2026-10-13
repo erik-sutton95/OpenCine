@@ -111,9 +111,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                     vertical: source.verticalPicture, flipped: host.livePictureViewFlip, recovering: source.recovering) },
                 status: { Self.status(host) },
                 cameraBattery: {
-                    let percent = host.cameraStatus.batteryPercent
-                    return .init(id: "camera", title: "Camera battery", camera: true,
-                        percent: (0...100).contains(percent) ? percent : nil, charging: host.cameraStatus.charging)
+                    host.control.snapshot.flatMap { MonitorOperatorPowerReading.camera($0.power) }
                 },
                 capture: {
                     .captureSheetHost(host, section: .cameraValues, columns: layout.capture.height > 60 ? 3 : 6,

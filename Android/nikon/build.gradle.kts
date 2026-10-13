@@ -28,6 +28,7 @@ android {
 
 dependencies {
     api(project(":core"))
+    api(project(":nikon-wire"))
     api(project(":media"))
     // Session recovery state and copy have one owner (D-NI1).
     api(project(":camera-vocabulary"))

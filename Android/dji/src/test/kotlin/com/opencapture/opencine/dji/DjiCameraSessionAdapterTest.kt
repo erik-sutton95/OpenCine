@@ -53,6 +53,21 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DjiCameraSessionAdapterTest {
+    /** SIMULATED existing captured report: a known true charge flag must reach common power. */
+    @Test fun batteryChargingReportsReachCommonPower() = runTest {
+        val port = FakePort()
+        port.state = port.state.copy(batteryPercent = 68)
+        port.capture = DjiCaptureControlState(CameraStatus(charging = true, batteryPercent = 68), port.state.model)
+        val seam = adapter(port)
+        assertEquals(true, seam.current.power.charging.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, seam.current.power.charging.origin)
+        for (reported in listOf(false, true, null)) {
+            port.capture = DjiCaptureControlState(CameraStatus(charging = true, batteryPercent = 68,
+                chargingObservation = reported, chargingObservationDeclared = true), port.state.model)
+            assertEquals(reported, seam.current.power.charging.value)
+        }
+    }
+
     @Test
     fun everyDeclaredCapabilityReachesTheWire() = runTest {
         val keys = adapter(FakePort()).current.capabilities.descriptors.keys

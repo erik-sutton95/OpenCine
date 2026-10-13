@@ -3187,6 +3187,8 @@ class PocketCameraSession(
             model = connectedCamera?.model,
             timecode = status.timecodeValue,
             audioLevels = DjiCameraSessionAdapter.audioLevels(status),
+            charging = if (status.chargingObservationDeclared) status.chargingObservation
+                else true.takeIf { status.charging },
         )
     }
 

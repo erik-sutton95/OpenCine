@@ -84,6 +84,8 @@ public data class PowerStatus(
     public val battery: ObservedValue<Double> = ObservedValue.unknown,
     public val charging: ObservedValue<Boolean> = ObservedValue.unknown,
     public val externalPower: ObservedValue<Boolean> = ObservedValue.unknown,
+    /** Whether the source reports battery exhaustion; independent of the charge level. */
+    public val exhausted: ObservedValue<Boolean> = ObservedValue.unknown,
 ) {
     /**
      * The battery as its source declared it; `null` when unknown, which shared chrome shows as
@@ -113,7 +115,40 @@ public sealed interface BatteryReading {
     /** [filled] of [of] gauge steps (a five-bar gauge); never a percentage. */
     public data class Steps(public val filled: Int, public val of: Int) : BatteryReading
 
+    /** Portable fields used by the relay codecs; no platform JSON dependency in Core. */
+    public val wireFields: BatteryReadingFields
+        get() = when (this) {
+            is Fraction -> {
+                require(value.isFinite() && value in 0.0..1.0) { "Battery fraction must be finite and within 0..1" }
+                BatteryReadingFields(kind = "fraction", value = value)
+            }
+            is Steps -> {
+                require(of > 0 && filled in 0..of) { "Battery steps must lie within the declared gauge" }
+                BatteryReadingFields(kind = "steps", filled = filled, of = of)
+            }
+        }
+
     public companion object {
+        /** Mirrors Swift BatteryReading's Codable fields and validation. */
+        public fun fromWireFields(fields: BatteryReadingFields): BatteryReading = when (fields.kind) {
+            "fraction" -> {
+                val value = fields.value
+                require(value != null && value.isFinite() && value in 0.0..1.0) {
+                    "Battery fraction must be finite and within 0..1"
+                }
+                Fraction(value)
+            }
+            "steps" -> {
+                val filled = fields.filled
+                val count = fields.of
+                require(filled != null && count != null && count > 0 && filled in 0..count) {
+                    "Battery steps must lie within the declared gauge"
+                }
+                Steps(filled, count)
+            }
+            else -> throw IllegalArgumentException("Unknown battery reading kind")
+        }
+
         /**
          * The step count a declared precision implies: a source reporting in steps of 1/2 to 1/10
          * has a gauge, a finer one (percent) reports a fraction.
@@ -126,6 +161,14 @@ public sealed interface BatteryReading {
         }
     }
 }
+
+/** Stable field names shared by the portable Swift and Kotlin relay payloads. */
+public data class BatteryReadingFields(
+    public val kind: String,
+    public val value: Double? = null,
+    public val filled: Int? = null,
+    public val of: Int? = null,
+)
 
 public data class ControlLease(
     public val id: ControlLeaseID = ControlLeaseID(),

@@ -9,6 +9,31 @@ import Testing
 /// adapter through the real app session and loopback datalink.
 @MainActor
 @Suite struct DJICameraSessionAdapterPortTests {
+    /// SIMULATED complete battery reports; false and true differ from no report.
+    @Test func batteryChargingReportsReachCommonPower() {
+        let port = FakePort()
+        port.status = CameraStatus()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.power.charging.value == nil)
+        for flag: UInt8 in [0, 1] {
+            var payload = [UInt8](repeating: 0, count: 34)
+            payload[20] = 68
+            payload[32] = flag
+            CameraStatusDecoder.apply(Duml.Frame(sender: 0, receiver: 0, seq: 0, flags: 0,
+                cmdSet: 0x0D, cmdId: 0x02, payload: payload), to: &port.status)
+            seam.sessionDidChange()
+            #expect(seam.current.power.charging.value == (flag == 1))
+            #expect(seam.current.power.charging.origin == .cameraReported)
+        }
+        var invalid = [UInt8](repeating: 0, count: 34)
+        invalid[20] = 68
+        invalid[32] = 2
+        CameraStatusDecoder.apply(Duml.Frame(sender: 0, receiver: 0, seq: 0, flags: 0,
+            cmdSet: 0x0D, cmdId: 0x02, payload: invalid), to: &port.status)
+        seam.sessionDidChange()
+        #expect(seam.current.power.charging.value == nil)
+    }
+
     @Test func everyDeclaredCapabilityReachesThePort() throws {
         let probe = FakePort()  // the adapter holds its port unowned, as the app session owns it
         let keys = DJICameraSessionAdapter(session: probe).current.capabilities.descriptors.keys

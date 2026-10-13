@@ -442,4 +442,25 @@ class NikonOpenCineSessionTest {
             assertNull(seam.outcome(OperationID()))
             assertFailsWith<CameraRecordingException.NotConnected> { seam.setRecording(false) }
         }
+    @Test fun exhaustionAndExternalPowerRemainIndependentReportedFacts() = runTest {
+        val camera = FakeNikon(movie().copy(batteryPercent = 1))
+        val seam = NikonOpenCineSession(camera, backgroundScope)
+        val critical = seam.refresh()
+        camera.cameraProperties.value = movie().copy(batteryPercent = 20)
+        val ordinary = seam.refresh()
+        assertEquals(com.opencapture.opencine.core.BatteryReading.Steps(1, 5), critical.power.batteryReading)
+        assertEquals(critical.power.batteryReading, ordinary.power.batteryReading)
+        assertEquals(true, critical.power.exhausted.value)
+        assertEquals(false, ordinary.power.exhausted.value)
+        assertTrue(critical.revision != ordinary.revision)
+        for (external in listOf(null, false, true)) {
+            camera.cameraProperties.value = movie().copy(batteryPercent = 20, externalPower = external)
+            val power = seam.refresh().power
+            assertEquals(external, power.externalPower.value)
+            assertNull(power.charging.value)
+            assertEquals(false, power.exhausted.value)
+        }
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
 }

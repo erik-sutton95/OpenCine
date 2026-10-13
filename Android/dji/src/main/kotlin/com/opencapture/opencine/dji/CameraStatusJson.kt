@@ -57,6 +57,8 @@ fun CameraStatus.toJson(): String =
         .put("batteryMilliAmps", batteryMilliAmps)
         .put("docked", docked)
         .put("charging", charging)
+        .put("chargingObservation", chargingObservation ?: JSONObject.NULL)
+        .put("chargingObservationDeclared", chargingObservationDeclared)
         .put("storageTotalMb", storageTotalMb)
         .put("storageFreeMb", storageFreeMb)
         .put("sdTotalMb", sdTotalMb)
@@ -153,6 +155,9 @@ fun CameraStatus.Companion.fromJson(raw: String?): CameraStatus {
             batteryMilliAmps = obj.optInt("batteryMilliAmps", 0),
             docked = obj.optBoolean("docked", false),
             charging = obj.optBoolean("charging", false),
+            chargingObservation = optionalBoolean(obj, "chargingObservation"),
+            chargingObservationDeclared = optionalBoolean(obj, "chargingObservationDeclared")
+                ?: obj.has("chargingObservation"),
             storageTotalMb = obj.optInt("storageTotalMb", 0),
             storageFreeMb = obj.optInt("storageFreeMb", 0),
             sdTotalMb = obj.optInt("sdTotalMb", 0),

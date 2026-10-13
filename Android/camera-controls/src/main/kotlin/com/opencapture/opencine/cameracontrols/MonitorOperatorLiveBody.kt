@@ -83,12 +83,26 @@ public class MonitorOperatorPowerReading(
  * battery is absent rather than an empty gauge (D11). iOS `MonitorOperatorPowerReading.camera`.
  */
 public fun cameraPowerReading(power: PowerStatus): MonitorOperatorPowerReading? =
-    when (val reading = power.batteryReading) {
-        is BatteryReading.Fraction -> MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), power.charging.value)
-        is BatteryReading.Steps -> MonitorOperatorPowerReading(true, null, power.charging.value, reading.filled, reading.of,
-            warning = reading.filled * 5 <= reading.of * 2)
+    cameraPowerReading(power.batteryReading, power.exhausted.value, power.charging.value ?: power.externalPower.value)
+
+public fun cameraPowerReading(reading: BatteryReading?, exhausted: Boolean? = null,
+    charging: Boolean? = null): MonitorOperatorPowerReading? =
+    when (reading) {
+        is BatteryReading.Fraction -> if (reading.value.isFinite() && reading.value in 0.0..1.0)
+            MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), charging, exhausted = exhausted == true) else null
+        is BatteryReading.Steps -> if (reading.of > 0 && reading.filled in 0..reading.of)
+            MonitorOperatorPowerReading(true, null, charging, reading.filled, reading.of,
+                warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true) else null
         null -> null
     }
+
+public fun cameraBatteryReadoutLabel(reading: BatteryReading?): String? = when (reading) {
+    is BatteryReading.Fraction -> if (reading.value.isFinite() && reading.value in 0.0..1.0)
+        "${Math.round(reading.value * 100)}%" else null
+    is BatteryReading.Steps -> if (reading.of > 0 && reading.filled in 0..reading.of)
+        "${reading.filled}/${reading.of}" else null
+    null -> null
+}
 /** A supported palette extension retains its native action; all palette rendering remains common. */
 public class MonitorOperatorPaletteItem(
     public val id: String, public val title: String, public val label: String,

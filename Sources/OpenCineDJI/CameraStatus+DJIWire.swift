@@ -59,6 +59,8 @@ public enum CameraStatusDecoder {
                 status.batteryMilliAmps = Int(Int32(bitPattern: u32(p, 5)))  // signed mA
                 status.docked = p[27] != 0
                 status.charging = p[32] == 1
+                status.chargingObservationDeclared = true
+                status.chargingObservation = p[32] <= 1 ? p[32] == 1 : nil
                 if (2000...5000).contains(mv) { status.batteryMilliVolts = mv }
             }
             let bp = Int(p[20])

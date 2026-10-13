@@ -10,6 +10,9 @@ public struct CameraStatus: Equatable, Sendable {
     public var batteryMilliAmps: Int = 0  // signed; negative = discharging
     public var docked = false
     public var charging = false
+    /// A charging report, separate from the legacy scalar's default false.
+    public var chargingObservation: Bool?
+    public var chargingObservationDeclared = false
     public var storageTotalMb = 0
     public var storageFreeMb = 0
     public var sdTotalMb = 0

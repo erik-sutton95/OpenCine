@@ -359,6 +359,10 @@ class NikonOpenCineSession(
                                 // Nikon BatteryLevel is a five-step gauge (A5-01), not a percent.
                                 BATTERY_PRECISION,
                             ),
+                        exhausted = current.power.exhausted.observe(
+                            properties.batteryPercent?.let { NikonCameraBatteryGauge.gauge(it).exhaustion }, at,
+                        ),
+                        externalPower = current.power.externalPower.observe(properties.externalPower, at),
                     ),
                 settings =
                     reportedSettings(properties, photography)
