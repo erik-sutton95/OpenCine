@@ -7,6 +7,7 @@ import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
 import com.opencapture.opencine.media.FeedIncidentBuildIdentity
 import com.opencapture.opencine.media.FeedIncidentBundle
+import com.opencapture.opencine.media.FeedIncidentDecodeErrorContext
 import com.opencapture.opencine.media.FeedIncidentDecoder
 import com.opencapture.opencine.media.FeedIncidentErrorCount
 import com.opencapture.opencine.media.FeedIncidentFailingStage
@@ -136,6 +137,7 @@ public object FeedIncidentJson {
                         snap.decoder.lastIrapAge?.let { obj.put("lastIrapAge", it) }
                         snap.decoder.lastSuccessfulOutputAge?.let { obj.put("lastSuccessfulOutputAge", it) }
                         snap.decoder.rebuildReason?.let { obj.put("rebuildReason", it) }
+                        snap.decoder.firstError?.let { obj.put("firstError", firstErrorJson(it)) }
                     },
             )
             .put(
@@ -158,6 +160,31 @@ public object FeedIncidentJson {
             .put("diagnoserFailure", snap.diagnoserFailure)
             .put("diagnoserRepair", snap.diagnoserRepair)
             .also { obj -> snap.ingress?.let { obj.put("ingress", ingressJson(it)) } }
+
+    private fun firstErrorJson(context: FeedIncidentDecodeErrorContext): JSONObject =
+        JSONObject()
+            .put("status", context.status)
+            .put("nalTypes", JSONArray(context.nalTypes))
+            .put("accessUnitBytes", context.accessUnitBytes)
+            .put("inputHz", context.inputHz)
+            .also { obj ->
+                context.irapAge?.let { obj.put("irapAge", it) }
+                context.parameterSetChangeAge?.let { obj.put("parameterSetChangeAge", it) }
+            }
+
+    private fun firstError(json: JSONObject?): FeedIncidentDecodeErrorContext? {
+        json ?: return null
+        val status = json.optIntOrNull("status") ?: return null
+        val types = json.optJSONArray("nalTypes") ?: return null
+        return FeedIncidentDecodeErrorContext(
+            status = status,
+            nalTypes = (0 until minOf(types.length(), FeedIncidentDecodeErrorContext.MAX_NAL_TYPES)).map { types.optInt(it) },
+            accessUnitBytes = json.optInt("accessUnitBytes"),
+            irapAge = json.optDoubleOrNull("irapAge")?.takeIf { it >= 0.0 },
+            parameterSetChangeAge = json.optDoubleOrNull("parameterSetChangeAge")?.takeIf { it >= 0.0 },
+            inputHz = json.optDouble("inputHz", 0.0),
+        )
+    }
 
     private fun ingressJson(ingress: FeedIncidentIngress): JSONObject =
         JSONObject()
@@ -349,6 +376,7 @@ public object FeedIncidentJson {
                         lastIrapAge = decoder.optDoubleOrNull("lastIrapAge"),
                         lastSuccessfulOutputAge = decoder.optDoubleOrNull("lastSuccessfulOutputAge"),
                         rebuildReason = decoder.optStringOrNull("rebuildReason"),
+                        firstError = firstError(decoder.optJSONObject("firstError")),
                     ),
                 lifecycle =
                     FeedIncidentLifecycle(

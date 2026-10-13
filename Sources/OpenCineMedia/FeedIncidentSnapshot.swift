@@ -315,6 +315,8 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
     public var lastIrapAge: TimeInterval?
     public var lastSuccessfulOutputAge: TimeInterval?
     public var rebuildReason: String?
+    /// Bitstream facts behind the first decoder error of the current error episode.
+    public var firstError: FeedIncidentDecodeErrorContext?
 
     public init(
         generation: Int = 0,
@@ -334,7 +336,8 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         hasDecodableReferences: Bool = true,
         lastIrapAge: TimeInterval? = nil,
         lastSuccessfulOutputAge: TimeInterval? = nil,
-        rebuildReason: String? = nil
+        rebuildReason: String? = nil,
+        firstError: FeedIncidentDecodeErrorContext? = nil
     ) {
         self.generation = max(0, generation)
         self.formatGeneration = max(0, formatGeneration)
@@ -354,7 +357,42 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         self.lastIrapAge = FeedIncidentPrivacy.age(lastIrapAge)
         self.lastSuccessfulOutputAge = FeedIncidentPrivacy.age(lastSuccessfulOutputAge)
         self.rebuildReason = rebuildReason.map { FeedIncidentPrivacy.token($0) }
+        self.firstError = firstError
     }
+}
+
+/// The access unit behind the first decoder error of an episode: NAL types in unit order, its
+/// size, how long since the last accepted IRAP and the last parameter-set change, and the
+/// access-unit rate over the second before it. Types, sizes, ages and rates only: no payload
+/// bytes and no user data. Apple fills it from VideoToolbox callbacks; MediaCodec reports
+/// failures per codec rather than per access unit, so Android producers leave it nil.
+public struct FeedIncidentDecodeErrorContext: Equatable, Sendable, Codable {
+    public var status: Int32
+    public var nalTypes: [Int]
+    public var accessUnitBytes: Int
+    public var irapAge: TimeInterval?
+    public var parameterSetChangeAge: TimeInterval?
+    public var inputHz: Double
+
+    public init(
+        status: Int32,
+        nalTypes: [Int],
+        accessUnitBytes: Int,
+        irapAge: TimeInterval? = nil,
+        parameterSetChangeAge: TimeInterval? = nil,
+        inputHz: Double = 0
+    ) {
+        self.status = status
+        self.nalTypes = nalTypes.prefix(FeedIncidentDecodeErrorContext.maxNalTypes).map {
+            min(max($0, 0), 63)
+        }
+        self.accessUnitBytes = max(0, accessUnitBytes)
+        self.irapAge = FeedIncidentPrivacy.age(irapAge)
+        self.parameterSetChangeAge = FeedIncidentPrivacy.age(parameterSetChangeAge)
+        self.inputHz = FeedIncidentPrivacy.rate(inputHz)
+    }
+
+    public static let maxNalTypes = 16
 }
 
 public struct FeedIncidentLifecycle: Equatable, Sendable, Codable {

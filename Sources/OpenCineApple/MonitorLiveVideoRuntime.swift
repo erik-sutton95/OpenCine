@@ -44,6 +44,17 @@ open class MonitorLiveVideoRuntime {
     public private(set) var referenceRecoveryNeeded = false
     /// Last accepted IRAP. Tells the source recovery policy an enable was already answered.
     public private(set) var lastIrapAt: Date?
+    /// VT submission order. A late failure callback for a picture submitted before the last
+    /// accepted IRAP describes references that IRAP already replaced.
+    private var submissionSequence: UInt64 = 0
+    private var lastIrapSubmission: UInt64 = 0
+    /// Bitstream facts behind the first VT error since the last native output. Later errors of
+    /// the same episode keep it; the next episode replaces it. Incident context only.
+    public private(set) var firstDecodeError: FeedIncidentDecodeErrorContext?
+    private var outputsAtLastError: Int?
+    /// Access units admitted in the last second, for the incident input rate.
+    private var recentInputUptimes: [TimeInterval] = []
+    private var lastParameterSetChangeUptime: TimeInterval?
     public var nativeDecodeTotals: (submitted: Int, accepted: Int, output: Int) { pipelineMetrics.totals }
     public var canReleaseIDRHold: Bool { hasSubmittedRandomAccess && !vt.sessionFailed }
 
@@ -461,7 +472,11 @@ open class MonitorLiveVideoRuntime {
             demand = provided
         }
         adoptIncomingTransfer(transferProvider?())
+        let receivedAt = ProcessInfo.processInfo.systemUptime
+        recentInputUptimes.removeAll { receivedAt - $0 >= 1 }
+        recentInputUptimes.append(receivedAt)
         var slices: [[UInt8]] = []
+        var unitTypes: [Int] = []
         let nals = Hevc.nalUnits(accessUnit)
         if liveCodec == nil { liveCodec = LiveVideo.detect(nals: nals) }
         guard let liveCodec else { return false }
@@ -470,6 +485,7 @@ open class MonitorLiveVideoRuntime {
             if avc {
                 let type = Avc.nalType(nal[0])
                 nalTypesSeen.insert(type)
+                unitTypes.append(type)
                 if Avc.isKeyframeNal(type) {
                     sawKeyframe = true
                     lastKeyframeAt = Date()
@@ -485,6 +501,7 @@ open class MonitorLiveVideoRuntime {
             } else {
                 let type = Hevc.nalType(nal[0])
                 nalTypesSeen.insert(type)
+                unitTypes.append(type)
                 if Hevc.isKeyframeNal(type) {
                     sawKeyframe = true
                     lastKeyframeAt = Date()
@@ -541,11 +558,19 @@ open class MonitorLiveVideoRuntime {
             }
             // Do not fall through to HEVC enqueue  -  that dual-decodes and can
             // fail the layer to black when presentProcessed misses one AU.
-            let submitted = presentProcessed(sample)
+            submissionSequence &+= 1
+            // Ages describe the moment before this unit, so an IRAP reports the previous one.
+            let unit = FeedIncidentDecodeErrorContext(
+                status: 0, nalTypes: unitTypes, accessUnitBytes: accessUnit.count,
+                irapAge: lastIrapAt.map { Date().timeIntervalSince($0) },
+                parameterSetChangeAge: lastParameterSetChangeUptime.map { receivedAt - $0 },
+                inputHz: Double(recentInputUptimes.count))
+            let submitted = presentProcessed(sample, sequence: submissionSequence, unit: unit)
             if submitted && hasIDR {
                 hasSubmittedRandomAccess = true
                 referenceRecoveryNeeded = false
                 lastIrapAt = Date()
+                lastIrapSubmission = submissionSequence
             }
             return submitted
         } else {
@@ -700,6 +725,10 @@ open class MonitorLiveVideoRuntime {
         isVerticalPicture = false
         onPictureSizeChanged?()
         vt.clearErrors()
+        firstDecodeError = nil
+        outputsAtLastError = nil
+        recentInputUptimes.removeAll()
+        lastParameterSetChangeUptime = nil
         lastKeyframeAt = nil
         lastPresentedAt = nil
         lastSourceFrameAt = nil
@@ -1169,6 +1198,7 @@ open class MonitorLiveVideoRuntime {
         _ fmt: CMFormatDescription, vps: [UInt8]?, sps: [UInt8], pps: [UInt8], changing: Bool
     ) {
         vt.adoptFormat(fmt, vps: vps, sps: sps, pps: pps)
+        if changing { lastParameterSetChangeUptime = ProcessInfo.processInfo.systemUptime }
         let previousSize = pictureSize
         let dims = CMVideoFormatDescriptionGetDimensions(fmt)
         let next = CGSize(width: CGFloat(dims.width), height: CGFloat(dims.height))
@@ -1323,7 +1353,9 @@ open class MonitorLiveVideoRuntime {
 
     /// Decode to a pixel buffer. GPU fx and scopes run on `MonitorAssistEngine` (off-main).
     @discardableResult
-    private func presentProcessed(_ sample: CMSampleBuffer) -> Bool {
+    private func presentProcessed(
+        _ sample: CMSampleBuffer, sequence: UInt64, unit: FeedIncidentDecodeErrorContext
+    ) -> Bool {
         if vt.session == nil, vt.format != nil { rebuildVT() }
         guard vt.session != nil, !vt.sessionFailed else { return false }
         let fx = effects
@@ -1331,9 +1363,11 @@ open class MonitorLiveVideoRuntime {
         let flags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
         let gen = vt.fence.generation
         let err = decodeFrame(
-            sample, flags: flags, generation: gen, policy: fx, transfer: transfer)
+            sample, flags: flags, generation: gen, policy: fx, transfer: transfer,
+            sequence: sequence, unit: unit)
         if err == noErr { return true }
         noteDecodeError(status: err, origin: "submit")
+        noteFirstDecodeError(unit, status: err)
         return false
     }
 
@@ -1350,6 +1384,30 @@ open class MonitorLiveVideoRuntime {
         }
     }
 
+    /// A new episode starts at the first error after native output (or the first ever).
+    private func noteFirstDecodeError(_ unit: FeedIncidentDecodeErrorContext, status: OSStatus) {
+        let outputs = pipelineMetrics.totals.output
+        defer { outputsAtLastError = outputs }
+        guard outputsAtLastError != outputs else { return }
+        var first = unit
+        first.status = status
+        firstDecodeError = first
+    }
+
+    /// F08 native evidence (macOS 26.5 and 27 VideoToolbox; field build 192 matches): once a
+    /// picture is rejected with BadData, every later dependent picture fails too and no output
+    /// returns until an IRAP, on the same session or a rebuilt one. The iOS 26.2 simulator
+    /// decoder conceals instead: one BadData at most, then pictures predicted from the loss.
+    /// Either way only an IRAP repairs the picture, so this is known reference loss now, the
+    /// same as a dropped compressed reference, instead of two seconds of output silence later.
+    /// ponytail: every BadData counts, without NAL reference classification. A stream with
+    /// non-reference pictures would hold until its next IRAP after one of those failed;
+    /// classify by NAL type if such a stream appears.
+    private func noteNativeBadData(sequence: UInt64) {
+        guard sequence > lastIrapSubmission else { return }
+        noteCompressedDiscontinuity()
+    }
+
     /// Called by the existing 1 Hz session publisher, including during silence.
     public func takePipelineTimingLine() -> String {
         pipelineMetrics.takeLine(vtActive: vt.session != nil)
@@ -1360,7 +1418,9 @@ open class MonitorLiveVideoRuntime {
         flags: VTDecodeFrameFlags,
         generation: StreamGeneration,
         policy: MonitorAssistPolicy,
-        transfer: MonitorTransfer
+        transfer: MonitorTransfer,
+        sequence: UInt64,
+        unit: FeedIncidentDecodeErrorContext
     ) -> OSStatus {
         let submittedAt = ProcessInfo.processInfo.systemUptime
         pipelineMetrics.submitted()
@@ -1375,6 +1435,10 @@ open class MonitorLiveVideoRuntime {
                     guard let self, self.accepts(source), self.vt.fence.isCurrent(generation) else { return }
                     self.noteDecodeError(
                         status: status, origin: "callback", flags: infoFlags.rawValue)
+                    self.noteFirstDecodeError(unit, status: status)
+                    if status == kVTVideoDecoderBadDataErr {
+                        self.noteNativeBadData(sequence: sequence)
+                    }
                 }
             case .frame(let lease):
                 guard self.accepts(source), self.vt.fence.isCurrent(generation),
