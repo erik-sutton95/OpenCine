@@ -19,6 +19,14 @@
             #expect(runtime.decode(accessUnit: damaged, source: source))
             try await waitUntil { runtime.decoderErrors > 0 }
             #expect(runtime.lastDecodeStatus == kVTVideoDecoderBadDataErr)
+            // The incident keeps the failing unit's bitstream facts, never its bytes.
+            let first = try #require(runtime.firstDecodeError)
+            #expect(first.status == kVTVideoDecoderBadDataErr)
+            #expect(first.nalTypes == [Hevc.nalType(gop.pictures[4][0][0])])
+            #expect(first.accessUnitBytes == damaged.count)
+            #expect(first.irapAge.map { $0 >= 0 && $0 < 3 } == true)
+            #expect(first.parameterSetChangeAge == nil)
+            #expect(first.inputHz >= 1)
             // The repair owner reads this on its next tick instead of after 2 s of output silence.
             #expect(runtime.referenceRecoveryNeeded)
             #expect(runtime.awaitingIDR)

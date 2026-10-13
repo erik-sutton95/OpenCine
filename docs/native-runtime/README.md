@@ -229,3 +229,19 @@ does not change those render/export policies.
 
 See the [CI workflow](../../.github/workflows/ci.yml) and
 [package manifest](../../Package.swift) for the exact targets and checks.
+
+## First decoder-error context
+
+The Apple monitor runtime captures the first access unit behind each decoder-error
+episode. An optional `FeedIncidentDecodeErrorContext` records its numeric status,
+ordered NAL types, byte count, IRAP and parameter-set-change ages, and recent input
+rate. Later errors retain that context until native output starts a new episode;
+source reset clears it and retired callbacks cannot publish it. It contains no
+compressed payload, camera identifiers or user data.
+
+PocketCine and InstaCine include that value in their shared decoder incident
+snapshots. Kotlin uses the same bounded optional payload and JSON representation.
+MediaCodec errors describe the codec rather than a particular access unit, so
+Android producers leave this field absent. The Nikon JPEG source has no corresponding
+access-unit producer. Existing incident records decode with the optional field
+absent; its presence does not identify the field origin of damaged references.
