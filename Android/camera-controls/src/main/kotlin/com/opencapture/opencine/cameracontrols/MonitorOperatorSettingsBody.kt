@@ -32,6 +32,8 @@ import com.opencapture.monitorui.settings.MonitorPanelSettings
 import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsPage
 import com.opencapture.monitorui.settings.MonitorSettingsRowCard
+import com.opencapture.monitorui.settings.MonitorSettingsInlineRow
+import com.opencapture.monitorui.settings.MonitorSettingsValueText
 import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import com.opencapture.monitorui.settings.MonitorViewAssistSettings
@@ -161,6 +163,18 @@ private fun MonitorOperatorSettingsRows(
             is MonitorOperatorSettingsSource.Deployed -> ControlsRows(source.model, source.state, source.app)
             is MonitorOperatorSettingsSource.Configured -> {
                 val controls = source.configuration.controls
+                source.configuration.gyro?.let { gyro ->
+                    MonitorSettingsRowCard("Gyro logging") {
+                        MonitorSettingsSwitchInlineRow("Log gyro with camera recordings", gyro.enabled,
+                            help = "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                            showTopDivider = false) {
+                            if (gyro.available) { inputs.feedback(); gyro.setEnabled(!gyro.enabled) }
+                        }
+                        MonitorSettingsInlineRow("Status", null) {
+                            MonitorSettingsValueText(gyro.status)
+                        }
+                    }
+                }
                 MonitorOperatorSafetySettings(controls.recordConfirmation, controls.haptics, controls.keepAwake,
                     controls.setRecordConfirmation, controls.setHaptics, controls.setKeepAwake,
                     keepScreenAwakeHelp = controls.keepAwakeHelp, feedback = inputs.feedback)
@@ -194,6 +208,15 @@ private fun MonitorOperatorSettingsRows(
             is MonitorOperatorSettingsSource.Deployed -> StorageRows(source.model, source.app)
             is MonitorOperatorSettingsSource.Configured -> {
                 source.configuration.account?.let { SettingsAccount(it) }
+                source.configuration.gyro?.let { gyro ->
+                    MonitorSettingsRowCard("Gyro logs") {
+                        MonitorSettingsInlineRow("Saved motion logs",
+                            "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow.",
+                            showTopDivider = false) {
+                            MonitorSettingsActionPill("Open", onClick = gyro.openLogs)
+                        }
+                    }
+                }
                 source.configuration.cache?.let { cache ->
                     MonitorOperatorCacheSettings(cache.source, scopeHelp = cache.scopeHelp,
                         clearHelp = cache.clearHelp, formatBytes = cache.formatBytes, feedback = inputs.feedback,

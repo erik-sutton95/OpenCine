@@ -272,6 +272,18 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     @ViewBuilder private func controlsRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        if let gyro = source.gyro {
+            MonitorSettingsRowCard(title: "Gyro logging") {
+                MonitorSettingsSwitchInlineRow(title: "Log gyro with camera recordings",
+                    help: "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                    showTopDivider: false, isOn: gyro.enabled.wrappedValue,
+                    feedback: source.feedback) { gyro.enabled.wrappedValue.toggle() }
+                    .disabled(!gyro.available)
+                MonitorSettingsInlineRow(title: "Status", help: nil) {
+                    MonitorSettingsValueText(value: gyro.status)
+                }
+            }
+        }
         MonitorOperatorSafetySettings(recordConfirmation: source.recordConfirmation, haptics: source.haptics,
             keepScreenAwake: source.keepAwake, hapticsHelp: source.hapticsHelp,
             keepScreenAwakeHelp: source.keepAwakeHelp, feedback: source.feedback)
@@ -293,6 +305,15 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 
     @ViewBuilder private func storageRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        if let gyro = source.gyro {
+            MonitorSettingsRowCard(title: "Gyro logs") {
+                MonitorSettingsInlineRow(title: "Saved motion logs",
+                    help: "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow.",
+                    showTopDivider: false) {
+                    MonitorSettingsActionPill(title: "Open", action: gyro.openLogs)
+                }
+            }
+        }
         if let account = source.account {
             MonitorSettingsConfiguredAccount(source: account)
         }
