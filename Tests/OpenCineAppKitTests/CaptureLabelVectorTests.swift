@@ -21,7 +21,7 @@ import Testing
     }()
 
     @Test func everyRowMatches() throws {
-        #expect(Self.vectors.count >= 26)
+        #expect(Self.vectors.count >= 37)
         for row in Self.vectors {
             let expected = try #require(row.last)
             let actual: String
@@ -39,6 +39,13 @@ import Testing
                 actual = MonitorCapturePresentation.label(
                     .exposureCompensation(Rational(Int(row[1])!, Int(row[2])!)))
                 #expect(actual == ExposureCompensation.label(stops: Double(row[1])! / Double(row[2])!))
+            case "rematch":
+                let available = row[8] == "-" ? [] : row[8].split(separator: ",").map { Int($0)! }
+                actual = ShutterAngle.formatRematch(
+                    degrees: Double(row[1])!, usesAngle: row[2] == "on", manual: row[3] == "manual",
+                    isPhoto: row[4] == "photo", previousFps: Int(row[5])!, nextFps: Int(row[6])!,
+                    available: available, alreadyPending: row[7] == "yes"
+                ).map { String($0.denom) } ?? "-"
             default:
                 Issue.record("unknown kind \(row[0])")
                 continue

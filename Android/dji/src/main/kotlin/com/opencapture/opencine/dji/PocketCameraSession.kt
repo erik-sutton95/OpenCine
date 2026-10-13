@@ -22,6 +22,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
+import com.opencapture.opencine.media.HostShutterPresentation
 import com.opencapture.opencine.media.SerialSessionGate
 import com.opencapture.opencine.decoder.HevcDecoder
 import android.os.Build
@@ -3188,7 +3189,8 @@ class PocketCameraSession(
     }
 
     override fun captureControlState(): DjiCaptureControlState =
-        DjiCaptureControlState(reportedCapture, connectedCamera?.model)
+        DjiCaptureControlState(reportedCapture, connectedCamera?.model,
+            if (appHost.shutterUsesAngle()) HostShutterPresentation.EMULATED_ANGLE else HostShutterPresentation.CAMERA_VALUE)
 
     override fun writeShutter(denominator: Int, onStage: (ControlWireEvent) -> Unit) {
         if (reportedCapture.expoMode != CameraCommands.EXPO_MANUAL ||
@@ -3198,6 +3200,21 @@ class PocketCameraSession(
         }
         // Common duration edits never implicitly switch Auto into Manual.
         setShutterDenom(denominator, onStage, ensureManual = false)
+    }
+
+    override fun writeHostShutterAngle(degrees: Double, denominator: Int, admission: DjiCommandAdmission?, onStage: (ControlWireEvent) -> Unit) {
+        if (!appHost.shutterUsesAngle() || reportedCapture.isPhoto || admission?.admits(commandOwner) == false) {
+            onStage(ControlWireEvent.NOT_SENT)
+            return
+        }
+        val source = commandOwner?.let { DjiCommandAdmission(it) { true } }
+        val note: (ControlWireEvent) -> Unit = { stage ->
+            if (stage == ControlWireEvent.SENT && source?.admits(commandOwner) == true && admission?.isCurrent != false) {
+                appHost.setShutterAngleDegrees(degrees)
+            }
+            onStage(stage)
+        }
+        if (admission == null) writeShutter(denominator, note) else writeShutter(denominator, admission, note)
     }
 
     override fun writeExposureCompensation(value: EvComp, onStage: (ControlWireEvent) -> Unit) =
@@ -4452,14 +4469,17 @@ class PocketCameraSession(
             )
         ) return false
         val modeAtSet = previous.shootingMode
-        val angle = if (ShutterAngle.rematchesFormat(
-                usesAngle = appHost.shutterUsesAngle(),
-                manual = previous.expoMode == CameraCommands.EXPO_MANUAL,
-                isPhoto = CameraCommands.isPhotoMode(previous.shootingMode),
-                previousFps = previous.fps, nextFps = format.frameRate.fps,
-                alreadyPending = formatPin?.shutterAngle != null,
-            )) formatPin?.shutterAngle ?: appHost.shutterAngleDegrees() else null
-        val shutter = angle?.let { ShutterAngle.denom(it, format.frameRate.fps, previous.availableShutterDenoms) }
+        val rematch = ShutterAngle.formatRematch(
+            degrees = formatPin?.shutterAngle ?: appHost.shutterAngleDegrees(),
+            usesAngle = appHost.shutterUsesAngle(),
+            manual = previous.expoMode == CameraCommands.EXPO_MANUAL,
+            isPhoto = CameraCommands.isPhotoMode(previous.shootingMode),
+            previousFps = previous.fps, nextFps = format.frameRate.fps,
+            available = previous.availableShutterDenoms,
+            alreadyPending = formatPin?.shutterAngle != null,
+        )
+        val angle = rematch?.degrees
+        val shutter = rematch?.denom
         val pin =
             FormatPin(
                 expected = format,

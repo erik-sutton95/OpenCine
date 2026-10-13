@@ -47,31 +47,18 @@ object OperatorLinkHealth {
         }
     }
 
-    fun compactFps(incoming: String): String {
-        val compact = if (incoming.endsWith(".00")) incoming.dropLast(3) else incoming
-        return compact.ifEmpty { "\u2014" }
-    }
+    @Deprecated("Use MonitorLinkMeter.compactFPS")
+    fun compactFps(incoming: String): String = MonitorLinkMeter.compactFPS(incoming)
 
-    fun formatMeasuredFps(fps: Double): String {
-        if (fps <= 0.0) return ""
-        val rounded = kotlin.math.round(fps)
-        return if (kotlin.math.abs(fps - rounded) < 0.05) {
-            rounded.toInt().toString()
-        } else {
-            String.format(Locale.US, "%.2f", fps)
-        }
-    }
+    @Deprecated("Use MonitorLinkMeter.formatMeasuredFPS")
+    fun formatMeasuredFps(fps: Double): String = MonitorLinkMeter.formatMeasuredFPS(fps)
 
-    fun fpsChipLabel(
-        isLive: Boolean,
-        recovering: Boolean,
-        measuredFps: Double,
-        phase: ConnectionPhase,
-    ): String {
-        if (phase == ConnectionPhase.FAILED) return "FAIL"
-        if (recovering) return "RECOV"
-        if (measuredFps > 0.0) return compactFps(formatMeasuredFps(measuredFps))
-        return if (!isLive && phase == ConnectionPhase.IDLE) "\u2014" else "LINK"
+    @Deprecated("Use MonitorLinkMeter.chipLabel")
+    fun fpsChipLabel(isLive: Boolean, recovering: Boolean, measuredFps: Double,
+        phase: ConnectionPhase): String {
+        val label = MonitorLinkMeter.chipLabel(phase, recovering, false,
+            MonitorLinkMeter.compactFPS(MonitorLinkMeter.formatMeasuredFPS(measuredFps)), measuredFps)
+        return if (isLive && phase == ConnectionPhase.IDLE && !recovering && measuredFps <= 0.0) "LINK" else label
     }
 
     fun liveTileDetail(

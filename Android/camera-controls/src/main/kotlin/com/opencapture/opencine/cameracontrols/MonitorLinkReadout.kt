@@ -14,6 +14,7 @@ import com.opencapture.opencine.media.CameraLinkHealthScorer
 import com.opencapture.opencine.media.FrameRateSampler
 import com.opencapture.opencine.media.LinkSignalBars
 import com.opencapture.opencine.vocabulary.ConnectionPhase
+import com.opencapture.opencine.vocabulary.SessionRecoveryCopy
 import kotlinx.coroutines.delay
 
 /** What a live source observes about its link; the app publishes it, [MonitorLinkMeter] decides the readout. */
@@ -36,9 +37,10 @@ data class MonitorLinkObservation(
 )
 
 /**
- * The FPS chip word and the signal bars every live monitor shows (A3-16): the rate measured from the
- * presented-picture counter, worded by [LiveViewLink.fpsChipLabel] and held by
- * [LiveChromeReadout.holdFPS] so hundredths do not tick the chip. One [tick] per readout period.
+ * The FPS chip word and the signal bars every live monitor shows (A3-16, A5-17): the rate measured from
+ * the presented-picture counter, worded by [chipLabel] and held by [LiveChromeReadout.holdFPS] so
+ * hundredths do not tick the chip. One [tick] per readout period. Swift twin: `MonitorLinkMeter` in
+ * OpenCineCameraVocabulary; both suites read `Fixtures/link-readout-vectors.tsv`.
  */
 class MonitorLinkMeter {
     private val sampler = FrameRateSampler()
@@ -69,8 +71,8 @@ class MonitorLinkMeter {
         lastAtMillis = nowMillis
         val measured = sampler.displayFPS
         held = LiveChromeReadout.holdFPS(
-            LiveViewLink.fpsChipLabel(observation.connection, observation.feedRecovering, sampler.formatted,
-                measured, observation.sessionRecovering),
+            chipLabel(observation.connection, observation.feedRecovering, observation.sessionRecovering,
+                sampler.formatted, measured),
             held)
         label = held
         bars = observation.linkBars ?: signalBars.update(CameraLinkHealthScorer.score(CameraLinkHealthInputs(
@@ -82,9 +84,37 @@ class MonitorLinkMeter {
         )).linkHealthScore)
     }
 
-    private companion object {
-        const val IDLE = "—"
-        const val PERIOD_MILLIS = 200L
+    companion object {
+        private const val IDLE = "\u2014"
+        private const val PERIOD_MILLIS = 200L
+
+        fun compactFPS(incoming: String): String = incoming.removeSuffix(".00").ifEmpty { IDLE }
+
+        fun formatMeasuredFPS(fps: Double): String {
+            if (fps <= 0.0) return ""
+            val rounded = kotlin.math.round(fps)
+            return if (kotlin.math.abs(fps - rounded) < 0.05) rounded.toInt().toString()
+                else String.format(java.util.Locale.US, "%.2f", fps)
+        }
+
+        /**
+         * The chip word: the held-frame badge while a dropped session holds the last frame, FAIL,
+         * RECOV while the stream restarts, the measured rate, a dash while idle, else LINK.
+         */
+        fun chipLabel(
+            connection: ConnectionPhase,
+            feedRecovering: Boolean,
+            sessionRecovering: Boolean,
+            formattedFPS: String,
+            measuredFPS: Double,
+        ): String = when {
+            sessionRecovering -> SessionRecoveryCopy.HELD_FRAME_BADGE
+            connection == ConnectionPhase.FAILED -> "FAIL"
+            feedRecovering -> "RECOV"
+            measuredFPS > 0 -> formattedFPS
+            connection == ConnectionPhase.IDLE -> IDLE
+            else -> "LINK"
+        }
     }
 
     internal suspend fun measure(observe: () -> MonitorLinkObservation) {

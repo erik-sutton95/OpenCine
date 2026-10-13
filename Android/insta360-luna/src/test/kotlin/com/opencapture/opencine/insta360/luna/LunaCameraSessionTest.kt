@@ -162,6 +162,69 @@ private class FakeLuna(
 }
 
 class LunaCameraSessionTest {
+    private fun reportCadence(raw: Long?, session: LunaCameraSession) {
+        session.ingest(LunaPhotographySettings(types = listOf(31),
+            functionMode = LunaControl.FUNCTION_MODE_VIDEO, recordResolution = raw))
+    }
+
+    @Test fun emulatedAngleConfirmsTheQuantizedNativeReadback() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        reportCadence(48, session)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertEquals(com.opencapture.opencine.core.SettingSemantics.Implementation.EMULATED,
+            session.snapshots.value.capabilities[SettingKey.SHUTTER]?.semantics?.implementation)
+        assertEquals(SettingValue.Shutter(ShutterValue.Angle(180.0)), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(144.0))))
+        assertEquals(CommandStage.Confirmed, outcome.stage)
+        val exposure = requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure)
+        assertEquals(1.0 / 60, exposure.shutterSeconds, 1e-9)
+        assertEquals(SettingValue.Shutter(ShutterValue.Angle(150.0)), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        assertEquals(ObservationOrigin.PROTOCOL_DERIVED, session.snapshots.value.value(SettingKey.SHUTTER).origin)
+    }
+
+    @Test fun angleEmulationNeedsReportedCadenceAndPreservesNativeIsoComposition() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertNull(session.snapshots.value.value(SettingKey.SHUTTER).value)
+        val rejected = session.submit(CameraCommand(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0))),
+            CommandPreconditions(session.snapshots.value)))
+        assertTrue(rejected.stage is CommandStage.Rejected)
+        assertTrue(camera.sent.isEmpty())
+        val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Iso(ISOValue.Manual(800))))
+        assertEquals(CommandStage.Confirmed, outcome.stage)
+        val exposure = requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure)
+        assertEquals(800L, exposure.iso)
+        assertEquals(1.0 / 50, exposure.shutterSeconds, 1e-9)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.CAMERA_VALUE)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, session.snapshots.value.value(SettingKey.SHUTTER).origin)
+    }
+
+    @Test fun cadenceChangeRetiresPreparedAngleCommands() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        reportCadence(48, session)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        val command = CameraCommand(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0))),
+            CommandPreconditions(session.snapshots.value))
+        reportCadence(24, session)
+        assertEquals(CommandStage.Rejected(CommandRejection.StaleCapabilities), session.submit(command).stage)
+        assertTrue(camera.sent.isEmpty())
+        reportCadence(null, session)
+        assertNull(session.snapshots.value.value(SettingKey.SHUTTER).value)
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @AfterTest fun tearDown() = scope.cancel()

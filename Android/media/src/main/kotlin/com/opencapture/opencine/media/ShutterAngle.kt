@@ -20,6 +20,20 @@ object ShutterAngle {
     ): Boolean = usesAngle && manual && !isPhoto && previousFps > 0 && nextFps > 0 &&
         (previousFps != nextFps || alreadyPending)
 
+    /** The degrees a format change keeps and the 1/N it re-sends at the new rate. */
+    data class FormatRematch(val degrees: Double, val denom: Int)
+
+    /**
+     * What a format change owes a host-emulated angle, or null when no hidden write is due
+     * ([rematchesFormat]). The DJI and Luna sessions on both platforms call this; none decides it inline.
+     */
+    fun formatRematch(
+        degrees: Double, usesAngle: Boolean, manual: Boolean, isPhoto: Boolean,
+        previousFps: Int, nextFps: Int, available: List<Int>, alreadyPending: Boolean = false,
+    ): FormatRematch? =
+        if (!rematchesFormat(usesAngle, manual, isPhoto, previousFps, nextFps, alreadyPending)) null
+        else FormatRematch(degrees, denom(degrees, nextFps, available))
+
     fun label(value: Double): String {
         val rounded = round(value)
         return if (abs(value - rounded) < 0.05) {

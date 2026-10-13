@@ -3,8 +3,8 @@ import OpenCineMedia
 
 // The link-health scorer and `LinkSignalBars` are shared from OpenCineMedia.
 
-/// The live view's mapping onto the reference monitor's FPS chip labels and the
-/// `CameraLinkHealthScorer` phase.
+/// The live view's mapping onto the `CameraLinkHealthScorer` phase; `MonitorLinkMeter` words
+/// the FPS chip.
 ///
 /// SoftAP HEVC live view is 1280×720 at ~25 fps (`docs/protocol-notes.md`). That is the
 /// delivery target for bars — not `CameraStatus.fps`, which is the recording format already
@@ -25,21 +25,13 @@ public enum LiveViewLink {
         default: return .connecting
         }
     }
-
-    public static func fpsChipLabel(
-        connection: CameraConnectionPhase,
-        recovering: Bool,
-        formattedFPS: String,
-        measuredFPS: Double
-    ) -> String {
-        if case .failed = connection { return "FAIL" }
-        if recovering { return "RECOV" }
-        if measuredFPS > 0 { return formattedFPS }
-        switch connection {
-        case .idle: return "—"
-        default: return "LINK"
-        }
+    @available(*, deprecated, message: "Use MonitorLinkMeter.chipLabel")
+    public static func fpsChipLabel(connection: CameraConnectionPhase, recovering: Bool,
+        formattedFPS: String, measuredFPS: Double) -> String {
+        MonitorLinkMeter.chipLabel(connection: connection, feedRecovering: recovering,
+            sessionRecovering: false, formattedFPS: formattedFPS, measuredFPS: measuredFPS)
     }
+
 }
 
 /// Cover the feed well until a **rolling** picture exists.

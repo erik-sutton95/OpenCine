@@ -15,6 +15,10 @@
 #   ev         num      den          -> the one EV spelling (0.0, +0.3, U+2212 minus; C %.1f).
 #                                       Rows with den 1000 are Nikon thousandths: the Swift Nikon
 #                                       decoder must print them the same way.
+#   rematch    degrees  angle  exposure  capture  prev  next  pending  available
+#                                    -> 1/N a format change re-sends for a host-emulated angle,
+#                                       `-` for no write: only manual video re-matches, never
+#                                       auto, unknown exposure or photo (A5-07)
 denom	144	25	63
 denom	288	50	63
 denom	180	24	48
@@ -41,3 +45,14 @@ ev	1	4	+0.2
 ev	0	1000	0.0
 ev	-333	1000	−0.3
 ev	1667	1000	+1.7
+rematch	180	on	manual	video	24	30	no	-	60
+rematch	180	on	manual	video	24	25	no	50,60,100	50
+rematch	144	on	manual	video	30	25	no	-	63
+rematch	180	on	manual	video	24	24	no	-	-
+rematch	180	on	manual	video	24	24	yes	-	48
+rematch	180	on	auto	video	24	30	no	-	-
+rematch	180	on	unknown	video	24	30	no	-	-
+rematch	180	on	manual	photo	24	30	no	-	-
+rematch	180	on	unknown	photo	24	30	no	-	-
+rematch	180	off	manual	video	24	30	no	-	-
+rematch	180	on	manual	video	0	30	no	-	-

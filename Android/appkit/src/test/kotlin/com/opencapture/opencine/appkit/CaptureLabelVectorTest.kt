@@ -18,7 +18,7 @@ class CaptureLabelVectorTest {
             .map { it.split("\t") }
 
     @Test fun everyRowMatches() {
-        assertTrue(vectors.size >= 26, "fixture missing or truncated: ${vectors.size} rows")
+        assertTrue(vectors.size >= 37, "fixture missing or truncated: ${vectors.size} rows")
         val failures = vectors.mapNotNull { row ->
             val actual = when (row[0]) {
                 "denom" -> ShutterAngle.denom(row[1].toDouble(), row[2].toInt()).toString()
@@ -29,6 +29,12 @@ class CaptureLabelVectorTest {
                 "ev" -> MonitorCapturePresentation.label(
                     SettingValue.ExposureCompensation(Rational(row[1].toInt(), row[2].toInt())))
                     .also { assertEquals(it, ExposureCompensation.label(row[1].toDouble() / row[2].toInt()), "$row") }
+                "rematch" -> ShutterAngle.formatRematch(
+                    row[1].toDouble(), usesAngle = row[2] == "on", manual = row[3] == "manual",
+                    isPhoto = row[4] == "photo", previousFps = row[5].toInt(), nextFps = row[6].toInt(),
+                    available = if (row[8] == "-") emptyList() else row[8].split(",").map { it.toInt() },
+                    alreadyPending = row[7] == "yes",
+                )?.denom?.toString() ?: "-"
                 else -> "unknown kind"
             }
             "$row: got $actual".takeIf { actual != row.last() }
