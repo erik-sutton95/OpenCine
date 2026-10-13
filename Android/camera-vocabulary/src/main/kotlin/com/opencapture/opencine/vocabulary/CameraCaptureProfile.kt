@@ -12,6 +12,7 @@ data class CameraCaptureProfile(
     val videoFormatFallbacks: Map<Int, List<VideoFormat>> = emptyMap(),
     val zoom: CameraZoomProfile? = null,
     val looks: CameraLUTProfile? = null,
+    val nativeISO: CaptureNativeISOCapabilities = CaptureNativeISOCapabilities(),
 )
 
 data class CameraZoomProfile(
