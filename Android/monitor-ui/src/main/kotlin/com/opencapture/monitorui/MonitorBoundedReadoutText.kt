@@ -33,7 +33,7 @@ public fun MonitorPortraitFormatGroup(showsDetail: Boolean,
     primary: @Composable () -> Unit, detail: @Composable () -> Unit) {
     val minimum = LocalViewConfiguration.current.minimumTouchTargetSize.height
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Box(Modifier.heightIn(min = minimum), contentAlignment = Alignment.BottomEnd) { primary() }
+        Box(Modifier.heightIn(min = minimum), contentAlignment = Alignment.TopEnd) { primary() }
         if (showsDetail) Box(Modifier.heightIn(min = minimum), contentAlignment = Alignment.TopEnd) { detail() }
     }
 }

@@ -103,6 +103,10 @@ enum class MonitorJoystickSize(val raw: String, val side: Float, val label: Stri
 
 /** UI 2.0 layout decisions shared by brand apps; native shells retain the feed. */
 object MonitorLayoutPolicy {
+    /** Reserve the portrait telemetry band independently of immersive system insets and feed framing. */
+    fun portraitHeaderSafeTop(width: Float, height: Float, safeTop: Float): Float =
+        if (height > width && width < 600f) max(44f, safeTop) else safeTop
+
     fun portrait(
         width: Float, height: Float, safeTop: Float, safeBottom: Float,
         fill: Boolean, valuesVisible: Boolean, sourceAspect: Float,
@@ -266,11 +270,12 @@ object MonitorLayoutPolicy {
         val edge = 8f
         if (portrait) {
             val layout = portrait(w, h, safeTop, safeBottom, fill, showsValues, aspect)
+            val headerLift = if (tablet) 0f else 6f
+            val headerSafeTop = portraitHeaderSafeTop(w, h, safeTop)
             val headerLeading = if (tablet) edge else max(16f, safeLeading + 8f)
             val headerTrailing = if (tablet) edge else max(16f, safeTrailing + 8f)
-            val telemetryTop = max(0f, safeTop) + 8f + controlInset
             val status = MonitorRect(headerLeading,
-                if (tablet) layout.status.y + controlInset else telemetryTop + 48f + 8f,
+                max(0f, headerSafeTop - headerLift) + controlInset,
                 if (tablet) max(0f, w - 28f) else max(0f, w - headerLeading - headerTrailing), layout.status.height)
             val cy = layout.system.y + layout.system.height / 2f
             val lock = MonitorRect(edge, cy - button / 2f, button, button)
@@ -279,14 +284,14 @@ object MonitorLayoutPolicy {
             // Same order as landscape: Media sits next to Record, Settings outside it.
             val settings = MonitorRect(w - edge - button, lock.y, button, button)
             val media = MonitorRect(settings.x - button - SETTINGS_MEDIA_GAP, lock.y, button, button)
-            val cornerTop = max(0f, safeTop - 24f)
+            val cornerTop = max(0f, headerSafeTop - 24f)
             val gaugeTop = (if (tablet) 82f else max(4f, cornerTop - 16f)) + controlInset
             // Three gauge pills: a trailing row on phone, a stacked column on tablet.
             val gauges = MonitorRect(
                 if (tablet) edge else w - edge - 186f, gaugeTop,
                 if (tablet) 58f else 186f, if (tablet) 68f else 22f,
             )
-            val telemetry = if (tablet) gauges else MonitorRect(w - headerTrailing - 122f, telemetryTop + 13f, 122f, 22f)
+            val telemetry = if (tablet) gauges else MonitorRect(w - headerTrailing - 122f, gaugeTop + 13f - headerLift, 122f, 22f)
             val floor = layout.controlsFloor
             val assists = portraitAssists(floor, tablet)
             val stick = portraitStick(w, floor, joystick.side)
@@ -295,7 +300,7 @@ object MonitorLayoutPolicy {
             val compass = headTrack(stick, zoom)
             val aspectToggle = portraitAspect(w, floor)
             val focusReset = MonitorRect(
-                max(safeLeading + 8f, stick.x - 50f), stick.maxY - 40f, 40f, 40f,
+                max(safeLeading + 8f, assists.x), assists.y - 48f, 40f, 40f,
             )
             return MonitorFieldLayout(
                 viewport, layout.picture, status, layout.values, layout.system,

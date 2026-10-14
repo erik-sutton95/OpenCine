@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
@@ -203,13 +206,14 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     r.top.toDp().value, r.width.toDp().value, r.height.toDp().value) }
             }
         val label: @Composable () -> Unit = {
-            val groupFrame = if (grouped) Modifier.height(LocalViewConfiguration.current.minimumTouchTargetSize.height) else Modifier
-            Box(groupFrame, contentAlignment = if (grouped && detail) Alignment.TopEnd else Alignment.BottomEnd) {
+            val groupFrame = if (grouped) Modifier
+                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height) else Modifier
+            Box(groupFrame, contentAlignment = if (grouped) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
                     if (grouped) {
-                        MonitorBoundedReadoutText(value.value ?: "--", maximumSize = if (detail) 11f else 23f,
-                            minimumSize = if (detail) 11f else 16f,
+                        MonitorPortraitInlineReadoutText(value.value ?: "--", detail = detail,
                             color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
                     } else if (storageReadout && layout.portrait && !layout.tablet) {
                         MonitorBoundedReadoutText(value.value ?: "--",
@@ -253,28 +257,45 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         statusInteractive = !assistInspectorPresented),
         modifier, picture = picture,
         status = {
-            MonitorStatusChrome(layout, status.recording(), status.showsTimecode, status.showsRecording,
+            val recording = status.recording()
+            val visibleFormat = status.format.filter { it.section == null || it.section in mounted }
+            val shownPrimary = status.portraitFormat?.takeIf { it.section == null || it.section in mounted }
+                ?: visibleFormat.firstOrNull()
+            val inline = layout.portrait && !photo
+            val shownColor = status.color?.takeIf { it.section == null || it.section in mounted }
+            val details = visibleFormat.drop(if (visibleFormat.firstOrNull()?.section == MonitorDisplaySection.CODEC) 0 else 1)
+                .filter { it.id != shownPrimary?.id }
+            val readouts = listOfNotNull(shownPrimary, shownColor) + details
+            val caption = status.portraitCaption.takeIf { status.portraitFormat != null && shownColor == null }
+            val fit = if (inline && readouts.isNotEmpty()) {
+                fun line(value: MonitorOperatorLiveReadout<K, S>) =
+                    MonitorPortraitReadoutLine(value.value ?: "--", if (value.icon != null) 19f else 0f)
+                rememberMonitorPortraitSingleRowFit(layout.status.width, recording, status.showsRecording,
+                    status.showsTimecode, line(readouts.first()), details.map(::line), caption,
+                    maximumSize = if (layout.tablet) 25f else 23f,
+                    color = if (shownPrimary == null) null else shownColor?.let(::line),
+                    primaryIsDetail = readouts.first().section == MonitorDisplaySection.CODEC)
+            } else null
+            CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
+            MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording,
                 edit(sections.status),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
                 storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true) } },
                 format = {
-                    if (layout.portrait && !layout.tablet && !photo) {
-                        val values = status.format.filter { it.section == null || it.section in mounted }
-                        val primary = status.portraitFormat ?: values.firstOrNull()
-                        if (primary != null && (primary.section == null || primary.section in mounted)) {
-                            val caption = status.portraitCaption.takeIf { status.portraitFormat != null }
-                            val details = if (status.portraitFormat == null) values.drop(1) else emptyList()
-                            val ownsCaption = status.portraitFormat != null
-                            Box(if (ownsCaption) primary.section?.let { edit(it) } ?: Modifier else Modifier) {
-                                MonitorPortraitFormatGroup(caption != null || details.isNotEmpty(),
-                                    primary = { Readout(primary, portrait = true, grouped = true, decoratesSection = !ownsCaption) },
-                                    detail = {
-                                        if (caption != null) MonitorBoundedReadoutText(caption, maximumSize = 11f, minimumSize = 11f)
-                                        else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                                            details.forEach { Readout(it, grouped = true, detail = true) }
-                                        }
-                                    })
+                    if (inline) {
+                        Row(verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
+                            readouts.forEach { value ->
+                                Readout(value, portrait = true, grouped = true,
+                                    detail = value.section == MonitorDisplaySection.CODEC || details.any { it.id == value.id })
+                            }
+                            if (caption != null) {
+                                Box(Modifier.widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                                    .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height)
+                                    .then(shownPrimary?.section?.let { edit(it) } ?: Modifier), contentAlignment = Alignment.TopEnd) {
+                                    MonitorPortraitInlineReadoutText(caption, detail = true)
+                                }
                             }
                         }
                     } else if (layout.portrait && status.portraitFormat != null) {
@@ -282,10 +303,11 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         status.format.filter { it.section == null || it.section in mounted }.forEach { Readout(it) }
                     }
-                }, color = { status.color?.let { if (it.section == null || it.section in mounted) Readout(it) } },
+                }, color = { if (!inline) shownColor?.let { Readout(it) } },
                 mode = { status.mode?.let { Readout(it, accent = true) } },
                 link = { MonitorTelemetry(status.signalBars, status.fps, emptyList(), horizontal = true,
                     showsLink = linkMounted, showsPower = false) })
+            }
         }, power = {
             MonitorTelemetry(status.signalBars, status.fps, power.map {
                 MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted)

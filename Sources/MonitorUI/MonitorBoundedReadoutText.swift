@@ -34,7 +34,7 @@
         }
         public var body: some View {
             VStack(alignment: .trailing, spacing: 2) {
-                primary().frame(minHeight: 44, alignment: .bottomTrailing)
+                primary().frame(minHeight: 44, alignment: .topTrailing)
                 if showsDetail { detail().frame(minHeight: 44, alignment: .topTrailing) }
             }
         }

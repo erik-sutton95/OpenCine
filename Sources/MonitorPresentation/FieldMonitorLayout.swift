@@ -95,6 +95,12 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public let tablet: Bool
     public let fillsPicture: Bool
 
+    /// The portrait header reserves a telemetry band even when immersive insets are small.
+    /// This changes chrome only; the picture keeps its native safe-area anchor.
+    public static func portraitHeaderSafeTop(width: Double, height: Double, safeTop: Double) -> Double {
+        height > width && width < 600 ? max(44, safeTop) : safeTop
+    }
+
     public init(
         width: Double, height: Double, safeArea: MonitorSafeArea = .init(),
         sourceAspect: Double = 16 / 9, fill: Bool = false, showsValues: Bool = true,
@@ -126,11 +132,12 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             let ratio = fillsPicture ? min(aspect, 9 / 16) : aspect
             // STBY / clock / REC SETUP sit just below the notch, independent of the feed.
             let statusH = tablet ? 52.0 : 44.0
+            let headerLift = tablet ? 0.0 : 6.0
+            let headerSafeTop = Self.portraitHeaderSafeTop(width: w, height: h, safeTop: safeArea.top)
             let headerLeading = tablet ? edge : max(16, safeArea.leading + 8)
             let headerTrailing = tablet ? edge : max(16, safeArea.trailing + 8)
-            let telemetryTop = max(0, safeArea.top) + 8 + controlInset
             status = .init(
-                x: headerLeading, y: tablet ? max(0, safeArea.top) + controlInset : telemetryTop + 48 + 8,
+                x: headerLeading, y: max(0, headerSafeTop - headerLift) + controlInset,
                 width: max(0, w - headerLeading - headerTrailing), height: statusH)
             // Telemetry clearance moves chrome only; retain the existing picture's framing anchor.
             let pictureAnchor = max(0, safeArea.top) + controlInset
@@ -172,7 +179,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             settings = .init(x: w - edge - button, y: lock.y, width: button, height: button)
             media = .init(
                 x: settings.x - button - Self.settingsMediaGap, y: lock.y, width: button, height: button)
-            let cornerTop = max(0, safeArea.top - 24)
+            let cornerTop = max(0, headerSafeTop - 24)
             let gaugeTop = (tablet ? 82 : max(4, cornerTop - 16)) + controlInset
             // Phone: the two battery pills trail the Dynamic Island (the link pill
             // sits left of it with storage). Tablet: all three stacked.
@@ -180,7 +187,7 @@ public struct FieldMonitorLayout: Equatable, Sendable {
                 x: tablet ? edge : w - edge - 122, y: gaugeTop,
                 width: tablet ? 64 : 122, height: tablet ? 76 : 22)
             telemetry = tablet ? gauges : .init(
-                x: w - headerTrailing - 122, y: telemetryTop + 13, width: 122, height: 22)
+                x: w - headerTrailing - 122, y: gaugeTop + 13 - headerLift, width: 122, height: 22)
             // Portrait tools belong to the lower control area. Picture crop,
             // aspect and FIT/FILL must not move their touch targets.
             assists = .init(
@@ -262,8 +269,8 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             aspectToggle = .init()
         }
         focusReset = .init(
-            x: max(safeArea.leading + 8, stick.x - 50),
-            y: stick.maxY - 40, width: 40, height: 40)
+            x: portrait ? max(safeArea.leading + 8, assists.x) : max(safeArea.leading + 8, stick.x - 50),
+            y: portrait ? assists.y - 48 : stick.maxY - 40, width: 40, height: 40)
     }
 
     /// Landscape camera values sit above the home indicator instead of overlapping it.

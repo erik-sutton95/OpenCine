@@ -269,14 +269,14 @@
         }
 
         /// Recenter key. Landscape: just past the battery, toward the feed,
-        /// above the assist bar. Portrait: bottom-right of the feed.
+        /// above the assist bar. Portrait: left of the feed.
         public var focusReset: CGRect {
             if let presentation { return presentation.focusReset.cgRect }
             let size = LiveChromeMetrics.focusResetSize
             if viewport.height > viewport.width {
                 let well = onFeed
                 return CGRect(
-                    x: well.maxX - size - 10,
+                    x: well.minX + 10,
                     y: well.maxY - size - 10,
                     width: size,
                     height: size

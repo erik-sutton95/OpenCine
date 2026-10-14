@@ -14,7 +14,7 @@
         @Environment(\.interfaceLocked) private var locked
         @Binding var menu: LiveTopMenu?
         var layout: LiveMonitorLayout
-        @State private var storagePercent = false
+        @State private var showStorageDuration = false
         @State private var readoutOwnership = MonitorReadoutOwnership()
 
         public init(menu: Binding<LiveTopMenu?>, layout: LiveMonitorLayout) {
@@ -101,7 +101,7 @@
 
         private var storageButton: some View {
             Button {
-                storagePercent.toggle()
+                showStorageDuration.toggle()
             } label: {
                 HStack(spacing: 5) {
                     MonitorIcon.cardSim.frame(width: 12, height: 12)
@@ -111,7 +111,8 @@
                                 ? 14
                                 : (layout.presentation?.tablet == true ? 18 : 16), weight: .medium)
                     ).monospacedDigit()
-                        .lineLimit(1).minimumScaleFactor(0.75)
+                        .lineLimit(1).minimumScaleFactor(
+                            layout.presentation?.portrait == true ? 11.0 / 14.0 : 0.75)
                 }.foregroundStyle(.white)
             }
             .buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
@@ -122,10 +123,12 @@
             let s = host.cameraStatus
             let free = s.storageFreeMb > 0 ? s.storageFreeMb : s.sdFreeMb
             let total = s.storageTotalMb > 0 ? s.storageTotalMb : s.sdTotalMb
-            if storagePercent && total > 0 {
-                return "\(Int((Double(max(0, free)) / Double(total) * 100).rounded()))%"
+            if showStorageDuration && !s.isPhoto {
+                return MonitorStorageReadoutFormat.remainingMinutes(
+                    s.recordRemainingSec > 0 ? s.recordRemainingSec / 60 : nil)
             }
-            return free > 0 ? "\(free / 1024) GB" : "\u{2014}"
+            return MonitorStorageReadoutFormat.capacity(
+                gigabytes: free > 0 || total > 0 ? Int64(max(0, free) / 1024) : nil)
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {

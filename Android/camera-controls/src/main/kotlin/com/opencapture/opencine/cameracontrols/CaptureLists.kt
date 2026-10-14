@@ -678,21 +678,13 @@ object CaptureLists {
     /** Remaining storage. Source order is `storage*` then `sd*`, matching iOS. */
     fun storageLabel(status: CameraStatus, showDuration: Boolean): String {
         if (showDuration && !CameraCommands.isPhotoMode(status.shootingMode)) {
-            return if (status.recordRemainingSec > 0) {
-                "${status.recordRemainingSec / 60} Min"
-            } else {
-                "— Min"
-            }
+            return com.opencapture.monitorui.MonitorStorageReadoutFormat.remainingMinutes(
+                status.recordRemainingSec.takeIf { it > 0 }?.div(60))
         }
         val free = if (status.storageFreeMb > 0) status.storageFreeMb else status.sdFreeMb
         val total = if (status.storageTotalMb > 0) status.storageTotalMb else status.sdTotalMb
-        if (total > 0) {
-            val gb = max(0, free) / 1024
-            val pct = ((max(0, free).toDouble() / total.toDouble()) * 100.0).roundToInt()
-            return "$gb GB · $pct%"
-        }
-        if (free > 0) return "${free / 1024} GB"
-        return "—"
+        return com.opencapture.monitorui.MonitorStorageReadoutFormat.capacity(
+            if (total > 0 || free > 0) max(0, free).toLong() / 1024 else null)
     }
 
     fun isoChipValue(status: CameraStatus): String =

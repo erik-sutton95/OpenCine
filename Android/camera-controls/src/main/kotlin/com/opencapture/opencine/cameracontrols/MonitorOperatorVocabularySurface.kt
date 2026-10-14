@@ -297,13 +297,13 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && capabilities.timecode && source.session.mounts(MonitorDisplaySection.TIMECODE),
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
-            CaptureLists.storageLabel(status, if (field.portrait) false else duration).substringBefore(" ·"), MonitorDisplaySection.STORAGE,
-            action = { if (!field.portrait) toggleStorage() }, icon = MonitorIcon.CARD_SIM) else null,
+            CaptureLists.storageLabel(status, duration), MonitorDisplaySection.STORAGE,
+            action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
             CaptureShutterPolicy.portraitSetupLabel(status)),
         portraitCaption = CaptureShutterPolicy.portraitSetupCaption(status, source.host.camera?.family.orEmpty(), labels),
-        color = if (!field.portrait && source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
+        color = if (source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
             row(LiveSheet.COLOR, "Color mode", CameraCommands.colorLabel(status.colorMode, source.host.camera?.family.orEmpty(), labels), MonitorDisplaySection.COLOR) else null,
         mode = if (!field.portrait && source.session.mounts(MonitorDisplaySection.FORMAT))
             row(LiveSheet.MODE, "Shooting mode", CameraCommands.shootingModeLabel(status.shootingMode, source.host.camera?.name, labels)) else null,

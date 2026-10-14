@@ -106,7 +106,8 @@
                         .frame(width: layout.telemetry.width, height: layout.telemetry.height,
                             alignment: layout.portrait && !layout.tablet ? .topTrailing : .topLeading)
                         .position(x: layout.telemetry.midX, y: layout.telemetry.midY)
-                        .accessibilityHidden(!presentation.visible || presentation.transientControlsHidden)
+                        .modifier(MonitorPowerAccessibilityVisibility(
+                            hidden: !presentation.visible || presentation.transientControlsHidden))
                 }
                 if presentation.captureMounted {
                     MonitorScreenSlot(content: capture)
@@ -121,6 +122,19 @@
             // No AX attachment on the Group or the tools and system slots: while visible it would
             // override a control that hides itself (Pocket's zoom chip under a picker). Their
             // content hides per control; covered chrome is excluded by zero opacity.
+        }
+    }
+
+    /// A visible container preserves the hidden state of decorative child content.
+    private struct MonitorPowerAccessibilityVisibility: ViewModifier {
+        let hidden: Bool
+        @ViewBuilder
+        func body(content: Content) -> some View {
+            if hidden {
+                content.accessibilityHidden(true)
+            } else {
+                content
+            }
         }
     }
 

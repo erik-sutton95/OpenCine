@@ -177,7 +177,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
         let free = value.storageFreeMb > 0 ? value.storageFreeMb : value.sdFreeMb
         let total = value.storageTotalMb > 0 ? value.storageTotalMb : value.sdTotalMb
         let storage = host.chromeSectionMounts(.storage)
-            ? row(.resolution, "Storage remaining", free > 0 ? "\(free / 1024) GB" : "\u{2014}", .storage, "monitor.storage") : nil
+            ? row(.resolution, "Storage remaining", MonitorStorageReadoutFormat.capacity(gigabytes: free > 0 || total > 0 ? Int64(max(0, free) / 1024) : nil), .storage, "monitor.storage") : nil
         let format = host.chromeSectionMounts(.format) ? [row(photo ? .mode : .resolution,
             photo ? "Shooting mode" : "Recording format",
             photo ? host.currentShootingMode?.label(for: host.connectedBody) ?? "Photo" : value.videoFormat?.chipLabel ?? "\u{2014}",
@@ -194,7 +194,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             fps: host.chromeSectionMounts(.batteries) ? host.liveFPS : nil,
             signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,
             portraitFormat: setup, portraitCaption: photo ? nil : value.colorMode?.label(for: host.bodyFamily, in: host.labelProfile),
-            color: color, mode: mode, storageAlternative: total > 0 ? "\(Int((Double(max(0, free)) / Double(total) * 100).rounded()))%" : nil)
+            color: color, mode: mode, storageAlternative: photo ? nil : MonitorStorageReadoutFormat.remainingMinutes(value.recordRemainingSec > 0 ? value.recordRemainingSec / 60 : nil))
     }
 }
 

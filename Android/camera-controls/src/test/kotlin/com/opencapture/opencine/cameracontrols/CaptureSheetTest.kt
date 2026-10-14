@@ -1121,6 +1121,13 @@ class CaptureSheetTest {
     }
 
     @Test
+    fun liveStorageUsesGbWithoutPercentAndMinutesAsTheAlternative() {
+        val status = CameraStatus(storageFreeMb = 2048, storageTotalMb = 4096, recordRemainingSec = 180)
+        assertEquals("2 GB", CaptureLists.storageLabel(status, showDuration = false))
+        assertEquals("3 Min", CaptureLists.storageLabel(status, showDuration = true))
+    }
+
+    @Test
     fun storagePrefersStorageThenSdLikeIos() {
         val mixed =
             CameraStatus(
@@ -1129,9 +1136,9 @@ class CaptureSheetTest {
                 sdFreeMb = 512,
                 sdTotalMb = 1024,
             )
-        assertEquals("2 GB · 50%", CaptureLists.storageLabel(mixed, showDuration = false))
+        assertEquals("2 GB", CaptureLists.storageLabel(mixed, showDuration = false))
         val sdOnly = CameraStatus(sdFreeMb = 1024, sdTotalMb = 2048)
-        assertEquals("1 GB · 50%", CaptureLists.storageLabel(sdOnly, showDuration = false))
+        assertEquals("1 GB", CaptureLists.storageLabel(sdOnly, showDuration = false))
         val duration = CameraStatus(recordRemainingSec = 180)
         assertEquals("3 Min", CaptureLists.storageLabel(duration, showDuration = true))
         assertEquals("— Min", CaptureLists.storageLabel(CameraStatus(), showDuration = true))

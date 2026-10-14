@@ -6,6 +6,28 @@ import kotlin.test.assertTrue
 
 class MonitorLayoutPolicyTest {
     @Test
+    fun portraitRevisionRestoresTopPlacementAndKeepsFocusOnTheLeft() {
+        for ((width, height, top) in listOf(Triple(320f, 568f, 24f), Triple(393f, 852f, 59f), Triple(440f, 956f, 62f), Triple(744f, 1133f, 24f))) {
+            val layout = MonitorLayoutPolicy.fieldMonitor(width, height, safeTop = top, safeBottom = 34f)
+            assertEquals(maxOf(0f, (if (layout.tablet) top else maxOf(44f, top)) - if (layout.tablet) 0f else 6f), layout.status.y)
+            assertTrue(layout.focusReset.maxX < width / 2f)
+            assertTrue(layout.focusReset.maxY + 8f <= layout.assists.y)
+            if (!layout.tablet) assertEquals(maxOf(4f, maxOf(44f, top) - 40f) + 7f, layout.telemetry.y)
+        }
+    }
+
+    @Test
+    fun immersivePortraitInsetsReserveSeparateHeaderRows() {
+        for (top in listOf(0f, 24f, 30.333333f, 44f, 59f, 62f)) {
+            val layout = MonitorLayoutPolicy.fieldMonitor(360f, 800f, safeTop = top)
+            assertTrue(layout.status.y >= 38f)
+            assertTrue(layout.telemetry.maxY + 2f <= layout.status.y)
+            assertEquals(top, MonitorLayoutPolicy.portraitHeaderSafeTop(800f, 360f, top))
+            assertEquals(top, MonitorLayoutPolicy.portraitHeaderSafeTop(744f, 1133f, top))
+        }
+    }
+
+    @Test
     fun portraitAeUnlockClearsFitFillRecenterAndJoystick() {
         fun overlaps(a: MonitorRect, b: MonitorRect) = a.x < b.maxX && b.x < a.maxX && a.y < b.maxY && b.y < a.maxY
         for ((width, height) in listOf(360f to 800f, 393f to 852f, 412f to 915f)) {
@@ -269,14 +291,14 @@ class MonitorLayoutPolicyTest {
     }
 
 
-    @Test fun fieldMonitorPhoneReservesSafeTelemetryWithoutChangingThePicture() {
+    @Test fun fieldMonitorPhoneRestoresCompactTelemetryWithoutChangingThePicture() {
         for (width in listOf(320f, 360f, 440f)) {
             val legacy = MonitorLayoutPolicy.portrait(width, 956f, 59f, 34f, false, true, 16f / 9f)
             val field = MonitorLayoutPolicy.fieldMonitor(width, 956f, safeTop = 59f, safeBottom = 34f,
                 safeLeading = 20f, safeTrailing = 20f)
-            assertEquals(123f, field.status.y, .05f)
-            assertTrue(field.telemetry.y >= 67f)
-            assertTrue(field.status.y >= field.telemetry.maxY + 8f)
+            assertEquals(53f, field.status.y, .05f)
+            assertEquals(26f, field.telemetry.y, .05f)
+            assertTrue(field.telemetry.midY < field.status.midY)
             assertTrue(field.status.x >= 28f)
             assertEquals(legacy.picture, field.picture)
         }
