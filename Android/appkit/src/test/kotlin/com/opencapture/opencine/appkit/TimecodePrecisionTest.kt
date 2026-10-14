@@ -5,6 +5,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateObserver
 import com.opencapture.monitorui.MonitorStatusPresentation
 import com.opencapture.monitorui.MonitorTimecodeFormat
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SupportStatus
 import com.opencapture.opencine.core.TimecodeCapability
@@ -32,7 +33,7 @@ class TimecodePrecisionTest {
         assertEquals("01:02:03:17", MonitorTimecodeFormat.label(value, frames))
         assertEquals("01:02:03", MonitorTimecodeFormat.label(value, TimecodePrecision.Seconds))
         assertEquals("01:02:03", MonitorTimecodeFormat.label(value, null), "an undeclared precision never shows a frame field")
-        assertEquals("01:02:03", MonitorTimecodeFormat.label(CameraTimecode(1, 2, 3), frames), "a missing frame count is never derived")
+        assertEquals("01:02:03", MonitorTimecodeFormat.label(CameraTimecodeReading(1, 2, 3), frames), "a missing frame count is never derived")
     }
 
     @Test fun dropFrameFollowsTheValueThenTheDeclaration() {

@@ -158,7 +158,7 @@ enum MonitorContractCameraFixture {
         let mode = FakeMode(
             .init(role: .video, id: "contract.video", title: "SIMULATED"),
             [.init(.iso, access: access, domain: domain)], unsupported: [],
-            timecode: .supported(.seconds), audioLevels: .supported)
+            timecodeCapability: .supported(.seconds), audioLevels: .supported)
         let behavior = FakeCameraBehavior(
             integration: .init("contract"), reportDelay: .seconds(3),
             observationTimeout: .seconds(5), recordWire: .explicit, modes: [1: mode])

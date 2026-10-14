@@ -45,8 +45,8 @@ import Testing
         let original = model.recordingElapsed
         for index in 1...10 {
             clock.advance(by: .seconds(1))
-            await camera.cameraReportsTimecode(CameraTimecode(hours: 0, minutes: 1, seconds: index))
-            try #require(await eventually { model.timecode.value?.seconds == index })
+            await camera.cameraReportsTimecodeReading(CameraTimecodeReading(hours: 0, minutes: 1, seconds: index))
+            try #require(await eventually { model.timecodeReading.value?.seconds == index })
             #expect(model.recordingElapsed == original)
         }
         #expect(clock.pendingSleeps == 0)

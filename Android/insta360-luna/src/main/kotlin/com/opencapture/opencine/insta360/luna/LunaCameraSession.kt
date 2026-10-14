@@ -8,6 +8,7 @@ import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CommandFailure
@@ -357,10 +358,12 @@ class LunaCameraSession internal constructor(
      * Time of day the host derives for the live picture: the phone sets the camera clock and pins
      * frame stamps to its own, so the value is `CLOCK_DERIVED`, never a camera counter.
      */
-    fun ingest(timecode: CameraTimecode) {
+    fun ingest(timecode: CameraTimecode) = ingest(CameraTimecodeReading(timecode))
+
+    fun ingest(timecode: CameraTimecodeReading) {
         synchronized(lock) {
             if (closed) return
-            current = current.copy(timecode = ObservedValue(timecode, ObservationOrigin.CLOCK_DERIVED, now()))
+            current = current.withTimecodeReading(ObservedValue(timecode, ObservationOrigin.CLOCK_DERIVED, now()))
             publish()
         }
     }
@@ -674,8 +677,8 @@ class LunaCameraSession internal constructor(
         zoomDomain?.let { descriptors += SettingDescriptor(SettingKey.ZOOM, domain = SettingDomain(range = it)) }
         // Timecode is host-derived time of day ([ingest]); Luna reports no audio levels.
         val declared = CapabilitySnapshot(
-            current.capabilities.revision, descriptors,
-            timecode = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.UNSUPPORTED,
+            revision = current.capabilities.revision, descriptors = descriptors,
+            timecodeCapability = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.UNSUPPORTED,
         )
         if (declared == current.capabilities) return
         current = current.copy(capabilities = declared.copy(revision = declared.revision.next()))

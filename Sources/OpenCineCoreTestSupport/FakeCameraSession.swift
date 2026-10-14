@@ -6,17 +6,33 @@ public struct FakeMode: Sendable {
     public var mode: CaptureMode
     public var descriptors: [SettingDescriptor]
     public var unsupported: Set<SettingKey>
-    public var timecode: TimecodeCapability
+    public var timecode: SupportStatus {
+        get { timecodeCapability.support }
+        set {
+            if newValue != timecodeCapability.support {
+                timecodeCapability = TimecodeCapability(support: newValue)
+            }
+        }
+    }
+    public var timecodeCapability: TimecodeCapability
     public var audioLevels: SupportStatus
 
     public init(
         _ mode: CaptureMode, _ descriptors: [SettingDescriptor], unsupported: Set<SettingKey>,
-        timecode: TimecodeCapability = .unknown, audioLevels: SupportStatus = .unknown
+        timecode: SupportStatus = .unknown, audioLevels: SupportStatus = .unknown
+    ) {
+        self.init(mode, descriptors, unsupported: unsupported,
+            timecodeCapability: TimecodeCapability(support: timecode), audioLevels: audioLevels)
+    }
+
+    public init(
+        _ mode: CaptureMode, _ descriptors: [SettingDescriptor], unsupported: Set<SettingKey>,
+        timecodeCapability: TimecodeCapability, audioLevels: SupportStatus = .unknown
     ) {
         self.mode = mode
         self.descriptors = descriptors
         self.unsupported = unsupported
-        self.timecode = timecode
+        self.timecodeCapability = timecodeCapability
         self.audioLevels = audioLevels
     }
 }
@@ -69,7 +85,11 @@ public struct FakeDevice: Sendable {
     /// `nil`: this camera never reports storage.
     public var freeBytes: UInt64?
     /// Reported only in a mode that supports it.
-    public var timecode: CameraTimecode?
+    public var timecode: CameraTimecode? {
+        get { timecodeReading?.frameTimecode }
+        set { timecodeReading = newValue.map(CameraTimecodeReading.init) }
+    }
+    public var timecodeReading: CameraTimecodeReading?
     /// Reported only in a mode that supports it.
     public var audioLevels: AudioLevels?
 
@@ -83,9 +103,20 @@ public struct FakeDevice: Sendable {
         self.recording = recording
         self.batteryPercent = batteryPercent
         self.freeBytes = freeBytes
-        self.timecode = timecode
+        self.timecodeReading = timecode.map(CameraTimecodeReading.init)
         self.audioLevels = audioLevels
     }
+
+    public init(
+        rawMode: UInt8, settings: [SettingValue], recording: Bool? = false,
+        batteryPercent: Int? = nil, freeBytes: UInt64? = nil, timecodeReading: CameraTimecodeReading?,
+        audioLevels: AudioLevels? = nil
+    ) {
+        self.init(rawMode: rawMode, settings: settings, recording: recording,
+            batteryPercent: batteryPercent, freeBytes: freeBytes, audioLevels: audioLevels)
+        self.timecodeReading = timecodeReading
+    }
+
 }
 
 /// A deterministic `CameraSession` on a manual clock. Nothing happens between calls: tests move
@@ -147,6 +178,11 @@ public actor FakeCameraSession: CameraSession {
     /// The camera's counter advances (a live-view header, a status push): only the timecode changes.
     public func cameraReportsTimecode(_ timecode: CameraTimecode?) {
         device.timecode = timecode
+        cameraReportsStatus()
+    }
+
+    public func cameraReportsTimecodeReading(_ timecode: CameraTimecodeReading?) {
+        device.timecodeReading = timecode
         cameraReportsStatus()
     }
 
@@ -427,9 +463,9 @@ public actor FakeCameraSession: CameraSession {
                 freeBytes: ObservedValue(free, origin: .cameraReported, at: now))
             current.storage = ObservedValue([volume], origin: .cameraReported, at: now)
         }
-        current.timecode = .unknown
-        if current.capabilities.timecode.support == .supported, let timecode = device.timecode {
-            current.timecode = ObservedValue(timecode, origin: behavior.timecodeOrigin, at: now)
+        current.timecodeReading = .unknown
+        if current.capabilities.timecode == .supported, let timecode = device.timecodeReading {
+            current.timecodeReading = ObservedValue(timecode, origin: behavior.timecodeOrigin, at: now)
         }
         current.audioLevels = .unknown
         if current.capabilities.audioLevels == .supported, let levels = device.audioLevels {
@@ -450,7 +486,7 @@ public actor FakeCameraSession: CameraSession {
         let fakeMode = behavior.modes[device.rawMode]
         var next = CapabilitySnapshot(
             revision: current.capabilities.revision, descriptors: descriptors,
-            unsupported: unsupported, timecode: fakeMode?.timecode ?? .unknown,
+            unsupported: unsupported, timecodeCapability: fakeMode?.timecodeCapability ?? .unknown,
             audioLevels: fakeMode?.audioLevels ?? .unknown)
         guard next != current.capabilities else { return }
         next.revision = next.revision.next()

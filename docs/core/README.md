@@ -26,6 +26,31 @@ interface changes driven by the first real adapter slices (CORE-02).
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`), `PrivacyRedactor` and the typed feed incident model (`FeedIncident*`), with the same names as Swift, plus the bounded manual report `BoundedDiagnosticFormatter` (Swift `DiagnosticReport.manualReport`) and the non-blocking `DiagnosticJournal`. No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 | Android `com.opencapture.opencine:vulkan` | The native Vulkan live-feed renderer `libopc_vulkan.so` (moved unchanged from Pocket, MEDIA-02): imports the decoder's `AHardwareBuffer`, grades with 3D cubes, draws scopes and grab-pass glass, presents to the `SurfaceView` swapchain; upright-raster (Pocket #482) and present-batch lifetime included. Android library (NDK 28.2, CMake, shaders compiled by the NDK `glslc` and embedded), arm64-v8a only. The JNI facade keeps its original name `com.opencapture.openpocketcine.feed.OpcVulkan` because the 21 exported symbols derive from it. The session that drives it stays in the app. | Android apps |
 
+## Timecode compatibility
+
+`CapabilitySnapshot.timecode` retains its published `SupportStatus` type. Read the additive
+`timecodeCapability` for source-declared precision. The support-only initializer does not infer
+precision. Swift Codable retains the published enum case tag under `timecode`, adds the richer
+field separately, and accepts the published tag, the earlier rich-object checkpoint and explicit
+known support strings. Kotlin keeps the original constructor, copy and component signatures.
+
+`CameraTimecode` remains a frame-complete value with an integer `frames` field. Use
+`CameraTimecodeReading` and `CameraSnapshot.timecodeReading` for a source that may report only
+whole seconds. `frameTimecode` converts a reading only when a frame count exists; the legacy
+snapshot observation otherwise has no value and retains its provenance. Current monitor
+formatting reads the precise observation. Copying a snapshot preserves that reading.
+
+The legacy FPS-labelled clock helpers remain for an explicitly known positive caller rate.
+They synthesize a clock counter, not camera frame telemetry. Their optional note method refuses
+nonpositive rates before reserving a reading; static frame-complete synthesis requires a positive
+rate. The former unknown-rate guess is unavailable. Current camera observation callers use the
+no-FPS seconds-only methods. Swift and Kotlin keep these boundaries in step.
+
+The portable `FrameioInternetHop` token owner remains available through app migration beside the
+app shell's `MonitorInternetHop`. It owns no credentials, network actions or UI. Its host supplies
+executor confinement and native leave/rejoin actions. Migrate each consumer in its reviewed pin
+move before removing either legacy contract in a later incompatible release.
+
 ## Retry delay policy
 
 `RetryBackoff` is the pure jittered exponential calculation shared by the integrations.
@@ -322,7 +347,7 @@ Same names and semantics, in Kotlin idiom. Where they differ:
 - Cases without payload are `enum class` with `UPPER_SNAKE` constants; cases with payload are a
   `sealed interface` of `data object` and `data class`. Struct mutation is `copy(...)`.
 - `ObservedValue` is covariant: `ObservedValue.unknown` is an `ObservedValue<Nothing>` assignable to any
-  `ObservedValue<T>`, and its private constructor keeps a null value exclusive to it. Durations are
+  `ObservedValue<T>`, and conversions preserve provenance even when their result cannot be represented. Durations are
   `kotlin.time.Duration`; `MonotonicInstant.zero` is `MonotonicInstant.ZERO`.
 - The feed is `val snapshots: StateFlow<CameraSnapshot>` (Swift `snapshots()` returning a
   `.bufferingNewest(1)` stream). Same latest-value conflation; `.value` replaces

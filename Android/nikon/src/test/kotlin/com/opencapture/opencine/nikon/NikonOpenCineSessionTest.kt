@@ -244,7 +244,7 @@ class NikonOpenCineSessionTest {
             val seam = NikonOpenCineSession(camera, backgroundScope)
             val idle = seam.snapshots.value
             assertNull(idle.timecode.value)
-            assertEquals(TimecodeCapability.supported(TimecodePrecision.Frames(Rational(25))), idle.capabilities.timecode)
+            assertEquals(TimecodeCapability.supported(TimecodePrecision.Frames(Rational(25))), idle.capabilities.timecodeCapability)
 
             camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 17)
             runCurrent()
@@ -271,7 +271,7 @@ class NikonOpenCineSessionTest {
             assertNull(seam.snapshots.value.timecode.value, "unknown off the link even if the source lags")
 
             camera.cameraProperties.value = movie().copy(frameRate = 0)
-            assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecode)
+            assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecodeCapability)
             seam.closeNow(SessionCloseReason.REQUESTED)
         }
 

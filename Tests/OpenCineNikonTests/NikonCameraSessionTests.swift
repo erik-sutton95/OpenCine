@@ -105,7 +105,7 @@ struct NikonCameraSessionTests {
         let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
         let snapshot = session.refresh()
         #expect(snapshot.timecode.value == CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 17))
-        #expect(snapshot.capabilities.timecode == .supported(.frames(rate: Rational(25), dropFrame: nil)))
+        #expect(snapshot.capabilities.timecodeCapability == .supported(.frames(rate: Rational(25), dropFrame: nil)))
         driver.nikonControlFacts.timecode = Timecode(on: false, hour: 1, minute: 2, second: 3, frame: 18).running
         #expect(session.refresh().timecode == .unknown)
     }

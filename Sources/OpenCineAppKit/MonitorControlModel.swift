@@ -52,7 +52,10 @@ public final class MonitorControlModel {
     }
     /// The latest reported timecode, observed on its own: a per-frame counter re-renders the
     /// clock that shows it, not every view that reads the snapshot.
-    public private(set) var timecode: ObservedValue<CameraTimecode> = .unknown
+    public var timecode: ObservedValue<CameraTimecode> {
+        timecodeReading.compactMap { $0.frameTimecode }
+    }
+    public private(set) var timecodeReading: ObservedValue<CameraTimecodeReading> = .unknown
     @ObservationIgnored private var latest: CameraSnapshot?
     /// Operator targets whose operations are unfinished.
     public private(set) var pending: [SettingKey: SettingValue] = [:]
@@ -205,7 +208,7 @@ public final class MonitorControlModel {
         let changed = latest != nil || !pending.isEmpty
         session = nil
         withMutation(keyPath: \.snapshot) { latest = nil }
-        if timecode != .unknown { timecode = .unknown }
+        if timecodeReading != .unknown { timecodeReading = .unknown }
         pending = [:]
         operations = [:]
         scheduled = []
@@ -222,13 +225,13 @@ public final class MonitorControlModel {
         } else {
             withMutation(keyPath: \.snapshot) { latest = snapshot }
         }
-        if timecode != snapshot.timecode { timecode = snapshot.timecode }
+        if timecodeReading != snapshot.timecodeReading { timecodeReading = snapshot.timecodeReading }
         onChange()
     }
 
     private static func differsOnlyInTimecode(_ old: CameraSnapshot, _ new: CameraSnapshot) -> Bool {
         var old = old
-        old.timecode = new.timecode
+        old.timecodeReading = new.timecodeReading
         old.revision = new.revision
         return old == new
     }

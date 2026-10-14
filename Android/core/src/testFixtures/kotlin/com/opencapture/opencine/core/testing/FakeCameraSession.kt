@@ -9,6 +9,7 @@ import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.CapabilitySnapshot
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.CommandFailure
@@ -45,13 +46,43 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.Duration
 
 /** One mode the fake camera can be in: its common identity and the descriptors it exposes. */
-public data class FakeMode(
+@ConsistentCopyVisibility
+public data class FakeMode private constructor(
     public val mode: CaptureMode,
     public val descriptors: List<SettingDescriptor>,
     public val unsupported: Set<SettingKey>,
-    public val timecode: TimecodeCapability = TimecodeCapability.unknown,
-    public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
-)
+    public val timecode: SupportStatus,
+    public val audioLevels: SupportStatus,
+    public val timecodeCapability: TimecodeCapability,
+) {
+    /** The published constructor retains its parameter order and value types. */
+    public constructor(
+        mode: CaptureMode,
+        descriptors: List<SettingDescriptor>,
+        unsupported: Set<SettingKey>,
+        timecode: SupportStatus = SupportStatus.UNKNOWN,
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(mode, descriptors, unsupported, timecode, audioLevels, TimecodeCapability(timecode))
+
+    /** Copy the published fields without losing an unchanged precision-rich reading. */
+    public fun copy(
+        mode: CaptureMode = this.mode,
+        descriptors: List<SettingDescriptor> = this.descriptors,
+        unsupported: Set<SettingKey> = this.unsupported,
+        timecode: SupportStatus = this.timecode,
+        audioLevels: SupportStatus = this.audioLevels,
+    ): FakeMode = FakeMode(mode, descriptors, unsupported, timecode, audioLevels,
+        if (timecode == this.timecode) timecodeCapability else TimecodeCapability(timecode))
+
+    /** Replace the precise value, projecting the legacy field only when representable. */
+    public fun withTimecodeCapability(value: TimecodeCapability): FakeMode =
+        FakeMode(mode, descriptors, unsupported, value.support, audioLevels, value)
+
+    public constructor(
+        mode: CaptureMode, descriptors: List<SettingDescriptor>, unsupported: Set<SettingKey>,
+        timecodeCapability: TimecodeCapability, audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(mode, descriptors, unsupported, timecodeCapability.support, audioLevels, timecodeCapability)
+}
 
 /** Behavior knobs. Each fixture family is one combination; shared tests never ask which. */
 public data class FakeCameraBehavior(
@@ -79,20 +110,50 @@ public data class FakeCameraBehavior(
 }
 
 /** The simulated camera's true state. The session learns it only through reports. */
-public data class FakeDevice(
+@ConsistentCopyVisibility
+public data class FakeDevice private constructor(
     public val rawMode: Int,
     public val settings: Map<SettingKey, SettingValue>,
-    /** `null`: the camera's status does not carry recording state (yet). */
-    public val recording: Boolean? = false,
-    /** `null`: this camera never reports battery. */
-    public val batteryPercent: Int? = null,
-    /** `null`: this camera never reports storage. */
-    public val freeBytes: Long? = null,
-    /** Reported only in a mode that supports it. */
-    public val timecode: CameraTimecode? = null,
-    /** Reported only in a mode that supports it. */
-    public val audioLevels: AudioLevels? = null,
-)
+    public val recording: Boolean?,
+    public val batteryPercent: Int?,
+    public val freeBytes: Long?,
+    public val timecode: CameraTimecode?,
+    public val audioLevels: AudioLevels?,
+    public val timecodeReading: CameraTimecodeReading?,
+) {
+    /** The published constructor retains its parameter order and value types. */
+    public constructor(
+        rawMode: Int,
+        settings: Map<SettingKey, SettingValue>,
+        recording: Boolean? = false,
+        batteryPercent: Int? = null,
+        freeBytes: Long? = null,
+        timecode: CameraTimecode? = null,
+        audioLevels: AudioLevels? = null,
+    ) : this(rawMode, settings, recording, batteryPercent, freeBytes, timecode, audioLevels, timecode?.let { CameraTimecodeReading(it) })
+
+    /** Copy the published fields without losing an unchanged precision-rich reading. */
+    public fun copy(
+        rawMode: Int = this.rawMode,
+        settings: Map<SettingKey, SettingValue> = this.settings,
+        recording: Boolean? = this.recording,
+        batteryPercent: Int? = this.batteryPercent,
+        freeBytes: Long? = this.freeBytes,
+        timecode: CameraTimecode? = this.timecode,
+        audioLevels: AudioLevels? = this.audioLevels,
+    ): FakeDevice = FakeDevice(rawMode, settings, recording, batteryPercent, freeBytes, timecode, audioLevels,
+        if (timecode == this.timecode) timecodeReading else timecode?.let { CameraTimecodeReading(it) })
+
+    /** Replace the precise value, projecting the legacy field only when representable. */
+    public fun withTimecodeReading(value: CameraTimecodeReading?): FakeDevice =
+        FakeDevice(rawMode, settings, recording, batteryPercent, freeBytes, value?.frameTimecode, audioLevels, value)
+
+    public constructor(
+        rawMode: Int, settings: Map<SettingKey, SettingValue>, recording: Boolean? = false,
+        batteryPercent: Int? = null, freeBytes: Long? = null, timecodeReading: CameraTimecodeReading?,
+        audioLevels: AudioLevels? = null,
+    ) : this(rawMode, settings, recording, batteryPercent, freeBytes, timecodeReading?.frameTimecode, audioLevels, timecodeReading)
+}
 
 /**
  * A deterministic [CameraSession] on a manual clock. Nothing happens between calls: tests move
@@ -160,7 +221,12 @@ public class FakeCameraSession(
 
     /** The camera's counter advances (a live-view header, a status push): only the timecode changes. */
     public fun cameraReportsTimecode(timecode: CameraTimecode?) {
-        device = device.copy(timecode = timecode)
+        device = device.withTimecodeReading(timecode?.let { CameraTimecodeReading(it) })
+        cameraReportsStatus()
+    }
+
+    public fun cameraReportsTimecodeReading(timecode: CameraTimecodeReading?) {
+        device = device.withTimecodeReading(timecode)
         cameraReportsStatus()
     }
 
@@ -432,9 +498,10 @@ public class FakeCameraSession(
             snapshot = snapshot.copy(storage = ObservedValue(listOf(volume), CAMERA_REPORTED, now))
         }
         val capabilities = snapshot.capabilities
-        snapshot = snapshot.copy(
-            timecode = device.timecode?.takeIf { capabilities.timecode.support == SupportStatus.SUPPORTED }
+        snapshot = snapshot.withTimecodeReading(
+            device.timecodeReading?.takeIf { capabilities.timecode == SupportStatus.SUPPORTED }
                 ?.let { ObservedValue(it, behavior.timecodeOrigin, now) } ?: ObservedValue.unknown,
+        ).copy(
             audioLevels = device.audioLevels?.takeIf { capabilities.audioLevels == SupportStatus.SUPPORTED }
                 ?.let { ObservedValue(it, CAMERA_REPORTED, now) } ?: ObservedValue.unknown,
         )
@@ -456,9 +523,9 @@ public class FakeCameraSession(
             }
         }
         val revision = current.capabilities.revision
-        val timecode = fakeMode?.timecode ?: TimecodeCapability.unknown
+        val timecode = fakeMode?.timecodeCapability ?: TimecodeCapability.unknown
         val audioLevels = fakeMode?.audioLevels ?: SupportStatus.UNKNOWN
-        val next = CapabilitySnapshot(revision, descriptors, unsupported, timecode, audioLevels)
+        val next = CapabilitySnapshot(timecodeCapability = timecode, revision = revision, descriptors = descriptors, unsupported = unsupported, audioLevels = audioLevels)
         if (next == current.capabilities) return
         current = current.copy(capabilities = next.copy(revision = revision.next()))
     }

@@ -151,21 +151,32 @@ public sealed interface ControlAuthority {
 
 /**
  * SMPTE-style timecode: the camera's own counter, or time of day an integration derives from a
- * clock (origin `CLOCK_DERIVED`, which never claims that cameras are synchronized). How precisely
- * the source counts is [CapabilitySnapshot.timecode]'s precision.
+ * clock (origin `CLOCK_DERIVED`, which never claims that cameras are synchronized). The counter
+ * runs at the `FRAME_RATE` setting.
  */
 public data class CameraTimecode(
     public val hours: Int,
     public val minutes: Int,
     public val seconds: Int,
-    /**
-     * The frame count the source reported; `null` when it knows whole seconds only. Never derived
-     * from a clock or a frame rate.
-     */
-    public val frames: Int? = null,
+    public val frames: Int,
     /** `null` when the camera does not say whether it counts drop-frame. */
     public val dropFrame: Boolean? = null,
 )
+
+/** A source-reported reading. A whole-second source has no frame count. */
+public data class CameraTimecodeReading(
+    public val hours: Int,
+    public val minutes: Int,
+    public val seconds: Int,
+    public val frames: Int? = null,
+    public val dropFrame: Boolean? = null,
+) {
+    public constructor(value: CameraTimecode) : this(value.hours, value.minutes, value.seconds, value.frames, value.dropFrame)
+
+    /** The legacy frame-complete value exists only when a frame count was reported. */
+    public val frameTimecode: CameraTimecode?
+        get() = frames?.let { CameraTimecode(hours, minutes, seconds, it, dropFrame) }
+}
 
 /**
  * Live audio level telemetry in dBFS (0 is full scale). Live levels only: live audio samples,
@@ -181,24 +192,82 @@ public data class AudioLevels(public val left: Channel, public val right: Channe
 }
 
 /** The latest state of one camera session. Missing data stays unknown. */
-public data class CameraSnapshot(
+@ConsistentCopyVisibility
+public data class CameraSnapshot private constructor(
     public val session: CameraSessionID,
-    public val epoch: ControlEpoch = ControlEpoch(),
-    public val revision: SnapshotRevision = SnapshotRevision(),
-    public val device: CameraDeviceID? = null,
-    public val connection: ConnectionState = ConnectionState.Discovered,
-    public val authority: ControlAuthority = ControlAuthority.Unavailable(UnavailableReason.Link),
-    public val capabilities: CapabilitySnapshot = CapabilitySnapshot(),
-    public val mode: ObservedValue<CaptureMode> = ObservedValue.unknown,
-    /** Keyed by [SettingValue.key]. A missing key is an unknown value. */
-    public val settings: Map<SettingKey, ObservedValue<SettingValue>> = emptyMap(),
-    public val recording: ObservedValue<RecordingState> = ObservedValue.unknown,
-    public val power: PowerStatus = PowerStatus.unknown,
-    public val storage: StorageStatus = ObservedValue.unknown,
-    /** Support is [CapabilitySnapshot.timecode]. */
-    public val timecode: ObservedValue<CameraTimecode> = ObservedValue.unknown,
-    /** Support is [CapabilitySnapshot.audioLevels]. */
-    public val audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
+    public val epoch: ControlEpoch,
+    public val revision: SnapshotRevision,
+    public val device: CameraDeviceID?,
+    public val connection: ConnectionState,
+    public val authority: ControlAuthority,
+    public val capabilities: CapabilitySnapshot,
+    public val mode: ObservedValue<CaptureMode>,
+    public val settings: Map<SettingKey, ObservedValue<SettingValue>>,
+    public val recording: ObservedValue<RecordingState>,
+    public val power: PowerStatus,
+    public val storage: StorageStatus,
+    public val timecode: ObservedValue<CameraTimecode>,
+    public val audioLevels: ObservedValue<AudioLevels>,
+    public val timecodeReading: ObservedValue<CameraTimecodeReading>,
 ) {
+    /** The published constructor retains its parameter order and value types. */
+    public constructor(
+        session: CameraSessionID,
+        epoch: ControlEpoch = ControlEpoch(),
+        revision: SnapshotRevision = SnapshotRevision(),
+        device: CameraDeviceID? = null,
+        connection: ConnectionState = ConnectionState.Discovered,
+        authority: ControlAuthority = ControlAuthority.Unavailable(UnavailableReason.Link),
+        capabilities: CapabilitySnapshot = CapabilitySnapshot(),
+        mode: ObservedValue<CaptureMode> = ObservedValue.unknown,
+        settings: Map<SettingKey, ObservedValue<SettingValue>> = emptyMap(),
+        recording: ObservedValue<RecordingState> = ObservedValue.unknown,
+        power: PowerStatus = PowerStatus.unknown,
+        storage: StorageStatus = ObservedValue.unknown,
+        timecode: ObservedValue<CameraTimecode> = ObservedValue.unknown,
+        audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
+    ) : this(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecode, audioLevels, timecode.compactMap { CameraTimecodeReading(it) })
+
+    /** Copy the published fields without losing an unchanged precision-rich reading. */
+    public fun copy(
+        session: CameraSessionID = this.session,
+        epoch: ControlEpoch = this.epoch,
+        revision: SnapshotRevision = this.revision,
+        device: CameraDeviceID? = this.device,
+        connection: ConnectionState = this.connection,
+        authority: ControlAuthority = this.authority,
+        capabilities: CapabilitySnapshot = this.capabilities,
+        mode: ObservedValue<CaptureMode> = this.mode,
+        settings: Map<SettingKey, ObservedValue<SettingValue>> = this.settings,
+        recording: ObservedValue<RecordingState> = this.recording,
+        power: PowerStatus = this.power,
+        storage: StorageStatus = this.storage,
+        timecode: ObservedValue<CameraTimecode> = this.timecode,
+        audioLevels: ObservedValue<AudioLevels> = this.audioLevels,
+    ): CameraSnapshot = CameraSnapshot(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecode, audioLevels,
+        if (timecode == this.timecode) timecodeReading else timecode.compactMap { CameraTimecodeReading(it) })
+
+    /** Replace the precise value, projecting the legacy field only when representable. */
+    public fun withTimecodeReading(value: ObservedValue<CameraTimecodeReading>): CameraSnapshot =
+        CameraSnapshot(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, value.compactMap { it.frameTimecode }, audioLevels, value)
+
+    /** The precise reading has its own required label; the published constructor stays callable. */
+    public constructor(
+        timecodeReading: ObservedValue<CameraTimecodeReading>,
+        session: CameraSessionID,
+        epoch: ControlEpoch = ControlEpoch(),
+        revision: SnapshotRevision = SnapshotRevision(),
+        device: CameraDeviceID? = null,
+        connection: ConnectionState = ConnectionState.Discovered,
+        authority: ControlAuthority = ControlAuthority.Unavailable(UnavailableReason.Link),
+        capabilities: CapabilitySnapshot = CapabilitySnapshot(),
+        mode: ObservedValue<CaptureMode> = ObservedValue.unknown,
+        settings: Map<SettingKey, ObservedValue<SettingValue>> = emptyMap(),
+        recording: ObservedValue<RecordingState> = ObservedValue.unknown,
+        power: PowerStatus = PowerStatus.unknown,
+        storage: StorageStatus = ObservedValue.unknown,
+        audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
+    ) : this(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecodeReading.compactMap { it.frameTimecode }, audioLevels, timecodeReading)
+
     public fun value(key: SettingKey): ObservedValue<SettingValue> = settings[key] ?: ObservedValue.unknown
 }

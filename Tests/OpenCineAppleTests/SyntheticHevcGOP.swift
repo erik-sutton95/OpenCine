@@ -14,7 +14,7 @@
         let pps: [UInt8]
         let pictures: [[[UInt8]]]
 
-        static func encode(frameCount: Int = 16) throws -> Self {
+        static func encode(frameCount: Int = 16, additionalKeyFrameAt: Int? = nil) throws -> Self {
             let outputs = EncodedPictures()
             var optional: VTCompressionSession?
             try require(
@@ -50,14 +50,15 @@
                     session, key: kVTCompressionPropertyKey_AverageBitRate,
                     value: 200_000 as CFNumber))
             try require(VTCompressionSessionPrepareToEncodeFrames(session))
-            for index in 0..<frameCount {
+            let encodedFrameCount = frameCount * 2
+            for index in 0..<encodedFrameCount {
                 let buffer = try pixels(index: index)
                 let timestamp = CMTime(value: Int64(index), timescale: 30)
                 try require(
                     VTCompressionSessionEncodeFrame(
                         session, imageBuffer: buffer,
                         presentationTimeStamp: timestamp, duration: CMTime(value: 1, timescale: 30),
-                        frameProperties: index == 0
+                        frameProperties: index == 0 || index == additionalKeyFrameAt
                             ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil,
                         infoFlagsOut: nil,
                         outputHandler: { status, _, sample in
@@ -66,7 +67,23 @@
             }
             try require(
                 VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid))
-            return try outputs.gop(expectedCount: frameCount)
+            return try outputs.gop(expectedCount: encodedFrameCount).contiguousGOP(frameCount: frameCount)
+        }
+
+        /// MaxKeyFrameInterval is an upper bound: native encoders may insert an earlier IRAP.
+        /// Keep one contiguous, genuinely encoded GOP without dropping any picture inside it.
+        private func contiguousGOP(frameCount: Int) throws -> Self {
+            func isIrap(_ picture: [[UInt8]]) -> Bool {
+                picture.contains { !$0.isEmpty && Hevc.isIRAP(Hevc.nalType($0[0])) }
+            }
+            for start in pictures.indices where isIrap(pictures[start]) {
+                let end = start + frameCount
+                guard end <= pictures.count else { continue }
+                let window = Array(pictures[start..<end])
+                guard !window.dropFirst().contains(where: isIrap) else { continue }
+                return Self(vps: vps, sps: sps, pps: pps, pictures: window)
+            }
+            throw FixtureError.missing("contiguous native GOP")
         }
 
         /// Length/header admission remains valid, but one VCL has no coded slice payload.

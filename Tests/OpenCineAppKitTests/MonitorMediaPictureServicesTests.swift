@@ -155,6 +155,34 @@ private enum PictureServiceError: Error { case stagingFailed }
         #expect(await settled { !model.ratingReading })
         #expect(model.ratingStars == nil)
     }
+    /// SIMULATED two entered reads: retiring A must not expose Favorite while B waits.
+    @Test func retiredRatingReadCannotClearItsSuccessorsLoadingState() async {
+        guard #available(macOS 14, *) else { return }
+        let f = PictureServiceFixture(), model = f.model()
+        let oldGate = PictureServiceGate(), newGate = PictureServiceGate()
+        defer { oldGate.release(); newGate.release(); model.retire(); f.close() }
+        var oldReturned = false
+        let old = MonitorMediaPictureRatingService<String>(levels: [1, 2, 3, 4, 5],
+            read: { _ in await oldGate.wait(); oldReturned = true; return 5 },
+            commit: { _, _ in .unavailable })
+        let successor = MonitorMediaPictureRatingService<String>(levels: [1, 2, 3, 4, 5],
+            read: { _ in await newGate.wait(); return nil }, commit: { _, _ in .unavailable })
+        model.readRating(old)
+        #expect(await settled { oldGate.entered == 1 })
+        model.retire()
+        #expect(!model.ratingReading, "Retirement ends its own loading presentation")
+        model.activate(); model.readRating(successor)
+        #expect(await settled { newGate.entered == 1 })
+        oldGate.release()
+        #expect(await settled { oldReturned })
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.ratingReading, "Neither control shows until the successor answers")
+        #expect(model.ratingStars == nil, "An old rating cannot become the successor's result")
+        newGate.release()
+        #expect(await settled { !model.ratingReading })
+        #expect(model.ratingStars == nil, "An admitted unknown answer still permits Favorite")
+    }
+
     @Test func latestConfirmedRatingWinsOverAnOlderRefusalAndUnknownStaysNil() async {
         guard #available(macOS 14, *) else { return }
         let f = PictureServiceFixture(), model = f.model(), gate = PictureServiceGate()

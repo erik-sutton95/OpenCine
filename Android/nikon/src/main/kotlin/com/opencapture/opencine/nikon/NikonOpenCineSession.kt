@@ -320,10 +320,10 @@ class NikonOpenCineSession(
         val descriptors = descriptors(properties, reported)
         val timecode = timecodeCapability(properties)
         val capabilities =
-            if (CapabilitySnapshot(current.capabilities.revision, descriptors, timecode = timecode) == current.capabilities) {
+            if (CapabilitySnapshot(timecodeCapability = timecode, revision = current.capabilities.revision, descriptors = descriptors) == current.capabilities) {
                 current.capabilities
             } else {
-                CapabilitySnapshot(current.capabilities.revision.next(), descriptors, timecode = timecode)
+                CapabilitySnapshot(timecodeCapability = timecode, revision = current.capabilities.revision.next(), descriptors = descriptors)
             }
         val serial = (state as? CameraSessionState.Connected)?.identity?.serialNumber.orEmpty()
         val photography = properties.captureSelector.equals("photo", ignoreCase = true)

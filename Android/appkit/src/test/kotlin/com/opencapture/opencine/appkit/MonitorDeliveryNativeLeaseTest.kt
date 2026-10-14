@@ -1,6 +1,7 @@
 package com.opencapture.opencine.appkit
 
 import kotlin.test.Test
+import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -59,6 +60,31 @@ class MonitorDeliveryNativeLeaseTest {
             photos = MonitorDeliveryPhotosService { facts.calls += "save"; true },
             upload = MonitorDeliveryUploadService { _, _ -> facts.calls += "upload" }, internet = facts.internet, initialLease = lease,
             filename = { "original.mov" }, progress = { })
+
+    @Test fun preEntryCancellationRestoresTransferredLeaseWithoutEnteringTheSource() = runTest {
+        val facts = Facts()
+        val accepted = assertNotNull(request(backgroundScope, facts))
+        val coordinator = MonitorDeliveryCoordinator(backgroundScope)
+        var sourceCalls = 0
+        val captured = assertNotNull(coordinator.begin { admission, progress ->
+            coordinator.run(
+                records = listOf(1), destination = MonitorDeliveryDestination.NATIVE_SHARE,
+                action = MonitorDeliveryPostExportAction.SYSTEM_SHARE, admission = admission,
+                source = MonitorDeliverySource<Int, Unit, Unit>(
+                    originals = MonitorDeliveryOriginalService(available = { sourceCalls++; true },
+                        acquire = { sourceCalls++ }, progress = { null }),
+                    prepare = { _, _, _ -> sourceCalls++; File("SIMULATED.mov") },
+                    filename = { "SIMULATED.mov" }), configuration = null, remote = null,
+                photos = null, internet = facts.internet, lease = accepted.internetLease, progress = progress)
+        })
+        coordinator.cancel()
+        captured.awaitEnteredCleanup()
+        assertEquals(listOf("transfer 1", "restore-start 2", "restore 2"), facts.calls)
+        assertNull(facts.owned)
+        assertEquals(0, sourceCalls)
+        assertNull(coordinator.lifetime.state.value.toast)
+        coordinator.close()
+    }
 
     @Test fun nativeShareTransfersSetupLeaseAndJoinsRestore() = runTest {
         val facts = Facts(); facts.restoring = CompletableDeferred()

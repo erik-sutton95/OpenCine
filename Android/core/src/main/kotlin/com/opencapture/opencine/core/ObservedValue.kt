@@ -42,7 +42,7 @@ public enum class Freshness {
 /**
  * One observed value with its provenance.
  *
- * `value == null` is unknown, whatever else is set, and only [unknown] has a null value. Unknown
+ * `value == null` is unknown, whatever else is set. A conversion preserves its provenance. Unknown
  * is never `false`, `0` or `""`: an unknown battery is not empty, unknown recording is not idle,
  * unknown charging is not unplugged. Freshness is computed against a caller-supplied `now` instead
  * of being stored, so a retained snapshot cannot claim to be fresh forever.
@@ -56,6 +56,11 @@ public data class ObservedValue<out T : Any> private constructor(
     public val precision: ObservationPrecision?,
 ) {
     public val isKnown: Boolean get() = value != null
+
+    /** Convert only representable values, retaining every provenance and validity field. */
+    public fun <R : Any> compactMap(transform: (T) -> R?): ObservedValue<R> =
+        ObservedValue(value?.let(transform), origin, observedAt, validity, precision)
+
 
     public fun freshness(now: MonotonicInstant, maxAge: Duration): Freshness {
         val observedAt = observedAt

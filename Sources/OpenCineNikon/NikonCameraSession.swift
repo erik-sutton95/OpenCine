@@ -403,11 +403,11 @@ public final class NikonCameraSession: CameraSession {
         let descriptors = Self.descriptors(facts)
         let timecode = Self.timecodeCapability(facts.reported)
         let revision = next.capabilities.revision
-        if CapabilitySnapshot(revision: revision, descriptors: descriptors, timecode: timecode)
+        if CapabilitySnapshot(revision: revision, descriptors: descriptors, timecodeCapability: timecode)
             != next.capabilities
         {
             next.capabilities = CapabilitySnapshot(
-                revision: revision.next(), descriptors: descriptors, timecode: timecode)
+                revision: revision.next(), descriptors: descriptors, timecodeCapability: timecode)
         }
         Self.observe(&next.timecode, facts.timecode, at: at)
         Self.observe(&next.mode, Self.mode(facts.reported), at: at)
