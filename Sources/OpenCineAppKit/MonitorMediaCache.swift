@@ -194,6 +194,23 @@ public struct MonitorMediaCacheEntry: Sendable {
         directories[namespace] = value
         return value
     }
+
+    /// Every camera namespace currently on disk under the root, as their cache directories, in a
+    /// stable order. The settings cache scope counts and clears every camera with this, not only
+    /// the last connected one (A2-33). Dot-prefixed clear scratch trees are never owned cache,
+    /// and a name the namespace validation rejects cannot be addressed, so both stay out.
+    public func cachedDirectories() -> [MonitorMediaCacheDirectory] {
+        let names = (try? manager.contentsOfDirectory(atPath: root.path)) ?? []
+        return names.sorted().compactMap { name in
+            guard !name.hasPrefix(".") else { return nil }
+            var isDirectory: ObjCBool = false
+            guard manager.fileExists(
+                atPath: root.appendingPathComponent(name).path, isDirectory: &isDirectory),
+                isDirectory.boolValue, let directory = try? directory(namespace: name)
+            else { return nil }
+            return directory
+        }
+    }
 }
 
 @MainActor public final class MonitorMediaCacheDirectory {
@@ -703,6 +720,13 @@ struct MonitorMediaCatalogAuthority: Equatable, Sendable {
         try await readPlan(records).read()
     }
     public func clear() async throws { try await directory.clear(preserving: preservedMetadata) }
+
+    /// Clear for the settings scope, which removes the camera indexes with the clips (A2-33):
+    /// dropping the preserved metadata keeps a formatted card from leaving thumbnail-less ghost
+    /// rows behind, and the camera re-enumerates the truth on the next connected pass.
+    public func clear(preservingMetadata: Bool) async throws {
+        try await directory.clear(preserving: preservingMetadata ? preservedMetadata : [])
+    }
 }
 
 /// Admission identity accompanies a snapshot; owners reject another plan or retired directory.

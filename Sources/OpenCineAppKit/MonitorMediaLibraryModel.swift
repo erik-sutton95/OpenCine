@@ -1698,11 +1698,11 @@ public final class MonitorMediaLibraryModel<Payload: Sendable> {
         try applyLocalRemoval(accepted, token: token, removeLocalFavorites: false)
         return results
     }
-    public func clearCache() async throws {
+    public func clearCache(preservingMetadata: Bool = true) async throws {
         let token = actionToken
         retireOperations()
         guard isCurrent(token), !Task.isCancelled else { throw MediaServiceError.retired }
-        try await cache.clear()
+        try await cache.clear(preservingMetadata: preservingMetadata)
         guard isCurrent(token), !Task.isCancelled else { throw MediaServiceError.retired }
         reloadEntries()
     }

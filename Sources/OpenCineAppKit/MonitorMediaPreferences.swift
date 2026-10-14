@@ -51,4 +51,20 @@ import Foundation
         directories[key] = directory
         return directory
     }
+
+    /// Every camera cache root under one parent, one directory per child camera bucket, in a
+    /// stable order. The settings cache scope counts and clears every camera with this, not only
+    /// the last connected one (A2-33). Dot-prefixed clear scratch trees are never owned cache.
+    public func directories(under parent: URL) -> [MonitorMediaCacheDirectory] {
+        let names = (try? manager.contentsOfDirectory(atPath: parent.path)) ?? []
+        return names.sorted().compactMap { name in
+            guard !name.hasPrefix(".") else { return nil }
+            var isDirectory: ObjCBool = false
+            let child = parent.appendingPathComponent(name, isDirectory: true)
+            guard manager.fileExists(atPath: child.path, isDirectory: &isDirectory),
+                isDirectory.boolValue
+            else { return nil }
+            return directory(root: child)
+        }
+    }
 }
