@@ -77,7 +77,8 @@ public class MonitorDeliveryCoordinator(
         run: suspend (MonitorDeliveryAdmission, (MonitorDeliveryBatchProgress) -> Unit) -> MonitorDeliveryBatchOutcome<File>,
     ): MonitorDeliveryRunHandle? {
         val outgoing = capturedRun
-        val handle = lifetime.beginCaptured(onCancel, { outcome -> onComplete?.invoke(outcome); null }) { progress, admission ->
+        val handle = lifetime.beginCaptured(onCancel, { outcome -> onComplete?.invoke(outcome); null },
+            cleanupWhenRetired = true) { progress, admission ->
             outgoing?.cancelAndJoin()
             // A superseded run still enters [run], which releases what it was handed (a route lease).
             run(admission, progress).completion()

@@ -65,6 +65,7 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
     @ObservationIgnored private var loadRevision = UUID()
     @ObservationIgnored private var variantRevision = UUID()
     @ObservationIgnored private var ratingRevision = UUID()
+    @ObservationIgnored private var ratingReadID: UUID?
     @ObservationIgnored private var confirmedRating: Int?
     @ObservationIgnored private var noticeID: UUID?
     @ObservationIgnored private let sleep: @MainActor (Duration) async throws -> Void
@@ -91,6 +92,7 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
         acceptedDeletions.values.forEach { $0.retire() }; acceptedDeletions.removeAll()
         deletionCompletion?.retire(); deletionCompletion = nil
         tasks.values.forEach { $0.cancel() }; tasks.removeAll()
+        ratingReadID = nil; ratingReading = false
         loading = false; closing = false; variantSwitching = false; preparingShare = false; ratingPending = false; ratingNotice = nil
         optionsPresented = false; helpPresented = false; failure = nil; cancelDelete()
     }
@@ -136,6 +138,7 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
         guard !retained.isEmpty else { retire(); return }
         for id in Array(tasks.keys) where !retained.contains(id) { tasks.removeValue(forKey: id)?.cancel() }
         loadRevision = UUID(); variantRevision = UUID(); ratingRevision = UUID(); loadID = nil; noticeID = nil
+        ratingReadID = nil; ratingReading = false
         loading = false; variantSwitching = false; preparingShare = false; ratingPending = false; ratingNotice = nil
         optionsPresented = false; helpPresented = false; cancelDelete()
     }
@@ -326,15 +329,24 @@ public final class MonitorMediaPictureModel<Payload: Sendable, Picture> {
     }
     public func readRating(_ service: MonitorMediaPictureRatingService<Payload>?) {
         guard let service, let request = request(for: baseRecord, variant: false) else { return }
-        let id = UUID(), revision = ratingRevision
-        ratingReading = true
+        if let ratingReadID { tasks[ratingReadID]?.cancel() }
+        let id = UUID(), revision = ratingRevision, origin = presentation
+        ratingReadID = id; ratingReading = true
         tasks[id] = Task { @MainActor [weak self] in
-            defer { self?.tasks[id] = nil; self?.ratingReading = false }
+            defer {
+                self?.tasks[id] = nil
+                if self?.presentation == origin, self?.ratingReadID == id {
+                    self?.ratingReadID = nil; self?.ratingReading = false
+                }
+            }
+            guard !Task.isCancelled, request.isCurrent(), self?.ratingReadID == id else { return }
             let value = await service.read(request)
-            guard !Task.isCancelled, request.isCurrent(), self?.ratingRevision == revision else { return }
+            guard !Task.isCancelled, request.isCurrent(), self?.ratingReadID == id,
+                self?.ratingRevision == revision else { return }
             self?.ratingStars = value; self?.confirmedRating = value
         }
     }
+
     public func setRating(_ target: Int, service: MonitorMediaPictureRatingService<Payload>) {
         guard target == 0 || service.levels.contains(target),
             let request = request(for: baseRecord, variant: false) else { return }

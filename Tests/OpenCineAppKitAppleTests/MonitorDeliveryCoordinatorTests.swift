@@ -18,6 +18,58 @@ import XCTest
     }
 }
 
+/// SIMULATED transferred online route; source/native work is forbidden after retirement.
+@MainActor private final class CoordinatorRoute {
+    var owned: Int? = 1
+    var restores: [Int] = []
+    var sourceCalls = 0
+    var restoring: CheckedContinuation<Void, Never>?
+    var holdsRestore = false
+    var internet: MonitorDeliveryInternetService<Int> {
+        .init(needsHop: { true }, begin: { XCTFail("A captured lease never begins another hop"); return 99 },
+            owns: { self.owned == $0 }, wait: { _ in true },
+            restoreEntered: { lease in
+                self.restores.append(lease)
+                if self.holdsRestore { await withCheckedContinuation { self.restoring = $0 } }
+                if self.owned == lease { self.owned = nil }
+            }, restore: { lease in if self.owned == lease { self.owned = nil } })
+    }
+    func transferredLease() throws -> Int {
+        let remote = MonitorDeliveryRemoteService<String, Int, Int>(
+            presentation: .init(displayName: "SIMULATED remote", progressCaption: "Upload"),
+            observe: { .init(configured: true, connected: true, onCameraNetwork: false,
+                savedProjectID: "p", savedProjectName: "Project") },
+            load: { .init(context: 1, projects: []) },
+            create: { _, _ in .init(id: "p", name: "Project", uploadable: true, payload: "p") },
+            persist: { _, _ in }, internet: internet, transfer: { token in
+                guard self.owned == token else { return nil }
+                self.owned = token + 1; return token + 1
+            }, skipsUploaded: false)
+        let popup = MonitorDeliveryPreparationModel<Int, Int, String, Int, Int>(
+            selection: { .init(files: [.init(filename: "SIMULATED.mov", sizeBytes: 1)],
+                cachedCount: 1, connected: false) }, configuration: nil, exportOptions: nil,
+            remote: remote, sourceCurrent: { true }, sleep: { _ in throw CancellationError() })
+        XCTAssertTrue(popup.adoptInternetLease(1))
+        popup.start(); popup.selectDestination(.nativeShare)
+        let accepted = try XCTUnwrap(popup.takeRequest())
+        popup.close()
+        return try XCTUnwrap(accepted.internetLease)
+    }
+    func begin(_ coordinator: MonitorDeliveryCoordinator, lease: Int) -> MonitorDeliveryRunHandle? {
+        coordinator.begin { admission, progress in
+            await MonitorDeliveryCoordinator.Lifetime.runBatch(
+                records: [1], destination: .nativeShare, action: .systemShare, admission: admission,
+                originals: .init(available: { _ in self.sourceCalls += 1; return true },
+                    acquire: { _ in self.sourceCalls += 1 }, progress: { _ in nil }),
+                exporter: .init(release: { _ in self.sourceCalls += 1 }, prepare: { _, _ in
+                    self.sourceCalls += 1; return URL(fileURLWithPath: "/SIMULATED.mov")
+                }), share: { .init(urls: $0) }, photos: nil,
+                internet: self.internet, lease: lease, filename: { _ in "SIMULATED.mov" }, progress: progress)
+        }
+    }
+    func releaseRestore() { let old = restoring; restoring = nil; old?.resume() }
+}
+
 /// The app-scoped delivery owner and its one root share presenter (A2-52, A2-58), ported from
 /// the camera apps' coordinator adapter tests.
 @MainActor final class MonitorDeliveryCoordinatorTests: XCTestCase {
@@ -84,6 +136,64 @@ import XCTest
         XCTAssertNil(coordinator.lifetime.state.share, "The sheet's completion acknowledges its share")
         await settle { lease.map { !FileManager.default.fileExists(atPath: $0.path) } ?? true }
         XCTAssertFalse(lease.map { FileManager.default.fileExists(atPath: $0.path) } ?? true)
+    }
+
+    func testACancelledWaitingRunRestoresItsTransferredLeaseWithoutSourceWork() async throws {
+        let gate = CoordinatorGate(), route = CoordinatorRoute()
+        let coordinator = MonitorDeliveryCoordinator(exports: store)
+        defer { route.releaseRestore(); coordinator.close() }
+        var outgoingEnded = false
+        let old = try XCTUnwrap(coordinator.begin { _, _ in
+            let result = await gate.wait(); outgoingEnded = true; return result
+        })
+        await settle { gate.waiters.count == 1 }
+        let lease = try route.transferredLease()
+        XCTAssertEqual(route.owned, lease, "The closed popup no longer holds the route")
+        let waiting = try XCTUnwrap(route.begin(coordinator, lease: lease))
+        for _ in 0..<20 { await Task.yield() }
+        coordinator.cancel(); route.holdsRestore = true
+        var joined = false
+        let join = Task { await waiting.awaitEnteredCleanup(); joined = true }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertFalse(joined); XCTAssertTrue(route.restores.isEmpty)
+        gate.release(.failed(message: "SIMULATED retired predecessor"))
+        await old.awaitEnteredCleanup()
+        await settle { route.restoring != nil || joined }
+        XCTAssertTrue(outgoingEnded)
+        XCTAssertEqual(route.restores, [lease])
+        XCTAssertFalse(joined, "The captured run also joins its entered restoration")
+        XCTAssertEqual(route.sourceCalls, 0)
+        route.releaseRestore(); await join.value
+        XCTAssertTrue(joined); XCTAssertNil(route.owned)
+        XCTAssertEqual(route.restores, [lease], "Restoration happens exactly once")
+        XCTAssertNil(coordinator.lifetime.state.toast)
+    }
+
+    func testAPreEntryCancellationRestoresItsTransferredLeaseWithoutSourceWork() async throws {
+        let coordinator = MonitorDeliveryCoordinator(exports: store), route = CoordinatorRoute()
+        defer { coordinator.close() }
+        let lease = try route.transferredLease()
+        let waiting = try XCTUnwrap(route.begin(coordinator, lease: lease))
+        coordinator.cancel()
+        await waiting.awaitEnteredCleanup()
+        XCTAssertEqual(route.restores, [lease]); XCTAssertNil(route.owned)
+        XCTAssertEqual(route.sourceCalls, 0); XCTAssertNil(coordinator.lifetime.state.toast)
+    }
+
+    func testAPreEntrySupersessionRestoresOnlyTheCapturedLease() async throws {
+        let coordinator = MonitorDeliveryCoordinator(exports: store), route = CoordinatorRoute()
+        let gate = CoordinatorGate()
+        defer { coordinator.close() }
+        let lease = try route.transferredLease()
+        let retired = try XCTUnwrap(route.begin(coordinator, lease: lease))
+        let successor = try XCTUnwrap(coordinator.begin { _, _ in await gate.wait() })
+        await retired.awaitEnteredCleanup()
+        await settle { gate.waiters.count == 1 }
+        XCTAssertEqual(route.restores, [lease]); XCTAssertNil(route.owned)
+        XCTAssertEqual(route.sourceCalls, 0); XCTAssertTrue(coordinator.isActive)
+        await retired.cancelAndJoin()
+        XCTAssertEqual(route.restores, [lease]); XCTAssertTrue(coordinator.isActive)
+        gate.release(.savedToPhotos(count: 1)); await successor.awaitEnteredCleanup()
     }
 
     // The sheet above a player or photo cover is tested in an app's hosted bundle (Z

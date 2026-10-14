@@ -29,6 +29,26 @@ import com.opencapture.opencine.media.LiveVideoCodec
 import com.opencapture.opencine.media.LiveViewPresentTiming
 import com.opencapture.opencine.media.PresentedFrameClock
 
+/** The native input boundary; its identity remains the configured codec's identity. */
+internal interface HevcInputCodec {
+    fun dequeueInputBuffer(waitUs: Long): Int
+    fun getInputBuffer(index: Int): ByteBuffer?
+    fun queueInputBuffer(index: Int, size: Int, ptsUs: Long, flags: Int)
+    fun failure(error: Exception): HevcInputFailure?
+}
+
+internal data class HevcInputFailure(val errorCode: Int, val isTransient: Boolean, val isRecoverable: Boolean)
+
+private class NativeHevcInputCodec(private val native: MediaCodec) : HevcInputCodec {
+    override fun dequeueInputBuffer(waitUs: Long) = native.dequeueInputBuffer(waitUs)
+    override fun getInputBuffer(index: Int) = native.getInputBuffer(index)
+    override fun queueInputBuffer(index: Int, size: Int, ptsUs: Long, flags: Int) =
+        native.queueInputBuffer(index, 0, size, ptsUs, flags)
+    override fun failure(error: Exception) = (error as? MediaCodec.CodecException)?.let {
+        HevcInputFailure(it.errorCode, it.isTransient, it.isRecoverable)
+    }
+}
+
 /**
  * Best-effort live-view decode via MediaCodec. Access units arrive as Annex-B (the integration
  * strips any vendor marker first). HEVC and AVC; OpenCineMedia `LiveVideo` and `LiveAccessUnit`
@@ -42,6 +62,21 @@ class HevcDecoder(
 ) {
     private val inputOwnership = DecoderInputOwnership(lock)
     @Volatile private var codec: MediaCodec? = null
+    private var inputCodec: HevcInputCodec? = null
+    private val inputErrors = ArrayList<DecoderErrorRecord>()
+    private var inputElapsedMs: () -> Long = { SystemClock.elapsedRealtime() }
+    private var inputElapsedNanos: () -> Long = { SystemClock.elapsedRealtimeNanos() }
+
+    /** SIMULATED native boundary for queue/feed lifetime regressions, never a product codec. */
+    internal fun adoptInputCodecForTest(input: HevcInputCodec) = synchronized(lock) {
+        check(codec == null)
+        inputCodec = input
+        configured = true
+        liveCodec = LiveVideoCodec.HEVC
+        decodeLogLeft = 0
+        inputElapsedMs = { 1L }
+        inputElapsedNanos = { 1_000_000L }
+    }
     private var surface: Surface? = null
     private var configured = false
     private var liveCodec: LiveVideoCodec? = null
@@ -136,7 +171,11 @@ class HevcDecoder(
     }
 
     fun attachSurface(next: Surface?) {
-        synchronized(lock) { attachSurfaceLocked(next) }
+        val errors = synchronized(lock) {
+            attachSurfaceLocked(next)
+            takeInputErrorsLocked()
+        }
+        errors.forEach(errorJournal)
     }
 
     private fun attachSurfaceLocked(next: Surface?) {
@@ -153,7 +192,7 @@ class HevcDecoder(
                 val csd = pendingCsd ?: return
                 if (configure(csd, pendingTypes)) {
                     pendingIdr?.let { au ->
-                        if (queue(au, keyframe = true)) acceptIrap()
+                        queuePictureLocked(au, keyframe = true, irap = true)
                     }
                 }
             }
@@ -173,7 +212,7 @@ class HevcDecoder(
         val csd = pendingCsd ?: return
         if (configure(csd, pendingTypes)) {
             pendingIdr?.let { au ->
-                if (queue(au, keyframe = true)) acceptIrap()
+                queuePictureLocked(au, keyframe = true, irap = true)
             }
         }
     }
@@ -197,19 +236,28 @@ class HevcDecoder(
     private fun decodeInput(accessUnit: ByteArray, inputOwner: Long?, epoch: Long): Boolean {
         var size: Pair<Int, Int>? = null
         var requestEnable = false
+        var input: DecoderInputOwnership.Token? = null
+        var errors: List<DecoderErrorRecord> = emptyList()
         val mutation = {
+            input = inputOwnership.capture()
             val result = decodeLocked(accessUnit)
             size = lastSizeCallback
             lastSizeCallback = null
             requestEnable = lastEnableCallback
             lastEnableCallback = false
+            errors = takeInputErrorsLocked()
             result
         }
         val ok = if (inputOwner == null) synchronized(lock, mutation)
         else inputOwnership.withCurrent(inputOwner, epoch, false, mutation)
+        // Recovery, retry and feed bookkeeping are complete before a host may reset/rebind.
+        // Each immutable diagnostic still describes the generation that admitted the failure.
+        errors.forEach(errorJournal)
+        if (input == null || input != inputOwnership.capture()) return false
         size?.let { onOutputSizeChanged?.invoke(it.first, it.second) }
+        if (input != inputOwnership.capture()) return false
         if (requestEnable) onParameterSetsChanged?.invoke()
-        return ok
+        return ok && input == inputOwnership.capture()
     }
 
     private fun decodeLocked(accessUnit: ByteArray): Boolean {
@@ -290,19 +338,12 @@ class HevcDecoder(
             Log.i(TAG, "configured ${liveCodec?.name} nals=$nalTypesSeen")
             val idrAu = pendingIdr ?: if (idr) accessUnit else null
             if (idrAu != null) {
-                val queued = queue(idrAu, keyframe = true)
-                if (queued) acceptIrap()
-                return queued
+                return queuePictureLocked(idrAu, keyframe = true, irap = true)
             }
             return true
         }
         if (!randomAccess.shouldAccept(idr)) return false
-        val queued = queue(accessUnit, keyframe)
-        if (queued && idr) acceptIrap()
-        // A dropped frame is a missing reference: later P-frames would smear
-        // until the next IRAP, which Pocket only sends when asked.
-        if (!queued) randomAccess.noteBrokenReferences()
-        return queued
+        return queuePictureLocked(accessUnit, keyframe, irap = idr, holdOnMiss = true)
     }
 
     private var lastSizeCallback: Pair<Int, Int>? = null
@@ -345,6 +386,7 @@ class HevcDecoder(
         outputThread = null
         val decoder = codec
         codec = null
+        inputCodec = null
         runCatching { decoder?.stop() }
         // A codec failure caught on the output thread retires the codec from that thread.
         if (out !== Thread.currentThread()) {
@@ -488,6 +530,7 @@ class HevcDecoder(
         decoderErrors.set(0)
         val decoder = codec
         codec = null
+        inputCodec = null
         surface = null
         runCatching { decoder?.stop() }
         out?.interrupt()
@@ -553,6 +596,7 @@ class HevcDecoder(
             }
             created.start()
             codec = created
+            inputCodec = NativeHevcInputCodec(created)
             configured = true
             hasFormat = true
             builtCsd = pendingCsd
@@ -624,6 +668,7 @@ class HevcDecoder(
             runCatching { decoder?.release() }
             if (codec === decoder) {
                 codec = null
+                inputCodec = null
                 configured = false
                 liveCodec = null
             }
@@ -632,33 +677,61 @@ class HevcDecoder(
         }
     }
 
+    private fun ownsInput(started: HevcInputCodec, source: DecoderInputOwnership.Token): Boolean =
+        inputCodec === started && inputOwnership.capture() == source
+
+    /** Commit reference facts only to the codec/source that attempted this picture. */
+    private fun queuePictureLocked(
+        accessUnit: ByteArray, keyframe: Boolean, irap: Boolean, holdOnMiss: Boolean = false,
+    ): Boolean {
+        val started = inputCodec ?: return false
+        val source = inputOwnership.capture()
+        val queued = queue(accessUnit, keyframe)
+        if (!ownsInput(started, source)) return false
+        if (queued && irap) acceptIrap()
+        // A dropped frame is a missing reference; only this admitted source may lose it.
+        if (!queued && holdOnMiss) randomAccess.noteBrokenReferences()
+        return queued
+    }
+
     private fun queue(accessUnit: ByteArray, keyframe: Boolean, retried: Boolean = false): Boolean {
-        val decoder = codec ?: return false
+        val decoder = inputCodec ?: return false
+        val source = inputOwnership.capture()
         return try {
             val index = decoder.dequeueInputBuffer(LiveViewPresentTiming.inputWaitUs(keyframe))
+            if (!ownsInput(decoder, source)) return false
             if (index < 0) {
                 cadence.inputMiss()
                 Log.w(TAG, "no input buffer (nals=$nalTypesSeen)")
                 return false
             }
             val buffer = decoder.getInputBuffer(index) ?: return false
+            if (!ownsInput(decoder, source)) return false
             buffer.clear()
             buffer.put(accessUnit)
             val flags = if (keyframe) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
-            val pts = LiveViewPresentTiming.ptsUs(SystemClock.elapsedRealtimeNanos(), ptsUs)
+            val pts = LiveViewPresentTiming.ptsUs(inputElapsedNanos(), ptsUs)
             ptsUs = pts
-            decoder.queueInputBuffer(index, 0, accessUnit.size, pts, flags)
-            lastDecoderAcceptedAt = SystemClock.elapsedRealtime()
+            decoder.queueInputBuffer(index, accessUnit.size, pts, flags)
+            if (!ownsInput(decoder, source)) return false
+            lastDecoderAcceptedAt = inputElapsedMs()
             cadence.note(LivePipelineCadence.Stage.SUBMIT)
             framesEnqueued.incrementAndGet()
             true
         } catch (e: Exception) {
+            if (!ownsInput(decoder, source)) return false
             noteError(DecoderErrorOrigin.QUEUE, e, inputIsIrap = keyframe)
-            // Callers hold the codec lock. A rebuild here leaves the next IRAP to configure.
-            val action = onCodecFailureLocked(e)
-            action == CodecFailureAction.RETRY && !retried && queue(accessUnit, keyframe, retried = true)
+            // Callers hold the codec lock. Only the captured codec may recover or retry.
+            val action = decoder.failure(e)?.let {
+                onCodecFailureLocked(it.errorCode, it.isTransient, it.isRecoverable)
+            } ?: CodecFailureAction.REPORT
+            action == CodecFailureAction.RETRY && !retried && ownsInput(decoder, source)
+                && queue(accessUnit, keyframe, retried = true)
         }
     }
+
+    private fun takeInputErrorsLocked(): List<DecoderErrorRecord> =
+        inputErrors.toList().also { inputErrors.clear() }
 
     /**
      * [LiveViewPresentTiming.ptsUs] stamps the submit wall clock onto the access
@@ -700,7 +773,7 @@ class HevcDecoder(
         error: Throwable,
         inputIsIrap: Boolean? = null,
     ) {
-        recordError(origin, error, inputIsIrap)?.let(errorJournal)
+        recordError(origin, error, inputIsIrap)?.let(inputErrors::add)
     }
 
     private fun recordError(
@@ -709,7 +782,7 @@ class HevcDecoder(
         inputIsIrap: Boolean? = null,
     ): DecoderErrorRecord? {
         decoderErrors.incrementAndGet()
-        val now = SystemClock.elapsedRealtime()
+        val now = inputElapsedMs()
         val code =
             (error as? MediaCodec.CodecException)?.let { "codec:${it.errorCode}" }
                 ?: error.javaClass.simpleName

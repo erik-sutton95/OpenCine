@@ -1,6 +1,6 @@
 #if canImport(UIKit) && canImport(VideoToolbox)
     import Foundation
-    import OpenCineApple
+    @testable import OpenCineApple
     import OpenCineMedia
     import Testing
     import VideoToolbox
@@ -43,6 +43,68 @@
             try await waitUntil { runtime.nativeDecodeTotals.output >= output + 4 }
             #expect(!runtime.referenceRecoveryNeeded)
             #expect(!runtime.awaitingIDR)
+        }
+
+        /// SIMULATED native return with deliberately no output callback, through the actual runtime.
+        @Test func synchronousBadDataWithoutAnOutputCallbackImmediatelyHoldsDependentPictures() async throws {
+            let gop = try SyntheticHevcGOP.encode()
+            let runtime = try await establishedRuntime(gop)
+            defer { runtime.close() }
+            let source = runtime.sourceToken
+            let before = runtime.nativeDecodeTotals
+            var nativeCalls = 0
+            var native: VideoToolboxDecoder?
+            runtime.nativeSubmission = { decoder, _, _, _, _ in
+                native = decoder
+                nativeCalls += 1
+                return kVTVideoDecoderBadDataErr
+            }
+            #expect(!runtime.decode(accessUnit: annexB(gop.pictures[4]), source: source))
+            #expect(nativeCalls == 1)
+            #expect(runtime.lastDecodeStatus == kVTVideoDecoderBadDataErr)
+            #expect(runtime.lastDecodeOrigin == "submit")
+            #expect(runtime.firstDecodeError?.status == kVTVideoDecoderBadDataErr)
+            #expect(runtime.nativeDecodeTotals.submitted == before.submitted + 1)
+            #expect(runtime.nativeDecodeTotals.accepted == before.accepted)
+            #expect(runtime.nativeDecodeTotals.output == before.output, "There was no output callback")
+            #expect(runtime.referenceRecoveryNeeded && runtime.awaitingIDR)
+            #expect(native?.sessionFailed == false, "BadData preserves the configured rebuild policy")
+            #expect(!runtime.decode(accessUnit: annexB(gop.pictures[5]), source: source))
+            #expect(nativeCalls == 1, "Dependent pictures never reach the retired reference chain")
+        }
+
+        /// SIMULATED submit return after a reentrant, genuinely accepted successor IRAP.
+        @Test func synchronousBadDataCannotRetireReferencesFromANewerAcceptedIrap() async throws {
+            let gop = try SyntheticHevcGOP.encode()
+            let runtime = try await establishedRuntime(gop)
+            defer { runtime.close() }
+            let source = runtime.sourceToken, rebuilds = runtime.vtRebuildCount
+            runtime.nativeSubmission = { _, _, _, _, _ in
+                runtime.nativeSubmission = nil
+                #expect(runtime.decode(accessUnit: annexB(gop.pictures[0]), source: source))
+                return kVTVideoDecoderBadDataErr
+            }
+            #expect(!runtime.decode(accessUnit: annexB(gop.pictures[4]), source: source))
+            #expect(!runtime.referenceRecoveryNeeded && !runtime.awaitingIDR)
+            #expect(runtime.canReleaseIDRHold)
+            #expect(runtime.vtRebuildCount == rebuilds, "Sequence admission never invents a rebuild")
+        }
+
+        /// SIMULATED source replacement while native submission returns its old error.
+        @Test func synchronousBadDataCannotPublishIntoAReplacementSource() async throws {
+            let gop = try SyntheticHevcGOP.encode()
+            let runtime = try await establishedRuntime(gop)
+            defer { runtime.close() }
+            let source = runtime.sourceToken
+            runtime.nativeSubmission = { _, _, _, _, _ in
+                runtime.reset()
+                return kVTVideoDecoderBadDataErr
+            }
+            #expect(!runtime.decode(accessUnit: annexB(gop.pictures[4]), source: source))
+            #expect(runtime.sourceToken != source)
+            #expect(runtime.decoderErrors == 0 && runtime.firstDecodeError == nil)
+            #expect(!runtime.referenceRecoveryNeeded && !runtime.awaitingIDR)
+            #expect(runtime.nativeDecodeTotals.submitted == 0)
         }
 
         /// Pictures 0 to 3 decoded natively through the VT path the apps use for assists.

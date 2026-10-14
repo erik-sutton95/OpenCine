@@ -108,9 +108,10 @@ public final class MonitorDeliveryCoordinator {
                 onComplete?(outcome)
                 return nil
             },
+            cleanupWhenRetired: true,
             operation: { progress, admission in
                 await outgoing?.cancelAndJoin()
-                guard admission.isCurrent() else { return .init(.failed(message: "Cancelled.")) }
+                // A retired batch enters only its captured-resource cleanup; source work checks admission.
                 return await run(admission, progress).completion()
             })
         capturedRun = handle
