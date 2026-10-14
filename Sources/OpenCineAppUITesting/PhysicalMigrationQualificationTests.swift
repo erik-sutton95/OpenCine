@@ -51,6 +51,21 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
     }
 
     @MainActor
+    func testPhysicalCameraListDiscovery() async throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_ROW_PROBE"] == "1" else {
+            throw XCTSkip("Requires the opted-in read-only discovery run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { await run.restore() }
+        try await run.exerciseCameraListDiscovery()
+        #endif
+    }
+
+    @MainActor
     func testPhysicalStatusRowReadoutsOnLiveCamera() async throws {
         guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_ROW_PROBE"] == "1" else {
             throw XCTSkip("Requires the opted-in read-only status row readout run")
@@ -318,6 +333,54 @@ private struct PhysicalMigrationProbe: Decodable {
         try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
         mark("original-settings-restored")
         evidence("scoped-settings-recording-playback-relaunch-completed")
+    }
+
+    // Read-only discovery: what the production cameras page advertises right now.
+    // No connect tap, pairing step, camera write or media operation is issued.
+    func exerciseCameraListDiscovery() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        try require(
+            !environment.keys.contains {
+                ($0.hasPrefix("OPV_SIM_") || $0 == "OPV_UI_REVIEW_SCREEN")
+                    && environment[$0]?.isEmpty == false
+            },
+            "Remove simulated-feed and review-screen launch inputs before physical qualification")
+        app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        try await wait("Production camera list or live monitor", timeout: 20) {
+            self.answerConnectionAlerts()
+            return self.app.buttons["monitor.system.settings"].isHittable
+                || self.app.buttons["cameras.pair"].isHittable
+        }
+        // Give background discovery (Bluetooth and Wi-Fi scans) a bounded window
+        // before the page contents are recorded.
+        try await condition(timeout: 15) {
+            self.answerConnectionAlerts()
+            return self.app.buttons.matching(
+                NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@",
+                    "Connect ", "Reconnect ")).firstMatch.isHittable
+        }
+        let connectRows = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@",
+                "Connect ", "Reconnect ")).allElementsBoundByIndex
+            .filter { !$0.identifier.hasPrefix("pair.") && !$0.identifier.hasPrefix("cameras.setup.") }
+            .map { $0.identifier + "|" + $0.label }
+        let pairRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "pair.device."))
+            .allElementsBoundByIndex.map { $0.identifier + "|" + $0.label }
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "camera-list.ax"; tree.lifetime = .keepAlways; test.add(tree)
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "camera-list.screen"; shot.lifetime = .keepAlways; test.add(shot)
+        jsonEvidence("camera-list", [
+            "at": Date().timeIntervalSince1970,
+            "connectRows": connectRows, "pairRows": pairRows,
+            "liveMonitor": app.buttons["monitor.system.settings"].isHittable,
+        ])
+        mark("camera-list-discovery")
+        evidence("camera-list-recorded")
+        if app.state != .notRunning { app.terminate() }
     }
 
     // Read-only status row evidence: a saved connection, the live probe and the
