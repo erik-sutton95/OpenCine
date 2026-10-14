@@ -123,6 +123,16 @@ touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (norma
 keeps Android touch expansion inside the measured header. Typed header readouts expose
 their title, optional value and presentation action as one accessible control.
 
+Phone portrait telemetry uses separate `telemetry` bounds below the safe top,
+with eight points/dp of clearance and side reserves for rounded corners. The
+existing `gauges` corner contract remains available to other compositions.
+Storage shares a bounded row with link performance before the power readouts:
+its text shrinks from 14 to 11 points/sp, then ellipsizes while accessibility
+retains the full supplied value. Portrait video format/FPS and its supplied
+detail form one trailing column; actionable details keep independent targets,
+and a static caption retains its primary editor section. Photography, tablet
+and landscape compositions retain their existing arrangement.
+
 `MonitorFocusResetButton` owns the common circular `rotateCw` glyph and target on both
 platforms. Legacy and canonical live surfaces delegate to it; apps supply visibility
 and reset actions.

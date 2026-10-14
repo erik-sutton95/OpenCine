@@ -679,11 +679,8 @@ object CaptureLists {
     /** Remaining storage through the shared [StorageReadout] and its volume rule, or the remaining minutes. */
     fun storageLabel(status: CameraStatus, showDuration: Boolean): String {
         if (showDuration && !CameraCommands.isPhotoMode(status.shootingMode)) {
-            return if (status.recordRemainingSec > 0) {
-                "${status.recordRemainingSec / 60} Min"
-            } else {
-                "— Min"
-            }
+            return com.opencapture.monitorui.MonitorStorageReadoutFormat.remainingMinutes(
+                status.recordRemainingSec.takeIf { it > 0 }?.div(60))
         }
         return status.storageReadout?.label ?: StorageReadout.UNAVAILABLE
     }

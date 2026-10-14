@@ -186,6 +186,7 @@ public actor FakeCameraSession: CameraSession {
         cameraReportsStatus()
     }
 
+
     /// A camera-body recording report, independent of any app command.
     public func cameraReportsRecording(_ recording: Bool?) {
         device.recording = recording

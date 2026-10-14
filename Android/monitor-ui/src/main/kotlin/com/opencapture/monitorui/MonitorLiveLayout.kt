@@ -353,6 +353,9 @@ data class LiveMonitorLayout(
     val focusReset: MonitorRect
         get() {
             if (usesFieldMonitor) {
+                if (viewportHeight > viewportWidth) {
+                    return MonitorRect(max(safeLeading + 8f, assist.x), assist.y - 48f, 40f, 40f)
+                }
                 val stick = gimbalCluster().stick
                 return MonitorRect(
                     max(safeLeading + 8f, stick.x - 50f),
@@ -362,7 +365,7 @@ data class LiveMonitorLayout(
             val size = LiveChromeMetrics.FOCUS_RESET
             if (viewportHeight > viewportWidth) {
                 val well = onFeed
-                return MonitorRect(well.maxX - size - 10f, well.maxY - size - 10f, size, size)
+                return MonitorRect(well.minX + 10f, well.maxY - size - 10f, size, size)
             }
             val towardFeed =
                 if (battery.midX < feed.midX) {
@@ -522,7 +525,7 @@ data class LiveMonitorLayout(
                 feed = slot(p.picture),
                 picture = slot(p.picture),
                 lock = slot(p.lock),
-                battery = slot(p.gauges),
+                battery = slot(p.telemetry),
                 topDeck = slot(p.status),
                 assist = slot(p.assists),
                 capture = slot(p.values),
