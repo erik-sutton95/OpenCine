@@ -647,6 +647,8 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             ? .unavailable(.link)
             : session.admitsMultiviewControl ? .owner : .unavailable(.authority)
         next.mode = Self.mode(status)
+        next.recordingFormat = DJIRecordingObservations.recording(session.captureControlState?.reported ?? status)
+        next.exposureProgram = DJIRecordingObservations.exposureProgram(session.captureControlState?.reported ?? status)
         next.settings = Self.settings(status)
         if let capture = session.captureControlState {
             next.settings.merge(capture.settings) { _, report in report }

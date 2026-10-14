@@ -1,6 +1,8 @@
 package com.opencapture.opencine.cameracontrols
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.opencapture.monitorui.MonitorExposureReadout
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorQuickControl
@@ -27,10 +29,11 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
     quickEnabled: Boolean = true,
     quickActiveChanged: (Boolean) -> Unit = {},
 ): MonitorOperatorCaptureInputs<String, S, MonitorOperatorLegacyCaptureIdentity> {
+    val controlState by source.control.state.collectAsState()
     val native = source.host.captureSessionState(status)
     val preferences = source.host.capturePreferences
     val lifetime = rememberMonitorCaptureLifetime(source)
-    val auto = status.expoMode == CameraCommands.EXPO_AUTO
+    val auto = controlState.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC
     val shutter = captureShutterReadout(status, preferences.shutterUsesAngle, preferences.shutterAngleDegrees)
     val readouts = buildList<MonitorOperatorLiveReadout<String, S>> {
         fun append(sheet: LiveSheet, title: String, value: String, annotation: String? = null,
@@ -44,14 +47,14 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
             if (auto && preferences.facePriorityExposure) CaptureLists.FACE_PRIORITY_TITLE else null,
             badge = if (auto && preferences.facePriorityExposure) MonitorIcon.SCAN else null)
         append(LiveSheet.EXPO, "EXPOSURE", if (native.aeLocked) CaptureLists.AE_LOCK
-            else if (status.expoMode == CameraCommands.EXPO_MANUAL) "M" else if (auto) "A" else "\u2014")
+            else controlState.snapshot?.exposureProgram?.value?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::exposureProgram) ?: "--")
         metering?.let { tile -> add(MonitorOperatorLiveReadout("METER", "METER", if (tile.face) "Face" else "Matrix",
-            section, action = { if (quickEnabled && lifetime.active) tile.toggle() }, quickEnabled = false,
+            section, action = { if (quickEnabled && lifetime.active) tile.perform() }, quickEnabled = false,
             actionIsCommand = true)) }
         append(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null)
-        if (capabilities.focus) append(LiveSheet.FOCUS, "FOCUS", status.focusLabel)
-        if (capabilities.iris) append(LiveSheet.APERTURE, "APERTURE", ApertureStrategy.tileValue(status))
+        if (capabilities.focus) append(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel))
+        if (capabilities.iris) append(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status)))
         if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) append(LiveSheet.AUDIO, "AUDIO", status.audioLabel)
     }
     val panel = active?.let { sheet ->

@@ -27,6 +27,16 @@
         public var nativeEditor: MonitorControlModel.Editor? = nil
         public var audioControl: CaptureAudioControl? = nil
         public var audioSourceID: CaptureAudioSourceID? = nil
+        /// An integration-owned quick choice uses the host slot, never camera-vocabulary wire enums.
+        public var isNative = false
+
+        public static func native(kind: Kind, title: String, options: [String], selection: String,
+            context: String, enabled: Bool) -> Self {
+            var result = Self(kind: kind, title: title, options: options, selection: selection,
+                context: context, enabled: enabled)
+            result.isNative = true
+            return result
+        }
 
         public static func common(_ field: MonitorCaptureField) -> Self {
             Self(
@@ -60,7 +70,7 @@
         public var sourceIdentity: SourceIdentity {
             SourceIdentity(
                 kind: kind, title: title, options: options, marked: marked, context: context,
-                enabled: enabled, nativeEditor: nativeEditor)
+                enabled: enabled, nativeEditor: nativeEditor, isNative: isNative)
         }
 
         public struct SourceIdentity: Hashable, Sendable {
@@ -71,6 +81,7 @@
             public var context: String
             public var enabled: Bool
             public var nativeEditor: MonitorControlModel.Editor? = nil
+            public var isNative = false
         }
 
         public var display: MonitorReadoutSnapshot {
@@ -273,6 +284,13 @@
         /// preservation, and shutter-angle conversion; the host routes each to its session.
         @MainActor public func apply<Host: CaptureSheetHost>(_ value: String, host: Host) {
             guard enabled, options.contains(value), value != selection, !host.sessionLocked else {
+                return
+            }
+            if isNative {
+                let sheet: CaptureSheet
+                switch kind { case .format: sheet = .resolution; case .color: sheet = .color; default: return }
+                guard host.quickSnapshot(sheet) == self else { return }
+                host.commitNativeCaptureQuick(value, sheet: sheet)
                 return
             }
             if let commonField {

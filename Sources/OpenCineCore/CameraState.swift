@@ -291,6 +291,9 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
     public var timecode: ObservedValue<CameraTimecode>
     /// Support is `capabilities.audioLevels`.
     public var audioLevels: ObservedValue<AudioLevels>
+    /// Recording observations remain separate from preview dimensions and transport encoding.
+    public var recordingFormat: CameraRecordingObservations
+    public var exposureProgram: ObservedValue<CameraExposureProgram>
 
     public init(
         session: CameraSessionID, epoch: ControlEpoch = .init(), device: CameraDeviceID? = nil,
@@ -311,6 +314,34 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
         self.storage = .unknown
         self.timecode = .unknown
         self.audioLevels = .unknown
+        self.recordingFormat = .unknown
+        self.exposureProgram = .unknown
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case session, epoch, revision, device, connection, authority, capabilities, mode, settings
+        case recording, power, storage, timecode, audioLevels, recordingFormat, exposureProgram
+    }
+
+    /// Original snapshot payloads omit recordingFormat; all original required fields stay required.
+    public init(from decoder: any Decoder) throws {
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        session = try fields.decode(CameraSessionID.self, forKey: .session)
+        epoch = try fields.decode(ControlEpoch.self, forKey: .epoch)
+        revision = try fields.decode(SnapshotRevision.self, forKey: .revision)
+        device = try fields.decodeIfPresent(CameraDeviceID.self, forKey: .device)
+        connection = try fields.decode(ConnectionState.self, forKey: .connection)
+        authority = try fields.decode(ControlAuthority.self, forKey: .authority)
+        capabilities = try fields.decode(CapabilitySnapshot.self, forKey: .capabilities)
+        mode = try fields.decode(ObservedValue<CaptureMode>.self, forKey: .mode)
+        settings = try fields.decode([SettingKey: ObservedValue<SettingValue>].self, forKey: .settings)
+        recording = try fields.decode(ObservedValue<RecordingState>.self, forKey: .recording)
+        power = try fields.decode(PowerStatus.self, forKey: .power)
+        storage = try fields.decode(StorageStatus.self, forKey: .storage)
+        timecode = try fields.decode(ObservedValue<CameraTimecode>.self, forKey: .timecode)
+        audioLevels = try fields.decode(ObservedValue<AudioLevels>.self, forKey: .audioLevels)
+        recordingFormat = try fields.decodeIfPresent(CameraRecordingObservations.self, forKey: .recordingFormat) ?? .unknown
+        exposureProgram = try fields.decodeIfPresent(ObservedValue<CameraExposureProgram>.self, forKey: .exposureProgram) ?? .unknown
     }
 
     public func value(of key: SettingKey) -> ObservedValue<SettingValue> {

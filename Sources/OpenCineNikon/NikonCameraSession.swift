@@ -421,6 +421,14 @@ public final class NikonCameraSession: CameraSession {
             Self.observe(&observation, value, at: at)
             next.settings[key] = observation.isKnown ? observation : nil
         }
+        Self.observe(&next.exposureProgram, Self.exposureProgram(facts.reported.exposureMode), at: at)
+        let dimensions = Self.recordingDimensions(facts.reported.resolution)
+        Self.observe(&next.recordingFormat.dimensions, dimensions, at: at)
+        let codec = facts.reported.fileType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.observe(&next.recordingFormat.codec, codec.flatMap { $0.isEmpty ? nil : $0 }, at: at)
+        let profile = codec.flatMap(PTPCameraPropertyDecoders.toneLabel(fromCodec:))
+        Self.observe(&next.recordingFormat.profile, profile, at: at)
+        if profile != nil { next.recordingFormat.profile.origin = .protocolDerived }
         if next != current {
             next.revision = current.revision.next()
             current = next
@@ -457,6 +465,24 @@ public final class NikonCameraSession: CameraSession {
 
     /// The movie rate as the screen-size token reports it, in whole frames per second. Whether a
     /// body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
+    private static func exposureProgram(_ label: String?) -> CameraExposureProgram? {
+        switch label {
+        case "M": .manual
+        case "P": .program
+        case "A": .aperturePriority
+        case "S": .shutterPriority
+        case "Auto": .automatic
+        default: nil
+        }
+    }
+
+    private static func recordingDimensions(_ value: String?) -> CameraRecordingFormat.Dimensions? {
+        guard let value else { return nil }
+        let parts = value.split(separator: "x", omittingEmptySubsequences: false)
+        guard parts.count == 2, let width = Int(parts[0]), let height = Int(parts[1]) else { return nil }
+        return CameraRecordingFormat.Dimensions(width: width, height: height)
+    }
+
     static func frameRate(_ reported: PTPCameraPropertySnapshot) -> Rational? {
         reported.fps.flatMap { $0 > 0 ? Rational($0) : nil }
     }

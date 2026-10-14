@@ -364,6 +364,13 @@ class NikonOpenCineSession(
                         ),
                         externalPower = current.power.externalPower.observe(properties.externalPower, at),
                     ),
+                exposureProgram = current.exposureProgram.observe(exposureProgram(properties.exposureMode), at),
+                recordingFormat = current.recordingFormat.copy(
+                    dimensions = current.recordingFormat.dimensions.observe(recordingDimensions(properties.resolution), at),
+                    codec = current.recordingFormat.codec.observe(properties.codec?.trim()?.takeIf { it.isNotEmpty() }, at),
+                    profile = current.recordingFormat.profile.observe(properties.tone?.trim()?.takeIf { it.isNotEmpty() }, at,
+                        origin = ObservationOrigin.PROTOCOL_DERIVED),
+                ),
                 settings =
                     reportedSettings(properties, photography)
                         .mapValues { (key, value) -> current.value(key).observe(value, at) }
@@ -405,6 +412,23 @@ class NikonOpenCineSession(
          * The movie rate as the screen-size token reports it, in whole frames per second. Whether a
          * body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
          */
+        private fun exposureProgram(label: String?): com.opencapture.opencine.core.CameraExposureProgram? = when (label) {
+            "M" -> com.opencapture.opencine.core.CameraExposureProgram.MANUAL
+            "P" -> com.opencapture.opencine.core.CameraExposureProgram.PROGRAM
+            "A" -> com.opencapture.opencine.core.CameraExposureProgram.APERTURE_PRIORITY
+            "S" -> com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY
+            "Auto" -> com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC
+            else -> null
+        }
+
+        private fun recordingDimensions(value: String?): com.opencapture.opencine.core.CameraRecordingFormat.Dimensions? {
+            val parts = value?.split('x') ?: return null
+            if (parts.size != 2) return null
+            val width = parts[0].toIntOrNull() ?: return null
+            val height = parts[1].toIntOrNull() ?: return null
+            return com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(width, height)
+        }
+
         fun frameRate(properties: CameraPropertySnapshot): Rational? = properties.frameRate?.takeIf { it > 0 }?.let { Rational(it) }
 
         /** Movie controls offered through the common seam; stills retain their typed adapter. */
@@ -537,11 +561,12 @@ class NikonOpenCineSession(
             value: T?,
             at: MonotonicInstant,
             precision: ObservationPrecision? = null,
+            origin: ObservationOrigin = ObservationOrigin.CAMERA_REPORTED,
         ): ObservedValue<T> =
             when {
                 this.value == value -> this
                 value == null -> ObservedValue.unknown
-                else -> ObservedValue(value, ObservationOrigin.CAMERA_REPORTED, at, precision = precision)
+                else -> ObservedValue(value, origin, at, precision = precision)
             }
 
         private fun CameraControlException.toStage(): CommandStage =

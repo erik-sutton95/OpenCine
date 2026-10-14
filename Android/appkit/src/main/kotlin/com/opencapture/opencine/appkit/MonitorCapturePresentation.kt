@@ -18,6 +18,9 @@ import kotlin.math.floor
 public data class MonitorCaptureChoice(public val value: SettingValue, public val label: String)
 
 /** One common readout and the immutable editor its gestures opened against. */
+/** Which observation a readout presents; pending commands never become camera reports. */
+public enum class MonitorCaptureSelection { REPORTED, PENDING }
+
 public data class MonitorCaptureField(
     public val key: SettingKey,
     public val title: String,
@@ -104,19 +107,71 @@ public object MonitorCapturePresentation {
         if (rate.denominator == 1) rate.numerator.toString()
         else String.format(java.util.Locale.ROOT, "%.2f", rate.doubleValue)
 
+    public fun exposureProgram(value: com.opencapture.opencine.core.CameraExposureProgram): String = when (value) {
+        com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC, com.opencapture.opencine.core.CameraExposureProgram.APERTURE_PRIORITY -> "A"
+        com.opencapture.opencine.core.CameraExposureProgram.MANUAL -> "M"
+        com.opencapture.opencine.core.CameraExposureProgram.ISO_PRIORITY -> "I"
+        com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY -> "S"
+        com.opencapture.opencine.core.CameraExposureProgram.PROGRAM -> "P"
+    }
+
+    public fun recordingFormat(snapshot: com.opencapture.opencine.core.CameraSnapshot): com.opencapture.opencine.core.CameraRecordingFormat =
+        com.opencapture.opencine.core.CameraRecordingFormat.measured(snapshot.recordingFormat.dimensions.value,
+            (snapshot.value(SettingKey.FRAME_RATE).value as? SettingValue.FrameRate)?.fps,
+            snapshot.recordingFormat.profile.value, snapshot.recordingFormat.codec.value)
+
+    public fun recordingLabel(format: com.opencapture.opencine.core.CameraRecordingFormat): String? {
+        val parts = listOfNotNull(format.dimensions?.let(::resolutionLabel), format.frameRate?.let { frameRate(it) + "p" })
+        return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    }
+
+    /** Compact captions use measured geometry; uncommon dimensions retain exact values. */
+    public fun resolutionLabel(size: com.opencapture.opencine.core.CameraRecordingFormat.Dimensions): String {
+        val label = when (val width = maxOf(size.width, size.height)) {
+            in 7680..Int.MAX_VALUE -> "8K"
+            in 5000..7679 -> "6K"
+            in 3500..4999 -> "4K"
+            in 2880..3499 -> "3K"
+            in 2500..2879 -> "2.7K"
+            2160 -> if (size.width == size.height) "2160p" else return "${size.width}×${size.height}"
+            1920 -> "1080p"
+            else -> return "${size.width}×${size.height}"
+        }
+        val ratio = size.width.toDouble() / size.height
+        val aspect = when {
+            kotlin.math.abs(ratio - 16.0 / 9.0) < 0.015 -> ""
+            kotlin.math.abs(ratio - 4.0 / 3.0) < 0.015 -> " 4:3"
+            kotlin.math.abs(ratio - 9.0 / 16.0) < 0.015 -> " 9:16"
+            kotlin.math.abs(ratio - 1.0) < 0.015 -> " 1:1"
+            kotlin.math.abs(ratio - 2.35) < 0.03 -> " 2.35:1"
+            else -> ""
+        }
+        return label + aspect
+    }
+
     private fun number(value: Double): String = if (value == round(value)) value.toLong().toString() else value.toString()
 }
 
 /** A described common field stays readable while unavailable; only a writable ready field gets an editor. */
-public fun MonitorControlModel.captureField(key: SettingKey): MonitorCaptureField? {
+public fun MonitorControlModel.captureField(key: SettingKey): MonitorCaptureField? =
+    captureField(key, MonitorCaptureSelection.PENDING)
+
+/** Read a reported or pending value through the same descriptor and editor admission. */
+public fun MonitorControlModel.captureField(key: SettingKey, selection: MonitorCaptureSelection): MonitorCaptureField? {
     val title = MonitorCapturePresentation.title(key) ?: return null
     val snapshot = state.value.snapshot ?: return null
     val descriptor = snapshot.capabilities[key] ?: return null
     val authorized = snapshot.authority == ControlAuthority.Owner || snapshot.authority is ControlAuthority.Lease
     val writable = authorized && snapshot.connection == ConnectionState.Ready &&
         descriptor.access == SettingAccess.READ_WRITE && descriptor.availability == Availability.Available
-    return MonitorCaptureField(key, title, shown(key), drum(key, descriptor.domain), if (writable) edit(key) else null)
+    return MonitorCaptureField(key, title,
+        captureValue(key, selection),
+        drum(key, descriptor.domain), if (writable) edit(key) else null)
 }
+
+/** Readout observations do not require a writable descriptor or create an editor. */
+public fun MonitorControlModel.captureValue(key: SettingKey, selection: MonitorCaptureSelection): SettingValue? =
+    if (selection == MonitorCaptureSelection.PENDING) shown(key) else state.value.snapshot?.value(key)?.value
 
 /** The drum for a domain, built once per domain rather than on every read. */
 private fun MonitorControlModel.drum(key: SettingKey, domain: SettingDomain?): List<MonitorCaptureChoice> {

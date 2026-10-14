@@ -78,7 +78,8 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         rawCompressions: [String] = [],
         codecBitDepths: [String] = [],
         codecBitDepth: String? = nil,
-        advertisedIrisValues: [String] = []
+        advertisedIrisValues: [String] = [],
+        recordingFormats: [NikonRecordingFormatPresentation] = []
     ) {
         self.resolutionFrameRate = resolutionFrameRate
         self.codec = codec
@@ -101,6 +102,7 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         self.shutterLocks = shutterLocks
         self.whiteBalanceTints = whiteBalanceTints
         self.resolutionFrameRates = resolutionFrameRates
+        self.recordingFormats = recordingFormats
         self.codecs = codecs
         self.vibrationReduction = vibrationReduction
         self.electronicVR = electronicVR
@@ -157,6 +159,8 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
     public let whiteBalanceTints: [String]
     /// Recording modes from the camera's screen-size descriptor.
     public let resolutionFrameRates: [String]
+    /// Structured axes decoded from each actual advertised native mode, paired with its exact token.
+    public let recordingFormats: [NikonRecordingFormatPresentation]
     /// Codecs from the camera's file-type descriptor.
     public let codecs: [String]
     /// Movie VR values from the camera descriptor.
@@ -359,6 +363,9 @@ public enum AndroidCameraPropertyReadbackWire {
         appendOptions(
             "options.resolutionFrameRate", values: controls.resolutionFrameRates, to: &fields)
         append("codecBitDepth", value: controls.codecBitDepth, to: &fields)
+        appendOptions("options.recordingFormat", values: controls.recordingFormats.map {
+            [$0.token, $0.imageArea ?? "", $0.resolution, $0.frameRate].joined(separator: "\u{1E}")
+        }, to: &fields)
         appendOptions("options.codec", values: controls.codecs, to: &fields)
         appendOptions("options.codecBitDepth", values: controls.codecBitDepths, to: &fields)
         appendOptions(

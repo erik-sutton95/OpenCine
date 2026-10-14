@@ -53,6 +53,23 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DjiCameraSessionAdapterTest {
+    @Test fun recordingFactsUseReportedDimensionsAndNeverPreviewCodec() = runTest {
+        val port = FakePort()
+        port.capture = DjiCaptureControlState(CameraStatus(resolutionCode = 0x67, fps = 25,
+            colorMode = CameraCommands.COLOR_DLOG2, expoMode = CameraCommands.EXPO_MANUAL), port.state.model)
+        val seam = adapter(port)
+        val format = seam.current.recordingFormat
+        assertEquals(com.opencapture.opencine.core.CameraExposureProgram.MANUAL, seam.current.exposureProgram.value)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(3840, 2880), format.dimensions.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, format.dimensions.origin)
+        assertEquals("D-Log2", format.profile.value)
+        assertNull(format.codec.value, "The preview codec does not declare the recording codec")
+        port.capture = DjiCaptureControlState(CameraStatus(resolutionCode = 0xFF), port.state.model)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingObservations.unknown, seam.current.recordingFormat)
+        assertNull(seam.current.exposureProgram.value)
+        assertTrue(port.fired.isEmpty())
+    }
+
     /** SIMULATED existing captured report: a known true charge flag must reach common power. */
     @Test fun batteryChargingReportsReachCommonPower() = runTest {
         val port = FakePort()

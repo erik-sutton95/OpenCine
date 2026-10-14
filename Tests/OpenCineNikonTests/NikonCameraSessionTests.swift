@@ -51,6 +51,30 @@ struct NikonCameraSessionTests {
             whiteBalancePresets: ["Auto", "Natural auto", "Sunny", "Cloudy", "0x8099"])
     }
 
+    @Test func recordingFactsUseReportedDimensionsAndNeverPreviewCodec() {
+        var facts = Self.movieFacts()
+        facts.reported = PTPCameraPropertySnapshot(exposureMode: "S", resolution: "6048x3402", fps: 25,
+            fileType: "R3D NE 12-bit R3D", captureSelector: .video)
+        let driver = Driver(facts)
+        let at = MonotonicInstant(.seconds(42))
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123", now: { at })
+        let snapshot = session.refresh()
+        #expect(snapshot.exposureProgram.value == .shutterPriority)
+        #expect(snapshot.recordingFormat.dimensions.value == CameraRecordingFormat.Dimensions(width: 6048, height: 3402))
+        #expect(snapshot.recordingFormat.dimensions.origin == .cameraReported)
+        #expect(snapshot.recordingFormat.dimensions.observedAt == at)
+        #expect(snapshot.recordingFormat.codec.value == "R3D NE 12-bit R3D")
+        #expect(snapshot.recordingFormat.profile.value == "Log3G10")
+        #expect(snapshot.recordingFormat.profile.origin == .protocolDerived)
+        driver.nikonControlFacts.reported = PTPCameraPropertySnapshot(resolution: "0x3402", fps: 0,
+            fileType: "H.265 10-bit MOV", captureSelector: .video)
+        let unknown = session.refresh()
+        #expect(unknown.recordingFormat.dimensions.value == nil)
+        #expect(unknown.recordingFormat.profile.value == nil, "A selectable codec does not establish tone")
+        #expect(unknown.recordingFormat.codec.value == "H.265 10-bit MOV")
+        #expect(driver.queued.isEmpty && driver.records.isEmpty)
+    }
+
     /// MULTI-03 F1: observations are stamped on the injected (by default the shared) host clock,
     /// not on a reference private to this session.
     @Test func observationsUseTheSharedClock() {

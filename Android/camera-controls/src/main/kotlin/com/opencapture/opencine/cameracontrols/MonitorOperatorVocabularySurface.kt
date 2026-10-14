@@ -289,9 +289,11 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)
     val labels = source.host.labelProfile
+    val recordingFormat = source.capture.control.state.value.snapshot?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::recordingFormat)
+    val formatLabel = recordingFormat?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::recordingLabel)
     val sheet = CaptureShutterPolicy.portraitSetupSheet(status.shootingMode)
     val format = if (source.session.mounts(MonitorDisplaySection.FORMAT) && !CameraCommands.isPhotoMode(status.shootingMode))
-        listOf(row(LiveSheet.FORMAT, "Recording format", CaptureLists.recFormatChipLabel(status), MonitorDisplaySection.FORMAT)) else emptyList()
+        listOf(row(LiveSheet.FORMAT, "Recording format", formatLabel, MonitorDisplaySection.FORMAT)) else emptyList()
     return MonitorOperatorLiveStatus({ source.capture.control.statusPresentation(status.recordElapsedSec) },
         // The single-camera clock slot follows the DISP section (placeholder by declared precision
         // when the body has no timecode, as main showed it); Multi View tiles follow the declaration.
@@ -302,10 +304,10 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
             action = { if (!field.portrait) toggleStorage() }, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
-            CaptureShutterPolicy.portraitSetupLabel(status)),
-        portraitCaption = CaptureShutterPolicy.portraitSetupCaption(status, source.host.camera?.family.orEmpty(), labels),
+            if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel),
+        portraitCaption = if (CameraCommands.isPhotoMode(status.shootingMode)) null else recordingFormat?.profile,
         color = if (!field.portrait && source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
-            row(LiveSheet.COLOR, "Color mode", CameraCommands.colorLabel(status.colorMode, source.host.camera?.family.orEmpty(), labels), MonitorDisplaySection.COLOR) else null,
+            row(LiveSheet.COLOR, "Color mode", recordingFormat?.profile, MonitorDisplaySection.COLOR) else null,
         mode = if (!field.portrait && source.session.mounts(MonitorDisplaySection.FORMAT))
             row(LiveSheet.MODE, "Shooting mode", CameraCommands.shootingModeLabel(status.shootingMode, source.host.camera?.name, labels)) else null,
         recordingSection = MonitorDisplaySection.REC_READOUT, timecodeSection = MonitorDisplaySection.TIMECODE)

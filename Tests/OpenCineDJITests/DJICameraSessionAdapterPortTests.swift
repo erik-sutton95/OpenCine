@@ -9,6 +9,29 @@ import Testing
 /// adapter through the real app session and loopback datalink.
 @MainActor
 @Suite struct DJICameraSessionAdapterPortTests {
+    @Test func recordingFactsUseReportedDimensionsAndNeverPreviewCodec() {
+        let port = FakePort()
+        port.status.videoResolution = .p4K_4x3
+        port.status.videoFormat = VideoFormat(resolution: .p4K_4x3, frameRate: .fps25)
+        port.status.fps = 25
+        port.status.colorMode = .dLog2
+        port.status.expoMode = .manual
+        let seam = DJICameraSessionAdapter(session: port)
+        let format = seam.current.recordingFormat
+        #expect(seam.current.exposureProgram.value == .manual)
+        #expect(format.dimensions.value == CameraRecordingFormat.Dimensions(width: 3840, height: 2880))
+        #expect(format.dimensions.origin == .cameraReported)
+        #expect(format.profile.value == "D-Log2")
+        #expect(format.codec.value == nil, "The preview codec does not declare the recording codec")
+        port.status.videoResolution = VideoResolution(rawValue: 0xFF)
+        port.status.videoFormat = nil
+        port.status.colorMode = nil
+        port.status.expoMode = nil
+        #expect(seam.current.exposureProgram == .unknown)
+        #expect(seam.current.recordingFormat == .unknown)
+        #expect(port.fired.isEmpty)
+    }
+
     /// SIMULATED complete battery reports; false and true differ from no report.
     @Test func batteryChargingReportsReachCommonPower() {
         let port = FakePort()

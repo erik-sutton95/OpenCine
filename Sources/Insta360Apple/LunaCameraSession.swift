@@ -209,13 +209,16 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 ?? (carries(21) ? settings.videoExposure : nil)
             : (carries(21) ? settings.videoExposure : nil)
                 ?? (carries(20) ? settings.stillExposure : nil)
-        if let exposure {
-            current.settings[.iso] = ObservedValue(
-                .iso(Self.iso(exposure)), origin: .cameraReported, at: at)
-            current.settings[.shutter] = ObservedValue(
-                .shutter(Self.shutter(exposure)), origin: .cameraReported, at: at)
-            reportedAt[.iso] = at
-            reportedAt[.shutter] = at
+        if exposure != nil || settings.types.contains(20) || settings.types.contains(21) {
+            let iso = exposure.flatMap(Self.iso)
+            let shutter = exposure.flatMap(Self.shutter)
+            current.settings[.iso] = iso.map { ObservedValue(.iso($0), origin: .cameraReported, at: at) } ?? .unknown
+            current.settings[.shutter] = shutter.map { ObservedValue(.shutter($0), origin: .cameraReported, at: at) } ?? .unknown
+            current.exposureProgram = exposure.flatMap(Self.exposureProgram).map {
+                ObservedValue($0, origin: .cameraReported, at: at)
+            } ?? .unknown
+            reportedAt[.iso] = iso == nil ? nil : at
+            reportedAt[.shutter] = shutter == nil ? nil : at
         }
         if carries(39) {
             // proto3 may omit a zero: a requested type 39 without a value is Auto.
@@ -227,15 +230,25 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 reportedAt[.whiteBalance] = at
             }
         }
-        // Option 31: the record resolution's schema name carries the exact rate.
-        if carries(31), let raw = settings.recordResolution,
-            let rate = LunaVideoResolution(rawValue: raw).flatMap({ Rational.frameRate($0.framesPerSecond) })
-        {
-            current.settings[.frameRate] = ObservedValue(.frameRate(rate), origin: .cameraReported, at: at)
-            reportedAt[.frameRate] = at
+        // Option 31 declares recording dimensions and cadence, not the preview's encoding.
+        if carries(31), settings.recordResolution != nil || settings.types.contains(31) {
+            let resolution = settings.videoResolution
+            let rate = resolution.flatMap { Rational.frameRate($0.framesPerSecond) }
+            current.settings[.frameRate] = rate.map {
+                ObservedValue(.frameRate($0), origin: .cameraReported, at: at)
+            } ?? .unknown
+            reportedAt[.frameRate] = rate == nil ? nil : at
+            current.recordingFormat.dimensions = resolution.flatMap {
+                CameraRecordingFormat.Dimensions(width: $0.width, height: $0.height)
+            }.map { ObservedValue($0, origin: .cameraReported, at: at) } ?? .unknown
         }
-        if carries(35), let color = settings.color {
-            recordingProfile = ObservedValue(Self.profileID(color), origin: .cameraReported, at: at)
+        if carries(35), settings.colorMode != nil || settings.types.contains(35) {
+            recordingProfile = settings.color.map {
+                ObservedValue(Self.profileID($0), origin: .cameraReported, at: at)
+            } ?? .unknown
+            current.recordingFormat.profile = settings.color.map {
+                ObservedValue(Self.recordingProfileLabel($0), origin: .cameraReported, at: at)
+            } ?? .unknown
         }
         if carries(53), settings.zoom != nil || settings.types.contains(53) {
             if let zoom = settings.zoom, zoom.isFinite,
@@ -725,22 +738,50 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         current.capabilities = declared
     }
 
-    /// Programs 0, 2, 4, 5 choose the ISO; 1 and 3 hold the reported one.
-    static func iso(_ exposure: LunaExposure) -> ISOValue {
+    private static func exposureProgram(_ exposure: LunaExposure) -> CameraExposureProgram? {
         switch exposure.exposureProgram {
-        case .isoPriority?, .manual?: exposure.iso > 0 ? .manual(Int(exposure.iso)) : .auto
-        default: .auto
+        case .manual?: .manual
+        case .isoPriority?: .isoPriority
+        case .shutterPriority?: .shutterPriority
+        case .automatic?, .adaptive?, .fullAuto?: .automatic
+        case nil: nil
         }
     }
 
-    /// Programs 2 and 3 hold the reported shutter; the rest choose it.
-    static func shutter(_ exposure: LunaExposure) -> ShutterValue {
+    /// A recognized automatic circuit is a fact; an unrecognized program is unknown.
+    static func iso(_ exposure: LunaExposure) -> ISOValue? {
+        guard exposureProgram(exposure) != nil else { return nil }
+        switch exposure.exposureProgram {
+        case .isoPriority?, .manual?:
+            guard exposure.iso <= UInt64(Int32.max) else { return nil }
+            return exposure.iso > 0 ? .manual(Int(exposure.iso)) : .auto
+        default: return .auto
+        }
+    }
+
+    static func shutter(_ exposure: LunaExposure) -> ShutterValue? {
+        guard exposureProgram(exposure) != nil else { return nil }
         switch exposure.exposureProgram {
         case .shutterPriority?, .manual?:
-            exposure.shutterSeconds > 0
-                ? .duration(Rational(1, Int((1 / exposure.shutterSeconds).rounded()))) : .auto
-        default: .auto
+            if exposure.shutterSeconds == 0 { return .auto }
+            return duration(exposure.shutterSeconds).map(ShutterValue.duration)
+        default: return .auto
         }
+    }
+
+    /// Preserve schema reciprocals and whole seconds; other measured durations use microseconds.
+    /// The supported integer range matches the Kotlin Rational representation.
+    private static func duration(_ seconds: Double) -> Rational? {
+        guard seconds.isFinite, seconds > 0, seconds < Double(Int32.max) else { return nil }
+        if seconds.rounded() == seconds { return Rational(Int(seconds)) }
+        let reciprocal = 1 / seconds
+        if reciprocal.isFinite, reciprocal >= 1, reciprocal < Double(Int32.max),
+            abs(reciprocal - reciprocal.rounded()) < 1e-7 {
+            return Rational(1, Int(reciprocal.rounded()))
+        }
+        let scaled = (seconds * 1_000_000).rounded()
+        guard scaled >= 1, scaled < Double(Int32.max) else { return nil }
+        return Rational(Int(scaled), 1_000_000)
     }
 
     private static func isoValue(_ value: SettingValue) -> ISOValue? {
@@ -767,6 +808,17 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         return CaptureMode(
             role: mode.isPhoto ? .photo : .video, id: "\(integration.rawValue).mode.\(name)",
             title: title)
+    }
+
+    /// Native recording content; a profile never declares the preview curve or its codec.
+    private static func recordingProfileLabel(_ color: LunaColorMode) -> String {
+        switch color {
+        case .standard: "Standard"
+        case .iLog: "I-Log"
+        case .vivid: "Vivid"
+        case .hdr: "HDR"
+        case .dolbyVision: "Dolby Vision"
+        }
     }
 
     static func profileID(_ color: LunaColorMode) -> String {

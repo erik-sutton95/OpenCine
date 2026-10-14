@@ -452,7 +452,11 @@ private struct AndroidRawControlCatalog: Sendable {
             codecBitDepth: currentCodecBitDepthLabel(properties.fileType),
             advertisedIrisValues: apertureDescriptorProperty
                 == PTPIPClientSession.apertureDescriptorProperty(
-                    captureSelector: properties.captureSelector) ? apertures.map(\.label) : []
+                    captureSelector: properties.captureSelector) ? apertures.map(\.label) : [],
+            recordingFormats: screenSizes.map {
+                NikonRecordingFormatPresentation(mode: $0, currentCodec: recognizedCodec,
+                    isNikonZR: usesNikonZRFallbacks)
+            }
         )
     }
 

@@ -241,6 +241,10 @@ public data class CameraSnapshot(
     public val timecode: ObservedValue<CameraTimecode> = ObservedValue.unknown,
     /** Support is [CapabilitySnapshot.audioLevels]. */
     public val audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
+    /** Recording observations remain separate from preview dimensions and transport encoding. */
+    public val recordingFormat: CameraRecordingObservations = CameraRecordingObservations.unknown,
+    /** Appended after every original constructor/component member. */
+    public val exposureProgram: ObservedValue<CameraExposureProgram> = ObservedValue.unknown,
 ) {
     public fun value(key: SettingKey): ObservedValue<SettingValue> = settings[key] ?: ObservedValue.unknown
 }

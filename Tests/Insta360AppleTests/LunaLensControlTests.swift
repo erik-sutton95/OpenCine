@@ -53,6 +53,132 @@ final class LunaLensControlTests: XCTestCase {
         XCTAssertEqual(receipt.stage, stage, file: file, line: line)
     }
 
+    func testCommonExposureUnknownProgramWithdrawsTheOldReport() throws {
+        let source = session()
+        var settings = try LunaPhotographySettings(response: LunaProtocol.setVideoExposure(
+            program: .manual, iso: 400, shutterSeconds: 0.02).body)
+        settings.functionMode = 7
+        settings.types = [21]
+        source.ingest(settings: settings)
+        XCTAssertEqual(source.current.value(of: .iso).value, .iso(.manual(400)))
+        var exposure = try XCTUnwrap(settings.videoExposure)
+        exposure.program = 999_999
+        settings.videoExposure = exposure
+        source.ingest(settings: settings)
+        XCTAssertNil(source.current.value(of: .iso).value, "An unknown program does not declare automatic ISO")
+        XCTAssertNil(source.current.value(of: .shutter).value, "An unknown program does not declare automatic shutter")
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testCommonExposureExplicitAbsentReportWithdrawsTheOldValues() throws {
+        let source = session()
+        var settings = try LunaPhotographySettings(response: LunaProtocol.setVideoExposure(
+            program: .manual, iso: 400, shutterSeconds: 0.02).body)
+        settings.functionMode = 7
+        settings.types = [21]
+        source.ingest(settings: settings)
+        XCTAssertEqual(source.current.value(of: .shutter).value, .shutter(.duration(Rational(1, 50))))
+        settings.videoExposure = nil
+        source.ingest(settings: settings)
+        XCTAssertNil(source.current.value(of: .iso).value)
+        XCTAssertNil(source.current.value(of: .shutter).value)
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testCommonExposurePreservesAReportedDurationLongerThanOneSecond() throws {
+        let source = session()
+        var settings = try LunaPhotographySettings(response: LunaProtocol.setVideoExposure(
+            program: .manual, iso: 400, shutterSeconds: 0.02).body)
+        settings.functionMode = 7
+        settings.types = [21]
+        var exposure = try XCTUnwrap(settings.videoExposure)
+        exposure.shutterSeconds = 2
+        settings.videoExposure = exposure
+        source.ingest(settings: settings)
+        XCTAssertEqual(source.current.value(of: .shutter).value, .shutter(.duration(Rational(2))))
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    /// An explicitly requested unsupported format withdraws its old common cadence.
+    func testExplicitUnknownRecordingFormatClearsTheOldCommonRate() throws {
+        let session = session()
+        var settings = try LunaPhotographySettings(response: Data())
+        settings.types = [31]
+        settings.functionMode = 7
+        settings.recordResolution = 48
+        session.ingest(settings: settings)
+        XCTAssertEqual(session.current.value(of: .frameRate).value, .frameRate(Rational(25)))
+        settings.recordResolution = 999_999
+        session.ingest(settings: settings)
+        XCTAssertNil(session.current.value(of: .frameRate).value, "An unsupported report cannot retain the old recording cadence")
+        XCTAssertNil(session.current.recordingFormat.dimensions.value)
+        XCTAssertNil(session.current.value(of: .frameRate).observedAt)
+        settings.recordResolution = 48
+        session.ingest(settings: settings)
+        let known = session.current.value(of: .frameRate)
+        XCTAssertNotNil(known.observedAt)
+        settings.types = [39]
+        settings.recordResolution = nil
+        settings.whiteBalanceKelvin = 5600
+        session.ingest(settings: settings)
+        XCTAssertEqual(session.current.value(of: .frameRate), known, "An unrelated partial reply retains the cadence and timestamp")
+        settings.types = [31]
+        session.ingest(settings: settings)
+        XCTAssertNil(session.current.value(of: .frameRate).value)
+        XCTAssertNil(session.current.value(of: .frameRate).observedAt)
+        XCTAssertTrue(sent.isEmpty, "Reading recording facts never sends a command")
+    }
+
+    func testExplicitUnknownRecordingProfileClearsTheOldCommonProfile() throws {
+        let session = session()
+        var settings = try LunaPhotographySettings(response: Data())
+        settings.types = [35]
+        settings.functionMode = 7
+        settings.colorMode = LunaColorMode.iLog.rawValue
+        session.ingest(settings: settings)
+        XCTAssertNotNil(session.recordingProfile.value)
+        settings.colorMode = 999_999
+        session.ingest(settings: settings)
+        XCTAssertNil(session.recordingProfile.value, "An unsupported report cannot retain the old recording profile")
+        XCTAssertNil(session.current.recordingFormat.profile.value)
+        XCTAssertTrue(sent.isEmpty, "Reading recording facts never sends a command")
+    }
+
+    func testRecordingFactsKeepIndependentProvenanceAndNeverAssumePreviewCodec() throws {
+        let session = session()
+        var profile = try LunaPhotographySettings(response: Data())
+        profile.types = [35]
+        profile.functionMode = 7
+        profile.colorMode = LunaColorMode.iLog.rawValue
+        session.ingest(settings: profile)
+        let observedProfile = session.current.recordingFormat.profile
+        XCTAssertEqual(observedProfile.value, "I-Log")
+        XCTAssertEqual(observedProfile.origin, .cameraReported)
+        clock.advance(.seconds(1))
+        var format = try LunaPhotographySettings(response: Data())
+        format.types = [31]
+        format.functionMode = 7
+        format.recordResolution = 48
+        session.ingest(settings: format)
+        XCTAssertEqual(session.current.recordingFormat.dimensions.value,
+            CameraRecordingFormat.Dimensions(width: 3840, height: 2160))
+        XCTAssertEqual(session.current.recordingFormat.dimensions.origin, .cameraReported)
+        XCTAssertEqual(session.current.recordingFormat.dimensions.observedAt, clock.read())
+        XCTAssertEqual(session.current.recordingFormat.profile, observedProfile,
+            "A dimension report cannot restamp the retained profile")
+        XCTAssertNil(session.current.recordingFormat.codec.value, "HEVC preview is not a recording-codec report")
+        let recordedDimensions = session.current.recordingFormat.dimensions
+        format.functionMode = 1
+        format.recordResolution = 49
+        session.ingest(settings: format)
+        XCTAssertEqual(session.current.recordingFormat.dimensions, recordedDimensions)
+        session.close(.replaced)
+        format.functionMode = 7
+        session.ingest(settings: format)
+        XCTAssertEqual(session.current.recordingFormat.dimensions, recordedDimensions)
+        XCTAssertTrue(sent.isEmpty)
+    }
+
     /// A5-09: option 31's schema rate is a typed read-only Rational, never rounded or written.
     func testRecordRateIsAReadOnlyRationalFromTheResolutionOption() async throws {
         let session = session()

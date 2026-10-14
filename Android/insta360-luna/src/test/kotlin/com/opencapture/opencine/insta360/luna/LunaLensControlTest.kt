@@ -1,6 +1,7 @@
 package com.opencapture.opencine.insta360.luna
 
 import com.opencapture.opencine.core.CameraCommand
+import com.opencapture.opencine.core.CameraRecordingFormat
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandPreconditions
@@ -43,6 +44,90 @@ private class LensHarness(scope: CoroutineScope) {
 }
 
 class LunaLensControlTest {
+    @Test fun commonExposureUnknownProgramWithdrawsTheOldReport() = runTest {
+        val h = LensHarness(backgroundScope)
+        val known = LunaPhotographySettings(types = listOf(21), functionMode = 7,
+            videoExposure = LunaExposure(3, 400, 0.02))
+        h.session.ingest(known)
+        assertEquals(SettingValue.Iso(com.opencapture.opencine.core.ISOValue.Manual(400)), h.current.value(SettingKey.ISO).value)
+        h.session.ingest(known.copy(videoExposure = LunaExposure(999_999, 400, 0.02)))
+        assertNull(h.current.value(SettingKey.ISO).value, "An unknown program does not declare automatic ISO")
+        assertNull(h.current.value(SettingKey.SHUTTER).value, "An unknown program does not declare automatic shutter")
+        assertTrue(h.sent.isEmpty())
+    }
+
+    @Test fun commonExposureExplicitAbsentReportWithdrawsTheOldValues() = runTest {
+        val h = LensHarness(backgroundScope)
+        val known = LunaPhotographySettings(types = listOf(21), functionMode = 7,
+            videoExposure = LunaExposure(3, 400, 0.02))
+        h.session.ingest(known)
+        assertEquals(SettingValue.Shutter(com.opencapture.opencine.core.ShutterValue.Duration(Rational(1, 50))), h.current.value(SettingKey.SHUTTER).value)
+        h.session.ingest(known.copy(videoExposure = null))
+        assertNull(h.current.value(SettingKey.ISO).value)
+        assertNull(h.current.value(SettingKey.SHUTTER).value)
+        assertTrue(h.sent.isEmpty())
+    }
+
+    @Test fun commonExposurePreservesAReportedDurationLongerThanOneSecond() = runTest {
+        val h = LensHarness(backgroundScope)
+        h.session.ingest(LunaPhotographySettings(types = listOf(21), functionMode = 7,
+            videoExposure = LunaExposure(3, 400, 2.0)))
+        assertEquals(SettingValue.Shutter(com.opencapture.opencine.core.ShutterValue.Duration(Rational(2))), h.current.value(SettingKey.SHUTTER).value)
+        assertTrue(h.sent.isEmpty())
+    }
+
+    /** An explicitly requested unsupported format withdraws its old common cadence. */
+    @Test fun explicitUnknownRecordingFormatClearsTheOldCommonRate() = runTest {
+        val h = LensHarness(backgroundScope)
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7, recordResolution = 48L))
+        assertEquals(SettingValue.FrameRate(Rational(25)), h.current.value(SettingKey.FRAME_RATE).value)
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7, recordResolution = 999_999L))
+        assertNull(h.current.value(SettingKey.FRAME_RATE).value, "An unsupported report cannot retain the old recording cadence")
+        assertNull(h.current.recordingFormat.dimensions.value)
+        assertNull(h.current.value(SettingKey.FRAME_RATE).observedAt)
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7, recordResolution = 48L))
+        val known = h.current.value(SettingKey.FRAME_RATE)
+        assertTrue(known.observedAt != null)
+        h.session.ingest(LunaPhotographySettings(types = listOf(39), functionMode = 7, whiteBalanceKelvin = 5600L))
+        assertEquals(known, h.current.value(SettingKey.FRAME_RATE), "An unrelated partial reply retains the cadence and timestamp")
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7))
+        assertNull(h.current.value(SettingKey.FRAME_RATE).value)
+        assertNull(h.current.value(SettingKey.FRAME_RATE).observedAt)
+        assertTrue(h.sent.isEmpty(), "Reading recording facts never sends a command")
+    }
+
+    @Test fun explicitUnknownRecordingProfileClearsTheOldCommonProfile() = runTest {
+        val h = LensHarness(backgroundScope)
+        h.session.ingest(LunaPhotographySettings(types = listOf(35), functionMode = 7, colorMode = 2L))
+        kotlin.test.assertNotNull(h.session.recordingProfile.value)
+        h.session.ingest(LunaPhotographySettings(types = listOf(35), functionMode = 7, colorMode = 999_999L))
+        assertNull(h.session.recordingProfile.value, "An unsupported report cannot retain the old recording profile")
+        assertNull(h.current.recordingFormat.profile.value)
+        assertTrue(h.sent.isEmpty(), "Reading recording facts never sends a command")
+    }
+
+    @Test fun recordingFactsKeepIndependentProvenanceAndNeverAssumePreviewCodec() = runTest {
+        val h = LensHarness(backgroundScope)
+        h.session.ingest(LunaPhotographySettings(types = listOf(35), functionMode = 7, colorMode = 2L))
+        val profile = h.current.recordingFormat.profile
+        assertEquals("I-Log", profile.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, profile.origin)
+        h.clock += 1.seconds
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7, recordResolution = 48L))
+        assertEquals(CameraRecordingFormat.Dimensions.measured(3840, 2160), h.current.recordingFormat.dimensions.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, h.current.recordingFormat.dimensions.origin)
+        assertEquals(MonotonicInstant(h.clock), h.current.recordingFormat.dimensions.observedAt)
+        assertEquals(profile, h.current.recordingFormat.profile, "A dimension report cannot restamp the retained profile")
+        assertNull(h.current.recordingFormat.codec.value, "HEVC preview is not a recording-codec report")
+        val dimensions = h.current.recordingFormat.dimensions
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 1, recordResolution = 49L))
+        assertEquals(dimensions, h.current.recordingFormat.dimensions)
+        h.session.closeNow(SessionCloseReason.REPLACED)
+        h.session.ingest(LunaPhotographySettings(types = listOf(31), functionMode = 7, recordResolution = 49L))
+        assertEquals(dimensions, h.current.recordingFormat.dimensions)
+        assertTrue(h.sent.isEmpty())
+    }
+
     /** A5-09: option 31's schema rate is a typed read-only Rational, never rounded or written. */
     @Test fun recordRateIsAReadOnlyRationalFromTheResolutionOption() = runTest {
         val h = LensHarness(backgroundScope)

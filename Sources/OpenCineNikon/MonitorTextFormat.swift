@@ -72,7 +72,7 @@ public enum MonitorTextFormat {
     }
 
     /// Maps a pixel width to its marketing resolution class, or the raw width when no class fits.
-    private static func resolutionClass(pixelWidth: Int) -> String {
+    public static func resolutionClass(pixelWidth: Int) -> String {
         switch pixelWidth {
         case 7680...: "8K"
         case 5000..<7680: "6K"

@@ -604,6 +604,8 @@ class DjiCameraSessionAdapter(
                 capabilities = capabilities,
                 mode = mode(state.shootingMode),
                 settings = settings(state) + (port.captureControlState()?.settings ?: emptyMap()),
+                recordingFormat = DjiRecordingObservations.recording(port.captureControlState()?.reported),
+                exposureProgram = DjiRecordingObservations.exposureProgram(port.captureControlState()?.reported),
                 recording = state.recording?.let {
                     ObservedValue(if (it) RecordingState.RECORDING else RecordingState.IDLE, ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,

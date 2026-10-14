@@ -119,8 +119,10 @@ internal data class LunaPhotographySettings(
     fun merge(other: LunaPhotographySettings) = LunaPhotographySettings(
         (types + other.types).distinct().sorted(), other.functionMode ?: functionMode, other.sharpness ?: sharpness,
         other.exposureBiasTenths ?: exposureBiasTenths, other.filter ?: filter, other.stillExposure ?: stillExposure,
-        other.videoExposure ?: videoExposure, other.isoTopLimit ?: isoTopLimit, other.recordResolution ?: recordResolution,
-        other.fov ?: fov, other.colorMode ?: colorMode, other.whiteBalanceKelvin ?: whiteBalanceKelvin,
+        other.videoExposure ?: videoExposure, other.isoTopLimit ?: isoTopLimit,
+        if (31 in other.types) other.recordResolution else other.recordResolution ?: recordResolution,
+        other.fov ?: fov, if (35 in other.types) other.colorMode else other.colorMode ?: colorMode,
+        other.whiteBalanceKelvin ?: whiteBalanceKelvin,
         other.photoResolution ?: photoResolution, other.faceMetering ?: faceMetering, other.zoom ?: zoom, other.iLog ?: iLog, other.colorRecovery ?: colorRecovery,
         other.gimbal ?: gimbal, other.gimbalStatus ?: gimbalStatus, other.afMode ?: afMode, remainingRecordTime,
         other.iq3AMode ?: iq3AMode, other.filterStrength ?: filterStrength,

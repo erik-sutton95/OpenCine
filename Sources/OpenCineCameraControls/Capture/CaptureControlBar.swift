@@ -78,7 +78,7 @@
                 } else {
                     commonTile(.iso, key: .iso)
                 }
-                if status.expoMode == .auto {
+                if host.control.snapshot?.exposureProgram.value == .automatic {
                     tile(
                         .shutter,
                         label: MonitorExposureReadout.autoEvCaption(
@@ -121,7 +121,7 @@
         }
 
         @ViewBuilder private func commonTile(_ sheet: CaptureSheet, key: SettingKey) -> some View {
-            if let field = host.control.captureField(key) {
+            if let field = host.control.captureField(key, selection: readoutSelection) {
                 MonitorCaptureReadout(
                     control: host.control, field: field,
                     enabled: !tilesLocked
@@ -212,57 +212,56 @@
                 with: CaptureReadoutAdmission.opening(sheet, isPhoto: status.isPhoto))
         }
 
-        private var isoValue: String {
-            if status.isoIndex == .auto { return "Auto" }
-            let iso = status.iso
-            return iso > 0 ? "\(iso)" : (status.isoIndex?.label ?? "\u{2014}")
+        private var readoutSelection: MonitorCaptureSelection {
+            host.captureStripShowsPendingEdits ? .pending : .reported
         }
 
+        private func commonValue(_ key: SettingKey) -> String {
+            host.control.captureValue(key, selection: readoutSelection).map(MonitorCapturePresentation.label) ?? "--"
+        }
+
+        private var isoValue: String { commonValue(.iso) }
+
         private var shutterValue: String {
-            CaptureQuickSnapshot.shutterReadout(
+            if !host.shutterUsesAngle || status.isPhoto { return commonValue(.shutter) }
+            return CaptureQuickSnapshot.shutterReadout(
                 status: status,
                 shutterUsesAngle: host.shutterUsesAngle,
                 shutterAngleDegrees: host.shutterAngleDegrees)
         }
 
         private var evValue: String {
-            status.evComp?.label ?? "\u{2014}"
+            host.captureRouting.commonExposureCompensation ? commonValue(.exposureCompensation) : status.evComp?.label ?? "--"
         }
 
         private var wbIcon: MonitorIcon? {
-            host.displayStatus.whiteBalance?.mode == .custom ? nil : .aperture
+            if case .whiteBalance(.auto)? = host.control.captureValue(.whiteBalance, selection: readoutSelection) {
+                return host.autoWhiteBalanceLocked ? nil : .aperture
+            }
+            return nil
         }
 
         private var wbValue: String {
             if host.autoWhiteBalanceLocked { return CaptureLists.awbLockTile }
-            let wb = host.displayStatus
-            switch wb.whiteBalance?.mode {
-            case .custom:
-                let k = wb.whiteBalanceKelvin
-                return k > 0 ? "\(k)K" : "Custom"
-            case .auto:
-                return "Auto"
-            case nil:
-                return "\u{2014}"
-            }
+            return commonValue(.whiteBalance)
         }
 
         private var focusValue: String {
-            FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)?.chip
-                ?? "\u{2014}"
+            let commonFocus: OpenCineCore.FocusMode?
+            if case .focusMode(let value)? = host.control.captureValue(.focusMode, selection: readoutSelection) {
+                commonFocus = value
+            } else { commonFocus = nil }
+            return CaptureNativeReadoutPresentation.focus(common: commonFocus,
+                native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack))
         }
 
-        /// Live mechanical iris first; the requested strategy until `cam_expo_param` lands.
         private var apertureValue: String {
-            if let iris = status.irisHundredths {
-                return ApertureStrategy.fNumberLabel(hundredths: iris)
-            }
-            return status.apertureStrategy?.label ?? "\u{2014}"
+            commonValue(.aperture)
         }
 
         private var expoValue: String {
             if host.autoExposureLocked { return CaptureLists.aeLock }
-            return status.expoMode == .manual ? "M" : status.expoMode == .auto ? "A" : "\u{2014}"
+            return host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
         }
 
         private var audioValue: String {

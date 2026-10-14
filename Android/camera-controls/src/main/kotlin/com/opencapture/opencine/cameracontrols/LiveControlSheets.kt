@@ -520,6 +520,8 @@ private fun LiveControlSheetContent(
                     interactive = false,
                     onSelect = {},
                 )
+            } else if (host.nativeCapturePanel(sheet, enabled) != null) {
+                host.nativeCapturePanel(sheet, enabled)?.invoke()
             } else when (sheet) {
                 LiveSheet.ISO -> {
                     Column(
