@@ -356,22 +356,14 @@ private struct MonitorSettingsConfiguredSupport: View {
             MonitorSupportSettings(automaticReports: source.consent, available: source.available,
                 automaticHelp: source.automaticHelp, unavailableHelp: source.unavailableHelp,
                 reportTitle: source.reportTitle, reportActionTitle: source.reportActionTitle,
-                actions: supportActions, report: report, privacy: { request(source.privacyDestination) })
+                actions: source.configuredSupportActions(
+                    reportPreparing: source.model?.preparingReport == true),
+                report: report, privacy: { request(source.privacyDestination) })
             MonitorProjectLegalSettings(sourceHelp: source.sourceHelp, termsHelp: source.termsHelp,
                 source: { request(source.sourceDestination) }, privacy: { request(source.privacyDestination) },
                 terms: { request(source.termsDestination) })
         }
 
-    }
-    private var supportActions: [MonitorSupportAction] {
-        source.links.map { link in
-            .init(id: link.destination.id, title: link.destination.title, help: link.help,
-                actionTitle: link.actionTitle, accessibilityLabel: link.accessibilityLabel,
-                action: { request(link.destination) })
-        } + [.init(id: "support.diagnostics", title: "Share Diagnostics", help: source.diagnosticsHelp,
-            actionTitle: source.model?.preparingReport == true ? "Preparing…" : "Share",
-            accessibilityLabel: "Share Diagnostics", enabled: source.model?.preparingReport != true,
-            action: { source.model?.prepareReport() })]
     }
     private func request(_ destination: MonitorSettingsBrowserDestination?) {
         if let destination { source.model?.request(destination) }

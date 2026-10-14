@@ -160,6 +160,8 @@ public struct MonitorSettingsSupportSource {
     let reportAction: (() -> Void)?
     let reportTitle: String, reportActionTitle: String, diagnosticsHelp: String
     let supportEmail: String
+    let deleteStoredReports: (() -> Void)?
+    let deleteReportsHelp: String
     public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         deleteHelp: String, sourceHelp: String, termsHelp: String, sourceURL: URL?, termsURL: URL?,
         saveReport: @escaping () -> URL?, deleteReports: @escaping () -> Void,
@@ -176,6 +178,7 @@ public struct MonitorSettingsSupportSource {
         self.privacyDestination = nil; self.sourceDestination = nil; self.termsDestination = nil
         self.reportAction = nil; self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
         self.supportEmail = supportEmail
+        self.deleteStoredReports = nil; self.deleteReportsHelp = ""
     }
     @MainActor public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         sourceHelp: String, termsHelp: String, model: MonitorSettingsSupportModel, actions: MonitorSettingsSupportActions,
@@ -184,6 +187,7 @@ public struct MonitorSettingsSupportSource {
         reportTitle: String, reportActionTitle: String, diagnosticsHelp: String,
         reportAction: (() -> Void)? = nil, report: @escaping @MainActor @Sendable () -> AnyView,
         shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
+        deleteStoredReports: (() -> Void)? = nil, deleteReportsHelp: String = "",
         supportEmail: String = "support@opencapture.org") {
         self.consent = consent; self.available = available; self.automaticHelp = automaticHelp; self.unavailableHelp = unavailableHelp
         self.deleteHelp = ""; self.sourceHelp = sourceHelp; self.termsHelp = termsHelp
@@ -194,13 +198,37 @@ public struct MonitorSettingsSupportSource {
         self.reportAction = reportAction; self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
         self.diagnosticsHelp = diagnosticsHelp
         self.supportEmail = supportEmail
+        self.deleteStoredReports = deleteStoredReports; self.deleteReportsHelp = deleteReportsHelp
     }
 }
 
 /// A2-79: the report-unavailable alert names the host's support address, never a hard-coded one.
+/// A2-25: the configured System tab rows come from one shared order, so the model-backed apps
+/// expose the same host links, share-diagnostics row and, when the host supplies one, the
+/// delete-stored-reports row the closure-path apps already render.
 extension MonitorSettingsSupportSource {
     var reportUnavailableMessage: String {
         "Email \(supportEmail). You can save a report under Diagnostic options."
+    }
+
+    /// Main actor: the rows' actions call the main-actor support model, so the action literals
+    /// keep that isolation like every other view-built closure here.
+    @MainActor
+    func configuredSupportActions(reportPreparing: Bool) -> [MonitorSupportAction] {
+        links.map { link in
+            MonitorSupportAction(id: link.destination.id, title: link.destination.title, help: link.help,
+                actionTitle: link.actionTitle, accessibilityLabel: link.accessibilityLabel,
+                action: { model?.request(link.destination) })
+        }
+        + [MonitorSupportAction(id: "support.diagnostics", title: "Share Diagnostics", help: diagnosticsHelp,
+            actionTitle: reportPreparing ? "Preparing…" : "Share",
+            accessibilityLabel: "Share Diagnostics", enabled: !reportPreparing,
+            action: { Task { @MainActor in model?.prepareReport() } })]
+        + (deleteStoredReports.map { delete in
+            [MonitorSupportAction(id: "support.deleteReports", title: "Delete saved feed reports",
+                help: deleteReportsHelp, actionTitle: "Delete",
+                accessibilityLabel: "Delete saved feed reports", action: delete)]
+        } ?? [])
     }
 }
 
