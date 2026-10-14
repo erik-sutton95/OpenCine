@@ -51,6 +51,21 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
     }
 
     @MainActor
+    func testPhysicalStatusRowReadoutsOnLiveCamera() async throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_ROW_PROBE"] == "1" else {
+            throw XCTSkip("Requires the opted-in read-only status row readout run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { await run.restore() }
+        try await run.exerciseStatusRowReadouts()
+        #endif
+    }
+
+    @MainActor
     func testPhysicalCapturedOwnClipQueryOrPlaybackReopenAndSavedRelaunch() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard environment["OPV_PHYSICAL_UI_REVIEW"] == "1",
@@ -303,6 +318,49 @@ private struct PhysicalMigrationProbe: Decodable {
         try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
         mark("original-settings-restored")
         evidence("scoped-settings-recording-playback-relaunch-completed")
+    }
+
+    // Read-only status row evidence: a saved connection, the live probe and the
+    // status row exactly as the operator sees it in each orientation. No camera
+    // setting, record or media operation is issued in this exercise.
+    func exerciseStatusRowReadouts() async throws {
+        try await prepareScopedSavedConnection()
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft, .landscapeRight] {
+            let raw = String(orientation.rawValue)
+            let source = try await freshLive("row-before-" + raw)
+            XCUIDevice.shared.orientation = orientation
+            var previous: [CGRect] = []
+            var stableSince = Date()
+            try await wait("Rotation must settle with reachable capture controls: " + raw, timeout: 10) {
+                let record = self.app.buttons["monitor.system.record"]
+                guard record.isHittable, self.app.frame.contains(record.frame),
+                    (self.app.frame.height > self.app.frame.width) == (orientation == .portrait)
+                else { return false }
+                let frames = [self.app.frame, record.frame]
+                if frames != previous { previous = frames; stableSince = Date(); return false }
+                return Date().timeIntervalSince(stableSince) >= 0.4
+            }
+            let current = try await freshLive("row-live-" + raw)
+            try await reportedRecording(false, source: current.identity, stage: "row-idle-" + raw)
+            let name = "status-row." + raw
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = name + ".ax"; tree.lifetime = .keepAlways; test.add(tree)
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = name + ".screen"; shot.lifetime = .keepAlways; test.add(shot)
+            jsonEvidence(name, [
+                "orientation": orientation.rawValue,
+                "at": Date().timeIntervalSince1970,
+                "sourceIdentity": current.identity,
+                "sourceFrameAt": current.frameAt,
+                "cameraISO": current.probe.cameraISO.map { $0 as Any } ?? NSNull(),
+                "cameraISOIsAuto": current.probe.cameraISOIsAuto.map { $0 as Any } ?? NSNull(),
+                "cameraRecording": current.probe.cameraRecording.map { $0 as Any } ?? NSNull(),
+                "nativeDecodeOutputs": current.probe.nativeDecodeOutputs.map { $0 as Any } ?? NSNull(),
+                "sourcePresentations": current.probe.sourcePresentations.map { $0 as Any } ?? NSNull(),
+            ])
+            mark("status-row-" + raw)
+        }
+        evidence("status-row-readouts-completed")
     }
 
     // Reuses the original playback/relaunch oracles without acquiring record authority.
