@@ -353,7 +353,7 @@ a `backdrop` modifier and a `viewport`/`safeArea`, the Compose one a `modifier` 
 | `ReliabilityReportingNetworkTests` (envelope event ID from plain and gzip headers, bounded reads, body stream copy, redirects off the DSN host, camera gate, camera path lease fenced per owner, host isolation, backoff, receipts refuse IDs that leave their directory) | `ReliabilityReportingTest`: `cameraGateBlocksEvenWithInternetAndCancelsPending`, `cameraPathLeaseIsFencedPerOwner`, `hostIsolationRejectsNonDsnHosts`, `backoffGrowsWithJitterBound`, `receiptsRefuseIdsThatLeaveTheReceiptsDirectory`; the envelope cases are Swift only |
 | `SentryReliabilitySinkTests` in `OpenCineSentryAppleTests` (iOS simulator: crash capture installs on camera Wi-Fi, scrub never stamps current origin on fatal events, breadcrumb allowlist, user/request/path removal, original release after upgrade, queued origin survives the SDK scope merge, options privacy flags) | `appkit-sentry`: `SentryReliabilitySinkTest`, `ReliabilityTransportCacheFailureTest` (A6-01), `ReliabilityTransportRetryTest`, `OkHttpManualReportUploadTest`, `AdapterIsolationTest` |
 | `FeedSessionSummaryStoreTests` (healthy sessions survive later sessions and an interrupted process, retention and invalid identity cannot escape the spool) | `FeedSessionSummaryStoreTest` (same cases, Kotlin names) |
-| `ReliabilityReportingTests` (event levels, consent and revoke purge, DSN shape, launch origin, event ID and fingerprint, original release and origin of a queued incident, queued then confirmed receipts and dedup, open checkpoints and revoked consent never capture, session summaries) | `ReliabilityReportingTest`, mostly the same names |
+| `ReliabilityReportingTests` (event levels, consent and revoke purge, DSN shape, launch origin, event ID and fingerprint, original release and origin of a queued incident, queued then confirmed receipts and dedup, open checkpoints and revoked consent never capture, session summaries as metrics, install id, environment, lifecycle exception text, feed upscaler tag) | `ReliabilityReportingTest`, mostly the same names |
 | `ProblemReportingTests` (manual report kept without automatic consent, feedback schema, bounded attachment, endpoint, Retry-After, HTTP accept and retry, expiry, image normalization) | `ManualProblemReportTest`, `ManualReportImagesTest` (Kotlin's own report format) |
 | `FeedIncidentStoreTests` (interrupted not crash, retention, corrupt file, journal-free redacted export, size caps) | `FeedIncidentStoreTest` |
 | `DiagnosticJournalTests` (redacted lines, trim to the cap on its cadence) | Swift only (no Kotlin journal) |
@@ -553,12 +553,15 @@ The stateful core is host-built instances, like Kotlin's: the app's one holder m
 `DiagnosticsHost` (names, release package, version, environment, support email, redaction),
 `ReliabilityReportingConsent` (the stored choice), `ReliabilityReportingDSN` (the build's and the
 launch environment's candidates), the gate, `FeedIncidentOrigin` (the current run's test source and
-build identity), `ReliabilityReporting` (consent epochs, SDK start and purge, typed incident and
-session-summary events, queued and confirmed receipts, idle polls and backoff), `FeedIncidentRuntime`
+build identity), `ReliabilityReporting` (consent epochs, SDK start and purge, typed incident events,
+session-summary metrics, queued and confirmed receipts, idle polls and backoff), `FeedIncidentRuntime`
 (the recorder, the `FeedIncidentStore` spool and the report extras) and `ProblemReporting` (the
 operator's one-off report and its `ProblemReportImage`s), plus `DiagnosticJournal` (the redacted,
 capped journal the shared report reads). `ReliabilityReportingPrivacy` holds the
-rules for what may leave the phone; `DiagnosticsHost.redact` is the host's redaction, and the
+rules for what may leave the phone: allow-listed tags, extras, contexts and metrics, each value
+through `value` (a closed vocabulary such as `trigger` or `feedUpscaler` reads `other` for anything
+else, a build value with a fixed shape reads `unknown`, the rest is clipped and redacted, because
+redaction alone keeps bare SSIDs and camera names); `DiagnosticsHost.redact` is the host's redaction, and the
 neutral `PrivacyRedactor.redact` keeps no SSID readable. An integration that keeps its camera
 access points readable supplies the predicate (DJI: `DJICameraNetwork.redact`, Kotlin
 `DjiCameraNetwork`); Luna and Nikon apps use the neutral one (A6-10). Nothing here links the SDK.

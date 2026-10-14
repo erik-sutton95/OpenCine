@@ -1,7 +1,8 @@
 #if os(iOS)
     import Foundation
     import OpenCineAppKit
-    import Sentry
+    // `SentrySDK.metrics` is a stored static the SDK does not mark concurrency-safe.
+    @preconcurrency import Sentry
 
     /// OpenCine's reporting runtime on the Sentry SDK: the SDK options, the runtime's calls, and the
     /// privacy rules applied to every event and breadcrumb the SDK sends (crashes included).
@@ -31,7 +32,10 @@
         public func start(dsn: String, cacheRoot: URL) {
             let session = urlProtocol.makeSDKSession()
             sdkSession = session
-            SentrySDK.start(options: makeOptions(dsn: dsn, urlSession: session, cacheRoot: cacheRoot))
+            SentrySDK.start(
+                options: makeOptions(dsn: dsn, urlSession: session, cacheRoot: cacheRoot))
+            // Crash reports and metrics carry the anonymous install id through the scope.
+            SentrySDK.setUser(Self.user(consent.installID))
         }
 
         public func close() {
@@ -56,14 +60,28 @@
             }
         }
 
+        /// The event's own tags already win over the scope's when the SDK merges them, so the
+        /// capture scope only swaps the attachment; tags set on it would reach scope observers.
         public func capture(_ event: ReliabilityEvent, attachment: Data, attachmentName: String) {
-            let sentryEvent = Self.event(event)
-            SentrySDK.capture(event: sentryEvent) { scope in
+            SentrySDK.capture(event: Self.event(event)) { scope in
                 scope.clearAttachments()
                 scope.addAttachment(
-                    Attachment(data: attachment, filename: attachmentName, contentType: "application/json"))
-                Self.applyOriginalTags(sentryEvent.tags, to: scope)
+                    Attachment(
+                        data: attachment, filename: attachmentName, contentType: "application/json")
+                )
             }
+        }
+
+        public func record(_ metric: ReliabilityMetric) {
+            SentrySDK.metrics.distribution(
+                key: metric.name, value: metric.value,
+                unit: metric.unit.flatMap(SentryUnit.init(rawValue:)),
+                attributes: metric.attributes)
+        }
+
+        /// The SDK user: the anonymous install id only, or none.
+        static func user(_ installID: String?) -> User? {
+            installID.map { User(userId: $0) }
         }
 
         public func makeOptions(dsn: String, urlSession: URLSession, cacheRoot: URL) -> Options {
@@ -116,7 +134,15 @@
                 // Fatal/watchdog events from a prior run already carry persisted
                 // tags; Cocoa skips applyToEvent for isFatalEvent. Never fill
                 // current-run origin onto missing tags.
-                return privacy.scrub(event)
+                let scrubbed = privacy.scrub(event)
+                scrubbed.user = Self.user(consent.installID)
+                return scrubbed
+            }
+            // Only the shared metrics leave the phone, and only under consent.
+            options.beforeSendMetric = { metric in
+                consent.isOptedIn
+                    && ReliabilityReportingPrivacy.metricAllowlist.contains(metric.name)
+                    ? metric : nil
             }
             return options
         }
@@ -143,7 +169,9 @@
             return sentryEvent
         }
 
-        /// Capture-scope tags from the current run must not replace persisted origin.
+        /// Compatibility for callers that explicitly manage their own scope.
+        /// Capture keeps provenance on the event and does not call this helper.
+        @available(*, deprecated, message: "Keep original tags on the event passed to capture.")
         public static func applyOriginalTags(_ tags: [String: String]?, to scope: Scope) {
             guard let tags else { return }
             for (key, value) in tags {
@@ -163,20 +191,22 @@
         public func scrub(_ event: Event) -> Event {
             event.user = nil
             event.request = nil
-            event.breadcrumbs = Array((event.breadcrumbs ?? []).compactMap(scrubBreadcrumb).suffix(32))
+            event.breadcrumbs = Array(
+                (event.breadcrumbs ?? []).compactMap(scrubBreadcrumb).suffix(32))
             event.serverName = nil
             event.transaction = nil
             if let formatted = event.message?.formatted {
-                event.message = SentryMessage(formatted: message(formatted, fingerprint: event.fingerprint))
+                event.message = SentryMessage(
+                    formatted: message(formatted, fingerprint: event.fingerprint))
             }
             if let tags = event.tags { event.tags = self.tags(tags) }
             if let extra = event.extra { event.extra = Self.extra(extra) }
             if let context = event.context { event.context = Self.context(context) }
             if let exceptions = event.exceptions {
                 for exception in exceptions {
-                    // Exception reasons can contain arbitrary user/application
-                    // data. Preserve type, mechanism and symbolication, not text.
-                    if exception.value != nil { exception.value = "Native exception" }
+                    // Exception reasons can contain arbitrary user/application data. Preserve
+                    // type, mechanism, symbolication and the SDK's own lifecycle text only.
+                    if let value = exception.value { exception.value = Self.exceptionValue(value) }
                     scrub(frames: exception.stacktrace?.frames)
                 }
             }

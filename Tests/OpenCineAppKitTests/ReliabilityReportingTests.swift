@@ -47,6 +47,14 @@ final class ReliabilityReportingTests: XCTestCase {
         wait(for: [ready], timeout: 10)
     }
 
+    func testLegacySinkConformerAllowsAnOptionalMetricSample() {
+        let legacy = RecordingSink()
+        let sink: any ReliabilityReportingSink = legacy
+        sink.record(ReliabilityMetric(name: "feed.session.incidents", value: 1))
+        XCTAssertFalse(legacy.isEnabled)
+        XCTAssertTrue(legacy.tags.isEmpty)
+    }
+
     func testOnlyExhaustedIncidentsAreErrors() {
         XCTAssertEqual(ReliabilityReporting.level(forOutcome: "exhausted"), .error)
         XCTAssertEqual(ReliabilityReporting.level(forOutcome: "interrupted"), .warning)
@@ -282,6 +290,225 @@ final class ReliabilityReportingTests: XCTestCase {
         XCTAssertNil(reporting.receipt(for: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
     }
 
+    func testInstallIDExistsOnlyUnderConsentAndResetsWhenWithdrawn() throws {
+        XCTAssertNil(consent.installID, "undecided: no id")
+        consent.setOptedIn(false)
+        XCTAssertNil(consent.installID, "declined: no id")
+        XCTAssertNil(suite.object(forKey: ReliabilityReportingConsent.installIDKey))
+        consent.setOptedIn(true)
+        let first = try XCTUnwrap(consent.installID)
+        XCTAssertNotNil(UUID(uuidString: first), "a random UUID, nothing derived from the device")
+        XCTAssertEqual(consent.installID, first)
+        XCTAssertEqual(
+            ReliabilityReportingConsent(defaults: suite).installID, first, "kept across launches")
+        consent.setOptedIn(false)
+        XCTAssertNil(consent.installID)
+        XCTAssertNil(
+            suite.object(forKey: ReliabilityReportingConsent.installIDKey), "withdrawal deletes it")
+        consent.setOptedIn(true)
+        XCTAssertNotEqual(try XCTUnwrap(consent.installID), first, "a new opt-in starts a new id")
+    }
+
+    func testSessionSummaryIsAMetricNotAnIssueEvent() {
+        consent.setOptedIn(true)
+        let summary = FeedIncidentSessionSummary(
+            sessionID: UUID().uuidString, healthyExposureSeconds: 42.5, incidentCount: 2,
+            outcome: "ended", sourceRevision: "test", appVersion: "0.1.0", appBuild: "107",
+            testSource: .manual, buildIdentity: nil)
+        let noEvent = expectation(description: "no issue event")
+        noEvent.isInverted = true
+        reporting.setCaptureHandlerForTests { event, _ in
+            if event.fingerprint.first == "feed-session" { noEvent.fulfill() }
+        }
+        let recorded = expectation(description: "two metrics")
+        recorded.expectedFulfillmentCount = 2
+        let metrics = MetricLog()
+        reporting.setMetricHandlerForTests { metric in
+            metrics.append(metric)
+            recorded.fulfill()
+        }
+        reporting.noteSessionSummary(summary)
+        wait(for: [recorded, noEvent], timeout: 2)
+        let byName = Dictionary(uniqueKeysWithValues: metrics.all.map { ($0.name, $0) })
+        XCTAssertEqual(byName["feed.session.healthy_exposure"]?.value, 42.5)
+        XCTAssertEqual(byName["feed.session.healthy_exposure"]?.unit, "second")
+        XCTAssertEqual(byName["feed.session.incidents"]?.value, 2)
+        XCTAssertEqual(byName["feed.session.incidents"]?.attributes["outcome"], "ended")
+        XCTAssertEqual(byName["feed.session.incidents"]?.attributes["testSource"], "manual")
+        XCTAssertEqual(byName["feed.session.incidents"]?.attributes["appBuild"], "107")
+        XCTAssertEqual(
+            Set(metrics.all.map(\.name)), ReliabilityReportingPrivacy.metricAllowlist)
+        let again = expectation(description: "recorded once")
+        again.isInverted = true
+        reporting.setMetricHandlerForTests { _ in again.fulfill() }
+        reporting.noteSessionSummary(summary)
+        wait(for: [again], timeout: 0.5)
+    }
+
+    func testEnvironmentNamesWhereTheBuildCameFrom() {
+        func apple(
+            debug: Bool = false, verification: Bool = false, simulator: Bool = false,
+            profile: Bool = false, receipt: String? = "receipt"
+        ) -> ReliabilityEnvironment {
+            .apple(
+                debug: debug, verification: verification, simulator: simulator,
+                embeddedProfile: profile, receiptName: receipt)
+        }
+        XCTAssertEqual(apple(debug: true), .development)
+        XCTAssertEqual(apple(debug: true, verification: true), .verification)
+        XCTAssertEqual(apple(profile: true), .local, "an Xcode or ad hoc release install")
+        XCTAssertEqual(apple(profile: true, receipt: "sandboxReceipt"), .local)
+        XCTAssertEqual(apple(simulator: true), .local)
+        XCTAssertEqual(apple(receipt: "sandboxReceipt"), .testflight)
+        XCTAssertEqual(apple(), .production)
+        XCTAssertEqual(apple(receipt: nil), .production)
+        var host = TestDiagnostics.host
+        host.environment = ReliabilityEnvironment.local.rawValue
+        XCTAssertFalse(host.tracksWatchdogTerminations, "a local reinstall is not a watchdog kill")
+        host.environment = ReliabilityEnvironment.testflight.rawValue
+        XCTAssertTrue(host.tracksWatchdogTerminations)
+    }
+
+    func testOnlyTheSDKsLifecycleExceptionTextSurvives() {
+        for kept in [
+            "App hanging for at least 2000 ms.", "App hanging between 2.0 and 3.4 seconds.",
+            "The user or the OS watchdog terminated your app while it blocked the main thread for between 2.0 and 9.1 seconds.",
+            "The OS watchdog terminated your app, possibly because it overused RAM.",
+            "Application Not Responding for at least 5000 ms.", "Background ANR",
+        ] {
+            XCTAssertEqual(ReliabilityReportingPrivacy.exceptionValue(kept), kept)
+        }
+        for replaced in [
+            "App hanging between 2.0 and 3.4 seconds. /" + "Users/example", "nil insert at index 3",
+            "Application Not Responding for at least 5000 ms. tester@example.com",
+        ] {
+            XCTAssertEqual(ReliabilityReportingPrivacy.exceptionValue(replaced), "Native exception")
+        }
+    }
+
+    func testTheFeedUpscalerIsAScopeTagFromSDKStartOn() {
+        consent.setOptedIn(true)
+        let sink = RecordingSink()
+        let started = ReliabilityReporting(
+            host: TestDiagnostics.host, consent: consent,
+            dsn: ReliabilityReportingDSN { ["https://publickey@o0.ingest.sentry.io/0"] },
+            gate: gate,
+            origin: origin, sink: sink)
+        started.sdkCacheRoot = cacheRoot
+        started.noteFeedUpscaler("AI")
+        XCTAssertEqual(started.scopeTags["feedUpscaler"], "AI", "remembered before the SDK starts")
+        started.install()
+        let tagged = expectation(
+            for: NSPredicate { _, _ in sink.tags["feedUpscaler"] == "AI" }, evaluatedWith: nil)
+        wait(for: [tagged], timeout: 5)
+        started.noteFeedUpscaler("Quality")
+        XCTAssertEqual(sink.tags["feedUpscaler"], "Quality")
+        XCTAssertEqual(
+            ReliabilityReportingPrivacy(redact: { $0 }).tags(["feedUpscaler": "Quality"])?[
+                "feedUpscaler"], "Quality",
+            "the scrub keeps it")
+        started.setConsent(false)
+    }
+
+    /// Security review (privacy-unsanitized-telemetry): free text planted in every runtime input
+    /// that reaches a reported field never reaches the sink. Inputs: repair action and reason
+    /// (trigger, recoveredBy, attachment), the build values (scope tags, incident tags and
+    /// attachment, metric attributes), the session outcome and build number (metrics), the feed
+    /// upscaler (scope tag) and a stored install id.
+    func testNoPlantedSecretReachesTheSink() throws {
+        let secrets = [
+            "OpenCapture-Guest-5G", "ZR_6002199", "/Users/erik/Movies/take.mov",
+            "tester@example.com", "203.0.113.7", "192.168.1.23",
+        ]
+        consent.setOptedIn(true)
+        let sent = TextLog()
+        let captured = expectation(description: "every planted incident")
+        captured.expectedFulfillmentCount = secrets.count
+        reporting.setCaptureHandlerForTests { event, json in
+            sent.append(event.message)
+            sent.append(event.fingerprint.joined(separator: " "))
+            sent.append((event.tags ?? [:]).map { "\($0.key)=\($0.value)" }.joined(separator: " "))
+            sent.append(String(describing: event.extra ?? [:]))
+            sent.append(String(describing: event.context ?? [:]))
+            sent.append(String(decoding: json, as: UTF8.self))
+            captured.fulfill()
+        }
+        let recorded = expectation(description: "every planted session")
+        recorded.expectedFulfillmentCount = secrets.count * 2
+        reporting.setMetricHandlerForTests { metric in
+            sent.append(metric.name + " " + (metric.unit ?? ""))
+            sent.append(metric.attributes.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
+            recorded.fulfill()
+        }
+        for secret in secrets {
+            var bundle = try stallBundle(id: UUID().uuidString)
+            bundle.header.outcome = .recovered
+            bundle.header.sourceRevision = secret
+            bundle.header.buildIdentity = secret
+            bundle.repairs = [
+                FeedRepairRecord(
+                    monotonicAt: 4.5, action: secret, phase: .requested, reason: secret)
+            ]
+            reporting.enqueueFinalized(bundle)
+            reporting.noteSessionSummary(
+                FeedIncidentSessionSummary(
+                    sessionID: UUID().uuidString, healthyExposureSeconds: 3, incidentCount: 1,
+                    outcome: secret, sourceRevision: secret, appVersion: "0.1.0", appBuild: secret,
+                    testSource: .manual, buildIdentity: secret))
+            var host = TestDiagnostics.host
+            host.sourceRevision = secret
+            origin.overrideBuildIdentityForTests = secret
+            let planted = ReliabilityReporting(
+                host: host, consent: consent, dsn: ReliabilityReportingDSN { [] }, gate: gate,
+                origin: origin, sink: RecordingSink())
+            planted.noteFeedUpscaler(secret)
+            sent.append(planted.scopeTags.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
+            suite.set(secret, forKey: ReliabilityReportingConsent.installIDKey)
+            sent.append(consent.installID ?? "")
+        }
+        wait(for: [captured, recorded], timeout: 10)
+        let started = RecordingSink()
+        let live = ReliabilityReporting(
+            host: TestDiagnostics.host, consent: consent,
+            dsn: ReliabilityReportingDSN { ["https://publickey@o0.ingest.sentry.io/0"] },
+            gate: gate,
+            origin: origin, sink: started)
+        live.sdkCacheRoot = cacheRoot
+        live.install()
+        wait(
+            for: [expectation(for: NSPredicate { _, _ in started.isEnabled }, evaluatedWith: nil)],
+            timeout: 5)
+        for secret in secrets { live.noteFeedUpscaler(secret) }
+        sent.append(started.tags.map { "\($0.key)=\($0.value)" }.joined(separator: " "))
+        live.setConsent(false)
+        for secret in secrets {
+            XCTAssertFalse(sent.all.contains { $0.contains(secret) }, "\(secret) reached the sink")
+        }
+        XCTAssertTrue(sent.all.contains { $0.contains("trigger=other") }, "the field is still sent")
+    }
+
+    func testMutatedRepairIsClosedBeforeExportAndAttachment() throws {
+        let secret = "SIMULATED-private-network"
+        var bundle = try stallBundle(id: UUID().uuidString)
+        var repair = FeedRepairRecord(
+            monotonicAt: 4.5, action: "decoder",
+            phase: .requested, reason: "outputSilence")
+        repair.action = secret
+        repair.reason = secret
+        bundle.repairs = [repair]
+        bundle.header.outcome = .recovered
+        let envelope = FeedIncidentExport.envelope(from: bundle)
+        XCTAssertEqual(envelope.trigger, "other")
+        XCTAssertEqual(envelope.recoveredBy, "other")
+        let payload = try XCTUnwrap(ReliabilityReportingPrivacy.typedJSON(from: bundle))
+        XCTAssertFalse(String(decoding: payload, as: UTF8.self).contains(secret))
+    }
+
+    func testUndeclaredSocTagIsRemoved() {
+        let policy = ReliabilityReportingPrivacy(redact: { PrivacyRedactor.redact($0) })
+        XCTAssertNil(policy.tags(["soc": "SIMULATED-private-device-value"]))
+    }
+
     func testTransportSuccessConfirmsOnlyMatchingEventID() {
         consent.setOptedIn(true)
         ReliabilityReportingReceipts.store(
@@ -343,6 +570,22 @@ final class ReliabilityReportingTests: XCTestCase {
     }
 }
 
+/// Text handed toward the SDK, read after the test's expectations are met.
+final class TextLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var texts: [String] = []
+    func append(_ text: String) { lock.withLock { texts.append(text) } }
+    var all: [String] { lock.withLock { texts } }
+}
+
+/// Metrics the runtime recorded, read after the test's expectations are met.
+final class MetricLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var metrics: [ReliabilityMetric] = []
+    func append(_ metric: ReliabilityMetric) { lock.withLock { metrics.append(metric) } }
+    var all: [ReliabilityMetric] { lock.withLock { metrics } }
+}
+
 /// A host like the apps' with neutral names.
 enum TestDiagnostics {
     static let host = DiagnosticsHost(
@@ -355,10 +598,41 @@ enum TestDiagnostics {
 /// The SDK seam, recording nothing: capture runs through the runtime's test handler.
 final class RecordingSink: ReliabilityReportingSink, @unchecked Sendable {
     var isEnabled = false
+    /// The scope tags the runtime set, main thread.
+    var tags: [String: String] = [:]
     func start(dsn: String, cacheRoot: URL) { isEnabled = true }
     func close() { isEnabled = false }
     func flush(timeout: TimeInterval) {}
     func addBreadcrumb(category: String, message: String, data: [String: String]?) {}
-    func setTags(_ tags: [String: String]) {}
+    func setTags(_ tags: [String: String]) { self.tags.merge(tags) { _, new in new } }
     func capture(_ event: ReliabilityEvent, attachment: Data, attachmentName: String) {}
+}
+
+final class DiagnosticsHostCompatibilityTests: XCTestCase {
+    func testLegacyInitializerAndPublicPropertiesRemainAvailable() {
+        let host = DiagnosticsHost(
+            product: "Host", listingName: "Host listing", releasePackage: "com.opencapture.host",
+            version: "1", build: "1", environment: "development", sourceRevision: "test",
+            supportEmail: "support@example.invalid",
+            redact: { $0.replacingOccurrences(of: "private", with: "redacted") })
+        XCTAssertEqual(host.product, "Host")
+        XCTAssertEqual(host.listingName, "Host listing")
+        XCTAssertEqual(host.environment, "development")
+        XCTAssertEqual(host.release(), "com.opencapture.host@1+1")
+        XCTAssertEqual(host.release(version: "2", build: "3"), "com.opencapture.host@2+3")
+        XCTAssertEqual(host.redact("private sample"), "redacted sample")
+    }
+
+    func testExplicitChannelAndValueCopyRemainAuthoritative() {
+        let host = DiagnosticsHost(
+            product: "Host", listingName: "Host listing", releasePackage: "com.opencapture.host",
+            version: "1", build: "1", environment: "local", sourceRevision: "test",
+            supportEmail: "support@example.invalid", redact: { $0 })
+        var copy = host
+        copy.environment = "production"
+        XCTAssertEqual(host.environment, "local")
+        XCTAssertEqual(copy.environment, "production")
+        XCTAssertFalse(host.tracksWatchdogTerminations)
+        XCTAssertTrue(copy.tracksWatchdogTerminations)
+    }
 }

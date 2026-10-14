@@ -328,7 +328,20 @@ object FeedIncidentNativeBreadcrumb {
             "repairPhase" to
                 setOf("requested", "blocked", "locallySent", "peerResponse", "pictureRestored"),
             "repairAction" to setOf("decoder", "enable", "session", "endpoint", "rejoin"),
+            // Producers' reasons: RecoveryReason wires, the Swift SessionRecoveryTrigger cases and
+            // the DJI shells' decoder and enable gates. Swift twin: the same set.
+            "repairReason" to
+                setOf(
+                    "bleDropped", "softAPLost", "datalinkLost", "operatorRetry", "feedWatchdogStall",
+                    "commandTimeout", "firstPicture", "outputSilence", "referenceLoss", "notReady",
+                    "overlap", "playback", "path", "serialGate", "media", "watchdog", "pictureDeadline",
+                    "outputResumed", "udpAlive", "keyframeUnanswered", "videoLive", "presentationOnly",
+                    "decoderNotReady", "pathNotReady", "cooldown", "enableGate",
+                ),
         )
+
+    /** [value] when the [key] vocabulary holds it, else `other`: free text never leaves the phone. */
+    fun closed(key: String, value: String): String = if (allowedValues[key]?.contains(value) == true) value else "other"
 
     fun isAllowedMessage(message: String): Boolean =
         FeedIncidentBreadcrumbKind.entries.any { it.wire == message } || message == "repair"
@@ -368,7 +381,22 @@ data class FeedRepairRecord(
     val action: String,
     val phase: FeedRepairPhase,
     val reason: String? = null,
-)
+) {
+    /**
+     * The record as reports carry it: action and reason from the closed repair vocabulary. Producers
+     * pass free text, and the record reaches reports as trigger and recoveredBy (Swift closes in init).
+     */
+    fun closed(): FeedRepairRecord =
+        copy(
+            action = FeedIncidentNativeBreadcrumb.closed("repairAction", FeedIncidentPrivacy.token(action, 32)),
+            reason = reason?.let { FeedIncidentNativeBreadcrumb.closed("repairReason", FeedIncidentPrivacy.token(it, 32)) },
+        )
+
+    companion object {
+        /** The reason a first-picture resend carries (Swift `FeedRepairRecord.firstPictureReason`). */
+        const val FIRST_PICTURE_REASON = "firstPicture"
+    }
+}
 
 data class FeedIncidentErrorCount(
     val errorClass: String,
@@ -633,6 +661,10 @@ data class FeedIncidentVendorEnvelope(
     val cameraFamily: String,
     val testSource: String,
     val buildIdentity: String,
+    /** First repair reason recorded during this incident (`bleDropped`, ...), else `none`. */
+    val trigger: String = "none",
+    /** Last repair action before a recovered outcome, else `none`. */
+    val recoveredBy: String = "none",
 )
 
 data class FeedIncidentSessionSummary(
@@ -649,8 +681,18 @@ data class FeedIncidentSessionSummary(
 )
 
 object FeedIncidentExport {
+    /** Coarse, searchable picture-gap tag. Exact seconds stay in extras. */
+    fun gapBucket(seconds: Double): String {
+        val edges = listOf(2.0, 5.0, 10.0, 20.0, 40.0, 120.0)
+        val upper = edges.firstOrNull { seconds < it } ?: return "120s+"
+        val lower = edges.lastOrNull { it < upper } ?: 0.0
+        return "${lower.toInt()}-${upper.toInt()}s"
+    }
+
     fun envelope(from: FeedIncidentBundle): FeedIncidentVendorEnvelope {
         val header = from.header
+        // The 1 Hz snapshot opens an incident up to a tick after its first repair.
+        val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
         val grouping =
             FeedIncidentGrouping(
                 schemaVersion = header.schemaVersion,
@@ -681,6 +723,15 @@ object FeedIncidentExport {
             cameraFamily = header.cameraFamily,
             testSource = header.testSource.wire,
             buildIdentity = header.buildIdentity,
+            trigger = own.firstNotNullOfOrNull { it.reason } ?: "none",
+            // A first-picture resend inside an endpoint/rejoin repair is on the
+            // timeline, but the rung that opened the new session gets the credit.
+            recoveredBy =
+                if (header.outcome == FeedIncidentOutcome.RECOVERED) {
+                    own.lastOrNull { it.reason != FeedRepairRecord.FIRST_PICTURE_REASON }?.action ?: "none"
+                } else {
+                    "none"
+                },
         )
     }
 }

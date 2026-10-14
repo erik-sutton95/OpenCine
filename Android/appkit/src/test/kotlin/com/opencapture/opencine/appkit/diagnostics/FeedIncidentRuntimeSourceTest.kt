@@ -113,7 +113,7 @@ class FeedIncidentRuntimeSourceTest {
         val incidentRoot = File(root, "incidents")
         val writer = ManualWriter()
         val redact: (String) -> String = PrivacyRedactor::redact
-        val host = DiagnosticsHost("Host", "com.opencapture.host", "1", 1, true, "test",
+        val host = DiagnosticsHost("Host", "com.opencapture.host", "1", 1, "development", "test",
             null, "host-android", "support@host.invalid", "host.operator", redact)
         val dsn = ReliabilityReportingDSN()
         val consent = ReliabilityReportingConsent(dsn)
@@ -143,5 +143,6 @@ class FeedIncidentRuntimeSourceTest {
         override fun addBreadcrumb(category: String, message: String, data: Map<String, String>) = Unit
         override fun setTags(tags: Map<String, String>) = Unit
         override fun capture(event: ReliabilityEvent, attachment: ByteArray, attachmentName: String) = Unit
+        override fun record(metric: ReliabilityMetric) = Unit
     }
 }

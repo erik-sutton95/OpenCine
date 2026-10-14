@@ -12,6 +12,7 @@ import com.opencapture.opencine.media.DiagnosticWire
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBuildIdentity
 import com.opencapture.opencine.media.FeedIncidentBundle
+import com.opencapture.opencine.media.FeedIncidentExport
 import com.opencapture.opencine.media.FeedIncidentNativeBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentSessionSummary
@@ -45,7 +46,21 @@ public interface ReliabilityReportingSink {
 
     /** Captures [event] with [attachment] (JSON) named [attachmentName] as its only attachment. */
     public fun capture(event: ReliabilityEvent, attachment: ByteArray, attachmentName: String)
+
+    /** Records one distribution sample. Main thread. */
+    public fun record(metric: ReliabilityMetric): Unit = Unit
 }
+
+/**
+ * One measurement for the host SDK's metrics, never an issue event. [unit] is a Sentry unit name
+ * (`second`) or null; attributes are low-cardinality strings.
+ */
+public data class ReliabilityMetric(
+    public val name: String,
+    public val value: Double,
+    public val unit: String? = null,
+    public val attributes: Map<String, String> = emptyMap(),
+)
 
 /**
  * Opt-in automatic reporting, installed by the app and gated by the camera path.
@@ -77,6 +92,8 @@ public class ReliabilityReporting(
     private val resumeScheduled = AtomicBoolean(false)
     @Volatile private var resumeAttempt = 0
     @Volatile private var captureHandler: ((ReliabilityEvent, ByteArray) -> Unit)? = null
+    @Volatile private var metricHandler: ((ReliabilityMetric) -> Unit)? = null
+    @Volatile private var feedUpscaler: String? = null
     @Volatile private var finalizedSpoolLoader: () -> List<FeedIncidentBundle> = { emptyList() }
     @Volatile private var sessionSummaryLoader: () -> List<FeedIncidentSessionSummary> = { emptyList() }
     @Volatile private var appContext: Context? = null
@@ -99,6 +116,33 @@ public class ReliabilityReporting(
     public fun noteRepair(repair: FeedRepairRecord) {
         if (!isOptedIn) return
         sink.addBreadcrumb("feed", "repair", FeedIncidentNativeBreadcrumb.details(repair))
+    }
+
+    /**
+     * The feed upscaler in effect, a scope tag on every later event and crash (Swift twin;
+     * PI-3M: a super-resolution crash said nothing about the mode). Main thread.
+     */
+    public fun noteFeedUpscaler(upscaler: String) {
+        val value = ReliabilityReportingPrivacy.value("feedUpscaler", upscaler)
+        feedUpscaler = value
+        if (!isOptedIn || !sdkStarted.get()) return
+        sink.setTags(mapOf("feedUpscaler" to value))
+    }
+
+    /**
+     * The current run's scope tags, set when the SDK starts, bounded by the same rules as event
+     * tags (native crashes carry them).
+     */
+    public fun scopeTags(): Map<String, String> {
+        val tags = linkedMapOf(
+            "sourceRevision" to host.sourceRevision,
+            "testSource" to origin.currentTestSource().wire,
+            "buildIdentity" to origin.currentBuildIdentity(),
+            // Native crashes carry no device context; these name the phone and SoC.
+            "hardwareClass" to (Build.MODEL ?: "unknown"),
+        )
+        feedUpscaler?.let { tags["feedUpscaler"] = it }
+        return privacy.tags(tags).orEmpty()
     }
 
     public fun noteCurrentTestSource(source: FeedIncidentTestSource) {
@@ -193,6 +237,10 @@ public class ReliabilityReporting(
         captureHandler = handler
     }
 
+    public fun setMetricHandlerForTests(handler: ((ReliabilityMetric) -> Unit)?) {
+        metricHandler = handler
+    }
+
     public fun noteTransportSuccess(eventID: String) {
         if (!consent.isOptedIn) return
         synchronized(lock) {
@@ -281,15 +329,7 @@ public class ReliabilityReporting(
                         sdkStarted.set(false)
                     } else {
                         sink.start(app, dsn, sdkCacheRoot)
-                        val tags = linkedMapOf(
-                            "sourceRevision" to host.sourceRevision,
-                            "testSource" to origin.currentTestSource().wire,
-                            "buildIdentity" to origin.currentBuildIdentity(),
-                            // Native crashes carry no device context; these name the phone and SoC.
-                            "hardwareClass" to (Build.MODEL ?: "unknown"),
-                        )
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) tags["soc"] = "${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}"
-                        sink.setTags(tags)
+                        sink.setTags(scopeTags())
                     }
                 }
                 enqueueFinalizedFromSpool()
@@ -347,61 +387,47 @@ public class ReliabilityReporting(
         capturePayload(event, json, envelope.incidentID, capturedEpoch)
     }
 
+    /**
+     * The feed's denominator as metrics, never an issue event (it was the largest issue by
+     * volume, PA-2/II-1/PI-W): healthy exposure seconds and incident count per ended session.
+     * Recorded once per session; a confirmed receipt outlives the summary on disk.
+     */
     private fun captureSessionSummary(summary: FeedIncidentSessionSummary, capturedEpoch: Long) {
-        if (capturedEpoch != currentEpoch() || !consent.isOptedIn) return
+        if (capturedEpoch != currentEpoch() || !consent.isOptedIn || gate.shouldBlockUpload) return
         if (summary.outcome == "live") return
         if (runCatching { UUID.fromString(summary.sessionID) }.getOrNull() == null) return
         if (!summary.healthyExposureSeconds.isFinite() || summary.healthyExposureSeconds < 0.0) return
-        val json =
-            org.json.JSONObject()
-                .put("sessionID", summary.sessionID)
-                .put("healthyExposureSeconds", summary.healthyExposureSeconds)
-                .put("incidentCount", summary.incidentCount)
-                .put("outcome", summary.outcome)
-                .put("sourceRevision", summary.sourceRevision)
-                .toString()
-                .toByteArray(Charsets.UTF_8)
-        if (json.size > 4_096) return
-        val testSource = (summary.testSource ?: FeedIncidentTestSource.UNKNOWN).wire
-        val buildIdentity = FeedIncidentBuildIdentity.parse(summary.buildIdentity, host.redact)
-        val event =
-            ReliabilityEvent(
-                eventId = ReliabilityReportingPrivacy.eventId(summary.sessionID),
-                level = ReliabilityEventLevel.INFO,
-                timestampMs = summary.recordedAtMs,
-                release =
-                    if (summary.appVersion != null && summary.appBuild != null) {
-                        host.release(summary.appVersion!!, summary.appBuild!!)
-                    } else {
-                        "legacy-session-unknown-release"
-                    },
-                dist = summary.appBuild,
-                message = "Feed session summary",
-                fingerprints = listOf("feed-session", "schema:1"),
-                tags =
-                    linkedMapOf(
-                        "kind" to "sessionSummary",
-                        "outcome" to summary.outcome,
-                        "sourceRevision" to summary.sourceRevision,
-                        "testSource" to testSource,
-                        "buildIdentity" to buildIdentity,
-                    ),
-                extras =
-                    linkedMapOf(
-                        "healthyExposureSeconds" to summary.healthyExposureSeconds,
-                        "incidentCount" to summary.incidentCount,
-                        "sourceRevision" to summary.sourceRevision,
-                        "testSource" to testSource,
-                        "buildIdentity" to buildIdentity,
-                    ),
-                contexts = emptyMap(),
-            )
-        capturePayload(
-            privacy.scrub(event),
-            json,
-            "session-" + summary.sessionID,
-            capturedEpoch,
-        )
+        val id = "session-" + summary.sessionID
+        ReliabilityReportingReceipts.applyTTL(sdkCacheRoot)
+        if (ReliabilityReportingReceipts.load(id, sdkCacheRoot) != null) return
+        synchronized(lock) {
+            if (!pendingCaptureIds.add(id)) return
+        }
+        val metrics = sessionMetrics(summary, host.redact).mapNotNull { privacy.metric(it) }
+        val record = {
+            try {
+                val handler = metricHandler
+                if (capturedEpoch == currentEpoch() && consent.isOptedIn && (sdkStarted.get() || handler != null)) {
+                    for (metric in metrics) if (handler != null) handler(metric) else sink.record(metric)
+                    executor.execute {
+                        if (capturedEpoch == currentEpoch() && consent.isOptedIn) {
+                            ReliabilityReportingReceipts.store(
+                                ReliabilityReportingReceipt(
+                                    incidentID = id,
+                                    eventID = "",
+                                    state = ReliabilityReportingReceiptState.CONFIRMED,
+                                    updatedAt = System.currentTimeMillis(),
+                                ),
+                                sdkCacheRoot,
+                            )
+                        }
+                    }
+                }
+            } finally {
+                synchronized(lock) { pendingCaptureIds.remove(id) }
+            }
+        }
+        if (metricHandler != null) record() else postOnMain { record() }
     }
 
     private fun capturePayload(
@@ -493,7 +519,8 @@ public class ReliabilityReporting(
                 timestampMs = envelope.startedAtWallClockMs,
                 release = host.release(envelope.appVersion, envelope.appBuild),
                 dist = envelope.appBuild,
-                message = "feed incident ${envelope.grouping.failingStage}",
+                // Kind is in the fingerprint, so the issue title stays stable per group.
+                message = "feed incident ${envelope.grouping.failingStage}: ${envelope.kind}",
                 fingerprints =
                     privacy.fingerprint(
                         envelope.schemaVersion,
@@ -513,6 +540,9 @@ public class ReliabilityReporting(
                         "hardwareClass" to envelope.grouping.hardwareClass,
                         "testSource" to envelope.testSource,
                         "buildIdentity" to envelope.buildIdentity,
+                        "trigger" to envelope.trigger,
+                        "recoveredBy" to envelope.recoveredBy,
+                        "gap" to FeedIncidentExport.gapBucket(envelope.worstGapSeconds),
                     ),
                 extras =
                     linkedMapOf(
@@ -531,6 +561,8 @@ public class ReliabilityReporting(
                         "sourceRevision" to envelope.sourceRevision,
                         "testSource" to envelope.testSource,
                         "buildIdentity" to envelope.buildIdentity,
+                        "trigger" to envelope.trigger,
+                        "recoveredBy" to envelope.recoveredBy,
                     ),
                 contexts =
                     mapOf(
@@ -545,6 +577,9 @@ public class ReliabilityReporting(
                                 "hardwareClass" to envelope.grouping.hardwareClass,
                                 "testSource" to envelope.testSource,
                                 "buildIdentity" to envelope.buildIdentity,
+                                "trigger" to envelope.trigger,
+                                "recoveredBy" to envelope.recoveredBy,
+                                "worstGapSeconds" to envelope.worstGapSeconds,
                             ),
                     ),
             ),
@@ -619,6 +654,25 @@ public class ReliabilityReporting(
     }
 
     public companion object {
+        /** The metrics one ended session records (`ReliabilityReportingPrivacy.metricAllowlist`). */
+        public fun sessionMetrics(
+            summary: FeedIncidentSessionSummary,
+            redact: (String) -> String,
+        ): List<ReliabilityMetric> {
+            val attributes =
+                linkedMapOf(
+                    "outcome" to summary.outcome,
+                    "testSource" to (summary.testSource ?: FeedIncidentTestSource.UNKNOWN).wire,
+                    "buildIdentity" to FeedIncidentBuildIdentity.parse(summary.buildIdentity, redact),
+                    "sourceRevision" to summary.sourceRevision,
+                )
+            summary.appBuild?.let { attributes["appBuild"] = it }
+            return listOf(
+                ReliabilityMetric("feed.session.healthy_exposure", summary.healthyExposureSeconds, "second", attributes),
+                ReliabilityMetric("feed.session.incidents", summary.incidentCount.toDouble(), null, attributes),
+            )
+        }
+
         public fun isFinalized(bundle: FeedIncidentBundle): Boolean =
             when (bundle.header.outcome) {
                 FeedIncidentOutcome.OPEN -> false

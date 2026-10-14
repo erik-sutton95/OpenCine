@@ -28,6 +28,14 @@
         static let forwarder = ReliabilityReportingForwarder(reporting: reporting)
     }
 
+    /// Metric names the adapter's filter kept, in order.
+    final class MetricNames: @unchecked Sendable {
+        private let lock = NSLock()
+        private var kept: [String] = []
+        func append(_ name: String) { lock.withLock { kept.append(name) } }
+        var names: [String] { lock.withLock { kept } }
+    }
+
     /// The SDK's URL protocol over the fixture runtime, as each app names its forwarder.
     final class FixtureURLProtocol: ReliabilityReportingURLProtocol, @unchecked Sendable {
         override class var forwarder: ReliabilityReportingForwarder { Fixture.forwarder }
@@ -46,7 +54,8 @@
             Fixture.consent.resetForTests()
             cacheRoot = FileManager.default.temporaryDirectory
                 .appendingPathComponent("opc-rel-\(UUID().uuidString)", isDirectory: true)
-            try? FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(
+                at: cacheRoot, withIntermediateDirectories: true)
             Fixture.reporting.sdkCacheRoot = cacheRoot
             Fixture.reporting.setCaptureHandlerForTests(nil)
             Fixture.gate.resetForTests()
@@ -97,7 +106,9 @@
             _ = Fixture.reporting.privacy.scrub(event)
             XCTAssertNil(event.tags?["testSource"])
             XCTAssertNil(event.tags?["buildIdentity"])
-            event.tags = ["testSource": "manual", "buildIdentity": "ios-priorrun0123456789abcdefab"]
+            event.tags = [
+                "testSource": "manual", "buildIdentity": "ios-priorrun0123456789abcdefab",
+            ]
             _ = Fixture.reporting.privacy.scrub(event)
             XCTAssertEqual(event.tags?["testSource"], "manual")
             XCTAssertEqual(event.tags?["buildIdentity"], "ios-priorrun0123456789abcdefab")
@@ -166,6 +177,16 @@
             wait(for: [prepared], timeout: 10)
         }
 
+        func testLegacyOriginalTagsCallerRemainsAvailable() {
+            let scope = Scope()
+            let tags = ["testSource": "faultInjection", "buildIdentity": "queued-original"]
+            SentryReliabilitySink.applyOriginalTags(tags, to: scope)
+            XCTAssertEqual(scope.tags["testSource"], "faultInjection")
+            XCTAssertEqual(scope.tags["buildIdentity"], "queued-original")
+            SentryReliabilitySink.applyOriginalTags(nil, to: scope)
+            XCTAssertEqual(scope.tags["buildIdentity"], "queued-original")
+        }
+
         func testQueuedReplayOriginSurvivesActualSDKScopeMerge() throws {
             Fixture.consent.setOptedIn(true)
             var bundle = try stallBundle(id: UUID().uuidString)
@@ -197,20 +218,83 @@
                 scope.setTag(value: "ios-current-run-identity-value", key: "buildIdentity")
             }
             let constructed = expectation(description: "constructed event")
-            Fixture.reporting.setCaptureHandlerForTests { typed, _ in
+            Fixture.reporting.setCaptureHandlerForTests { typed, attachment in
                 let event = SentryReliabilitySink.event(typed)
                 XCTAssertEqual(event.eventId.sentryIdString, typed.eventID)
                 XCTAssertNil(event.user)
                 XCTAssertEqual(event.breadcrumbs?.count, 0)
                 XCTAssertEqual(event.tags?["testSource"], "faultInjection")
                 XCTAssertTrue(event.fingerprint?.contains("kind:transportStall") == true)
-                SentrySDK.capture(event: event) { scope in
-                    SentryReliabilitySink.applyOriginalTags(event.tags, to: scope)
-                }
+                // Exercise the production path with the queued event's own tags.
+                Fixture.sink.capture(typed, attachment: attachment, attachmentName: "incident.json")
                 constructed.fulfill()
             }
             Fixture.reporting.enqueueFinalized(bundle)
             wait(for: [constructed, prepared], timeout: 10)
+            SentrySDK.configureScope { scope in
+                XCTAssertEqual(scope.tags["testSource"], "verification")
+                XCTAssertEqual(scope.tags["buildIdentity"], "ios-current-run-identity-value")
+            }
+        }
+
+        func testEventsCarryOnlyTheAnonymousInstallIDAsUser() throws {
+            Fixture.consent.setOptedIn(true)
+            let options = Fixture.sink.makeOptions(
+                dsn: "https://publickey@o0.ingest.sentry.io/0",
+                urlSession: FixtureURLProtocol.makeSDKSession(), cacheRoot: cacheRoot)
+            let event = Event(level: .error)
+            let user = User(userId: "device-name")
+            user.email = "tester@example.com"
+            event.user = user
+            let sent = try XCTUnwrap(options.beforeSend?(event))
+            XCTAssertEqual(sent.user?.userId, Fixture.consent.installID)
+            XCTAssertNotNil(Fixture.consent.installID)
+            XCTAssertNil(sent.user?.email)
+            XCTAssertNil(sent.user?.username)
+            XCTAssertNil(sent.user?.ipAddress)
+            Fixture.consent.setOptedIn(false)
+            XCTAssertNil(options.beforeSend?(Event(level: .error)))
+        }
+
+        func testHangDurationSurvivesTheScrubButOtherExceptionTextDoesNot() {
+            let event = Event(level: .error)
+            event.exceptions = [
+                Exception(
+                    value: "App hanging between 2.0 and 3.4 seconds.",
+                    type: "App Hang Fully Blocked"),
+                Exception(
+                    value: "*** -[__NSArrayM insertObject:atIndex:]: object cannot be nil",
+                    type: "NSInvalidArgumentException"),
+            ]
+            _ = Fixture.reporting.privacy.scrub(event)
+            XCTAssertEqual(event.exceptions?[0].value, "App hanging between 2.0 and 3.4 seconds.")
+            XCTAssertEqual(event.exceptions?[1].value, "Native exception")
+        }
+
+        func testOnlyTheSharedSessionMetricsLeaveThePhone() {
+            Fixture.consent.setOptedIn(true)
+            let options = Fixture.sink.makeOptions(
+                dsn: "https://publickey@o0.ingest.sentry.io/0",
+                urlSession: FixtureURLProtocol.makeSDKSession(), cacheRoot: cacheRoot)
+            let filter = options.beforeSendMetric
+            XCTAssertNotNil(filter)
+            let kept = MetricNames()
+            options.beforeSendMetric = { metric in
+                if filter?(metric) != nil { kept.append(metric.name) }
+                return nil
+            }
+            SentrySDK.start(options: options)
+            defer { SentrySDK.close() }
+            Fixture.sink.record(
+                ReliabilityMetric(
+                    name: "feed.session.incidents", value: 2, attributes: ["outcome": "ended"]))
+            Fixture.sink.record(
+                ReliabilityMetric(name: "feed.session.healthy_exposure", value: 40, unit: "second"))
+            Fixture.sink.record(ReliabilityMetric(name: "app.other", value: 1))
+            XCTAssertEqual(kept.names, ["feed.session.incidents", "feed.session.healthy_exposure"])
+            Fixture.consent.setOptedIn(false)
+            Fixture.sink.record(ReliabilityMetric(name: "feed.session.incidents", value: 1))
+            XCTAssertEqual(kept.names.count, 2, "nothing leaves without consent")
         }
 
         func testScrubRemovesUserRequestBreadcrumbsAndPaths() {
@@ -263,7 +347,8 @@
         func testOptionsPrivacyFlags() {
             let session = FixtureURLProtocol.makeSDKSession()
             let options = Fixture.sink.makeOptions(
-                dsn: "https://publickey@o0.ingest.sentry.io/0", urlSession: session, cacheRoot: cacheRoot)
+                dsn: "https://publickey@o0.ingest.sentry.io/0", urlSession: session,
+                cacheRoot: cacheRoot)
             XCTAssertFalse(options.sendDefaultPii)
             XCTAssertFalse(options.enableSwizzling)
             XCTAssertFalse(options.enableNetworkBreadcrumbs)

@@ -18,7 +18,7 @@ internal object Fixture {
             releasePackage = "com.opencapture.host",
             versionName = "0.2.0",
             versionCode = 200,
-            debug = true,
+            environment = "development",
             sourceRevision = "test",
             reportingDsn = null,
             reportingClient = "host-android",

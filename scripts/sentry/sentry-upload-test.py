@@ -377,6 +377,15 @@ class SentryUploadTests(unittest.TestCase):
         self.assertIn("--wait", logged)
         self.assertNotIn("upload-proguard", logged)
 
+    def test_android_uploads_the_unstripped_swift_core(self) -> None:
+        repo = self.dir / "repo"
+        symbols = repo / "Apps/Android/app/build/generated/swiftCore/symbols"
+        make_so(symbols)
+        env = self.enabled_env(SENTRY_PROJECT="host-android", SENTRY_DSN_ANDROID=DSN)
+        result = run_upload(env, ["--platform", "android", "--repo-root", str(repo)], self.dir)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(str(symbols / "arm64-v8a" / "libHostCore.so"), self.argv_text())
+
     def test_discovered_mapping_without_uuid_fails(self) -> None:
         repo = self.dir / "repo"
         native = repo / "Apps/Android/app/build/generated/swiftCore/jniLibs"

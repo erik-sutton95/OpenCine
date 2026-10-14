@@ -10,8 +10,11 @@ import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentRates
 import com.opencapture.opencine.media.FeedIncidentRecorder
 import com.opencapture.opencine.media.FeedIncidentSessionContext
+import com.opencapture.opencine.media.FeedIncidentSessionSummary
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedIncidentTestSource
+import com.opencapture.opencine.media.FeedRepairPhase
+import com.opencapture.opencine.media.FeedRepairRecord
 import com.opencapture.opencine.media.PrivacyRedactor
 import java.io.File
 import kotlin.test.AfterTest
@@ -32,7 +35,7 @@ class ReliabilityReportingTest {
             releasePackage = "com.opencapture.host",
             versionName = "1.0",
             versionCode = 1,
-            debug = true,
+            environment = "development",
             sourceRevision = "test",
             reportingDsn = null,
             reportingClient = "host-android",
@@ -71,6 +74,13 @@ class ReliabilityReportingTest {
         gate.resetForTests()
         origin.resetForTests()
         cacheRoot.deleteRecursively()
+    }
+
+    @Test
+    fun legacySinkConformerAllowsAnOptionalMetricSample() {
+        val sink: ReliabilityReportingSink = NoSdk
+        sink.record(ReliabilityMetric("feed.session.incidents", 1.0))
+        assertFalse(reporting.isOptedIn)
     }
 
     @Test
@@ -353,6 +363,192 @@ class ReliabilityReportingTest {
     }
 
     @Test
+    fun incidentTitleNamesItsKindAndTagsCarryTriggerRecoveryAndGapLikeIos() {
+        consent.setOptedIn(true)
+        gate.setCameraIPv4PathReadyForTests(false)
+        val bundle = stallBundle("34343434343434343434343434343434")
+        val start = bundle.header.startedAtMonotonic
+        bundle.repairs =
+            listOf(
+                FeedRepairRecord(start, "session", FeedRepairPhase.REQUESTED, "bleDropped"),
+                FeedRepairRecord(start + 1.0, "endpoint", FeedRepairPhase.REQUESTED),
+            )
+        bundle.header.worstGapSeconds = 16.3
+        var event: ReliabilityEvent? = null
+        reporting.setCaptureHandlerForTests { captured, _ -> event = captured }
+        reporting.enqueueFinalized(bundle)
+        waitUntil { event != null }
+        val captured = assertNotNull(event)
+        assertEquals(
+            "feed incident ${bundle.header.failingStage.wire}: ${bundle.header.kind.wire}",
+            captured.message,
+        )
+        assertEquals("bleDropped", captured.tags?.get("trigger"))
+        assertEquals("endpoint", captured.tags?.get("recoveredBy"))
+        assertEquals("10-20s", captured.tags?.get("gap"))
+        assertEquals("bleDropped", captured.extras?.get("trigger"))
+        assertEquals("endpoint", captured.contexts["feed"]?.get("recoveredBy"))
+    }
+
+    @Test
+    fun installIdExistsOnlyUnderConsentAndResetsWhenWithdrawn() {
+        val stored = mutableMapOf<String, String>()
+        fun bindStored() =
+            consent.restorePersistedChoice(
+                hasChoice = true,
+                optedIn = consent.isOptedIn,
+                installId = stored["id"],
+                persistInstallId = { value -> if (value == null) stored.remove("id") else stored["id"] = value },
+            )
+        assertNull(consent.installId, "undecided: no id")
+        consent.setOptedIn(false)
+        bindStored()
+        assertNull(consent.installId, "declined: no id")
+        consent.setOptedIn(true)
+        val first = assertNotNull(consent.installId)
+        assertEquals(first, java.util.UUID.fromString(first).toString(), "a random UUID, nothing from the device")
+        assertEquals(first, consent.installId)
+        assertEquals(first, stored["id"], "kept across launches")
+        consent.setOptedIn(false)
+        assertNull(consent.installId)
+        assertNull(stored["id"], "withdrawal deletes it")
+        consent.setOptedIn(true)
+        assertTrue(assertNotNull(consent.installId) != first, "a new opt-in starts a new id")
+    }
+
+    @Test
+    fun sessionSummaryIsAMetricNotAnIssueEvent() {
+        consent.setOptedIn(true)
+        gate.setCameraIPv4PathReadyForTests(false)
+        val summary =
+            FeedIncidentSessionSummary(
+                sessionID = java.util.UUID.randomUUID().toString(),
+                healthyExposureSeconds = 42.5,
+                incidentCount = 2,
+                outcome = "ended",
+                sourceRevision = "test",
+                appVersion = "0.1.0",
+                appBuild = "107",
+                testSource = FeedIncidentTestSource.MANUAL,
+            )
+        val events = java.util.concurrent.CopyOnWriteArrayList<ReliabilityEvent>()
+        val metrics = java.util.concurrent.CopyOnWriteArrayList<ReliabilityMetric>()
+        reporting.setCaptureHandlerForTests { event, _ -> events.add(event) }
+        reporting.setMetricHandlerForTests { metrics.add(it) }
+        reporting.noteSessionSummary(summary)
+        waitUntil { metrics.size >= 2 || events.isNotEmpty() }
+        assertTrue(events.none { it.fingerprints?.firstOrNull() == "feed-session" }, "no issue event")
+        val byName = metrics.associateBy { it.name }
+        assertEquals(ReliabilityReportingPrivacy.metricAllowlist, byName.keys)
+        assertEquals(42.5, byName.getValue("feed.session.healthy_exposure").value)
+        assertEquals("second", byName.getValue("feed.session.healthy_exposure").unit)
+        assertEquals(2.0, byName.getValue("feed.session.incidents").value)
+        assertEquals("ended", byName.getValue("feed.session.incidents").attributes["outcome"])
+        assertEquals("manual", byName.getValue("feed.session.incidents").attributes["testSource"])
+        assertEquals("107", byName.getValue("feed.session.incidents").attributes["appBuild"])
+        waitUntil { reporting.receipt("session-${summary.sessionID}") != null }
+        reporting.noteSessionSummary(summary)
+        Thread.sleep(300)
+        assertEquals(2, metrics.size, "recorded once")
+    }
+
+    @Test
+    fun theFeedUpscalerIsAScopeTagFromSdkStartOn() {
+        reporting.noteFeedUpscaler("Quality")
+        assertEquals("Quality", reporting.scopeTags()["feedUpscaler"], "remembered before the SDK starts")
+        assertEquals("Quality", reporting.privacy.tags(mapOf("feedUpscaler" to "Quality"))?.get("feedUpscaler"))
+    }
+
+    /**
+     * Security review (privacy-unsanitized-telemetry): free text planted in every runtime input that
+     * reaches a reported field never reaches the sink. Inputs: repair action and reason (trigger,
+     * recoveredBy, attachment), the build values (scope tags, incident tags and attachment, metric
+     * attributes), the session outcome and build number (metrics), the feed upscaler (scope tag) and
+     * a stored install id. Swift twin: testNoPlantedSecretReachesTheSink.
+     */
+    @Test
+    fun noPlantedSecretReachesTheSink() {
+        val secrets =
+            listOf(
+                "OpenCapture-Guest-5G",
+                "ZR_6002199",
+                "/Users/erik/Movies/take.mov",
+                "tester@example.com",
+                "203.0.113.7",
+                "192.168.1.23",
+            )
+        consent.setOptedIn(true)
+        gate.setCameraIPv4PathReadyForTests(false)
+        val sent = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val captured = java.util.concurrent.atomic.AtomicInteger()
+        val recorded = java.util.concurrent.atomic.AtomicInteger()
+        reporting.setCaptureHandlerForTests { event, json ->
+            sent += event.message
+            sent += event.fingerprints.joinToString(" ")
+            sent += event.tags.orEmpty().entries.joinToString(" ") { "${it.key}=${it.value}" }
+            sent += event.extras.orEmpty().toString()
+            sent += event.contexts.toString()
+            sent += String(json, Charsets.UTF_8)
+            captured.incrementAndGet()
+        }
+        reporting.setMetricHandlerForTests { metric ->
+            sent += "${metric.name} ${metric.unit}"
+            sent += metric.attributes.entries.joinToString(" ") { "${it.key}=${it.value}" }
+            recorded.incrementAndGet()
+        }
+        secrets.forEachIndexed { index, secret ->
+            val bundle = stallBundle("%032x".format(0xabc + index))
+            bundle.header.sourceRevision = secret
+            bundle.header.buildIdentity = secret
+            bundle.repairs = listOf(FeedRepairRecord(3.5, secret, FeedRepairPhase.REQUESTED, secret))
+            reporting.enqueueFinalized(bundle)
+            reporting.noteSessionSummary(
+                FeedIncidentSessionSummary(
+                    sessionID = java.util.UUID.randomUUID().toString(),
+                    healthyExposureSeconds = 3.0,
+                    incidentCount = 1,
+                    outcome = secret,
+                    sourceRevision = secret,
+                    appVersion = "0.1.0",
+                    appBuild = secret,
+                    testSource = FeedIncidentTestSource.MANUAL,
+                    buildIdentity = secret,
+                ),
+            )
+            origin.overrideBuildIdentityForTests = secret
+            val planted = ReliabilityReporting(host.copy(sourceRevision = secret), consent, dsn, gate, origin, { NoSdk })
+            planted.noteFeedUpscaler(secret)
+            sent += planted.scopeTags().entries.joinToString(" ") { "${it.key}=${it.value}" }
+            consent.restorePersistedChoice(hasChoice = true, optedIn = true, installId = secret)
+            sent += consent.installId.orEmpty()
+        }
+        waitUntil { captured.get() == secrets.size && recorded.get() == secrets.size * 2 }
+        assertEquals(secrets.size, captured.get())
+        assertEquals(secrets.size * 2, recorded.get())
+        for (secret in secrets) assertTrue(sent.none { secret in it }, "$secret reached the sink")
+        assertTrue(sent.any { "trigger=other" in it }, "the field is still sent")
+    }
+
+    @Test
+    fun onlyTheSdksLifecycleExceptionTextSurvives() {
+        for (kept in listOf(
+            "App hanging for at least 2000 ms.",
+            "App hanging between 2.0 and 3.4 seconds.",
+            "The OS watchdog terminated your app, possibly because it overused RAM.",
+            "Application Not Responding for at least 5000 ms.",
+            "Background ANR",
+        )) {
+            assertEquals(kept, ReliabilityReportingPrivacy.exceptionValue(kept))
+        }
+        for (replaced in listOf(
+            "Application Not Responding for at least 5000 ms. tester@example.com",
+            "Attempt to invoke virtual method on a null object reference",
+        )) {
+            assertEquals("Native exception", ReliabilityReportingPrivacy.exceptionValue(replaced))
+        }
+    }
+
+    @Test
     fun queuedReplayOriginSurvivesJsonReloadAndCurrentRunOverride() {
         consent.setOptedIn(true)
         gate.setCameraIPv4PathReadyForTests(false)
@@ -574,6 +770,22 @@ class ReliabilityReportingTest {
             if (predicate()) return
             Thread.sleep(20)
         }
+    }
+
+    @Test fun mutatedRepairIsClosedBeforeExportAndAttachment() {
+        val secret = "SIMULATED-private-network"
+        val bundle = stallBundle("SIMULATED-mutated-repair")
+        val repair = FeedRepairRecord(4.5, "decoder", FeedRepairPhase.REQUESTED, "outputSilence")
+        bundle.repairs = listOf(repair.copy(action = secret, reason = secret))
+        val envelope = FeedIncidentExport.envelope(bundle)
+        assertEquals("other", envelope.trigger)
+        assertEquals("other", envelope.recoveredBy)
+        val payload = assertNotNull(ReliabilityReportingPrivacy.typedJson(bundle))
+        assertFalse(secret in payload.decodeToString())
+    }
+
+    @Test fun undeclaredSocTagIsRemoved() {
+        assertNull(ReliabilityReportingPrivacy(redact).tags(mapOf("soc" to "SIMULATED-private-device-value")))
     }
 
     private fun stallBundle(
