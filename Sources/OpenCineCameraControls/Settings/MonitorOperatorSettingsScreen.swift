@@ -112,7 +112,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         .alert("Report unavailable", isPresented: $supportError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Email support@opencapture.org. You can save a report under Diagnostic options.")
+            if let support = source.support { Text(support.reportUnavailableMessage) }
         }
     }
     private func retireSheets() {

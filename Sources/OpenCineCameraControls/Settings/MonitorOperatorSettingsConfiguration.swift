@@ -159,12 +159,14 @@ public struct MonitorSettingsSupportSource {
     let termsDestination: MonitorSettingsBrowserDestination?
     let reportAction: (() -> Void)?
     let reportTitle: String, reportActionTitle: String, diagnosticsHelp: String
+    let supportEmail: String
     public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         deleteHelp: String, sourceHelp: String, termsHelp: String, sourceURL: URL?, termsURL: URL?,
         saveReport: @escaping () -> URL?, deleteReports: @escaping () -> Void,
         report: @escaping @MainActor @Sendable () -> AnyView,
         document: @escaping @MainActor @Sendable (MonitorSettingsDocument, @escaping () -> Void) -> AnyView,
-        shareReport: @escaping @MainActor @Sendable (URL) -> AnyView) {
+        shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
+        supportEmail: String = "support@opencapture.org") {
         self.consent = consent; self.available = available; self.automaticHelp = automaticHelp
         self.unavailableHelp = unavailableHelp; self.deleteHelp = deleteHelp
         self.sourceHelp = sourceHelp; self.termsHelp = termsHelp; self.sourceURL = sourceURL; self.termsURL = termsURL
@@ -173,6 +175,7 @@ public struct MonitorSettingsSupportSource {
         self.model = nil; self.actions = nil; self.links = []
         self.privacyDestination = nil; self.sourceDestination = nil; self.termsDestination = nil
         self.reportAction = nil; self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
+        self.supportEmail = supportEmail
     }
     @MainActor public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         sourceHelp: String, termsHelp: String, model: MonitorSettingsSupportModel, actions: MonitorSettingsSupportActions,
@@ -180,7 +183,8 @@ public struct MonitorSettingsSupportSource {
         source: MonitorSettingsBrowserDestination?, terms: MonitorSettingsBrowserDestination?,
         reportTitle: String, reportActionTitle: String, diagnosticsHelp: String,
         reportAction: (() -> Void)? = nil, report: @escaping @MainActor @Sendable () -> AnyView,
-        shareReport: @escaping @MainActor @Sendable (URL) -> AnyView) {
+        shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
+        supportEmail: String = "support@opencapture.org") {
         self.consent = consent; self.available = available; self.automaticHelp = automaticHelp; self.unavailableHelp = unavailableHelp
         self.deleteHelp = ""; self.sourceHelp = sourceHelp; self.termsHelp = termsHelp
         self.sourceURL = source?.url; self.termsURL = terms?.url; self.saveReport = nil; self.deleteReports = nil
@@ -189,6 +193,14 @@ public struct MonitorSettingsSupportSource {
         self.privacyDestination = privacy; self.sourceDestination = source; self.termsDestination = terms
         self.reportAction = reportAction; self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
         self.diagnosticsHelp = diagnosticsHelp
+        self.supportEmail = supportEmail
+    }
+}
+
+/// A2-79: the report-unavailable alert names the host's support address, never a hard-coded one.
+extension MonitorSettingsSupportSource {
+    var reportUnavailableMessage: String {
+        "Email \(supportEmail). You can save a report under Diagnostic options."
     }
 }
 
