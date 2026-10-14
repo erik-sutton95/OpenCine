@@ -71,10 +71,21 @@ public final class CamerasModel {
     public private(set) var pairing = false
     /// Some integration is discovering.
     public private(set) var scanning = false
+    /// A scan has run 20 s without a camera; the pair page then lists what to check (A2-65:
+    /// one shared rule instead of a timer per app). The model's scan machinery sets it; tests
+    /// and review staging may set it directly, as they do other model states.
+    public var scanLooksEmpty = false
     /// The sighting chosen on the pair page.
     public var selection: String?
     /// Called once per successful attempt, after the record is saved.
     @ObservationIgnored public var onConnected: (ConnectedCamera) -> Void = { _ in }
+    /// The still-looking hint's wait; tests replace it with a manual clock.
+    @ObservationIgnored var waitForScanHint: @MainActor (Duration) async throws -> Void = {
+        try await Task.sleep(for: $0)
+    }
+    /// How long a scan runs without a camera before the still-looking hint shows.
+    @ObservationIgnored private static let stillLookingAfter: Duration = .seconds(20)
+    @ObservationIgnored private var scanHintTask: Task<Void, Never>?
 
     @ObservationIgnored private let store: SavedCamerasStore
     @ObservationIgnored private let routePolicy: RoutePolicy
@@ -123,6 +134,24 @@ public final class CamerasModel {
             })
         }
         scanning = !discovery.isEmpty
+        refreshScanHint()
+    }
+
+    /// The still-looking hint: armed while a pairing scan runs without a camera, cleared when
+    /// the scan's shape changes or pairing ends. The wait runs on the model's injected clock.
+    private func refreshScanHint() {
+        scanHintTask?.cancel()
+        scanHintTask = nil
+        guard pairing, scanning, nearby.isEmpty else {
+            scanLooksEmpty = false
+            return
+        }
+        scanHintTask = Task { [weak self] in
+            guard let self else { return }
+            try? await self.waitForScanHint(Self.stillLookingAfter)
+            guard !Task.isCancelled else { return }
+            if self.scanning, self.nearby.isEmpty { self.scanLooksEmpty = true }
+        }
     }
 
     private func publish(_ list: [NearbyCamera], from integration: IntegrationID) {
