@@ -1,6 +1,6 @@
 package com.opencapture.opencine.dji
 
-import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.CameraStatus
@@ -69,7 +69,7 @@ fun CameraStatus.toJson(): String =
         .put("shootingMode", shootingMode)
         .put("recordElapsedSec", recordElapsedSec)
         .put("recordRemainingSec", recordRemainingSec)
-        .put("timecode", timecodeValue?.let { JSONArray(listOfNotNull(it.hours, it.minutes, it.seconds, it.frames)) } ?: JSONObject.NULL)
+        .put("timecode", timecodeReading?.let { JSONArray(listOfNotNull(it.hours, it.minutes, it.seconds, it.frames)) } ?: JSONObject.NULL)
         .put("iso", iso)
         .put("shutterDenom", shutterDenom)
         .put("fps", fps)
@@ -146,7 +146,7 @@ fun CameraStatus.Companion.fromJson(raw: String?): CameraStatus {
     return runCatching {
         val obj = JSONObject(raw)
         val decodedTimecode = intList(obj.optJSONArray("timecode")).takeIf { it.size >= 3 }
-            ?.let { CameraTimecode(it[0], it[1], it[2], it.getOrNull(3)) }
+            ?.let { CameraTimecodeReading(it[0], it[1], it[2], it.getOrNull(3)) }
         CameraStatus(
             batteryPercent = obj.optInt("batteryPercent", -1),
             batteryMilliVolts = obj.optInt("batteryMilliVolts", 0),
@@ -210,7 +210,7 @@ fun CameraStatus.Companion.fromJson(raw: String?): CameraStatus {
             audioPeakLeft = obj.optDouble("audioPeakLeft", -60.0),
             audioPeakRight = obj.optDouble("audioPeakRight", -60.0),
             audioMetersReported = obj.optBoolean("audioMetersReported", false),
-        ).withTimecodeValue(decodedTimecode).withAudioDspAt2()
+        ).withTimecodeReading(decodedTimecode).withAudioDspAt2()
     }.getOrElse { CameraStatus() }
 }
 

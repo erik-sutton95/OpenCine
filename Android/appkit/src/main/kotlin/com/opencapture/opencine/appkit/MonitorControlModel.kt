@@ -9,6 +9,7 @@ import com.opencapture.opencine.core.CameraSession
 import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.CameraSnapshot
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.CaptureMode
 import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.SettingAccess
@@ -111,7 +112,10 @@ public class MonitorControlModel(
      * The latest reported timecode, observed on its own (Compose state): a per-frame counter
      * re-renders the clock that reads it, not every collector of [state].
      */
-    public var timecode: ObservedValue<CameraTimecode> by mutableStateOf(ObservedValue.unknown)
+    public val timecode: ObservedValue<CameraTimecode>
+        get() = timecodeReading.compactMap { it.frameTimecode }
+
+    public var timecodeReading: ObservedValue<CameraTimecodeReading> by mutableStateOf(ObservedValue.unknown)
         private set
 
     /** Operator copy for an outcome that is not a confirmation (and for refusing to send). */
@@ -252,17 +256,17 @@ public class MonitorControlModel(
         editRevisions.clear()
         recordOperation = null
         mutable.value = State()
-        timecode = ObservedValue.unknown
+        timecodeReading = ObservedValue.unknown
         if (changed) onChange()
     }
 
     private fun apply(snapshot: CameraSnapshot) {
         observeRecordingElapsed(snapshot)
         val previous = mutable.value.snapshot
-        if (previous?.copy(timecode = snapshot.timecode, revision = snapshot.revision) != snapshot) {
+        if (previous?.copy(revision = snapshot.revision)?.withTimecodeReading(snapshot.timecodeReading) != snapshot) {
             mutable.update { it.copy(snapshot = snapshot) }
         }
-        timecode = snapshot.timecode
+        timecodeReading = snapshot.timecodeReading
         onChange()
     }
 

@@ -300,23 +300,66 @@ public data class SettingDescriptor(
  * settings. A key that is neither described nor listed as unsupported has unknown support.
  * Missing groups (no aperture, say) never block the rest.
  */
-public data class CapabilitySnapshot(
-    public val revision: CapabilityRevision = CapabilityRevision(),
-    public val descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
-    public val unsupported: Set<SettingKey> = emptySet(),
-    /** Whether the camera reports [CameraSnapshot.timecode], and how precisely. */
-    public val timecode: TimecodeCapability = TimecodeCapability.unknown,
-    /** Whether the camera reports live [CameraSnapshot.audioLevels]. */
-    public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+@ConsistentCopyVisibility
+public data class CapabilitySnapshot private constructor(
+    public val revision: CapabilityRevision,
+    public val descriptors: Map<SettingKey, SettingDescriptor>,
+    public val unsupported: Set<SettingKey>,
+    public val timecode: SupportStatus,
+    public val audioLevels: SupportStatus,
+    public val timecodeCapability: TimecodeCapability,
 ) {
+    /** Retain the published JVM zero-argument constructor as well as Kotlin default calls. */
+    public constructor() : this(CapabilityRevision(), emptyMap(), emptySet(), SupportStatus.UNKNOWN, SupportStatus.UNKNOWN)
+
+    /** The published constructor retains its parameter order and value types. */
+    public constructor(
+        revision: CapabilityRevision = CapabilityRevision(),
+        descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
+        unsupported: Set<SettingKey> = emptySet(),
+        timecode: SupportStatus = SupportStatus.UNKNOWN,
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(revision, descriptors, unsupported, timecode, audioLevels, TimecodeCapability(timecode))
+
+    /** Copy the published fields without losing an unchanged precision-rich reading. */
+    public fun copy(
+        revision: CapabilityRevision = this.revision,
+        descriptors: Map<SettingKey, SettingDescriptor> = this.descriptors,
+        unsupported: Set<SettingKey> = this.unsupported,
+        timecode: SupportStatus = this.timecode,
+        audioLevels: SupportStatus = this.audioLevels,
+    ): CapabilitySnapshot = CapabilitySnapshot(revision, descriptors, unsupported, timecode, audioLevels,
+        if (timecode == this.timecode) timecodeCapability else TimecodeCapability(timecode))
+
+    /** Replace the precise value, projecting the legacy field only when representable. */
+    public fun withTimecodeCapability(value: TimecodeCapability): CapabilitySnapshot =
+        CapabilitySnapshot(revision, descriptors, unsupported, value.support, audioLevels, value)
+
+    /** Support and precision use a distinct, required label beside the support-only constructor. */
+    public constructor(
+        timecodeCapability: TimecodeCapability,
+        revision: CapabilityRevision = CapabilityRevision(),
+        descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
+        unsupported: Set<SettingKey> = emptySet(),
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(revision, descriptors, unsupported, timecodeCapability.support, audioLevels, timecodeCapability)
+
     /** Later descriptors for the same key replace earlier ones. */
     public constructor(
         revision: CapabilityRevision = CapabilityRevision(),
         descriptors: List<SettingDescriptor>,
         unsupported: Set<SettingKey> = emptySet(),
-        timecode: TimecodeCapability = TimecodeCapability.unknown,
+        timecode: SupportStatus = SupportStatus.UNKNOWN,
         audioLevels: SupportStatus = SupportStatus.UNKNOWN,
     ) : this(revision, descriptors.associateBy { it.key }, unsupported, timecode, audioLevels)
+
+    public constructor(
+        timecodeCapability: TimecodeCapability,
+        revision: CapabilityRevision = CapabilityRevision(),
+        descriptors: List<SettingDescriptor>,
+        unsupported: Set<SettingKey> = emptySet(),
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(timecodeCapability, revision, descriptors.associateBy { it.key }, unsupported, audioLevels)
 
     public operator fun get(key: SettingKey): SettingDescriptor? = descriptors[key]
 

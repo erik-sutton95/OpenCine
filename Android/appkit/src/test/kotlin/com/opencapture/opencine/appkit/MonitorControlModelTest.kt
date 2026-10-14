@@ -1,7 +1,7 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.CameraSession
-import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.core.CameraCommand
@@ -97,9 +97,9 @@ class MonitorControlModelTest {
         assertEquals(0, original.value)
         for (index in 1..10) {
             advanceTimeBy(1000); runCurrent()
-            camera.cameraReportsTimecode(CameraTimecode(0, 1, index))
+            camera.cameraReportsTimecodeReading(CameraTimecodeReading(0, 1, index))
             runCurrent()
-            assertEquals(index, model.timecode.value?.seconds)
+            assertEquals(index, model.timecodeReading.value?.seconds)
             assertEquals(original, model.recordingElapsed)
         }
         model.unbind()

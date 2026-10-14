@@ -174,16 +174,32 @@ public enum ControlAuthority: Hashable, Codable, Sendable {
 }
 
 /// SMPTE-style timecode: the camera's own counter, or time of day an integration derives from a
-/// clock (origin `.clockDerived`, which never claims that cameras are synchronized). How precisely
-/// the source counts is `CapabilitySnapshot.timecode.precision`.
+/// clock (origin `.clockDerived`, which never claims that cameras are synchronized). The counter
+/// runs at the `frameRate` setting.
 public struct CameraTimecode: Hashable, Codable, Sendable {
     public var hours: Int
     public var minutes: Int
     public var seconds: Int
-    /// The frame count the source reported; `nil` when it knows whole seconds only. Never derived
-    /// from a clock or a frame rate.
-    public var frames: Int?
+    public var frames: Int
     /// `nil` when the camera does not say whether it counts drop-frame.
+    public var dropFrame: Bool?
+
+    public init(hours: Int, minutes: Int, seconds: Int, frames: Int, dropFrame: Bool? = nil) {
+        self.hours = hours
+        self.minutes = minutes
+        self.seconds = seconds
+        self.frames = frames
+        self.dropFrame = dropFrame
+    }
+}
+
+/// A timecode reading at the precision the source actually reported. A whole-second source
+/// has no frame count; it never acquires one from a clock or recording rate.
+public struct CameraTimecodeReading: Hashable, Codable, Sendable {
+    public var hours: Int
+    public var minutes: Int
+    public var seconds: Int
+    public var frames: Int?
     public var dropFrame: Bool?
 
     public init(hours: Int, minutes: Int, seconds: Int, frames: Int? = nil, dropFrame: Bool? = nil) {
@@ -192,6 +208,18 @@ public struct CameraTimecode: Hashable, Codable, Sendable {
         self.seconds = seconds
         self.frames = frames
         self.dropFrame = dropFrame
+    }
+
+    public init(_ value: CameraTimecode) {
+        self.init(hours: value.hours, minutes: value.minutes, seconds: value.seconds,
+            frames: value.frames, dropFrame: value.dropFrame)
+    }
+
+    /// The legacy frame-complete value exists only when a frame count was reported.
+    public var frameTimecode: CameraTimecode? {
+        guard let frames else { return nil }
+        return CameraTimecode(hours: hours, minutes: minutes, seconds: seconds,
+            frames: frames, dropFrame: dropFrame)
     }
 }
 
@@ -235,7 +263,12 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
     public var power: PowerStatus
     public var storage: StorageStatus
     /// Support is `capabilities.timecode`.
-    public var timecode: ObservedValue<CameraTimecode>
+    public var timecode: ObservedValue<CameraTimecode> {
+        get { timecodeReading.compactMap { $0.frameTimecode } }
+        set { timecodeReading = newValue.compactMap { CameraTimecodeReading($0) } }
+    }
+    /// Reported timecode including a seconds-only reading. Its precision is in the capability.
+    public var timecodeReading: ObservedValue<CameraTimecodeReading>
     /// Support is `capabilities.audioLevels`.
     public var audioLevels: ObservedValue<AudioLevels>
 
@@ -256,8 +289,62 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
         self.recording = .unknown
         self.power = .unknown
         self.storage = .unknown
-        self.timecode = .unknown
+        self.timecodeReading = .unknown
         self.audioLevels = .unknown
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case session, epoch, revision, device, connection, authority, capabilities, mode, settings
+        case recording, power, storage, timecode, timecodeReading, audioLevels
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        session = try values.decode(CameraSessionID.self, forKey: .session)
+        epoch = try values.decode(ControlEpoch.self, forKey: .epoch)
+        revision = try values.decode(SnapshotRevision.self, forKey: .revision)
+        device = try values.decodeIfPresent(CameraDeviceID.self, forKey: .device)
+        connection = try values.decode(ConnectionState.self, forKey: .connection)
+        authority = try values.decode(ControlAuthority.self, forKey: .authority)
+        capabilities = try values.decode(CapabilitySnapshot.self, forKey: .capabilities)
+        mode = try values.decode(ObservedValue<CaptureMode>.self, forKey: .mode)
+        settings = try values.decode([SettingKey: ObservedValue<SettingValue>].self, forKey: .settings)
+        recording = try values.decode(ObservedValue<RecordingState>.self, forKey: .recording)
+        power = try values.decode(PowerStatus.self, forKey: .power)
+        storage = try values.decode(StorageStatus.self, forKey: .storage)
+        // Both the published full-frame value and checkpoint partial value have this shape.
+        let compatibility = try values.decode(ObservedValue<CameraTimecodeReading>.self, forKey: .timecode)
+        if let precise = try values.decodeIfPresent(ObservedValue<CameraTimecodeReading>.self,
+            forKey: .timecodeReading) {
+            let legacy = precise.compactMap { $0.frameTimecode }.compactMap { CameraTimecodeReading($0) }
+            guard legacy == compatibility else {
+                throw DecodingError.dataCorruptedError(forKey: .timecodeReading, in: values,
+                    debugDescription: "Timecode reading disagrees with the legacy field")
+            }
+            timecodeReading = precise
+        } else {
+            timecodeReading = compatibility
+        }
+        audioLevels = try values.decode(ObservedValue<AudioLevels>.self, forKey: .audioLevels)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(session, forKey: .session)
+        try values.encode(epoch, forKey: .epoch)
+        try values.encode(revision, forKey: .revision)
+        try values.encodeIfPresent(device, forKey: .device)
+        try values.encode(connection, forKey: .connection)
+        try values.encode(authority, forKey: .authority)
+        try values.encode(capabilities, forKey: .capabilities)
+        try values.encode(mode, forKey: .mode)
+        try values.encode(settings, forKey: .settings)
+        try values.encode(recording, forKey: .recording)
+        try values.encode(power, forKey: .power)
+        try values.encode(storage, forKey: .storage)
+        try values.encode(timecode, forKey: .timecode)
+        try values.encode(timecodeReading, forKey: .timecodeReading)
+        try values.encode(audioLevels, forKey: .audioLevels)
     }
 
     public func value(of key: SettingKey) -> ObservedValue<SettingValue> {
