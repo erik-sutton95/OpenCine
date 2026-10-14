@@ -41,7 +41,8 @@
       Group {
         if layout.portrait {
           MonitorPortraitStatusLayout(
-            minimumHeight: layout.status.height, spacing: primaryFit?.spacing ?? 8
+            minimumHeight: layout.status.height, spacing: primaryFit?.spacing ?? 8,
+            allowsFallbackRows: !(primaryFit?.completeSingleRow ?? false)
           ) {
             HStack(spacing: 0) { if showsRecording { MonitorRecordingReadout(status: status) } }
             HStack(spacing: 0) {
@@ -131,10 +132,14 @@
     }
   }
 
-  /// Preserve complete intrinsic values on one row; an impossible fit remains a bounds failure.
+  /// Preserve complete intrinsic values on one row while a complete typed fit owns it.
+  /// Without such a fit context the original fallback applies: an impossible single row
+  /// wraps complete groups to intrinsic rows below instead of placing them beyond the
+  /// width, so nothing is clipped and no glyph is dropped or ellipsized.
   private struct MonitorPortraitStatusLayout: Layout {
     let minimumHeight: CGFloat
     let spacing: CGFloat
+    let allowsFallbackRows: Bool
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
       frames(width: proposal.width, subviews: subviews).size
@@ -167,18 +172,34 @@
       let hasRecording = recording.width > 0
       let hasClock = clock.width > 0
       let hasFormat = format.width > 0
-      let lower = hasRecording ? recording.width + spacing : 0
-      let upper = width - clock.width - (hasFormat ? format.width + spacing : 0)
+      let wraps = allowsFallbackRows && needed > width
+      let secondRow = wraps && hasFormat && (hasRecording || hasClock)
+      let separatesClock = wraps && hasRecording && hasClock
+        && recording.width + spacing + clock.width > width
+      let lower = hasRecording && !separatesClock ? recording.width + spacing : 0
+      let upper = width - clock.width - (hasFormat && !secondRow ? format.width + spacing : 0)
       let clockX = hasClock ? max(lower, min((width - clock.width) / 2, upper)) : 0
+      let firstHeight = max(
+        minimumHeight, recording.height,
+        separatesClock ? 0 : clock.height, secondRow ? 0 : format.height)
+      let clockY: CGFloat = separatesClock ? firstHeight + spacing : 0
+      let clockFloor = separatesClock ? clockY + clock.height : firstHeight
+      let formatRowHeight = secondRow ? max(minimumHeight, format.height) : format.height
+      let formatY: CGFloat = secondRow ? clockFloor + spacing : 0
       let afterClock = hasClock ? clockX + clock.width + spacing : lower
-      let formatX = max(afterClock, width - format.width)
-      let height = max(minimumHeight, recording.height, clock.height, format.height)
+      let formatX = secondRow
+        ? max(0, width - format.width)
+        : max(afterClock, width - format.width)
+      let height = max(
+        minimumHeight, firstHeight, format.height,
+        separatesClock ? clockFloor : 0,
+        secondRow ? formatY + formatRowHeight : 0)
       return (
         CGSize(width: width, height: height),
         [
           CGRect(x: 0, y: 0, width: recording.width, height: recording.height),
-          CGRect(x: clockX, y: 0, width: clock.width, height: clock.height),
-          CGRect(x: formatX, y: 0, width: format.width, height: format.height),
+          CGRect(x: clockX, y: clockY, width: clock.width, height: clock.height),
+          CGRect(x: formatX, y: formatY, width: format.width, height: format.height),
         ]
       )
     }

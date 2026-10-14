@@ -105,11 +105,15 @@ private fun MonitorPortraitTelemetryRow(modifier: Modifier, storage: @Composable
     }
 }
 
-/** Keep complete intrinsic values on one row; an impossible fit remains a bounds failure. */
+/** Keep complete intrinsic values on one row while a complete typed fit owns it.
+ *  Without such a fit context the original fallback applies: an impossible single row
+ *  wraps complete groups to intrinsic rows below instead of placing them beyond the
+ *  width, so nothing is clipped and no glyph is dropped or ellipsized. */
 @Composable
 private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composable () -> Unit,
     clock: @Composable () -> Unit, format: @Composable () -> Unit) {
     val spacing = LocalMonitorPortraitPrimaryFit.current?.spacing ?: 8f
+    val allowsFallbackRows = LocalMonitorPortraitPrimaryFit.current?.completeSingleRow != true
     Layout(content = { Box { recording() }; Box { clock() }; Box { format() } }, modifier = Modifier.fillMaxWidth()) {
             measurables, constraints ->
         val gap = spacing.dp.roundToPx()
@@ -119,16 +123,31 @@ private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composabl
         val childConstraints = Constraints(maxWidth = Constraints.Infinity)
         val children = measurables.map { it.measure(childConstraints) }
         val rec = children[0]; val time = children[1]; val values = children[2]
-        val lower = if (rec.width > 0) rec.width + gap else 0
-        val upper = width - time.width - if (values.width > 0) values.width + gap else 0
+        val wraps = allowsFallbackRows && needed > width
+        val secondRow = wraps && values.width > 0 && (rec.width > 0 || time.width > 0)
+        val separatesClock = wraps && rec.width > 0 && time.width > 0 &&
+            rec.width + gap + time.width > width
+        val lower = if (rec.width > 0 && !separatesClock) rec.width + gap else 0
+        val upper = width - time.width -
+            if (values.width > 0 && !secondRow) values.width + gap else 0
         val clockX = if (time.width > 0) maxOf(lower, minOf((width - time.width) / 2, upper)) else 0
+        val minimumPx = minimumHeight.dp.roundToPx()
+        val firstHeight = maxOf(minimumPx, rec.height, if (separatesClock) 0 else time.height,
+            if (secondRow) 0 else values.height)
+        val clockY = if (separatesClock) firstHeight + gap else 0
+        val clockFloor = if (separatesClock) clockY + time.height else firstHeight
+        val formatRowHeight = if (secondRow) maxOf(minimumPx, values.height) else values.height
+        val formatY = if (secondRow) clockFloor + gap else 0
         val afterClock = if (time.width > 0) clockX + time.width + gap else lower
-        val formatX = maxOf(afterClock, width - values.width)
-        val height = maxOf(minimumHeight.dp.roundToPx(), rec.height, time.height, values.height)
+        val formatX = if (secondRow) maxOf(0, width - values.width)
+            else maxOf(afterClock, width - values.width)
+        val height = maxOf(minimumPx, firstHeight, values.height,
+            if (separatesClock) clockFloor else 0,
+            if (secondRow) formatY + formatRowHeight else 0)
         layout(width, height) {
             rec.placeRelative(0, 0)
-            time.placeRelative(clockX, 0)
-            values.placeRelative(formatX, 0)
+            time.placeRelative(clockX, clockY)
+            values.placeRelative(formatX, formatY)
         }
     }
 }
