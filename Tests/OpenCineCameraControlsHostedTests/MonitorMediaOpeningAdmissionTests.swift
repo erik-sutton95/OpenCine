@@ -563,7 +563,7 @@
         let requested =
             ProcessInfo.processInfo.environment["S02_ORIENTATION"]
             ?? ProcessInfo.processInfo.environment["TEST_RUNNER_S02_ORIENTATION"] ?? "portrait"
-        let landscape = requested == "landscape"
+        var landscape = requested == "landscape"
         let result = S02GeometryRequest()
         scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         scene.requestGeometryUpdate(
@@ -571,6 +571,27 @@
         ) { error in
             let message = error.localizedDescription
             Task { @MainActor in result.error = message }
+        }
+        let settled = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                MainActor.assumeIsolated {
+                    result.error != nil
+                        || (scene.interfaceOrientation.isLandscape == landscape
+                            && (scene.coordinateSpace.bounds.width
+                                > scene.coordinateSpace.bounds.height) == landscape)
+                }
+            }, object: nil)
+        let settledResult = await XCTWaiter.fulfillment(of: [settled], timeout: 5)
+        XCTAssertEqual(settledResult, .completed)
+        if let refusal = result.error {
+            // A real multitasking window (physical iPad) refuses programmatic
+            // rotation outright: "The current windowing mode does not allow for
+            // programmatic changes to interface orientation". The helper's job is
+            // a settled, known orientation for the opening round trip, so there it
+            // observes the device-driven scene orientation instead of forcing one.
+            print("S02_ORIENTATION_OBSERVED", requested, refusal, scene.interfaceOrientation.rawValue)
+            result.error = nil
+            landscape = scene.interfaceOrientation.isLandscape
         }
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
