@@ -28,7 +28,7 @@ public class UiNode internal constructor(
 ) {
     public val bounds: Box = Rect().also(info::getBoundsInScreen).box()
     public val visible: Boolean = info.isVisibleToUser
-    public val selected: Boolean get() = info.isSelected
+    public val selected: Boolean get() = info.isSelected || info.isChecked
     public val enabled: Boolean get() = info.isEnabled
     /** The state TalkBack announces (`On`, `Shown`), the twin of an iOS accessibility value. */
     public val state: String? get() =

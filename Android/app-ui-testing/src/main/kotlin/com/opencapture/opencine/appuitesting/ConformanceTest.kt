@@ -89,6 +89,8 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
      * container, the way XCUITest's snapshot does.
      */
     public fun snapshot(bound: Int = 5_000): UiSnapshot {
+        // Native cache entries can outlive Compose layout updates; every observation is current.
+        if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
         val windows = automation.windows.mapNotNull { window ->
             val root = window.root ?: return@mapNotNull null
             if (root.packageName?.toString() != target) return@mapNotNull null
