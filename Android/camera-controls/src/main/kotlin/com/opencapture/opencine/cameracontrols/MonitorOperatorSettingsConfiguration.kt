@@ -56,6 +56,21 @@ public class MonitorSettingsAccountSource(
     public val refresh: () -> Unit,
 )
 
+/** The deployed display store supplies values and actions; the common page owns its form. */
+@Deprecated("Compose an explicit typed display source when migrating the shared settings.")
+public class MonitorOperatorBorrowedDisplay(
+    public val layoutTitle: String,
+    public val layoutHelp: String,
+    public val choices: List<MonitorDisplayChoice>,
+    public val selection: String,
+    public val onSelect: (String) -> Unit,
+    public val expandedSection: String?,
+    public val onExpand: (String?) -> Unit,
+    public val sections: List<MonitorDisplaySection>,
+    public val order: MonitorDisplayOrderGroup,
+    public val returnedFromEditor: () -> Unit = {},
+)
+
 /** Display rows over the one display owner: the modes the source declares, each mode's chrome, the clean-view
  * pins and, when a live monitor can host it, the Edit view. [available] is what the source can fill. */
 public class MonitorOperatorDisplaySource(
@@ -129,18 +144,47 @@ public data class MonitorSettingsInformationSource(
     public val theme: String, public val protocolName: String, public val version: String,
     public val themeHelp: String, public val protocolHelp: String, public val versionHelp: String,
 )
-public class MonitorOperatorSettingsConfiguration(
+public class MonitorOperatorSettingsConfiguration private constructor(
     public val brand: String, public val isLive: Boolean, public val phase: String,
     public val close: () -> Unit, public val disconnect: (() -> Unit)?, public val feedback: () -> Unit,
     public val link: MonitorSettingsLinkSource, public val sharing: MonitorSettingsSharingSource?,
     public val sharingSubtitle: String?, public val sharingRail: String?,
-    public val assist: MonitorOperatorAssistSettingsSource,
+    public val assistSections: List<MonitorAssistSettingsSection>,
+    public val assist: MonitorOperatorAssistSettingsSource?,
     public val controls: MonitorSettingsControlsSource,
     public val cache: MonitorSettingsCachePresentation?,
-    public val account: MonitorSettingsAccountSource? = null,
+    public val account: MonitorSettingsAccountSource?,
     public val support: MonitorSettingsSupportSource,
     public val information: MonitorSettingsInformationSource,
-)
+) {
+    /** Typed shared assist composition remains explicit and separate from the published list. */
+    public constructor(
+        brand: String, isLive: Boolean, phase: String,
+        close: () -> Unit, disconnect: (() -> Unit)?, feedback: () -> Unit,
+        link: MonitorSettingsLinkSource, sharing: MonitorSettingsSharingSource?,
+        sharingSubtitle: String?, sharingRail: String?,
+        assist: MonitorOperatorAssistSettingsSource,
+        controls: MonitorSettingsControlsSource,
+        cache: MonitorSettingsCachePresentation?,
+        account: MonitorSettingsAccountSource? = null,
+        support: MonitorSettingsSupportSource,
+        information: MonitorSettingsInformationSource,
+    ) : this(brand, isLive, phase, close, disconnect, feedback, link, sharing, sharingSubtitle, sharingRail, emptyList(), assist, controls, cache, account, support, information)
+
+    @Deprecated("Compose an explicit typed assist source when migrating the shared settings.")
+    public constructor(
+        brand: String, isLive: Boolean, phase: String,
+        close: () -> Unit, disconnect: (() -> Unit)?, feedback: () -> Unit,
+        link: MonitorSettingsLinkSource, sharing: MonitorSettingsSharingSource?,
+        sharingSubtitle: String?, sharingRail: String?,
+        assistSections: List<MonitorAssistSettingsSection>,
+        controls: MonitorSettingsControlsSource,
+        cache: MonitorSettingsCachePresentation?,
+        account: MonitorSettingsAccountSource? = null,
+        support: MonitorSettingsSupportSource,
+        information: MonitorSettingsInformationSource,
+    ) : this(brand, isLive, phase, close, disconnect, feedback, link, sharing, sharingSubtitle, sharingRail, assistSections, null, controls, cache, account, support, information)
+}
 
 /** Complete settings ownership using actual stores, optional services and bounded native leaves. */
 @Composable
@@ -156,6 +200,26 @@ public fun MonitorOperatorSettingsScreen(
         isLive = configuration.isLive, phase = configuration.phase, close = configuration.close,
         disconnect = configuration.disconnect, feedback = configuration.feedback,
         source = MonitorOperatorSettingsSource.Configured(configuration, display),
+        sourceIdentity = sourceIdentity,
+        sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
+    ))
+}
+
+/** Complete settings ownership using actual stores, optional services and bounded native leaves. */
+@Deprecated("Compose an explicit typed display source when migrating the shared settings.")
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    borrowedDisplay: MonitorOperatorBorrowedDisplay,
+    initialTab: MonitorSettingsTab = MonitorSettingsTab.LINK,
+    sourceIdentity: Any? = null,
+): Unit {
+    var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
+        brand = configuration.brand, selection = selectedTab, onSelect = { selectedTab = it },
+        isLive = configuration.isLive, phase = configuration.phase, close = configuration.close,
+        disconnect = configuration.disconnect, feedback = configuration.feedback,
+        source = MonitorOperatorSettingsSource.Configured(configuration, borrowedDisplay),
         sourceIdentity = sourceIdentity,
         sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
     ))

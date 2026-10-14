@@ -14,6 +14,7 @@ class AppKitNativeRulesTest {
         val allowed = listOf("import kotlin.", "import kotlinx.", "import java.",
             "import android.", "import androidx.", "import com.opencapture.monitorui.",
             "import com.opencapture.opencine.appkit.", "import com.opencapture.opencine.media.",
+            "import com.opencapture.opencine.core.",
             "import com.opencapture.opencine.vocabulary.", "import com.opencapture.opencine.decoder.",
             "import com.opencapture.opencine.runtime.", "import com.opencapture.opencine.cameracontrols.")
         for (file in files) {

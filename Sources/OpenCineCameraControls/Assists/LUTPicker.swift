@@ -536,7 +536,7 @@
         ) {
             self.init(assist: assist, embedded: embedded, haptics: haptics, palette: palette,
                 preparation: preparation, prepare: prepare, libraries: libraries) {
-                MonitorOperatorLookComparison(assist: assist, haptics: haptics)
+                MonitorOperatorLookComparison(assist: assist, haptics: haptics, exposure: .provider)
             }
         }
     }

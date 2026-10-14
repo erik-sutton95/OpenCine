@@ -122,6 +122,9 @@ class MonitorLiveFeedIntegration(
     /** The GL helpers of the GLES feed; tests substitute a failing one. */
     private val glBackend: (Context) -> NativeGlBackend = NativeGlBackend::create,
 ) {
+    /** Main-thread delivery after native copying ends; retained per integration for controlled native fixtures. */
+    internal var faceReadbackDelivery: (Bitmap, Int, () -> Unit) -> Unit = { _, _, deliver -> deliver() }
+
     /** Vulkan when the device has it and it has not crashed this app version's imports. */
     fun usesVulkan(context: Context): Boolean = NativeVulkanFeedSession.isAvailable && !crashGuard.isTripped(context)
 
@@ -192,6 +195,8 @@ interface MonitorLiveFeedSource<F : Any> {
     val decoder: HevcDecoder
     /** The connected camera, else the session: the scope, preview and backdrop source identity. */
     val pictureIdentity: Any
+    /** Current integration-owned connection; unknown sources refuse bitmap readback until supplied. */
+    val faceReadbackEpoch: MonitorFaceReadbackEpoch? get() = null
     val cameraName: String?
     val connection: ConnectionPhase
     val recoveryState: StateFlow<SessionRecoveryUi>
@@ -202,8 +207,10 @@ interface MonitorLiveFeedSource<F : Any> {
     fun noteLiveFrame()
     fun retrySessionRecovery()
     fun wantsFaceFrame(): Boolean
-    /** Owns [bitmap] and recycles it once detection is done. May throw when the detector cannot start. */
+    /** Creates an unsubmitted frame owning [bitmap]; it recycles once detection is done. May throw. */
     fun faceFrame(bitmap: Bitmap): F
+    /** Releases a made frame that was retired before submission. Existing bitmap-only sources remain compatible. */
+    fun discardUnsubmittedFaceFrame(frame: F, bitmap: Bitmap) { bitmap.recycle() }
     /** Reads [nv21] (a tap the host does not reuse until the next request). May throw like [faceFrame]. */
     fun faceFrame(nv21: ByteArray, width: Int, height: Int): F
     fun considerFaceFrame(frame: F)
@@ -561,7 +568,7 @@ internal class FaceFrameInput(private val onFailure: (RuntimeException) -> Unit)
 }
 
 @Composable
-private fun <F : Any> FaceFramePump(
+internal fun <F : Any> FaceFramePump(
     source: MonitorLiveFeedSource<F>,
     feed: MonitorLiveFeedIntegration,
     surfaceView: SurfaceView?,
@@ -573,16 +580,27 @@ private fun <F : Any> FaceFramePump(
     val density = LocalDensity.current
     val latest by rememberUpdatedState(source)
     val handler = remember { Handler(Looper.getMainLooper()) }
-    val inFlight = remember { AtomicBoolean(false) }
+    val requests = remember { FaceFrameReadbackOwner<MonitorLiveFeedSource<F>>({ latest }, { it.pictureIdentity }, { it.faceReadbackEpoch }) }
+    DisposableEffect(requests) { onDispose { requests.close() } }
+    DisposableEffect(requests, source, source.pictureIdentity, surfaceView, textureView, vulkan, enabled,
+        feedRect.x, feedRect.y, feedRect.width, feedRect.height) {
+        val lifetime = if (enabled) requests.activate() else null
+        onDispose { lifetime?.let(requests::retire) }
+    }
     val faceInput = remember(surfaceView, textureView, vulkan, enabled) {
         FaceFrameInput { failure ->
             feed.journal("error", "faceAF", "input", "faceAF input unavailable class=${failure.javaClass.simpleName}")
         }
     }
-    fun consider(bitmap: Bitmap) =
-        faceInput.construct(bitmap::recycle) { latest.faceFrame(bitmap) }?.let { latest.considerFaceFrame(it) }
+    fun consider(request: FaceFrameReadbackOwner.Request<MonitorLiveFeedSource<F>>, bitmap: Bitmap, copied: Boolean = true) {
+        requests.complete(request, copied, bitmap::recycle,
+            construct = { original, release -> faceInput.construct(release) { original.faceFrame(bitmap) } },
+            discard = { original, frame -> original.discardUnsubmittedFaceFrame(frame, bitmap) },
+            consume = { original, frame -> original.considerFaceFrame(frame) })
+    }
     LaunchedEffect(surfaceView, textureView, vulkan, enabled, feedRect.x, feedRect.y, feedRect.width, feedRect.height) {
         if (!enabled) return@LaunchedEffect
+        val pumpScope = this
         val tapW = NativeVulkanFeedSession.FACE_TAP_WIDTH
         while (isActive) {
             delay(FaceDetectionPump.INTERVAL_MS)
@@ -600,18 +618,18 @@ private fun <F : Any> FaceFramePump(
                 if (latest.wantsFaceFrame()) vulkan.requestFaceTap()
                 continue
             }
-            if (!latest.wantsFaceFrame() || !inFlight.compareAndSet(false, true)) continue
+            if (!latest.wantsFaceFrame()) continue
+            val request = requests.begin { pumpScope.isActive } ?: continue
             val tapH = ((tapW * feedRect.height / feedRect.width.coerceAtLeast(1f)).toInt() and 1.inv()).coerceAtLeast(16)
             val gles = textureView
             if (gles != null && gles.isAvailable) {
                 val src = gles.getBitmap(tapW, tapH)
-                inFlight.set(false)
-                if (src != null) consider(src)
+                if (src != null) consider(request, src) else requests.abandon(request)
                 continue
             }
             val view = surfaceView
             if (view == null || !view.holder.surface.isValid) {
-                inFlight.set(false)
+                requests.abandon(request)
                 continue
             }
             val left = with(density) { feedRect.x.dp.toPx() }.roundToInt().coerceAtLeast(0)
@@ -621,18 +639,18 @@ private fun <F : Any> FaceFramePump(
             val bottom = (top + with(density) { feedRect.height.dp.toPx() }.roundToInt())
                 .coerceAtMost(view.height.coerceAtLeast(top + 1))
             if (right - left < 8 || bottom - top < 8) {
-                inFlight.set(false)
+                requests.abandon(request)
                 continue
             }
             val dest = createBitmap(tapW, tapH, Bitmap.Config.ARGB_8888)
             try {
                 PixelCopy.request(view, Rect(left, top, right, bottom), dest, { result ->
-                    inFlight.set(false)
-                    if (result == PixelCopy.SUCCESS) consider(dest) else dest.recycle()
+                    feed.faceReadbackDelivery(dest, result) {
+                        consider(request, dest, copied = result == PixelCopy.SUCCESS)
+                    }
                 }, handler)
             } catch (_: Exception) {
-                inFlight.set(false)
-                dest.recycle()
+                consider(request, dest, copied = false)
             }
         }
     }

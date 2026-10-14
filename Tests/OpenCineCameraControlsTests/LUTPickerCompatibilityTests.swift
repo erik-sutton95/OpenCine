@@ -45,6 +45,25 @@ final class LUTPickerCompatibilityTests: XCTestCase {
         XCTAssertTrue(hosted.labels.contains("Legacy supplied footer"), hosted.labels.joined(separator: ", "))
     }
 
+    /// Actual published pin call forms, including nil availability/callback and exact function arity.
+    func testPublishedComparisonCallFormsCompileWithoutAmbiguousDefaults() throws {
+        let name = "legacy-comparison-call-forms." + UUID().uuidString
+        let storage = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { storage.removePersistentDomain(forName: name) }
+        let assist = MonitorAssistState(looks: IndependentLooks(), storage: storage,
+            keys: .init(assist: "assist", cleanPins: "pins", playback: "playback"), cleanPinCases: [])
+        let haptics = OperatorHaptics(isEnabled: { false })
+        _ = MonitorOperatorLookComparison(assist: assist, haptics: haptics)
+        _ = MonitorOperatorLookComparison(assist: assist, haptics: haptics, exposureAvailable: true)
+        _ = MonitorOperatorLookComparison(assist: assist, haptics: haptics, exposureAvailable: false)
+        _ = MonitorOperatorLookComparison(assist: assist, haptics: haptics, exposureAvailable: nil)
+        _ = MonitorOperatorLookComparison(assist: assist, haptics: haptics, onArm: {})
+        _ = MonitorOperatorLookComparison(assist: assist, haptics: haptics, onArm: nil)
+        let oldInitializer: (MonitorAssistState<IndependentLooks>, OperatorHaptics, Bool?, (() -> Void)?)
+            -> MonitorOperatorLookComparison<IndependentLooks> = MonitorOperatorLookComparison.init
+        _ = oldInitializer(assist, haptics, nil, {})
+    }
+
     private final class IndependentLooks: MonitorLookProvider {
         var selection = 7
         var cube: CubeLUT? { nil }

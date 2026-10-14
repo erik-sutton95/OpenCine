@@ -24,6 +24,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorPalette
+import com.opencapture.monitorui.settings.LocalMonitorSettingsScrollContext
+import com.opencapture.monitorui.settings.MonitorDisplaySettings
 import com.opencapture.monitorui.settings.MonitorInputOrientationSettings
 import com.opencapture.monitorui.settings.MonitorOperatorSafetySettings
 import com.opencapture.monitorui.settings.MonitorPanelSettings
@@ -32,6 +34,7 @@ import com.opencapture.monitorui.settings.MonitorSettingsPage
 import com.opencapture.monitorui.settings.MonitorSettingsRowCard
 import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
+import com.opencapture.monitorui.settings.MonitorViewAssistSettings
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
@@ -49,10 +52,16 @@ internal sealed interface MonitorOperatorSettingsSource {
         val linkBars: Int,
     ) : MonitorOperatorSettingsSource
 
-    class Configured(
+    class Configured private constructor(
         val configuration: MonitorOperatorSettingsConfiguration,
-        val display: MonitorOperatorDisplaySource,
-    ) : MonitorOperatorSettingsSource
+        val display: MonitorOperatorDisplaySource?,
+        val borrowedDisplay: MonitorOperatorBorrowedDisplay?,
+    ) : MonitorOperatorSettingsSource {
+        constructor(configuration: MonitorOperatorSettingsConfiguration, display: MonitorOperatorDisplaySource) :
+            this(configuration, display, null)
+        constructor(configuration: MonitorOperatorSettingsConfiguration, display: MonitorOperatorBorrowedDisplay) :
+            this(configuration, null, display)
+    }
 
     class Session<P>(
         val preferences: MonitorOperatorPreferences,
@@ -91,6 +100,12 @@ internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) 
     var legalPage by remember { mutableStateOf<OperatorLegalPage?>(null) }
     var showLutPicker by remember { mutableStateOf(false) }
     val revision = remember { mutableIntStateOf(0) }
+    LaunchedEffect(inputs.selection) {
+        val source = inputs.source
+        if (inputs.selection == MonitorSettingsTab.DISPLAY && source is MonitorOperatorSettingsSource.Configured) {
+            source.borrowedDisplay?.returnedFromEditor?.invoke()
+        }
+    }
     BoxWithConstraints(Modifier.fillMaxSize().background(MonitorPalette.background)
         .pointerInput(Unit) { detectTapGestures {} }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -145,7 +160,11 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.ASSIST -> when (source) {
             is MonitorOperatorSettingsSource.Deployed -> AssistRows(source.model, source.state, source.app, onOpenLut)
-            is MonitorOperatorSettingsSource.Configured -> MonitorOperatorAssistSettings(source.configuration.assist)
+            is MonitorOperatorSettingsSource.Configured -> {
+                val assist = source.configuration.assist
+                if (assist != null) MonitorOperatorAssistSettings(assist)
+                else MonitorViewAssistSettings(source.configuration.assistSections)
+            }
             is MonitorOperatorSettingsSource.Session<*> -> SessionAssistSettings(source)
         }
         MonitorSettingsTab.CONTROLS -> when (source) {
@@ -171,8 +190,20 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.DISPLAY -> when (source) {
             is MonitorOperatorSettingsSource.Deployed -> OperatorDisplayRows(source.model, source.state, source.app, inputs.isLive)
-            is MonitorOperatorSettingsSource.Configured -> OperatorDisplaySections(source.display.session,
-                source.display.available, source.display.edit, revision, onPreferenceChanged, inputs.feedback)
+            is MonitorOperatorSettingsSource.Configured -> {
+                val display = source.display
+                if (display != null) {
+                    OperatorDisplaySections(display.session, display.available, display.edit,
+                        revision, onPreferenceChanged, inputs.feedback)
+                } else {
+                    val borrowed = requireNotNull(source.borrowedDisplay)
+                    val scroll = LocalMonitorSettingsScrollContext.current
+                    MonitorDisplaySettings(borrowed.layoutTitle, borrowed.layoutHelp,
+                        borrowed.choices, borrowed.selection, borrowed.onSelect,
+                        borrowed.expandedSection, borrowed.onExpand, borrowed.sections,
+                        borrowed.order, compact, inputs.feedback, scroll)
+                }
+            }
             is MonitorOperatorSettingsSource.Session<*> -> SessionDisplaySettings(source, inputs.isLive, revision, onPreferenceChanged)
         }
         MonitorSettingsTab.STORAGE -> when (source) {

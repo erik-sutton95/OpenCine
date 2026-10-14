@@ -2,6 +2,7 @@ package com.opencapture.opencine.cameracontrols
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,11 +56,13 @@ interface MonitorFeedEffectsPacker {
     fun feedAssistScalars(colorMode: Int, iso: Int, highlightIRE: Float, midtoneIRE: Float): FloatArray?
 }
 
-/** Live, playback and inspector feed plans for one app: its Swift core bakes, one process cube cache. */
+/** Live, playback or inspector plans for one owner, on its immutable Swift source profile. */
 class MonitorFeedEffectsPlans(
     private val packer: MonitorFeedEffectsPacker,
     private val cubes: MonitorLUTCubeCache = MonitorLUTCubeCache(),
-) {
+) : AutoCloseable {
+    override fun close() = cubes.close()
+
     fun create(
         context: Context,
         assist: MonitorAssistState,
@@ -222,6 +225,14 @@ class MonitorFeedEffectsPlans(
                 is LutLookSource.Creative, LutLookSource.Off -> null
             }
     }
+}
+
+/** Retained by the picture/plan composition, across effect changes and window detach. */
+@Composable
+fun rememberMonitorFeedEffectsPlans(packer: MonitorFeedEffectsPacker): MonitorFeedEffectsPlans {
+    val plans = remember(packer) { MonitorFeedEffectsPlans(packer) }
+    DisposableEffect(plans) { onDispose { plans.close() } }
+    return plans
 }
 
 /**

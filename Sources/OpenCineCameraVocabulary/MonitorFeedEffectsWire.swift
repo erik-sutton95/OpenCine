@@ -39,13 +39,8 @@ public enum MonitorFeedEffectsWire {
     ) -> [UInt8]? {
         guard let scale = falseColorScale(scaleOrdinal) else { return nil }
         let (transfer, ceiling) = prepared(colorModeCode: colorModeCode, iso: iso, sourceProfile: sourceProfile)
-        let key = cacheKey(
-            readsRec709Look(scaleOrdinal) ? "paint709" : "paint", scale: scale, transfer: transfer,
-            ceiling: ceiling, sourceProfile: sourceProfile)
-        return cached(key) {
-            lattice(scale: scale, transfer: transfer, ceiling: ceiling,
-                rec709: readsRec709Look(scaleOrdinal), sourceProfile: sourceProfile).packedCube(.paint)
-        }
+        return lattice(scale: scale, transfer: transfer, ceiling: ceiling,
+            rec709: readsRec709Look(scaleOrdinal), sourceProfile: sourceProfile).packedCube(.paint)
     }
 
     /// Packed-2D RGBA8 overlay weight. CineStop / Video / IRE are opaque; Limits is holes-only.
@@ -55,14 +50,8 @@ public enum MonitorFeedEffectsWire {
     ) -> [UInt8]? {
         guard let scale = falseColorScale(scaleOrdinal) else { return nil }
         let (transfer, ceiling) = prepared(colorModeCode: colorModeCode, iso: iso, sourceProfile: sourceProfile)
-        let key = cacheKey(
-            readsRec709Look(scaleOrdinal) ? "weight709" : "weight", scale: scale,
-            transfer: transfer,
-            ceiling: ceiling, sourceProfile: sourceProfile)
-        return cached(key) {
-            lattice(scale: scale, transfer: transfer, ceiling: ceiling,
-                rec709: readsRec709Look(scaleOrdinal), sourceProfile: sourceProfile).packedCube(.weight)
-        }
+        return lattice(scale: scale, transfer: transfer, ceiling: ceiling,
+            rec709: readsRec709Look(scaleOrdinal), sourceProfile: sourceProfile).packedCube(.weight)
     }
 
     /// `[highlightNative, midtoneNative, midtoneHalfNative, peakingGateScale]`.
@@ -117,33 +106,5 @@ public enum MonitorFeedEffectsWire {
             rec709ClipByte: ceiling.clipByte(transfer: .rec709),
             lookCurve: sourceProfile.rec709LookCurves[transfer], readThroughLook: rec709,
             size: falseColorCubeSize)
-    }
-
-    private static let cacheLock = NSLock()
-    // Protected by cacheLock.
-    nonisolated(unsafe) private static var cubeCache: [String: [UInt8]] = [:]
-
-    private static func cacheKey(
-        _ kind: String, scale: LiveFalseColorScale, transfer: MonitorTransfer,
-        ceiling: OpenCineMedia.ScopeExposureCeiling, sourceProfile: MonitorColorSourceProfile
-    ) -> String {
-        let clip = ceiling.clipByte(transfer: transfer)
-        let curve = sourceProfile.rec709LookCurves[transfer]?.map { String(describing: $0) }.joined(separator: ",") ?? "signal"
-        let rec709Clip = ceiling.clipByte(transfer: .rec709)
-        return "\(kind):\(scale.rawValue):\(transfer.rawValue):\(clip):\(rec709Clip):\(curve)"
-    }
-
-    private static func cached(_ key: String, build: () -> [UInt8]) -> [UInt8] {
-        cacheLock.lock()
-        if let hit = cubeCache[key] {
-            cacheLock.unlock()
-            return hit
-        }
-        cacheLock.unlock()
-        let built = build()
-        cacheLock.lock()
-        cubeCache[key] = built
-        cacheLock.unlock()
-        return built
     }
 }

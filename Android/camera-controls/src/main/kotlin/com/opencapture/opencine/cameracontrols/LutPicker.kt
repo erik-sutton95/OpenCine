@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -350,8 +351,10 @@ fun LUTPicker(
             } else {
                 LutContentHeight
             }
+        val boundedSheet = !embedded && constraints.hasBoundedHeight
         Column(
-            Modifier.fillMaxWidth().wrapContentHeight(),
+            Modifier.fillMaxWidth().then(
+                if (boundedSheet) Modifier.fillMaxHeight() else Modifier.wrapContentHeight()),
             verticalArrangement = Arrangement.spacedBy(tabGap),
         ) {
             Row(Modifier.fillMaxWidth().monitorTabStrip()) {
@@ -370,14 +373,26 @@ fun LUTPicker(
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().height(contentH)) {
-                if (open != null) {
-                    key(open.title) {
-                        when (open.layout) {
-                            LutPickerLayout.DRUM ->
-                                DrumTab(open, contentH) { pendingDeletion = open.title to it }
-                            LutPickerLayout.FILES ->
-                                FilesTab(open) { pendingDeletion = open.title to it }
+            // Column measures the actual footer/message first, then gives the catalog the rest.
+            BoxWithConstraints(Modifier.fillMaxWidth().then(
+                if (boundedSheet) Modifier.weight(1f) else Modifier.height(contentH)
+            ).then(if (boundedSheet) Modifier.clipToBounds() else Modifier)) {
+                val visibleCatalogHeight = if (boundedSheet) maxHeight else contentH
+                val catalogHeight = visibleCatalogHeight.coerceAtLeast(LutDrumRowHeight)
+                val overflow = boundedSheet && catalogHeight > visibleCatalogHeight
+                Box(Modifier.fillMaxSize().then(
+                    if (overflow) Modifier.verticalScroll(rememberScrollState()) else Modifier
+                )) {
+                    Box(Modifier.fillMaxWidth().height(catalogHeight)) {
+                        if (open != null) {
+                            key(open.title) {
+                                when (open.layout) {
+                                    LutPickerLayout.DRUM ->
+                                        DrumTab(open, catalogHeight) { pendingDeletion = open.title to it }
+                                    LutPickerLayout.FILES ->
+                                        FilesTab(open) { pendingDeletion = open.title to it }
+                                }
+                            }
                         }
                     }
                 }
