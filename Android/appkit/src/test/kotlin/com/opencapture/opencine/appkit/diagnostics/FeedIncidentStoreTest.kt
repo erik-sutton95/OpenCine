@@ -27,6 +27,21 @@ import org.json.JSONObject
 import kotlin.test.assertTrue
 
 class FeedIncidentStoreTest {
+    @Test fun optionalRatesRoundTripWithoutInventingUnavailableStages() {
+        val sampler = com.opencapture.opencine.media.FeedIncidentRateSampler()
+        sampler.sample(1.0, com.opencapture.opencine.media.FeedIncidentStageCounts(accessUnit = 0))
+        val rates = sampler.sample(2.0, com.opencapture.opencine.media.FeedIncidentStageCounts(accessUnit = 3))
+        val bundle = sampleBundle("observed-rates").let { it.copy(prelude = listOf(it.prelude.single().copy(rates = rates))) }
+        val encoded = FeedIncidentJson.encode(bundle)
+        val decoded = assertNotNull(FeedIncidentJson.decode(encoded)).prelude.single().rates
+        assertEquals(rates, decoded)
+        assertNull(decoded.observed?.packetHz)
+        val json = org.json.JSONObject(String(encoded, Charsets.UTF_8))
+        json.getJSONArray("prelude").getJSONObject(0).getJSONObject("rates").remove("observed")
+        val legacy = assertNotNull(FeedIncidentJson.decode(json.toString().toByteArray())).prelude.single().rates
+        assertEquals(3.0, legacy.accessUnitHz)
+        assertNull(legacy.observed)
+    }
     private companion object {
         const val PRODUCT = "Host"
         val REDACT: (String) -> String = { PrivacyRedactor.redact(it) }

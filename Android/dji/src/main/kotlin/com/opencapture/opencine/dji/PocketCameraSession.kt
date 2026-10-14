@@ -10,15 +10,14 @@ import com.opencapture.opencine.media.RecoveryAction
 import com.opencapture.opencine.media.RecoveryEffect
 import com.opencapture.opencine.media.RecoveryReason
 import com.opencapture.opencine.media.RecoveryEffectLog
-import com.opencapture.opencine.media.FeedDecoderErrorOrigin
 import com.opencapture.opencine.media.FeedIncidentAges
 import com.opencapture.opencine.media.FeedIncidentBreadcrumb
 import com.opencapture.opencine.media.FeedIncidentBreadcrumbKind
-import com.opencapture.opencine.media.FeedIncidentDecoder
 import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentQueue
-import com.opencapture.opencine.media.FeedIncidentRates
-import com.opencapture.opencine.media.FeedIncidentSessionContext
+import com.opencapture.opencine.media.FeedIncidentRateObservation
+import com.opencapture.opencine.media.FeedIncidentRateSampler
+import com.opencapture.opencine.decoder.incidentDecoder
 import com.opencapture.opencine.media.FeedIncidentSource
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedRepairPhase
@@ -1743,20 +1742,8 @@ class PocketCameraSession(
         if (incidentSessionActive) return
         incidentSessionActive = true
         incidentSource = appHost.incidents.beginBoundSession(
-            FeedIncidentSessionContext(
-                sessionId = feedSessionId,
-                appVersion = appHost.appVersion,
-                appBuild = appHost.appBuild,
-                sourceRevision = appHost.sourceRevision,
-                osName = "Android",
-                osVersion = Build.VERSION.RELEASE ?: "?",
-                hardwareClass = Build.MODEL ?: "unknown",
-                cameraFamily = connectedCamera?.model?.family ?: "none",
-                decoderGeneration = decoder.randomAccess.generation,
-                socketGeneration = socketGeneration,
-                testSource = appHost.incidentTestSource(),
-                buildIdentity = appHost.incidentBuildIdentity(),
-            ),
+            appHost.incidentSessionContext(feedSessionId, connectedCamera?.model?.family ?: "none",
+                decoderGeneration = decoder.randomAccess.generation, socketGeneration = socketGeneration),
         )
     }
 
@@ -1764,24 +1751,23 @@ class PocketCameraSession(
         val source = incidentSource ?: return
         val now = SystemClock.elapsedRealtime()
         val ingressSource = datalink
-        fun ageSec(at: Long?): Double? = at?.let { ((now - it).coerceAtLeast(0)).toDouble() / 1000.0 }
+        fun ageSec(at: Long?): Double? = FeedIncidentRateSampler.ageMilliseconds(at, now)
         val hz = window?.hz
         source.ingestSnapshot(
             FeedIncidentSnapshot(
                 monotonicNow = now / 1000.0,
                 wallClockMs = System.currentTimeMillis(),
                 rates =
-                    FeedIncidentRates(
-                        packetHz = hz?.get(LivePipelineCadence.Stage.VIDEO) ?: 0.0,
-                        accessUnitHz = hz?.get(LivePipelineCadence.Stage.AU) ?: 0.0,
-                        decodeSubmitHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
-                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.SUBMIT) ?: 0.0,
-                        decodedOutputHz = hz?.get(LivePipelineCadence.Stage.OUTPUT) ?: 0.0,
+                    FeedIncidentRateObservation(
+                        packetHz = hz?.get(LivePipelineCadence.Stage.VIDEO),
+                        accessUnitHz = hz?.get(LivePipelineCadence.Stage.AU),
+                        decodeSubmitHz = hz?.get(LivePipelineCadence.Stage.SUBMIT),
+                        decodeAcceptHz = hz?.get(LivePipelineCadence.Stage.SUBMIT),
+                        decodedOutputHz = hz?.get(LivePipelineCadence.Stage.OUTPUT),
                         // Scopes tap presented GLES frames; there is no independent assist-output stage.
-                        assistOutputHz = 0.0,
-                        presentHz = hz?.get(LivePipelineCadence.Stage.PRESENT) ?: 0.0,
-                        ackHz = hz?.get(LivePipelineCadence.Stage.ACK) ?: 0.0,
-                    ),
+                        presentHz = hz?.get(LivePipelineCadence.Stage.PRESENT),
+                        ackHz = hz?.get(LivePipelineCadence.Stage.ACK),
+                    ).rates(),
                 ages =
                     FeedIncidentAges(
                         packetAge = ageSec(datalink?.lastVideoPacketAt),
@@ -1790,7 +1776,7 @@ class PocketCameraSession(
                         decodedOutputAge = ageSec(decoder.lastDecoderOutputAt),
                         assistOutputAge = null,
                         presentAge = ageSec(decoder.lastPresentedAt),
-                        statusAge = ingressSource?.lastStatusAt?.takeIf { it <= now }?.let { (now - it) / 1000.0 },
+                        statusAge = ageSec(ingressSource?.lastStatusAt),
                     ),
                 queue =
                     FeedIncidentQueue(
@@ -1800,31 +1786,7 @@ class PocketCameraSession(
                         drops = datalink?.admissionDrops ?: 0,
                     ),
                 decoder =
-                    FeedIncidentDecoder(
-                        generation = decoder.randomAccess.generation,
-                        formatGeneration = decoder.errorLifetime.formatGeneration,
-                        codec = if (decoder.hasFormat) "hevc" else "none",
-                        width = decoder.pictureWidth,
-                        height = decoder.pictureHeight,
-                        origin =
-                            when (decoder.errorLifetime.lastError?.origin) {
-                                DecoderErrorOrigin.CONFIGURE -> FeedDecoderErrorOrigin.CREATE
-                                DecoderErrorOrigin.QUEUE -> FeedDecoderErrorOrigin.SYNC
-                                DecoderErrorOrigin.OUTPUT,
-                                DecoderErrorOrigin.OUTPUT_RELEASE,
-                                -> FeedDecoderErrorOrigin.CALLBACK
-                                null -> FeedDecoderErrorOrigin.NONE
-                            },
-                        errorClass = decoder.errorLifetime.lastError?.code,
-                        errorCount = decoder.errorLifetime.countThisGeneration,
-                        decoderFailed = decoder.failedThisGeneration,
-                        errorAge = decoder.errorLifetime.lastError?.atElapsedMs?.let { ageSec(it) },
-                        receivedIrap = decoder.hasDecodableReferences,
-                        awaitingIrap = decoder.awaitingIdr,
-                        hasDecodableReferences = decoder.hasDecodableReferences,
-                        lastIrapAge = ageSec(decoder.lastIrapAt),
-                        lastSuccessfulOutputAge = ageSec(decoder.lastDecoderOutputAt),
-                    ),
+                    decoder.incidentDecoder(nowElapsedMs = now),
                 lifecycle =
                     FeedIncidentLifecycle(
                         foreground = !needsForegroundRecover,

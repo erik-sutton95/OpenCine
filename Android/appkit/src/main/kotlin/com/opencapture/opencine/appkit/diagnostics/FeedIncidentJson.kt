@@ -18,6 +18,7 @@ import com.opencapture.opencine.media.FeedIncidentLifecycle
 import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentQueue
 import com.opencapture.opencine.media.FeedIncidentRates
+import com.opencapture.opencine.media.FeedIncidentRateObservation
 import com.opencapture.opencine.media.FeedIncidentSchema
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedIncidentTestSource
@@ -103,7 +104,8 @@ public object FeedIncidentJson {
                     .put("decodedOutputHz", snap.rates.decodedOutputHz)
                     .put("assistOutputHz", snap.rates.assistOutputHz)
                     .put("presentHz", snap.rates.presentHz)
-                    .put("ackHz", snap.rates.ackHz),
+                    .put("ackHz", snap.rates.ackHz)
+                    .put("observed", snap.rates.observed?.let(::observedRatesJson)),
             )
             .put("ages", agesJson(snap.ages))
             .put(
@@ -261,6 +263,22 @@ public object FeedIncidentJson {
         return array
     }
 
+    private fun observedRatesJson(rates: FeedIncidentRateObservation): JSONObject = JSONObject()
+        .put("packetHz", rates.packetHz ?: JSONObject.NULL)
+        .put("accessUnitHz", rates.accessUnitHz ?: JSONObject.NULL)
+        .put("decodeSubmitHz", rates.decodeSubmitHz ?: JSONObject.NULL)
+        .put("decodeAcceptHz", rates.decodeAcceptHz ?: JSONObject.NULL)
+        .put("decodedOutputHz", rates.decodedOutputHz ?: JSONObject.NULL)
+        .put("assistOutputHz", rates.assistOutputHz ?: JSONObject.NULL)
+        .put("presentHz", rates.presentHz ?: JSONObject.NULL)
+        .put("ackHz", rates.ackHz ?: JSONObject.NULL)
+
+    private fun observedRates(json: JSONObject): FeedIncidentRateObservation = FeedIncidentRateObservation(
+        json.optDoubleOrNull("packetHz"), json.optDoubleOrNull("accessUnitHz"),
+        json.optDoubleOrNull("decodeSubmitHz"), json.optDoubleOrNull("decodeAcceptHz"),
+        json.optDoubleOrNull("decodedOutputHz"), json.optDoubleOrNull("assistOutputHz"),
+        json.optDoubleOrNull("presentHz"), json.optDoubleOrNull("ackHz"))
+
     private fun agesJson(ages: FeedIncidentAges): JSONObject {
         val json = JSONObject()
         ages.packetAge?.takeIf { it.isFinite() && it >= 0.0 }?.let { json.put("packetAge", it) }
@@ -337,6 +355,7 @@ public object FeedIncidentJson {
                         assistOutputHz = rates.optDouble("assistOutputHz"),
                         presentHz = rates.optDouble("presentHz"),
                         ackHz = rates.optDouble("ackHz"),
+                        observed = rates.optJSONObject("observed")?.let(::observedRates),
                     ),
                 ages =
                     FeedIncidentAges(

@@ -210,6 +210,7 @@ public struct FeedIncidentRates: Equatable, Sendable, Codable {
     public var assistOutputHz: Double
     public var presentHz: Double
     public var ackHz: Double
+    public var observed: FeedIncidentRateObservation?
 
     public init(
         packetHz: Double = 0,
@@ -229,6 +230,20 @@ public struct FeedIncidentRates: Equatable, Sendable, Codable {
         self.assistOutputHz = FeedIncidentPrivacy.rate(assistOutputHz)
         self.presentHz = FeedIncidentPrivacy.rate(presentHz)
         self.ackHz = FeedIncidentPrivacy.rate(ackHz)
+        self.observed = nil
+    }
+
+    public init(
+        packetHz: Double = 0, accessUnitHz: Double = 0, decodeSubmitHz: Double = 0,
+        decodeAcceptHz: Double = 0, decodedOutputHz: Double = 0, assistOutputHz: Double = 0,
+        presentHz: Double = 0, ackHz: Double = 0, observed: FeedIncidentRateObservation
+    ) {
+        self.init(
+            packetHz: packetHz, accessUnitHz: accessUnitHz, decodeSubmitHz: decodeSubmitHz,
+            decodeAcceptHz: decodeAcceptHz, decodedOutputHz: decodedOutputHz,
+            assistOutputHz: assistOutputHz,
+            presentHz: presentHz, ackHz: ackHz)
+        self.observed = observed
     }
 }
 

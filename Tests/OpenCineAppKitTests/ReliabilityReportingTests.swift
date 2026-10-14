@@ -1,5 +1,5 @@
 import Foundation
-import OpenCineAppKit
+@testable import OpenCineAppKit
 import OpenCineMedia
 import XCTest
 
@@ -148,6 +148,52 @@ final class ReliabilityReportingTests: XCTestCase {
                 "stage:decodedOutput", "errorClass:invalidSession",
             ]
         )
+    }
+
+    func testActualRuntimeFactoryBuildsPrivateIncidentEventThroughFakeCapture() throws {
+        consent.setOptedIn(true)
+        var producerHost = TestDiagnostics.host
+        producerHost.sourceRevision = String(repeating: "a", count: 40)
+        reporting = ReliabilityReporting(
+            host: producerHost, consent: consent,
+            dsn: ReliabilityReportingDSN { [] }, gate: gate, origin: origin, sink: RecordingSink())
+        reporting.sdkCacheRoot = cacheRoot
+        let directory = cacheRoot.appendingPathComponent("SIMULATED-incidents")
+        let writer = DispatchQueue(label: "test.producer.event")
+        let runtime = FeedIncidentRuntime(
+            reporting: reporting, directory: directory,
+            writerQueue: writer, clock: { 5 })
+        let captured = expectation(description: "actual producer event")
+        let context = runtime.sessionContext(
+            cameraFamily: "simulated",
+            cameraFirmware: "SIMULATED-secret@example.invalid")
+        reporting.setCaptureHandlerForTests { event, attachment in
+            XCTAssertEqual(event.tags?["hardwareClass"], context.hardwareClass)
+            XCTAssertEqual(event.tags?["sourceRevision"], context.sourceRevision)
+            XCTAssertEqual(
+                event.release,
+                TestDiagnostics.host.release(version: context.appVersion, build: context.appBuild))
+            XCTAssertFalse(
+                String(decoding: attachment, as: UTF8.self).contains(
+                    "SIMULATED-secret@example.invalid"))
+            XCTAssertFalse(event.attachesRecentBreadcrumbs)
+            captured.fulfill()
+        }
+        runtime.install()
+        let source = runtime.beginBoundSession(context)
+        source.ingestSnapshot(
+            .init(
+                monotonicNow: 4, wallClock: Date(),
+                ages: .init(accessUnitAge: 0.04, decodedOutputAge: 3, presentAge: 3),
+                lifecycle: .init(connected: true, liveEstablished: true)))
+        writer.sync {}
+        source.endSession(now: 5)
+        writer.sync {}
+        wait(for: [captured], timeout: 10)
+        let bundle = try XCTUnwrap(
+            FeedIncidentStore(directory: directory, product: "SIMULATED").loadAll().first)
+        XCTAssertEqual(bundle.header.sessionID, context.sessionID)
+        XCTAssertEqual(bundle.header.outcome, .userEnded)
     }
 
     func testQueuedIncidentKeepsOriginalReleaseAndOccurrenceTime() throws {

@@ -27,6 +27,7 @@
             #expect(first.irapAge.map { $0 >= 0 && $0 < 3 } == true)
             #expect(first.parameterSetChangeAge == nil)
             #expect(first.inputHz >= 1)
+            #expect(runtime.incidentDecoder().firstError == first)
             // The repair owner reads this on its next tick instead of after 2 s of output silence.
             #expect(runtime.referenceRecoveryNeeded)
             #expect(runtime.awaitingIDR)
