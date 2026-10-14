@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -92,6 +93,19 @@ public class MonitorDeliveryModel<P, O, S>(
         onComplete: ((O) -> String?)? = null,
         operation: suspend ((P) -> Unit, MonitorDeliveryAdmission) -> MonitorDeliveryCompletion<O, S>,
     ): MonitorDeliveryRunHandle? {
+        return beginCaptured(onCancel, onComplete, cleanupWhenRetired = false, operation)
+    }
+
+    /**
+     * A captured-resource operation reaches cleanup even if retired before job entry. It must
+     * honor its stale admission before entering source or native work, including after joins.
+     */
+    public fun beginCaptured(
+        onCancel: (() -> Unit)? = null,
+        onComplete: ((O) -> String?)? = null,
+        cleanupWhenRetired: Boolean,
+        operation: suspend ((P) -> Unit, MonitorDeliveryAdmission) -> MonitorDeliveryCompletion<O, S>,
+    ): MonitorDeliveryRunHandle? {
         if (closed) return null
         val previous = work
         val token = UUID.randomUUID()
@@ -99,9 +113,14 @@ public class MonitorDeliveryModel<P, O, S>(
         pendingShareAcknowledgement = null
         cancelHandler = onCancel
         previous?.cancel()
-        if (!current(token)) return null
-        val next = owner.launch(start = CoroutineStart.LAZY) {
-            if (!current(token)) return@launch
+        if (!cleanupWhenRetired && !current(token)) return null
+        val entry = CompletableDeferred<Unit>()
+        val start = if (cleanupWhenRetired) CoroutineStart.UNDISPATCHED else CoroutineStart.LAZY
+        val next = owner.launch(start = start) {
+            // Enter undispatched, then wait until running state and the captured job are installed.
+            // Cancellation cannot drop this resource cleanup before the operation starts.
+            if (cleanupWhenRetired) withContext(NonCancellable) { entry.await() }
+            if (!cleanupWhenRetired && !current(token)) return@launch
             val completion = try {
                 val operationJob = currentCoroutineContext()[Job]
                 operation({ progress ->
@@ -121,9 +140,12 @@ public class MonitorDeliveryModel<P, O, S>(
             }
             finish(completion, token, onComplete)
         }
-        work = next
-        if (publish(token) { it.copy(running = true, progress = null, expanded = false) }) next.start()
-        else next.cancel()
+        val admitted = current(token)
+        if (admitted) work = next
+        if (admitted && publish(token) { it.copy(running = true, progress = null, expanded = false) }) {
+            if (!cleanupWhenRetired) next.start()
+        } else next.cancel()
+        entry.complete(Unit)
         return MonitorDeliveryRunHandle(next) { if (current(token) && state.value.running) cancel() }
     }
 
