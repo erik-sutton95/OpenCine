@@ -8,7 +8,7 @@
     public extension LiveChromeHost {
         var timecodeAvailable: Bool {
             guard let snapshot = control.snapshot else { return false }
-            return snapshot.capabilities.timecode.support == .supported
+            return snapshot.capabilities.timecode == .supported
         }
     }
 #endif

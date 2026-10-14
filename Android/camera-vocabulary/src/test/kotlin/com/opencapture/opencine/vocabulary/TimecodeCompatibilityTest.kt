@@ -2,6 +2,7 @@
 package com.opencapture.opencine.vocabulary
 
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -22,12 +23,12 @@ class TimecodeCompatibilityTest {
         assertEquals("01:02:03:04", status.component18(), "Original destructuring remains text")
         assertEquals("01:02:03", status.timecodeClock)
         val next = status.copy(timecode = "05:06:07", iso = 800)
-        assertEquals(CameraTimecode(5, 6, 7), next.timecodeValue)
+        assertEquals(CameraTimecodeReading(5, 6, 7), next.timecodeReading)
         assertEquals(800, next.iso)
         assertEquals("05:06:07", next.timecode)
         val typed = CameraStatus(iso = 400).withTimecodeValue(CameraTimecode(1, 2, 3, 4))
         assertEquals("01:02:03:04", typed.component18())
-        assertEquals(CameraTimecode(5, 6, 7), typed.copy(timecode = "05:06:07").timecodeValue)
+        assertEquals(CameraTimecodeReading(5, 6, 7), typed.copy(timecode = "05:06:07").timecodeReading)
         val unknown = CameraStatus(timecode = "unknown")
         assertNull(unknown.timecodeValue)
         assertEquals("unknown", unknown.timecode)

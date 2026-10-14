@@ -237,7 +237,7 @@ public enum CameraStatusDecoder {
     public static func timecodeString(_ value: [UInt8]) -> String {
         let decoded = timecodeValue(value)
         return String(format: "%02d:%02d:%02d:%02d", decoded.hours, decoded.minutes,
-            decoded.seconds, decoded.frames ?? 0)
+            decoded.seconds, decoded.frames)
     }
     /// Retains the typed decoder name introduced during migration.
     public static func timecode(_ value: [UInt8]) -> CameraTimecode { timecodeValue(value) }

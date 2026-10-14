@@ -308,8 +308,12 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     /// Time of day the host derives for the live picture: the phone sets the camera clock and
     /// pins frame stamps to its own, so the value is `.clockDerived`, never a camera counter.
     public func ingest(timecode: CameraTimecode) {
+        ingest(timecode: CameraTimecodeReading(timecode))
+    }
+
+    public func ingest(timecode: CameraTimecodeReading) {
         guard !closed else { return }
-        current.timecode = ObservedValue(timecode, origin: .clockDerived, at: now())
+        current.timecodeReading = ObservedValue(timecode, origin: .clockDerived, at: now())
         publish()
     }
 
@@ -787,7 +791,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         // Timecode is host-derived time of day (`ingest(timecode:)`); Luna reports no audio levels.
         var declared = CapabilitySnapshot(
             revision: current.capabilities.revision, descriptors: descriptors,
-            unsupported: Self.unsupported, timecode: .supported(.seconds), audioLevels: .unsupported)
+            unsupported: Self.unsupported, timecodeCapability: .supported(.seconds), audioLevels: .unsupported)
         guard declared != current.capabilities else { return }
         declared.revision = declared.revision.next()
         current.capabilities = declared

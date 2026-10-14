@@ -603,8 +603,8 @@ class DjiCameraSessionAdapter(
         val last = _snapshots.value
         val connection = connection(state, last.connection)
         val declared = CapabilitySnapshot(
-            last.capabilities.revision, descriptors(state) + (port.captureControlState()?.descriptors ?: emptyList()),
-            timecode = timecodeSupport(state.model), audioLevels = audioLevelsSupport(state.model),
+            revision = last.capabilities.revision, descriptors = descriptors(state) + (port.captureControlState()?.descriptors ?: emptyList()),
+            timecodeCapability = timecodeCapability(state.model), audioLevels = audioLevelsSupport(state.model),
         )
         val capabilities =
             if (declared == last.capabilities) last.capabilities else declared.copy(revision = declared.revision.next())
@@ -721,10 +721,20 @@ class DjiCameraSessionAdapter(
          * showed one. Unknown body: unknown. Declared in whole seconds: the frame field rides the
          * throttled status push and is not proven to count per frame (A5 runtime check).
          */
-        fun timecodeSupport(model: CameraModel?): TimecodeCapability = when {
+        @Deprecated("Use timecodeCapability for declared precision")
+        fun timecodeSupport(model: CameraModel?): SupportStatus = timecodeCapability(model).support
+
+        fun timecodeCapability(model: CameraModel?): TimecodeCapability = when {
             model == null -> TimecodeCapability.unknown
             model.family == "nano" -> TimecodeCapability.unsupported
             else -> TimecodeCapability.supported(TimecodePrecision.Seconds)
+        }
+
+        /** The legacy frame-complete parser; a partial clock has no representable frame count. */
+        @Deprecated("Use CameraStatus.timecodeReading for source precision")
+        fun timecode(raw: String?): CameraTimecode? {
+            val parts = raw?.split(':')?.mapNotNull(String::toIntOrNull)?.takeIf { it.size == 4 } ?: return null
+            return CameraTimecode(parts[0], parts[1], parts[2], parts[3])
         }
 
         /** `cam_audio_status_v2` levels. Unknown body: unknown. */

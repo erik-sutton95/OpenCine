@@ -9,6 +9,16 @@ import Testing
 /// adapter through the real app session and loopback datalink.
 @MainActor
 @Suite struct DJICameraSessionAdapterPortTests {
+    @Test func legacyTimecodeHelpersRetainSupportAndCompleteFrames() throws {
+        let support: SupportStatus = DJICameraSessionAdapter.timecodeSupport(nil)
+        #expect(support == .unknown)
+        #expect(DJICameraSessionAdapter.timecodeCapability(nil) == .unknown)
+        let value = try #require(DJICameraSessionAdapter.timecode("05:22:47:18"))
+        let frames: Int = value.frames
+        #expect(frames == 18)
+        #expect(DJICameraSessionAdapter.timecode("05:22:47") == nil)
+    }
+
     @Test func everyDeclaredCapabilityReachesThePort() throws {
         let probe = FakePort()  // the adapter holds its port unowned, as the app session owns it
         let keys = DJICameraSessionAdapter(session: probe).current.capabilities.descriptors.keys
@@ -63,7 +73,7 @@ import Testing
             port.connectedModel = CameraModel.resolve(modelId: id, name: name)
             let seam = DJICameraSessionAdapter(session: port)
             #expect(seam.layout(base: base) == layout, "\(name)")
-            #expect(seam.current.capabilities.timecode == timecode, "\(name)")
+            #expect(seam.current.capabilities.timecodeCapability == timecode, "\(name)")
             #expect(seam.current.capabilities.audioLevels == .supported, "\(name)")
             #expect((port.connectedModel?.motion != nil) == layout.gimbal, "\(name)")
         }
@@ -72,7 +82,7 @@ import Testing
         port.connectedModel = nil
         let seam = DJICameraSessionAdapter(session: port)
         #expect(seam.layout(base: base) == base)
-        #expect(seam.current.capabilities.timecode == .unknown)
+        #expect(seam.current.capabilities.timecodeCapability == .unknown)
         #expect(seam.current.capabilities.audioLevels == .unknown)
     }
 

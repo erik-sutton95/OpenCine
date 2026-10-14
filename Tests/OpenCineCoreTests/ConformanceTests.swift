@@ -81,11 +81,11 @@ import Testing
         // An observation is reported only where it is supported; a derived time says so.
         let capabilities = reported.capabilities
         #expect(capabilities.timecode != .unknown && capabilities.audioLevels != .unknown)
-        #expect(reported.timecode.isKnown == (capabilities.timecode.support == .supported && device.timecode != nil))
+        #expect(reported.timecodeReading.isKnown == (capabilities.timecode == .supported && device.timecodeReading != nil))
         #expect(
             reported.audioLevels.isKnown
                 == (capabilities.audioLevels == .supported && device.audioLevels != nil))
-        #expect(!reported.timecode.isKnown || [.cameraReported, .clockDerived].contains(reported.timecode.origin))
+        #expect(!reported.timecodeReading.isKnown || [.cameraReported, .clockDerived].contains(reported.timecode.origin))
         #expect(!reported.audioLevels.isKnown || reported.audioLevels.origin == .cameraReported)
     }
 

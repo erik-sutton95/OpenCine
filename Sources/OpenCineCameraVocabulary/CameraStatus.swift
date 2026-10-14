@@ -32,24 +32,29 @@ public struct CameraStatus: Equatable, Sendable {
     /// `timecode_info` (`@3–6` = HH MM SS FF), decoded once from the bytes; the shared
     /// `MonitorTimecodeFormat` renders it at the declared precision.
     public var timecodeValue: CameraTimecode? {
+        get { timecodeReading?.frameTimecode }
+        set { timecodeReading = newValue.map(CameraTimecodeReading.init) }
+    }
+    /// Timecode components including a seconds-only legacy string, without an invented frame.
+    public var timecodeReading: CameraTimecodeReading? {
         didSet { legacyTimecode = nil }
     }
     private var legacyTimecode: String?
     @available(*, deprecated, message: "Use timecodeValue and the shared formatter")
     public var timecode: String? {
         get {
-            legacyTimecode ?? timecodeValue.flatMap {
+            legacyTimecode ?? timecodeReading.flatMap {
                 MonitorTimecodeFormat.label(hours: $0.hours, minutes: $0.minutes, seconds: $0.seconds,
                     frames: $0.frames, dropFrame: $0.dropFrame)
             }
         }
         set {
-            timecodeValue = Self.parseLegacyTimecode(newValue)
+            timecodeReading = Self.parseLegacyTimecode(newValue)
             legacyTimecode = newValue
         }
     }
     @available(*, deprecated, message: "Use timecodeValue and the declared precision")
-    public var timecodeClock: String { Self.clockDisplay(legacyTimecode ?? timecodeValue.flatMap {
+    public var timecodeClock: String { Self.clockDisplay(legacyTimecode ?? timecodeReading.flatMap {
         MonitorTimecodeFormat.label(hours: $0.hours, minutes: $0.minutes, seconds: $0.seconds,
             frames: $0.frames, dropFrame: $0.dropFrame)
     }) }
@@ -60,7 +65,7 @@ public struct CameraStatus: Equatable, Sendable {
         guard parts.count >= 3 else { return raw }
         return parts.prefix(3).joined(separator: ":")
     }
-    private static func parseLegacyTimecode(_ raw: String?) -> CameraTimecode? {
+    private static func parseLegacyTimecode(_ raw: String?) -> CameraTimecodeReading? {
         guard let raw else { return nil }
         let parts = raw.split(omittingEmptySubsequences: false, whereSeparator: { $0 == ":" || $0 == ";" })
         guard (3...4).contains(parts.count) else { return nil }
@@ -68,7 +73,7 @@ public struct CameraStatus: Equatable, Sendable {
         guard values.count == parts.count,
             MonitorTimecodeFormat.label(hours: values[0], minutes: values[1], seconds: values[2],
                 frames: values.count == 4 ? values[3] : nil) != nil else { return nil }
-        return CameraTimecode(hours: values[0], minutes: values[1], seconds: values[2],
+        return CameraTimecodeReading(hours: values[0], minutes: values[1], seconds: values[2],
             frames: values.count == 4 ? values[3] : nil, dropFrame: raw.contains(";") ? true : nil)
     }
     /// Auto/manual from `cam_expo_param` `@7`. nil unknown. Not a DUML GET — Mimo never GETs `0x1E`.

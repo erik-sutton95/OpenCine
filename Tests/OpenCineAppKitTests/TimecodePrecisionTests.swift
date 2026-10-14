@@ -19,7 +19,7 @@ import Testing
         #expect(MonitorTimecodeFormat.label(value, precision: .seconds) == "01:02:03")
         #expect(MonitorTimecodeFormat.label(value, precision: nil) == "01:02:03",
             "an undeclared precision never shows a frame field")
-        let secondsOnly = CameraTimecode(hours: 1, minutes: 2, seconds: 3)
+        let secondsOnly = CameraTimecodeReading(hours: 1, minutes: 2, seconds: 3)
         #expect(MonitorTimecodeFormat.label(secondsOnly, precision: frames) == "01:02:03",
             "a missing frame count is never derived")
     }
