@@ -215,7 +215,9 @@ public struct WatchCommandResult: Codable, Equatable, Sendable {
         self.error = error
     }
 
+    /// Accepted by the phone's command path; camera acknowledgement may still be pending.
     public let accepted: Bool
+    /// Recording as the phone reports it, independent of command acceptance.
     public let isRecording: Bool
     public let error: String?
 }
