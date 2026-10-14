@@ -61,18 +61,6 @@
             )
         }
 
-        /// Prefer the larger of SwiftUI's report and the window insets. A parent
-        /// `ignoresSafeArea` (or a GeometryReader that is already inset) can report 0.
-        public static func resolvedSafeArea(_ reported: EdgeInsets, scene: EdgeInsets) -> EdgeInsets
-        {
-            EdgeInsets(
-                top: max(reported.top, scene.top),
-                leading: max(reported.leading, scene.leading),
-                bottom: max(reported.bottom, scene.bottom),
-                trailing: max(reported.trailing, scene.trailing)
-            )
-        }
-
         public static func shouldMirror(
             leading: CGFloat, trailing: CGFloat,
             orientation: MonitorDeviceOrientation? = nil

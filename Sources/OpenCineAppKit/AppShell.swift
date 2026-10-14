@@ -72,6 +72,7 @@
         let actions: ShellActions
         let safeArea: ((GeometryProxy) -> EdgeInsets)?
         @Environment(\.monitorWindowGeometry) private var windowGeometry
+        @State private var pageOrientation = InterfaceOrientationObserver()
         let extraNearby: [CameraListItem]
         let pairingFlow: IntegrationPairingFlow?
         let prePage: (EdgeInsets) -> PrePage?
@@ -117,12 +118,17 @@
                         .onDisappear { model.noteHost(mounted: false) }
                 } else {
                     GeometryReader { proxy in
-                        pages(safeArea?(proxy) ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
-                            proxy.safeAreaInsets, window: windowGeometry.safeArea))
+                        pages(
+                            safeArea?(proxy)
+                                ?? OperatorPanelMetrics.pageSafeArea(
+                                    from: proxy.safeAreaInsets, window: windowGeometry.safeArea,
+                                    size: proxy.size, orientation: pageOrientation.orientation))
                     }
                         .ignoresSafeArea()
                         .accessibilityElement(children: model.cover == nil ? .contain : .ignore)
                         .accessibilityHidden(model.cover != nil)
+                        .onAppear { pageOrientation.start() }
+                        .onDisappear { pageOrientation.stop() }
                 }
                 if let cover = model.cover, model.monitor == nil || coverPresentation == .shell {
                     page(cover)
