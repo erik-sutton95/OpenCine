@@ -26,6 +26,21 @@
                 "The native control must decode genuinely changing pictures, not cached output")
         }
 
+        @Test func earlyNativeIrapStillYieldsAQualifiedChangingGOP() throws {
+            // SIMULATED: ask the actual encoder for the earlier IRAP observed in the failed
+            // native fixture. This does not reproduce or claim its private adaptive heuristic.
+            let gop = try SyntheticHevcGOP.encode(frameCount: 32, additionalKeyFrameAt: 8)
+            #expect(gop.pictures.count == 32)
+            try qualifyGOP(gop)
+            let decoder = try makeDecoder(gop)
+            defer { decoder.invalidateSession() }
+            let trace = try submit(gop.pictures, to: decoder)
+            #expect(trace.submitted.count == gop.pictures.count)
+            #expect(trace.syncErrors.isEmpty && trace.callbackErrors.isEmpty)
+            #expect(trace.pictures.count == gop.pictures.count)
+            #expect(Set(trace.pictures.map(\.fingerprint)).count > 1)
+        }
+
         @Test func damagedCompleteVCLReachesNativeCallbackAndRebuildIrapRestoresPicture() throws {
             let gop = try SyntheticHevcGOP.encode()
             try qualifyGOP(gop)
