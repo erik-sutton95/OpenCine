@@ -23,6 +23,15 @@ class ReportingPluginTest {
     }
 
     @Test
+    fun onlyAPipelineChannelMakesAReleaseBuildInternalOrProduction() {
+        assertEquals("development", reportingEnvironment(debug = true, channel = "production"))
+        assertEquals("local", reportingEnvironment(debug = false, channel = ""))
+        assertEquals("local", reportingEnvironment(debug = false, channel = "beta"))
+        assertEquals("internal", reportingEnvironment(debug = false, channel = " internal "))
+        assertEquals("production", reportingEnvironment(debug = false, channel = "production"))
+    }
+
+    @Test
     fun theFieldIsAJavaStringLiteral() {
         assertEquals("\"\"", javaStringLiteral(""))
         assertEquals("\"a\\\\b\\\"c\"", javaStringLiteral("a\\b\"c"))

@@ -422,7 +422,7 @@ public object FeedIncidentJson {
                 action = json.optString("action"),
                 phase = FeedRepairPhase.fromWire(json.optString("phase")),
                 reason = json.optStringOrNull("reason"),
-            )
+            ).closed()
         }
     }
 

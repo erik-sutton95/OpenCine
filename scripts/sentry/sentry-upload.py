@@ -64,6 +64,8 @@ ANDROID_MODULE_DEBUG_CANDIDATES = (
     "build/intermediates/cmake/release/obj",
     "build/intermediates/cxx",
     "build/generated/swiftCore/jniLibs",
+    # The unstripped Swift core (DWARF) the staging script keeps beside jniLibs.
+    "build/generated/swiftCore/symbols",
     ".cxx",
 )
 ANDROID_MAPPING_CANDIDATE = "build/outputs/mapping/release/mapping.txt"

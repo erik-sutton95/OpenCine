@@ -16,6 +16,8 @@ public class ReliabilityReportingConsent(private val dsn: ReliabilityReportingDS
     @Volatile private var optedIn: Boolean = false
     @Volatile private var decided: Boolean = false
     @Volatile private var persist: ((Boolean) -> Unit)? = null
+    private var storedInstallId: String? = null
+    private var persistInstallId: ((String?) -> Unit)? = null
 
     public val isOptedIn: Boolean
         get() = optedIn
@@ -23,10 +25,31 @@ public class ReliabilityReportingConsent(private val dsn: ReliabilityReportingDS
     public val hasDecision: Boolean
         get() = decided
 
+    /**
+     * The anonymous install id reports count users by: a random UUID made on first use while the
+     * operator has opted in, never derived from the device or personal data. Null without
+     * consent; withdrawing consent deletes it, so a later opt-in starts a new one.
+     */
+    public val installId: String?
+        @Synchronized get() {
+            if (!optedIn) return null
+            // Only a value this store made is sent: anything else in the slot is replaced.
+            storedInstallId?.takeIf { isInstallId(it) }?.let { return it }
+            val created = UUID.randomUUID().toString()
+            storedInstallId = created
+            persistInstallId?.invoke(created)
+            return created
+        }
+
+    @Synchronized
     public fun setOptedIn(on: Boolean) {
         optedIn = on
         decided = true
         persist?.invoke(on)
+        if (!on) {
+            storedInstallId = null
+            persistInstallId?.invoke(null)
+        }
     }
 
     public fun shouldOfferAutomaticPrompt(): Boolean =
@@ -37,28 +60,50 @@ public class ReliabilityReportingConsent(private val dsn: ReliabilityReportingDS
             hasChoice = prefs.contains(KEY),
             optedIn = prefs.getBoolean(KEY, false),
             persist = { value -> prefs.edit().putBoolean(KEY, value).apply() },
+            installId = prefs.getString(INSTALL_ID_KEY, null),
+            persistInstallId = { value ->
+                if (value == null) {
+                    prefs.edit().remove(INSTALL_ID_KEY).apply()
+                } else {
+                    prefs.edit().putString(INSTALL_ID_KEY, value).apply()
+                }
+            },
         )
     }
 
     /** Absence of [KEY] is undecided; a stored false is an explicit decline. */
+    @Synchronized
     public fun restorePersistedChoice(
         hasChoice: Boolean,
         optedIn: Boolean = false,
         persist: ((Boolean) -> Unit)? = null,
+        installId: String? = null,
+        persistInstallId: ((String?) -> Unit)? = null,
     ) {
         decided = hasChoice
         this.optedIn = hasChoice && optedIn
         this.persist = persist
+        this.persistInstallId = persistInstallId
+        storedInstallId = installId?.takeIf { this.optedIn }
+        if (installId != null && !this.optedIn) persistInstallId?.invoke(null)
     }
 
+    @Synchronized
     public fun resetForTests() {
         optedIn = false
         decided = false
         persist = null
+        storedInstallId = null
+        persistInstallId = null
     }
 
     public companion object {
+        /** A lowercase canonical UUID, as [installId] makes it. */
+        internal fun isInstallId(value: String): Boolean =
+            runCatching { UUID.fromString(value).toString() == value }.getOrDefault(false)
+
         public const val KEY: String = "opc.reliabilityReporting.optIn"
+        public const val INSTALL_ID_KEY: String = "opc.reliabilityReporting.installID"
     }
 }
 
@@ -158,20 +203,33 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
         return if (isTypedFeedEvent) redact(formatted) else "Application diagnostic"
     }
 
-    /** Allowlisted tags, each clipped and redacted; null when none is left. */
+    /** Allowlisted tags, each bounded by [value]; null when none is left. */
     public fun tags(tags: Map<String, String>): Map<String, String>? {
         val kept = tags.filterKeys { tagAllowlist.contains(it) }.toMutableMap()
         for (key in kept.keys) {
-            val limit = if (key == "sourceRevision" || key == "buildIdentity") 64 else 32
-            kept[key] = token(kept[key].orEmpty(), limit)
+            kept[key] = value(key, kept[key].orEmpty(), 32, redact)
         }
         return if (kept.isEmpty()) null else kept
     }
 
-    /** Allowlisted extras; null when none is left. */
+    /** Allowlisted extras, string values bounded like tags ([value]); null when none is left. */
     public fun extras(extras: Map<String, Any>): Map<String, Any>? {
-        val kept = extras.filterKeys { extraAllowlist.contains(it) }
+        val kept =
+            extras.filterKeys { extraAllowlist.contains(it) }
+                .mapValues { (key, raw) -> if (raw is String) value(key, raw, 96, redact) else raw }
         return if (kept.isEmpty()) null else kept.toMutableMap()
+    }
+
+    /**
+     * A metric as it may leave the phone, or null: an allow-listed name, a finite value, a known
+     * unit, and only allow-listed attributes with their values bounded like tags.
+     */
+    public fun metric(metric: ReliabilityMetric): ReliabilityMetric? {
+        if (metric.name !in metricAllowlist || !metric.value.isFinite()) return null
+        if (metric.unit != null && metric.unit != "second") return null
+        val attributes =
+            metric.attributes.filterKeys { it in metricAttributeAllowlist }.mapValues { (key, raw) -> value(key, raw, 32, redact) }
+        return metric.copy(attributes = attributes)
     }
 
     /** Allowlisted context sections and keys, read through [section]. */
@@ -183,8 +241,8 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
             for (key in values.keys) {
                 val keyName = key as? String ?: continue
                 if (!allow.contains(keyName)) continue
-                val value = values[key] ?: continue
-                filtered[keyName] = value
+                val raw = values[key] ?: continue
+                filtered[keyName] = if (raw is String) value(keyName, raw, 96, redact) else raw
             }
             if (filtered.isNotEmpty()) keptSections[name] = filtered
         }
@@ -234,6 +292,8 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "healthyExposureSeconds",
                 "testSource",
                 "buildIdentity",
+                "trigger",
+                "recoveredBy",
             )
 
         public val contextAllowlist: Map<String, Set<String>> =
@@ -253,8 +313,84 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                         "testSource",
                         "buildIdentity",
                         "cameraFamily",
+                        "trigger",
+                        "recoveredBy",
+                        "worstGapSeconds",
                     ),
             )
+
+        /** The metrics reporting records ([ReliabilityReporting.sessionMetrics]). */
+        public val metricAllowlist: Set<String> =
+            setOf("feed.session.healthy_exposure", "feed.session.incidents")
+
+        /** The attributes those metrics may carry. */
+        public val metricAttributeAllowlist: Set<String> =
+            setOf("outcome", "testSource", "buildIdentity", "sourceRevision", "appBuild")
+
+        /**
+         * Keys whose value must come from a closed vocabulary; anything else reads `other`. The
+         * host redaction keeps bare SSIDs and camera names (`ZR_6002199`), so free text that could
+         * carry them is closed instead. Swift twin: `closedValues`.
+         */
+        public val closedValues: Map<String, Set<String>> =
+            mapOf(
+                "trigger" to FeedIncidentNativeBreadcrumb.allowedValues.getValue("repairReason") + setOf("none", "other"),
+                "recoveredBy" to FeedIncidentNativeBreadcrumb.allowedValues.getValue("repairAction") + setOf("none", "other"),
+                // MonitorGlesUpscaler labels (Swift MonitorUpscaler raw values).
+                "feedUpscaler" to setOf("Off", "Fast", "Quality", "AI", "other"),
+                // Incident outcomes and the session summary's own.
+                "outcome" to
+                    setOf(
+                        "open", "recovered", "interrupted", "exhausted", "suppressed", "userEnded", "live",
+                        "ended", "healthy", "no-exposure", "other",
+                    ),
+            )
+
+        /**
+         * Build-pipeline values with a fixed shape (the source revision stamp, `build-identity.py`,
+         * the build number); anything else reads `unknown`. Swift twin: `shapes`.
+         */
+        public val shapes: Map<String, Regex> =
+            mapOf(
+                "sourceRevision" to Regex("""([0-9a-f]{7,40}(\+|-dirty)?|unknown)"""),
+                "buildIdentity" to Regex("""((ios|android|watchos|wearos|macos)-[0-9a-z]{8,64}|unknown)"""),
+                "appBuild" to Regex("""[0-9]{1,10}"""),
+            )
+
+        /**
+         * A string as it may leave the phone under [key]: a closed vocabulary or a fixed shape where
+         * one is registered, otherwise clipped to [limit] and redacted by [redact].
+         */
+        public fun value(
+            key: String,
+            raw: String,
+            limit: Int = 96,
+            redact: (String) -> String = { com.opencapture.opencine.media.PrivacyRedactor.redact(it) },
+        ): String {
+            val trimmed = raw.trim()
+            closedValues[key]?.let { return if (trimmed in it) trimmed else "other" }
+            shapes[key]?.let { return if (it.matches(trimmed)) trimmed else "unknown" }
+            return redact(trimmed.take(limit))
+        }
+
+        private val sdkLifecycleMessages =
+            listOf(
+                Regex("""App hanging (for at least [0-9]+ ms|between [0-9.]+ and [0-9.]+ seconds)\."""),
+                Regex(
+                    "The user or the OS watchdog terminated your app while it blocked the main thread for " +
+                        """(at least [0-9]+ ms|between [0-9.]+ and [0-9.]+ seconds|\?)\.""",
+                ),
+                Regex("""The OS watchdog terminated your app, possibly because it overused RAM\."""),
+                Regex("""(Background )?(ANR|Application Not Responding for at least [0-9]+ ms\.)"""),
+            )
+
+        /**
+         * An exception value as it may leave the phone: the SDK's own lifecycle messages (hang
+         * duration, watchdog kill, ANR) carry no app data and say what happened, so they stay;
+         * anything else may hold user or app text and is replaced. Swift twin: `exceptionValue`.
+         */
+        public fun exceptionValue(raw: String): String =
+            if (sdkLifecycleMessages.any { it.matches(raw) }) raw else "Native exception"
 
         public val tagAllowlist: Set<String> =
             setOf(
@@ -266,9 +402,12 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
                 "cameraFamily",
                 "cameraFirmware",
                 "hardwareClass",
-                "soc",
                 "testSource",
                 "buildIdentity",
+                "trigger",
+                "recoveredBy",
+                "gap",
+                "feedUpscaler",
             )
 
         /** 32 hex digits from an incident or session id, as the SDK prints its event id. */
@@ -293,7 +432,15 @@ public class ReliabilityReportingPrivacy(private val redact: (String) -> String)
 
         public fun typedJson(from: FeedIncidentBundle): ByteArray? {
             if (validatedEnvelope(from) == null) return null
-            val data = runCatching { FeedIncidentJson.encode(from) }.getOrNull() ?: return null
+            // Repairs are closed at recording; a bundle built elsewhere is closed here too, and the
+            // build values are bounded as tags are.
+            val header =
+                from.header.copy(
+                    sourceRevision = value("sourceRevision", from.header.sourceRevision),
+                    buildIdentity = value("buildIdentity", from.header.buildIdentity),
+                )
+            val closed = from.copy(header = header, repairs = from.repairs.map { it.closed() })
+            val data = runCatching { FeedIncidentJson.encode(closed) }.getOrNull() ?: return null
             if (data.size > 262_144) return null
             return data
         }

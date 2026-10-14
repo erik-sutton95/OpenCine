@@ -30,10 +30,74 @@ public struct ReliabilityReportingPrivacy: Sendable {
         ],
     ]
 
+    /// The metrics reporting records (`ReliabilityReporting.sessionMetrics`).
+    public static let metricAllowlist: Set<String> = [
+        "feed.session.healthy_exposure", "feed.session.incidents",
+    ]
+
+    /// The attributes those metrics may carry.
+    public static let metricAttributeAllowlist: Set<String> = [
+        "outcome", "testSource", "buildIdentity", "sourceRevision", "appBuild",
+    ]
+
+    /// Keys whose value must come from a closed vocabulary; anything else reads `other`. The
+    /// host redaction keeps bare SSIDs and camera names (`ZR_6002199`), so free text that could
+    /// carry them is closed instead. Kotlin twin: `closedValues`.
+    public static let closedValues: [String: Set<String>] = [
+        "trigger": FeedIncidentNativeBreadcrumb.allowedValues["repairReason", default: []]
+            .union(["none", "other"]),
+        "recoveredBy": FeedIncidentNativeBreadcrumb.allowedValues["repairAction", default: []]
+            .union(["none", "other"]),
+        // MonitorUpscaler raw values (Kotlin MonitorGlesUpscaler labels).
+        "feedUpscaler": ["Off", "Fast", "Quality", "AI", "other"],
+        // Incident outcomes and the session summary's own.
+        "outcome": [
+            "open", "recovered", "interrupted", "exhausted", "suppressed", "userEnded", "live",
+            "ended", "healthy", "no-exposure", "other",
+        ],
+    ]
+
+    /// Build-pipeline values with a fixed shape (`stamp-source-revision.sh`, `build-identity.py`,
+    /// the build number); anything else reads `unknown`. Kotlin twin: `shapes`.
+    public static let shapes: [String: String] = [
+        "sourceRevision": #"^([0-9a-f]{7,40}(\+|-dirty)?|unknown)$"#,
+        "buildIdentity": #"^((ios|android|watchos|wearos|macos)-[0-9a-z]{8,64}|unknown)$"#,
+        "appBuild": #"^[0-9]{1,10}$"#,
+    ]
+
+    /// A string as it may leave the phone under `key`: a closed vocabulary or a fixed shape where
+    /// one is registered, otherwise clipped to `limit` and redacted by `redact`.
+    public static func value(
+        _ key: String, _ raw: String, limit: Int = 96,
+        redact: (String) -> String = { PrivacyRedactor.redact($0) }
+    ) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let closed = closedValues[key] { return closed.contains(trimmed) ? trimmed : "other" }
+        if let shape = shapes[key] {
+            return trimmed.range(of: shape, options: .regularExpression) != nil
+                ? trimmed : "unknown"
+        }
+        return redact(String(trimmed.prefix(limit)))
+    }
+
+    /// A metric as it may leave the phone, or nil: an allow-listed name, a finite value, a known
+    /// unit, and only allow-listed attributes with their values bounded like tags.
+    public func metric(_ metric: ReliabilityMetric) -> ReliabilityMetric? {
+        guard Self.metricAllowlist.contains(metric.name), metric.value.isFinite,
+            metric.unit == nil || metric.unit == "second"
+        else { return nil }
+        var kept = metric
+        kept.attributes = [:]
+        for (key, raw) in metric.attributes where Self.metricAttributeAllowlist.contains(key) {
+            kept.attributes[key] = Self.value(key, raw, limit: 32, redact: redact)
+        }
+        return kept
+    }
+
     public static let tagAllowlist: Set<String> = [
         "failingStage", "errorClass", "outcome", "kind",
         "sourceRevision", "cameraFamily", "cameraFirmware", "hardwareClass",
-        "testSource", "buildIdentity", "trigger", "recoveredBy", "gap",
+        "testSource", "buildIdentity", "trigger", "recoveredBy", "gap", "feedUpscaler",
     ]
 
     /// 32 lowercase hex digits from an incident or session id, as the SDK reads and prints a
@@ -84,6 +148,11 @@ public struct ReliabilityReportingPrivacy: Sendable {
 
     public static func typedJSON(from bundle: FeedIncidentBundle) -> Data? {
         guard validatedEnvelope(from: bundle) != nil else { return nil }
+        // The attachment carries the build values bounded as tags are (repairs close at init).
+        var bundle = bundle
+        bundle.repairs = bundle.repairs.map { $0.closed() }
+        bundle.header.sourceRevision = value("sourceRevision", bundle.header.sourceRevision)
+        bundle.header.buildIdentity = bundle.header.buildIdentity.map { value("buildIdentity", $0) }
         guard let data = try? FeedIncidentCoding.encoder().encode(bundle) else { return nil }
         if data.count > 262_144 { return nil }
         return data
@@ -112,28 +181,48 @@ public struct ReliabilityReportingPrivacy: Sendable {
         return isTypedFeedEvent ? redact(formatted) : "Application diagnostic"
     }
 
+    /// An exception value as it may leave the phone: the SDK's own lifecycle messages (hang
+    /// duration, watchdog kill, ANR) carry no app data and say what happened, so they stay;
+    /// anything else may hold user or app text and is replaced. Kotlin twin: `exceptionValue`.
+    public static func exceptionValue(_ raw: String) -> String {
+        sdkLifecycleMessages.contains { raw.range(of: $0, options: .regularExpression) != nil }
+            ? raw : "Native exception"
+    }
+
+    private static let sdkLifecycleMessages = [
+        #"^App hanging (for at least [0-9]+ ms|between [0-9.]+ and [0-9.]+ seconds)\.$"#,
+        #"^The user or the OS watchdog terminated your app while it blocked the main thread for "#
+            + #"(at least [0-9]+ ms|between [0-9.]+ and [0-9.]+ seconds|\?)\.$"#,
+        #"^The OS watchdog terminated your app, possibly because it overused RAM\.$"#,
+        #"^(Background )?(ANR|Application Not Responding for at least [0-9]+ ms\.)$"#,
+    ]
+
     /// Allowlisted tags, each clipped and redacted; nil when none is left.
     public func tags(_ tags: [String: String]) -> [String: String]? {
         var kept = tags.filter { Self.tagAllowlist.contains($0.key) }
         for key in kept.keys {
-            let limit = (key == "sourceRevision" || key == "buildIdentity") ? 64 : 32
-            kept[key] = redact(String((kept[key] ?? "").prefix(limit)))
+            kept[key] = Self.value(key, kept[key] ?? "", limit: 32, redact: redact)
         }
         return kept.isEmpty ? nil : kept
     }
 
-    /// Allowlisted extras; nil when none is left.
+    /// Allowlisted extras, string values bounded like tags (`value`); nil when none is left.
     public static func extra(_ extra: [String: Any]) -> [String: Any]? {
-        let kept = extra.filter { extraAllowlist.contains($0.key) }
+        var kept = extra.filter { extraAllowlist.contains($0.key) }
+        for (key, raw) in kept { if let text = raw as? String { kept[key] = value(key, text) } }
         return kept.isEmpty ? nil : kept
     }
 
-    /// Allowlisted context sections and keys; nil when none is left.
+    /// Allowlisted context sections and keys, string values bounded like tags; nil when none is
+    /// left.
     public static func context(_ context: [String: [String: Any]]) -> [String: [String: Any]]? {
         var kept: [String: [String: Any]] = [:]
         for (section, values) in context {
             guard let allow = contextAllowlist[section] else { continue }
-            let filtered = values.filter { allow.contains($0.key) }
+            var filtered = values.filter { allow.contains($0.key) }
+            for (key, raw) in filtered {
+                if let text = raw as? String { filtered[key] = value(key, text) }
+            }
             if !filtered.isEmpty { kept[section] = filtered }
         }
         return kept.isEmpty ? nil : kept

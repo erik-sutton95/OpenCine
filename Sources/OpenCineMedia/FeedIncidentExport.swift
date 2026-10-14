@@ -66,7 +66,9 @@ public enum FeedIncidentExport: Sendable {
     public static func envelope(from bundle: FeedIncidentBundle) -> FeedIncidentVendorEnvelope {
         let header = bundle.header
         // The 1 Hz snapshot opens an incident up to a tick after its first repair.
-        let own = bundle.repairs.filter { $0.monotonicAt >= header.startedAtMonotonic - 1.5 }
+        let own = bundle.repairs.filter { $0.monotonicAt >= header.startedAtMonotonic - 1.5 }.map {
+            $0.closed()
+        }
         let grouping = FeedIncidentGrouping(
             schemaVersion: header.schemaVersion,
             failingStage: header.failingStage.rawValue,
