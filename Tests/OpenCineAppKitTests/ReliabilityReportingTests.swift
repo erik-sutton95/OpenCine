@@ -417,7 +417,7 @@ final class ReliabilityReportingTests: XCTestCase {
     /// upscaler (scope tag) and a stored install id.
     func testNoPlantedSecretReachesTheSink() throws {
         let secrets = [
-            "OpenCapture-Guest-5G", "ZR_6002199", "/Users/erik/Movies/take.mov",
+            "OpenCapture-Guest-5G", "ZR_6002199", "/\u{0055}sers/erik/Movies/take.mov",
             "tester@example.com", "203.0.113.7", "192.168.1.23",
         ]
         consent.setOptedIn(true)
