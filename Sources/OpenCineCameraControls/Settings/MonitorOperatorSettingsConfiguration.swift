@@ -265,7 +265,6 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     let hdrDisplay: Binding<Bool>?, cacheOriginals: Binding<Bool>?
     let input: MonitorSettingsInputSource?
     let signalOptions: MonitorOperatorSignalOptions
-    let resetPolicy: MonitorOperatorAssistResetPolicy
     let cacheScopeHelp: String?
     let cacheConfirmationMessage: String?
     let hapticsHelp: String, keepAwakeHelp: String, hdrHelp: String, cacheHelp: String, clearHelp: String, exposureHelp: String
@@ -313,10 +312,9 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         lookLabel: String, lookCatalog: (@MainActor @Sendable () -> AnyView)? = nil,
         availableAssist: Set<MonitorAssistSelection> = [.falseColor, .zebra, .waveform, .parade, .histogram, .vectorscope, .peaking, .trafficLights],
         input: MonitorSettingsInputSource? = nil, signalOptions: MonitorOperatorSignalOptions = .init(),
-        resetPolicy: MonitorOperatorAssistResetPolicy = .allOptions,
         cacheScopeHelp: String? = nil, cacheConfirmationMessage: String? = nil) {
         self.assist = assist
-        self.input = input; self.signalOptions = signalOptions; self.resetPolicy = resetPolicy
+        self.input = input; self.signalOptions = signalOptions
         self.cacheScopeHelp = cacheScopeHelp; self.cacheConfirmationMessage = cacheConfirmationMessage
         self.safeArea = borrowedSafeArea; self.phase = phase; self.isLive = isLive; self.sharingSubtitle = sharingSubtitle
         self.close = close; self.disconnect = disconnect; self.feedback = feedback; self.link = link
@@ -329,7 +327,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         self.availableDisplay = availableDisplay; self.lookLabel = lookLabel; self.lookCatalog = lookCatalog
         assistSettings = {
             AnyView(MonitorOperatorAssistSettings(assist: assist, stores: stores, looks: falseColorLooks,
-                palette: palette, haptics: operatorHaptics, transfer: transfer, clipByte: clipByte, available: availableAssist, signalOptions: signalOptions, resetPolicy: resetPolicy))
+                palette: palette, haptics: operatorHaptics, transfer: transfer, clipByte: clipByte, available: availableAssist, signalOptions: signalOptions))
         }
     }
 }
