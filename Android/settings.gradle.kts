@@ -31,6 +31,8 @@ include(
     ":nikon-wire",
     // UI: Compose monitor UI.
     ":monitor-ui",
+    // Developer-only native conformance scenarios.
+    ":app-ui-testing",
     // Multicam engine (Kotlin/JVM).
     ":multicam",
     // Camera vocabulary (Kotlin/JVM): wire-free control values, status, model, zoom, tracking.
