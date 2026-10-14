@@ -16,6 +16,12 @@ import os
 open class MonitorLiveVideoRuntime {
     /// One retained decode owner, used by both layer identity and native assist presentation.
     private let vt: VideoToolboxDecoder
+    /// Native submission boundary for deterministic SIMULATED submit-return failures.
+    internal typealias NativeSubmission = @MainActor (
+        VideoToolboxDecoder, CMSampleBuffer, VTDecodeFrameFlags, StreamGeneration,
+        @escaping @Sendable (VideoToolboxDecoder.Output) -> Void
+    ) -> OSStatus
+    internal var nativeSubmission: NativeSubmission?
     private let configuration: MonitorVideoConfiguration
     nonisolated private let sourceLifetime: OSAllocatedUnfairLock<MonitorVideoSourceLifetime>
     /// Lives as long as this decoder: host views adopt it, they never recreate it.
@@ -565,7 +571,7 @@ open class MonitorLiveVideoRuntime {
                 irapAge: lastIrapAt.map { Date().timeIntervalSince($0) },
                 parameterSetChangeAge: lastParameterSetChangeUptime.map { receivedAt - $0 },
                 inputHz: Double(recentInputUptimes.count))
-            let submitted = presentProcessed(sample, sequence: submissionSequence, unit: unit)
+            let submitted = presentProcessed(sample, source: source, sequence: submissionSequence, unit: unit)
             if submitted && hasIDR {
                 hasSubmittedRandomAccess = true
                 referenceRecoveryNeeded = false
@@ -1354,21 +1360,20 @@ open class MonitorLiveVideoRuntime {
     /// Decode to a pixel buffer. GPU fx and scopes run on `MonitorAssistEngine` (off-main).
     @discardableResult
     private func presentProcessed(
-        _ sample: CMSampleBuffer, sequence: UInt64, unit: FeedIncidentDecodeErrorContext
+        _ sample: CMSampleBuffer, source: MonitorVideoSourceToken?, sequence: UInt64,
+        unit: FeedIncidentDecodeErrorContext
     ) -> Bool {
+        guard accepts(source) else { return false }
         if vt.session == nil, vt.format != nil { rebuildVT() }
-        guard vt.session != nil, !vt.sessionFailed else { return false }
+        guard accepts(source), vt.session != nil, !vt.sessionFailed else { return false }
         let fx = effects
         let transfer = transferProvider?() ?? incomingTransfer ?? .rec709
         let flags: VTDecodeFrameFlags = [._EnableAsynchronousDecompression]
         let gen = vt.fence.generation
         let err = decodeFrame(
             sample, flags: flags, generation: gen, policy: fx, transfer: transfer,
-            sequence: sequence, unit: unit)
-        if err == noErr { return true }
-        noteDecodeError(status: err, origin: "submit")
-        noteFirstDecodeError(unit, status: err)
-        return false
+            source: source, sequence: sequence, unit: unit)
+        return err == noErr && accepts(source, generation: gen)
     }
 
     public func noteDecodeError(
@@ -1408,6 +1413,20 @@ open class MonitorLiveVideoRuntime {
         noteCompressedDiscontinuity()
     }
 
+    /// Both native failure paths retain the submitted source, decoder and reference sequence.
+    private func noteNativeFailure(
+        status: OSStatus, origin: String, flags: UInt32 = 0,
+        source: MonitorVideoSourceToken?, generation: StreamGeneration,
+        sequence: UInt64, unit: FeedIncidentDecodeErrorContext
+    ) {
+        guard accepts(source, generation: generation) else { return }
+        noteDecodeError(status: status, origin: origin, flags: flags)
+        // Diagnostics may synchronously retire the source or rebuild its decoder.
+        guard accepts(source, generation: generation) else { return }
+        noteFirstDecodeError(unit, status: status)
+        if status == kVTVideoDecoderBadDataErr { noteNativeBadData(sequence: sequence) }
+    }
+
     /// Called by the existing 1 Hz session publisher, including during silence.
     public func takePipelineTimingLine() -> String {
         pipelineMetrics.takeLine(vtActive: vt.session != nil)
@@ -1419,26 +1438,23 @@ open class MonitorLiveVideoRuntime {
         generation: StreamGeneration,
         policy: MonitorAssistPolicy,
         transfer: MonitorTransfer,
+        source: MonitorVideoSourceToken?,
         sequence: UInt64,
         unit: FeedIncidentDecodeErrorContext
     ) -> OSStatus {
         let submittedAt = ProcessInfo.processInfo.systemUptime
         pipelineMetrics.submitted()
         configuration.decodeEvent(.submitted)
-        let source = sourceToken
-        let result = vt.decode(sample, flags: flags, generation: generation) {
-            [weak self] output in
+        guard accepts(source, generation: generation) else { return kVTInvalidSessionErr }
+        let output: @Sendable (VideoToolboxDecoder.Output) -> Void = { [weak self] output in
             guard let self else { return }
             switch output {
             case .failed(let status, let infoFlags):
                 Task { @MainActor [weak self] in
-                    guard let self, self.accepts(source), self.vt.fence.isCurrent(generation) else { return }
-                    self.noteDecodeError(
-                        status: status, origin: "callback", flags: infoFlags.rawValue)
-                    self.noteFirstDecodeError(unit, status: status)
-                    if status == kVTVideoDecoderBadDataErr {
-                        self.noteNativeBadData(sequence: sequence)
-                    }
+                    guard let self else { return }
+                    self.noteNativeFailure(
+                        status: status, origin: "callback", flags: infoFlags.rawValue,
+                        source: source, generation: generation, sequence: sequence, unit: unit)
                 }
             case .frame(let lease):
                 guard self.accepts(source), self.vt.fence.isCurrent(generation),
@@ -1453,7 +1469,14 @@ open class MonitorLiveVideoRuntime {
                 self.submitDecodedFrame(lease, policy: policy, transfer: transfer, source: source)
             }
         }
-        if result == noErr { pipelineMetrics.accepted() }
+        let result = nativeSubmission?(vt, sample, flags, generation, output)
+            ?? vt.decode(sample, flags: flags, generation: generation, output: output)
+        if result == noErr {
+            if accepts(source, generation: generation) { pipelineMetrics.accepted() }
+        } else {
+            noteNativeFailure(status: result, origin: "submit", source: source,
+                generation: generation, sequence: sequence, unit: unit)
+        }
         return result
     }
 }
