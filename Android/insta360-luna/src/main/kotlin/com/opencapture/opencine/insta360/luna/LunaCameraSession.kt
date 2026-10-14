@@ -332,8 +332,13 @@ class LunaCameraSession internal constructor(
             current = current.copy(settings = values)
             projectShutter()
             refreshCapabilities()
-            settle()
+            // The waiters this settle finishes must not run before the snapshot that
+            // carries the reported values is published; otherwise an eager awaiter sees
+            // the previous feed. Publish exactly once, then complete the captured waiters.
+            val finished = mutableListOf<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>()
+            settle(finished)
             publish()
+            for ((waiter, receipt) in finished) waiter.complete(receipt)
         }
     }
 
@@ -349,8 +354,11 @@ class LunaCameraSession internal constructor(
             }
             current = current.copy(recording = state?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, at) } ?: ObservedValue.unknown)
             if (state != null) reportedAt[SettingKey.RECORDING] = at
-            settle()
+            // Same publish-before-waiter order as the settings ingest above.
+            val finished = mutableListOf<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>()
+            settle(finished)
             publish()
+            for ((waiter, receipt) in finished) waiter.complete(receipt)
         }
     }
 
@@ -541,14 +549,14 @@ class LunaCameraSession internal constructor(
     }
 
     /** Confirms what a readback shows; ends what its settle window has closed on. */
-    private fun settle() {
+    private fun settle(finished: MutableList<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>? = null) {
         val at = now()
         for ((operation, write) in awaiting.toList()) {
             if (reportShows(write.intent, write.shutterDenominator)) {
-                transition(operation, CommandStage.Confirmed)
+                transition(operation, CommandStage.Confirmed, finished)
             } else if (at >= write.deadline) {
                 val heard = reportedAt[write.intent.key]?.let { it > write.acceptedAt } == true
-                transition(operation, if (heard) CommandStage.Failed(CommandFailure.NOT_APPLIED) else CommandStage.TimedOut)
+                transition(operation, if (heard) CommandStage.Failed(CommandFailure.NOT_APPLIED) else CommandStage.TimedOut, finished)
             }
         }
     }
@@ -595,7 +603,8 @@ class LunaCameraSession internal constructor(
         )
     }
 
-    private fun transition(operation: OperationID, stage: CommandStage): CommandReceipt {
+    private fun transition(operation: OperationID, stage: CommandStage,
+        finished: MutableList<Pair<CompletableDeferred<CommandReceipt>, CommandReceipt>>? = null): CommandReceipt {
         val receipt = receipts.getValue(operation)
         // A late completion never rewrites a finished outcome.
         if (receipt.isFinished) return receipt
@@ -604,7 +613,13 @@ class LunaCameraSession internal constructor(
         if (next.isFinished) {
             awaiting.remove(operation)
             if (targets[next.intent.key]?.first == operation) targets.remove(next.intent.key)
-            waiters.remove(operation)?.complete(next)
+            val waiter = waiters.remove(operation)
+            if (waiter != null) {
+                // A reporting caller publishes before completing its waiters, so an eager
+                // awaiter observes the snapshot the outcome belongs to; other callers keep
+                // the immediate completion.
+                if (finished != null) finished.add(waiter to next) else waiter.complete(next)
+            }
         }
         return next
     }
