@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
@@ -88,13 +89,18 @@ public fun <P> MonitorOperatorCatalogScreen(
     DisposableEffect(gallery) { gallery.activate(); begin(); onDispose { gallery.retire() } }
     LaunchedEffect(value.lifetimeToken) { gallery.sourceChanged() }
     val snapshot = gallery.snapshot(presentation?.projection)
+    // Action handlers installed in one recomposition can outlive it (the compiler keeps a
+    // memoized callback while the gallery lifetime rotates underneath), so every admitted
+    // action reads the presented window at call time instead of trusting this closure's
+    // capture. The retirement guard itself is unchanged.
+    val presented by rememberUpdatedState(snapshot)
     LaunchedEffect(presentation?.projection?.displayIDs) {
         if (presentation?.retainsVisibleSelection == true) gallery.retainSelection(snapshot)
     }
-    fun admitted(action: () -> Unit) { if (gallery.isCurrent(snapshot)) action() }
+    fun admitted(action: () -> Unit) { if (gallery.isCurrent(presented)) action() }
     fun select(ids: Set<MediaAssetID>, selecting: Boolean = true) {
-        if (gallery.select(ids, snapshot, selecting)) haptics.longPress()
-        if (selecting && gallery.isCurrent(snapshot)) gallery.filterPopup(false)
+        if (gallery.select(ids, presented, selecting)) haptics.longPress()
+        if (selecting && gallery.isCurrent(presented)) gallery.filterPopup(false)
     }
     if (handlesBack) BackHandler {
         when {
@@ -128,14 +134,14 @@ public fun <P> MonitorOperatorCatalogScreen(
     )
     val filterID = state.filterRequestID
     fun filter(action: MonitorMediaGalleryFilterAction, popup: Boolean = true) = admitted {
-        if (popup && !gallery.admitsFilter(snapshot, filterID)) return@admitted
+        if (popup && !gallery.admitsFilter(presented, filterID)) return@admitted
         haptics.selection()
         sourceFilter?.invoke(action)
-        if (presentation?.filterClearsSelection == true && gallery.isCurrent(snapshot)) library.clearSelection()
+        if (presentation?.filterClearsSelection == true && gallery.isCurrent(presented)) library.clearSelection()
     }
     fun navigate(action: MonitorMediaGalleryNavigation, fallback: () -> Unit) = admitted {
         if (navigation != null) navigation(action) else fallback()
-        if (presentation?.navigationClearsSelection == true && gallery.isCurrent(snapshot)) library.clearSelection()
+        if (presentation?.navigationClearsSelection == true && gallery.isCurrent(presented)) library.clearSelection()
     }
     val sourceFilters = presentation?.filters
     val filters = if (sourceFilters != null) MediaLibraryFilterState(
@@ -168,32 +174,32 @@ public fun <P> MonitorOperatorCatalogScreen(
             library.display(thumbnailSize = MonitorThumbnailSize.valueOf(size.name)) }
         override fun cycleSort() = navigate(MonitorMediaGalleryNavigation.CycleSort) { library.display(sort = MonitorMediaSort.valueOf(sort.next.name)) }
         override fun toggleFilter() = admitted { gallery.filterPopup(!state.filterPopupPresented) }
-        override fun selectAll() = admitted { gallery.selectAll(snapshot) }
+        override fun selectAll() = admitted { gallery.selectAll(presented) }
         override fun clearSelection() = admitted { library.clearSelection(); gallery.cancelDelete() }
-        override fun cacheSelected() = gallery.cacheSelection(snapshot, operations)
-        override fun favoriteSelected() = gallery.favoriteSelection(snapshot, operations, toggleUniform = true)
-        override fun deleteSelected() = gallery.requestDelete(snapshot, operations, supportedSubset = true)
-        override fun shareSelected() { gallery.shareSelection(snapshot, operations)?.let { share?.invoke(it, snapshot.token) } }
+        override fun cacheSelected() = gallery.cacheSelection(presented, operations)
+        override fun favoriteSelected() = gallery.favoriteSelection(presented, operations, toggleUniform = true)
+        override fun deleteSelected() = gallery.requestDelete(presented, operations, supportedSubset = true)
+        override fun shareSelected() { gallery.shareSelection(presented, operations)?.let { share?.invoke(it, presented.token) } }
         override fun toggleFormat(format: String) {
             if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Format(format))
-            else admitted { if (gallery.admitsFilter(snapshot, filterID)) library.filter(formats = value.formats.toggled(format)) }
+            else admitted { if (gallery.admitsFilter(presented, filterID)) library.filter(formats = value.formats.toggled(format)) }
         }
         override fun toggleResolution(resolution: String) {
             if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Resolution(resolution))
-            else admitted { if (gallery.admitsFilter(snapshot, filterID)) library.filter(resolutions = value.resolutions.toggled(resolution)) }
+            else admitted { if (gallery.admitsFilter(presented, filterID)) library.filter(resolutions = value.resolutions.toggled(resolution)) }
         }
-        override fun toggleColor(color: Int) = admitted { if (gallery.admitsFilter(snapshot, filterID)) colors.getOrNull(color)?.let { library.filter(colors = value.colors.toggled(it.first)) } }
-        override fun filterDates(start: String?, end: String?) = admitted { if (gallery.admitsFilter(snapshot, filterID)) library.filter(dateStart = start, dateEnd = end) }
+        override fun toggleColor(color: Int) = admitted { if (gallery.admitsFilter(presented, filterID)) colors.getOrNull(color)?.let { library.filter(colors = value.colors.toggled(it.first)) } }
+        override fun filterDates(start: String?, end: String?) = admitted { if (gallery.admitsFilter(presented, filterID)) library.filter(dateStart = start, dateEnd = end) }
         override fun dateEdit(start: Boolean, currentStart: String?, currentEnd: String?): MediaDatePickerAction? {
-            if (!gallery.admitsFilter(snapshot, filterID)) return null
-            gallery.pickDate(if (start) MonitorMediaDateBound.START else MonitorMediaDateBound.END, snapshot)
+            if (!gallery.admitsFilter(presented, filterID)) return null
+            gallery.pickDate(if (start) MonitorMediaDateBound.START else MonitorMediaDateBound.END, presented)
             val request = gallery.state.value.pickingDate ?: return null
             return MediaDatePickerAction(start, commit = { gallery.date(it, request) }, cancel = {
                 if (gallery.state.value.pickingDate?.id == request.id) gallery.cancelDate()
             })
         }
         override fun resetFilters() {
-            if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Reset) else admitted { if (gallery.admitsFilter(snapshot, filterID)) library.resetFilters() }
+            if (sourceFilters != null) filter(MonitorMediaGalleryFilterAction.Reset) else admitted { if (gallery.admitsFilter(presented, filterID)) library.resetFilters() }
         }
         override fun closeFilter() { gallery.dismissFilter(filterID) }
     }
