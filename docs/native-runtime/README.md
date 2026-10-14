@@ -6,6 +6,11 @@ Core, Media and platform codec/renderer modules, and have no UI, integration or 
 UI takes immutable scope/image values and actions. App composition supplies native owners and
 the camera's source profile.
 
+The optional Android `appkit-native` module composes these native picture owners above
+camera controls, decoder and native-runtime. Apps supply source epochs, calibration and
+callbacks; UI consumes values and actions. Face readback binds pixels to the requesting
+source and composition lifetime. Cache proof helpers compile only in androidTest.
+
 Android `NativeGlBackend` and `NativeGlProgram` preserve the consuming app's existing graphics
 helpers through a small typed adapter. Shader selection, effects passes, texture upload and
 target lifetime belong in the shared runtime. The platform adds no graphics library dependency.
