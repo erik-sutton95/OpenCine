@@ -9,13 +9,10 @@
         public var name: String
         /// How nearby cameras are found, under NEARBY ("announcing over Bluetooth").
         public var nearbyNote: String
-        /// A setup chip's menu offers Rename setup; `false` keeps an app's menu as it shipped.
-        public var renamesSetups: Bool
 
-        public init(name: String, nearbyNote: String = "announcing over Bluetooth", renamesSetups: Bool = true) {
+        public init(name: String, nearbyNote: String = "announcing over Bluetooth") {
             self.name = name
             self.nearbyNote = nearbyNote
-            self.renamesSetups = renamesSetups
         }
     }
 
@@ -25,8 +22,6 @@
         public var reportProblem: () -> Void
         public var watchFeed: (() -> Void)?
         public var multiview: (() -> Void)?
-        public var privacy: (() -> Void)?
-        public var terms: (() -> Void)?
         /// Camera id, integration action id (`RecoveryAction.integration`).
         public var integrationAction: ((String, String) -> Void)?
         /// The cameras page's Pair, Media and Settings; `nil` opens the shell's pair page or cover.
@@ -40,7 +35,6 @@
             diagnostics: @escaping () -> Void, reportProblem: @escaping () -> Void,
             watchFeed: (() -> Void)? = nil, multiview: (() -> Void)? = nil,
             integrationAction: ((String, String) -> Void)? = nil,
-            privacy: (() -> Void)? = nil, terms: (() -> Void)? = nil,
             pair: (() -> Void)? = nil, media: (() -> Void)? = nil, settings: (() -> Void)? = nil,
             extraNearby: ((String) -> Void)? = nil
         ) {
@@ -49,8 +43,6 @@
             self.watchFeed = watchFeed
             self.multiview = multiview
             self.integrationAction = integrationAction
-            self.privacy = privacy
-            self.terms = terms
             self.pair = pair
             self.media = media
             self.settings = settings
@@ -145,8 +137,7 @@
                 PairScreen(
                     model: model.cameras, safeArea: insets, onDone: { model.endPairing() },
                     onDiagnostics: actions.diagnostics, onReportProblem: actions.reportProblem,
-                    onWatchFeed: actions.watchFeed, pairingFlow: pairingFlow, onPrivacy: actions.privacy,
-                    onTerms: actions.terms)
+                    onWatchFeed: actions.watchFeed, pairingFlow: pairingFlow)
             } else {
                 CamerasScreen(
                     model: model.cameras, brandName: brand.name, nearbyNote: brand.nearbyNote,
@@ -155,8 +146,7 @@
                     onSettings: actions.settings ?? { model.open(.settings) },
                     onMultiview: actions.multiview, onWatchFeed: actions.watchFeed,
                     onIntegrationAction: actions.integrationAction,
-                    extraNearby: extraNearby, onExtraNearby: actions.extraNearby ?? { _ in },
-                    onPrivacy: actions.privacy, onTerms: actions.terms, renamesSetups: brand.renamesSetups)
+                    extraNearby: extraNearby, onExtraNearby: actions.extraNearby ?? { _ in })
             }
         }
     }
