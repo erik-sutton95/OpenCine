@@ -175,7 +175,7 @@ enum class FeedRepairPhase(val wire: String) {
     }
 }
 
-data class FeedIncidentRates(
+data class FeedIncidentRates @JvmOverloads constructor(
     val packetHz: Double = 0.0,
     val accessUnitHz: Double = 0.0,
     val decodeSubmitHz: Double = 0.0,
@@ -184,6 +184,7 @@ data class FeedIncidentRates(
     val assistOutputHz: Double = 0.0,
     val presentHz: Double = 0.0,
     val ackHz: Double = 0.0,
+    val observed: FeedIncidentRateObservation? = null,
 )
 
 data class FeedIncidentAges(

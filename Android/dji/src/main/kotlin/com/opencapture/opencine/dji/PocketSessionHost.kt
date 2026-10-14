@@ -2,6 +2,7 @@ package com.opencapture.opencine.dji
 
 import com.opencapture.opencine.media.FeedIncidentSink
 import com.opencapture.opencine.media.FeedIncidentTestSource
+import com.opencapture.opencine.media.FeedIncidentSessionContext
 import com.opencapture.opencine.vocabulary.TrackingBox
 
 /**
@@ -26,6 +27,14 @@ interface PocketSessionHost {
     val incidents: FeedIncidentSink
     fun incidentTestSource(): FeedIncidentTestSource
     fun incidentBuildIdentity(): String
+
+    /** Additive host slot. Legacy hosts keep the original context; adopted hosts use the shared factory. */
+    fun incidentSessionContext(sessionId: String, cameraFamily: String,
+        decoderGeneration: Int = 0, socketGeneration: Int = 0): FeedIncidentSessionContext =
+        FeedIncidentSessionContext(sessionId, appVersion, appBuild, sourceRevision, "Android",
+            android.os.Build.VERSION.RELEASE ?: "unknown", android.os.Build.MODEL ?: "unknown",
+            cameraFamily, decoderGeneration = decoderGeneration, socketGeneration = socketGeneration,
+            testSource = incidentTestSource(), buildIdentity = incidentBuildIdentity())
 
     val appVersion: String
     val appBuild: String

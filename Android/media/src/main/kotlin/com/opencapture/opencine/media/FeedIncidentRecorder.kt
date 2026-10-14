@@ -365,6 +365,8 @@ class FeedIncidentRecorder(
 
 /** Submission authority retained by a camera session, independent of the host's runtime module. */
 interface FeedIncidentSource {
+    /** Legacy synchronous sources remain current; bound runtime sources expose their authority. */
+    val isCurrent: Boolean get() = true
     fun endSession(nowSeconds: Double)
     fun ingestSnapshot(snapshot: FeedIncidentSnapshot)
     fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb)
