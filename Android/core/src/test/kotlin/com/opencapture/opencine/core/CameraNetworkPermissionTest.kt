@@ -2,8 +2,6 @@ package com.opencapture.opencine.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class CameraNetworkPermissionTest {
     @Test fun waitingIsNeitherDenialNorApproval() {
@@ -12,13 +10,9 @@ class CameraNetworkPermissionTest {
         val attempt = observation.begin()
         observation.observe(CameraNetworkPermissionEvidence.WAITING, attempt)
         assertEquals(CameraNetworkPermissionState.REQUESTED, observation.state)
-        assertFalse(CameraNetworkPermissionPolicy.isLocalNetworkDenied(null, false))
-        assertFalse(CameraNetworkPermissionPolicy.isLocalNetworkDenied(-65537, false))
     }
 
     @Test fun onlyExplicitPolicyEvidenceIsDenial() {
-        assertTrue(CameraNetworkPermissionPolicy.isLocalNetworkDenied(-65570, false))
-        assertTrue(CameraNetworkPermissionPolicy.isLocalNetworkDenied(null, true))
         val observation = CameraNetworkPermissionObservation()
         val attempt = observation.begin()
         observation.observe(CameraNetworkPermissionEvidence.POLICY_DENIED, attempt)

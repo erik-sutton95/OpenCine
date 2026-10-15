@@ -2,7 +2,10 @@ package com.opencapture.opencine.core
 
 import java.util.UUID
 
-/** Current evidence, distinct from a remembered permission acknowledgement. */
+/**
+ * Current evidence, distinct from a remembered permission acknowledgement. Twin of the Swift
+ * values; the Apple Local Network denial rule has no Android counterpart and stays in Swift.
+ */
 public enum class CameraNetworkPermissionState { UNKNOWN, REQUESTED, ALLOWED, DENIED }
 
 /** Only completed local operations and explicit policy signals determine permission. */
@@ -31,10 +34,4 @@ public class CameraNetworkPermissionObservation {
     public fun retire(attempt: UUID) {
         if (current == attempt) current = null
     }
-}
-
-/** Platform adapters supply error/path facts; this policy performs no networking. */
-public object CameraNetworkPermissionPolicy {
-    public fun isLocalNetworkDenied(dnsErrorCode: Int?, pathDenied: Boolean): Boolean =
-        pathDenied || dnsErrorCode == -65570
 }
