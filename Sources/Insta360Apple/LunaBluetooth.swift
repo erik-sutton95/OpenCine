@@ -92,9 +92,12 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         // cancelPeripheralConnection completes asynchronously. Do not reuse this object
         // until its old didDisconnect/didFail callback has been consumed.
         let deadline = Date().addingTimeInterval(12)
+        // A cancelled link that iOS already reports disconnected owes no further callback.
+        if found.state == .disconnected { disconnecting.remove(id) }
         while disconnecting.contains(id), Date() < deadline {
             try Task.checkCancellation()
             try await Task.sleep(for: .milliseconds(50))
+            if found.state == .disconnected { disconnecting.remove(id) }
         }
         guard !disconnecting.contains(id) else {
             throw ConnectionFailure.luna(
@@ -218,11 +221,19 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         writeCharacteristic = nil
         if let old, old.state != .disconnected {
             old.delegate = nil
-            disconnecting.insert(old.identifier)
+            if Self.awaitsCloseCallback(old.state) { disconnecting.insert(old.identifier) }
             central.cancelPeripheralConnection(old)
         }
         failPending(CancellationError())
     }
+    /// Whether cancelling a peripheral in `state` is followed by a didDisconnect/didFailToConnect
+    /// callback that must be consumed before the object is reused. A connect still pending
+    /// (`.connecting`) is cancelled silently: waiting for a callback there marked the camera
+    /// "still closing" for the rest of the launch (device cell 7d).
+    nonisolated static func awaitsCloseCallback(_ state: CBPeripheralState) -> Bool {
+        state == .connected || state == .disconnecting
+    }
+
     private func setDeadline(seconds: Double, failure: ConnectionFailure) {
         deadline?.cancel()
         let token = epoch
