@@ -280,7 +280,6 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
             MonitorSupportAction("support.diagnostics", "Diagnostics", actionTitle = "Share",
                 accessibilityLabel = "Share Diagnostics", action = actions.diagnostics))),
         legal = legal,
-        tabs = monitorSettingsTabs(sharing = null, cache = cache, account = null),
     )
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab,
         { session.settingsTab = it }, MonitorOperatorPictureSettings.Session(preferences, session, assist,

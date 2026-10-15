@@ -225,7 +225,8 @@ public class MonitorOperatorSettingsConfiguration(
     public val diagnostics: MonitorSettingsDiagnosticsSource? = null,
     public val legal: MonitorLegalDocuments? = null,
     public val information: MonitorSettingsInformationSource? = null,
-    public val tabs: List<MonitorSettingsTab> = MonitorSettingsTab.entries,
+    /** By default a tab with nothing in it is left out (iOS hides an empty Sharing tab too). */
+    public val tabs: List<MonitorSettingsTab> = monitorSettingsTabs(sharing, cache, account, unconfiguredAccount),
     /** Legacy captured cards remain available beside typed assist composition. */
     public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
     public val assist: MonitorOperatorAssistSettingsSource? = null,
