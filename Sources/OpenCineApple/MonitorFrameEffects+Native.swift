@@ -18,7 +18,8 @@ extension MonitorFrameEffects {
         result.peakingColor = OpenCineApple.MonitorRGB(peakingColor.rgb)
         result.peakingSensitivity = OpenCineApple.MonitorPeakingSensitivity(
             ratioThreshold: peakingSensitivity.ratioThreshold, noiseGate: peakingSensitivity.noiseGate)
-        result.peakingGateScale = transfer == .rec709 || transfer == .hdr ? 1.57 * 1.57 : 1
+        result.peakingGateScale = transfer == .rec709 || transfer == .hdr
+            ? Peaking.gateScale(gradientScale: Peaking.displayReferredGradientScale) : 1
         result.transfer = transfer; result.clipByte = resolvedClipByte
         result.zebraSpec = OpenCineApple.MonitorZebraSpec(
             highlightEnabled: zebraHighlight, highlightIRE: zebraHighlightIRE,

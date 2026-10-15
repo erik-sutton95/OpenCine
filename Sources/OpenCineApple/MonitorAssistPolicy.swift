@@ -56,10 +56,7 @@ public struct MonitorAssistPolicy: Equatable, Sendable {
     public mutating func stamp(transfer: MonitorTransfer, ceiling: ScopeExposureCeiling) {
         image.transfer = transfer
         image.clipByte = ceiling.clipByte(transfer: transfer)
-        switch transfer {
-        case .rec709, .hdr, .srgb: image.peakingGateScale = 1.57 * 1.57
-        case .dlog, .dlog2, .dlogm, .ilog, .nlog, .log3G10: image.peakingGateScale = 1
-        }
+        image.peakingGateScale = Peaking.gateScale(for: transfer)
     }
 }
 #endif
