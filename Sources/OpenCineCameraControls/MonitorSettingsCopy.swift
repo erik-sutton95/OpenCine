@@ -7,6 +7,11 @@ public enum MonitorSettingsCopy {
         "Keeps the screen awake while this app is active. Turn off to use the device's normal auto-lock setting. The system may still dim the screen when the device is hot."
     public static let haptics = "Short confirmation pulses for switches, settings and controls."
     public static let hdrDisplay = "Show the native monitor in HDR when the display supports it."
+    /// The HDR display row's help (A2-31): a phone panel boost, not a grade. `cameraMode` names
+    /// the camera's own HDR picture mode it is not, for example "HDR/HLG color mode".
+    public static func hdrPanel(cameraMode: String) -> String {
+        "Outdoor panel brightness, not a grade. WAVE, HISTO, PARADE, VECTOR, zebras and false color still read the decoded camera signal, so judge exposure there, not from how bright the picture looks. Screen recording and AirPlay drop back to a normal SDR picture so the file is not HDR-boosted. This is not the camera's \(cameraMode). Off by default."
+    }
 
     /// Automatic reports, one disclosure on every platform (A2-37). It states what the shared
     /// reporter sends: crashes and hangs, live-feed reports and session health counts, with no

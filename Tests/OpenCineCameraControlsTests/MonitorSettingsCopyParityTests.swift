@@ -17,6 +17,15 @@ struct MonitorSettingsCopyParityTests {
         #expect(kotlin.contains("\"\(MonitorSettingsCopy.keepScreenAwake)\""))
     }
 
+    /// A2-31: one HDR display help for every app; only the camera mode it is not differs.
+    @Test func hdrPanelHelpIsSharedAndNamesTheCameraModeItIsNot() {
+        let pocket = MonitorSettingsCopy.hdrPanel(cameraMode: "HDR/HLG color mode")
+        #expect(pocket.hasPrefix("Outdoor panel brightness, not a grade."))
+        #expect(pocket.contains("still read the decoded camera signal, so judge exposure there"))
+        #expect(pocket.contains("This is not the camera's HDR/HLG color mode. Off by default."))
+        #expect(!pocket.contains("\u{2014}"))
+    }
+
     @Test func automaticReportsNamesEverythingTheReporterSends() {
         for part in ["crash", "hang", "live-feed reports", "session health counts", "exclude all images",
             "No footage or GPS location", "See Reporting Privacy"] {
