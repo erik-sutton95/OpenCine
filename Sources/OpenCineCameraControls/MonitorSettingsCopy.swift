@@ -35,8 +35,10 @@ public enum MonitorSettingsCopy {
     public static let controlRequests =
         "A watcher can ask to record, focus, and change exposure. You grant or deny on this phone."
 
-    public static let frameIOAccount =
-        "Sign in to upload clips from the share popup. Frame.io needs the internet, so the phone hops off the camera Wi\u{2011}Fi for the upload."
+    /// Help for the account row; `service` is the upload service the host names.
+    public static func accountHelp(service: String) -> String {
+        "Sign in to upload clips from the share popup. \(service) needs the internet, so the phone hops off the camera Wi\u{2011}Fi for the upload."
+    }
     public static let clearAllCamerasCache =
         "Removes downloaded clip files, thumbnails, and camera indexes for every camera. The on-device library is left intact."
     public static let cacheFullResolution =
