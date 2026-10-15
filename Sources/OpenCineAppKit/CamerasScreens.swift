@@ -81,21 +81,33 @@
                 }
             )
             .sheet(item: $adding) { camera in
-                slots(of: camera.integration).addRoute?(camera) { draft in
+                let integrationSlots = slots(of: camera.integration)
+                let done: (RouteDraft?) -> Void = { draft in
                     adding = nil
                     if let draft { model.addRoute(draft, to: camera) }
+                }
+                if let typed = integrationSlots.addSetup {
+                    AddSetupFlowView(flow: setupFlow(typed, camera: camera, done: done))
+                } else {
+                    integrationSlots.addRoute?(camera, done)
                 }
             }
             .overlay(alignment: .bottom) {
                 if let prompt { prompt.padding(.horizontal, 18).padding(.bottom, safeArea.bottom + 70) }
             }
+            .operatorConsentPresenter(model.consent)
         }
 
         /// Cards offer "Add setup" only where the integration's slot can build one.
         private var paired: [CameraListItem] {
             CamerasMapping.paired(model).map { item in
                 var item = item
-                item.canAddSetup = item.canAddSetup && camera(item.id).map { slots(of: $0.integration).addRoute != nil } == true
+                item.canAddSetup =
+                    item.canAddSetup
+                    && camera(item.id).map {
+                        let integrationSlots = slots(of: $0.integration)
+                        return integrationSlots.addSetup != nil || integrationSlots.addRoute != nil
+                    } == true
                 return item
             }
         }
@@ -104,12 +116,25 @@
         private var prompt: AnyView? {
             for attempt in model.attempts.values {
                 if case .integration(let prompt) = attempt.prompt,
+                    !(prompt is any ConfirmationPrompt),
                     let view = slots(of: attempt.integration).prompt?(prompt)
                 {
                     return view
                 }
             }
             return nil
+        }
+
+        private func setupFlow(
+            _ factory: @MainActor (SavedCamera, @escaping (RouteDraft?) -> Void) -> AddSetupFlow,
+            camera: SavedCamera, done: @escaping (RouteDraft?) -> Void
+        ) -> AddSetupFlow {
+            let flow = factory(camera, done)
+            if flow.initialSelection == nil {
+                return flow.selecting(CamerasMapping.addSetupSelection(
+                    model, camera: camera, chooser: flow.chooser))
+            }
+            return flow
         }
 
         private func handle(_ request: CamerasModel.Request?) {
@@ -173,6 +198,7 @@
             }
             .onAppear { model.beginPairing() }
             .onDisappear { model.endPairing() }
+            .operatorConsentPresenter(model.consent)
         }
 
         private var sighting: CamerasModel.Sighting? { model.nearby.first { $0.id == model.selection } }
@@ -182,7 +208,10 @@
             if let pairingFlow {
                 pairingFlow.content
             } else if let id = cameraID, let attempt = model.attempts[id] {
-                if case .integration(let prompt) = attempt.prompt, let view = slots(of: attempt.integration).prompt?(prompt) {
+                if case .integration(let prompt) = attempt.prompt,
+                    !(prompt is any ConfirmationPrompt),
+                    let view = slots(of: attempt.integration).prompt?(prompt)
+                {
                     view
                 }
             } else {

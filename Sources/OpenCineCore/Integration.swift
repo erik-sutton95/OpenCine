@@ -151,6 +151,16 @@ public protocol IntegrationPrompt: Sendable {
     var fallbackText: String { get }
 }
 
+/// An explicit operator decision, presented once by the shell for its current source lifetime.
+public protocol ConfirmationPrompt: IntegrationPrompt {
+    var confirmationID: String { get }
+    var confirmationTitle: String { get }
+    var confirmTitle: String { get }
+    var cancelTitle: String { get }
+    var confirm: @MainActor @Sendable () -> Void { get }
+    var cancel: @MainActor @Sendable () -> Void { get }
+}
+
 /// Something the operator must do for the attempt to continue.
 public enum ConnectionPrompt: Sendable {
     /// Approve the connection on the camera; the text is integration copy.

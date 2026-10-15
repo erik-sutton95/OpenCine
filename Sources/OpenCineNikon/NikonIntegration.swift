@@ -48,23 +48,55 @@ public protocol NikonConnectPort: AnyObject {
     /// The app's connect funnel. Throws a `ConnectionFailure` (another error is typed here) and
     /// `CancellationError` when cancelled.
     func connect(_ request: NikonConnectRequest) async throws -> NikonConnection
+    /// Resumes the current request after explicit operator consent; legacy ports keep their admission.
+    func connect(_ request: NikonConnectRequest, takingOverConfirmed: Bool) async throws
+        -> NikonConnection
     func cancel()
     /// The app's forget for these setups: the records, the paired-host memory and the access
     /// point's Wi-Fi key. Never the app's pairing identity.
     func forget(hosts: [String])
 }
 
+extension NikonConnectPort {
+    /// The published request call remains the fallback for ports that have not adopted consent.
+    public func connect(_ request: NikonConnectRequest, takingOverConfirmed: Bool) async throws
+        -> NikonConnection
+    {
+        try await connect(request)
+    }
+}
+
 /// Connecting would drop another device's live session on this camera (one initiator per body):
 /// the operator decides first.
-public struct NikonTakeOverPrompt: IntegrationPrompt {
+public struct NikonTakeOverPrompt: ConfirmationPrompt {
     public var camera: String
     /// The device holding the camera, when it said.
     public var holder: String?
     public var confirm: @MainActor @Sendable () -> Void
     public var cancel: @MainActor @Sendable () -> Void
+    public let confirmationID = UUID().uuidString
+    public var confirmationTitle: String { "Take over this camera?" }
+    public var confirmTitle: String { "Take Over" }
+    public var cancelTitle: String { "Cancel" }
+    private var message: String?
 
-    public var fallbackText: String {
-        guard let holder, !holder.isEmpty else {
+    public init(
+        camera: String, holder: String?, message: String? = nil,
+        confirm: @escaping @MainActor @Sendable () -> Void,
+        cancel: @escaping @MainActor @Sendable () -> Void
+    ) {
+        self.camera = camera
+        self.holder = holder
+        self.message = message
+        self.confirm = confirm
+        self.cancel = cancel
+    }
+
+    public var fallbackText: String { message ?? Self.message(holder: holder) }
+
+    /// Names the device whose session would be displaced by this operator action.
+    public static func message(holder: String?) -> String {
+        guard let holder, !holder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return "Another device is using this camera. Connecting will disconnect it."
         }
         return "\(holder) is using this camera. Connecting will disconnect it."
@@ -232,7 +264,9 @@ public final class NikonIntegration: CameraIntegration {
             Task { @MainActor in self?.cancel(attempt) }
         }
         if case .discovered(let sighting, _) = request, sighting.isHeldByAnotherDevice {
-            askToTakeOver(attempt, sighting)
+            askToTakeOver(
+                attempt, request: .discovered(sighting, takeOver: true),
+                holder: sighting.heldByDeviceName)
         } else {
             run(attempt, request)
         }
@@ -251,12 +285,15 @@ public final class NikonIntegration: CameraIntegration {
         return stream
     }
 
-    private func askToTakeOver(_ attempt: Attempt, _ sighting: DiscoveredCamera) {
+    private func askToTakeOver(
+        _ attempt: Attempt, request: NikonConnectRequest, holder: String? = nil,
+        message: String? = nil
+    ) {
         let prompt = NikonTakeOverPrompt(
-            camera: sighting.displayName, holder: sighting.heldByDeviceName,
+            camera: attempt.device, holder: holder, message: message,
             confirm: { [weak self] in
                 guard let self, self.current === attempt, attempt.task == nil else { return }
-                self.run(attempt, .discovered(sighting, takeOver: true))
+                self.run(attempt, request, takingOverConfirmed: true)
             },
             cancel: { [weak self] in
                 guard let self, self.current === attempt else { return }
@@ -268,15 +305,28 @@ public final class NikonIntegration: CameraIntegration {
         attempt.continuation.yield(.progress(progress, prompt: .integration(prompt)))
     }
 
-    private func run(_ attempt: Attempt, _ request: NikonConnectRequest) {
+    private func run(
+        _ attempt: Attempt, _ request: NikonConnectRequest, takingOverConfirmed: Bool = false
+    ) {
         attempt.task = Task { [weak self, port] in
-            // Replaced before it started: never dial the older camera.
-            if let self, self.current !== attempt { return }
+            // Replaced before it started: never dial the older camera. The check holds the
+            // integration only for this scope; the dial itself keeps it weak, as before.
+            do { guard let self, self.current === attempt, !Task.isCancelled else { return } }
             do {
-                let connection = try await port.connect(request)
+                let connection =
+                    takingOverConfirmed
+                    ? try await port.connect(request, takingOverConfirmed: true)
+                    : try await port.connect(request)
                 self?.connected(attempt, connection)
             } catch {
-                self?.failed(attempt, error)
+                guard let self, self.current === attempt else { return }
+                let failure = error as? ConnectionFailure ?? Self.failure(error, message: nil)
+                if !takingOverConfirmed, case .saved = request, failure.reason == .heldElsewhere {
+                    attempt.task = nil
+                    self.askToTakeOver(attempt, request: request, message: failure.message)
+                } else {
+                    self.failed(attempt, error)
+                }
             }
         }
     }

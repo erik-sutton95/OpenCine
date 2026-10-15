@@ -13,13 +13,18 @@ import com.opencapture.opencine.core.ConnectionProgress
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionStep
 import com.opencapture.opencine.core.DiscoveryMode
-import com.opencapture.opencine.core.IntegrationPrompt
+import com.opencapture.opencine.core.ConfirmationPrompt
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.core.SavedRoute
 import com.opencapture.opencine.core.UnavailableReason
+import java.util.UUID
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -82,6 +87,9 @@ interface NikonConnectPort {
 
     /** The app's connect funnel; throws a failure ([NikonConnectException]) or cancels. */
     suspend fun connect(request: NikonConnectRequest): NikonConnection
+    /** Resumes the current request after explicit operator consent; legacy ports keep their admission. */
+    suspend fun connect(request: NikonConnectRequest, takingOverConfirmed: Boolean): NikonConnection = connect(request)
+
     fun cancel()
 
     /** The app's forget for these setups: records, paired-host memory and the access point's key. */
@@ -97,15 +105,22 @@ class NikonConnectException(val failure: ConnectionFailure) : Exception(failure.
 data class NikonTakeOverPrompt(
     val camera: String,
     val holder: String?,
-    val confirm: () -> Unit,
-    val cancel: () -> Unit,
-) : IntegrationPrompt {
-    override val fallbackText: String
-        get() = if (holder.isNullOrEmpty()) {
-            "Another device is using this camera. Connecting will disconnect it."
-        } else {
-            "$holder is using this camera. Connecting will disconnect it."
-        }
+    override val confirm: () -> Unit,
+    override val cancel: () -> Unit,
+    private val message: String? = null,
+) : ConfirmationPrompt {
+    override val confirmationID: String = UUID.randomUUID().toString()
+    override val confirmationTitle: String = "Take over this camera?"
+    override val confirmTitle: String = "Take Over"
+    override val cancelTitle: String = "Cancel"
+    override val fallbackText: String get() = message ?: message(holder)
+
+    companion object {
+        /** Names the device whose session would be displaced by this operator action. */
+        fun message(holder: String?): String = holder?.takeIf(String::isNotBlank)?.let {
+            "$it is using this camera. Connecting will disconnect it."
+        } ?: "Another device is using this camera. Connecting will disconnect it."
+    }
 }
 
 /**
@@ -127,6 +142,7 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
 
     private val listeners = mutableListOf<DiscoveryMode>()
     private var running: DiscoveryMode? = null
+    private var currentConnect: Job? = null
 
     // Discovery
 
@@ -229,53 +245,88 @@ class NikonIntegration(private val port: NikonConnectPort) : CameraIntegration {
         }
         val attempt = ConnectionAttemptID()
         val plan = plan(request)
-        var connecting = request
-        if (request is NikonConnectRequest.Discovered && request.sighting.source == NikonSighting.Source.HELD_BY_ANOTHER_DEVICE) {
-            val decision = CompletableDeferred<Boolean>()
-            val prompt = NikonTakeOverPrompt(
-                request.sighting.displayName, request.sighting.heldBy,
-                confirm = { decision.complete(true) }, cancel = { decision.complete(false) },
-            )
-            send(ConnectionEvent.Progress(ConnectionProgress(attempt, CorePhase.NEGOTIATING, plan.map { it.first }, 0), ConnectionPrompt.Integration(prompt)))
-            if (!decision.await()) return@channelFlow
-            connecting = request.copy(takeOver = true)
-        }
-        var outcome: ConnectionEvent? = null
-        val phases = launch {
-            var last: Pair<ConnectionProgress, String?>? = null
-            port.phase.collect { value ->
-                val (phase, detail) = value ?: return@collect
-                val text = detail?.takeIf { it.isNotEmpty() } ?: defaultText(phase, device)
-                val (core, prompt) = when (phase) {
-                    NikonConnectionPhase.READY_TO_JOIN, NikonConnectionPhase.JOINING_WIFI ->
-                        CorePhase.JOINING_NETWORK to ConnectionPrompt.AcceptNetworkJoin(network ?: device, text)
-                    NikonConnectionPhase.DISCOVERING -> CorePhase.LINK to null
-                    NikonConnectionPhase.HANDSHAKING, NikonConnectionPhase.PREPARING_LIVE_VIEW -> CorePhase.NEGOTIATING to null
-                    NikonConnectionPhase.PAIRING, NikonConnectionPhase.CONFIRM_ON_CAMERA ->
-                        CorePhase.AWAITING_APPROVAL to ConnectionPrompt.ApproveOnCamera(text)
-                }
-                val step = plan.indexOfFirst { phase in it.second }.takeIf { it >= 0 } ?: last?.first?.current ?: 0
-                val progress = ConnectionProgress(attempt, core, plan.map { it.first }, step, if (prompt == null) text else null)
-                if (last == progress to prompt?.text) return@collect
-                last = progress to prompt?.text
-                send(ConnectionEvent.Progress(progress, prompt))
-            }
-        }
+        val owner = currentCoroutineContext().job
+        val previousProducer = currentConnect
+        currentConnect = owner
+        previousProducer?.cancel()
         try {
-            val connection = port.connect(connecting)
-            outcome = ConnectionEvent.Connected(ConnectedCamera(record(previous, connection, device), connection.session, connection.services))
-        } catch (error: NikonConnectException) {
-            outcome = ConnectionEvent.Failed(error.failure)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            outcome = ConnectionEvent.Failed(failure(ConnectionFailure.Reason.Other, "connect.failed", error.message ?: "The camera did not connect."))
+            suspend fun admitCurrent() {
+                currentCoroutineContext().ensureActive()
+                if (currentConnect !== owner) throw CancellationException("Connection source retired")
+            }
+            var connecting = request
+            var waitingForConsent = false
+            suspend fun consent(holder: String?, message: String? = null): Boolean {
+                waitingForConsent = true
+                val decision = CompletableDeferred<Boolean>()
+                val prompt = NikonTakeOverPrompt(
+                    device, holder, confirm = { decision.complete(true) }, cancel = { decision.complete(false) }, message = message,
+                )
+                send(ConnectionEvent.Progress(ConnectionProgress(attempt, CorePhase.NEGOTIATING, plan.map { it.first }, 0), ConnectionPrompt.Integration(prompt)))
+                val approved = decision.await()
+                admitCurrent()
+                waitingForConsent = false
+                return approved
+            }
+            if (request is NikonConnectRequest.Discovered && request.sighting.source == NikonSighting.Source.HELD_BY_ANOTHER_DEVICE) {
+                if (!consent(request.sighting.heldBy)) return@channelFlow
+                connecting = request.copy(takeOver = true)
+            }
+            suspend fun connectWithConsent(): NikonConnection? {
+                try {
+                    admitCurrent()
+                    return port.connect(connecting)
+                } catch (error: NikonConnectException) {
+                    if (request !is NikonConnectRequest.Saved || error.failure.reason != ConnectionFailure.Reason.HeldElsewhere) throw error
+                    if (!consent(null, error.failure.message)) return null
+                    // Only this live coroutine can reach the confirmed overload, once. A failure
+                    // from it escapes to the terminal failure handler rather than asking again.
+                    admitCurrent()
+                    return port.connect(connecting, takingOverConfirmed = true)
+                }
+            }
+            var outcome: ConnectionEvent? = null
+            val phases = launch {
+                var last: Pair<ConnectionProgress, String?>? = null
+                port.phase.collect { value ->
+                    if (waitingForConsent) return@collect
+                    val (phase, detail) = value ?: return@collect
+                    val text = detail?.takeIf { it.isNotEmpty() } ?: defaultText(phase, device)
+                    val (core, prompt) = when (phase) {
+                        NikonConnectionPhase.READY_TO_JOIN, NikonConnectionPhase.JOINING_WIFI ->
+                            CorePhase.JOINING_NETWORK to ConnectionPrompt.AcceptNetworkJoin(network ?: device, text)
+                        NikonConnectionPhase.DISCOVERING -> CorePhase.LINK to null
+                        NikonConnectionPhase.HANDSHAKING, NikonConnectionPhase.PREPARING_LIVE_VIEW -> CorePhase.NEGOTIATING to null
+                        NikonConnectionPhase.PAIRING, NikonConnectionPhase.CONFIRM_ON_CAMERA ->
+                            CorePhase.AWAITING_APPROVAL to ConnectionPrompt.ApproveOnCamera(text)
+                    }
+                    val step = plan.indexOfFirst { phase in it.second }.takeIf { it >= 0 } ?: last?.first?.current ?: 0
+                    val progress = ConnectionProgress(attempt, core, plan.map { it.first }, step, if (prompt == null) text else null)
+                    if (last == progress to prompt?.text) return@collect
+                    last = progress to prompt?.text
+                    send(ConnectionEvent.Progress(progress, prompt))
+                }
+            }
+            try {
+                val connection = connectWithConsent() ?: return@channelFlow
+                admitCurrent()
+                outcome = ConnectionEvent.Connected(ConnectedCamera(record(previous, connection, device), connection.session, connection.services))
+            } catch (error: NikonConnectException) {
+                outcome = ConnectionEvent.Failed(error.failure)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                outcome = ConnectionEvent.Failed(failure(ConnectionFailure.Reason.Other, "connect.failed", error.message ?: "The camera did not connect."))
+            } finally {
+                phases.cancel()
+                // The consumer stopped listening before an outcome: cancel the attempt.
+                if (outcome == null && currentConnect === owner) port.cancel()
+            }
+            send(outcome!!)
         } finally {
-            phases.cancel()
-            // The consumer stopped listening before an outcome: cancel the attempt.
-            if (outcome == null) port.cancel()
+            // A retired producer never cancels the port now owned by its successor.
+            if (currentConnect === owner) currentConnect = null
         }
-        send(outcome!!)
     }
 
     override suspend fun forget(camera: SavedCamera) {

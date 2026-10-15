@@ -9,6 +9,16 @@ import OpenCineCore
 public enum CamerasMapping {
     // MARK: Cameras page
 
+    /// Reopens a failed saved route only when it still exists and the chooser advertises it.
+    public static func addSetupSelection(
+        _ model: CamerasModel, camera: SavedCamera, chooser: AddSetupChooser
+    ) -> String? {
+        guard case .saved(_, let route)? = model.failures[camera.id]?.target,
+            let kind = camera.routes.first(where: { $0.id == route })?.kind
+        else { return nil }
+        return chooser.options.first { $0.kind == kind && $0.enabled }?.id
+    }
+
     /// Saved cameras, most recently connected first.
     public static func paired(_ model: CamerasModel) -> [CameraListItem] {
         let ordered = model.saved.enumerated().sorted { a, b in
