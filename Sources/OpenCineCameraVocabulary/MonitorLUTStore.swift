@@ -226,8 +226,9 @@ public final class CustomLUTStore: @unchecked Sendable {
         let parsed = try CubeLUT.parse(text)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let destination = root.appendingPathComponent(fileName)
-        try? FileManager.default.removeItem(at: destination)
-        try FileManager.default.copyItem(at: source, to: destination)
+        // Keep the previous usable file until the validated replacement is fully written.
+        // This also permits importing a file already stored at its destination.
+        try Data(text.utf8).write(to: destination, options: .atomic)
         cache(parsed, for: fileName)
         return StoredCustomLUT(fileName: fileName)
     }

@@ -118,6 +118,18 @@ import Testing
         }
     }
 
+    @Test func importingStoredFileOntoItselfPreservesValidCube() throws {
+        let prefs = LUTPreferences(storage: defaults(), namespace: "App")
+        let store = CustomLUTStore(root: folder(), preferences: prefs)
+        defer { try? FileManager.default.removeItem(at: store.root) }
+        let imported = try store.importFile(from: source("same.cube"))
+        let destination = store.root.appendingPathComponent(imported.fileName)
+        let before = try Data(contentsOf: destination)
+        try store.importFile(from: destination)
+        #expect(try Data(contentsOf: destination) == before)
+        #expect(store.cube(imported)?.size == 2)
+    }
+
     /// Live Photo is Rec.709: technical log conversions resolve to Off, creative looks stay.
     @Test func livePhotoSuppressesTechnicalLogConversions() {
         let photo = { (selection: LUTSelection) in
