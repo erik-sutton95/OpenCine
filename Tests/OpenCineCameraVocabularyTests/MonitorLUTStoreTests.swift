@@ -131,6 +131,53 @@ import Testing
         #expect(store.cube(imported)?.size == 2)
     }
 
+    @Test func independentCategoryStoreReadsAtomicReplacementWithSameSizeAndDate() throws {
+        let prefs = LUTPreferences(storage: defaults(), namespace: "App")
+        let root = folder()
+        let model = try CustomLUTStore(root: root, preferences: prefs).category(named: "custom")
+        let watch = try CustomLUTStore(root: root, preferences: prefs).category(named: "custom")
+        let file = try source("same.cube")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+        }
+        let stored = try model.importFile(from: file)
+        let destination = model.root.appendingPathComponent(stored.fileName)
+        // Whole-second metadata avoids rounding when FileManager restores an APFS timestamp.
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: date], ofItemAtPath: destination.path)
+        #expect(Array(try #require(watch.cube(stored)).rgb.prefix(3)) == [0, 0, 0])
+        let attributes = try FileManager.default.attributesOfItem(atPath: destination.path)
+        #expect(attributes[.modificationDate] as? Date == date)
+        let replacement = Self.cubeText.replacingOccurrences(of: "0 0 0\n", with: "1 1 1\n")
+        #expect(replacement.utf8.count == Self.cubeText.utf8.count)
+        try Data(replacement.utf8).write(to: file)
+        try model.importFile(from: file)
+        try FileManager.default.setAttributes(
+            [.modificationDate: date], ofItemAtPath: destination.path)
+        let replacedAttributes = try FileManager.default.attributesOfItem(atPath: destination.path)
+        #expect(replacedAttributes[.modificationDate] as? Date == date)
+        #expect(replacedAttributes[.size] as? NSNumber == attributes[.size] as? NSNumber)
+        #expect(Array(try #require(watch.cube(stored)).rgb.prefix(3)) == [1, 1, 1])
+    }
+
+    @Test func independentCategoryStoreDoesNotReturnDeletedCube() throws {
+        let prefs = LUTPreferences(storage: defaults(), namespace: "App")
+        let root = folder()
+        let model = try CustomLUTStore(root: root, preferences: prefs).category(named: "custom")
+        let watch = try CustomLUTStore(root: root, preferences: prefs).category(named: "custom")
+        let file = try source("delete.cube")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+        }
+        let stored = try model.importFile(from: file)
+        #expect(watch.cube(stored) != nil)
+        try model.remove(stored)
+        #expect(watch.cube(stored) == nil)
+    }
+
     @Test func storedSymlinkCannotReadAnOutsideCube() throws {
         let prefs = LUTPreferences(storage: defaults(), namespace: "App")
         let store = CustomLUTStore(root: folder(), preferences: prefs)

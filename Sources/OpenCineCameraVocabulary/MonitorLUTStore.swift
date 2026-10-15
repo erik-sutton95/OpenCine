@@ -179,7 +179,19 @@ public final class CustomLUTStore: @unchecked Sendable {
     public let root: URL
     private let preferences: LUTPreferences
     private let lock = NSLock()
-    private var cubeCache: [String: CubeLUT] = [:]
+    private struct FileIdentity: Equatable {
+        let device: UInt64
+        let file: UInt64
+        let size: UInt64
+        let modified: Date
+    }
+
+    private struct CachedCube {
+        let identity: FileIdentity
+        let cube: CubeLUT
+    }
+
+    private var cubeCache: [String: CachedCube] = [:]
     private var categoryStores: [String: CustomLUTStore] = [:]
     private let fileAccessLock = NSRecursiveLock()
     private let atomicWrite: (Data, URL) throws -> Void
@@ -239,11 +251,11 @@ public final class CustomLUTStore: @unchecked Sendable {
             let destination = try storedURL(fileName)
             guard !Self.isSymbolicLink(source) else { throw CustomLUTStoreError.invalidFileName }
             let data = try Self.readBounded(source)
-            let parsed = try Self.parse(data)
+            _ = try Self.parse(data)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             // Preserve the usable destination through validation and the complete atomic write.
             try atomicWrite(data, destination)
-            cache(parsed, for: fileName)
+            cache(nil, for: fileName)
             return StoredCustomLUT(fileName: fileName)
         }
     }
@@ -268,10 +280,21 @@ public final class CustomLUTStore: @unchecked Sendable {
     public func cube(fileName: String) -> CubeLUT? {
         fileAccessLock.withLock {
             guard let url = try? storedURL(fileName) else { return nil }
-            if let cached = lock.withLock({ cubeCache[fileName] }) { return cached }
+            let before = Self.fileIdentity(url)
+            if let before, let cached = lock.withLock({ cubeCache[fileName] }),
+                cached.identity == before
+            {
+                return cached.cube
+            }
+            cache(nil, for: fileName)
             guard let data = try? Self.readBounded(url), let parsed = try? Self.parse(data)
             else { return nil }
-            cache(parsed, for: fileName)
+            let after = Self.fileIdentity(url)
+            guard before == after else { return nil }
+            // Independent stores and external atomic replacements have a new file identity,
+            // even when the name, length and modification date are unchanged. Unknown metadata
+            // permits a bounded read but never reuses a parsed cache entry.
+            if let after { cache(CachedCube(identity: after, cube: parsed), for: fileName) }
             return parsed
         }
     }
@@ -302,7 +325,20 @@ public final class CustomLUTStore: @unchecked Sendable {
         slot.others.contains { preferences.customFileName(for: $0) == fileName }
     }
 
-    private func cache(_ cube: CubeLUT?, for fileName: String) {
+    private static func fileIdentity(_ url: URL) -> FileIdentity? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+            attributes[.type] as? FileAttributeType == .typeRegular,
+            let device = attributes[.systemNumber] as? NSNumber,
+            let file = attributes[.systemFileNumber] as? NSNumber,
+            let size = attributes[.size] as? NSNumber,
+            let modified = attributes[.modificationDate] as? Date
+        else { return nil }
+        return FileIdentity(
+            device: device.uint64Value, file: file.uint64Value,
+            size: size.uint64Value, modified: modified)
+    }
+
+    private func cache(_ cube: CachedCube?, for fileName: String) {
         lock.withLock { cubeCache[fileName] = cube }
     }
 }
