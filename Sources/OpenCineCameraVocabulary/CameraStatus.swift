@@ -13,6 +13,11 @@ public struct CameraStatus: Equatable, Sendable {
     /// A charging report, separate from the legacy scalar's default false.
     public var chargingObservation: Bool?
     public var chargingObservationDeclared = false
+    /// The charging fact: the declared report (`nil` when the report was invalid), else the legacy
+    /// flag only when it says charging. Never false from an absent report.
+    public var chargingReading: Bool? {
+        chargingObservationDeclared ? chargingObservation : charging ? true : nil
+    }
     public var storageTotalMb = 0
     public var storageFreeMb = 0
     public var sdTotalMb = 0

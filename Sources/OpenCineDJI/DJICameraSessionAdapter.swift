@@ -848,9 +848,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                 Double(status.batteryPercent) / 100, origin: .cameraReported, at: nil,
                 precision: .quantized(step: 0.01))
         }
-        let charging = status.chargingObservationDeclared
-            ? status.chargingObservation : status.charging ? true : nil
-        if let charging {
+        if let charging = status.chargingReading {
             power.charging = ObservedValue(charging, origin: .cameraReported, at: nil)
         }
         return power

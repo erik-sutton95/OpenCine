@@ -632,10 +632,7 @@ class DjiCameraSessionAdapter(
                     battery = state.batteryPercent?.let { ObservedValue(
                         it / 100.0, ObservationOrigin.CAMERA_REPORTED, null,
                         precision = ObservationPrecision.Quantized(0.01)) } ?: ObservedValue.unknown,
-                    charging = (state.charging ?: port.captureControlState()?.reported?.let { reported ->
-                        if (reported.chargingObservationDeclared) reported.chargingObservation
-                        else true.takeIf { reported.charging }
-                    })?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                    charging = (state.charging ?: port.captureControlState()?.reported?.chargingReading)?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
                 ),
                 storage = state.storage ?: state.storageFreeMb?.takeIf { it >= 0 }?.let {
                     val free = ObservedValue(it.toLong() * 1_048_576L, ObservationOrigin.CAMERA_REPORTED, null)
