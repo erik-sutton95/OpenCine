@@ -134,9 +134,45 @@ open class PhysicalNetworkUITestCase: SharedAppUITestCase {
                 name, XCUIElement.ElementType.cell.rawValue, XCUIElement.ElementType.button.rawValue,
                 XCUIElement.ElementType.staticText.rawValue))
             .firstMatch
-        try wait("Settings search result \(name)", timeout: 10) { result.isHittable }
-        result.tap()
-        attach("settings-page", name)
+        if result.waitForExistence(timeout: 10) && result.isHittable {
+            result.tap()
+            attach("settings-page", name)
+            return
+        }
+        // Settings search can miss an app it has not indexed yet (just reinstalled): the Apps list
+        // in Settings always has it.
+        attach("settings-search-miss", name)
+        settings.terminate()
+        settings.activate()
+        let apps = settings.cells.containing(.staticText, identifier: "Apps").firstMatch
+        try wait("Settings > Apps", timeout: 20) {
+            if apps.isHittable { return true }
+            self.settings.swipeUp()
+            return false
+        }
+        // The row sits near the list's end, under the floating search bar, where a tap lands on the
+        // bar: scroll it clear of the bar's band first, then tap once the scroll settles (at most 3).
+        let screenHeight = settings.windows.firstMatch.frame.height
+        for _ in 0..<4 where apps.frame.maxY > screenHeight - 140 { settings.swipeUp() }
+        for _ in 1...3 where !settings.navigationBars["Apps"].exists {
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            if apps.isHittable { apps.tap() }
+            _ = settings.navigationBars["Apps"].waitForExistence(timeout: 4)
+        }
+        try wait("The Apps list", timeout: 2) { self.settings.navigationBars["Apps"].exists }
+        let row = settings.cells.containing(.staticText, identifier: name).firstMatch
+        let listSearch = settings.searchFields.firstMatch
+        if listSearch.waitForExistence(timeout: 3) {
+            listSearch.tap()
+            listSearch.typeText(name)
+        }
+        try wait("\(name) in Settings > Apps", timeout: 40) {
+            if row.isHittable { return true }
+            self.settings.swipeUp()
+            return false
+        }
+        row.tap()
+        attach("settings-page", name + " (through Settings > Apps)")
     }
 
     func localNetworkSwitch() throws -> XCUIElement {
