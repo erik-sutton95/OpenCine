@@ -32,6 +32,18 @@ import Testing
         #expect(port.fired.isEmpty)
     }
 
+    /// SIMULATED Nano report: the recording profile reads in the body's own colour names.
+    @Test func recordingProfileUsesTheBodyColourNames() {
+        let port = FakePort()
+        port.connectedModel = CameraModel.resolve(modelId: 0x0019, name: "OsmoNano-5A31")
+        port.status.colorMode = .normal
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.recordingFormat.profile.value == "Normal 8-bit")
+        port.status.colorMode = .dLogM
+        seam.sessionDidChange()
+        #expect(seam.current.recordingFormat.profile.value == "D-Log M 10-bit")
+    }
+
     /// SIMULATED complete battery reports; false and true differ from no report.
     @Test func batteryChargingReportsReachCommonPower() {
         let port = FakePort()

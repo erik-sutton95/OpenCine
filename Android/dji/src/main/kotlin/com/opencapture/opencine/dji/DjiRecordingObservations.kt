@@ -6,6 +6,7 @@ import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CameraCommands
+import com.opencapture.opencine.vocabulary.CameraLabelProfile
 
 /** Decoded recording dimensions; a transport codec supplies no recording fact. */
 internal object DjiRecordingObservations {
@@ -36,12 +37,13 @@ internal object DjiRecordingObservations {
         }
         return value?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown
     }
-    fun recording(status: CameraStatus?): CameraRecordingObservations {
+    /** The profile reads in the body's own colour names ([labels], from its capture profile). */
+    fun recording(status: CameraStatus?, labels: CameraLabelProfile = CameraLabelProfile.standard): CameraRecordingObservations {
         if (status == null) return CameraRecordingObservations.unknown
         val dimensions = dimensions(status.resolutionCode)
         val profile = when (status.colorMode) {
             CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_NORMAL10, CameraCommands.COLOR_DLOG,
-            CameraCommands.COLOR_DLOG2, CameraCommands.COLOR_DLOG_M, CameraCommands.COLOR_HDR -> CameraCommands.colorLabel(status.colorMode)
+            CameraCommands.COLOR_DLOG2, CameraCommands.COLOR_DLOG_M, CameraCommands.COLOR_HDR -> CameraCommands.colorLabel(status.colorMode, profile = labels)
             else -> null
         }
         return CameraRecordingObservations(

@@ -34,11 +34,12 @@ enum DJIRecordingObservations {
         return value.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown
     }
 
-    static func recording(_ status: CameraStatus) -> CameraRecordingObservations {
+    /// The profile reads in the body's own colour names (`labels`, from its capture profile).
+    static func recording(_ status: CameraStatus, labels: CameraLabelProfile = .standard) -> CameraRecordingObservations {
         let dimensions = (status.videoResolution ?? status.videoFormat?.resolution).flatMap { Self.dimensions($0.rawValue) }
         let profile: String?
         switch status.colorMode {
-        case .normal?, .normal10?, .dLog?, .dLog2?, .dLogM?, .hdr?: profile = status.colorMode?.label
+        case .normal?, .normal10?, .dLog?, .dLog2?, .dLogM?, .hdr?: profile = status.colorMode?.label(in: labels)
         default: profile = nil
         }
         return CameraRecordingObservations(

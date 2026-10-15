@@ -70,6 +70,18 @@ class DjiCameraSessionAdapterTest {
         assertTrue(port.fired.isEmpty())
     }
 
+    /** SIMULATED Nano and Pocket reports: the recording profile reads in each body's colour names. */
+    @Test fun recordingProfileUsesTheBodyColourNames() = runTest {
+        for ((family, expected) in listOf("nano" to "D-Log M 10-bit", "pocket" to "D-Log M")) {
+            val port = FakePort()
+            val base = CameraModel(name = "SIMULATED $family", family = family)
+            val model = base.copy(captureProfile = DjiCaptureCapabilityProfile.make(base))
+            port.state = port.state.copy(model = model)
+            port.capture = DjiCaptureControlState(CameraStatus(colorMode = CameraCommands.COLOR_DLOG_M), model)
+            assertEquals(expected, adapter(port).current.recordingFormat.profile.value, family)
+        }
+    }
+
     /** SIMULATED existing captured report: a known true charge flag must reach common power. */
     @Test fun batteryChargingReportsReachCommonPower() = runTest {
         val port = FakePort()
