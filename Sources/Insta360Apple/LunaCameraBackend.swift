@@ -60,6 +60,8 @@ public final class LunaCameraBackend: CameraBackend {
     private var heartbeat: Task<Void, Never>?
     private var statusPoll: Task<Void, Never>?
     private var generation = 0
+    /// When the current connect first held its camera network address.
+    private var reachableAt: ContinuousClock.Instant?
     /// The app's one retained hotspot owner for this backend; nil keeps the direct native calls.
     private let hotspot: CameraHotspotHost?
     private var connectedMedia: LunaMediaService?
@@ -152,6 +154,7 @@ public final class LunaCameraBackend: CameraBackend {
         disconnect()
         generation += 1
         let token = generation
+        reachableAt = nil
         selected = camera
         identity = try store.identity()
         guard let identity else {
@@ -238,7 +241,7 @@ public final class LunaCameraBackend: CameraBackend {
         while true {
             attempt += 1
             // Already on the camera subnet (auto-join, or the operator joined in Settings).
-            if LunaWiFi.localAddress != nil { return }
+            if LunaWiFi.localAddress != nil { noteReachable(token); return }
             if attempt == 3 {
                 eventHandler?(
                     .note(
@@ -251,14 +254,16 @@ public final class LunaCameraBackend: CameraBackend {
                 let once = attempt % 2 == 0
                 let prefix = configuration.logPrefix
                 try await withJoinTimeout {
-                    try await LunaWiFi.join(wifi, joinOnce: once, logPrefix: prefix, apply: operations?.apply)
+                    try await LunaWiFi.join(
+                        wifi, joinOnce: once, logPrefix: prefix, apply: operations?.apply,
+                        reachable: { [weak self] in self?.noteReachable(token) })
                 }
                 return
             } catch {
                 try validate(token)
                 // The timeout can fire while the system "Join" alert is up; if the
                 // operator then tapped Join, the phone is on the camera network.
-                if LunaWiFi.localAddress != nil { return }
+                if LunaWiFi.localAddress != nil { noteReachable(token); return }
                 onLog?("luna: Wi-Fi join attempt \(attempt) failed: \(error.localizedDescription)")
                 guard ContinuousClock.now < deadline else { throw error }
                 // The AP may not beacon yet: drop the config so the next apply
@@ -372,12 +377,24 @@ public final class LunaCameraBackend: CameraBackend {
         return serial
     }
 
+    /// Records when this connect first held its camera network address: the Local Network
+    /// denial deadline counts from here, not from the later control link start.
+    private func noteReachable(_ token: Int) {
+        guard token == generation, reachableAt == nil else { return }
+        reachableAt = .now
+        onLog?("luna: camera network reachable")
+    }
+
     private func openControl(token: Int, identity: UUID, expectedSerial: String?) async throws {
         isTCP = true
         counter = LunaRequestCounter()
+        let reachableFor = reachableAt.map { ContinuousClock.now - $0 } ?? .zero
+        let seconds = Double(reachableFor.components.seconds)
+            + Double(reachableFor.components.attoseconds) / 1e18
+        onLog?("luna: control link starts \(String(format: "%.1f", seconds)) s after the network was reachable")
         try await tcp.connect(
             host: LunaProtocol.defaultHost, port: LunaProtocol.defaultPort,
-            localAddress: LunaWiFi.localAddress)
+            localAddress: LunaWiFi.localAddress, reachableFor: reachableFor)
         try await tcp.send(LunaProtocol.tcpPreface)
         try await waitForTCPGreeting()
         try validate(token)

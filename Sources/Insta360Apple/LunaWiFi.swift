@@ -58,7 +58,8 @@ enum LunaWiFi {
     /// `apply` is the backend's scoped hotspot owner; nil keeps the original direct call.
     static func join(
         _ credentials: LunaStoredWiFi, joinOnce: Bool = false, logPrefix: String,
-        apply: (@MainActor (CameraHotspotConfiguration) async throws -> Void)? = nil
+        apply: (@MainActor (CameraHotspotConfiguration) async throws -> Void)? = nil,
+        reachable: (@MainActor () -> Void)? = nil
     ) async throws {
         try Task.checkCancellation()
         #if targetEnvironment(macCatalyst) || os(macOS)
@@ -112,6 +113,8 @@ enum LunaWiFi {
                 "The camera Wi-Fi did not assign an address. Reconnect and accept the Wi-Fi join prompt.",
                 phase: .joiningNetwork)
         }
+        // The camera network is reachable now, before the screen-address claim.
+        reachable?()
         await claimScreenAddress(logPrefix: logPrefix)
     }
 

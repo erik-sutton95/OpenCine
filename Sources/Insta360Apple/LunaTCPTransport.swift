@@ -17,6 +17,9 @@ final class LunaTCPTransport {
     private var connection: NWConnection?
     private var ready: CheckedContinuation<Void, Error>?
     private var timeout: Task<Void, Never>?
+    /// Ends 12 s after the camera network became reachable; a denial is named from then on.
+    private var denialWindow: Task<Void, Never>?
+    private var denialWindowOver = false
     private var generation = 0
     private var permission = CameraNetworkPermissionObservation()
     private var permissionAttempt: UUID?
@@ -25,7 +28,13 @@ final class LunaTCPTransport {
         .init(transport: self, epoch: generation, endpoint: connection)
     }
 
-    func connect(host: String, port: UInt16, localAddress: String?) async throws {
+    /// `reachableFor` is how long the camera network has already been reachable (the phone holds
+    /// its camera address) when this connect starts. An explicit Local Network denial is named 12 s
+    /// after the network became reachable (at once when that is already past), so a Settings grant
+    /// in that window still wins; any other wait keeps its own 12 s from this connect.
+    func connect(
+        host: String, port: UInt16, localAddress: String?, reachableFor: Duration = .zero
+    ) async throws {
         try Task.checkCancellation()
         disconnect()
         generation += 1
@@ -52,6 +61,7 @@ final class LunaTCPTransport {
                     switch state {
                     case .ready:
                         self.timeout?.cancel()
+                        self.denialWindow?.cancel()
                         let waiter = self.ready
                         self.ready = nil
                         waiter?.resume()
@@ -63,6 +73,7 @@ final class LunaTCPTransport {
                             pathDenied: connection.currentPath?.unsatisfiedReason == .localNetworkDenied)
                         {
                             self.permission.observe(.policyDenied, attempt: observation)
+                            if self.denialWindowOver { self.failDenied() }
                         }
                     case .failed(let error): self.fail(error.localizedDescription)
                     case .cancelled: self.fail("The camera video connection closed.")
@@ -76,15 +87,23 @@ final class LunaTCPTransport {
                         Task { @MainActor in stateChanged(state) }
                     }
                 }
+                let window = Self.deadline - reachableFor
+                denialWindowOver = window <= .zero
+                if window > .zero, window < Self.deadline {
+                    denialWindow = Task { [weak self, opening] in
+                        if let opening { try? await opening.sleep(window) }
+                        else { try? await Task.sleep(for: window) }
+                        guard !Task.isCancelled, let self, token == self.generation else { return }
+                        self.denialWindowOver = true
+                        if self.permission.state == .denied { self.failDenied() }
+                    }
+                }
                 timeout = Task { [weak self, opening] in
-                    if let opening { try? await opening.sleep(.seconds(12)) }
-                    else { try? await Task.sleep(for: .seconds(12)) }
+                    if let opening { try? await opening.sleep(Self.deadline) }
+                    else { try? await Task.sleep(for: Self.deadline) }
                     guard !Task.isCancelled, let self, token == self.generation else { return }
                     if self.permission.state == .denied {
-                        self.fail(.luna(
-                            .permission(.localNetwork), "local-network.denied",
-                            "Local Network access is off. Enable it in Settings, then connect again.",
-                            phase: .negotiating, actions: [.openSettings, .retry]))
+                        self.failDenied()
                     } else {
                         self.fail(
                             "The camera did not answer on its Wi-Fi network. Check Local Network permission and the camera Wi-Fi connection.")
@@ -163,6 +182,9 @@ final class LunaTCPTransport {
         generation += 1
         timeout?.cancel()
         timeout = nil
+        denialWindow?.cancel()
+        denialWindow = nil
+        denialWindowOver = false
         let old = connection
         connection = nil
         old?.stateUpdateHandler = nil
@@ -171,6 +193,15 @@ final class LunaTCPTransport {
         ready = nil
         waiter?.resume(throwing: CancellationError())
     }
+    private static let deadline = Duration.seconds(12)
+
+    private func failDenied() {
+        fail(.luna(
+            .permission(.localNetwork), "local-network.denied",
+            "Local Network access is off. Enable it in Settings, then connect again.",
+            phase: .negotiating, actions: [.openSettings, .retry]))
+    }
+
     private func fail(_ message: String) {
         fail(.luna(.linkLost, "video.failed", message, phase: .negotiating))
     }
