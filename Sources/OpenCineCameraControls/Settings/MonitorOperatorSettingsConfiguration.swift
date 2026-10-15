@@ -524,7 +524,8 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
                 + (assistSource.exposureHelp == nil ? [] : [.exposureMeter]) + (assistSource.lookCatalog == nil ? [] : [.look])
         case .controls:
             let motion = controls.motion
-            return [.safety] + (controls.input == nil ? [] : [.input])
+            let input = controls.input.map { $0.remoteShutter != nil || $0.autoRotate != nil } ?? false
+            return [.safety] + (input ? [.input] : [])
                 + (motion?.sensitivity == nil ? [] : [.gimbal]) + (motion?.joystick == nil ? [] : [.joystick])
                 + (motion?.controller == nil ? [] : [.controller])
         case .display:

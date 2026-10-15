@@ -138,6 +138,23 @@ public class MonitorSettingsMotionSource(
     public val controller: MonitorMotionChoiceSetting? = null,
     public val controllerStatus: String = "Not connected", public val controllerHelp: String = "",
 )
+/** The remote shutter row: the host's stored choice with its title and caption (A2-32). */
+public class MonitorSettingsRemoteShutter(
+    public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
+    public val title: String = "Remote shutter", public val caption: String? = null,
+)
+
+/** The auto-rotate row, for a source that reports the camera body's orientation (A2-32). */
+public class MonitorSettingsAutoRotate(
+    public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
+    public val title: String = "Auto-Rotate Feed", public val help: String = "",
+)
+
+/**
+ * Controls tab. The remote shutter ([shutter]) and auto-rotate ([autoRotate]) are separate
+ * optional capabilities (Swift `MonitorSettingsInputSource`); the flat `remoteShutter` and
+ * `autoRotateFeed` pairs remain for hosts that have not moved to them.
+ */
 public class MonitorSettingsControlsSource(
     public val recordConfirmation: Boolean, public val setRecordConfirmation: (Boolean) -> Unit,
     public val haptics: Boolean, public val setHaptics: (Boolean) -> Unit,
@@ -149,7 +166,21 @@ public class MonitorSettingsControlsSource(
     public val rotationTitle: String = "Auto-Rotate Feed", public val rotationHelp: String = "",
     public val hapticsHelp: String? = null,
     public val motion: MonitorSettingsMotionSource? = null,
-)
+    public val shutter: MonitorSettingsRemoteShutter? = null,
+    public val autoRotate: MonitorSettingsAutoRotate? = null,
+) {
+    /** The declared remote shutter, else the flat pair, else none. */
+    public val remoteShutterRow: MonitorSettingsRemoteShutter?
+        get() = shutter ?: remoteShutter?.let { value ->
+            setRemoteShutter?.let { MonitorSettingsRemoteShutter(value, it, remoteTitle, remoteCaption) }
+        }
+
+    /** The declared auto-rotate, else the flat pair, else none. */
+    public val autoRotateRow: MonitorSettingsAutoRotate?
+        get() = autoRotate ?: autoRotateFeed?.let { value ->
+            setAutoRotateFeed?.let { MonitorSettingsAutoRotate(value, it, rotationTitle, rotationHelp) }
+        }
+}
 /** Cache IO and copy. Clearing always asks first: one confirmation policy for every app. */
 public class MonitorSettingsCachePresentation(
     public val source: MonitorSettingsCacheSource,
@@ -419,10 +450,13 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
             source.setRecordConfirmation, source.setHaptics, source.setKeepAwake,
             keepScreenAwakeHelp = source.keepAwakeHelp, feedback = feedback)
     }
-    MonitorInputOrientationSettings(source.remoteShutter, source.setRemoteShutter,
-        remoteTitle = source.remoteTitle, remoteCaption = source.remoteCaption,
-        autoRotateFeed = source.autoRotateFeed, onAutoRotateFeed = source.setAutoRotateFeed,
-        rotationTitle = source.rotationTitle, rotationHelp = source.rotationHelp, feedback = feedback)
+    val shutter = source.remoteShutterRow
+    val rotation = source.autoRotateRow
+    MonitorInputOrientationSettings(shutter?.enabled, shutter?.setEnabled,
+        remoteTitle = shutter?.title ?: "Remote shutter", remoteCaption = shutter?.caption,
+        autoRotateFeed = rotation?.enabled, onAutoRotateFeed = rotation?.setEnabled,
+        rotationTitle = rotation?.title ?: "Auto-Rotate Feed", rotationHelp = rotation?.help.orEmpty(),
+        feedback = feedback)
     val motion = source.motion ?: return
     motion.sensitivity?.let { MonitorGimbalSettings(it) }
     motion.joystick?.let { joystick ->
