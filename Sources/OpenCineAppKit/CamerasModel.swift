@@ -155,8 +155,10 @@ public final class CamerasModel {
     }
 
     private func publish(_ list: [NearbyCamera], from integration: IntegrationID) {
+        let wasEmpty = nearby.isEmpty
         nearby = nearby.filter { $0.integration != integration }
             + list.map { Sighting(integration: integration, camera: $0) }
+        if wasEmpty != nearby.isEmpty { refreshScanHint() }
     }
 
     // MARK: Connecting

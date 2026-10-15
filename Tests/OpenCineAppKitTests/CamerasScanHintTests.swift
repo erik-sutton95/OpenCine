@@ -12,9 +12,11 @@ import Testing
     /// `@unchecked Sendable`: the mutable state is confined to the main actor.
     private final class ManualClock: @unchecked Sendable {
         private(set) var now = Duration.zero
+        private(set) var sleepCount = 0
         private var sleepers: [(until: Duration, continuation: CheckedContinuation<Void, Never>)] = []
 
         func sleep(_ duration: Duration) async {
+            sleepCount += 1
             await withCheckedContinuation { sleepers.append((now + duration, $0)) }
         }
 
@@ -82,4 +84,65 @@ import Testing
         model.endPairing()
         #expect(!model.scanLooksEmpty)
     }
+    @available(macOS 14, *)
+    @Test func discoveryAfterTheDeadlineClearsTheHintAndDisappearanceArmsANewWait() async throws {
+        let clock = ManualClock()
+        let (model, fake) = model(clock)
+        model.beginPairing()
+        await clock.tick(.seconds(20))
+        #expect(await eventually { model.scanLooksEmpty })
+        fake.publish([NearbyCamera(id: "camera-1", name: "CAM-1", model: "Test Body", routes: [.cameraAccessPoint])])
+        #expect(await eventually { !model.nearby.isEmpty })
+        #expect(!model.scanLooksEmpty)
+        fake.publish([])
+        #expect(await eventually { model.nearby.isEmpty })
+        #expect(await eventually { clock.sleepCount == 2 })
+        clock.advance(by: .seconds(19))
+        #expect(!model.scanLooksEmpty)
+        clock.advance(by: .seconds(1))
+        #expect(await eventually { model.scanLooksEmpty })
+        model.endPairing()
+    }
+
+    @available(macOS 14, *)
+    @Test func aCameraPresentAtTheOldDeadlineCanDisappearAndStartTheHintWait() async throws {
+        let clock = ManualClock()
+        let (model, fake) = model(clock)
+        model.beginPairing()
+        // Wait registration precedes discovery so the old deadline actually elapses.
+        #expect(await eventually { clock.sleepCount == 1 })
+        fake.publish([NearbyCamera(id: "camera-1", name: "CAM-1", model: "Test Body", routes: [.cameraAccessPoint])])
+        #expect(await eventually { !model.nearby.isEmpty })
+        clock.advance(by: .seconds(20))
+        fake.publish([])
+        #expect(await eventually { model.nearby.isEmpty })
+        #expect(await eventually { clock.sleepCount == 2 })
+        clock.advance(by: .seconds(20))
+        #expect(await eventually { model.scanLooksEmpty })
+        model.endPairing()
+    }
+
+    @available(macOS 14, *)
+    @Test func unchangedEmptyPublicationsRetainTheDeadlineAndUnchangedSightingsKeepTheHintOff() async throws {
+        let clock = ManualClock()
+        let (model, fake) = model(clock)
+        model.beginPairing()
+        #expect(await eventually { clock.sleepCount == 1 })
+        clock.advance(by: .seconds(19))
+        fake.publish([])
+        // Drain the stream's actor turn before advancing the original deadline.
+        for _ in 0..<100 { await Task.yield() }
+        clock.advance(by: .seconds(1))
+        #expect(await eventually { model.scanLooksEmpty })
+        #expect(clock.sleepCount == 1)
+        let camera = NearbyCamera(id: "camera-1", name: "CAM-1", model: "Test Body", routes: [.cameraAccessPoint])
+        fake.publish([camera])
+        #expect(await eventually { !model.nearby.isEmpty })
+        fake.publish([camera])
+        for _ in 0..<100 { await Task.yield() }
+        #expect(!model.scanLooksEmpty)
+        #expect(clock.sleepCount == 1)
+        model.endPairing()
+    }
+
 }
