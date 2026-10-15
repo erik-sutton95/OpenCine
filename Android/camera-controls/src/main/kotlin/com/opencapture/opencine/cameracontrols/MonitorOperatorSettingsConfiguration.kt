@@ -45,6 +45,7 @@ import com.opencapture.opencine.appkit.MonitorSettingsAccountActions
 import com.opencapture.opencine.appkit.MonitorSettingsAccountModel
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.appkit.diagnostics.FeedIncidentRuntime
+import com.opencapture.opencine.appkit.MonitorRemoteShutter
 import com.opencapture.opencine.core.RouteKind
 import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -142,7 +143,13 @@ public class MonitorSettingsMotionSource(
 public class MonitorSettingsRemoteShutter(
     public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
     public val title: String = "Remote shutter", public val caption: String? = null,
-)
+) {
+    public companion object {
+        /** The media-button shutter [com.opencapture.opencine.appkit.MonitorRemoteShutter] runs, over the host's stored choice. */
+        public fun mediaButtons(enabled: Boolean, setEnabled: (Boolean) -> Unit): MonitorSettingsRemoteShutter =
+            MonitorSettingsRemoteShutter(enabled, setEnabled, MonitorRemoteShutter.TITLE, MonitorRemoteShutter.CAPTION)
+    }
+}
 
 /** The auto-rotate row, for a source that reports the camera body's orientation (A2-32). */
 public class MonitorSettingsAutoRotate(

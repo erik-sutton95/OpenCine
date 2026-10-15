@@ -1,6 +1,7 @@
 package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.monitorui.settings.MonitorSettingsTab
+import com.opencapture.opencine.appkit.MonitorRemoteShutter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -45,6 +46,16 @@ class MonitorSettingsCompositionTest {
             remoteShutter = true, setRemoteShutter = {}, remoteTitle = "SIMULATED legacy")
         assertEquals("SIMULATED legacy", legacy.remoteShutterRow?.title)
         assertNull(legacy.autoRotateRow)
+    }
+
+    @Test
+    fun `the media-button shutter is one typed declaration with the owner's copy`() {
+        var stored = false
+        val shutter = MonitorSettingsRemoteShutter.mediaButtons(false) { stored = it }
+        assertEquals(MonitorRemoteShutter.TITLE, shutter.title)
+        assertEquals(MonitorRemoteShutter.CAPTION, shutter.caption)
+        shutter.setEnabled(true)
+        assertTrue(stored)
     }
 
     @Test
