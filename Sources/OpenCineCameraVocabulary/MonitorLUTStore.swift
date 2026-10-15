@@ -182,10 +182,22 @@ public final class CustomLUTStore: @unchecked Sendable {
     private var cubeCache: [String: CubeLUT] = [:]
     private var categoryStores: [String: CustomLUTStore] = [:]
     private let fileAccessLock = NSRecursiveLock()
+    private let atomicWrite: (Data, URL) throws -> Void
 
     public init(root: URL, preferences: LUTPreferences) {
         self.root = root
         self.preferences = preferences
+        atomicWrite = { try $0.write(to: $1, options: .atomic) }
+    }
+
+    /// Internal filesystem seam for controlled transaction-failure tests.
+    init(
+        root: URL, preferences: LUTPreferences,
+        atomicWrite: @escaping (Data, URL) throws -> Void
+    ) {
+        self.root = root
+        self.preferences = preferences
+        self.atomicWrite = atomicWrite
     }
 
     public func list() -> [StoredCustomLUT] {
@@ -230,7 +242,7 @@ public final class CustomLUTStore: @unchecked Sendable {
             let parsed = try Self.parse(data)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             // Preserve the usable destination through validation and the complete atomic write.
-            try data.write(to: destination, options: .atomic)
+            try atomicWrite(data, destination)
             cache(parsed, for: fileName)
             return StoredCustomLUT(fileName: fileName)
         }
@@ -238,13 +250,15 @@ public final class CustomLUTStore: @unchecked Sendable {
 
     @discardableResult
     public func importFile(from source: URL, into slot: CustomLUTSlot) throws -> StoredCustomLUT {
-        let previous = fileName(for: slot)
-        let stored = try importFile(from: source)
-        preferences.setCustomFileName(stored.fileName, for: slot)
-        if let previous, previous != stored.fileName, !isShared(previous, excluding: slot) {
-            try? remove(StoredCustomLUT(fileName: previous))
+        try fileAccessLock.withLock {
+            let previous = fileName(for: slot)
+            let stored = try importFile(from: source)
+            preferences.setCustomFileName(stored.fileName, for: slot)
+            if let previous, previous != stored.fileName, !isShared(previous, excluding: slot) {
+                try? remove(StoredCustomLUT(fileName: previous))
+            }
+            return stored
         }
-        return stored
     }
 
     public func cube(_ lut: StoredCustomLUT) -> CubeLUT? {
@@ -263,20 +277,24 @@ public final class CustomLUTStore: @unchecked Sendable {
     }
 
     public func remove(_ lut: StoredCustomLUT) throws {
-        let destination = try storedURL(lut.fileName)
-        do {
-            try FileManager.default.removeItem(at: destination)
-            cache(nil, for: lut.fileName)
-        } catch {
-            throw CustomLUTStoreError.deletionFailed(lut.displayName)
+        try fileAccessLock.withLock {
+            let destination = try storedURL(lut.fileName)
+            do {
+                try FileManager.default.removeItem(at: destination)
+                cache(nil, for: lut.fileName)
+            } catch {
+                throw CustomLUTStoreError.deletionFailed(lut.displayName)
+            }
         }
     }
 
     public func clear(_ slot: CustomLUTSlot) throws {
-        let name = fileName(for: slot)
-        preferences.setCustomFileName(nil, for: slot)
-        if let name, !isShared(name, excluding: slot) {
-            try remove(StoredCustomLUT(fileName: name))
+        try fileAccessLock.withLock {
+            let name = fileName(for: slot)
+            preferences.setCustomFileName(nil, for: slot)
+            if let name, !isShared(name, excluding: slot) {
+                try remove(StoredCustomLUT(fileName: name))
+            }
         }
     }
 
@@ -441,7 +459,7 @@ extension CustomLUTStore {
             do {
                 for item in staged {
                     let destination = try storedURL(item.name)
-                    try Data(contentsOf: item.url).write(to: destination, options: .atomic)
+                    try atomicWrite(Data(contentsOf: item.url), destination)
                     installed.append(item.name)
                 }
             } catch {
@@ -449,7 +467,7 @@ extension CustomLUTStore {
                     let destination = root.appendingPathComponent(name)
                     do {
                         if let backup = backups[name] {
-                            try Data(contentsOf: backup).write(to: destination, options: .atomic)
+                            try atomicWrite(Data(contentsOf: backup), destination)
                         } else {
                             try FileManager.default.removeItem(at: destination)
                         }

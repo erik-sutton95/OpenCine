@@ -202,4 +202,82 @@ import Testing
             #expect(try Data(contentsOf: outside) == valid)
         }
     }
+    @Test func failedSecondInstallCannotResurrectAConcurrentOperatorDeletion() throws {
+        enum Injected: Error { case secondInstall }
+        let name = "CustomLUTArchiveRace." + UUID().uuidString
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let storage = try #require(UserDefaults(suiteName: name))
+        defer {
+            storage.removePersistentDomain(forName: name)
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let destination = root.appendingPathComponent("a.cube")
+        try valid.write(to: destination)
+        let installedFirst = DispatchSemaphore(value: 0)
+        let allowSecondFailure = DispatchSemaphore(value: 0)
+        let deletionStarted = DispatchSemaphore(value: 0)
+        let deletionFinished = DispatchSemaphore(value: 0)
+        let importFinished = DispatchSemaphore(value: 0)
+        let result = LUTArchiveRaceResult()
+        let store = CustomLUTStore(
+            root: root, preferences: LUTPreferences(storage: storage, namespace: name),
+            atomicWrite: { data, url in
+                if url.lastPathComponent == "b.cube" {
+                    installedFirst.signal()
+                    guard allowSecondFailure.wait(timeout: .now() + 5) == .success else {
+                        throw Injected.secondInstall
+                    }
+                    throw Injected.secondInstall
+                }
+                try data.write(to: url, options: .atomic)
+            })
+        let entries = [entry("a.cube"), entry("b.cube")]
+        // Extractors are synchronous and used only by the import queue.
+        let archive = LUTArchiveRaceEntries(entries: entries)
+        DispatchQueue(label: name + ".import").async {
+            do {
+                try store.importArchive { accept in
+                    for entry in archive.entries { try accept(entry) }
+                }
+            } catch { result.recordImportFailure() }
+            importFinished.signal()
+        }
+        #expect(installedFirst.wait(timeout: .now() + 5) == .success)
+        DispatchQueue(label: name + ".delete").async {
+            deletionStarted.signal()
+            do { try store.remove(.init(fileName: "a.cube")) } catch {
+                result.recordDeletionFailure()
+            }
+            deletionFinished.signal()
+        }
+        #expect(deletionStarted.wait(timeout: .now() + 5) == .success)
+        let earlyDeletion = deletionFinished.wait(timeout: .now() + .milliseconds(100))
+        #expect(earlyDeletion == .timedOut, "Deletion must wait for archive rollback")
+        allowSecondFailure.signal()
+        #expect(importFinished.wait(timeout: .now() + 5) == .success)
+        if earlyDeletion == .timedOut {
+            #expect(deletionFinished.wait(timeout: .now() + 5) == .success)
+        }
+        #expect(result.importFailed)
+        #expect(!result.deletionFailed)
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        #expect(store.cube(fileName: "a.cube") == nil)
+    }
+
+}
+
+private final class LUTArchiveRaceEntries: @unchecked Sendable {
+    let entries: [CustomLUTArchiveEntry]
+    init(entries: [CustomLUTArchiveEntry]) { self.entries = entries }
+}
+
+private final class LUTArchiveRaceResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var importFailure = false
+    private var deletionFailure = false
+    var importFailed: Bool { lock.withLock { importFailure } }
+    var deletionFailed: Bool { lock.withLock { deletionFailure } }
+    func recordImportFailure() { lock.withLock { importFailure = true } }
+    func recordDeletionFailure() { lock.withLock { deletionFailure = true } }
 }
