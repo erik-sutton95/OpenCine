@@ -1,7 +1,9 @@
 import Foundation
+import Observation
 
 /// Common operator choices stored under the app's existing keys and defaults domain.
 /// Reads preserve absence and explicit false; opening settings performs no migration writes.
+/// Each choice is observable, so a root that reads one (screen wake) follows a Settings write.
 public final class MonitorOperatorPreferences: @unchecked Sendable {
     public struct Keys: Sendable {
         public let keepScreenAwake: String
@@ -49,6 +51,12 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
     private let storage: UserDefaults
     private let keys: Keys
     private let defaults: Defaults
+    // Observation is macOS 14; the package keeps macOS 13 for host tests, so the registrar
+    // (itself Sendable) is held untyped.
+    private let observation: any Sendable = {
+        if #available(macOS 14, *) { return ObservationRegistrar() }
+        return ()
+    }()
 
     public init(storage: UserDefaults, keys: Keys, defaults: Defaults = .init()) {
         self.storage = storage
@@ -58,6 +66,7 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
 
     public var keepScreenAwake: Bool {
         get {
+            access(\.keepScreenAwake)
             if storage.object(forKey: keys.keepScreenAwake) != nil {
                 return storage.bool(forKey: keys.keepScreenAwake)
             }
@@ -66,26 +75,43 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
             }
             return defaults.keepScreenAwake
         }
-        set { storage.set(newValue, forKey: keys.keepScreenAwake) }
+        set { write(newValue, keys.keepScreenAwake, \.keepScreenAwake) }
     }
     public var hdrDisplay: Bool {
-        get { read(keys.hdrDisplay, fallback: defaults.hdrDisplay) }
-        set { storage.set(newValue, forKey: keys.hdrDisplay) }
+        get { access(\.hdrDisplay); return read(keys.hdrDisplay, fallback: defaults.hdrDisplay) }
+        set { write(newValue, keys.hdrDisplay, \.hdrDisplay) }
     }
     public var recordConfirmation: Bool {
-        get { read(keys.recordConfirmation, fallback: defaults.recordConfirmation) }
-        set { storage.set(newValue, forKey: keys.recordConfirmation) }
+        get { access(\.recordConfirmation); return read(keys.recordConfirmation, fallback: defaults.recordConfirmation) }
+        set { write(newValue, keys.recordConfirmation, \.recordConfirmation) }
     }
     public var haptics: Bool {
-        get { read(keys.haptics, fallback: defaults.haptics) }
-        set { storage.set(newValue, forKey: keys.haptics) }
+        get { access(\.haptics); return read(keys.haptics, fallback: defaults.haptics) }
+        set { write(newValue, keys.haptics, \.haptics) }
     }
     public var cacheOriginals: Bool {
-        get { read(keys.cacheOriginals, fallback: defaults.cacheOriginals) }
-        set { storage.set(newValue, forKey: keys.cacheOriginals) }
+        get { access(\.cacheOriginals); return read(keys.cacheOriginals, fallback: defaults.cacheOriginals) }
+        set { write(newValue, keys.cacheOriginals, \.cacheOriginals) }
     }
 
     private func read(_ key: String, fallback: Bool) -> Bool {
         storage.object(forKey: key) == nil ? fallback : storage.bool(forKey: key)
     }
+
+    private func access(_ keyPath: KeyPath<MonitorOperatorPreferences, Bool>) {
+        if #available(macOS 14, *), let registrar = observation as? ObservationRegistrar {
+            registrar.access(self, keyPath: keyPath)
+        }
+    }
+
+    private func write(_ value: Bool, _ key: String, _ keyPath: KeyPath<MonitorOperatorPreferences, Bool>) {
+        if #available(macOS 14, *), let registrar = observation as? ObservationRegistrar {
+            registrar.withMutation(of: self, keyPath: keyPath) { storage.set(value, forKey: key) }
+        } else {
+            storage.set(value, forKey: key)
+        }
+    }
 }
+
+@available(macOS 14, *)
+extension MonitorOperatorPreferences: Observable {}

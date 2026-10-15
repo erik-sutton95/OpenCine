@@ -208,6 +208,7 @@ public data class MonitorSettingsInformationSource(
 /**
  * Every app's settings: one value per tab, built by the app from its model. Absent capability
  * sections (motion, sharing, account, cache) are null; the recipe for each tab is the same.
+ * [monitorSettingsTabs] leaves out a tab whose whole domain is absent (Swift's tab rule).
  */
 public class MonitorOperatorSettingsConfiguration(
     public val brand: String, public val isLive: Boolean, public val phase: String,
@@ -241,6 +242,18 @@ public class MonitorOperatorSettingsConfiguration(
     ) : this(brand, isLive, phase, close, disconnect, feedback, link, sharing, sharingSubtitle,
         sharingRail, controls, cache, account, support = support, information = information,
         assistSections = assistSections)
+}
+
+/** Stable tab order with Sharing only for a sharing domain and Storage only for a cache or account. */
+public fun monitorSettingsTabs(
+    sharing: MonitorSettingsSharingSource?, cache: MonitorSettingsCachePresentation?,
+    account: MonitorSettingsAccountSource?, unconfiguredAccount: MonitorSettingsReadoutSource? = null,
+): List<MonitorSettingsTab> = MonitorSettingsTab.entries.filter {
+    when (it) {
+        MonitorSettingsTab.SHARING -> sharing != null
+        MonitorSettingsTab.STORAGE -> cache != null || account != null || unconfiguredAccount != null
+        else -> true
+    }
 }
 
 /** Complete settings ownership using actual stores, optional services and bounded native leaves. */

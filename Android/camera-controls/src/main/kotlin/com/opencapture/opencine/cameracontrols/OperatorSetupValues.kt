@@ -152,8 +152,7 @@ open class OperatorHelpCopy(appName: String) {
     val REPORT = "Opens a public issue form on GitHub for this project."
     val REPORT_PROBLEM =
         "Tell us what happened. Technical details stay off unless you include them. You can attach up to three photos. Sending does not turn on automatic reports."
-    val RELIABILITY_REPORTS =
-        "Optional: send crash, hang, live-feed reports and session health counts to OpenCapture through Sentry. Off by default. Turn off anytime without losing app features. Uploads wait until you leave camera Wi-Fi. Automatic reports exclude all images. No footage or GPS location. Sentry receives the connection IP; stored event IP and derived geography are removed. See Reporting Privacy below."
+    val RELIABILITY_REPORTS = MonitorSettingsCopy.automaticReports
     val RELIABILITY_UNAVAILABLE =
         "This build cannot send automatic reports. You can still share or delete reports stored on this phone."
     val FEATURE = "Start an idea in this project's feature-request discussion."
