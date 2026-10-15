@@ -16,11 +16,9 @@
             selected: Int
         ) {
             self.size = size
-            let raw = LiveMonitorLayout.resolvedSafeArea(reportedSafeArea, scene: window.safeArea)
-            safeArea = OperatorPanelMetrics.fullScreenPanelSafeArea(
-                from: raw, isPortrait: size.height > size.width,
-                mirrored: LiveMonitorLayout.shouldMirror(
-                    leading: raw.leading, trailing: raw.trailing, orientation: orientation))
+            safeArea = OperatorPanelMetrics.pageSafeArea(
+                from: reportedSafeArea, window: window.safeArea, size: size,
+                orientation: orientation)
             layout = MultiviewPresentationLayout(
                 width: size.width, height: size.height,
                 safeArea: .init(
