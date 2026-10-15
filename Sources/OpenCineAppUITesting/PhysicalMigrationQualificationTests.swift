@@ -401,8 +401,11 @@ private struct PhysicalMigrationProbe: Decodable {
             var stableSince = Date()
             try wait("Rotation must settle with reachable capture controls: " + raw, timeout: 10) {
                 let record = self.app.buttons["monitor.system.record"]
-                guard record.isHittable, self.app.frame.contains(record.frame),
-                    (self.app.frame.height > self.app.frame.width) == (orientation == .portrait)
+                // Mid-rotation the record frame can be empty or outside the window, and XCUI
+                // then records a failure instead of answering isHittable: read geometry first.
+                guard (self.app.frame.height > self.app.frame.width) == (orientation == .portrait),
+                    record.exists, !record.frame.isEmpty, self.app.frame.contains(record.frame),
+                    record.isHittable
                 else { return false }
                 let frames = [self.app.frame, record.frame]
                 if frames != previous { previous = frames; stableSince = Date(); return false }
