@@ -1,6 +1,7 @@
 package com.opencapture.opencine.insta360.luna
 
 import com.opencapture.opencine.insta360.shell.CameraTrackFrame
+import com.opencapture.opencine.insta360.shell.aspectLabel
 import com.opencapture.opencine.insta360.shell.CameraTrackState
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -179,16 +180,6 @@ internal data class LunaPhotoSize(val rawValue: Long, val width: Int, val height
         private val index = LunaSchemaTables.photo.toList().chunked(3).associate { (raw, w, h) -> raw.toLong() to LunaPhotoSize(raw.toLong(), w, h) }
         fun of(raw: Long) = index[raw]
     }
-}
-
-private val knownAspects = listOf(16 to 9, 9 to 16, 4 to 3, 3 to 4, 2 to 1, 1 to 2, 1 to 1, 3 to 2, 2 to 3, 21 to 9)
-
-/** Nearest common ratio within 1%, else "r:1". */
-internal fun aspectLabel(width: Int, height: Int): String {
-    if (width <= 0 || height <= 0) return "?"
-    val ratio = width.toDouble() / height
-    knownAspects.firstOrNull { abs(it.first.toDouble() / it.second - ratio) / ratio < 0.01 }?.let { return "${it.first}:${it.second}" }
-    return String.format(java.util.Locale.US, "%.2f:1", ratio)
 }
 
 /** `BatteryInfo` (option 11, notification 8195) and screen battery (option 180, 8308). */

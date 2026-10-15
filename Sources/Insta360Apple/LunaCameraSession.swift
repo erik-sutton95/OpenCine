@@ -270,7 +270,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
                 ObservedValue(Self.profileID($0), origin: .cameraReported, at: at)
             } ?? .unknown
             current.recordingFormat.profile = settings.color.map {
-                ObservedValue(Self.recordingProfileLabel($0), origin: .cameraReported, at: at)
+                ObservedValue($0.label, origin: .cameraReported, at: at)
             } ?? .unknown
         }
         if carries(53), settings.zoom != nil || settings.types.contains(53) {
@@ -885,16 +885,6 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     /// Native recording content; a profile never declares the preview curve or its codec.
-    private static func recordingProfileLabel(_ color: LunaColorMode) -> String {
-        switch color {
-        case .standard: "Standard"
-        case .iLog: "I-Log"
-        case .vivid: "Vivid"
-        case .hdr: "HDR"
-        case .dolbyVision: "Dolby Vision"
-        }
-    }
-
     static func profileID(_ color: LunaColorMode) -> String {
         let name =
             switch color {
