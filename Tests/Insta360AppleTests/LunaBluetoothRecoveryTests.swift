@@ -14,4 +14,15 @@ import Testing
         #expect(LunaBluetooth.awaitsCloseCallback(.connected))
         #expect(LunaBluetooth.awaitsCloseCallback(.disconnecting))
     }
+
+    /// A camera that is off or out of range is named as missing, not as a Bluetooth conflict.
+    @Test func timeoutForACameraNotAdvertisingSaysItIsMissing() {
+        let missing = LunaBluetooth.connectTimeoutFailure(advertisedRecently: false)
+        #expect(missing.reason == .notFound)
+        #expect(missing.message.contains("turned on"))
+        #expect(!missing.message.contains("other devices"))
+        let held = LunaBluetooth.connectTimeoutFailure(advertisedRecently: true)
+        #expect(held.reason == .timedOut)
+        #expect(held.message.contains("other devices"))
+    }
 }

@@ -25,6 +25,8 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
     private var readyOperation: UUID?
     private var writeOperation: UUID?
     private var peripherals: [UUID: CBPeripheral] = [:]
+    /// When each camera last advertised: one silent for longer is off or out of range.
+    private var advertisedAt: [UUID: ContinuousClock.Instant] = [:]
     private var peripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?
     private var powerWaiter: CheckedContinuation<Void, Error>?
@@ -106,6 +108,7 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                 phase: .link)
         }
         try Task.checkCancellation()
+        let advertisedRecently = advertisedAt[id].map { ContinuousClock.now - $0 < .seconds(30) } ?? false
         let token = epoch
         let operation = UUID()
         peripheral = found
@@ -117,10 +120,7 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
                 readyWaiter = continuation
                 setDeadline(
                     seconds: 25,
-                    failure: .luna(
-                        .timedOut, "bluetooth.connect-timeout",
-                        "The camera did not complete its Bluetooth connection. Close the camera app on other devices and try again.",
-                        phase: .link))
+                    failure: Self.connectTimeoutFailure(advertisedRecently: advertisedRecently))
                 central.connect(found)
             }
         } onCancel: {
@@ -234,6 +234,21 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         state == .connected || state == .disconnecting
     }
 
+    /// The failure when the camera never completed its Bluetooth connection in time. A camera
+    /// heard advertising lately is there but held; a silent one is off or out of range.
+    nonisolated static func connectTimeoutFailure(advertisedRecently: Bool) -> ConnectionFailure {
+        guard advertisedRecently else {
+            return .luna(
+                .notFound, "bluetooth.camera-missing",
+                "The camera did not answer. Make sure it is turned on and nearby, then try again.",
+                phase: .link)
+        }
+        return .luna(
+            .timedOut, "bluetooth.connect-timeout",
+            "The camera did not complete its Bluetooth connection. Close the camera app on other devices and try again.",
+            phase: .link)
+    }
+
     private func setDeadline(seconds: Double, failure: ConnectionFailure) {
         deadline?.cancel()
         let token = epoch
@@ -296,6 +311,7 @@ final class LunaBluetooth: NSObject, @preconcurrency CBCentralManagerDelegate,
         advertisementData: [String: Any], rssi RSSI: NSNumber
     ) {
         peripherals[peripheral.identifier] = peripheral
+        advertisedAt[peripheral.identifier] = .now
         let name =
             (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name
             ?? LunaProtocol.model
