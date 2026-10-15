@@ -56,42 +56,170 @@
         }
     }
 
-    /// Official / Creative / Custom. 50/50 is pinned on the long-press footer so
-    /// landscape never hides it under the catalog; the sheet keeps it inline (`footer`).
-    /// `embedded` is the assist-tray form; the sheet wraps the same body.
-    public struct LUTPickerView<Palette: LiveChromePalette, Footer: View>: View {
-        private enum Category: CaseIterable {
-            case official
-            case creative
-            case custom
+    /// One tab of the shared LUT picker, supplied by the app as a value: its official looks, a
+    /// library the operator downloaded from a vendor (RED's IPP2 presets on Z) or imported cubes.
+    public struct LUTPickerLibrary {
+        /// One look; `title` is what its drum row or file row shows.
+        public struct Entry: Hashable, Sendable {
+            public let id: String
+            public let title: String
+
+            public init(id: String, title: String) {
+                self.id = id
+                self.title = title
+            }
         }
 
-        @Bindable var assist: MonitorAssistState<MonitorLUTLooks>
+        /// A drum of looks, or the imported-file list under an import button.
+        public enum Layout: Sendable {
+            case drum
+            case files
+        }
+
+        /// A choice row in the caption slot that narrows the drum (RED's output colour space).
+        public struct Filter {
+            public let options: [String]
+            public let selection: Binding<String>
+
+            public init(options: [String], selection: Binding<String>) {
+                self.options = options
+                self.selection = selection
+            }
+        }
+
+        /// A button the picker shows under an empty library (a vendor download).
+        public struct Action {
+            public let title: String
+            public let systemImage: String
+            public let perform: () -> Void
+
+            public init(title: String, systemImage: String, perform: @escaping () -> Void) {
+                self.title = title
+                self.systemImage = systemImage
+                self.perform = perform
+            }
+        }
+
+        /// What an empty library shows: why it is empty and, optionally, how to fill it.
+        public struct Empty {
+            public let title: String?
+            public let hint: String
+            public let action: Action?
+
+            public init(title: String? = nil, hint: String, action: Action? = nil) {
+                self.title = title
+                self.hint = hint
+                self.action = action
+            }
+        }
+
+        public let title: String
+        public let layout: Layout
+        public let entries: [Entry]
+        /// The applied look belongs here, so the picker opens on this tab.
+        public let isCurrent: Bool
+        /// The applied entry, when this library lists it.
+        public let selectedID: String?
+        /// The look a switch to this tab applies while another tab's look is current; the drum
+        /// rests on it until one of this library's looks is applied.
+        public let representative: Entry?
+        public let caption: String
+        public let filter: Filter?
+        /// Looks flagged with a star (a recommended default).
+        public let markedIDs: Set<String>
+        /// False shows the drum for reference only.
+        public let allowsSelection: Bool
+        public let empty: Empty?
+        public let select: (Entry) -> Void
+        /// Removes a stored look; the picker confirms first and reports a failure.
+        public let delete: ((Entry) throws -> Void)?
+        /// Imports a picked `.cube`; the picker holds the file's security scope around it.
+        public let importCube: ((URL) throws -> Void)?
+
+        public init(
+            title: String, layout: Layout = .drum, entries: [Entry], isCurrent: Bool,
+            selectedID: String?, representative: Entry? = nil, caption: String = "",
+            filter: Filter? = nil, markedIDs: Set<String> = [], allowsSelection: Bool = true,
+            empty: Empty? = nil, select: @escaping (Entry) -> Void,
+            delete: ((Entry) throws -> Void)? = nil, importCube: ((URL) throws -> Void)? = nil
+        ) {
+            self.title = title
+            self.layout = layout
+            self.entries = entries
+            self.isCurrent = isCurrent
+            self.selectedID = selectedID
+            self.representative = representative
+            self.caption = caption
+            self.filter = filter
+            self.markedIDs = markedIDs
+            self.allowsSelection = allowsSelection
+            self.empty = empty
+            self.select = select
+            self.delete = delete
+            self.importCube = importCube
+        }
+
+        /// The drum row: the applied look, else the representative, else the first look.
+        public var drumTitle: String {
+            let selected = selectedID.flatMap { id in entries.first { $0.id == id } }
+            return (selected ?? representative ?? entries.first)?.title ?? ""
+        }
+
+        /// The look a drum row names. The first wins when short names collide.
+        public func entry(titled title: String) -> Entry? {
+            entries.first { $0.title == title }
+        }
+
+        public var markedTitles: Set<String> {
+            Set(entries.filter { markedIDs.contains($0.id) }.map(\.title))
+        }
+    }
+
+    /// The shared LUT picker over any look provider: the app's libraries as tabs, the drum or file
+    /// list of the open tab and, in the sheet form, the look comparison under it. `embedded` is
+    /// the assist inspector form, whose footer already pins the comparison (A1-37).
+    public struct MonitorLUTPickerView<Looks: MonitorLookProvider, Palette: LiveChromePalette, Footer: View>: View {
+        private struct PendingDeletion {
+            let library: String
+            let entry: LUTPickerLibrary.Entry
+        }
+
+        let assist: MonitorAssistState<Looks>
         let embedded: Bool
-        let context: LUTPickerContext
-        let copy: LUTPickerCopy
+        let haptics: OperatorHaptics
+        let preparation: AnyHashable
+        let prepare: () -> Void
+        let libraries: () -> [LUTPickerLibrary]
         let footer: Footer
         @Environment(\.dismiss) private var dismiss
-        @State private var category: Category = .official
+        @State private var tab: String?
         @State private var importing = false
-        @State private var pendingDeletion: String?
+        /// The library the open file importer adds to.
+        @State private var importTarget: String?
+        @State private var pendingDeletion: PendingDeletion?
         @State private var deletionErrorMessage: String?
         @State private var importError: String?
 
-        /// Reference monitor `LUTPickerContent.contentHeight`: landscape has no headroom for a
-        /// taller drum.
+        /// The reference monitor's drum height: landscape has no headroom for a taller drum.
         private let contentHeight: CGFloat = 146
         private let captionHeight: CGFloat = 28
+        private let actionHeight: CGFloat = 44
 
+        /// `prepare` runs on appear and whenever `preparation` changes (the app's refresh of its
+        /// libraries or of the session its looks follow).
         public init(
-            assist: MonitorAssistState<MonitorLUTLooks>, embedded: Bool = false,
-            context: LUTPickerContext, copy: LUTPickerCopy, palette _: Palette.Type,
+            assist: MonitorAssistState<Looks>, embedded: Bool = false, haptics: OperatorHaptics,
+            palette _: Palette.Type, preparation: AnyHashable = 0,
+            prepare: @escaping () -> Void = {},
+            libraries: @escaping () -> [LUTPickerLibrary],
             @ViewBuilder footer: () -> Footer
         ) {
             self.assist = assist
             self.embedded = embedded
-            self.context = context
-            self.copy = copy
+            self.haptics = haptics
+            self.preparation = preparation
+            self.prepare = prepare
+            self.libraries = libraries
             self.footer = footer()
         }
 
@@ -117,38 +245,37 @@
             }
         }
 
-        private func title(_ category: Category) -> String {
-            switch category {
-            case .official: copy.officialTab
-            case .creative: "Creative"
-            case .custom: "Custom"
-            }
+        private func open(_ libraries: [LUTPickerLibrary]) -> LUTPickerLibrary? {
+            libraries.first { $0.title == tab } ?? libraries.first { $0.isCurrent } ?? libraries.first
         }
 
         private var picker: some View {
-            VStack(spacing: 8) {
+            let libraries = self.libraries()
+            let open = self.open(libraries)
+            return VStack(spacing: 8) {
                 MonitorCaptureTabs(
-                    options: Category.allCases.map(title),
-                    selection: title(category), title: { $0 }
-                ) { raw in
-                    guard let next = Category.allCases.first(where: { title($0) == raw }),
-                        next != category
+                    options: libraries.map(\.title), selection: open?.title, title: { $0 },
+                    identifier: { "monitor.lut.tab.\($0)" }
+                ) { next in
+                    guard next != open?.title,
+                        let library = libraries.first(where: { $0.title == next })
                     else { return }
-                    category = next
-                    switch next {
-                    case .official:
-                        if !assist.lutSelection.isOfficial { assist.selectLUT(.officialAuto) }
-                    case .creative:
-                        if !assist.lutSelection.isCreative { assist.selectLUT(.creativeMono) }
-                    case .custom:
-                        break
+                    tab = next
+                    if !library.isCurrent, let look = library.representative {
+                        library.select(look)
                     }
                 }
-                tabContent
-                    .frame(maxWidth: .infinity)
-                    .frame(height: contentHeight)
-                // Embedded long-press parks exposure + 50/50 on the panel footer
-                // so landscape never hides them under the catalog.
+                Group {
+                    if let open {
+                        switch open.layout {
+                        case .drum: drum(open)
+                        case .files: files(open)
+                        }
+                    }
+                }
+                .id(open?.title)
+                .frame(maxWidth: .infinity)
+                .frame(height: contentHeight)
                 if !embedded {
                     footer
                 }
@@ -161,24 +288,12 @@
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .onAppear {
-                if assist.lutSelection.isCustom {
-                    category = .custom
-                } else if assist.lutSelection.isCreative {
-                    category = .creative
-                } else {
-                    category = .official
-                }
-                bindLiveLUT()
+                tab = (libraries.first { $0.isCurrent } ?? libraries.first)?.title
+                prepare()
             }
-            .onChange(of: context.isPhoto) { _, _ in
-                bindLiveLUT()
-            }
-            .onChange(of: context.colorMode) { _, _ in
-                bindLiveLUT()
-            }
+            .onChange(of: preparation) { _, _ in prepare() }
             .confirmationDialog(
-                pendingDeletion.map { "Clear \(CustomLUTIndex.displayName(fileName: $0))?" }
-                    ?? "Clear LUT?",
+                pendingDeletion.map { "Clear \($0.entry.title)?" } ?? "Clear LUT?",
                 isPresented: Binding(
                     get: { pendingDeletion != nil },
                     set: { if !$0 { pendingDeletion = nil } }),
@@ -207,117 +322,75 @@
                 isPresented: $importing,
                 allowedContentTypes: [UTType(filenameExtension: "cube") ?? .data]
             ) { result in
-                handleImport(result)
+                handleImport(result, into: importTarget)
             }
         }
 
-        @ViewBuilder private var tabContent: some View {
-            switch category {
-            case .official:
-                let catalog = assist.looks.official.catalog(livePhotoCatalog)
-                catalogTab(
-                    cases: catalog,
-                    inCatalog: assist.lutSelection.isOfficial
-                        && catalog.contains(assist.lutSelection),
-                    fallback: .officialAuto,
-                    caption: officialCaption,
-                    allowsSelection: !livePhotoCatalog
-                )
-            case .creative:
-                catalogTab(
-                    cases: LUTSelection.creativeCases,
-                    inCatalog: assist.lutSelection.isCreative,
-                    fallback: .creativeMono,
-                    caption: creativeCaption
-                )
-            case .custom:
-                customTab
-            }
-        }
-
-        private func catalogTab(
-            cases: [LUTSelection],
-            inCatalog: Bool,
-            fallback: LUTSelection,
-            caption: String,
-            allowsSelection: Bool = true
-        ) -> some View {
-            VStack(spacing: 4) {
-                Text(caption)
-                    .font(MonitorTheme.font(11, weight: .medium))
-                    .foregroundStyle(Palette.muted)
-                    .multilineTextAlignment(.center)
-                    .frame(height: captionHeight)
-                LUTDrumWheel<Palette>(
-                    options: cases.map(\.title),
-                    selection: Binding(
-                        get: {
-                            inCatalog ? assist.lutSelection.title : fallback.title
-                        },
-                        set: { name in
-                            // A singleton Photo catalog must not overwrite the saved Video look
-                            // when scrollPosition reports its displayed fallback on mount.
-                            guard allowsSelection else { return }
-                            guard let selection = cases.first(where: { $0.title == name }) else {
-                                return
-                            }
-                            assist.selectLUT(selection)
-                        }
-                    ),
-                    wheelHeight: contentHeight - captionHeight - 4
-                )
-            }
-        }
-
-        private var livePhotoCatalog: Bool {
-            context.isPhoto && !context.inPlayback && !assist.gradesClip && !context.isWatching
-        }
-
-        private func bindLiveLUT() {
-            assist.bindLUTPicker(
-                live: context.colorMode,
-                inPlayback: context.inPlayback,
-                family: context.family,
-                cameraName: context.cameraName,
-                lookProfile: context.lookProfile,
-                isPhoto: context.isPhoto,
-                isWatching: context.isWatching)
-        }
-
-        private var officialCaption: String {
-            if livePhotoCatalog { return LUTPickerCopy.photoRec709Caption }
-            if assist.lutSelection == .officialAuto || assist.lutSelection == .auto {
-                return LUTResolver.autoCaption(source: assist.resolvedSource())
-            }
-            if assist.lutSelection.isOfficial {
-                return copy.officialLockedCaption
-            }
-            return copy.officialCaption
-        }
-
-        private var creativeCaption: String {
-            if assist.lutSelection.isCreative {
-                return LUTResolver.autoCaption(source: assist.resolvedSource())
-            }
-            return "Looks for the displayed picture"
-        }
-
-        @ViewBuilder private var customTab: some View {
-            let imported = assist.looks.customLUTs.list()
-            VStack(spacing: 6) {
-                Button {
-                    importing = true
-                } label: {
-                    Text("Import .cube")
-                        .font(MonitorTheme.font(13, weight: .semibold))
-                        .foregroundStyle(Palette.text)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Palette.glassBright, in: Capsule())
+        @ViewBuilder private func drum(_ library: LUTPickerLibrary) -> some View {
+            if library.entries.isEmpty, library.filter == nil, let empty = library.empty {
+                VStack(spacing: 8) {
+                    placeholder(empty)
+                    if let action = empty.action {
+                        actionButton(action)
+                            .frame(height: actionHeight)
+                    }
                 }
-                .buttonStyle(.monitorTapTarget)
-                if imported.isEmpty {
-                    Text(copy.customEmptyHint)
+            } else {
+                VStack(spacing: 4) {
+                    if let filter = library.filter {
+                        filterRow(filter)
+                            .frame(height: captionHeight)
+                    } else {
+                        Text(library.caption)
+                            .font(MonitorTheme.font(11, weight: .medium))
+                            .foregroundStyle(Palette.muted)
+                            .multilineTextAlignment(.center)
+                            .frame(height: captionHeight)
+                    }
+                    LUTDrumWheel<Palette>(
+                        options: library.entries.map(\.title),
+                        selection: Binding(
+                            get: { library.drumTitle },
+                            set: { title in
+                                // A reference-only catalogue must not overwrite the saved look
+                                // when scrollPosition reports its displayed row on mount.
+                                guard library.allowsSelection,
+                                    let entry = library.entry(titled: title)
+                                else { return }
+                                library.select(entry)
+                            }
+                        ),
+                        markedValues: library.markedTitles,
+                        wheelHeight: contentHeight - captionHeight - 4,
+                        onDeleteOption: library.delete == nil
+                            ? nil
+                            : { (title: String) in
+                                guard let entry = library.entry(titled: title) else { return }
+                                pendingDeletion = PendingDeletion(library: library.title, entry: entry)
+                            }
+                    )
+                }
+            }
+        }
+
+        private func files(_ library: LUTPickerLibrary) -> some View {
+            VStack(spacing: 6) {
+                if library.importCube != nil {
+                    Button {
+                        importTarget = library.title
+                        importing = true
+                    } label: {
+                        Text("Import .cube")
+                            .font(MonitorTheme.font(13, weight: .semibold))
+                            .foregroundStyle(Palette.text)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Palette.glassBright, in: Capsule())
+                    }
+                    .buttonStyle(.monitorTapTarget)
+                }
+                if library.entries.isEmpty {
+                    Text(library.empty?.hint ?? "")
                         .font(MonitorTheme.font(11, weight: .medium))
                         .foregroundStyle(Palette.muted)
                         .multilineTextAlignment(.center)
@@ -325,8 +398,8 @@
                 } else {
                     ScrollView {
                         VStack(spacing: 6) {
-                            ForEach(imported, id: \.fileName) { lut in
-                                customFileRow(lut)
+                            ForEach(library.entries, id: \.id) { entry in
+                                fileRow(entry, in: library)
                             }
                         }
                     }
@@ -336,15 +409,15 @@
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
 
-        private func customFileRow(_ lut: StoredCustomLUT) -> some View {
-            let selected =
-                assist.lutSelection == .customFile
-                && assist.looks.preferences.selectedCustomFileName == lut.fileName
+        private func fileRow(_ entry: LUTPickerLibrary.Entry, in library: LUTPickerLibrary)
+            -> some View
+        {
+            let selected = library.selectedID == entry.id
             return HStack(spacing: 6) {
                 Button {
-                    assist.selectCustomFile(lut.fileName)
+                    library.select(entry)
                 } label: {
-                    Text(lut.displayName)
+                    Text(entry.title)
                         .font(MonitorTheme.font(13, weight: .semibold))
                         .foregroundStyle(selected ? Palette.accent : Palette.text)
                         .lineLimit(1)
@@ -353,18 +426,20 @@
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.monitorTapTarget)
-                Button {
-                    pendingDeletion = lut.fileName
-                } label: {
-                    Text("Clear")
-                        .font(MonitorTheme.font(12, weight: .semibold))
-                        .foregroundStyle(Palette.destructive)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 8)
-                        .background(Palette.glassBright, in: Capsule())
+                if library.delete != nil {
+                    Button {
+                        pendingDeletion = PendingDeletion(library: library.title, entry: entry)
+                    } label: {
+                        Text("Clear")
+                            .font(MonitorTheme.font(12, weight: .semibold))
+                            .foregroundStyle(Palette.destructive)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .background(Palette.glassBright, in: Capsule())
+                    }
+                    .buttonStyle(.monitorTapTarget)
+                    .fixedSize()
                 }
-                .buttonStyle(.monitorTapTarget)
-                .fixedSize()
             }
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
@@ -375,35 +450,214 @@
             )
         }
 
-        private func handleImport(_ result: Result<URL, Error>) {
+        private func filterRow(_ filter: LUTPickerLibrary.Filter) -> some View {
+            HStack(spacing: 6) {
+                ForEach(filter.options, id: \.self) { option in
+                    let isOn = filter.selection.wrappedValue == option
+                    Button {
+                        filter.selection.wrappedValue = option
+                    } label: {
+                        Text(option)
+                            .font(MonitorTheme.font(12, weight: .semibold))
+                            .foregroundStyle(isOn ? Palette.accent : Palette.muted)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(isOn ? Palette.accentDim : Palette.glassBright, in: Capsule())
+                    }
+                    .buttonStyle(.monitorTapTarget)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+
+        private func placeholder(_ empty: LUTPickerLibrary.Empty) -> some View {
+            VStack(spacing: 6) {
+                if let title = empty.title {
+                    Text(title)
+                        .font(MonitorTheme.font(14, weight: .semibold))
+                        .foregroundStyle(Palette.text)
+                }
+                Text(empty.hint)
+                    .font(MonitorTheme.font(12, weight: .regular))
+                    .foregroundStyle(Palette.muted)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+
+        private func actionButton(_ action: LUTPickerLibrary.Action) -> some View {
+            Button(action: action.perform) {
+                Label(action.title, systemImage: action.systemImage)
+                    .font(MonitorTheme.font(13, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Palette.glassBright, in: Capsule())
+            }
+            .buttonStyle(.monitorTapTarget)
+        }
+
+        private func handleImport(_ result: Result<URL, Error>, into library: String?) {
             switch result {
             case .success(let url):
-                importCube(url)
+                guard let importCube = libraries().first(where: { $0.title == library })?.importCube
+                else { return }
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    try importCube(url)
+                    importError = nil
+                } catch {
+                    importError = error.localizedDescription
+                }
             case .failure(let error):
                 importError = error.localizedDescription
             }
         }
 
-        private func importCube(_ url: URL) {
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-            let store = assist.looks.customLUTs
+        private func clear(_ pending: PendingDeletion) {
+            pendingDeletion = nil
+            guard let delete = libraries().first(where: { $0.title == pending.library })?.delete
+            else { return }
             do {
-                let stored = try store.importFile(from: url)
-                guard store.cube(stored) != nil else {
-                    try? store.remove(stored)
-                    throw CustomLUTStoreError.unreadable
-                }
-                assist.importCustom(fileName: stored.fileName)
-                importError = nil
+                try delete(pending.entry)
             } catch {
-                importError = error.localizedDescription
+                deletionErrorMessage = error.localizedDescription
             }
         }
+    }
 
-        private func clear(_ fileName: String) {
-            pendingDeletion = nil
-            assist.clearCustomFile(fileName)
+    extension MonitorLUTPickerView where Footer == MonitorOperatorLookComparison<Looks> {
+        /// The shared comparison is the sheet footer; embedded callers supply it once in the inspector.
+        public init(
+            assist: MonitorAssistState<Looks>, embedded: Bool = false, haptics: OperatorHaptics,
+            palette: Palette.Type, preparation: AnyHashable = 0,
+            prepare: @escaping () -> Void = {}, libraries: @escaping () -> [LUTPickerLibrary]
+        ) {
+            self.init(assist: assist, embedded: embedded, haptics: haptics, palette: palette,
+                preparation: preparation, prepare: prepare, libraries: libraries) {
+                MonitorOperatorLookComparison(assist: assist, haptics: haptics, exposure: .provider)
+            }
+        }
+    }
+
+    extension MonitorLUTPickerView where Looks == MonitorLUTLooks, Footer == MonitorOperatorLookComparison<Looks> {
+        /// Official / Creative / Custom on the camera session in `context`, which Auto follows.
+        public init(
+            assist: MonitorAssistState<MonitorLUTLooks>, embedded: Bool = false,
+            context: LUTPickerContext, copy: LUTPickerCopy, haptics: OperatorHaptics,
+            palette: Palette.Type
+        ) {
+            self.init(
+                assist: assist, embedded: embedded, haptics: haptics, palette: palette,
+                preparation: AnyHashable([AnyHashable(context.isPhoto), AnyHashable(context.colorMode)]),
+                prepare: {
+                    assist.bindLUTPicker(
+                        live: context.colorMode,
+                        inPlayback: context.inPlayback,
+                        family: context.family,
+                        cameraName: context.cameraName,
+                        lookProfile: context.lookProfile,
+                        isPhoto: context.isPhoto,
+                        isWatching: context.isWatching)
+                },
+                libraries: { assist.lutPickerLibraries(context: context, copy: copy) })
+        }
+    }
+
+    /// The original two-parameter picker API, retained while hosts adopt typed libraries.
+    /// Its caller-supplied footer retains the original sheet behavior.
+    public struct LUTPickerView<Palette: LiveChromePalette, Footer: View>: View {
+        private let picker: MonitorLUTPickerView<MonitorLUTLooks, Palette, Footer>
+
+        public init(
+            assist: MonitorAssistState<MonitorLUTLooks>, embedded: Bool = false,
+            context: LUTPickerContext, copy: LUTPickerCopy, palette: Palette.Type,
+            @ViewBuilder footer: () -> Footer
+        ) {
+            picker = MonitorLUTPickerView(
+                assist: assist, embedded: embedded, haptics: OperatorHaptics(isEnabled: { false }),
+                palette: palette,
+                preparation: AnyHashable([AnyHashable(context.isPhoto), AnyHashable(context.colorMode)]),
+                prepare: {
+                    assist.bindLUTPicker(
+                        live: context.colorMode, inPlayback: context.inPlayback,
+                        family: context.family, cameraName: context.cameraName,
+                        lookProfile: context.lookProfile, isPhoto: context.isPhoto,
+                        isWatching: context.isWatching)
+                },
+                libraries: { assist.lutPickerLibraries(context: context, copy: copy) },
+                footer: footer)
+        }
+
+        public var body: some View { picker }
+    }
+
+    extension MonitorAssistState where Looks == MonitorLUTLooks {
+        /// The official catalogue, the creative looks and the imported files as picker tabs.
+        func lutPickerLibraries(context: LUTPickerContext, copy: LUTPickerCopy) -> [LUTPickerLibrary] {
+            let livePhoto =
+                context.isPhoto && !context.inPlayback && !gradesClip && !context.isWatching
+            let catalog = looks.official.catalog(livePhoto)
+            let selection = lutSelection
+            let select: (LUTPickerLibrary.Entry) -> Void = { [self] entry in
+                if let look = LUTSelection(rawValue: entry.id) { selectLUT(look) }
+            }
+            return [
+                LUTPickerLibrary(
+                    title: copy.officialTab, entries: catalog.map(\.pickerEntry),
+                    isCurrent: selection.isOfficial,
+                    selectedID: selection.isOfficial && catalog.contains(selection)
+                        ? selection.rawValue : nil,
+                    representative: LUTSelection.officialAuto.pickerEntry,
+                    caption: officialCaption(livePhoto: livePhoto, copy: copy),
+                    allowsSelection: !livePhoto, select: select),
+                LUTPickerLibrary(
+                    title: "Creative", entries: LUTSelection.creativeCases.map(\.pickerEntry),
+                    isCurrent: selection.isCreative,
+                    selectedID: selection.isCreative ? selection.rawValue : nil,
+                    representative: LUTSelection.creativeMono.pickerEntry,
+                    caption: selection.isCreative
+                        ? LUTResolver.autoCaption(source: resolvedSource())
+                        : "Looks for the displayed picture",
+                    select: select),
+                LUTPickerLibrary(
+                    title: "Custom", layout: .files,
+                    entries: looks.customLUTs.list().map {
+                        LUTPickerLibrary.Entry(id: $0.fileName, title: $0.displayName)
+                    },
+                    isCurrent: selection.isCustom,
+                    selectedID: selection == .customFile
+                        ? looks.preferences.selectedCustomFileName : nil,
+                    empty: .init(hint: copy.customEmptyHint),
+                    select: { [self] in selectCustomFile($0.id) },
+                    delete: { [self] in clearCustomFile($0.id) },
+                    importCube: { [self] in try importCustomCube(from: $0) }),
+            ]
+        }
+
+        private func officialCaption(livePhoto: Bool, copy: LUTPickerCopy) -> String {
+            if livePhoto { return LUTPickerCopy.photoRec709Caption }
+            if lutSelection == .officialAuto || lutSelection == .auto {
+                return LUTResolver.autoCaption(source: resolvedSource())
+            }
+            return lutSelection.isOfficial ? copy.officialLockedCaption : copy.officialCaption
+        }
+
+        private func importCustomCube(from url: URL) throws {
+            let store = looks.customLUTs
+            let stored = try store.importFile(from: url)
+            guard store.cube(stored) != nil else {
+                try? store.remove(stored)
+                throw CustomLUTStoreError.unreadable
+            }
+            importCustom(fileName: stored.fileName)
+        }
+    }
+
+    extension LUTSelection {
+        fileprivate var pickerEntry: LUTPickerLibrary.Entry {
+            LUTPickerLibrary.Entry(id: rawValue, title: title)
         }
     }
 

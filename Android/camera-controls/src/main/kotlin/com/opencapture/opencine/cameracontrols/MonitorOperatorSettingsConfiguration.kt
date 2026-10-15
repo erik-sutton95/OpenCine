@@ -63,6 +63,21 @@ public class MonitorSettingsAccountSource(
     public val refresh: () -> Unit,
 )
 
+/** The deployed display store supplies values and actions; the common page owns its form. */
+@Deprecated("Compose an explicit typed display source when migrating the shared settings.")
+public class MonitorOperatorBorrowedDisplay(
+    public val layoutTitle: String,
+    public val layoutHelp: String,
+    public val choices: List<MonitorDisplayChoice>,
+    public val selection: String,
+    public val onSelect: (String) -> Unit,
+    public val expandedSection: String?,
+    public val onExpand: (String?) -> Unit,
+    public val sections: List<MonitorDisplaySection>,
+    public val order: MonitorDisplayOrderGroup,
+    public val returnedFromEditor: () -> Unit = {},
+)
+
 /** Display rows over the one display owner: the modes the source declares, each mode's chrome, the clean-view
  * pins and, when a live monitor can host it, the Edit view. [available] is what the source can fill. */
 public class MonitorOperatorDisplaySource(
@@ -160,7 +175,26 @@ public class MonitorSettingsSupportSource(
     public val actions: List<MonitorSupportAction> = emptyList(),
     public val sourceUrl: String? = null,
     public val sourceHelp: String = "", public val termsHelp: String = "",
-)
+    internal val legacyPrivacy: (() -> Unit)? = null,
+    internal val legacySource: (() -> Unit)? = null,
+    internal val legacyTerms: (() -> Unit)? = null,
+) {
+    /** Published callback values, retained for legacy readers. Current actions remain owned by legal/source URLs. */
+    public val privacy: () -> Unit get() = legacyPrivacy ?: {}
+    public val source: () -> Unit get() = legacySource ?: {}
+    public val terms: () -> Unit get() = legacyTerms ?: {}
+
+    public constructor(
+        automaticReports: Boolean?, available: Boolean, automaticHelp: String, unavailableHelp: String,
+        setAutomaticReports: ((Boolean) -> Unit)?, reportTitle: String, reportHelp: String,
+        reportActionTitle: String, report: () -> Unit, privacy: () -> Unit,
+        status: MonitorReportStatus?, discard: (() -> Unit)?, actions: List<MonitorSupportAction>,
+        sourceHelp: String, termsHelp: String, source: () -> Unit, terms: () -> Unit,
+    ) : this(report, automaticReports, available, automaticHelp, unavailableHelp,
+        setAutomaticReports, reportTitle, reportHelp, reportActionTitle, status, discard,
+        actions, sourceHelp = sourceHelp, termsHelp = termsHelp,
+        legacyPrivacy = privacy, legacySource = source, legacyTerms = terms)
+}
 /** Saved feed reports on this phone: share a diagnostic report, delete the stored feed reports. */
 public class MonitorSettingsDiagnosticsSource(
     public val save: () -> Unit,
@@ -190,7 +224,24 @@ public class MonitorOperatorSettingsConfiguration(
     public val legal: MonitorLegalDocuments? = null,
     public val information: MonitorSettingsInformationSource? = null,
     public val tabs: List<MonitorSettingsTab> = MonitorSettingsTab.entries,
-)
+    /** Legacy captured cards remain available beside typed assist composition. */
+    public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
+    public val assist: MonitorOperatorAssistSettingsSource? = null,
+) {
+    /** Published positional list constructor; every current capability field keeps its default. */
+    @Deprecated("Compose an explicit typed assist source when migrating the shared settings.")
+    public constructor(
+        brand: String, isLive: Boolean, phase: String,
+        close: () -> Unit, disconnect: (() -> Unit)?, feedback: () -> Unit,
+        link: MonitorSettingsLinkSource, sharing: MonitorSettingsSharingSource?,
+        sharingSubtitle: String?, sharingRail: String?,
+        assistSections: List<MonitorAssistSettingsSection>, controls: MonitorSettingsControlsSource,
+        cache: MonitorSettingsCachePresentation?, account: MonitorSettingsAccountSource? = null,
+        support: MonitorSettingsSupportSource, information: MonitorSettingsInformationSource?,
+    ) : this(brand, isLive, phase, close, disconnect, feedback, link, sharing, sharingSubtitle,
+        sharingRail, controls, cache, account, support = support, information = information,
+        assistSections = assistSections)
+}
 
 /** Complete settings ownership using actual stores, optional services and bounded native leaves. */
 @Composable
@@ -204,6 +255,35 @@ public fun MonitorOperatorSettingsScreen(
     var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
         MonitorOperatorPictureSettings.Configured(assistSections, display), sourceIdentity))
+}
+
+/** Shared typed composition through the current settings and legal owners. */
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    display: MonitorOperatorDisplaySource,
+    initialTab: MonitorSettingsTab = MonitorSettingsTab.LINK,
+    sourceIdentity: Any? = null,
+): Unit {
+    var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
+        MonitorOperatorPictureSettings.Configured(configuration.assistSections, display, assist = configuration.assist),
+        sourceIdentity))
+}
+
+/** Published borrowed values and callbacks rendered by the current settings owner. */
+@Deprecated("Compose an explicit typed display source when migrating the shared settings.")
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    borrowedDisplay: MonitorOperatorBorrowedDisplay,
+    initialTab: MonitorSettingsTab = MonitorSettingsTab.LINK,
+    sourceIdentity: Any? = null,
+): Unit {
+    var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
+        MonitorOperatorPictureSettings.Configured(configuration.assistSections, null, borrowedDisplay, configuration.assist),
+        sourceIdentity))
 }
 
 /** Settings summaries of the saved setups: name, model and the camera's own network where it has one. */
@@ -361,7 +441,7 @@ internal fun SettingsSystem(configuration: MonitorOperatorSettingsConfiguration,
     val support = configuration.support
     val legal = configuration.legal
     MonitorSupportSettings(support.automaticReports, support.available, support.automaticHelp, support.unavailableHelp,
-        support.setAutomaticReports, support.report, legal?.let { { openLegal(MonitorLegalPage.PRIVACY) } },
+        support.setAutomaticReports, support.report, legal?.let { { openLegal(MonitorLegalPage.PRIVACY) } } ?: support.legacyPrivacy,
         support.status, support.discard, configuration.feedback, support.reportTitle, support.reportHelp,
         support.reportActionTitle, support.actions)
     configuration.diagnostics?.let { diagnostics ->
@@ -385,6 +465,10 @@ internal fun SettingsSystem(configuration: MonitorOperatorSettingsConfiguration,
             },
             privacy = { openLegal(MonitorLegalPage.PRIVACY) }, terms = { openLegal(MonitorLegalPage.TERMS) },
             licenses = { openLegal(MonitorLegalPage.LICENSES) }, notice = { openLegal(MonitorLegalPage.NOTICE) })
+    }
+    if (legal == null && support.legacySource != null && support.legacyPrivacy != null && support.legacyTerms != null) {
+        MonitorProjectLegalSettings(support.sourceHelp, support.termsHelp,
+            source = support.legacySource, privacy = support.legacyPrivacy, terms = support.legacyTerms)
     }
     configuration.information?.let { information ->
         MonitorAppInformationSettings(information.theme, information.protocolName, information.version,

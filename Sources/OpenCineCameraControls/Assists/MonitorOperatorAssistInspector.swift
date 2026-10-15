@@ -116,7 +116,7 @@ public struct MonitorOperatorAssistInspector<Looks: MonitorLookProvider, Palette
                 else { MonitorInspectorCard { menu } }
             }
         } footer: {
-            if tool == .lut { MonitorOperatorLookComparison(assist: assist, haptics: haptics) }
+            if tool == .lut { MonitorOperatorLookComparison(assist: assist, haptics: haptics, exposure: .provider) }
         }
     }
 
@@ -200,24 +200,44 @@ public struct MonitorOperatorAssistMenu<Looks: MonitorLookProvider, Palette: Liv
 }
 
 /// Input exposure and split controls stay pinned below the catalogue in either orientation.
+/// Exposure shows only for a provider whose picture applies it (`appliesLUTExposure`).
 public struct MonitorOperatorLookComparison<Looks: MonitorLookProvider>: View {
     private let assist: MonitorAssistState<Looks>
     private let haptics: OperatorHaptics
-    private let exposureAvailable: Bool?
+    private enum ExposureSource { case provider, legacy(Bool?) }
+    private let exposureSource: ExposureSource
     private let onArm: (() -> Void)?
     private let exposureTitle = "Exposure"
     private let exposureHelp = "Input stops before the cube. Pull 1–2 after ETTR."
 
+    /// The source provider owns availability for the canonical comparison.
+    public enum Exposure: Sendable { case provider }
+
+    public init(assist: MonitorAssistState<Looks>, haptics: OperatorHaptics, exposure: Exposure) {
+        self.assist = assist; self.haptics = haptics
+        switch exposure { case .provider: exposureSource = .provider }
+        onArm = nil
+    }
+
+    /// Published call forms retain their original availability default and arming callback.
+    @available(*, deprecated, message: "Use the explicit provider exposure path for shared look composition.")
     public init(assist: MonitorAssistState<Looks>, haptics: OperatorHaptics,
         exposureAvailable: Bool? = true, onArm: (() -> Void)? = nil) {
         self.assist = assist; self.haptics = haptics
-        self.exposureAvailable = exposureAvailable; self.onArm = onArm
+        exposureSource = .legacy(exposureAvailable); self.onArm = onArm
+    }
+
+    private var exposureVisible: Bool {
+        switch exposureSource {
+        case .provider: assist.looks.appliesLUTExposure
+        case .legacy(let available): available == true
+        }
     }
 
     public var body: some View {
         MonitorInspectorCard {
             VStack(spacing: 0) {
-                if exposureAvailable == true {
+                if exposureVisible {
                     MonitorSettingsInlineRow(title: exposureTitle, help: exposureHelp,
                         showTopDivider: false, stacked: true) {
                         HStack(spacing: 9) {

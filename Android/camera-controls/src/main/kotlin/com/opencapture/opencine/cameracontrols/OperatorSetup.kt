@@ -436,35 +436,47 @@ internal fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, ap
     }
 }
 
-/** One of main's eight View Assist cards, tagged `settings.assist.<name>`. */
+/**
+ * One of main's eight View Assist cards, tagged `settings.assist.<name>`. Its reset follows [resetPolicy];
+ * [changed] runs after every edit and reset (the host's haptic, or nothing).
+ */
 @Composable
-fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer) {
+fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy,
+    host: AssistHost, transfer: MonitorTransfer) =
+    OperatorAssistCard(tool, assist, help, host, transfer, MonitorOperatorAssistResetPolicy.ALL_OPTIONS, {})
+
+/** Optional reset policy and host action; the original five-argument entry remains available. */
+@Composable
+fun OperatorAssistCard(tool: MonitorAssistTool, assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer,
+    resetPolicy: MonitorOperatorAssistResetPolicy, changed: () -> Unit) {
     val ceiling = host.scopeCeiling(assist)
+    val reset = { resetPolicy.reset(assist, tool); changed() }
     val (tag, card) = when (tool) {
-        MonitorAssistTool.FALSE -> "falseColor" to @Composable { FalseColorAssistCard(assist, help, transfer, ceiling) }
-        MonitorAssistTool.ZEBRA -> "zebra" to @Composable { ZebraAssistCard(assist, help, host, transfer, ceiling) }
-        MonitorAssistTool.WAVE -> "waveform" to @Composable { WaveformAssistCard(assist, help) }
-        MonitorAssistTool.PARADE -> "parade" to @Composable { ParadeAssistCard(assist, help) }
-        MonitorAssistTool.HISTO -> "histogram" to @Composable { HistogramAssistCard(assist) }
-        MonitorAssistTool.VECTOR -> "vectorscope" to @Composable { VectorscopeAssistCard(assist, help) }
-        MonitorAssistTool.PEAK -> "peaking" to @Composable { PeakingAssistCard(assist, help, host) }
-        MonitorAssistTool.LIGHTS -> "trafficLights" to @Composable { TrafficLightsAssistCard(assist, help) }
+        MonitorAssistTool.FALSE -> "falseColor" to @Composable { FalseColorAssistCard(assist, help, transfer, ceiling, reset, changed) }
+        MonitorAssistTool.ZEBRA -> "zebra" to @Composable { ZebraAssistCard(assist, help, host, transfer, ceiling, reset, changed) }
+        MonitorAssistTool.WAVE -> "waveform" to @Composable { WaveformAssistCard(assist, help, reset, changed) }
+        MonitorAssistTool.PARADE -> "parade" to @Composable { ParadeAssistCard(assist, help, reset, changed) }
+        MonitorAssistTool.HISTO -> "histogram" to @Composable { HistogramAssistCard(assist, reset, changed) }
+        MonitorAssistTool.VECTOR -> "vectorscope" to @Composable { VectorscopeAssistCard(assist, help, reset, changed) }
+        MonitorAssistTool.PEAK -> "peaking" to @Composable { PeakingAssistCard(assist, help, host, reset, changed) }
+        MonitorAssistTool.LIGHTS -> "trafficLights" to @Composable { TrafficLightsAssistCard(assist, help, reset, changed) }
         else -> return
     }
     Box(Modifier.testTag("settings.assist.$tag")) { card() }
 }
 
 @Composable
-private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
+private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, transfer: MonitorTransfer, ceiling: ScopeClipSource,
+    reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "False Color",
-        onReset = { assist.resetSettings(MonitorAssistTool.FALSE) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Scale", help.FALSE_COLOR_SCALE, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(
                 options = listOf("CineStop", "Video", "IRE", "Limits"),
                 selected = assist.falseColorScale.menuLabel,
-            ) { label -> assist.setFalseColor(scale = MonitorFalseColorSelection.fromMenuLabel(label)) }
+            ) { label -> assist.setFalseColor(scale = MonitorFalseColorSelection.fromMenuLabel(label)); changed() }
         }
         MonitorSettingsInlineRow(title = "Reference key", stacked = true) {
             FalseColorKey(assist.falseColorScale, transfer, ceiling)
@@ -474,7 +486,7 @@ private fun FalseColorAssistCard(assist: MonitorAssistState, help: OperatorHelpC
             isOn = assist.falseColorReference,
             help = help.FALSE_COLOR_REFERENCE,
             stacked = true,
-        ) { assist.setFalseColor(reference = !assist.falseColorReference) }
+        ) { assist.setFalseColor(reference = !assist.falseColorReference); changed() }
     }
 }
 
@@ -515,34 +527,35 @@ private fun FalseColorKey(scale: MonitorFalseColorSelection, transfer: MonitorTr
 }
 
 @Composable
-private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost) {
+private fun PeakingAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Peaking",
-        onReset = { assist.resetSettings(MonitorAssistTool.PEAK) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Sensitivity", help.PEAKING_SENSITIVITY, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(
                 options = MonitorPeakingSense.entries.map { it.label },
                 selected = assist.peakingSensitivity.label,
-            ) { label -> assist.setPeaking(sense = MonitorPeakingSense.fromPersisted(label)) }
+            ) { label -> assist.setPeaking(sense = MonitorPeakingSense.fromPersisted(label)); changed() }
         }
         MonitorSettingsInlineRow("Color", help.PEAKING_COLOR, stacked = true) {
             MonitorSettingsColorDots(dots = host.peakingColors, selectedName = assist.peakingColor.label) { name ->
-                assist.setPeaking(color = MonitorPeakingColor.fromPersisted(name))
+                assist.setPeaking(color = MonitorPeakingColor.fromPersisted(name)); changed()
             }
         }
     }
 }
 
 @Composable
-private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer, ceiling: ScopeClipSource) {
+private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, host: AssistHost, transfer: MonitorTransfer, ceiling: ScopeClipSource,
+    reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Zebra",
-        onReset = { assist.resetSettings(MonitorAssistTool.ZEBRA) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Units", help.ZEBRA_UNITS, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = listOf("0-255", "IRE"), selected = assist.zebraUnit.editorLabel) { label ->
-                assist.updateZebraUnit(MonitorZebraUnit.fromEditorLabel(label))
+                assist.updateZebraUnit(MonitorZebraUnit.fromEditorLabel(label)); changed()
             }
         }
         val maximum = ZebraEditor.editorMaximum(assist.zebraUnit)
@@ -554,9 +567,9 @@ private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, 
             maximum = maximum,
             selectedColor = assist.zebraHighlightColor.label,
             palette = host.highlightColors,
-            onEnabled = { assist.setZebraHighlight(enabled = !assist.zebraHighlight) },
-            onValue = { assist.setZebraHighlight(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)) },
-            onColor = { assist.setZebraHighlight(color = MonitorZebraPaint.fromPersisted(it)) },
+            onEnabled = { assist.setZebraHighlight(enabled = !assist.zebraHighlight); changed() },
+            onValue = { assist.setZebraHighlight(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)); changed() },
+            onColor = { assist.setZebraHighlight(color = MonitorZebraPaint.fromPersisted(it)); changed() },
         )
         ZebraZoneRow(
             title = "Midtone",
@@ -566,9 +579,9 @@ private fun ZebraAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, 
             maximum = maximum,
             selectedColor = assist.zebraMidtoneColor.label,
             palette = host.midtoneColors,
-            onEnabled = { assist.setZebraMidtone(enabled = !assist.zebraMidtone) },
-            onValue = { assist.setZebraMidtone(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)) },
-            onColor = { assist.setZebraMidtone(color = MonitorZebraPaint.fromPersisted(it)) },
+            onEnabled = { assist.setZebraMidtone(enabled = !assist.zebraMidtone); changed() },
+            onValue = { assist.setZebraMidtone(ire = ZebraEditor.ireFromDisplay(it, assist.zebraUnit, transfer, ceiling)); changed() },
+            onColor = { assist.setZebraMidtone(color = MonitorZebraPaint.fromPersisted(it)); changed() },
         )
     }
 }
@@ -605,46 +618,46 @@ private fun ZebraZoneRow(
 }
 
 @Composable
-private fun WaveformAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
+private fun WaveformAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Waveform",
-        onReset = { assist.resetSettings(MonitorAssistTool.WAVE) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Mode", showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorWaveformMode.entries.map { it.label }, selected = assist.waveMode.label) { label ->
-                assist.setWaveform(mode = MonitorWaveformMode.fromPersisted(label))
+                assist.setWaveform(mode = MonitorWaveformMode.fromPersisted(label)); changed()
             }
         }
         MonitorSettingsInlineRow("Brightness", help.WAVEFORM_BRIGHTNESS, stacked = true) {
-            MonitorSettingsPercentSlider(value = assist.waveBrightness, range = 0..200) { assist.setWaveform(brightness = it) }
+            MonitorSettingsPercentSlider(value = assist.waveBrightness, range = 0..200) { assist.setWaveform(brightness = it); changed() }
         }
-        ScopeGuideRows(assist.waveGuides) { assist.setWaveform(guides = it) }
+        ScopeGuideRows(assist.waveGuides) { assist.setWaveform(guides = it); changed() }
     }
 }
 
 @Composable
-private fun ParadeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
+private fun ParadeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Parade",
-        onReset = { assist.resetSettings(MonitorAssistTool.PARADE) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Mode", showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorParadeMode.entries.map { it.label }, selected = assist.paradeMode.label) { label ->
-                assist.setParade(mode = MonitorParadeMode.fromPersisted(label))
+                assist.setParade(mode = MonitorParadeMode.fromPersisted(label)); changed()
             }
         }
         MonitorSettingsInlineRow("Brightness", help.PARADE_BRIGHTNESS, stacked = true) {
-            MonitorSettingsPercentSlider(value = assist.paradeBrightness, range = 0..200) { assist.setParade(brightness = it) }
+            MonitorSettingsPercentSlider(value = assist.paradeBrightness, range = 0..200) { assist.setParade(brightness = it); changed() }
         }
-        ScopeGuideRows(assist.paradeGuides) { assist.setParade(guides = it) }
+        ScopeGuideRows(assist.paradeGuides) { assist.setParade(guides = it); changed() }
     }
 }
 
 @Composable
-private fun HistogramAssistCard(assist: MonitorAssistState) {
+private fun HistogramAssistCard(assist: MonitorAssistState, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Histogram",
-        onReset = { assist.resetSettings(MonitorAssistTool.HISTO) },
+        onReset = reset,
     ) {
         MonitorSettingsSwitchInlineRow(
             title = HistogramAssist.TRAFFIC_LIGHTS_TITLE,
@@ -652,39 +665,39 @@ private fun HistogramAssistCard(assist: MonitorAssistState) {
             help = HistogramAssist.TRAFFIC_LIGHTS_HELP,
             showTopDivider = false,
             stacked = true,
-        ) { assist.setHistogram(traffic = !assist.histoTrafficLights) }
+        ) { assist.setHistogram(traffic = !assist.histoTrafficLights); changed() }
         MonitorSettingsInlineRow(title = HistogramAssist.COMPENSATION_TITLE, help = HistogramAssist.COMPENSATION_HELP, stacked = true) {
-            CrushClipControl(assist.crushClipCompensation) { assist.setHistogram(compensation = it) }
+            CrushClipControl(assist.crushClipCompensation) { assist.setHistogram(compensation = it); changed() }
         }
     }
 }
 
 @Composable
-private fun VectorscopeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
+private fun VectorscopeAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
     MonitorSettingsRowCard(
         title = "Vectorscope",
-        onReset = { assist.resetSettings(MonitorAssistTool.VECTOR) },
+        onReset = reset,
     ) {
         MonitorSettingsInlineRow("Trace Zoom", help.VECTORSCOPE_ZOOM, showTopDivider = false, stacked = true) {
             MonitorSettingsSegmented(options = MonitorVectorscopeZoom.entries.map { it.label }, selected = assist.vectorZoom.label) { label ->
-                assist.setVectorscope(zoom = MonitorVectorscopeZoom.fromPersisted(label))
+                assist.setVectorscope(zoom = MonitorVectorscopeZoom.fromPersisted(label)); changed()
             }
         }
         MonitorSettingsInlineRow("Brightness", help.VECTORSCOPE_BRIGHTNESS, stacked = true) {
-            MonitorSettingsPercentSlider(value = assist.vectorBrightness, range = 0..200) { assist.setVectorscope(brightness = it) }
+            MonitorSettingsPercentSlider(value = assist.vectorBrightness, range = 0..200) { assist.setVectorscope(brightness = it); changed() }
         }
     }
 }
 
 @Composable
-private fun TrafficLightsAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy) {
-    MonitorSettingsRowCard(title = "Traffic Lights", onReset = { assist.resetSettings(MonitorAssistTool.LIGHTS) }) {
+private fun TrafficLightsAssistCard(assist: MonitorAssistState, help: OperatorHelpCopy, reset: () -> Unit, changed: () -> Unit) {
+    MonitorSettingsRowCard(title = "Traffic Lights", onReset = reset) {
         MonitorSettingsInlineRow(
             title = HistogramAssist.COMPENSATION_TITLE,
             help = help.TRAFFIC_LIGHTS_COMPENSATION,
             showTopDivider = false,
             stacked = true,
-        ) { CrushClipControl(assist.crushClipCompensation) { assist.setCompensation(it) } }
+        ) { CrushClipControl(assist.crushClipCompensation) { assist.setCompensation(it); changed() } }
     }
 }
 

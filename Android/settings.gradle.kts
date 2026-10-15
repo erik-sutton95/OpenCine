@@ -51,6 +51,8 @@ include(
     ":appkit-sentry",
     // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
     ":camera-controls",
+    // Optional Compose/native picture composition above UI and native-runtime.
+    ":appkit-native",
     // Frame.io: the one Android delivery owner (sign-in, upload, history, hop lease) over the
     // shared Swift wire (JNI facade FrameioNative).
     ":frameio",

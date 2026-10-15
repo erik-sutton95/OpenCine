@@ -698,6 +698,8 @@ class NativeVulkanFeedSession(
     }
 
     companion object {
+        /** The renderer library loaded on this device (a session would fail over to GLES otherwise). */
+        val isAvailable: Boolean get() = OpcVulkan.isAvailable
         const val FACE_TAP_WIDTH = 320
         const val FACE_TAP_HEIGHT = 180
         const val SOURCE_W = 1280

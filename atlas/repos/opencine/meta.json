@@ -242,6 +242,12 @@
       "coordinates": "com.opencapture.opencine:appkit"
     },
     {
+      "name": ":appkit-native",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:appkit-native"
+    },
+    {
       "name": ":camera-controls",
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
@@ -337,6 +343,7 @@
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
+      ":appkit-native",
       ":appkit-sentry",
       ":camera-controls",
       ":frameio",
