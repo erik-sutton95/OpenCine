@@ -58,6 +58,7 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         var denial: String?
         try wait("A typed Local Network failure", timeout: deadline) {
             self.recordAlerts(answer: false)
+            self.joinIfAsked()
             if self.app.buttons["monitor.system.settings"].isHittable {
                 XCTFail("The camera went live while Local Network was off")
                 return true
@@ -77,6 +78,7 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         var askedForPassword = false
         try wait("Live monitor after Local Network is allowed", timeout: 90) {
             self.recordAlerts(answer: true)
+            self.joinIfAsked()
             if self.app.secureTextFields.firstMatch.exists { askedForPassword = true }
             return self.app.buttons["monitor.system.settings"].isHittable
         }
@@ -175,7 +177,25 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
                 .map { self.app.buttons[$0].firstMatch }.first { $0.exists && $0.isHittable }
             return row != nil
         }
-        row!.tap()
+        // A tap that lands while the screen is still settling (just launched, or just handed back by
+        // Settings) can be lost: the row must leave its idle state, else it is tapped again (at most 3).
+        let label = row!.label
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
+        for attempt in 1...3 {
+            let current = app.buttons[label].firstMatch
+            guard current.exists, current.isHittable else { return }
+            let frame = current.frame
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+            attach("connect-tap", "\(label) attempt=\(attempt)")
+            let started = Date()
+            while Date().timeIntervalSince(started) < 5 {
+                let again = app.buttons[label].firstMatch
+                if !again.exists || !again.isHittable || app.buttons["Cancel"].exists
+                    || app.buttons["monitor.system.settings"].exists || springboard.alerts.count > 0 { return }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            }
+        }
     }
 
     // MARK: Settings (the operator's only way to change a permission on hardware)
@@ -267,6 +287,13 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
     // MARK: System alerts
 
     private var springboard: XCUIApplication { XCUIApplication(bundleIdentifier: "com.apple.springboard") }
+
+    /// The operator joins the camera Wi-Fi when iOS asks (the denial and recovery cases own no join).
+    private func joinIfAsked() {
+        guard let alert = joinAlert() else { return }
+        alerts.append("join: " + text(of: alert))
+        alert.buttons["Join"].tap()
+    }
 
     private func joinAlert() -> XCUIElement? {
         springboard.alerts.allElementsBoundByIndex.first { $0.buttons["Join"].exists }
