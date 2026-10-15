@@ -21,6 +21,18 @@
             #expect(left.safeArea.bottom == 21 && right.safeArea.bottom == 21)
         }
 
+        @Test func partiallyMissingInsetsPreserveEachPhysicalWindowEdge() {
+            let viewport = MultiviewStageViewport(
+                size: CGSize(width: 390, height: 844),
+                reportedSafeArea: EdgeInsets(top: 0, leading: 7, bottom: 40, trailing: 0),
+                window: .init(safeArea: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 5)),
+                orientation: .portrait, arrangement: .grid, selected: 0)
+            #expect(viewport.safeArea.top == 59)
+            #expect(viewport.safeArea.leading == 7)
+            #expect(viewport.safeArea.bottom == 40)
+            #expect(viewport.safeArea.trailing == 5)
+        }
+
         @Test func portraitKeepsAllInsetsAndTabletWindowControlsMoveTheSharedLayout() {
             let portrait = MultiviewStageViewport(
                 size: CGSize(width: 390, height: 844), reportedSafeArea: EdgeInsets(),
