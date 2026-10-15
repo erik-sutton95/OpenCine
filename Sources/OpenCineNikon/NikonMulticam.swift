@@ -143,17 +143,20 @@ public final class NikonMemberControl: NikonControlDriver {
     public private(set) var isLent = false
     public var hasQueuedCommands: Bool { !writes.isEmpty || record != nil }
 
-    private var writes: [(write: PTPCameraPropertyWrite, operation: OperationID?)] = []
-    private var record: (start: Bool, operation: OperationID)?
+    private var writes: [(write: PTPCameraPropertyWrite, operation: OperationID?, admission: NikonCommandAdmission?)] = []
+    private var record: (start: Bool, operation: OperationID, admission: NikonCommandAdmission?)?
+    private let commandOwner: NikonCommandOwner?
     private let isCameraRefusal: @Sendable (any Error) -> Bool
 
     public init(
         serialNumber: String, facts: NikonControlFacts = NikonControlFacts(),
         recordObservationTimeout: Duration = .seconds(5),
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now,
+        commandOwner: NikonCommandOwner? = nil,
         isCameraRefusal: @escaping @Sendable (any Error) -> Bool
     ) {
         nikonControlFacts = facts
+        self.commandOwner = commandOwner
         self.isCameraRefusal = isCameraRefusal
         session = NikonCameraSession(
             driver: self, serialNumber: serialNumber,
@@ -169,6 +172,13 @@ public final class NikonMemberControl: NikonControlDriver {
     /// Queues a raw property write (a setting outside the common slice). Last value per property
     /// wins; a replaced write's operation is reported superseded.
     public func enqueue(_ write: PTPCameraPropertyWrite, operation: OperationID? = nil) {
+        enqueue(write, operation: operation, suppliedAdmission: nil)
+    }
+
+    private func enqueue(
+        _ write: PTPCameraPropertyWrite, operation: OperationID?,
+        suppliedAdmission: NikonCommandAdmission?
+    ) {
         guard !isLent else {
             if let operation { session.operationDropped(operation) }
             return
@@ -179,7 +189,7 @@ public final class NikonMemberControl: NikonControlDriver {
             }
         }
         writes.removeAll { $0.write.property == write.property }
-        writes.append((write, operation))
+        writes.append((write, operation, suppliedAdmission))
     }
 
     /// Lends the link to a full Live View: queued commands are reported not sent, and until
@@ -210,11 +220,32 @@ public final class NikonMemberControl: NikonControlDriver {
         guard !isLent else { return [] }
         var results: [WriteResult] = []
         while !isLent, !writes.isEmpty {
-            let (write, operation) = writes.removeFirst()
+            let (write, operation, admission) = writes.removeFirst()
+            if let admission {
+                session.refresh()
+                guard admits(admission), admission.admits(transport.commandOwner) else {
+                    if let operation {
+                        session.commandAdmissionExpired(operation)
+                        writes.removeAll { $0.operation == operation }
+                    }
+                    continue
+                }
+            }
             if let operation { session.operationSent(operation) }
             do {
-                try await transport.writeCameraProperty(write)
+                if let admission {
+                    try await transport.writeCameraProperty(write, admission: admission)
+                } else {
+                    try await transport.writeCameraProperty(write)
+                }
             } catch {
+                if admission != nil, case NativeCameraSessionError.commandAuthorityExpired = error {
+                    if let operation {
+                        session.commandAdmissionExpired(operation)
+                        writes.removeAll { $0.operation == operation }
+                    }
+                    continue
+                }
                 let refused = isCameraRefusal(error)
                 if let operation { session.commandFailed(operation, cameraRefused: refused) }
                 // The camera decides what is shown: re-read so no optimistic value survives.
@@ -228,6 +259,7 @@ public final class NikonMemberControl: NikonControlDriver {
                     property: write.property, data: readback)
             }
             if let operation { session.writeLanded(operation, write: write, readback: readback) }
+            if admission != nil { session.refresh() }
             let outcome: WriteOutcome =
                 readback.map {
                     NikonCameraSession.readbackMatches(write, $0) ? .applied : .notApplied
@@ -237,16 +269,34 @@ public final class NikonMemberControl: NikonControlDriver {
         }
         if !isLent, let request = record {
             record = nil
+            if let admission = request.admission {
+                session.refresh()
+                guard admits(admission), admission.admits(transport.commandOwner) else {
+                    session.commandAdmissionExpired(request.operation)
+                    session.refresh()
+                    return results
+                }
+            }
             session.operationSent(request.operation)
             do {
-                if request.start {
+                if let admission = request.admission {
+                    if request.start {
+                        try await transport.startRecording(admission: admission)
+                    } else {
+                        try await transport.stopRecording(admission: admission)
+                    }
+                } else if request.start {
                     try await transport.startRecording()
                 } else {
                     try await transport.stopRecording()
                 }
                 session.recordAccepted(request.operation)
             } catch {
-                session.commandFailed(request.operation, cameraRefused: isCameraRefusal(error))
+                if request.admission != nil, case NativeCameraSessionError.commandAuthorityExpired = error {
+                    session.commandAdmissionExpired(request.operation)
+                } else {
+                    session.commandFailed(request.operation, cameraRefused: isCameraRefusal(error))
+                }
             }
         }
         session.refresh()
@@ -265,11 +315,33 @@ public final class NikonMemberControl: NikonControlDriver {
         return encoded.count
     }
 
+    /// Supplied authority is accepted only for this member's established native owner.
+    public func admits(_ admission: NikonCommandAdmission) -> Bool {
+        !isLent && admission.admits(commandOwner)
+    }
+
+    public func queueSettingWrites(
+        _ label: String, for setting: NikonControlSetting, operation: OperationID?,
+        admission: NikonCommandAdmission
+    ) -> Int {
+        guard admits(admission) else { return 0 }
+        let encoded = PTPCameraPropertyWrite.requests(
+            control: setting.cameraControl, label: label, snapshot: nikonControlFacts.reported)
+        for write in encoded { enqueue(write, operation: operation, suppliedAdmission: admission) }
+        return encoded.count
+    }
+
     /// A newer press replaces a queued one, which is reported superseded.
     public func queueRecord(start: Bool, operation: OperationID) {
         guard !isLent else { return session.operationDropped(operation) }
         if let earlier = record { session.operationDropped(earlier.operation, superseded: true) }
-        record = (start, operation)
+        record = (start, operation, nil)
+    }
+
+    public func queueRecord(start: Bool, operation: OperationID, admission: NikonCommandAdmission) {
+        guard admits(admission) else { return session.commandAdmissionExpired(operation) }
+        if let earlier = record { session.operationDropped(earlier.operation, superseded: true) }
+        record = (start, operation, admission)
     }
 
     private func reread(_ property: PTPPropertyCode, on transport: some NikonControlTransport) async

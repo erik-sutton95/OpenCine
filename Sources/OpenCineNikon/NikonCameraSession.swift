@@ -119,6 +119,23 @@ extension NikonControlDriver {
     }
 }
 
+/// A native command predicate copies this value without entering the main actor.
+private final class NikonCommandSnapshot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: CameraSnapshot
+    init(_ value: CameraSnapshot) { self.value = value }
+    func read() -> CameraSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+    func replace(_ value: CameraSnapshot) {
+        lock.lock()
+        self.value = value
+        lock.unlock()
+    }
+}
+
 /// One Nikon monitor lifetime as an `OpenCineCore.CameraSession`. A replacement link during
 /// recovery advances its control epoch while preserving this session ID and the held monitor.
 @MainActor
@@ -131,6 +148,10 @@ public final class NikonCameraSession: CameraSession {
     private let now: @Sendable () -> MonotonicInstant
     private let recordObservationTimeout: Duration
     private var current: CameraSnapshot
+    private nonisolated let commandState: NikonCommandSnapshot
+    /// The last published observation, safe to copy at a queued native transaction gate.
+    /// Reading it performs no refresh, callbacks or transport work.
+    public nonisolated var commandSnapshot: CameraSnapshot { commandState.read() }
     private var receipts: [OperationID: CommandReceipt] = [:]
     /// Property writes each setting operation still owes a readback for.
     private var owedWrites: [OperationID: Int] = [:]
@@ -155,9 +176,11 @@ public final class NikonCameraSession: CameraSession {
         let device =
             Self.durableDevice(serialNumber: serialNumber)
             ?? .provisional(integration: Self.integration)
-        current = CameraSnapshot(
+        let initial = CameraSnapshot(
             session: session, epoch: ControlEpoch(1), device: device, connection: .ready,
             authority: .owner)
+        current = initial
+        commandState = NikonCommandSnapshot(initial)
         refresh()
     }
 
@@ -282,6 +305,7 @@ public final class NikonCameraSession: CameraSession {
         current.connection = .disconnected(reason)
         current.authority = .unavailable(.link)
         current.revision = current.revision.next()
+        commandState.replace(current)
         for continuation in subscribers.values {
             continuation.yield(current)
             continuation.finish()
@@ -425,6 +449,7 @@ public final class NikonCameraSession: CameraSession {
         if next != current {
             next.revision = current.revision.next()
             current = next
+            commandState.replace(current)
             for (token, continuation) in subscribers {
                 if case .terminated = continuation.yield(current) { subscribers[token] = nil }
             }
