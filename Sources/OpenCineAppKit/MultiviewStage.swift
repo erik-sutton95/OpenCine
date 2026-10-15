@@ -283,19 +283,8 @@ extension MultiviewTile {
                 (MultiviewTileStatus(text: "Waiting for the camera", inProgress: true),
                  "Waiting for the camera")
             }
-        let battery = snapshot?.power.batteryReading
-        let percent: Int?, bars: Int?, barCount: Int
-        switch battery {
-        case .fraction(let value)?: (percent, bars, barCount) = (Int((value * 100).rounded()), nil, 5)
-        case .steps(let filled, let count)?: (percent, bars, barCount) = (nil, filled, count)
-        case nil: (percent, bars, barCount) = (nil, nil, 5)
-        }
         self.init(
             name: entry.name,
-            battery: percent,
-            charging: snapshot?.power.charging.value ?? false,
-            batteryBars: bars,
-            batteryBarCount: barCount,
             timecode: MonitorTimecodeFormat.label(snapshot),
             tally: MultiviewTally.text(
                 recording: recording, waiting: waiting,
@@ -310,5 +299,23 @@ extension MultiviewTile {
                     kind: .record),
                 MultiviewCameraAction("remove", "Remove camera", kind: .destructive),
             ])
+        self = withPower(snapshot?.power)
+    }
+}
+
+extension MultiviewTile {
+    /// The tile's battery from the camera's typed power: a percent or a declared gauge, never
+    /// both, and charging as the live chrome reads it (charging, else external power).
+    public func withPower(_ power: PowerStatus?) -> MultiviewTile {
+        var tile = self
+        tile.battery = nil
+        tile.batteryBars = nil
+        switch power?.batteryReading {
+        case .fraction(let value)?: tile.battery = Int((value * 100).rounded())
+        case .steps(let filled, let count)?: tile.batteryBars = filled; tile.batteryBarCount = count
+        case nil: break
+        }
+        tile.charging = power.flatMap { $0.charging.value ?? $0.externalPower.value } ?? false
+        return tile
     }
 }
