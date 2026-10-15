@@ -117,6 +117,26 @@ import XCTest
         XCTAssertFalse(coordinator.isActive)
     }
 
+    /// A2-71: the run and then its pending share sheet cover playback; completing the sheet
+    /// uncovers it.
+    func testAPendingShareCoversPlaybackUntilTheSheetCompletes() async throws {
+        let gate = CoordinatorGate()
+        let coordinator = MonitorDeliveryCoordinator(exports: store)
+        defer { coordinator.close() }
+        XCTAssertFalse(coordinator.coversPlayback)
+        let (file, lease) = try sharedFile("cover.mp4")
+        coordinator.begin { _, _ in await gate.wait() }
+        await settle { gate.waiters.count == 1 }
+        XCTAssertTrue(coordinator.isActive)
+        XCTAssertTrue(coordinator.coversPlayback, "A running delivery covers playback")
+        gate.release(.share(urls: [file], metadataText: nil, stagingCleanupURL: lease))
+        await settle { coordinator.lifetime.state.share != nil }
+        XCTAssertFalse(coordinator.isActive)
+        XCTAssertTrue(coordinator.coversPlayback, "The pending share sheet still covers playback")
+        coordinator.lifetime.clearSharePresentation()
+        XCTAssertFalse(coordinator.coversPlayback, "A completed sheet uncovers playback")
+    }
+
     func testTheRootPresenterSharesWithNoMediaSurfaceMounted() async throws {
         let coordinator = MonitorDeliveryCoordinator(exports: store)
         defer { coordinator.close() }
