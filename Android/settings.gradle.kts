@@ -33,6 +33,8 @@ include(
     ":monitor-ui",
     // Developer-only native conformance scenarios.
     ":app-ui-testing",
+    // Developer-only instrumented-run setup: turns off Android's first-run hints (androidTest only).
+    ":system-hints-testing",
     // Multicam engine (Kotlin/JVM).
     ":multicam",
     // Camera vocabulary (Kotlin/JVM): wire-free control values, status, model, zoom, tracking.

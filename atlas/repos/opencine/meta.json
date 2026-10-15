@@ -294,6 +294,12 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:app-ui-testing"
+    },
+    {
+      "name": ":system-hints-testing",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:system-hints-testing"
     }
   ],
   "layers": {
@@ -348,7 +354,8 @@
       ":camera-controls",
       ":frameio",
       ":media3",
-      ":app-ui-testing"
+      ":app-ui-testing",
+      ":system-hints-testing"
     ],
     "multicam": [
       "OpenCineMulticam",

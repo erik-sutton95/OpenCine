@@ -35,6 +35,9 @@ dependencies {
     androidTestImplementation(libs.androidx.activity.compose)
     androidTestImplementation(libs.kotlin.test.junit)
     androidTestImplementation(project(":camera-controls"))
+    // The test host hides the system bars; this library's run listener keeps Android's full
+    // screen tutorial from covering it.
+    androidTestImplementation(project(":system-hints-testing"))
 }
 
 // SharedUIRulesTest also scans the app shell sources.
