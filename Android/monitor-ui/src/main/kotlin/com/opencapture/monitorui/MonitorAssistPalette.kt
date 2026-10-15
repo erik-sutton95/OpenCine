@@ -73,6 +73,12 @@ import androidx.compose.ui.window.PopupProperties
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
+/** A host-owned expansion value; absent hosts retain the palette's local state. */
+val LocalMonitorAssistExpansion = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.MutableState<Boolean>?> { null }
+
+/** Whether the owning surface is visible; hidden surfaces must not leave a separate popup window. */
+val LocalMonitorAssistVisible = androidx.compose.runtime.staticCompositionLocalOf { true }
+
 /** One palette for live, playback and multi-view, without any camera or tool taxonomy. */
 @Composable
 fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
@@ -94,7 +100,8 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
     cellSize: Float? = null,
     maxExpandedHeight: Float? = null,
     onBoundsInRootChanged: (Rect?) -> Unit = {}, collapseRevision: Long = 0L) {
-    var expanded by remember { mutableStateOf(false) }
+    val localExpanded = remember { mutableStateOf(false) }
+    var expanded by (LocalMonitorAssistExpansion.current ?: localExpanded)
     var previousCollapseRevision by remember { mutableStateOf(collapseRevision) }
     var dragging by remember { mutableStateOf(false) }
     var pinnedIds by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -396,7 +403,7 @@ fun <T> MonitorAssistPalette(tools: List<T>, portrait: Boolean, locked: Boolean,
             slotBottomScreen[0] = coords.positionOnScreen().y + coords.size.height
         })
         val anchored = slotInWindow.width > 0 && slotInWindow.height > 0
-        if (locked || !anchored) {
+        if (!LocalMonitorAssistVisible.current || locked || !anchored) {
             plate()
         } else {
             Popup(popupPositionProvider = popupPosition,
