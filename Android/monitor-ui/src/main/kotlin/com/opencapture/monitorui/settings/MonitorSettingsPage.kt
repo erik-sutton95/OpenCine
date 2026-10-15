@@ -30,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -81,8 +83,13 @@ public fun MonitorSettingsPage(
     sharingRail: String? = null,
     tabSpacing: Dp = 6.dp,
     back: (() -> Unit)? = null,
+    /** Each tab's saved scroll offset, restored when the tab opens (Swift `scrollOffsets`). */
+    scrollOffsets: Map<MonitorSettingsTab, Int> = emptyMap(),
+    /** Where the open tab is scrolled to, for the owner of [scrollOffsets]. */
+    onScroll: (MonitorSettingsTab, Int) -> Unit = { _, _ -> },
     rows: @Composable ColumnScope.(MonitorSettingsTab) -> Unit,
 ) {
+    val reportScroll by rememberUpdatedState(onScroll)
     MonitorPageScaffold(
         modifier = modifier,
         navigationWidth = 190f,
@@ -146,7 +153,8 @@ public fun MonitorSettingsPage(
             }
             Spacer(Modifier.height(10.dp))
             key(selection) {
-                val scroll = rememberScrollState()
+                val scroll = rememberScrollState(scrollOffsets[selection] ?: 0)
+                LaunchedEffect(scroll) { snapshotFlow { scroll.value }.collect { reportScroll(selection, it) } }
                 var viewportBounds by remember { mutableStateOf<Rect?>(null) }
                 val context = MonitorSettingsScrollContext(scroll, viewportBounds)
                 Box(Modifier.weight(1f).fillMaxWidth()

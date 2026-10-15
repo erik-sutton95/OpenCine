@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.*
 import com.opencapture.monitorui.settings.*
+import com.opencapture.opencine.appkit.MonitorOperatorSessionModel
 import com.opencapture.opencine.appkit.MonitorSettingsCacheSource
 import com.opencapture.opencine.appkit.MonitorSettingsAccountActions
 import com.opencapture.opencine.appkit.MonitorSettingsAccountModel
@@ -268,6 +269,23 @@ public fun MonitorOperatorSettingsScreen(
     var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
         MonitorOperatorPictureSettings.Configured(assistSections, display), sourceIdentity))
+}
+
+/**
+ * Settings over the one display owner (A2-84): the page opens on [session]'s last tab and restores
+ * each tab's scroll offset, the twin of Swift's configured `MonitorOperatorSettingsScreen`.
+ */
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    assistSections: List<MonitorAssistSettingsSection>,
+    display: MonitorOperatorDisplaySource,
+    session: MonitorOperatorSessionModel,
+    sourceIdentity: Any? = null,
+): Unit {
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab, { session.settingsTab = it },
+        MonitorOperatorPictureSettings.Configured(assistSections, display), sourceIdentity,
+        scrollOffsets = session.settingsScrollOffsets, onScroll = session::noteSettingsScroll))
 }
 
 /** Shared typed composition through the current settings and legal owners. */

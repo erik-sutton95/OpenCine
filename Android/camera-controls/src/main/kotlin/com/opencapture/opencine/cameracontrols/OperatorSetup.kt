@@ -105,6 +105,9 @@ import kotlinx.coroutines.delay
 /** What Operator Setup reads and changes on the app's model; each app's AppModel implements it. */
 interface OperatorSetupModel : GamepadHost {
     var operatorSettingsTab: MonitorSettingsTab
+    /** Each settings tab's scroll offset (`MonitorOperatorSessionModel.settingsScrollOffsets`). */
+    val operatorSettingsScrollOffsets: Map<MonitorSettingsTab, Int>
+    fun noteOperatorSettingsScroll(tab: MonitorSettingsTab, offset: Int)
     var chromeEditorReturnMode: MonitorDisplayMode?
     val assist: MonitorAssistState
     val cameras: CamerasModel
@@ -260,7 +263,8 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
     val configuration = operatorSetupConfiguration(model, state, app, isLive, phaseLabel, bars, onClose,
         feedback = { operatorHaptic(view, model.hapticsEnabled) }, report = app.reportProblem)
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, model.operatorSettingsTab,
-        { model.operatorSettingsTab = it }, MonitorOperatorPictureSettings.Deployed(model, state, app)))
+        { model.operatorSettingsTab = it }, MonitorOperatorPictureSettings.Deployed(model, state, app),
+        scrollOffsets = model.operatorSettingsScrollOffsets, onScroll = model::noteOperatorSettingsScroll))
 }
 
 /** The deployed apps' settings as one configuration over their model: the same recipe every app builds. */

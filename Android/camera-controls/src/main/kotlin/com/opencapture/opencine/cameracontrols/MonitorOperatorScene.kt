@@ -284,5 +284,6 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
     )
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab,
         { session.settingsTab = it }, MonitorOperatorPictureSettings.Session(preferences, session, assist,
-            availableAssistTools, assistHost, lookOptions)))
+            availableAssistTools, assistHost, lookOptions),
+        scrollOffsets = session.settingsScrollOffsets, onScroll = session::noteSettingsScroll))
 }

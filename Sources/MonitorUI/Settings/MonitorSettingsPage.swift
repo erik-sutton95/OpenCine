@@ -15,7 +15,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
     private let phaseLabel: String
     private let sharingSubtitle: String?
     private let sharingRail: String?
-    private let scrollOffsets: Binding<[String: CGFloat]>?
+    private let scrollOffsets: Binding<[MonitorSettingsTab: CGFloat]>?
     private let feedback: () -> Void
     private let onClose: () -> Void
     private let disconnect: () -> Void
@@ -26,7 +26,7 @@ public struct MonitorSettingsPage<Rows: View>: View {
         safeArea: EdgeInsets, brand: String, selection: Binding<MonitorSettingsTab>,
         tabs: [MonitorSettingsTab] = MonitorSettingsTab.allCases, tabSpacing: CGFloat = 6,
         isLive: Bool, phaseLabel: String, sharingSubtitle: String? = nil,
-        sharingRail: String? = nil, scrollOffsets: Binding<[String: CGFloat]>? = nil,
+        sharingRail: String? = nil, scrollOffsets: Binding<[MonitorSettingsTab: CGFloat]>? = nil,
         feedback: @escaping () -> Void = {}, onClose: @escaping () -> Void,
         disconnect: @escaping () -> Void,
         @ViewBuilder rows: @escaping (MonitorSettingsTab) -> Rows
@@ -112,10 +112,10 @@ public struct MonitorSettingsPage<Rows: View>: View {
 
     private var savedOffset: Binding<CGFloat>? {
         guard let scrollOffsets else { return nil }
-        let tabID = selection.id
+        let tab = selection
         return Binding(
-            get: { scrollOffsets.wrappedValue[tabID, default: 0] },
-            set: { scrollOffsets.wrappedValue[tabID] = $0 }
+            get: { scrollOffsets.wrappedValue[tab, default: 0] },
+            set: { scrollOffsets.wrappedValue[tab] = $0 }
         )
     }
 

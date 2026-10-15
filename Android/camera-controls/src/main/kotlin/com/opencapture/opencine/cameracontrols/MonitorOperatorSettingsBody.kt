@@ -77,6 +77,9 @@ internal class MonitorOperatorSettingsInputs(
     val onSelect: (MonitorSettingsTab) -> Unit,
     val picture: MonitorOperatorPictureSettings,
     val sourceIdentity: Any? = null,
+    /** Each tab's scroll offset and where the open tab is scrolled to (A2-84). */
+    val scrollOffsets: Map<MonitorSettingsTab, Int> = emptyMap(),
+    val onScroll: (MonitorSettingsTab, Int) -> Unit = { _, _ -> },
 )
 
 /** One full-cover settings recipe for every app; [MonitorOperatorPictureSettings] supplies the picture tabs. */
@@ -108,7 +111,7 @@ internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) 
             configuration.phase, configuration.disconnect, configuration.feedback, tabs = configuration.tabs,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
-            back = configuration.close) { tab ->
+            back = configuration.close, scrollOffsets = inputs.scrollOffsets, onScroll = inputs.onScroll) { tab ->
             key(inputs.sourceIdentity) {
                 MonitorOperatorSettingsRows(inputs, tab, compact, revision, openLegal,
                     onOpenLut = { showLutPicker = true }, onPreferenceChanged = { revision.intValue++ })

@@ -24,7 +24,6 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @State private var operatorSession: MonitorOperatorSessionModel<Looks>
     private let configuration: MonitorOperatorSettingsConfiguration<Looks>?
     private let borrowedSelection: Binding<MonitorSettingsTab>?
-    private let borrowedScrollOffsets: Binding<[String: CGFloat]>?
     private let sourceIdentity: UUID?
     @Environment(\.openURL) private var openURL
     @State private var document: MonitorSettingsDocument?
@@ -50,27 +49,35 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         self.preferences = preferences; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
         self.configuration = configuration; self.coverSafeArea = safeArea
-        self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
+        self.borrowedSelection = nil; self.sourceIdentity = nil
         self.assistPanels = assistPanels; self.falseColorLooks = falseColorLooks
         _operatorSession = State(initialValue: operatorSession ?? MonitorOperatorSessionModel(shell: shell, assist: assist, display: display))
     }
 
-    /// Complete configured flow over a source's page state and the one display owner.
+    /// Complete configured flow over a source's page state and the one display owner, which also
+    /// keeps each tab's scroll offset.
     public init(brand: String, configuration: MonitorOperatorSettingsConfiguration<Looks>,
         library: MonitorMediaLibraryModel<Payload>?, selectedTab: Binding<MonitorSettingsTab>,
-        scrollOffsets: Binding<[String: CGFloat]>, operatorSession: MonitorOperatorSessionModel<Looks>,
+        operatorSession: MonitorOperatorSessionModel<Looks>,
         sourceIdentity: UUID?, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
         self.preferences = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
         self.configuration = configuration; self.coverSafeArea = safeArea
-        self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
+        self.borrowedSelection = selectedTab; self.sourceIdentity = sourceIdentity
         _operatorSession = State(initialValue: operatorSession)
     }
 
     private var selectedTab: Binding<MonitorSettingsTab> {
         if let borrowedSelection { return borrowedSelection }
         return Binding(get: { operatorSession.settingsTab }, set: { operatorSession.settingsTab = $0 })
+    }
+
+    /// Every form restores each tab's scroll from the one display owner (A2-84).
+    private var scrollOffsets: Binding<[MonitorSettingsTab: CGFloat]> {
+        let session = operatorSession
+        return Binding(get: { session.settingsScrollOffsets.mapValues { CGFloat($0) } },
+            set: { session.settingsScrollOffsets = $0.mapValues { Double($0) } })
     }
 
     public var body: some View {
@@ -133,7 +140,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         let hasLibrary = library != nil
         return MonitorSettingsPage(safeArea: safeArea, brand: brand, selection: selectedTab,
             tabs: source.tabs(library: hasLibrary), isLive: source.isLive, phaseLabel: source.phase,
-            sharingSubtitle: source.sharingSubtitle, scrollOffsets: borrowedScrollOffsets, feedback: source.feedback,
+            sharingSubtitle: source.sharingSubtitle, scrollOffsets: scrollOffsets, feedback: source.feedback,
             onClose: source.close, disconnect: source.disconnect) { tab in
             ForEach(source.rows(tab, library: hasLibrary), id: \.self) { row($0, source) }
         }

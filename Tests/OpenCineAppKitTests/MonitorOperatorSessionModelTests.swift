@@ -56,6 +56,29 @@ import Testing
         }
     }
 
+    /// A2-84: Settings opens on the operator's last tab whichever entry opens it, and each tab
+    /// keeps its scroll offset across Edit view and the cover closing.
+    @Test func settingsKeepTheLastTabAndEachTabsScrollOffset() async throws {
+        guard #available(macOS 14, *) else { return }
+        try await withModel { model, shell, _, _ in
+            #expect(model.settingsTab == .link && model.settingsScrollOffsets.isEmpty)
+            model.settingsTab = .storage
+            model.openSettings()
+            #expect(shell.cover == .settings && model.settingsTab == .storage)
+            model.settingsTab = .display
+            model.settingsScrollOffsets[.display] = 240
+            model.settingsScrollOffsets[.storage] = 60
+            model.beginEditing(.live)
+            #expect(shell.cover == nil)
+            model.finishEditing()
+            #expect(shell.cover == .settings && model.settingsTab == .display)
+            #expect(model.settingsScrollOffsets == [.display: 240, .storage: 60])
+            shell.dismissCover()
+            model.openSettings()
+            #expect(model.settingsTab == .display && model.settingsScrollOffsets[.display] == 240)
+        }
+    }
+
     @Test func editorForceMountAndSettingsEscapePreserveSavedVisibility() async throws {
         guard #available(macOS 14, *) else { return }
         try await withModel { model, _, _, _ in
