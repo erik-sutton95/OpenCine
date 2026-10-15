@@ -1,7 +1,6 @@
 package com.opencapture.opencine.cameracontrols
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -210,7 +209,7 @@ public fun <P> MonitorOperatorCatalogScreen(
                 cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged)
         }, overlays = {
             MediaCloseButton({ gallery.retire(); close() }, Modifier.align(Alignment.TopEnd).padding(8.dp).testTag("monitor.page.back"))
-            library.deletionProgress?.let { progress -> MediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
+            library.deletionProgress?.let { progress -> MonitorMediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
             state.notice?.let { Text(it, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = LiveDesign.text) }
         }, storageCards = presentation?.storage.orEmpty(),
             selectStorage = { filter(MonitorMediaGalleryFilterAction.Storage(it), popup = false) })
@@ -317,22 +316,6 @@ internal fun <P> monitorCatalogClip(
 }
 
 private fun <T> Set<T>.toggled(value: T): Set<T> = if (value in this) this - value else this + value
-
-@Composable
-private fun MediaDeletionOverlay(progress: MonitorMediaDeletionProgress, detail: String?) {
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f))
-        .chromeClickable(onClick = {}), contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.layout.Column(Modifier.mediaGlass(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .padding(horizontal = 24.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Deleting ${progress.selectedCount} ${if (progress.selectedCount == 1) "item" else "items"}…", color = LiveDesign.text)
-            Text(detail ?: "${progress.completed} of ${progress.total}", color = LiveDesign.muted)
-            androidx.compose.material3.LinearProgressIndicator(progress = {
-                if (progress.total > 0) progress.completed.toFloat() / progress.total else 0f
-            })
-        }
-    }
-}
 
 /** The scrolling gallery, named as the SwiftUI catalog names it. */
 private const val GALLERY_TAG = "monitor.media.gallery"
