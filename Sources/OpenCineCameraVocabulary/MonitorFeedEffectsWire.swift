@@ -37,8 +37,17 @@ public enum MonitorFeedEffectsWire {
         scaleOrdinal: Int, colorModeCode: Int, iso: Int,
         sourceProfile: MonitorColorSourceProfile
     ) -> [UInt8]? {
+        packedFalseColorPaint(scaleOrdinal: scaleOrdinal,
+            transfer: monitorTransfer(colorModeCode: colorModeCode), iso: iso, sourceProfile: sourceProfile)
+    }
+
+    /// The paint for a named curve, for a source whose colour identity is not a mode byte.
+    public static func packedFalseColorPaint(
+        scaleOrdinal: Int, transfer: MonitorTransfer, iso: Int,
+        sourceProfile: MonitorColorSourceProfile
+    ) -> [UInt8]? {
         guard let scale = falseColorScale(scaleOrdinal) else { return nil }
-        let (transfer, ceiling) = prepared(colorModeCode: colorModeCode, iso: iso, sourceProfile: sourceProfile)
+        let ceiling = prepared(iso: iso, sourceProfile: sourceProfile)
         return lattice(scale: scale, transfer: transfer, ceiling: ceiling,
             rec709: readsRec709Look(scaleOrdinal), sourceProfile: sourceProfile).packedCube(.paint)
     }
@@ -48,8 +57,17 @@ public enum MonitorFeedEffectsWire {
         scaleOrdinal: Int, colorModeCode: Int, iso: Int,
         sourceProfile: MonitorColorSourceProfile
     ) -> [UInt8]? {
+        packedFalseColorWeight(scaleOrdinal: scaleOrdinal,
+            transfer: monitorTransfer(colorModeCode: colorModeCode), iso: iso, sourceProfile: sourceProfile)
+    }
+
+    /// The weight for a named curve, for a source whose colour identity is not a mode byte.
+    public static func packedFalseColorWeight(
+        scaleOrdinal: Int, transfer: MonitorTransfer, iso: Int,
+        sourceProfile: MonitorColorSourceProfile
+    ) -> [UInt8]? {
         guard let scale = falseColorScale(scaleOrdinal) else { return nil }
-        let (transfer, ceiling) = prepared(colorModeCode: colorModeCode, iso: iso, sourceProfile: sourceProfile)
+        let ceiling = prepared(iso: iso, sourceProfile: sourceProfile)
         return lattice(scale: scale, transfer: transfer, ceiling: ceiling,
             rec709: readsRec709Look(scaleOrdinal), sourceProfile: sourceProfile).packedCube(.weight)
     }
@@ -59,7 +77,16 @@ public enum MonitorFeedEffectsWire {
         colorModeCode: Int, iso: Int, highlightIRE: Double, midtoneIRE: Double,
         sourceProfile: MonitorColorSourceProfile
     ) -> [Float] {
-        let (transfer, ceiling) = prepared(colorModeCode: colorModeCode, iso: iso, sourceProfile: sourceProfile)
+        assistScalars(transfer: monitorTransfer(colorModeCode: colorModeCode), iso: iso,
+            highlightIRE: highlightIRE, midtoneIRE: midtoneIRE, sourceProfile: sourceProfile)
+    }
+
+    /// The assist scalars for a named curve, for a source whose colour identity is not a mode byte.
+    public static func assistScalars(
+        transfer: MonitorTransfer, iso: Int, highlightIRE: Double, midtoneIRE: Double,
+        sourceProfile: MonitorColorSourceProfile
+    ) -> [Float] {
+        let ceiling = prepared(iso: iso, sourceProfile: sourceProfile)
         let clipByte = ceiling.clipByte(transfer: transfer, iso: iso)
         let highlight = ScopeDisplayScale.zebraHighlightNative(
             monitorPercent: highlightIRE, transfer: transfer, clipByte: clipByte)
@@ -86,11 +113,11 @@ public enum MonitorFeedEffectsWire {
     /// ceiling per feed session; the facade never observed tap maxima. An ISO outside
     /// 50…102400 leaves ISO unknown; the supplied source profile selects any reference.
     private static func prepared(
-        colorModeCode: Int, iso: Int, sourceProfile: MonitorColorSourceProfile
-    ) -> (transfer: MonitorTransfer, ceiling: OpenCineMedia.ScopeExposureCeiling) {
+        iso: Int, sourceProfile: MonitorColorSourceProfile
+    ) -> OpenCineMedia.ScopeExposureCeiling {
         let ceiling = OpenCineMedia.ScopeExposureCeiling(profile: sourceProfile.clip)
         ceiling.setISO(iso)
-        return (monitorTransfer(colorModeCode: colorModeCode), ceiling)
+        return ceiling
     }
 
     private static func lattice(scale: LiveFalseColorScale, transfer: MonitorTransfer,
