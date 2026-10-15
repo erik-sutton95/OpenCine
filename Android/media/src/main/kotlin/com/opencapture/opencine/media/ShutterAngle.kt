@@ -3,6 +3,7 @@ package com.opencapture.opencine.media
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 /** Operator shutter-angle ladder. Body only accepts 1/N; convert locally. */
 object ShutterAngle {
@@ -18,6 +19,20 @@ object ShutterAngle {
         previousFps: Int, nextFps: Int, alreadyPending: Boolean = false,
     ): Boolean = usesAngle && manual && !isPhoto && previousFps > 0 && nextFps > 0 &&
         (previousFps != nextFps || alreadyPending)
+
+    /** The degrees a format change keeps and the 1/N it re-sends at the new rate. */
+    data class FormatRematch(val degrees: Double, val denom: Int)
+
+    /**
+     * What a format change owes a host-emulated angle, or null when no hidden write is due
+     * ([rematchesFormat]). The DJI and Luna sessions on both platforms call this; none decides it inline.
+     */
+    fun formatRematch(
+        degrees: Double, usesAngle: Boolean, manual: Boolean, isPhoto: Boolean,
+        previousFps: Int, nextFps: Int, available: List<Int>, alreadyPending: Boolean = false,
+    ): FormatRematch? =
+        if (!rematchesFormat(usesAngle, manual, isPhoto, previousFps, nextFps, alreadyPending)) null
+        else FormatRematch(degrees, denom(degrees, nextFps, available))
 
     fun label(value: Double): String {
         val rounded = round(value)
@@ -38,8 +53,8 @@ object ShutterAngle {
     fun denom(degrees: Double, fps: Int): Int {
         val angle = degrees.coerceAtLeast(0.1)
         val rate = effectiveFps(fps).toDouble()
-        val raw = round(360.0 * rate / angle).toInt()
-        return raw.coerceIn(1, 16_000)
+        // Ties round up like Swift `rounded()`: 144 degrees at 25 fps is 1/63 on both platforms.
+        return (360.0 * rate / angle).roundToInt().coerceIn(1, 16_000)
     }
 
     fun denom(degrees: Double, fps: Int, available: List<Int>): Int {

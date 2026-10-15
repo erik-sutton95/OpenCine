@@ -23,6 +23,7 @@ import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.MonotonicInstant
 import com.opencapture.opencine.core.ObservedValue
 import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.StorageVolume
 import com.opencapture.opencine.core.ObservationPrecision
 import com.opencapture.opencine.core.OperationID
 import com.opencapture.opencine.core.Rational
@@ -319,10 +320,10 @@ class NikonOpenCineSession(
         val descriptors = descriptors(properties, reported)
         val timecode = timecodeCapability(properties)
         val capabilities =
-            if (CapabilitySnapshot(current.capabilities.revision, descriptors, timecode = timecode) == current.capabilities) {
+            if (CapabilitySnapshot(timecodeCapability = timecode, revision = current.capabilities.revision, descriptors = descriptors) == current.capabilities) {
                 current.capabilities
             } else {
-                CapabilitySnapshot(current.capabilities.revision.next(), descriptors, timecode = timecode)
+                CapabilitySnapshot(timecodeCapability = timecode, revision = current.capabilities.revision.next(), descriptors = descriptors)
             }
         val serial = (state as? CameraSessionState.Connected)?.identity?.serialNumber.orEmpty()
         val photography = properties.captureSelector.equals("photo", ignoreCase = true)
@@ -371,6 +372,7 @@ class NikonOpenCineSession(
                     profile = current.recordingFormat.profile.observe(properties.tone?.trim()?.takeIf { it.isNotEmpty() }, at,
                         origin = ObservationOrigin.PROTOCOL_DERIVED),
                 ),
+                storage = current.storage.observe(storageVolumes(properties, current.storage.value, at), at),
                 settings =
                     reportedSettings(properties, photography)
                         .mapValues { (key, value) -> current.value(key).observe(value, at) }
@@ -555,6 +557,28 @@ class NikonOpenCineSession(
             } else {
                 CaptureMode(CaptureMode.Role.VIDEO, "${INTEGRATION.rawValue}.movie", "Movie")
             }
+
+        /** Exact bytes and a separately marked estimate; unknown format has no duration. */
+        internal fun storageVolumes(
+            properties: CameraPropertySnapshot, previous: List<StorageVolume>? = null, at: MonotonicInstant? = null,
+        ): List<StorageVolume>? {
+            val storage = properties.storage?.takeIf { it.readout != null } ?: return null
+            val old = previous?.firstOrNull { it.id == "active" }
+            fun <T : Any> observation(value: T?, previous: ObservedValue<T>?, origin: ObservationOrigin): ObservedValue<T> = when {
+                value == null -> ObservedValue.unknown
+                previous != null && previous.value == value && previous.origin == origin -> previous
+                else -> ObservedValue(value, origin, at)
+            }
+            val minutes = if (properties.captureSelector == "video") {
+                RecordDurationEstimator.estimateMinutes(properties.codec, properties.resolution, properties.frameRate, storage.freeSpaceBytes)
+            } else null
+            return listOf(StorageVolume(
+                id = "active",
+                freeBytes = observation(storage.freeSpaceBytes, old?.freeBytes, ObservationOrigin.CAMERA_REPORTED),
+                totalBytes = observation(storage.totalCapacityBytes.takeIf { it > 0 }, old?.totalBytes, ObservationOrigin.CAMERA_REPORTED),
+                remainingRecordingTime = observation(minutes?.let { (it.toLong() * 60).seconds }, old?.remainingRecordingTime, ObservationOrigin.ESTIMATED),
+            ))
+        }
 
         /** Keeps an unchanged observation and its timestamp; a new value is camera-reported now. */
         private fun <T : Any> ObservedValue<T>.observe(

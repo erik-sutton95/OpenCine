@@ -176,6 +176,49 @@ class NikonOpenCineSessionTest {
         }
     }
 
+    /** A5-12: the integration publishes the card, with its remaining recording time as an estimate. */
+    @Test
+    fun storagePublishesRemainingRecordingTimeAsAnEstimate() = runTest {
+        val properties = movie(codec = "R3D NE 12-bit R3D").copy(
+            resolution = "6048x3402", frameRate = 25,
+            storage = CameraStorageStatus(totalCapacityBytes = 1_000_000_000_000, freeSpaceBytes = 470_000_000_000),
+        )
+        val seam = NikonOpenCineSession(FakeNikon(properties), backgroundScope)
+        val volume = seam.refresh().storage.value?.singleOrNull()
+        assertEquals(470_000_000_000L, volume?.freeBytes?.value)
+        assertEquals("ESTIMATED", volume?.remainingRecordingTime?.origin?.name)
+        assertEquals(40L * 60, volume?.remainingRecordingTime?.value?.inWholeSeconds)
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
+    @Test
+    fun storageEstimateRequiresKnownFormatAndRetainsZeroAndOrigin() = runTest {
+        val properties = movie(codec = "R3D NE 12-bit R3D").copy(
+            resolution = "6048x3402", frameRate = 25,
+            storage = CameraStorageStatus(1_000_000_000_000, 470_000_000_000),
+        )
+        val seam = NikonOpenCineSession(FakeNikon(properties), backgroundScope)
+        val at = seam.refresh().storage.observedAt
+        val volume = seam.refresh().storage.value!!.single()
+        for ((codec, resolution, fps) in listOf(
+            Triple("Mystery Codec", "6048x3402", 25), Triple("R3D NE 12-bit R3D", "-1x-1", 25),
+            Triple("R3D NE 12-bit R3D", "6048x3402", 0), Triple("R3D NE 12-bit R3D", "6048xgarbage", 25),
+        )) {
+            assertEquals(null, NikonOpenCineSession.storageVolumes(properties.copy(
+                codec = codec, resolution = resolution, frameRate = fps,
+            ))?.single()?.remainingRecordingTime?.value)
+        }
+        assertEquals(2400.seconds, NikonOpenCineSession.storageVolumes(properties.copy(
+            storage = CameraStorageStatus(0, 470_000_000_000),
+        ))?.single()?.remainingRecordingTime?.value)
+        assertEquals(0.seconds, NikonOpenCineSession.storageVolumes(properties.copy(
+            storage = CameraStorageStatus(1_000_000_000_000, 0),
+        ))?.single()?.remainingRecordingTime?.value)
+        assertEquals(null, NikonOpenCineSession.storageVolumes(properties.copy(storage = null)))
+        assertEquals(at, volume.remainingRecordingTime.observedAt)
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
     /** A ZR in movie mode, exposure M, H.265, with the Swift-authorized domains. */
     private fun movie(codec: String = "H.265 10-bit MOV") =
         CameraPropertySnapshot(
@@ -224,7 +267,7 @@ class NikonOpenCineSessionTest {
             val seam = NikonOpenCineSession(camera, backgroundScope)
             val idle = seam.snapshots.value
             assertNull(idle.timecode.value)
-            assertEquals(TimecodeCapability.supported(TimecodePrecision.Frames(Rational(25))), idle.capabilities.timecode)
+            assertEquals(TimecodeCapability.supported(TimecodePrecision.Frames(Rational(25))), idle.capabilities.timecodeCapability)
 
             camera.liveTimecode.value = CameraTimecode(1, 2, 3, frames = 17)
             runCurrent()
@@ -251,7 +294,7 @@ class NikonOpenCineSessionTest {
             assertNull(seam.snapshots.value.timecode.value, "unknown off the link even if the source lags")
 
             camera.cameraProperties.value = movie().copy(frameRate = 0)
-            assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecode)
+            assertEquals(TimecodeCapability.supported(null), seam.refresh().capabilities.timecodeCapability)
             seam.closeNow(SessionCloseReason.REQUESTED)
         }
 

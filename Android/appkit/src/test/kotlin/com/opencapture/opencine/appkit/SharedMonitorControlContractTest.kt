@@ -147,7 +147,7 @@ class SharedMonitorControlContractTest {
         audioLevels: AudioLevels? = null): FakeCameraSession {
         val mode = FakeMode(CaptureMode(CaptureMode.Role.VIDEO, "contract.video", "SIMULATED"),
             listOf(SettingDescriptor(SettingKey.ISO, access = access, domain = domain)), emptySet(),
-            timecode = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.SUPPORTED)
+            timecodeCapability = TimecodeCapability.supported(TimecodePrecision.Seconds), audioLevels = SupportStatus.SUPPORTED)
         return FakeCameraSession(FakeCameraBehavior(IntegrationID("contract"), 3.seconds,
             5.seconds, FakeCameraBehavior.RecordWire.EXPLICIT, modes = mapOf(1 to mode)),
             FakeDevice(1, mapOf(SettingKey.ISO to iso(200)), recording = recording,

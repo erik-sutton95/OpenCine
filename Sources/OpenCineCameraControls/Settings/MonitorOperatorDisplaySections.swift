@@ -44,7 +44,8 @@ public struct MonitorOperatorDisplaySections<Looks: MonitorLookProvider>: View {
                         accessibilityLabel: "Keep \(tool.displaySettingsTitle) in clean view") {
                         feedback(); assist.toggleCleanViewPin(tool)
                     }
-                } : [], style: .controls)
+                } : []
+            )
         })
     }
 

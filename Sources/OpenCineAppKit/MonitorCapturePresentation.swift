@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCore
+import OpenCineMedia
 
 /// A drum detent keeps its typed command value. Display copy never becomes a wire mapping.
 public struct MonitorCaptureChoice: Hashable, Sendable {
@@ -57,9 +58,7 @@ public enum MonitorCapturePresentation {
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"
-        case .exposureCompensation(let stops):
-            stops.numerator == 0 ? "0.0" : (stops.numerator < 0 ? "−" : "+")
-                + String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), abs(stops.doubleValue))
+        case .exposureCompensation(let stops): ExposureCompensation.label(stops: stops.doubleValue)
         case .focusMode(.manual): "MF"
         case .focusMode(.single): "AF-S"
         case .focusMode(.continuous): "AF-C"
@@ -154,8 +153,10 @@ public enum MonitorCapturePresentation {
         return label + aspect
     }
 
+    /// C `%g` (no locale: a locale switches Foundation to `1.5E-05` and `1000000`). The Kotlin
+    /// twin mirrors it; both read `Fixtures/capture-label-vectors.tsv`.
     private static func number(_ value: Double) -> String {
-        String(format: "%g", locale: Locale(identifier: "en_US_POSIX"), value)
+        String(format: "%g", value)
     }
 }
 

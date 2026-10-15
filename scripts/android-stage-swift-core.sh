@@ -168,5 +168,13 @@ rm -rf "$output"
 mv "$temporary_output" "$output"
 trap - EXIT
 
+# The shipped library is stripped; keep the unstripped one (same GNU build-id, with DWARF) beside
+# jniLibs so the release upload (scripts/sentry/sentry-upload.py) can symbolicate Swift frames.
+if [[ "$output" == */jniLibs/* ]]; then
+    symbols="${output%/jniLibs/*}/symbols/${output##*/}"
+    mkdir -p "$symbols"
+    cp "$product" "$symbols/lib${PRODUCT}.so"
+fi
+
 printf 'Staged %s native libraries for arm64-v8a → %s\n' \
     "$(wc -l < "$output/native-libraries.txt" | tr -d ' ')" "$output"

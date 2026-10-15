@@ -116,3 +116,57 @@ public enum FrameioDelivery {
         return report
     }
 }
+
+/// A bounded record of confirmed uploads over app-supplied storage (the app owns the namespace).
+/// It keeps only stable clip identities, never filenames, projects or cloud responses; the
+/// oldest identities give way past `capacity`. The Kotlin twin has the same name and rules.
+public struct FrameioUploadHistoryIndex: FrameioUploadHistory {
+    private let loadValue: @Sendable () -> String?
+    private let saveValue: @Sendable (String) -> Bool
+    private let capacity: Int
+
+    public init(
+        capacity: Int = 4_096, load: @escaping @Sendable () -> String?,
+        save: @escaping @Sendable (String) -> Bool
+    ) {
+        precondition(capacity > 0, "Frame.io history capacity must be positive.")
+        self.capacity = capacity
+        loadValue = load
+        saveValue = save
+    }
+
+    public func wasUploaded(_ identity: String) -> Bool {
+        Self.isSafe(identity) && load().contains(identity)
+    }
+
+    public func recordUploaded(_ identity: String) -> Bool {
+        guard Self.isSafe(identity) else { return false }
+        var identities = load().filter { $0 != identity }
+        identities.append(identity)
+        if identities.count > capacity { identities.removeFirst(identities.count - capacity) }
+        return saveValue(identities.joined(separator: "\n"))
+    }
+
+    /// A stable identity for a clip from its source facts (camera, path, size): FNV-1a 64.
+    public static func identity(_ parts: [String]) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in parts.joined(separator: "\u{1F}").utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return "fnv1a64-" + String(hash, radix: 16)
+    }
+
+    private func load() -> [String] {
+        Array((loadValue() ?? "").split(separator: "\n").map(String.init).filter(Self.isSafe)
+            .prefix(capacity))
+    }
+
+    private static func isSafe(_ identity: String) -> Bool {
+        (1...128).contains(identity.count)
+            && identity.unicodeScalars.allSatisfy {
+                ("a"..."z").contains($0) || ("A"..."Z").contains($0) || ("0"..."9").contains($0)
+                    || $0 == "-" || $0 == "_"
+            }
+    }
+}

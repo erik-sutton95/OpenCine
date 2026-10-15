@@ -4,7 +4,7 @@ import XCTest
 
 /// Time-of-day timecode for Luna live frames, pinned to the phone clock by earliest arrival.
 final class LunaFrameTimecodeTests: XCTestCase {
-    private func text(_ timecode: CameraTimecode?) -> String? {
+    private func text(_ timecode: CameraTimecodeReading?) -> String? {
         timecode.map {
             XCTAssertNil($0.frames, "seconds precision: no frame field is invented")
             return String(format: "%02d:%02d:%02d", $0.hours, $0.minutes, $0.seconds)
@@ -52,4 +52,24 @@ final class LunaFrameTimecodeTests: XCTestCase {
             text(clock.note(frameClock: 101_000, arrival: 1001.3, timeZoneSeconds: 0)),
             "00:16:41", "a reset reports the current second again")
     }
+
+    @available(*, deprecated, message: "Legacy explicit-rate compatibility control")
+    func testExplicitPositiveLegacyRatesRetainTheirKnownClockFrames() {
+        for (fps, frames) in [(24, 12), (25, 12), (30, 15), (50, 12), (60, 15), (100, 12), (120, 15)] {
+            let value: CameraTimecode = LunaFrameTimecode.timecode(unixSeconds: 3661.5, timeZoneSeconds: 0, fps: fps)
+            let integer: Int = value.frames
+            XCTAssertEqual(integer, frames)
+            XCTAssertEqual(value.hours, 1)
+            XCTAssertEqual(value.minutes, 1)
+            XCTAssertEqual(value.seconds, 1)
+            XCTAssertEqual(value.dropFrame, false)
+        }
+        var legacy = LunaFrameTimecode()
+        XCTAssertNil(legacy.note(frameClock: 1000, arrival: 3661.59, timeZoneSeconds: 0, fps: 0))
+        XCTAssertNil(legacy.offset, "unknown rates are refused before they reserve a clock reading")
+        XCTAssertEqual(legacy.note(frameClock: 1000, arrival: 3661.59, timeZoneSeconds: 0, fps: 25)?.frames, 12)
+        let observed = LunaFrameTimecode.timecode(unixSeconds: 3661.5, timeZoneSeconds: 0)
+        XCTAssertNil(observed.frames, "current observations never use explicit-rate synthesis")
+    }
+
 }

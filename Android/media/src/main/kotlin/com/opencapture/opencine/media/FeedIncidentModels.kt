@@ -175,7 +175,7 @@ enum class FeedRepairPhase(val wire: String) {
     }
 }
 
-data class FeedIncidentRates(
+data class FeedIncidentRates @JvmOverloads constructor(
     val packetHz: Double = 0.0,
     val accessUnitHz: Double = 0.0,
     val decodeSubmitHz: Double = 0.0,
@@ -184,6 +184,7 @@ data class FeedIncidentRates(
     val assistOutputHz: Double = 0.0,
     val presentHz: Double = 0.0,
     val ackHz: Double = 0.0,
+    val observed: FeedIncidentRateObservation? = null,
 )
 
 data class FeedIncidentAges(
@@ -223,7 +224,51 @@ data class FeedIncidentDecoder(
     val lastIrapAge: Double? = null,
     val lastSuccessfulOutputAge: Double? = null,
     val rebuildReason: String? = null,
+    /** Bitstream facts behind the first decoder error of the current error episode. */
+    val firstError: FeedIncidentDecodeErrorContext? = null,
 )
+
+/**
+ * The access unit behind the first decoder error of an episode: NAL types in unit order, its
+ * size, how long since the last accepted IRAP and the last parameter-set change, and the
+ * access-unit rate over the second before it. Types, sizes, ages and rates only: no payload
+ * bytes and no user data. Apple fills it from VideoToolbox callbacks; MediaCodec reports
+ * failures per codec rather than per access unit, so Android producers leave it null.
+ */
+class FeedIncidentDecodeErrorContext(
+    status: Int,
+    nalTypes: List<Int>,
+    accessUnitBytes: Int,
+    irapAge: Double? = null,
+    parameterSetChangeAge: Double? = null,
+    inputHz: Double = 0.0,
+) {
+    private val values = Values(
+        status, nalTypes.take(MAX_NAL_TYPES).map { it.coerceIn(0, 63) },
+        accessUnitBytes.coerceAtLeast(0), normalizedAge(irapAge),
+        normalizedAge(parameterSetChangeAge), FeedIncidentPrivacy.rate(inputHz).let { if (it == 0.0) 0.0 else it },
+    )
+    val status: Int get() = values.status
+    val nalTypes: List<Int> get() = values.nalTypes
+    val accessUnitBytes: Int get() = values.accessUnitBytes
+    val irapAge: Double? get() = values.irapAge
+    val parameterSetChangeAge: Double? get() = values.parameterSetChangeAge
+    val inputHz: Double get() = values.inputHz
+
+    override fun equals(other: Any?): Boolean = other is FeedIncidentDecodeErrorContext && values == other.values
+    override fun hashCode(): Int = values.hashCode()
+
+    private data class Values(
+        val status: Int, val nalTypes: List<Int>, val accessUnitBytes: Int,
+        val irapAge: Double?, val parameterSetChangeAge: Double?, val inputHz: Double,
+    )
+
+    companion object {
+        const val MAX_NAL_TYPES = 16
+        private fun normalizedAge(value: Double?): Double? =
+            FeedIncidentPrivacy.age(value)?.let { if (it == 0.0) 0.0 else it }
+    }
+}
 
 data class FeedIncidentLifecycle(
     val foreground: Boolean = true,
@@ -284,7 +329,20 @@ object FeedIncidentNativeBreadcrumb {
             "repairPhase" to
                 setOf("requested", "blocked", "locallySent", "peerResponse", "pictureRestored"),
             "repairAction" to setOf("decoder", "enable", "session", "endpoint", "rejoin"),
+            // Producers' reasons: RecoveryReason wires, the Swift SessionRecoveryTrigger cases and
+            // the DJI shells' decoder and enable gates. Swift twin: the same set.
+            "repairReason" to
+                setOf(
+                    "bleDropped", "softAPLost", "datalinkLost", "operatorRetry", "feedWatchdogStall",
+                    "commandTimeout", "firstPicture", "outputSilence", "referenceLoss", "notReady",
+                    "overlap", "playback", "path", "serialGate", "media", "watchdog", "pictureDeadline",
+                    "outputResumed", "udpAlive", "keyframeUnanswered", "videoLive", "presentationOnly",
+                    "decoderNotReady", "pathNotReady", "cooldown", "enableGate",
+                ),
         )
+
+    /** [value] when the [key] vocabulary holds it, else `other`: free text never leaves the phone. */
+    fun closed(key: String, value: String): String = if (allowedValues[key]?.contains(value) == true) value else "other"
 
     fun isAllowedMessage(message: String): Boolean =
         FeedIncidentBreadcrumbKind.entries.any { it.wire == message } || message == "repair"
@@ -324,7 +382,22 @@ data class FeedRepairRecord(
     val action: String,
     val phase: FeedRepairPhase,
     val reason: String? = null,
-)
+) {
+    /**
+     * The record as reports carry it: action and reason from the closed repair vocabulary. Producers
+     * pass free text, and the record reaches reports as trigger and recoveredBy (Swift closes in init).
+     */
+    fun closed(): FeedRepairRecord =
+        copy(
+            action = FeedIncidentNativeBreadcrumb.closed("repairAction", FeedIncidentPrivacy.token(action, 32)),
+            reason = reason?.let { FeedIncidentNativeBreadcrumb.closed("repairReason", FeedIncidentPrivacy.token(it, 32)) },
+        )
+
+    companion object {
+        /** The reason a first-picture resend carries (Swift `FeedRepairRecord.firstPictureReason`). */
+        const val FIRST_PICTURE_REASON = "firstPicture"
+    }
+}
 
 data class FeedIncidentErrorCount(
     val errorClass: String,
@@ -589,6 +662,10 @@ data class FeedIncidentVendorEnvelope(
     val cameraFamily: String,
     val testSource: String,
     val buildIdentity: String,
+    /** First repair reason recorded during this incident (`bleDropped`, ...), else `none`. */
+    val trigger: String = "none",
+    /** Last repair action before a recovered outcome, else `none`. */
+    val recoveredBy: String = "none",
 )
 
 data class FeedIncidentSessionSummary(
@@ -605,8 +682,18 @@ data class FeedIncidentSessionSummary(
 )
 
 object FeedIncidentExport {
+    /** Coarse, searchable picture-gap tag. Exact seconds stay in extras. */
+    fun gapBucket(seconds: Double): String {
+        val edges = listOf(2.0, 5.0, 10.0, 20.0, 40.0, 120.0)
+        val upper = edges.firstOrNull { seconds < it } ?: return "120s+"
+        val lower = edges.lastOrNull { it < upper } ?: 0.0
+        return "${lower.toInt()}-${upper.toInt()}s"
+    }
+
     fun envelope(from: FeedIncidentBundle): FeedIncidentVendorEnvelope {
         val header = from.header
+        // The 1 Hz snapshot opens an incident up to a tick after its first repair.
+        val own = from.repairs.filter { it.monotonicAt >= header.startedAtMonotonic - 1.5 }.map { it.closed() }
         val grouping =
             FeedIncidentGrouping(
                 schemaVersion = header.schemaVersion,
@@ -637,6 +724,15 @@ object FeedIncidentExport {
             cameraFamily = header.cameraFamily,
             testSource = header.testSource.wire,
             buildIdentity = header.buildIdentity,
+            trigger = own.firstNotNullOfOrNull { it.reason } ?: "none",
+            // A first-picture resend inside an endpoint/rejoin repair is on the
+            // timeline, but the rung that opened the new session gets the credit.
+            recoveredBy =
+                if (header.outcome == FeedIncidentOutcome.RECOVERED) {
+                    own.lastOrNull { it.reason != FeedRepairRecord.FIRST_PICTURE_REASON }?.action ?: "none"
+                } else {
+                    "none"
+                },
         )
     }
 }

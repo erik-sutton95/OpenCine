@@ -15,6 +15,7 @@ import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionStep
 import com.opencapture.opencine.core.DiscoveryMode
 import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.IntegrationPresentation
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RouteKind
 import com.opencapture.opencine.core.SavedCamera
@@ -50,6 +51,7 @@ public class FakeIntegration(
     ),
     /** Hosts discovery dials. */
     public var endpoints: List<String> = emptyList(),
+    override val presentation: IntegrationPresentation = IntegrationPresentation(),
 ) : CameraIntegration {
     /**
      * Called with each new attempt when its flow is collected: a SIMULATED app answers every

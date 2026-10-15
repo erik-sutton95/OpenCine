@@ -30,6 +30,29 @@ public struct MonitorSettingsCacheSource {
         self.isCurrent = isCurrent; self.count = count; self.clear = clear
         self.clearSummary = clearSummary; self.readObserved = readObserved
     }
+
+    /// The same cache together with another store the operator counts and clears with it, such
+    /// as the delivery exports (A2-58).
+    public func adding(
+        count more: @escaping @MainActor () async -> UInt64,
+        clear also: @escaping @MainActor () async throws -> Void
+    ) -> MonitorSettingsCacheSource {
+        let count = count, clear = clear
+        var observed: (@MainActor () async throws -> UInt64?)?
+        if let read = readObserved {
+            observed = {
+                guard let bytes = try await read() else { return nil }
+                return bytes + (await more())
+            }
+        }
+        return .init(
+            identity: identity, revision: revision, isCurrent: isCurrent,
+            count: { await count() + more() },
+            clear: {
+                try await clear()
+                try await also()
+            }, clearSummary: clearSummary, readObserved: observed)
+    }
 }
 
 /// Owns cache presentation and captured actions; the host remains the only cache IO owner.
@@ -98,7 +121,8 @@ public final class MonitorSettingsCacheModel {
         outgoingCount?.cancel(); outgoingClear?.cancel()
         guard countOwner == owner else { return }
         var value = replaced ? State() : snapshot
-        value.bytes = nil; value.readFailed = false; value.failure = nil
+        value.bytes = nil; value.readFailed = false
+        if !value.clearFailed { value.failure = nil }
         publish(value)
     }
 
@@ -137,7 +161,7 @@ public final class MonitorSettingsCacheModel {
                 }
             }
             self.finish(owner)
-            if succeeded, stillOwned, !Task.isCancelled, self.sourceRevision == completionRevision,
+            if stillOwned, !Task.isCancelled, self.sourceRevision == completionRevision,
                 self.admits(captured), self.sourceRevision == completionRevision, let next = self.source {
                 self.refresh(next)
             }

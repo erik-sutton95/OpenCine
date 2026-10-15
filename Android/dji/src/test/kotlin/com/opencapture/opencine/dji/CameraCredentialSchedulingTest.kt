@@ -1,5 +1,7 @@
 package com.opencapture.opencine.dji
 
+import com.opencapture.opencine.platform.withCredentialIO
+import com.opencapture.opencine.platform.CallbackOperationOwner
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -182,7 +184,7 @@ class CameraCredentialSchedulingTest {
             published.incrementAndGet()
         }
         gate.awaitEntry()
-        fixture.source.runIfCurrent(fixture.first) { fixture.first.resource = null }
+        fixture.source.runIfCurrent(fixture.first) { fixture.source.detach(fixture.first) }
         assertFalse(fixture.current())
         gate.release()
         connection.join()

@@ -231,6 +231,32 @@ class MonitorOperatorPlaybackLifetimeTest {
             assertNull(f.library.record(MediaAssetID("A")))
         } finally { f.close() }
     }
+    @Test fun retiredGalleryDeletionRelistsByDefaultWhenItsFinishDoesNot() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            assertTrue(f.open(0)); val owner = assertNotNull(f.model.state.value.playback)
+            val authority = assertNotNull(f.library.captureDeletion(MonitorMediaLibraryIOKey("default-relist")) { true })
+            var finished = 0
+            val operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion = { record ->
+                MonitorOperatorPlaybackDeletionRequest(MonitorPlaybackDeletionConfirmation(title = "Remove A"), authority) {
+                    owner.close()
+                    f.library.deleteHostBatch(authority,
+                        listOf(MonitorMediaDeletionTarget(record, listOf(1))), 1,
+                        MonitorMediaDeletionPreparation.RETIRE_GALLERY,
+                        port = MonitorMediaDeletionPort(finish = { finished += 1 }, remove = { MonitorMediaDeleteAcknowledgement.REMOVED },
+                            commit = { row, _ ->
+                                f.library.applyLocalRemoval(setOf(row.asset.id), authority.actionToken); true
+                            }))
+                }
+            })
+            val copy = assertNotNull(f.model.captureDeletion(owner.state.value.token, operations))
+            f.model.confirmDeletion(copy.id); runCurrent()
+            assertEquals(1, finished)
+            assertTrue(f.library.state.value.browsing)
+            assertEquals("B", f.model.state.value.playback?.state?.value?.active?.payload)
+            assertNull(f.library.record(MediaAssetID("A")))
+        } finally { f.close() }
+    }
     @Test fun capturedDeletionBeforeReplacementCannotDeleteTheNewItem() = runTest {
         val f = Fixture(backgroundScope)
         try {
@@ -278,6 +304,20 @@ class MonitorOperatorPlaybackLifetimeTest {
             f.model.sceneActive(false); f.model.deliveryPresented(true); f.model.sceneActive(true); f.model.deliveryPresented(false)
             assertFalse(owner.state.value.playRequested); assertEquals(plays, f.ports[0].played.size)
             assertSame(owner, f.model.state.value.playback)
+        } finally { f.close() }
+    }
+    @Test fun shareFromPlaybackPausesAndDismissLeavesTheTransportPaused() = runTest {
+        val f = Fixture(backgroundScope)
+        try {
+            f.model.playerVisible(true); assertTrue(f.open(0)); val owner = assertNotNull(f.model.state.value.playback)
+            runCurrent(); assertTrue(owner.state.value.ready); owner.setPlaying(true)
+            val token = owner.state.value.token; val plays = f.ports[0].played.size
+            assertTrue(f.model.beginShare(token))
+            assertTrue(f.model.state.value.deliveryPresented)
+            assertFalse(owner.state.value.playRequested); assertEquals(token, f.ports[0].paused.last())
+            f.model.deliveryPresented(false)
+            assertFalse(owner.state.value.playRequested); assertEquals(plays, f.ports[0].played.size)
+            assertFalse(f.model.beginShare(token.copy(revision = token.revision + 1)))
         } finally { f.close() }
     }
     @Test fun realRemovalMayRetireTheOutgoingItemOnceAndOpenTheAdjacentOwner() = runTest {

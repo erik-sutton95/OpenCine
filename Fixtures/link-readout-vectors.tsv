@@ -1,0 +1,17 @@
+# Golden vectors for the live FPS chip, read by both shells (A5-17).
+#
+# Swift `MonitorLinkMeter` (OpenCineCameraVocabulary) and Kotlin `MonitorLinkMeter`
+# (Android/camera-controls) word the chip the same way: `MonitorLinkVectorTests` (Swift)
+# and `MonitorLinkVectorTest` (Kotlin) drive their meter at the row's delivery rate and
+# assert the word. `U+XXXX` spells a placeholder glyph.
+#
+# Tab-separated: connection, feed recovering, session recovering, delivered fps, chip word.
+idle	no	no	0	U+2014
+connecting	no	no	0	LINK
+live	no	no	0	LINK
+live	no	no	25	25.00
+live	yes	no	25	RECOV
+failed	no	no	25	FAIL
+failed	no	yes	25	NO LINK
+live	no	yes	0	NO LINK
+idle	no	no	25	25.00

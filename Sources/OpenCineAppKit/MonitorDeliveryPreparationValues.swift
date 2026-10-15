@@ -137,13 +137,17 @@ public struct MonitorDeliveryRemoteService<Project: Sendable, Context: Sendable,
     public let persist: (MonitorDeliveryProject<Project>, Context) -> Void
     public let internet: MonitorDeliveryInternetService<Lease>
     public let transfer: (Lease) -> Lease?
+    /// The remote keeps an upload history, so already uploaded records are skipped unless the
+    /// operator turns on re-upload; without one the re-upload toggle is not offered (A2-53).
+    public let skipsUploaded: Bool
     public init(
         presentation: MonitorDeliveryRemotePresentation,
         observe: @escaping () -> MonitorDeliveryRemoteFacts,
         load: @escaping () async throws -> MonitorDeliveryProjectListing<Context, Project>,
         create: @escaping (String, Context) async throws -> MonitorDeliveryProject<Project>,
         persist: @escaping (MonitorDeliveryProject<Project>, Context) -> Void,
-        internet: MonitorDeliveryInternetService<Lease>, transfer: @escaping (Lease) -> Lease?
+        internet: MonitorDeliveryInternetService<Lease>, transfer: @escaping (Lease) -> Lease?,
+        skipsUploaded: Bool
     ) {
         self.presentation = presentation
         self.observe = observe
@@ -152,13 +156,20 @@ public struct MonitorDeliveryRemoteService<Project: Sendable, Context: Sendable,
         self.persist = persist
         self.internet = internet
         self.transfer = transfer
+        self.skipsUploaded = skipsUploaded
     }
 }
-public struct MonitorDeliveryPreparedRequest<Curve: Sendable, Format: Sendable, Lease: Sendable>:
-    Sendable
-{
+/// The operator's accepted choices. A remote upload carries the project selected in the popup,
+/// so a later selection in another popup never redirects this run (A2-72).
+public struct MonitorDeliveryPreparedRequest<
+    Curve: Sendable, Format: Sendable, Project: Sendable, Context: Sendable, Lease: Sendable
+>: Sendable {
     public let destination: MonitorDeliveryDestination
     public let configuration: MonitorDeliveryExportConfiguration<Curve, Format>?
     public let action: MonitorDeliveryPostExportAction
     public let internetLease: Lease?
+    /// The selected project and its listing context, or nil when none was loaded (the host
+    /// then captures its saved destination once, at begin).
+    public let project: MonitorDeliveryProject<Project>?
+    public let projectContext: Context?
 }

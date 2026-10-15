@@ -77,7 +77,9 @@ import Testing
         #expect(facts.progress.contains { $0.stage == .exporting && abs($0.clipFraction - 0.36) < 0.000001 })
         #expect(facts.progress.contains { $0.stage == .uploading && abs($0.clipFraction - 0.725) < 0.000001 })
     }
-    @Test func nativeFailureStopsBeforeNextPreparation() async {
+    /// A2-56: the one policy continues past a failing item; with nothing prepared the outcome
+    /// reports the first failure.
+    @Test func nativeFailureContinuesToTheNextPreparation() async {
         let facts = DeliveryBatchFacts(); facts.cached = [1, 2]
         let outcome = await Model.runBatch(records: [1, 2], destination: .nativeShare, action: .systemShare,
             admission: .init { true }, originals: originals(facts), exporter: .init { record, _ in
@@ -87,7 +89,7 @@ import Testing
             photos: nil, internet: Optional<MonitorDeliveryInternetService<Int>>.none,
             filename: { "\($0)" }, progress: { facts.progress.append($0) })
         guard case .failed(let message) = outcome else { Issue.record("Missing native failure"); return }
-        #expect(message == "native failed" && facts.calls == ["prepare 1"])
+        #expect(message == "native failed" && facts.calls == ["prepare 1", "prepare 2"])
     }
     @Test func manualCacheProgressIgnoresUnknownAndLateTicks() async {
         let facts = DeliveryBatchFacts()

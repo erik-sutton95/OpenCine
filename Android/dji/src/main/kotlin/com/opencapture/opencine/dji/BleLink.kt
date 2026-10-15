@@ -25,6 +25,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.opencapture.opencine.platform.CallbackOperationOwner
 
 import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.FoundCamera
@@ -336,7 +337,7 @@ class BleLink(context: Context) {
         discoveryStartedFor = null
         finishConnect(error)
         connectSettled.set(false)
-        activeAttempt?.resource = null
+        activeAttempt?.let(operations::detach)
         activeAttempt = null
         writeQueue.clear()
         writing = false
@@ -684,5 +685,17 @@ class BleLink(context: Context) {
         private val CHAR_FFF5 = UUID.fromString("0000fff5-0000-1000-8000-00805f9b34fb")
         private val CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private val DJI_COMPANY_IDS = intArrayOf(0x08AA, 0xF7AA, 0xE5C0)
+    }
+}
+
+/** Even a start rejected before installation must complete its local caller. */
+internal fun <Resource : Any> runOwnedConnectionStart(
+    owner: CallbackOperationOwner<Resource>,
+    token: CallbackOperationOwner.Token<Resource>,
+    continuation: kotlinx.coroutines.CancellableContinuation<Unit>,
+    start: () -> Unit,
+) {
+    if (!owner.runIfCurrent(token, action = start) && continuation.isActive) {
+        continuation.resumeWith(Result.failure(IllegalStateException("Bluetooth connection replaced")))
     }
 }

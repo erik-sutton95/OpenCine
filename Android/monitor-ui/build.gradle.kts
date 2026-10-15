@@ -34,6 +34,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.activity.compose)
     androidTestImplementation(libs.kotlin.test.junit)
+    androidTestImplementation(project(":camera-controls"))
 }
 
 // SharedUIRulesTest also scans the app shell sources.

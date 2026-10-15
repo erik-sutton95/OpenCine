@@ -64,6 +64,8 @@ ANDROID_MODULE_DEBUG_CANDIDATES = (
     "build/intermediates/cmake/release/obj",
     "build/intermediates/cxx",
     "build/generated/swiftCore/jniLibs",
+    # The unstripped Swift core (DWARF) the staging script keeps beside jniLibs.
+    "build/generated/swiftCore/symbols",
     ".cxx",
 )
 ANDROID_MAPPING_CANDIDATE = "build/outputs/mapping/release/mapping.txt"
@@ -489,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
         # No --require-all: it calls skipped-because-present IDs missing.
         for debug_id in sorted(missing):
             recheck = ["debug-files", "upload", "--wait", "--org", org,
-                       "--project", project, "--id", debug_id]
+                        "--project", project, "--id", debug_id]
             status, recheck_output = run_cli(
                 uploader, recheck + [str(path) for path in usable_paths], secrets)
             if status != EXIT_OK:

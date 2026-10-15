@@ -70,7 +70,7 @@ internal interface SwiftCoreSessionBridge {
         connectionOwner: Long,
         listener: NikonNative.SessionListener,
     ) {
-        listener.onFailed("USB-C camera support is unavailable in this core build.")
+        listener.onFailed(CameraConnectionFailure.OTHER.wireCode, "USB-C camera support is unavailable in this core build.")
     }
 
     /** Starts USB PTP using the same strategy vocabulary as Wi-Fi PTP-IP. */
@@ -625,7 +625,7 @@ class SwiftCoreCameraSession internal constructor(
                         }
                     }
 
-                    override fun onFailed(message: String) {
+                    override fun onFailed(failure: Int, message: String) {
                         if (updateAttempt(attempt, CameraSessionState.Disconnected)) {
                             ignoreLiveRecordingStateUntilNanos = 0L
                             cameraRecordingEventVersion = 0L
@@ -635,7 +635,11 @@ class SwiftCoreCameraSession internal constructor(
                             stopPropertyRefresh(clearSnapshot = true)
                             _latestCommandRoundTripMilliseconds.value = null
                             _connectionProgress.value =
-                                CameraConnectionProgress(CameraConnectionPhase.FAILED, message)
+                                CameraConnectionProgress(
+                                    CameraConnectionPhase.FAILED,
+                                    message,
+                                    CameraConnectionFailure.fromWire(failure),
+                                )
                             // Closed failure token only; free-form [message] never enters
                             // the diagnostic event store (mapped by AndroidDiagnosticEvent.fromPhase).
                             phaseLogger(sessionFailurePhaseToken(), message)

@@ -1,5 +1,7 @@
 package com.opencapture.opencine.cameracontrols
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,11 +21,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +44,8 @@ import androidx.compose.ui.window.DialogWindowProvider
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorMediaDeliveryPanel
 import com.opencapture.monitorui.MonitorMediaDeliveryProgress
+import com.opencapture.monitorui.MonitorMediaDeliveryProgressDetailsValue
+import com.opencapture.monitorui.MonitorMediaDeliveryProgressPanel
 import com.opencapture.monitorui.MonitorMediaDeliveryProgressValue
 import com.opencapture.monitorui.MonitorMediaDeliveryValue
 import com.opencapture.monitorui.MonitorPalette
@@ -48,10 +55,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Real original read operations and canonical record mapping; no gallery scheduling policy. */
+/**
+ * Original read operations and canonical record mapping of one gallery; no scheduling policy.
+ * A selection's admission is its cache content, never the gallery browse, so a delivery run
+ * outlives the media screen that started it (A4-10).
+ */
 class MonitorOriginalDeliverySource<R, P>(
     val library: MonitorMediaLibraryModel<P>, val record: (R) -> MonitorMediaRecord<P>?,
     val fileFacts: (R) -> MonitorDeliveryFileFacts, val connected: () -> Boolean?,
@@ -59,74 +69,141 @@ class MonitorOriginalDeliverySource<R, P>(
 ) {
     fun selection(files: List<R>) = MonitorDeliverySelectionFacts(files.map(fileFacts), files.count(originals.available), connected())
     fun admission(files: List<R>): MonitorDeliveryAdmission? {
-        val token = library.actionToken; val directory = library.cache.directory; val generation = directory.generation
+        val directory = library.cache.directory; val generation = directory.generation
         val captured = files.map { record(it) ?: return null }
+        // A record the gallery no longer lists stays admitted; its cache file is the truth.
         return MonitorDeliveryAdmission {
-            library.isCurrent(token) && directory.generation == generation && captured.all { old ->
-                library.record(old.asset.id)?.let { it.asset == old.asset && it.address == old.address } == true
-            } && library.isCurrent(token) && directory.generation == generation
+            directory.generation == generation && captured.all { old ->
+                library.record(old.asset.id)?.let { it.asset == old.asset && it.address == old.address } ?: true
+            } && directory.generation == generation
         }
+    }
+    /** The delivery source of these originals: each record is delivered as its cached file. */
+    fun <C, F> source(metadata: (List<R>) -> String? = { null }) = MonitorDeliverySource<R, C, F>(originals,
+        prepare = { record, _, report -> exporter.prepare(record, report) }, release = exporter.release,
+        filename = { fileFacts(it).filename }, metadata = metadata)
+}
+
+/**
+ * The delivery popup of a gallery that delivers originals only (no export choices or remote):
+ * share and Photos through the app-scoped coordinator of the app root. A host composed without
+ * that root (an instrumentation fixture) offers no delivery.
+ */
+@Composable
+fun <R, P> MonitorOriginalDeliveryHost(
+    files: List<R>?, source: MonitorOriginalDeliverySource<R, P>, photos: MonitorDeliveryPhotosService<File>,
+    onDismissPopup: () -> Unit, onPresentationChange: (Boolean) -> Unit = {},
+) {
+    val coordinator = LocalMonitorDeliveryCoordinator.current ?: return
+    val selection = remember(source, files) {
+        files?.let { selected -> source.admission(selected)?.let { admission ->
+            MonitorOperatorDeliverySelection<R, Unit, Unit, Unit, Unit, Unit>(selected, facts = { source.selection(selected) },
+                admission = admission, source = source.source(), photos = photos)
+        } }
+    }
+    MonitorOperatorDeliveryHost(selection, onDismissPopup, coordinator, onPresentationChange)
+}
+
+/**
+ * One captured selection's delivery inputs. The Host owns the popup, the accepted request and
+ * the run; the app supplies its source, typed optional export choices and remote service.
+ */
+class MonitorOperatorDeliverySelection<R, C, F, P, X, H>(
+    val records: List<R>,
+    val facts: () -> MonitorDeliverySelectionFacts,
+    val admission: MonitorDeliveryAdmission,
+    val source: MonitorDeliverySource<R, C, F>,
+    val photos: MonitorDeliveryPhotosService<File>?,
+    val photosAuthorization: MonitorDeliveryPhotosAuthorizationService? = null,
+    val exportOptions: MonitorDeliveryExportOptions<C, F>? = null,
+    val configuration: MonitorDeliveryExportConfiguration<C, F>? = null,
+    val remote: MonitorOperatorDeliveryRemote<R, P, X, H>? = null,
+    val preferredDestination: MonitorDeliveryDestination? = null,
+)
+
+/** A remote destination of the popup and the services one accepted upload request runs with. */
+class MonitorOperatorDeliveryRemote<R, P, X, H>(
+    val service: MonitorDeliveryRemoteService<P, X, H>,
+    /** Binds one accepted request (its captured project) to upload services; null refuses it. */
+    val run: (MonitorDeliveryPreparedRequest<*, *, P, X, H>) -> MonitorDeliveryRemoteRun<R>?,
+)
+
+/** The app-root delivery owner that media hosts below read; null where no app root provides one. */
+val LocalMonitorDeliveryCoordinator = staticCompositionLocalOf<MonitorDeliveryCoordinator?> { null }
+
+/** The app-scoped delivery owner; the root closes it before its scope when it leaves. */
+@Composable
+fun rememberMonitorDeliveryCoordinator(): MonitorDeliveryCoordinator {
+    val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+    val coordinator = remember(scope) { MonitorDeliveryCoordinator(scope) }
+    DisposableEffect(coordinator) { onDispose { coordinator.close(); scope.cancel() } }
+    return coordinator
+}
+
+/**
+ * The delivery popup of one selection over the app-scoped [coordinator]. The preparation model
+ * is made once per selection; an accepted request starts a run of the coordinator, which
+ * continues after this host (and the media screen around it) leaves.
+ */
+@Composable
+fun <R, C, F, P, X, H> MonitorOperatorDeliveryHost(
+    selection: MonitorOperatorDeliverySelection<R, C, F, P, X, H>?,
+    onDismissPopup: () -> Unit,
+    coordinator: MonitorDeliveryCoordinator,
+    onPresentationChange: (Boolean) -> Unit = {},
+    remoteArtwork: @Composable () -> Unit = { MonitorIcon(MonitorIcon.UPLOAD, null, Modifier.size(18.dp), MonitorPalette.text) },
+) {
+    val state by coordinator.lifetime.state.collectAsState()
+    // Only the popup covers the media screen; a running batch is the root chrome's.
+    SideEffect { onPresentationChange(selection != null) }
+    val scope = rememberCoroutineScope()
+    val preparation = remember(selection) { selection?.preparation(scope, coordinator) }
+    if (selection != null && preparation != null) {
+        DisposableEffect(preparation) { preparation.start(); onDispose { preparation.close() } }
+        MonitorOperatorDeliveryPopupOverlay(preparation, onClose = onDismissPopup, busy = state.running,
+            onBegin = { request -> selection.begin(coordinator, request) }, remoteArtwork = remoteArtwork)
     }
 }
 
-/** Complete native-share presentation over the existing delivery and preparation owners. */
-@Composable
-fun <R, P> MonitorOperatorDeliveryHost(
-    files: List<R>?, source: MonitorOriginalDeliverySource<R, P>, mediaShare: MediaShare,
-    mimeType: (String) -> String, onDismissPopup: () -> Unit,
-    onPresentationChange: (Boolean) -> Unit = {},
-) {
-    val context = LocalContext.current
-    val scope = remember(source) { CoroutineScope(SupervisorJob() + Dispatchers.Main) }
-    val delivery = remember(scope) { MonitorDeliveryModel<MediaDeliveryOverlayState, MediaDeliveryResult, Unit>(scope) }
-    DisposableEffect(delivery, scope) { onDispose { delivery.close(); scope.cancel() } }
-    val state by delivery.state.collectAsState()
-    SideEffect { onPresentationChange(files != null || state.running) }
-    if (files == null && !state.running && state.progress == null && state.toast == null) return
-    Box(Modifier.fillMaxSize()) {
-        files?.let { selection ->
-            val admission = remember(source, selection) { source.admission(selection) }
-            val preparation = remember(scope, source, selection) {
-                MonitorDeliveryPreparationModel<Unit, Unit, Unit, Unit, Unit>(scope,
-                    observeSelection = { source.selection(selection) }, configuration = null, exportOptions = null,
-                    sourceCurrent = { admission?.isCurrent() == true })
-            }
-            DisposableEffect(preparation) { preparation.start(); onDispose { preparation.close() } }
-            MonitorOperatorDeliveryPopupOverlay(preparation, onClose = onDismissPopup, busy = state.running,
-                onBegin = { request ->
-                    val captured = admission
-                    delivery.beginAdmitted(onComplete = { result -> admittedDeliveryToast(result) {
-                        mediaShare.shareFiles(context, it, mimeType)
-                    } }) { progress, run ->
-                        progress(MediaDeliveryOverlayState("Preparing…", isPreparing = true))
-                        if (captured == null) MonitorDeliveryCompletion(MediaDeliveryResult.Message("Selection is no longer available."))
-                        else {
-                            val admitted = MonitorDeliveryAdmission { run.isCurrent() && captured.isCurrent() && run.isCurrent() }
-                            val outcome = MonitorDeliveryModel.runBatch<R, File, Unit>(
-                                records = selection, destination = request.destination, action = request.action, admission = admitted,
-                                originals = source.originals, exporter = source.exporter,
-                                share = { MonitorDeliveryShareFiles(it) },
-                                photos = MonitorDeliveryPhotosService.PerItem { file ->
-                                    if (!admitted.isCurrent()) false else withContext(Dispatchers.IO) {
-                                        if (!admitted.isCurrent()) false else mediaShare.insertIntoGallery(context, file, mimeType(file.name)) != null
-                                    }
-                                }, filename = { source.fileFacts(it).filename }, artifactFilename = { it.name },
-                                progress = { it.androidOverlay(request.action)?.let(progress) })
-                            MonitorDeliveryCompletion(outcome.androidResult())
-                        }
-                    }
-                })
+/**
+ * The popup model of this selection. A remote upload from the camera network caches every
+ * original as a run of [coordinator] before the hop.
+ */
+fun <R, C, F, P, X, H> MonitorOperatorDeliverySelection<R, C, F, P, X, H>.preparation(
+    scope: CoroutineScope, coordinator: MonitorDeliveryCoordinator,
+): MonitorDeliveryPreparationModel<C, F, P, X, H> =
+    MonitorDeliveryPreparationModel(scope, observeSelection = facts, configuration = configuration,
+        exportOptions = exportOptions, remote = remote?.service, preferredDestination = preferredDestination,
+        sourceCurrent = admission::isCurrent,
+        beforeInternetHop = remote?.let { remote -> suspend {
+            source.load()
+            coordinator.cacheBeforeInternetHop(records, source.originals, admission, source.filename,
+                remote.service.presentation.progressCaption)
+        } })
+
+/** Starts the accepted request as a run of the app-scoped coordinator. */
+fun <R, C, F, P, X, H> MonitorOperatorDeliverySelection<R, C, F, P, X, H>.begin(
+    coordinator: MonitorDeliveryCoordinator, request: MonitorDeliveryPreparedRequest<C, F, P, X, H>,
+): MonitorDeliveryRunHandle? {
+    val internet = remote?.service?.internet
+    fun release() { request.internetLease?.let { lease -> internet?.restore?.invoke(lease) } }
+    val bound = if (request.destination != MonitorDeliveryDestination.REMOTE_UPLOAD) null else {
+        remote?.run?.invoke(request) ?: run {
+            release(); coordinator.fail("Upload is unavailable."); return null
         }
-        state.progress?.let { MonitorOperatorDeliveryProgress(it, delivery::cancel,
-            Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) }
-        state.toast?.let { MonitorOperatorDeliveryToast(it, Modifier.align(Alignment.BottomCenter)) }
     }
+    // Whatever the destination, the run owns the accepted route lease and restores it at its end.
+    return coordinator.begin { admission, progress ->
+        coordinator.run(records, request.destination, request.action,
+            MonitorDeliveryAdmission { admission.isCurrent() && this.admission.isCurrent() && admission.isCurrent() },
+            source, request.configuration, bound, photos, photosAuthorization, internet, request.internetLease, progress)
+    } ?: null.also { release() }
 }
 
 @Composable
 fun <C, F, P, X, H> MonitorOperatorDeliveryPopupOverlay(
     model: MonitorDeliveryPreparationModel<C, F, P, X, H>, onClose: () -> Unit, busy: Boolean = false,
-    onBegin: (MonitorDeliveryPreparedRequest<C, F, H>) -> Unit,
+    onBegin: (MonitorDeliveryPreparedRequest<C, F, P, X, H>) -> Unit,
     remoteArtwork: @Composable () -> Unit = { MonitorIcon(MonitorIcon.UPLOAD, null, Modifier.size(18.dp), MonitorPalette.text) },
 ) {
     val state by model.state.collectAsState()
@@ -214,7 +291,7 @@ private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparation
             format = if ((config.bakeLUT || config.convertLog || state.destination == MonitorDeliveryDestination.NATIVE_SHARE) &&
                 (state.destination != MonitorDeliveryDestination.REMOTE_UPLOAD || options.formatsForRemoteUpload == true)) MonitorMediaDeliveryValue.Choices("Format", "MOV preserves quality; MP4 is more widely compatible.", options.formats.map { MonitorMediaDeliveryValue.Choice(it.id, it.label) }, options.formats.firstOrNull { it.value == config.exportFormat }?.id) else null,
             includeMetadata = MonitorMediaDeliveryValue.Toggle("Include metadata", "Filename, capture date, and size (best-effort JSON sidecar).", config.includeMetadata),
-            reupload = if (state.destination == MonitorDeliveryDestination.REMOTE_UPLOAD) MonitorMediaDeliveryValue.Toggle("Re-upload already uploaded", "Skip clips already on $serviceName unless enabled.", config.forceReupload) else null)
+            reupload = if (model.offersReupload) MonitorMediaDeliveryValue.Toggle("Re-upload already uploaded", "Skip clips already on $serviceName unless enabled.", config.forceReupload) else null)
     } else if (!model.internetGate && state.step == MonitorDeliveryPreparationModel.Step.OPTIONS && selection.files.size == 1) MonitorMediaDeliveryValue.Export(filename = selection.files.first().filename) else null
     return MonitorMediaDeliveryValue(if (state.step == MonitorDeliveryPreparationModel.Step.DESTINATION) MonitorMediaDeliveryValue.Step.DESTINATION else MonitorMediaDeliveryValue.Step.OPTIONS,
         title = state.destination?.title(model.remotePresentation?.displayName) ?: "Share", selectionLabel = "${selection.files.size} clip${if (selection.files.size == 1) "" else "s"}", notices = notices,
@@ -227,15 +304,71 @@ private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparation
             actionTitle = if (state.destination == MonitorDeliveryDestination.REMOTE_UPLOAD) "Upload" else if (state.action == MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS) "Save to Photos" else "Share", enabled = model.canContinue && !busy) else null)
 }
 
+/** What the delivery chrome shows for one progress value. */
+data class MonitorOperatorDeliveryFacts(
+    val value: MonitorMediaDeliveryProgressValue, val destination: MonitorDeliveryDestination,
+    val details: MonitorMediaDeliveryProgressDetailsValue = MonitorMediaDeliveryProgressDetailsValue(),
+)
+
+fun MonitorDeliveryBatchProgress.chromeFacts(remoteDisplayName: String?): MonitorOperatorDeliveryFacts =
+    MonitorOperatorDeliveryFacts(
+        MonitorMediaDeliveryProgressValue(statusLine(), if (totalClips > 1) "Clip ${minOf(clipIndex, totalClips)} of $totalClips" else null,
+            overallFraction, preparing = showsBusySpinner, showsProgress = !isPreparingClip),
+        destination, MonitorMediaDeliveryProgressDetailsValue(filename, destination.title(remoteDisplayName)))
+
+/**
+ * One delivery chrome for every app (A4-10): compact progress with cancel, an expandable detail
+ * panel, the outcome toast and the share chooser of a finished run, all read from the
+ * app-scoped coordinator. Mount it once, as the last child of the app root, so it stays above
+ * every screen and survives leaving the gallery or the player.
+ */
 @Composable
-fun MonitorOperatorDeliveryProgress(state: MediaDeliveryOverlayState, onCancel: (() -> Unit)? = null, modifier: Modifier = Modifier) {
-    MonitorMediaDeliveryProgress(MonitorMediaDeliveryProgressValue(state.statusLine, state.batchLine, state.overallFraction, state.isPreparing), onCancel,
-        modifier.widthIn(max = 420.dp), destinationIcon = { MonitorIcon(MonitorIcon.SHARE, null, Modifier.size(13.dp), MonitorPalette.accent) })
+fun MonitorOperatorDeliveryChrome(
+    coordinator: MonitorDeliveryCoordinator, share: MediaShare, mimeType: (java.io.File) -> String,
+    modifier: Modifier = Modifier, remoteDisplayName: String? = null,
+    displayName: (java.io.File) -> String = { it.name },
+) {
+    val delivery = coordinator.lifetime
+    val state by delivery.state.collectAsState()
+    val context = LocalContext.current
+    var presenting by remember(delivery) { mutableStateOf<java.util.UUID?>(null) }
+    val chooser = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        presenting?.let(delivery::completeSharePresentation); presenting = null
+    }
+    LaunchedEffect(state.share?.id) {
+        val ready = state.share ?: return@LaunchedEffect
+        if (presenting != null) return@LaunchedEffect
+        val intent = share.chooserIntent(context, ready.payload.urls, mimeType, ready.payload.metadataText, displayName)
+        val launched = intent != null && runCatching { presenting = ready.id; chooser.launch(intent) }.isSuccess
+        if (!launched) {
+            presenting = null; delivery.clearSharePresentation(ready.id)
+            coordinator.fail(if (ready.payload.urls.size == 1) "Couldn't share this clip." else "Couldn't share these clips.")
+        }
+    }
+    Box(modifier.fillMaxSize()) {
+        state.progress?.let { progress ->
+            val facts = progress.chromeFacts(remoteDisplayName)
+            val icon: @Composable () -> Unit = {
+                MonitorIcon(if (facts.destination == MonitorDeliveryDestination.NATIVE_SHARE) MonitorIcon.SHARE else MonitorIcon.UPLOAD,
+                    null, Modifier.size(13.dp), MonitorPalette.accent)
+            }
+            val placement = Modifier.align(Alignment.TopCenter).statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp).widthIn(max = 420.dp)
+            if (state.expanded) MonitorMediaDeliveryProgressPanel(facts.value, facts.details, delivery::cancel,
+                { delivery.setExpanded(false) }, placement, icon)
+            else MonitorMediaDeliveryProgress(facts.value, delivery::cancel, placement, { delivery.setExpanded(true) }, icon)
+        }
+        state.toast?.let { message ->
+            Text(message, style = MonitorTypography.text(13f, FontWeight.Medium), color = MonitorPalette.text,
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp)
+                    .clip(MediaCapsuleShape).background(MonitorPalette.surface, MediaCapsuleShape)
+                    .border(1.dp, Color.White.copy(alpha = .10f), MediaCapsuleShape)
+                    .padding(horizontal = 16.dp, vertical = 10.dp))
+        }
+    }
 }
-@Composable
-fun MonitorOperatorDeliveryToast(message: String, modifier: Modifier = Modifier) {
-    Text(message, style = MonitorTypography.text(13f, FontWeight.Medium), color = MonitorPalette.text,
-        modifier = modifier.navigationBarsPadding().padding(bottom = 28.dp).clip(MediaCapsuleShape)
-            .background(MonitorPalette.surface, MediaCapsuleShape).border(1.dp, Color.White.copy(alpha = .10f), MediaCapsuleShape)
-            .padding(horizontal = 16.dp, vertical = 10.dp))
+
+/** Listed on the Share sheet; never selectable and never starts auth or upload. */
+object MediaDeliveryUpcoming {
+    val titles = listOf("Google Drive", "Dropbox", "NAS (SMB)", "LucidLink", "Backblaze B2", "Vimeo Review")
 }

@@ -1,5 +1,6 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.vocabulary.MediaClipFormatting
 import java.util.Locale
 
 /** Shared-core browser action decoded from one `MediaListWire` record. */
@@ -78,21 +79,12 @@ data class NikonMediaClipRecord(
     val codecLabel: String =
         filename.substringAfterLast('.', missingDelimiterValue = "").uppercase(Locale.US)
 
-    /** iOS `MediaClipFormatting.byteLabel`: `412MB` below 1 GB, else `1.3GB`. */
+    /** The shared byte label (`1.28 GB`); empty for an unknown size. */
     val sizeLabel: String
-        get() {
-            if (sizeBytes <= 0) return "0 B"
-            val mb = sizeBytes / 1_000_000.0
-            return if (mb < 1_000) {
-                String.format(Locale.US, "%.0fMB", mb)
-            } else {
-                String.format(Locale.US, "%.1fGB", mb / 1_000)
-            }
-        }
+        get() = MediaClipFormatting.byteLabel(sizeBytes)
 
-    /** Grid-cell badge: size plus codec (`1.3GB · MOV`). */
-    val badgeLabel: String =
-        if (codecLabel.isEmpty()) sizeLabel else "$sizeLabel · $codecLabel"
+    /** Grid-cell badge: size plus codec (`1.28 GB · MOV`), either part dropped when unknown. */
+    val badgeLabel: String = listOf(sizeLabel, codecLabel).filter { it.isNotEmpty() }.joinToString(" · ")
 
 }
 

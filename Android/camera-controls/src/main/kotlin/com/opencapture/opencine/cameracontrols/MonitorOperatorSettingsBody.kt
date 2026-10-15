@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Text
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.opencapture.monitorui.settings.LocalMonitorSettingsScrollContext
+import com.opencapture.monitorui.settings.MonitorDisplaySettings
 import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -21,99 +24,109 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorPalette
-import com.opencapture.monitorui.settings.MonitorInputOrientationSettings
-import com.opencapture.monitorui.settings.MonitorOperatorSafetySettings
 import com.opencapture.monitorui.settings.MonitorPanelSettings
-import com.opencapture.monitorui.settings.MonitorSettingsActionPill
 import com.opencapture.monitorui.settings.MonitorSettingsPage
 import com.opencapture.monitorui.settings.MonitorSettingsRowCard
 import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
+import com.opencapture.monitorui.settings.MonitorAssistSettingsSection
 import com.opencapture.monitorui.settings.MonitorViewAssistSettings
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
-import com.opencapture.opencine.appkit.MonitorMediaLibraryModel
 import com.opencapture.opencine.appkit.MonitorOperatorDisplaySections
 import com.opencapture.opencine.appkit.MonitorOperatorPreferences
 import com.opencapture.opencine.appkit.MonitorOperatorSessionModel
 
-/** Actual source records vary; the page, navigation and common row dispatch do not. */
-internal sealed interface MonitorOperatorSettingsSource {
+/**
+ * The picture tabs' content, which still has one owner per source: the View Assist cards (the
+ * deployed card set and the configured calibrated sections) and Display (the configured display
+ * store until it adopts the shared display session). Every other tab is one recipe over
+ * [MonitorOperatorSettingsConfiguration].
+ */
+internal sealed interface MonitorOperatorPictureSettings {
     class Deployed(
         val model: OperatorSetupModel,
         val state: OperatorSetupState,
         val app: OperatorSetupApp,
-        val linkBars: Int,
-    ) : MonitorOperatorSettingsSource
+    ) : MonitorOperatorPictureSettings
 
     class Configured(
-        val configuration: MonitorOperatorSettingsConfiguration,
-        val display: MonitorOperatorDisplaySource,
-    ) : MonitorOperatorSettingsSource
+        val assistSections: List<MonitorAssistSettingsSection>,
+        val display: MonitorOperatorDisplaySource?,
+        val borrowedDisplay: MonitorOperatorBorrowedDisplay? = null,
+        val assist: MonitorOperatorAssistSettingsSource? = null,
+    ) : MonitorOperatorPictureSettings
 
-    class Session<P>(
+    class Session(
         val preferences: MonitorOperatorPreferences,
         val session: MonitorOperatorSessionModel,
         val assist: MonitorAssistState,
-        val library: MonitorMediaLibraryModel<P>?,
-        val cameraName: String?,
         val availableAssistTools: Set<MonitorAssistTool>,
         val assistHost: AssistHost,
         val lookOptions: AssistLutPicker?,
-        val diagnostics: () -> Unit,
-        val reportProblem: () -> Unit,
-    ) : MonitorOperatorSettingsSource
+    ) : MonitorOperatorPictureSettings
 }
 
 internal class MonitorOperatorSettingsInputs(
-    val brand: String,
+    val configuration: MonitorOperatorSettingsConfiguration,
     val selection: MonitorSettingsTab,
     val onSelect: (MonitorSettingsTab) -> Unit,
-    val isLive: Boolean,
-    val phase: String,
-    val close: () -> Unit,
-    val disconnect: (() -> Unit)?,
-    val source: MonitorOperatorSettingsSource,
-    val feedback: () -> Unit = {},
-    val tabs: List<MonitorSettingsTab> = MonitorSettingsTab.entries,
+    val picture: MonitorOperatorPictureSettings,
     val sourceIdentity: Any? = null,
-    val sharingSubtitle: String? = null,
-    val sharingRail: String? = null,
+    /** The open legal page, when a dialog outside the page (the report form) also opens one. */
+    val legalPage: MutableState<MonitorLegalPage?>? = null,
 )
 
-/** One full-cover settings recipe for deployed, configured and generated entry points. */
+/** One full-cover settings recipe for every app; [MonitorOperatorPictureSettings] supplies the picture tabs. */
 @Composable
 internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) {
-    BackHandler(onBack = inputs.close)
-    var legalPage by remember { mutableStateOf<OperatorLegalPage?>(null) }
+    val configuration = inputs.configuration
+    BackHandler(onBack = configuration.close)
+    val ownLegalPage = remember { mutableStateOf<MonitorLegalPage?>(null) }
+    val legalPage = inputs.legalPage ?: ownLegalPage
     var showLutPicker by remember { mutableStateOf(false) }
     val revision = remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    LaunchedEffect(inputs.selection) {
+        val picture = inputs.picture
+        if (inputs.selection == MonitorSettingsTab.DISPLAY && picture is MonitorOperatorPictureSettings.Configured) {
+            picture.borrowedDisplay?.returnedFromEditor?.invoke()
+        }
+    }
+    val openLegal: (MonitorLegalPage) -> Unit = { page ->
+        val legal = configuration.legal
+        if (legal != null && !legal.open(page, context) { legalPage.value = it }) {
+            Toast.makeText(context, MONITOR_LINK_UNAVAILABLE, Toast.LENGTH_SHORT).show()
+        }
+    }
     BoxWithConstraints(Modifier.fillMaxSize().background(MonitorPalette.background)
         .pointerInput(Unit) { detectTapGestures {} }
         .windowInsetsPadding(WindowInsets.safeDrawing)) {
         val compact = maxWidth < 600.dp
-        MonitorSettingsPage(inputs.brand, inputs.selection, inputs.onSelect, inputs.isLive,
-            inputs.phase, inputs.disconnect, inputs.feedback, tabs = inputs.tabs,
+        MonitorSettingsPage(configuration.brand, inputs.selection, inputs.onSelect, configuration.isLive,
+            configuration.phase, configuration.disconnect, configuration.feedback, tabs = configuration.tabs,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            sharingSubtitle = inputs.sharingSubtitle, sharingRail = inputs.sharingRail,
-            back = inputs.close) { tab ->
+            sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
+            back = configuration.close) { tab ->
             key(inputs.sourceIdentity) {
-                MonitorOperatorSettingsRows(inputs, tab, compact, revision,
-                    onLegal = { legalPage = it }, onOpenLut = { showLutPicker = true },
-                    onPreferenceChanged = { revision.intValue++ })
+                MonitorOperatorSettingsRows(inputs, tab, compact, revision, openLegal,
+                    onOpenLut = { showLutPicker = true }, onPreferenceChanged = { revision.intValue++ })
             }
         }
-        val source = inputs.source
-        if (source is MonitorOperatorSettingsSource.Deployed) {
-            legalPage?.let { page -> source.app.legalPage(page) { legalPage = null } }
-            if (showLutPicker) source.app.lutPicker { showLutPicker = false }
-        }
+        val legal = configuration.legal
+        val page = legalPage.value
+        if (legal != null && page != null) MonitorLegalDocumentScreen(legal, page) { legalPage.value = null }
+        val picture = inputs.picture
+        if (picture is MonitorOperatorPictureSettings.Deployed && showLutPicker) picture.app.lutPicker { showLutPicker = false }
     }
 }
+
+internal const val MONITOR_LINK_UNAVAILABLE: String = "No app is available for that action."
 
 @Composable
 private fun MonitorOperatorSettingsRows(
@@ -121,89 +134,52 @@ private fun MonitorOperatorSettingsRows(
     tab: MonitorSettingsTab,
     compact: Boolean,
     revision: MutableIntState,
-    onLegal: (OperatorLegalPage) -> Unit,
+    openLegal: (MonitorLegalPage) -> Unit,
     onOpenLut: () -> Unit,
     onPreferenceChanged: () -> Unit,
 ) {
     // Plain preferences do not publish snapshots. Observe their revision in this actual scope.
     @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
-    val source = inputs.source
+    val configuration = inputs.configuration
+    val picture = inputs.picture
     when (tab) {
-        MonitorSettingsTab.LINK -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> LinkRows(source.model, source.state, source.app,
-                inputs.isLive, inputs.phase, source.linkBars)
-            is MonitorOperatorSettingsSource.Configured -> SettingsLink(source.configuration.link)
-            is MonitorOperatorSettingsSource.Session<*> -> MonitorSettingsRowCard("Connection") {
-                Text(source.cameraName ?: "No camera connected", color = MonitorPalette.text)
+        MonitorSettingsTab.LINK -> SettingsLink(configuration.link)
+        MonitorSettingsTab.SHARING -> SettingsSharing(configuration.sharing, configuration.feedback)
+        MonitorSettingsTab.ASSIST -> when (picture) {
+            is MonitorOperatorPictureSettings.Deployed -> AssistRows(picture.model, picture.state, picture.app, onOpenLut)
+            is MonitorOperatorPictureSettings.Configured -> {
+                val assist = picture.assist
+                if (assist != null) MonitorOperatorAssistSettings(assist)
+                else MonitorViewAssistSettings(picture.assistSections)
             }
+            is MonitorOperatorPictureSettings.Session -> SessionAssistSettings(picture)
         }
-        MonitorSettingsTab.SHARING -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> SharingRows()
-            is MonitorOperatorSettingsSource.Configured -> source.configuration.sharing?.let {
-                SettingsSharing(it, inputs.feedback)
-            }
-            is MonitorOperatorSettingsSource.Session<*> -> Unit
-        }
-        MonitorSettingsTab.ASSIST -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> AssistRows(source.model, source.state, source.app, onOpenLut)
-            is MonitorOperatorSettingsSource.Configured -> MonitorViewAssistSettings(source.configuration.assistSections)
-            is MonitorOperatorSettingsSource.Session<*> -> SessionAssistSettings(source)
-        }
-        MonitorSettingsTab.CONTROLS -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> ControlsRows(source.model, source.state, source.app)
-            is MonitorOperatorSettingsSource.Configured -> {
-                val controls = source.configuration.controls
-                MonitorOperatorSafetySettings(controls.recordConfirmation, controls.haptics, controls.keepAwake,
-                    controls.setRecordConfirmation, controls.setHaptics, controls.setKeepAwake,
-                    keepScreenAwakeHelp = controls.keepAwakeHelp, feedback = inputs.feedback)
-                MonitorInputOrientationSettings(controls.remoteShutter, controls.setRemoteShutter,
-                    remoteTitle = controls.remoteTitle, remoteCaption = controls.remoteCaption,
-                    autoRotateFeed = controls.autoRotateFeed, onAutoRotateFeed = controls.setAutoRotateFeed,
-                    rotationTitle = controls.rotationTitle, rotationHelp = controls.rotationHelp,
-                    feedback = inputs.feedback)
-            }
-            is MonitorOperatorSettingsSource.Session<*> -> {
-                val preferences = source.preferences
-                MonitorOperatorSafetySettings(preferences.recordConfirmation, preferences.haptics, preferences.keepScreenAwake,
-                    { preferences.recordConfirmation = it; onPreferenceChanged() },
-                    { preferences.haptics = it; onPreferenceChanged() },
-                    { preferences.keepScreenAwake = it; onPreferenceChanged() })
-            }
-        }
-        MonitorSettingsTab.DISPLAY -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> OperatorDisplayRows(source.model, source.state, source.app, inputs.isLive)
-            is MonitorOperatorSettingsSource.Configured -> OperatorDisplaySections(source.display.session,
-                source.display.available, source.display.edit, revision, onPreferenceChanged, inputs.feedback)
-            is MonitorOperatorSettingsSource.Session<*> -> SessionDisplaySettings(source, inputs.isLive, revision, onPreferenceChanged)
-        }
-        MonitorSettingsTab.STORAGE -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> StorageRows(source.model, source.app)
-            is MonitorOperatorSettingsSource.Configured -> {
-                source.configuration.account?.let { SettingsAccount(it) }
-                source.configuration.cache?.let { cache ->
-                    MonitorOperatorCacheSettings(cache.source, scopeHelp = cache.scopeHelp,
-                        clearHelp = cache.clearHelp, formatBytes = cache.formatBytes, feedback = inputs.feedback,
-                        checkingLabel = cache.checking, readFailureLabel = cache.readFailure,
-                        clearFailureLabel = cache.clearFailure, confirmClear = cache.confirmClear,
-                        summaryColor = cache.summaryColor)
+        MonitorSettingsTab.CONTROLS -> SettingsControls(configuration.controls, configuration.feedback)
+        MonitorSettingsTab.DISPLAY -> when (picture) {
+            is MonitorOperatorPictureSettings.Deployed -> OperatorDisplayRows(picture.model, picture.state, picture.app,
+                configuration.isLive)
+            is MonitorOperatorPictureSettings.Configured -> {
+                val display = picture.display
+                if (display != null) OperatorDisplaySections(display.session,
+                    display.available, display.edit, revision, onPreferenceChanged, configuration.feedback)
+                else {
+                    val borrowed = requireNotNull(picture.borrowedDisplay)
+                    MonitorDisplaySettings(borrowed.layoutTitle, borrowed.layoutHelp, borrowed.choices,
+                        borrowed.selection, borrowed.onSelect, borrowed.expandedSection, borrowed.onExpand,
+                        borrowed.sections, borrowed.order, compact, configuration.feedback,
+                        LocalMonitorSettingsScrollContext.current)
                 }
             }
-            is MonitorOperatorSettingsSource.Session<*> -> SessionCacheSettings(source, revision, onPreferenceChanged)
+            is MonitorOperatorPictureSettings.Session -> SessionDisplaySettings(picture, configuration.isLive,
+                revision, onPreferenceChanged)
         }
-        MonitorSettingsTab.SYSTEM -> when (source) {
-            is MonitorOperatorSettingsSource.Deployed -> SystemRows(source.model, source.app, onLegal)
-            is MonitorOperatorSettingsSource.Configured -> SettingsSystem(source.configuration.support,
-                source.configuration.information, inputs.feedback)
-            is MonitorOperatorSettingsSource.Session<*> -> MonitorSettingsRowCard("Diagnostics") {
-                MonitorSettingsActionPill("Diagnostics", onClick = source.diagnostics)
-                MonitorSettingsActionPill("Report a problem", onClick = source.reportProblem)
-            }
-        }
+        MonitorSettingsTab.STORAGE -> SettingsStorage(configuration)
+        MonitorSettingsTab.SYSTEM -> SettingsSystem(configuration, openLegal)
     }
 }
 
 @Composable
-private fun SessionAssistSettings(source: MonitorOperatorSettingsSource.Session<*>) {
+private fun SessionAssistSettings(source: MonitorOperatorPictureSettings.Session) {
     val assist = source.assist
     MonitorSettingsRowCard("View Assist") {
         source.availableAssistTools.forEach { tool ->
@@ -221,7 +197,7 @@ private fun SessionAssistSettings(source: MonitorOperatorSettingsSource.Session<
 }
 
 @Composable
-private fun SessionDisplaySettings(source: MonitorOperatorSettingsSource.Session<*>, live: Boolean,
+private fun SessionDisplaySettings(source: MonitorOperatorPictureSettings.Session, live: Boolean,
     revision: MutableIntState, onPreferenceChanged: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
     val preferences = source.preferences
@@ -250,13 +226,4 @@ private fun OperatorDisplaySections(session: MonitorOperatorSessionModel, availa
             }
             onPreferenceChanged()
         }, available = available, edit = edit, feedback = feedback)
-}
-
-@Composable
-private fun <P> SessionCacheSettings(source: MonitorOperatorSettingsSource.Session<P>,
-    revision: MutableIntState, onPreferenceChanged: () -> Unit) {
-    @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
-    val library = source.library
-    if (library != null) MonitorOperatorCacheSettings(library, source.preferences.cacheOriginals,
-        { source.preferences.cacheOriginals = it; onPreferenceChanged() })
 }

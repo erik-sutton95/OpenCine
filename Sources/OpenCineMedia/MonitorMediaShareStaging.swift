@@ -54,8 +54,10 @@ public enum MonitorMediaShareStaging {
         _ = try readableLength(at: url)
     }
 
-    /// Stable exports are borrowed. Other sources are copied from one open file handle into
-    /// a unique root. Cancellation and failed preparation remove that root alone.
+    /// Every share gets its own disposable root. Files from the run's export directory are
+    /// hard-linked into it (no byte copy), so the run may release its exports when it ends;
+    /// other sources are copied from one open file handle. Cancellation and failed preparation
+    /// remove that root alone.
     public static func prepare(
         videoURLs: [URL], exportsDirectory: URL, stagingDirectory: URL,
         shareableExtensions: Set<String>, copyBufferBytes: Int,
@@ -65,14 +67,6 @@ public enum MonitorMediaShareStaging {
         let videos = filterShareableVideos(videoURLs, extensions: shareableExtensions)
         guard !videos.isEmpty else { throw StagingError.noVideos }
         let exportsPath = exportsDirectory.standardizedFileURL.path + "/"
-        if videos.allSatisfy({ $0.standardizedFileURL.path.hasPrefix(exportsPath) }) {
-            for url in videos {
-                try checkCancellation()
-                try validateShareableFile(at: url)
-            }
-            return MonitorMediaPreparedShare(urls: videos, stagingCleanupURL: nil)
-        }
-
         let root = stagingDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         var published = false
@@ -91,10 +85,16 @@ public enum MonitorMediaShareStaging {
                 destination = collision.appendingPathComponent(source.lastPathComponent)
             }
             do {
-                try copy(
-                    source: source, destination: destination, expectedLength: expectedLength,
-                    bufferBytes: copyBufferBytes, checkCancellation: checkCancellation
-                )
+                if source.standardizedFileURL.path.hasPrefix(exportsPath),
+                    (try? FileManager.default.linkItem(at: source, to: destination)) != nil
+                {
+                    // The run's own export: the lease keeps this inode after the run releases it.
+                } else {
+                    try copy(
+                        source: source, destination: destination, expectedLength: expectedLength,
+                        bufferBytes: copyBufferBytes, checkCancellation: checkCancellation
+                    )
+                }
             } catch is CancellationError {
                 throw CancellationError()
             } catch {

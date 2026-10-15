@@ -203,6 +203,7 @@ public struct FeedIncidentStore: Sendable {
 public final class FeedIncidentSessionSource: @unchecked Sendable {
     public let sessionID: String
     private weak var runtime: FeedIncidentRuntime?
+    public var isCurrent: Bool { runtime?.isCurrent(self) ?? false }
 
     fileprivate init(runtime: FeedIncidentRuntime, sessionID: String) {
         self.runtime = runtime
@@ -241,6 +242,7 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
     private let reporting: ReliabilityReporting
     private let directory: URL?
     private let queue: DispatchQueue
+    private let clock: @Sendable () -> TimeInterval
     private let gate = NSLock()
     private let extrasLock = NSLock()
     private var recorder = FeedIncidentRecorder()
@@ -267,10 +269,23 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
             writerQueue: DispatchQueue(label: "opv.feed-incident", qos: .utility))
     }
 
-    internal init(reporting: ReliabilityReporting, directory: URL?, writerQueue: DispatchQueue) {
+    public convenience init(
+        reporting: ReliabilityReporting, directory: URL?,
+        clock: @escaping @Sendable () -> TimeInterval
+    ) {
+        self.init(
+            reporting: reporting, directory: directory,
+            writerQueue: DispatchQueue(label: "opv.feed-incident", qos: .utility), clock: clock)
+    }
+
+    internal init(
+        reporting: ReliabilityReporting, directory: URL?, writerQueue: DispatchQueue,
+        clock: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.reporting = reporting
         self.directory = directory
         queue = writerQueue
+        self.clock = clock
     }
 
     public func install() {
@@ -299,14 +314,36 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
     /// when asynchronous producers can outlive their session.
     public func beginSession(_ context: FeedIncidentSessionContext) { _ = beginBoundSession(context) }
 
+    public func sessionContext(
+        sessionID: String = UUID().uuidString, cameraFamily: String,
+        cameraFirmware: String? = nil, decoderGeneration: Int = 0, socketGeneration: Int = 0
+    )
+        -> FeedIncidentSessionContext
+    {
+        FeedIncidentProducerContext(host: reporting.host).make(
+            sessionID: sessionID,
+            cameraFamily: cameraFamily, cameraFirmware: cameraFirmware,
+            decoderGeneration: decoderGeneration, socketGeneration: socketGeneration,
+            testSource: reporting.origin.currentTestSource(),
+            buildIdentity: reporting.origin.currentBuildIdentity())
+    }
+
     public func beginBoundSession(_ context: FeedIncidentSessionContext) -> FeedIncidentSessionSource {
         gate.lock()
         defer { gate.unlock() }
         let source = FeedIncidentSessionSource(runtime: self, sessionID: context.sessionID)
+        let replacedAt = clock()
         submittedSource = source
         pending = nil
         // Enqueue under the submission lock before exposing the source to a producer.
         queue.async { [self] in
+            if activeSource != nil {
+                persist(recorder.endSession(now: replacedAt))
+                persistSessionSummary(
+                    outcome: Self.summaryOutcome(
+                        incidentCount: recorder.incidentCount,
+                        exposure: recorder.healthyExposureSeconds))
+            }
             persist(recorder.beginSession(context))
             reporting.enqueueFinalizedFromSpool()
             activeSource = source
@@ -331,6 +368,12 @@ public final class FeedIncidentRuntime: @unchecked Sendable {
         gate.lock()
         defer { gate.unlock() }
         return submittedSource
+    }
+
+    fileprivate func isCurrent(_ source: FeedIncidentSessionSource) -> Bool {
+        gate.lock()
+        defer { gate.unlock() }
+        return submittedSource === source
     }
 
     private func enqueue(_ source: FeedIncidentSessionSource, work: @escaping @Sendable () -> Void) {

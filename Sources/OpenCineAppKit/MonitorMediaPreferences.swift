@@ -27,11 +27,36 @@ import Foundation
     private var directories: [String: MonitorMediaCacheDirectory] = [:]
     public init(fileManager: FileManager = .default) { manager = fileManager }
     public func directory(root: URL) -> MonitorMediaCacheDirectory {
-        let key = root.standardizedFileURL.resolvingSymlinksInPath().path
+        // Physical iOS hands the same container tmp root to different consumers as
+        // both `/var/...` and `/private/var/...`, and `resolvingSymlinksInPath`
+        // resolves the `/var` alias only while the leaf is missing - so two call
+        // orders minted two directory objects for one logical root on hardware.
+        // Canonicalise the deepest existing parent and re-attach missing components,
+        // spelling `/var` through its real prefix. Never resolve the camera leaf: an
+        // unrelated live symlink must not redirect ownership of its retired siblings.
+        let standardized = root.standardizedFileURL
+        var existing = standardized.deletingLastPathComponent()
+        var missing = standardized.path == "/" ? [] : [standardized.lastPathComponent]
+        while existing.path != "/", !manager.fileExists(atPath: existing.path) {
+            missing.insert(existing.lastPathComponent, at: 0)
+            existing = existing.deletingLastPathComponent()
+        }
+        var resolved = existing.resolvingSymlinksInPath().path
+        if resolved.hasPrefix("/var/") { resolved = "/private" + resolved }
+        let key = missing.isEmpty ? resolved
+            : resolved + "/" + missing.joined(separator: "/")
         let root = URL(fileURLWithPath: key, isDirectory: true)
-        if let existing = directories[key] { return existing }
+        if let cached = directories[key] { return cached }
         let directory = MonitorMediaCacheDirectory(root: root, fileManager: manager)
         directories[key] = directory
         return directory
+    }
+
+    /// Every live or valid retired camera namespace under one parent, once in stable order.
+    /// Retired-only namespaces remain visible for accounting and prepared-deletion retries.
+    public func directories(under parent: URL) -> [MonitorMediaCacheDirectory] {
+        MonitorMediaCacheNamespaces.names(under: parent, manager: manager).map {
+            directory(root: parent.appendingPathComponent($0, isDirectory: true))
+        }
     }
 }

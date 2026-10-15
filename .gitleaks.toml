@@ -19,3 +19,17 @@ paths = [
   # This config talks about secret patterns on purpose.
   '''\.gitleaks\.toml$''',
 ]
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Exact synthetic SSID value in the Nikon network golden vectors"
+condition = "AND"
+regexTarget = "secret"
+regexes = [
+  '''^NIKON_ZR_01234$''',
+]
+paths = [
+  '''^Fixtures/nikon-network-vectors\.tsv$''',
+]

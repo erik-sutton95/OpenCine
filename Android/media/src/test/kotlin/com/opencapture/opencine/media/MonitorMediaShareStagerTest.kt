@@ -9,6 +9,7 @@ import java.util.concurrent.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
@@ -186,6 +187,13 @@ class MonitorMediaShareStagerTest {
         assertEquals("Supplied media label", many.clipDataLabel)
         assertEquals("Share 2 items", many.chooserTitle)
         assertTrue(many.streamExtraIncluded && many.grantsReadUriPermission)
+    }
+
+    @Test fun includedMetadataTravelsAsTheShareTextOnlyWhenNotBlank() = withRoot { root ->
+        val video = MonitorStagedMediaShare(root.resolve("video.mov"), "video.mov", "video/*")
+        assertEquals("video.mov · 2026-10-12", MonitorMediaShareIntentSpec.forShares(listOf(video), "label", "video.mov · 2026-10-12").text)
+        assertNull(MonitorMediaShareIntentSpec.forShares(listOf(video), "label", "  ").text)
+        assertNull(MonitorMediaShareIntentSpec.forShare(video, "label").text)
     }
 
     private fun stager(

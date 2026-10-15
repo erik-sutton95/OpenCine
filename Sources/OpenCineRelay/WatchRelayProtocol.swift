@@ -82,6 +82,7 @@ public enum WatchMonitorPlaceholder: Equatable, Sendable {
 
 /// Storage slot on the wrist. Same formula as the phone HUD default
 /// (`N GB · P%`), with remaining minutes when the body has no totals.
+@available(*, deprecated, message: "Use common storage observations and the shared appkit readout")
 public enum WatchRelayMedia: Sendable {
     public static func label(
         storageFreeMb: Int,
@@ -310,7 +311,9 @@ public struct WatchCommandResult: Codable, Equatable, Sendable {
         self.error = error
     }
 
+    /// Accepted by the phone's command path; camera acknowledgement may still be pending.
     public let accepted: Bool
+    /// Recording as the phone reports it, independent of command acceptance.
     public let isRecording: Bool
     public let error: String?
 }

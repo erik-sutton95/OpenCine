@@ -75,6 +75,8 @@ public enum PTPIPClientSessionError: Error, LocalizedError, Equatable {
     case pairingChallengeUnavailable
     /// A saved camera-side profile did not accept this initiator for app control.
     case savedProfileRequired
+    /// The dial target is not a numeric IPv4 address (the socket layer opens no host names).
+    case nonNumericHost
     case appControlUnavailable
     case unsupportedProperty(UInt32)
     case unsupportedControl(PTPCameraControl, String)
@@ -110,6 +112,8 @@ public enum PTPIPClientSessionError: Error, LocalizedError, Equatable {
         case .pairingChallengeUnavailable:
             return
                 "The camera did not provide a pairing code. Restart Connect to Smart Device on the camera, then pair again."
+        case .nonNumericHost:
+            return "Enter a numeric IPv4 camera address. Host names are not supported yet."
         case .savedProfileRequired:
             return "The camera requires first-time pairing before app control can start."
         case .appControlUnavailable:
@@ -4679,8 +4683,7 @@ final class PosixTCPSocket: @unchecked Sendable {
         address.sin_family = sa_family_t(AF_INET)
         address.sin_port = in_port_t(port).bigEndian
         guard inet_pton(AF_INET, host, &address.sin_addr) == 1 else {
-            throw PTPIPClientSessionError.connectionFailed(
-                "Enter a numeric IPv4 camera address. Host names are not supported yet.")
+            throw PTPIPClientSessionError.nonNumericHost
         }
 
         let newDescriptor = socket(AF_INET, SOCK_STREAM, Int32(IPPROTO_TCP))

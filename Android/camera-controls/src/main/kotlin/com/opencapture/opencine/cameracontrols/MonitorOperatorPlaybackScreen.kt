@@ -1,7 +1,18 @@
 package com.opencapture.opencine.cameracontrols
 
-import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -106,6 +117,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val haptics = LocalOperatorHaptics.current
     var opened by remember(model) { mutableStateOf(false) }
+    var openedRequest by remember(model) { mutableStateOf<java.util.UUID?>(null) }
     DisposableEffect(model, lifecycle) {
         model.playerVisible(true)
         model.sceneActive(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
@@ -122,6 +134,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
     LaunchedEffect(model, initial.id) {
         if (!opened) model.ratingShadeOpen(initialRatingShadeOpen)
         opened = model.open(initial.record, initial.playlist, initial.admission)
+        openedRequest = initial.id
     }
     LaunchedEffect(owner.playback) {
         if (opened && owner.playback == null && model.state.value.playback == null) close()
@@ -130,8 +143,13 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         model.deliveryPresented(deliveryPresented)
         if (deliveryPresented) assist?.configureTool = null
     }
-    val player = owner.playback ?: return
+    fun unavailableClose() { model.playerVisible(false); close() }
+    val player = owner.playback
+    if (player == null || !opened || openedRequest != initial.id) { MonitorOperatorMediaUnavailable(close = ::unavailableClose); return }
     val value by player.state.collectAsState()
+    if (value.closed || !model.isCurrent(value.token)) {
+        MonitorOperatorMediaUnavailable(close = ::unavailableClose); return
+    }
     val record = value.active ?: initial.record
     val facts = source(record)
     // Existing hosts retain effect-first transfer precedence; an explicit source never falls back.
@@ -151,7 +169,6 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
             MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.LIGHTS, MonitorAssistTool.ND,
         )
     } else suppliedTools
-    val context = LocalContext.current
     val rate = player.rate
     fun clock(seconds: Double): String {
         val duration = MonitorConformPreview.conformedDuration(seconds, rate)
@@ -180,7 +197,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         row("Frame rate", asset.frameRate?.let { number(it) + " fps" }); row("Duration", clock(duration))
         row("Playback source", sourceLabel)
         row("Size", asset.representations.firstOrNull { it.role == MediaRepresentationRole.ORIGINAL }
-            ?.byteCount?.takeIf { it > 0 }?.let { Formatter.formatShortFileSize(context, it) })
+            ?.byteCount?.takeIf { it > 0 }?.let(MediaClipFormatting::byteLabel))
         row("Created", asset.capturedAt?.let { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
             .withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(it)) })
         row("Favorite", if (favorite) "Yes" else "No")
@@ -227,9 +244,7 @@ public fun <P, L> MonitorOperatorPlaybackScreen(
         adjacent = { token, offset -> if (!model.adjacent(offset, token)) haptics.confirm() },
         favorite = { token -> current(token) { operations.favorite?.invoke(record) ?: model.library.toggleFavorite(asset.id) } },
         share = { token -> current(token) {
-            if (share != null && (operations.access?.let { it(record).share == true } ?: true) && model.isCurrent(token)) {
-                model.deliveryPresented(true); share(record)
-            }
+            if (share != null && (operations.access?.let { it(record).share == true } ?: true) && model.beginShare(token)) share(record)
         } },
         delete = removal, beginScrub = { if (model.isCurrent(it)) player.beginScrub() else null },
         updateScrub = { edit, seconds -> player.updateScrub(seconds, edit) },
@@ -331,4 +346,21 @@ private fun OperatorPlaybackAssistOverlays(
         }
     }
 
+}
+
+/** Shared return surface for refused or retired media; Close never borrows source admission. */
+@Composable
+public fun MonitorOperatorMediaUnavailable(closeEnabled: Boolean = true, close: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Media unavailable", color = LiveDesign.text, style = LiveType.ui(20f, FontWeight.SemiBold),
+            modifier = Modifier.testTag("monitor.media.unavailable"))
+        Text("This media is no longer available.", color = LiveDesign.muted,
+            style = LiveType.ui(14f, FontWeight.Medium))
+        TextButton(onClick = close, enabled = closeEnabled,
+            modifier = Modifier.testTag("monitor.media.unavailable.close").semantics { contentDescription = "Close" }) {
+            Text("Close", color = LiveDesign.text, style = LiveType.ui(14f, FontWeight.SemiBold))
+        }
+    }
 }

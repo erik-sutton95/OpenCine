@@ -36,7 +36,7 @@ def create(name: str, device: str, runtime: str | None, report: Path | None) -> 
     subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True, stdout=subprocess.DEVNULL)
     subprocess.run(["xcrun", "simctl", "shutdown", udid], check=True)
     preference = (Path.home() / "Library/Developer/CoreSimulator/Devices" / udid
-                  / "data/Library/Preferences/com.apple.Accessibility.plist")
+                / "data/Library/Preferences/com.apple.Accessibility.plist")
     before = preference.read_bytes()
     original = plistlib.loads(before)
     enabled = dict(original, ApplicationAccessibilityEnabled=True, AccessibilityEnabled=True)

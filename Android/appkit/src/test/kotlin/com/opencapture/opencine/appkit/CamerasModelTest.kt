@@ -8,6 +8,7 @@ import com.opencapture.opencine.core.ConnectionPhase
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.DiscoveryMode
 import com.opencapture.opencine.core.IntegrationID
+import com.opencapture.opencine.core.IntegrationPresentation
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.RouteKind
@@ -307,5 +308,41 @@ class CamerasModelTest {
         // A save from the model keeps the app's write.
         model.rename("camera-9", "Nine")
         assertTrue(legacy.writes.isEmpty())
+    }
+
+    /**
+     * A nearby card's tap is the integration's declared behavior (A4-39), not an app's copied pair
+     * lambda: an integration whose camera approves the pairing connects at once, any other only
+     * chooses the camera for the pair page's Connect.
+     */
+    @Test
+    fun nearbyTapFollowsTheIntegrationsPresentation() = runTest {
+        val pairsOnTap = FakeIntegration(
+            id = IntegrationID("test.pairs-on-tap"),
+            presentation = IntegrationPresentation(nearbyTap = IntegrationPresentation.NearbyTap.CONNECT),
+        )
+        val model = Values.model(listOf(fake, pairsOnTap), backgroundScope, emptyList(), defaults).also { runCurrent() }
+        fake.publish(listOf(Values.sighting))
+        pairsOnTap.publish(listOf(Values.sighting.copy(id = "n3", name = "CAM-3")))
+        runCurrent()
+
+        model.openNearby("n2")
+        assertEquals("n2", model.now.selection)
+        assertTrue(model.now.attempts.isEmpty() && fake.attempts.isEmpty())
+
+        model.openNearby("n3")
+        assertEquals("n3", model.now.selection)
+        assertEquals(listOf("n3"), model.now.attempts.keys.toList())
+        assertEquals(ConnectTarget.Nearby(Values.sighting.copy(id = "n3", name = "CAM-3")), pairsOnTap.attempts.single().target)
+    }
+
+    /** Rename setup is offered where the camera's integration names setups (A4-39: no brand Boolean). */
+    @Test
+    fun setupNamesFollowTheIntegrationsPresentation() = runTest {
+        val unnamed = FakeIntegration(id = IntegrationID("test.unnamed"), presentation = IntegrationPresentation(namesSetups = false))
+        val other = Values.camera.copy(id = "camera-2", integration = unnamed.id)
+        val model = Values.model(listOf(fake, unnamed), backgroundScope, listOf(Values.camera, other), defaults).also { runCurrent() }
+        assertTrue(model.namesSetups(Values.camera))
+        assertFalse(model.namesSetups(other))
     }
 }

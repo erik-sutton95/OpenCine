@@ -19,8 +19,11 @@
         func testMovingTheWindowDoesNotReevaluateControlsThatReadItsActionGuard() async throws {
             let input = MotionDragInput()
             let recorder = MotionDragRecorder()
+            // Retain the guard reader while placement updates rebuild the fixture,
+            // so this measures interaction-environment invalidation.
             let host = UIHostingController(
-                rootView: MotionDragFixture(input: input, recorder: recorder))
+                rootView: MotionDragFixture(
+                    input: input, controls: MotionDragGuardConsumer(recorder: recorder)))
             host.safeAreaRegions = []
             let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
             window.rootViewController = host
@@ -78,10 +81,10 @@
 
     private struct MotionDragFixture: View {
         let input: MotionDragInput
-        let recorder: MotionDragRecorder
+        let controls: MotionDragGuardConsumer
 
         var body: some View {
-            MotionDragGuardConsumer(recorder: recorder)
+            controls
                 .modifier(
                     LiveGimbalFloatMove(
                         stored: Binding(get: { input.center }, set: { input.center = $0 }),

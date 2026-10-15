@@ -20,6 +20,7 @@ public class FeedIncidentSessionSource internal constructor(
     private val runtime: FeedIncidentRuntime,
     public val sessionID: String,
 ) : FeedIncidentSource {
+    override val isCurrent: Boolean get() = runtime.isCurrent(this)
     override fun ingestSnapshot(snapshot: FeedIncidentSnapshot): Unit = runtime.ingest(this, snapshot)
     override fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb): Unit = runtime.breadcrumb(this, breadcrumb)
     override fun recordRepair(repair: FeedRepairRecord): Unit = runtime.repair(this, repair)
@@ -40,11 +41,16 @@ public class FeedIncidentSessionSource internal constructor(
 public class FeedIncidentRuntime internal constructor(
     private val reporting: ReliabilityReporting,
     private val writer: ExecutorService,
+    private val clock: () -> Double = { android.os.SystemClock.elapsedRealtime() / 1_000.0 },
 ) : FeedIncidentSink {
     public constructor(reporting: ReliabilityReporting) : this(reporting,
         Executors.newSingleThreadExecutor { thread ->
             Thread(thread, "opc.feed-incident").apply { isDaemon = true }
         })
+    public constructor(reporting: ReliabilityReporting, clock: () -> Double) : this(reporting,
+        Executors.newSingleThreadExecutor { thread ->
+            Thread(thread, "opc.feed-incident").apply { isDaemon = true }
+        }, clock)
     private val product = reporting.host.product
     private val redact = reporting.host.redact
     private val recorder = FeedIncidentRecorder(redact = redact)
@@ -87,13 +93,25 @@ public class FeedIncidentRuntime internal constructor(
     /** Legacy producers capture the current source per call; asynchronous owners should retain a binding. */
     override fun beginSession(context: FeedIncidentSessionContext) { beginBoundSession(context) }
 
+    public fun sessionContext(sessionId: String = java.util.UUID.randomUUID().toString(), cameraFamily: String,
+        cameraFirmware: String? = null, decoderGeneration: Int = 0, socketGeneration: Int = 0,
+    ): FeedIncidentSessionContext = FeedIncidentProducerContext(reporting.host).make(sessionId,
+        cameraFamily, cameraFirmware, decoderGeneration, socketGeneration,
+        reporting.origin.currentTestSource(), reporting.origin.currentBuildIdentity())
+
     override fun beginBoundSession(context: FeedIncidentSessionContext): FeedIncidentSessionSource = synchronized(gate) {
         val captured = context.copy()
         val source = FeedIncidentSessionSource(this, captured.sessionId)
+        val replacedAt = clock()
         submittedSource = source
         pending = null
         // Enqueue the begin event before returning authority to any producer.
         writer.execute {
+            if (activeSource != null) {
+                persist(recorder.endSession(replacedAt))
+                persistSessionSummary(summaryOutcome(recorder.incidentCount, recorder.healthyExposure))
+                reporting.enqueueFinalizedFromSpool()
+            }
             persist(recorder.beginSession(captured))
             activeSource = source
             sessionContext = captured
@@ -114,6 +132,7 @@ public class FeedIncidentRuntime internal constructor(
     override fun noteUnexpectedDisconnect(nowSeconds: Double) { currentSource()?.noteUnexpectedDisconnect(nowSeconds) }
 
     private fun currentSource(): FeedIncidentSessionSource? = synchronized(gate) { submittedSource }
+    internal fun isCurrent(source: FeedIncidentSessionSource): Boolean = synchronized(gate) { submittedSource === source }
 
     private fun enqueue(source: FeedIncidentSessionSource, work: () -> Unit) = synchronized(gate) {
         if (submittedSource !== source) return@synchronized

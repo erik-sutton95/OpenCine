@@ -20,6 +20,10 @@ import PackageDescription
 // - OpenCineAppKitApple (the Apple composition layer of the app shell) builds on OpenCineAppKit,
 //   MonitorUI, MonitorPresentation, OpenCineApple, OpenCineMedia, OpenCineMotion, OpenCineRelay and
 //   OpenCineRelayApple only: never an integration, an app or a third-party package.
+// - OpenCineFrameIOApple (Frame.io's Apple host: keychain token, Info.plist configuration, web
+//   sign-in, saved destination, upload history and the delivery services every app composes)
+//   builds on OpenCineFrameIO, OpenCineAppKit and OpenCineAppKitApple only. Keychain service,
+//   defaults keys and bundle arrive from the app.
 // - OpenCineCameraControls (the camera apps' controls over the camera vocabulary: face AF,
 //   capture sheets, live chrome, gimbal views) builds on OpenCineCameraVocabulary, MonitorUI,
 //   MonitorPresentation, OpenCineAppKit, OpenCineAppKitApple, Core, Media and Motion only: never
@@ -51,6 +55,7 @@ let package = Package(
         // Shared app shell: saved cameras, the connection model and screens (docs/appkit/README.md).
         .library(name: "OpenCineAppKit", targets: ["OpenCineAppKit"]),
         .library(name: "OpenCineAppKitApple", targets: ["OpenCineAppKitApple"]),
+        .library(name: "OpenCineFrameIOApple", targets: ["OpenCineFrameIOApple"]),
         .library(name: "OpenCineCameraControls", targets: ["OpenCineCameraControls"]),
         // The app UI tests every app shares (XCTest), for apps' UI test bundles only; never link
         // it into an app.
@@ -71,6 +76,9 @@ let package = Package(
         // JNI copy helpers (and the NDK <jni.h> shim OpenCineJNI, re-exported) for an app's own
         // Swift Android exports.
         .library(name: "OpenCineJNISupport", targets: ["OpenCineJNISupport"]),
+        // The Swift side of the Android `FrameioNative` JNI facade (`:frameio`): an app links it
+        // into its Swift Android library. Its wire helpers also build and test on Darwin.
+        .library(name: "OpenCineFrameIOAndroid", targets: ["OpenCineFrameIOAndroid"]),
         .library(name: "Insta360Protocol", targets: ["Insta360Protocol"]),
         .library(name: "Insta360Apple", targets: ["Insta360Apple"]),
         // A scripted Luna for consumers' test targets only; never link it into an app.
@@ -142,7 +150,7 @@ let package = Package(
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineHostedAccessibility"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -162,20 +170,24 @@ let package = Package(
             name: "OpenCineAppKitTests",
             dependencies: [
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
-                "MonitorPresentation", "MonitorUI",
+                "MonitorPresentation", "MonitorUI", "OpenCineMedia",
             ]),
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
         // protocols; iOS only, empty elsewhere.
-        .target(name: "OpenCineAppKitApple", dependencies: ["MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
-        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
+        .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
+        .target(name: "OpenCineFrameIOApple", dependencies: ["OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
+        .testTarget(
+            name: "OpenCineFrameIOAppleTests",
+            dependencies: ["OpenCineFrameIOApple", "OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
         // The camera apps' controls over the camera vocabulary (app composition next to the app
         // shell). App differences arrive as host values, never as brand branches.
         .target(
             name: "OpenCineCameraControls",
             dependencies: [
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
-                "OpenCineMedia", "OpenCineMotion",
+                "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
             ]),
         .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review
@@ -239,6 +251,12 @@ let package = Package(
         // MARK: JNI
         // JNI copy helpers over the header-only OpenCineJNI shim (re-exported). Empty on Darwin.
         .target(name: "OpenCineJNISupport", dependencies: ["OpenCineJNI"]),
+        // Frame.io OAuth and V4 request wire for every app's Android shell (moved from
+        // OpenZCine's Android facade) and the JNI exports of the Kotlin class
+        // com.opencapture.opencine.frameio.FrameioNative. PKCE SHA-256 is the Android platform
+        // digest, injected through the JNI object; no cryptography package dependency.
+        .target(name: "OpenCineFrameIOAndroid", dependencies: ["OpenCineFrameIO", "OpenCineJNISupport"]),
+        .testTarget(name: "OpenCineFrameIOAndroidTests", dependencies: ["OpenCineFrameIOAndroid", "OpenCineFrameIO"]),
 
         // MARK: Insta360
         // Luna wire protocol (Foundation only) and the Apple I/O adapter with its KCP C code.
@@ -248,7 +266,10 @@ let package = Package(
         .target(name: "CKcp", exclude: ["LICENSE"]),
         .target(
             name: "Insta360Apple",
-            dependencies: ["Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion", "OpenCineMedia"]
+            dependencies: [
+                "Insta360Protocol", "CKcp", "OpenCineCore", "OpenCineMotion", "OpenCineMedia",
+                "OpenCineCameraVocabulary",
+            ]
         ),
         .target(name: "Insta360AppleTestSupport", dependencies: ["Insta360Apple", "Insta360Protocol", "OpenCineCore", "OpenCineMedia"]),
         .testTarget(

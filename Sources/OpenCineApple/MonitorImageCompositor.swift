@@ -4,17 +4,7 @@ import Foundation
 import Metal
 import OpenCineMedia
 
-/// the original renderer `Peaking` constants used by the Core Image filter-chain detector (no fused kernel).
-private enum Peak {
-    static let reblurRadius = 1.0
-    static let ratioScale = 0.25
-    static let antialiasWidth = 0.12
-    static let underRampOffset = 0.5
-    static let under = (red: 0.04, green: 0.04, blue: 0.05)
-    static let gateRampFloor = 0.7
-    static let edgeInset = 6.0
-    static let maskClosingRadius = 1.0
-}
+private typealias Peak = Peaking
 
 /// Additional analysis-window admission after the fused detector passes its runtime probe.
 /// This is an Apple Core Image graph policy; renderer calibration and source settings stay values.
@@ -546,7 +536,7 @@ public enum MonitorImageCompositor {
         extent: CGRect
     ) -> CIImage {
         let dark = CIImage(
-            color: CIColor(red: Peak.under.red, green: Peak.under.green, blue: Peak.under.blue)
+            color: CIColor(red: Peak.underColor.red, green: Peak.underColor.green, blue: Peak.underColor.blue)
         )
         .cropped(to: extent)
         let rgb = color.rgb

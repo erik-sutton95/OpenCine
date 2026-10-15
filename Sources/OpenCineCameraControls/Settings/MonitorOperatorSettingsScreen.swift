@@ -2,6 +2,7 @@
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineCameraVocabulary
 import OpenCineMedia
 import SwiftUI
 
@@ -111,7 +112,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         .alert("Report unavailable", isPresented: $supportError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Email support@opencapture.org. You can save a report under Diagnostic options.")
+            if let support = source.support { Text(support.reportUnavailableMessage) }
         }
     }
     private func retireSheets() {
@@ -355,22 +356,14 @@ private struct MonitorSettingsConfiguredSupport: View {
             MonitorSupportSettings(automaticReports: source.consent, available: source.available,
                 automaticHelp: source.automaticHelp, unavailableHelp: source.unavailableHelp,
                 reportTitle: source.reportTitle, reportActionTitle: source.reportActionTitle,
-                actions: supportActions, report: report, privacy: { request(source.privacyDestination) })
+                actions: source.configuredSupportActions(
+                    reportPreparing: source.model?.preparingReport == true),
+                report: report, privacy: { request(source.privacyDestination) })
             MonitorProjectLegalSettings(sourceHelp: source.sourceHelp, termsHelp: source.termsHelp,
                 source: { request(source.sourceDestination) }, privacy: { request(source.privacyDestination) },
                 terms: { request(source.termsDestination) })
         }
 
-    }
-    private var supportActions: [MonitorSupportAction] {
-        source.links.map { link in
-            .init(id: link.destination.id, title: link.destination.title, help: link.help,
-                actionTitle: link.actionTitle, accessibilityLabel: link.accessibilityLabel,
-                action: { request(link.destination) })
-        } + [.init(id: "support.diagnostics", title: "Share Diagnostics", help: source.diagnosticsHelp,
-            actionTitle: source.model?.preparingReport == true ? "Preparing…" : "Share",
-            accessibilityLabel: "Share Diagnostics", enabled: source.model?.preparingReport != true,
-            action: { source.model?.prepareReport() })]
     }
     private func request(_ destination: MonitorSettingsBrowserDestination?) {
         if let destination { source.model?.request(destination) }
@@ -450,7 +443,7 @@ public struct MonitorSettingsLinkHealthCard: View {
     }
 }
 
-private struct MonitorSettingsCapturedCache: View {
+struct MonitorSettingsCapturedCache: View {
     let source: MonitorSettingsCacheSource
     let cacheOriginals: Binding<Bool>?
     let cacheHelp: String, clearHelp: String
@@ -465,12 +458,12 @@ private struct MonitorSettingsCapturedCache: View {
     }
     var body: some View {
         MonitorCacheSettings(cacheOriginals: cacheOriginals, sizeLabel: sizeLabel, clearing: model.clearing,
-            cacheHelp: cacheHelp, scopeHelp: scopeHelp ?? "Originals and playback proxies downloaded from the camera.",
+            cacheHelp: cacheHelp, scopeHelp: scopeHelp ?? Self.scopeHelpText,
             clearHelp: clearHelp, feedback: feedback, clear: model.requestClear, clearSummary: model.clearSummary)
         .confirmationDialog("Clear cache?", isPresented: confirm, titleVisibility: .visible) {
             Button("Clear", role: .destructive, action: model.clear)
             Button("Cancel", role: .cancel, action: model.cancelConfirmation)
-        } message: { Text(confirmationMessage ?? "Removes downloaded clip files from this phone. The clip list is kept.") }
+        } message: { Text(confirmationMessage ?? Self.confirmationText) }
         .disabled(model.clearing)
         .alert(model.readFailed ? "Could not read the cache." : "Could not clear the cache. Try again.",
             isPresented: Binding(get: { model.clearFailed || model.readFailed }, set: { if !$0 { model.dismissError() } })) {
@@ -479,9 +472,16 @@ private struct MonitorSettingsCapturedCache: View {
         .task(id: request) { model.refresh(source) }
         .onDisappear { model.retire() }
     }
+    /// One cache scope and Clear wording every app shares (A2-33): the scope is every camera's
+    /// cache on this phone, and Clear removes the camera indexes too, so a formatted card cannot
+    /// leave thumbnail-less rows behind. A host with a different scope states its own two texts.
+    static let scopeHelpText =
+        "Clips and thumbnails cached from the camera for offline playback and sharing, across all paired cameras."
+    static let confirmationText =
+        "Removes cached clip files, thumbnails, and camera indexes for every camera. The on-device library is left intact."
     private var sizeLabel: String {
         guard let bytes = model.bytes else { return model.readFailed ? "Unavailable" : "Checking…" }
-        return bytes == 0 ? "Empty" : ByteCountFormatter.string(fromByteCount: Int64(clamping: bytes), countStyle: .file)
+        return bytes == 0 ? "Empty" : MediaClipFormatting.byteLabel(bytes)
     }
 }
 
@@ -496,7 +496,9 @@ public struct MonitorOperatorCacheSettings<Payload: Sendable>: View {
     public var body: some View {
         MonitorSettingsCapturedCache(source: source, cacheOriginals: cacheOriginals,
             cacheHelp: "Keep originals downloaded for playback.",
-            clearHelp: "Remove downloaded picture files while keeping the clip list.", feedback: {})
+            clearHelp: "Remove downloaded picture files while keeping the clip list.", feedback: {},
+            scopeHelp: "Originals and playback proxies downloaded from the camera.",
+            confirmationMessage: "Removes downloaded picture files while keeping the clip list.")
     }
 
     private var source: MonitorSettingsCacheSource {

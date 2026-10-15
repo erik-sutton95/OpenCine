@@ -114,6 +114,14 @@ class NativeGlesFeedSession(
     @Volatile private var nextScopeAtNs = 0L
     @Volatile private var lastScopeWorkNs = 0L
 
+    /** This session as a [MonitorTexturePictureHost] program. */
+    val pictureProgram: MonitorTexturePictureProgram =
+        object : MonitorTexturePictureProgram {
+            override fun attach(texture: SurfaceTexture, width: Int, height: Int) = attachDisplay(texture, width, height)
+            override fun resize(width: Int, height: Int) = this@NativeGlesFeedSession.resize(width, height)
+            override fun detach() = detachDisplay()
+        }
+
     fun attachDisplay(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
         if (closed) return
         detachDisplay()

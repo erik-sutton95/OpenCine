@@ -194,6 +194,15 @@ public struct MonitorMediaCacheEntry: Sendable {
         directories[namespace] = value
         return value
     }
+
+    /// Every live or valid retired camera namespace on disk, once each in stable order.
+    /// Settings can account for interrupted Clear operations and retry prepared deletions.
+    public func cachedDirectories() -> [MonitorMediaCacheDirectory] {
+        MonitorMediaCacheNamespaces.names(under: root, manager: manager).compactMap {
+            try? directory(namespace: $0)
+        }
+    }
+
 }
 
 @MainActor public final class MonitorMediaCacheDirectory {
@@ -314,7 +323,7 @@ public struct MonitorMediaCacheEntry: Sendable {
             for resource in retired where manager.fileExists(atPath: resource.temporary.path) {
                 try manager.removeItem(at: resource.temporary)
             }
-            if manager.fileExists(atPath: root.path) {
+            if MonitorMediaCacheNamespaces.isDirectory(root, manager: manager) {
                 let suffix = root.lastPathComponent + "-" + UUID().uuidString
                 let retired = root.deletingLastPathComponent().appendingPathComponent(
                     ".retiring-" + suffix)
@@ -385,7 +394,7 @@ public struct MonitorMediaCacheEntry: Sendable {
                 root: root, manager: manager, includeUnprepared: true,
                 accountLegacyUnpreparedRoots: accountLegacyUnpreparedRoots)
         {
-            guard
+            guard MonitorMediaCacheNamespaces.isDirectory(directory, manager: manager),
                 let files = manager.enumerator(
                     at: directory,
                     includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey])
@@ -406,7 +415,8 @@ public struct MonitorMediaCacheEntry: Sendable {
         ((try? manager.contentsOfDirectory(
             at: root.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? [])
             .filter {
-                isRetirementName(
+                guard MonitorMediaCacheNamespaces.isDirectory($0, manager: manager) else { return false }
+                return isRetirementName(
                     $0.lastPathComponent, prefix: ".clearing-" + root.lastPathComponent + "-")
                     || (includeUnprepared
                         && (isRetirementName(
@@ -423,6 +433,41 @@ public struct MonitorMediaCacheEntry: Sendable {
         guard let id = UUID(uuidString: suffix) else { return false }
         // The whole suffix must be one canonical UUID, never another root's name or extra text.
         return id.uuidString.caseInsensitiveCompare(suffix) == .orderedSame
+    }
+}
+
+/// Discover only actual child directories. A retirement encodes its namespace followed by one
+/// canonical UUID; malformed or unrelated hidden paths never become cache ownership.
+enum MonitorMediaCacheNamespaces {
+    static func names(under parent: URL, manager: FileManager) -> [String] {
+        let children = (try? manager.contentsOfDirectory(
+            at: parent, includingPropertiesForKeys: nil)) ?? []
+        return Set(children.compactMap { child -> String? in
+            guard isDirectory(child, manager: manager) else { return nil }
+            let name = child.lastPathComponent
+            if !name.hasPrefix(".") { return validNamespace(name) ? name : nil }
+            for prefix in [".clearing-", ".retiring-"] where name.hasPrefix(prefix) {
+                let encoded = String(name.dropFirst(prefix.count))
+                guard encoded.count > 37 else { return nil }
+                let suffix = String(encoded.suffix(36))
+                guard let id = UUID(uuidString: suffix),
+                    id.uuidString.caseInsensitiveCompare(suffix) == .orderedSame,
+                    encoded.dropLast(36).last == "-"
+                else { return nil }
+                let namespace = String(encoded.dropLast(37))
+                return validNamespace(namespace) ? namespace : nil
+            }
+            return nil
+        }).sorted()
+    }
+
+    private static func validNamespace(_ name: String) -> Bool {
+        !name.isEmpty && !name.hasPrefix(".") && !name.contains("/") && !name.contains("\\")
+    }
+
+    nonisolated static func isDirectory(_ url: URL, manager: FileManager) -> Bool {
+        // attributesOfItem inspects the link itself; fileExists(isDirectory:) follows it.
+        (try? manager.attributesOfItem(atPath: url.path)[.type]) as? FileAttributeType == .typeDirectory
     }
 }
 
@@ -703,6 +748,13 @@ struct MonitorMediaCatalogAuthority: Equatable, Sendable {
         try await readPlan(records).read()
     }
     public func clear() async throws { try await directory.clear(preserving: preservedMetadata) }
+
+    /// Clear for the settings scope, which removes the camera indexes with the clips (A2-33):
+    /// dropping the preserved metadata keeps a formatted card from leaving thumbnail-less ghost
+    /// rows behind, and the camera re-enumerates the truth on the next connected pass.
+    public func clear(preservingMetadata: Bool) async throws {
+        try await directory.clear(preserving: preservingMetadata ? preservedMetadata : [])
+    }
 }
 
 /// Admission identity accompanies a snapshot; owners reject another plan or retired directory.

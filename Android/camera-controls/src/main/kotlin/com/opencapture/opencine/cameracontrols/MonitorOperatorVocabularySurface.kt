@@ -42,7 +42,11 @@ import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.media.storageReadout
+import com.opencapture.opencine.media.recordingTimeLabel
+import com.opencapture.opencine.media.StorageReadout
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
+import com.opencapture.opencine.vocabulary.EvComp
 import com.opencapture.opencine.vocabulary.FocusOverlay
 import com.opencapture.opencine.vocabulary.LiveFeedFocusGesture
 import com.opencapture.opencine.vocabulary.TrackingBox
@@ -127,7 +131,8 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
         record = MonitorOperatorRecordSource(status.isPhoto, chrome.capture.confirmRecording(), busy,
             openMode = { state.sheet = LiveSheet.MODE }),
-        exposure = { readExposure().takeIf { exposureAvailable } }, level = level, levelViewFlip = levelViewFlip,
+        exposure = { readExposure().takeIf { exposureAvailable }?.let { EvComp.fromRaw(it)?.thirds?.div(3.0) } },
+        level = level, levelViewFlip = levelViewFlip,
         audio = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
         readOnly = false, borrowed = shell.monitor?.isBorrowed == true, returnToStage = chrome.returnToStage,
         coverOpen = shell.cover != null, note = note, clearNote = clearNote, vpnActive = vpnActive,
@@ -286,6 +291,8 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     duration: Boolean, toggleStorage: () -> Unit): MonitorOperatorLiveStatus<String, MonitorDisplaySection>
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
+    val storage = source.capture.control.state.value.snapshot?.storage
+    val storageLabel = if (duration) storage?.recordingTimeLabel else storage?.storageReadout?.free
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)
     val labels = source.host.labelProfile
@@ -300,13 +307,13 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.TIMECODE),
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
-            CaptureLists.storageLabel(status, if (field.portrait) false else duration).substringBefore(" ·"), MonitorDisplaySection.STORAGE,
-            action = { if (!field.portrait) toggleStorage() }, icon = MonitorIcon.CARD_SIM) else null,
+            storageLabel ?: StorageReadout.UNAVAILABLE, MonitorDisplaySection.STORAGE,
+            action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
             if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel),
         portraitCaption = if (CameraCommands.isPhotoMode(status.shootingMode)) null else recordingFormat?.profile,
-        color = if (!field.portrait && source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
+        color = if (source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
             row(LiveSheet.COLOR, "Color mode", recordingFormat?.profile, MonitorDisplaySection.COLOR) else null,
         mode = if (!field.portrait && source.session.mounts(MonitorDisplaySection.FORMAT))
             row(LiveSheet.MODE, "Shooting mode", CameraCommands.shootingModeLabel(status.shootingMode, source.host.camera?.name, labels)) else null,

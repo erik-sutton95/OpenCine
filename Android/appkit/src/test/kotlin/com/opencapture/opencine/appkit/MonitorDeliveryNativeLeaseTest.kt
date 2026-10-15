@@ -1,6 +1,7 @@
 package com.opencapture.opencine.appkit
 
 import kotlin.test.Test
+import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -37,9 +38,9 @@ class MonitorDeliveryNativeLeaseTest {
             load = { MonitorDeliveryProjectListing(1, emptyList()) },
             create = { _, _ -> MonitorDeliveryProject("p", "Project", true, "p") }, persist = { _, _ -> },
             internet = internet, transfer = { token -> onTransfer?.invoke()
-                if (owned == token) { owned = token + 1; calls += "transfer $token"; token + 1 } else null })
+                if (owned == token) { owned = token + 1; calls += "transfer $token"; token + 1 } else null }, skipsUploaded = false)
     }
-    private fun request(scope: CoroutineScope, facts: Facts): MonitorDeliveryPreparedRequest<Int, Int, Int>? {
+    private fun request(scope: CoroutineScope, facts: Facts): MonitorDeliveryPreparedRequest<Int, Int, String, Int, Int>? {
         val popup = MonitorDeliveryPreparationModel<Int, Int, String, Int, Int>(scope,
             observeSelection = { MonitorDeliverySelectionFacts(listOf(MonitorDeliveryFileFacts("original.mov", 1)), 1, false) },
             configuration = null, exportOptions = null, remote = facts.remote, sourceCurrent = { facts.current },
@@ -55,10 +56,35 @@ class MonitorDeliveryNativeLeaseTest {
             exporter = MonitorDeliveryExportService<Int, String>(release = { facts.calls += "release $it" }, prepare = { _, _ ->
                 facts.calls += "prepare"
                 withContext(NonCancellable) { facts.entered?.await() }
-                "file" }), share = { files -> facts.calls += "stage"; MonitorDeliveryShareFiles(files, "staging") },
-            photos = MonitorDeliveryPhotosService.PerItem { facts.calls += "save"; true },
+                "file" }), share = { files -> facts.calls += "stage"; MonitorDeliveryShareFiles(files, cleanup = "staging") },
+            photos = MonitorDeliveryPhotosService { facts.calls += "save"; true },
             upload = MonitorDeliveryUploadService { _, _ -> facts.calls += "upload" }, internet = facts.internet, initialLease = lease,
             filename = { "original.mov" }, progress = { })
+
+    @Test fun preEntryCancellationRestoresTransferredLeaseWithoutEnteringTheSource() = runTest {
+        val facts = Facts()
+        val accepted = assertNotNull(request(backgroundScope, facts))
+        val coordinator = MonitorDeliveryCoordinator(backgroundScope)
+        var sourceCalls = 0
+        val captured = assertNotNull(coordinator.begin { admission, progress ->
+            coordinator.run(
+                records = listOf(1), destination = MonitorDeliveryDestination.NATIVE_SHARE,
+                action = MonitorDeliveryPostExportAction.SYSTEM_SHARE, admission = admission,
+                source = MonitorDeliverySource<Int, Unit, Unit>(
+                    originals = MonitorDeliveryOriginalService(available = { sourceCalls++; true },
+                        acquire = { sourceCalls++ }, progress = { null }),
+                    prepare = { _, _, _ -> sourceCalls++; File("SIMULATED.mov") },
+                    filename = { "SIMULATED.mov" }), configuration = null, remote = null,
+                photos = null, internet = facts.internet, lease = accepted.internetLease, progress = progress)
+        })
+        coordinator.cancel()
+        captured.awaitEnteredCleanup()
+        assertEquals(listOf("transfer 1", "restore-start 2", "restore 2"), facts.calls)
+        assertNull(facts.owned)
+        assertEquals(0, sourceCalls)
+        assertNull(coordinator.lifetime.state.value.toast)
+        coordinator.close()
+    }
 
     @Test fun nativeShareTransfersSetupLeaseAndJoinsRestore() = runTest {
         val facts = Facts(); facts.restoring = CompletableDeferred()

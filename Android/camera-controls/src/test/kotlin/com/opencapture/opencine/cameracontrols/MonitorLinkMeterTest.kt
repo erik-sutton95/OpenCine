@@ -21,7 +21,7 @@ class MonitorLinkMeterTest {
     fun theChipNamesTheLinkUntilPicturesArriveThenPrintsTheRate() {
         val meter = MonitorLinkMeter()
         meter.tick(observation(connection = ConnectionPhase.IDLE), 1_000)
-        assertEquals("—", meter.label)
+        assertEquals("\u2014", meter.label)
         assertEquals(0, meter.bars)
         meter.tick(observation(connection = ConnectionPhase.OPENING_DATALINK), 1_200)
         assertEquals("LINK", meter.label)

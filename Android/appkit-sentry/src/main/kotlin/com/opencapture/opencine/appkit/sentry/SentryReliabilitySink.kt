@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit.sentry
 
 import android.content.Context
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityEvent
+import com.opencapture.opencine.appkit.diagnostics.ReliabilityMetric
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReporting
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReportingBackoff
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReportingCancellable
@@ -21,9 +22,11 @@ import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 import io.sentry.android.core.SentryAndroid
 import io.sentry.android.core.SentryAndroidOptions
+import io.sentry.metrics.SentryMetricsParameters
 import io.sentry.protocol.Message
 import io.sentry.protocol.SentryId
 import io.sentry.protocol.SentryStackFrame
+import io.sentry.protocol.User
 import io.sentry.transport.ITransport
 import io.sentry.transport.RateLimiter
 import java.io.File
@@ -47,6 +50,8 @@ public class SentryReliabilitySink(private val reporting: ReliabilityReporting) 
             applyPrivacyOptions(configured, reporting)
             configured.isForceInit = true
         }
+        // Native crashes and metrics carry the anonymous install id through the scope.
+        Sentry.setUser(installUser(reporting.consent.installId))
     }
 
     override fun close() {
@@ -73,22 +78,30 @@ public class SentryReliabilitySink(private val reporting: ReliabilityReporting) 
         }
     }
 
+    /**
+     * The event's own tags already win over the scope's when the SDK merges them, so the capture
+     * scope only swaps the attachment. Tags set on it would reach every scope observer, the NDK
+     * one included, and stamp the incident onto later native crashes (PA-E, PA-16).
+     */
     override fun capture(event: ReliabilityEvent, attachment: ByteArray, attachmentName: String) {
-        val sentryEvent = event.toSentryEvent()
-        Sentry.captureEvent(sentryEvent) { scope ->
+        Sentry.captureEvent(event.toSentryEvent()) { scope ->
             scope.clearAttachments()
             scope.addAttachment(Attachment(attachment, attachmentName, "application/json"))
-            applyOriginalTags(sentryEvent.tags, scope)
         }
+    }
+
+    override fun record(metric: ReliabilityMetric) {
+        Sentry.metrics().distribution(
+            metric.name,
+            metric.value,
+            metric.unit,
+            SentryMetricsParameters.create(metric.attributes),
+        )
     }
 }
 
-internal fun applyOriginalTags(tags: Map<String, String>?, scope: io.sentry.IScope) {
-    if (tags == null) return
-    for ((key, value) in tags) {
-        scope.setTag(key, value)
-    }
-}
+/** The SDK user: the anonymous install id only, or none. */
+internal fun installUser(installId: String?): User? = installId?.let { id -> User().apply { this.id = id } }
 
 internal fun ReliabilityEvent.toSentryEvent(): SentryEvent {
     val event = SentryEvent()
@@ -142,7 +155,13 @@ internal fun applyPrivacyOptions(options: SentryAndroidOptions, reporting: Relia
     }
     options.setBeforeSend { event, _ ->
         if (!reporting.consent.isOptedIn) return@setBeforeSend null
-        reporting.privacy.scrub(event)
+        reporting.privacy.scrub(event).also { it.user = installUser(reporting.consent.installId) }
+    }
+    // Only the shared metrics leave the phone, and only under consent.
+    options.metrics.setBeforeSend { metric, _ ->
+        metric.takeIf {
+            reporting.consent.isOptedIn && ReliabilityReportingPrivacy.metricAllowlist.contains(it.name)
+        }
     }
     options.setBeforeSendTransaction { _, _ -> null }
     options.setTransportGate { reporting.gate.isConnected }
@@ -187,7 +206,7 @@ internal fun ReliabilityReportingPrivacy.scrub(event: SentryEvent): SentryEvent 
         sentryContexts[section] = values
     }
     event.exceptions?.forEach { exception ->
-        if (exception.value != null) exception.value = "Native exception"
+        exception.value = exception.value?.let { ReliabilityReportingPrivacy.exceptionValue(it) }
         redactFrames(exception.stacktrace?.frames)
     }
     event.threads?.forEach { thread ->

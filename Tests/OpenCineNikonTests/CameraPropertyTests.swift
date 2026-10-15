@@ -817,3 +817,18 @@ import Testing
         #expect(hlg.applying(property: .stillToneMode, data: Data(bytes)).stillToneMode == nil)
     }
 }
+
+/// Nikon exposure bias (thousandths of EV) spells EV like every other readout: the `ev` rows of
+/// `Fixtures/capture-label-vectors.tsv` with denominator 1000 (A5-16).
+@Test func exposureBiasUsesTheSharedEVSpelling() throws {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let text = try String(
+        contentsOf: root.appendingPathComponent("Fixtures/capture-label-vectors.tsv"), encoding: .utf8)
+    let rows = text.split(separator: "\n").map { $0.components(separatedBy: "\t") }
+        .filter { $0.count == 4 && $0[0] == "ev" && $0[2] == "1000" }
+    #expect(rows.count >= 3)
+    for row in rows {
+        #expect(PTPCameraPropertyDecoders.exposureBias(Int16(row[1])!) == row[3], "\(row)")
+    }
+}

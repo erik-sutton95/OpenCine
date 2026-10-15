@@ -31,6 +31,8 @@ include(
     ":nikon-wire",
     // UI: Compose monitor UI.
     ":monitor-ui",
+    // Developer-only native conformance scenarios.
+    ":app-ui-testing",
     // Multicam engine (Kotlin/JVM).
     ":multicam",
     // Camera vocabulary (Kotlin/JVM): wire-free control values, status, model, zoom, tracking.
@@ -49,4 +51,11 @@ include(
     ":appkit-sentry",
     // Camera controls: capture sheets, live chrome and gimbal views over the camera vocabulary.
     ":camera-controls",
+    // Optional Compose/native picture composition above UI and native-runtime.
+    ":appkit-native",
+    // Frame.io: the one Android delivery owner (sign-in, upload, history, hop lease) over the
+    // shared Swift wire (JNI facade FrameioNative).
+    ":frameio",
+    // Media3 playback shared by the apps: player recipe, port, audio meter tap and playback owner.
+    ":media3",
 )

@@ -5,6 +5,39 @@ import XCTest
 
 /// SIMULATED serial-writer scheduling; exercises the production recorder and disk stores.
 final class FeedIncidentRuntimeSourceTests: XCTestCase {
+    func testReplacementFinalizesLivePredecessorOnceAndRejectsLateCalls() throws {
+        let h = try Harness()
+        defer { h.remove() }
+        let oldID = "20000000-0000-4000-8000-000000000001"
+        let currentID = "20000000-0000-4000-8000-000000000002"
+        let old = h.runtime.beginBoundSession(context(oldID))
+        old.ingestSnapshot(stall())
+        h.flush()
+        let current = h.runtime.beginBoundSession(context(currentID))
+        XCTAssertFalse(old.isCurrent)
+        XCTAssertTrue(current.isCurrent)
+        h.flush()
+        old.endSession(now: 100)
+        old.noteExhausted(now: 100)
+        old.ingestSnapshot(stall(now: 100))
+        current.ingestSnapshot(stall(now: 6))
+        h.flush()
+        let predecessor = try XCTUnwrap(h.bundles.first { $0.header.sessionID == oldID })
+        XCTAssertEqual(predecessor.header.outcome, .userEnded)
+        XCTAssertEqual(predecessor.header.endedAtMonotonic, 5)
+        let summaries = FeedSessionSummaryStore.load(root: h.root)
+        XCTAssertEqual(summaries.filter { $0.sessionID == oldID }.count, 1)
+        XCTAssertEqual(summaries.first { $0.sessionID == oldID }?.outcome, "ended")
+        XCTAssertEqual(summaries.first { $0.sessionID == currentID }?.outcome, "live")
+        XCTAssertEqual(h.bundles.first { $0.header.sessionID == currentID }?.header.outcome, .open)
+        current.endSession(now: 7)
+        h.flush()
+        XCTAssertEqual(h.bundles.first { $0.header.sessionID == oldID }, predecessor)
+        XCTAssertEqual(
+            FeedSessionSummaryStore.load(root: h.root).first { $0.sessionID == currentID }?.outcome,
+            "ended")
+    }
+
     func testRetiredDrainCannotConsumeSuccessorBeforeBegin() throws {
         let h = try Harness()
         defer { h.remove() }
@@ -113,7 +146,8 @@ final class FeedIncidentRuntimeSourceTests: XCTestCase {
                 gate: ReliabilityReportingGate(cameraIPv4Prefix: "192.0.2."),
                 origin: FeedIncidentOrigin(derivesTestSource: false, verification: false,
                     buildIdentity: nil, injectionActivated: { false }), sink: RecordingSink())
-            runtime = FeedIncidentRuntime(reporting: reporting, directory: root, writerQueue: queue)
+            runtime = FeedIncidentRuntime(
+                reporting: reporting, directory: root, writerQueue: queue, clock: { 5 })
         }
         var bundles: [FeedIncidentBundle] { FeedIncidentStore(directory: root, product: "test").loadAll() }
         func flush() { queue.sync {} }

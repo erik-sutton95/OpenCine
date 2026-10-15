@@ -85,6 +85,16 @@ class DjiCameraSessionAdapterTest {
         }
     }
 
+    @Test fun legacyTimecodeHelpersRetainSupportAndCompleteFrames() {
+        val support: SupportStatus = DjiCameraSessionAdapter.timecodeSupport(null)
+        assertEquals(SupportStatus.UNKNOWN, support)
+        assertEquals(TimecodeCapability.unknown, DjiCameraSessionAdapter.timecodeCapability(null))
+        val value = assertNotNull(DjiCameraSessionAdapter.timecode("05:22:47:18"))
+        val frames: Int = value.frames
+        assertEquals(18, frames)
+        assertNull(DjiCameraSessionAdapter.timecode("05:22:47"))
+    }
+
     @Test
     fun everyDeclaredCapabilityReachesTheWire() = runTest {
         val keys = adapter(FakePort()).current.capabilities.descriptors.keys
@@ -445,14 +455,14 @@ class DjiCameraSessionAdapterTest {
             port.state = port.state.copy(model = model)
             val seam = adapter(port)
             assertEquals(layout, seam.layout(base), model.name)
-            assertEquals(timecode, seam.current.capabilities.timecode, model.name)
+            assertEquals(timecode, seam.current.capabilities.timecodeCapability, model.name)
             assertEquals(SupportStatus.SUPPORTED, seam.current.capabilities.audioLevels, model.name)
             assertEquals(layout.gimbal, model.motion != null, model.name)
         }
         // No camera: nothing is claimed, so the layout is the base.
         val seam = adapter(FakePort())
         assertEquals(base, seam.layout(base))
-        assertEquals(TimecodeCapability.unknown, seam.current.capabilities.timecode)
+        assertEquals(TimecodeCapability.unknown, seam.current.capabilities.timecodeCapability)
         assertEquals(SupportStatus.UNKNOWN, seam.current.capabilities.audioLevels)
     }
 

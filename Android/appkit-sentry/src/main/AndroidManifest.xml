@@ -6,7 +6,7 @@
             android:name="io.sentry.auto-init"
             android:value="false" />
         <!-- The release build's R8 mapping UUID; the app sets manifestPlaceholders["sentryProguardUuid"]
-             from SENTRY_PROGUARD_UUID (empty outside release CI). -->
+            from SENTRY_PROGUARD_UUID (empty outside release CI). -->
         <meta-data
             android:name="io.sentry.proguard-uuid"
             android:value="${sentryProguardUuid}" />

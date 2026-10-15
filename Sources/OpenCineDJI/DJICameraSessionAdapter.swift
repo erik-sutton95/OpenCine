@@ -1,6 +1,7 @@
 import Foundation
 import OpenCineCore
 import OpenCineMotion
+import OpenCineMedia
 
 /// Wire progress of one camera SET, reported by the app session's `fireCamera` so the
 /// OpenCineCore seam can tell an ACK from a camera-reported value (CORE-02).
@@ -57,6 +58,9 @@ public protocol DJIControlPort: AnyObject {
     var captureControlState: DJICaptureControlState? { get }
     func writeShutter(
         _ denominator: Int, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
+    func writeHostShutterAngle(
+        _ degrees: Double, denominator: Int, admission: DJICommandAdmission?,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeExposureCompensation(
         _ value: EvComp, onStage: @escaping @MainActor (ControlWireEvent) -> Void)
     func writeFocusMode(
@@ -101,6 +105,11 @@ public protocol DJIControlPort: AnyObject {
 /// native implementation into a direct write.
 extension DJIControlPort {
     public var commandOwner: DJICommandOwner? { nil }
+    public func writeHostShutterAngle(
+        _ degrees: Double, denominator: Int, admission: DJICommandAdmission?,
+        onStage: @escaping @MainActor (ControlWireEvent) -> Void
+    ) { onStage(.notSent) }
+
     public func writeShutter(
         _ denominator: Int, admission: DJICommandAdmission,
         onStage: @escaping @MainActor (ControlWireEvent) -> Void
@@ -406,6 +415,15 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                         session.writeShutter(denominator, onStage: $0)
                     }
                 }, requiresReport: true)
+        case .set(.shutter(.angle(let degrees))):
+            guard let state = session.captureControlState, state.shutterPresentation == .emulatedAngle,
+                let denominator = HostShutterAngle.denominator(degrees: degrees,
+                    framesPerSecond: state.reported.fps > 0 ? Double(state.reported.fps) : nil,
+                    available: state.reported.availableShutterDenoms) else { return nil }
+            return WirePlan(
+                shows: { _ in session.captureControlState?.reported.shutterDenom == denominator },
+                fire: { session.writeHostShutterAngle(degrees, denominator: denominator,
+                    admission: admission, onStage: $0) }, requiresReport: true)
         case .set(.exposureCompensation(let stops)):
             guard
                 let value = EvComp.allCases.first(where: {
@@ -669,7 +687,7 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
         let declared = CapabilitySnapshot(
             revision: snapshot.capabilities.revision,
             descriptors: descriptors(status) + (session.captureControlState?.descriptors ?? []),
-            unsupported: Self.unsupported(model), timecode: Self.timecodeSupport(model),
+            unsupported: Self.unsupported(model), timecodeCapability: Self.timecodeCapability(model),
             audioLevels: Self.audioLevelsSupport(model))
         if declared != snapshot.capabilities {
             next.capabilities = declared
@@ -746,9 +764,23 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     /// Every body reports `timecode_info` except Nano, whose live and Multi View readouts never
     /// showed one. Unknown body: unknown. Declared in whole seconds: the frame field rides the
     /// throttled status push and is not proven to count per frame (A5 runtime check).
-    static func timecodeSupport(_ model: CameraModel?) -> TimecodeCapability {
+    @available(*, deprecated, message: "Use timecodeCapability for declared precision.")
+    static func timecodeSupport(_ model: CameraModel?) -> SupportStatus {
+        timecodeCapability(model).support
+    }
+
+    static func timecodeCapability(_ model: CameraModel?) -> TimecodeCapability {
         guard let model else { return .unknown }
         return model.family == .nano ? .unsupported : .supported(.seconds)
+    }
+
+    /// The legacy frame-complete parser; a partial clock has no representable frame count.
+    @available(*, deprecated, message: "Use CameraStatus.timecodeReading for source precision.")
+    static func timecode(_ raw: String?) -> CameraTimecode? {
+        guard let parts = raw?.split(separator: ":").compactMap({ Int($0) }), parts.count == 4
+        else { return nil }
+        return CameraTimecode(
+            hours: parts[0], minutes: parts[1], seconds: parts[2], frames: parts[3])
     }
 
     /// `cam_audio_status_v2` levels. Unknown body: unknown.
@@ -824,11 +856,15 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
     }
 
     private static func storage(_ status: CameraStatus) -> StorageStatus {
-        guard status.storageTotalMb > 0 else { return .unknown }
-        let free = ObservedValue(
-            UInt64(status.storageFreeMb) * 1_048_576, origin: .cameraReported, at: nil)
-        return ObservedValue(
-            [StorageVolume(id: "active", freeBytes: free)], origin: .cameraReported, at: nil)
+        let readout = status.storageReadout
+        let remaining = status.recordRemainingSec > 0 ? Duration.seconds(status.recordRemainingSec) : nil
+        guard readout != nil || remaining != nil else { return .unknown }
+        return ObservedValue([StorageVolume(
+            id: "active",
+            freeBytes: readout.map { ObservedValue($0.freeBytes, origin: .cameraReported, at: nil) } ?? .unknown,
+            totalBytes: readout?.totalBytes.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown,
+            remainingRecordingTime: remaining.map { ObservedValue($0, origin: .cameraReported, at: nil) } ?? .unknown
+        )], origin: .cameraReported, at: nil)
     }
 }
 

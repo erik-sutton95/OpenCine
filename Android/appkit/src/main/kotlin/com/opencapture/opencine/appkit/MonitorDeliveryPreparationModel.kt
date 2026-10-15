@@ -1,6 +1,7 @@
 package com.opencapture.opencine.appkit
 
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -56,6 +57,8 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
     private var projectsTask: Job? = null; private var hopTask: Job? = null; private var pollingTask: Job? = null
     private var lease: H? = null
     public val remotePresentation: MonitorDeliveryRemotePresentation? get() = remote?.presentation
+    /** Re-upload is a choice only where the remote skips already uploaded records. */
+    public val offersReupload: Boolean get() = state.value.destination == MonitorDeliveryDestination.REMOTE_UPLOAD && remote?.skipsUploaded == true
     public val selectedProject: MonitorDeliveryProject<P>? get() = state.value.listing?.projects?.firstOrNull { it.id == state.value.selectedProjectID }
     public val uploadableProjects: List<MonitorDeliveryProject<P>> get() = state.value.listing?.projects?.filter { it.uploadable == true }.orEmpty()
     public val internetGate: Boolean get() = state.value.destination == MonitorDeliveryDestination.REMOTE_UPLOAD && state.value.remoteFacts?.onCameraNetwork == true
@@ -206,7 +209,16 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
         hopTask = next; next.start()
     }
     private fun acquireHop(captured: UUID, request: UUID, service: MonitorDeliveryRemoteService<P, X, H>): H? {
-        val acquired = service.internet.begin()
+        fun refuse(message: String): H? {
+            if (current(captured) && hopRequest == request &&
+                publish(captured) { it.copy(hopping = false, projectsError = message) }) hopTask = null
+            return null
+        }
+        val acquired = try { service.internet.begin() } catch (failure: Exception) {
+            if (failure is CancellationException) throw failure
+            return refuse(failure.message ?: failure.toString())
+        } ?: // Another hop holds the route; this popup never steals it.
+            return refuse("Couldn't leave the camera's Wi-Fi while another network switch is running.")
         if (!current(captured) || hopRequest != request || !service.internet.owns(acquired) || !current(captured)) {
             service.internet.restore(acquired); return null
         }
@@ -233,7 +245,7 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
         return publish(captured) { it.copy(destination = MonitorDeliveryDestination.REMOTE_UPLOAD, step = Step.OPTIONS) } &&
             service.internet.owns(acquired) && current(captured)
     }
-    public fun takeRequest(): MonitorDeliveryPreparedRequest<C, F, H>? {
+    public fun takeRequest(): MonitorDeliveryPreparedRequest<C, F, P, X, H>? {
         val captured = epoch
         if (!current(captured) || !canContinue || !current(captured)) return null
         val value = state.value; val destination = value.destination ?: return null
@@ -247,7 +259,10 @@ public class MonitorDeliveryPreparationModel<C, F, P, X, H>(
             }
             lease = null
         }
-        val result = MonitorDeliveryPreparedRequest(destination, value.configuration, value.action, transferred)
+        val remoteUpload = destination == MonitorDeliveryDestination.REMOTE_UPLOAD
+        val project = if (remoteUpload) selectedProject else null
+        val result = MonitorDeliveryPreparedRequest(destination, value.configuration, value.action, transferred,
+            project, if (project != null) value.listing?.context else null)
         close(); return result
     }
     public fun close() {

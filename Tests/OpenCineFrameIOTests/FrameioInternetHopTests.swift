@@ -3,6 +3,7 @@ import Testing
 @testable import OpenCineFrameIO
 
 @Suite struct FrameioInternetHopTests {
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func popupTransfersRestorationBeforeItsCloseCallback() {
         var route = FrameioInternetHop()
         let popup = route.begin()
@@ -19,6 +20,7 @@ import Testing
         #expect(route.token == nil)
     }
 
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func lateCancelledDeliveryCannotReleaseItsSuccessor() {
         var route = FrameioInternetHop()
         let cancelled = route.begin()
@@ -32,6 +34,7 @@ import Testing
         #expect(!duplicateEnded)
     }
 
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func anotherHostCannotTransferOrReleaseTheRoute() {
         var first = FrameioInternetHop()
         var second = FrameioInternetHop()
@@ -44,6 +47,7 @@ import Testing
         #expect(second.owns(secondToken))
     }
 
+    @available(*, deprecated, message: "Exercises the retained FrameioInternetHop compatibility contract")
     @Test func aCompletedPopupCannotBeTransferredAgain() {
         var route = FrameioInternetHop()
         let popup = route.begin()

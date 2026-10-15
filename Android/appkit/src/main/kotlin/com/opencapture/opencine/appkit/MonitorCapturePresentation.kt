@@ -11,8 +11,13 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.WhiteBalanceValue
-import kotlin.math.round
+import com.opencapture.opencine.media.ExposureCompensation
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
+import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.round
 
 /** A drum detent keeps its typed command value. Display copy never becomes a wire mapping. */
 public data class MonitorCaptureChoice(public val value: SettingValue, public val label: String)
@@ -64,9 +69,7 @@ public object MonitorCapturePresentation {
             is WhiteBalanceValue.Preset -> wb.id
             is WhiteBalanceValue.Kelvin -> "${wb.kelvin}K"
         }
-        is SettingValue.ExposureCompensation -> if (value.stops.numerator == 0) "0.0"
-            else (if (value.stops.numerator < 0) "−" else "+") +
-                String.format(java.util.Locale.ROOT, "%.1f", kotlin.math.abs(value.stops.doubleValue))
+        is SettingValue.ExposureCompensation -> ExposureCompensation.label(value.stops.doubleValue)
         is SettingValue.FocusMode -> when (value.mode) {
             com.opencapture.opencine.core.FocusMode.MANUAL -> "MF"
             com.opencapture.opencine.core.FocusMode.SINGLE -> "AF-S"
@@ -149,7 +152,21 @@ public object MonitorCapturePresentation {
         return label + aspect
     }
 
-    private fun number(value: Double): String = if (value == round(value)) value.toLong().toString() else value.toString()
+    /**
+     * C `%g`, what Swift `String(format: "%g")` prints: six significant digits from the exact binary
+     * value (ties to even), trailing zeros and a bare point dropped, `1.5e-05` below 1e-4 and from
+     * 1e6 up. Java's own `%g` keeps the zeros and rounds the shortest decimal half up.
+     */
+    private fun number(value: Double): String {
+        if (!value.isFinite()) return if (value.isNaN()) "nan" else if (value > 0) "inf" else "-inf"
+        if (value == 0.0) return if (1.0 / value < 0) "-0" else "0"
+        val rounded = BigDecimal(value).round(MathContext(6, RoundingMode.HALF_EVEN))
+        val exponent = rounded.precision() - rounded.scale() - 1
+        if (exponent in -4..5) return rounded.stripTrailingZeros().toPlainString()
+        val mantissa = rounded.movePointLeft(exponent).stripTrailingZeros().toPlainString()
+        val power = abs(exponent).toString().padStart(2, '0')
+        return mantissa + (if (exponent < 0) "e-" else "e+") + power
+    }
 }
 
 /** A described common field stays readable while unavailable; only a writable ready field gets an editor. */

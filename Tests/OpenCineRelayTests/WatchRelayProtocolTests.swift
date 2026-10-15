@@ -105,6 +105,8 @@ struct WatchRelayProtocolTests {
     }
 
     @Test("Storage label prefers GB and percent, then remaining minutes")
+    // Keep the retained legacy formatter's original compatibility assertions under WAE.
+    @available(*, deprecated, message: "Exercises the retained legacy WatchRelayMedia formatter")
     func storageLabelMatchesPhoneHUD() {
         #expect(
             WatchRelayMedia.label(

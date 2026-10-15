@@ -90,10 +90,11 @@ class FeedIncidentRecorder(
     }
 
     fun recordRepair(repair: FeedRepairRecord): FeedIncidentPersistenceJob? {
-        repairs.addLast(repair)
+        val closed = repair.closed()
+        repairs.addLast(closed)
         trim(repairs, FeedIncidentBounds.REPAIR_RING)
         val current = open ?: return null
-        current.repairs.add(repair)
+        current.repairs.add(closed)
         if (current.repairs.size > FeedIncidentBounds.REPAIR_RING) {
             current.header.evictions += 1
             current.repairs.removeAt(0)
@@ -364,6 +365,8 @@ class FeedIncidentRecorder(
 
 /** Submission authority retained by a camera session, independent of the host's runtime module. */
 interface FeedIncidentSource {
+    /** Legacy synchronous sources remain current; bound runtime sources expose their authority. */
+    val isCurrent: Boolean get() = true
     fun endSession(nowSeconds: Double)
     fun ingestSnapshot(snapshot: FeedIncidentSnapshot)
     fun recordBreadcrumb(breadcrumb: FeedIncidentBreadcrumb)

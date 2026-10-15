@@ -52,7 +52,10 @@ public final class MonitorControlModel {
     }
     /// The latest reported timecode, observed on its own: a per-frame counter re-renders the
     /// clock that shows it, not every view that reads the snapshot.
-    public private(set) var timecode: ObservedValue<CameraTimecode> = .unknown
+    public var timecode: ObservedValue<CameraTimecode> {
+        timecodeReading.compactMap { $0.frameTimecode }
+    }
+    public private(set) var timecodeReading: ObservedValue<CameraTimecodeReading> = .unknown
     @ObservationIgnored private var latest: CameraSnapshot?
     /// Operator targets whose operations are unfinished.
     public private(set) var pending: [SettingKey: SettingValue] = [:]
@@ -101,6 +104,76 @@ public final class MonitorControlModel {
         self.sleep = sleep
     }
 
+
+    /// A counter measured from a fresh camera-confirmed start. Initial already-recording
+    /// connections have no known start; the provenance remains clockDerived.
+    public private(set) var recordingElapsed: ObservedValue<Int> = .unknown
+    @ObservationIgnored private var recordingStartedAt: MonotonicInstant?
+    @ObservationIgnored private var recordingTicker: Task<Void, Never>?
+    @ObservationIgnored private var recordingNow: @MainActor () -> MonotonicInstant = { .now() }
+    @ObservationIgnored private var recordingSleep: @MainActor (Duration) async -> Void = {
+        try? await Task.sleep(for: $0)
+    }
+
+    /// The existing initializer remains available; this overload supplies deterministic timing.
+    public convenience init(now: @escaping @MainActor () -> MonotonicInstant,
+        recordingSleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        coalescing: Duration = .milliseconds(120),
+        sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+        self.init(coalescing: coalescing, sleep: sleep)
+        self.recordingNow = now
+        self.recordingSleep = recordingSleep
+    }
+
+    private func retireRecordingElapsed() {
+        recordingTicker?.cancel(); recordingTicker = nil
+        recordingStartedAt = nil
+        if recordingElapsed != .unknown { recordingElapsed = .unknown }
+    }
+
+    private func updateRecordingElapsed(at instant: MonotonicInstant) {
+        guard let start = recordingStartedAt, instant >= start,
+            let seconds = Int(exactly: (instant - start).components.seconds) else {
+            retireRecordingElapsed(); return
+        }
+        if recordingElapsed.value != seconds {
+            recordingElapsed = ObservedValue(seconds, origin: .clockDerived, at: instant,
+                precision: .quantized(step: 1))
+        }
+    }
+
+    private func observeRecordingElapsed(_ value: CameraSnapshot) {
+        let sameOwner = latest?.session == value.session && latest?.epoch == value.epoch
+        if !sameOwner { retireRecordingElapsed() }
+        guard value.connection == .ready else { retireRecordingElapsed(); return }
+        guard value.recording.validity == .valid else { retireRecordingElapsed(); return }
+        switch value.recording.value {
+        case .idle?:
+            recordingTicker?.cancel(); recordingTicker = nil
+            recordingStartedAt = nil
+            if recordingElapsed.value != 0 {
+                recordingElapsed = ObservedValue(0, origin: .clockDerived, at: recordingNow(),
+                    precision: .quantized(step: 1))
+            }
+        case .recording?:
+            guard recordingStartedAt == nil, sameOwner,
+                latest?.recording.value == .idle, latest?.recording.validity == .valid else { return }
+            recordingStartedAt = recordingNow()
+            updateRecordingElapsed(at: recordingNow())
+            let current = binding
+            let wait = recordingSleep
+            recordingTicker = Task { [weak self] in
+                while !Task.isCancelled {
+                    await wait(.seconds(1))
+                    guard !Task.isCancelled, let self, self.binding == current,
+                        self.recordingStartedAt != nil else { return }
+                    self.updateRecordingElapsed(at: self.recordingNow())
+                }
+            }
+        default: retireRecordingElapsed()
+        }
+    }
+
     // MARK: Binding
 
     /// Makes `session` the target of the controls and follows its snapshots (the only
@@ -120,6 +193,7 @@ public final class MonitorControlModel {
             }
             guard let self, self.binding == current else { return }
             self.feed = nil
+            self.retireRecordingElapsed()
             self.onEnded()
         }
     }
@@ -127,13 +201,14 @@ public final class MonitorControlModel {
     /// Retires the binding: stops following, drops pending edits and record state, obsoletes
     /// every editor. Never closes the session and never sends a command.
     public func unbind() {
+        retireRecordingElapsed()
         binding += 1
         feed?.cancel()
         feed = nil
         let changed = latest != nil || !pending.isEmpty
         session = nil
         withMutation(keyPath: \.snapshot) { latest = nil }
-        if timecode != .unknown { timecode = .unknown }
+        if timecodeReading != .unknown { timecodeReading = .unknown }
         pending = [:]
         operations = [:]
         scheduled = []
@@ -144,18 +219,19 @@ public final class MonitorControlModel {
     }
 
     private func apply(_ snapshot: CameraSnapshot) {
+        observeRecordingElapsed(snapshot)
         if let previous = latest, Self.differsOnlyInTimecode(previous, snapshot) {
             latest = snapshot
         } else {
             withMutation(keyPath: \.snapshot) { latest = snapshot }
         }
-        if timecode != snapshot.timecode { timecode = snapshot.timecode }
+        if timecodeReading != snapshot.timecodeReading { timecodeReading = snapshot.timecodeReading }
         onChange()
     }
 
     private static func differsOnlyInTimecode(_ old: CameraSnapshot, _ new: CameraSnapshot) -> Bool {
         var old = old
-        old.timecode = new.timecode
+        old.timecodeReading = new.timecodeReading
         old.revision = new.revision
         return old == new
     }

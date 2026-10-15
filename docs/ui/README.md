@@ -123,17 +123,58 @@ touch targets: iOS uses 44 points; Compose reads `LocalViewConfiguration` (norma
 keeps Android touch expansion inside the measured header. Typed header readouts expose
 their title, optional value and presentation action as one accessible control.
 
+Phone portrait telemetry uses separate `telemetry` bounds below the safe top,
+with eight points/dp of clearance and side reserves for rounded corners. The
+existing `gauges` corner contract remains available to other compositions.
+Storage shares a bounded row with link performance before the power readouts:
+its text shrinks from 14 to 11 points/sp, then ellipsizes while accessibility
+retains the full supplied value. Portrait video format/FPS and its supplied
+detail form one trailing column; actionable details keep independent targets,
+and a static caption retains its primary editor section. Photography, tablet
+and landscape compositions retain their existing arrangement.
+
 `MonitorFocusResetButton` owns the common circular `rotateCw` glyph and target on both
 platforms. Legacy and canonical live surfaces delegate to it; apps supply visibility
 and reset actions.
 
+## Look libraries and inspector previews
+
+`MonitorLUTPickerView<Looks, Palette, Footer>` accepts any `MonitorLookProvider` and
+`LUTPickerLibrary` descriptors. Apps supply catalogue entries, optional filters, imports,
+deletions and download actions. Embedded pickers leave comparison to the shared inspector
+footer; standalone sheets include it once. Exposure is shown only when the provider's
+`appliesLUTExposure` capability is true. The published `LUTPickerView` remains available.
+Compose uses the existing `LutPickerLibrary` and `LUTPicker` equivalents.
+
+`MonitorLookInspectorPreview<Looks>` shares image marks, scopes and audio rendering over
+that same provider. Existing `MonitorOperatorInspectorPreview` source calls retain their
+concrete type, defaults and contextual invalidation. A host with a calibrated native image
+graph may borrow `MonitorInspectorRenderedPictureSource`: its source/presentation identity
+scopes a cancellable task, and its main-actor read returns only the current immutable image
+and geometry. The host retains native admission, calibration and stale-source rejection.
+Audio remains an optional observation and uses the same shared meter.
+
+`CustomLUTStore.category(named:)` retains existing root-level slots and creates isolated,
+path-safe category stores. `importArchive` streams platform-decoded entries with default
+limits of 16 MiB per cube, 512 MiB total and 512 cubes. It counts actual output bytes,
+validates every cube before installation, rejects duplicate flattened names and unsafe
+paths/symlinks, and atomically installs replacements. Platform adapters keep ZIP decoding
+and checksum verification. Existing usable destinations survive malformed or rejected
+input. Filesystem installation failures roll back earlier replacements; if recovery itself
+fails, the typed error retains the backup directory. Android's existing `MonitorLutLibrary`
+already owns category maps, bounded reads, validation and atomic storage; platform archive
+decoders remain outside the shared UI.
+
 ## Operator settings
 
-Android's deployed, configured and generated-session settings adapters delegate to the sole
+Android's deployed, configured and generated-session settings entries each build one
+`MonitorOperatorSettingsConfiguration` and delegate to the sole
 [`MonitorOperatorSettingsBody`](../../Android/camera-controls/src/main/kotlin/com/opencapture/opencine/cameracontrols/MonitorOperatorSettingsBody.kt).
 That owner supplies the cover input barrier, safe-drawing clearance, page margins, Back action,
-tab dispatch and legal/LUT overlays. Existing typed settings sources supply real values and
-native content; they cannot replace the common page frame. SwiftUI uses its existing complete
+one row recipe per tab and legal/LUT overlays. Capabilities an app lacks (sharing, motion, account,
+cache, diagnostics, legal) are absent optional sections; only View Assist and Display still take a
+per-entry picture source. Legal pages come from one typed `MonitorLegalDocuments` value (bundled
+text or a web page per page) shown by `MonitorLegalDocumentScreen`. SwiftUI uses its existing complete
 `MonitorOperatorSettingsScreen` and the same lower `MonitorSettingsPage` primitive.
 
 `MonitorSettingsPage` owns tab navigation, selected headings, session status/disconnect and

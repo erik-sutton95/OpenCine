@@ -99,9 +99,10 @@
         private let backdrop: Backdrop
         private let viewport: CGSize
         private let safeArea: EdgeInsets
-        @State private var clean = false
-        @State private var toolsExpanded = false
-        @State private var toolUsage = MonitorToolUsage()
+        @Environment(\.multiviewStageState) private var sharedState
+        @State private var fallbackState: MultiviewStageState
+        private var presentation: MultiviewStageState { sharedState ?? fallbackState }
+        private var clean: Bool { presentation.clean }
         @State private var optionsSlot: Int?
         @Environment(\.scenePhase) private var scenePhase
 
@@ -125,6 +126,8 @@
             actions: MultiviewStageActions, @ViewBuilder picture: @escaping (Int) -> Picture,
             backdrop: Backdrop
         ) {
+            _fallbackState = State(
+                initialValue: MultiviewStageState(slotCount: max(1, tiles.count)))
             self.tiles = tiles
             self.layout = layout
             self.viewport = viewport
@@ -383,7 +386,11 @@
             return MonitorAssistPalette(
                 tools: items, layout: palette,
                 usageSeed: ["LAYOUT": 4, "CAMERA": 3, "FIT": 2, "LUT": 1],
-                usage: $toolUsage, expanded: $toolsExpanded, onToggle: activate,
+                usage: Binding(
+                    get: { presentation.toolUsage }, set: { presentation.toolUsage = $0 }),
+                expanded: Binding(
+                    get: { presentation.toolsExpanded }, set: { presentation.toolsExpanded = $0 }),
+                onToggle: activate,
                 onOptions: { _ in },
                 accessibilityName: "Multiview tools", accessibilityPrefix: "multiview.toolbar"
             ) { id in
@@ -425,7 +432,7 @@
 
         private var displayButton: some View {
             Button {
-                clean.toggle()
+                presentation.clean.toggle()
             } label: {
                 VStack(spacing: 4) {
                     Text("DISP").font(MonitorTheme.font(12, weight: .bold)).tracking(0.4)

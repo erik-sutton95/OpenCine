@@ -88,6 +88,8 @@ class AssistLutPicker(
     val copy: LutPickerCopy,
     val selection: String,
     val onSelect: (String) -> Unit,
+    /** The app's custom LUT library behind the Custom tab. */
+    val library: MonitorLutLibrary,
     val profile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
     /** The camera's raw colour mode for the picker's automatic camera look (LutLookResolver). */
     val colorMode: Int = CameraCommands.COLOR_NORMAL,
@@ -179,6 +181,7 @@ fun AssistOptionsPanel(
                     LUTPicker(
                         copy = lut.copy,
                         selection = lut.selection,
+                        library = lut.library,
                         onSelect = { id ->
                             lut.onSelect(id)
                             state.armLut()

@@ -437,12 +437,8 @@ public enum MediaClipFormatting {
         return String(format: "%d:%02d", m, s)
     }
 
+    /// Decimal byte labels; zero in a file manifest means an unknown size.
     public static func byteLabel(_ bytes: UInt64) -> String {
-        guard bytes > 0 else { return "" }
-        let kb = Double(bytes) / 1024
-        if kb < 1024 { return String(format: "%.0f KB", kb) }
-        let mb = kb / 1024
-        if mb < 1024 { return String(format: "%.1f MB", mb) }
-        return String(format: "%.2f GB", mb / 1024)
+        bytes == 0 ? "" : ByteCountLabel.label(bytes)
     }
 }

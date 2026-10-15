@@ -1,11 +1,10 @@
 package com.opencapture.opencine.cameracontrols
 
 import android.content.Context
-import android.content.Intent
-import androidx.core.net.toUri
 import com.opencapture.monitorui.MonitorLinkHealth
 import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.LutLookResolver
+import com.opencapture.opencine.vocabulary.MediaClipFormatting
 import java.io.File
 import java.util.Locale
 
@@ -47,31 +46,18 @@ object OperatorLinkHealth {
         }
     }
 
-    fun compactFps(incoming: String): String {
-        val compact = if (incoming.endsWith(".00")) incoming.dropLast(3) else incoming
-        return compact.ifEmpty { "\u2014" }
-    }
+    @Deprecated("Use MonitorLinkMeter.compactFPS")
+    fun compactFps(incoming: String): String = MonitorLinkMeter.compactFPS(incoming)
 
-    fun formatMeasuredFps(fps: Double): String {
-        if (fps <= 0.0) return ""
-        val rounded = kotlin.math.round(fps)
-        return if (kotlin.math.abs(fps - rounded) < 0.05) {
-            rounded.toInt().toString()
-        } else {
-            String.format(Locale.US, "%.2f", fps)
-        }
-    }
+    @Deprecated("Use MonitorLinkMeter.formatMeasuredFPS")
+    fun formatMeasuredFps(fps: Double): String = MonitorLinkMeter.formatMeasuredFPS(fps)
 
-    fun fpsChipLabel(
-        isLive: Boolean,
-        recovering: Boolean,
-        measuredFps: Double,
-        phase: ConnectionPhase,
-    ): String {
-        if (phase == ConnectionPhase.FAILED) return "FAIL"
-        if (recovering) return "RECOV"
-        if (measuredFps > 0.0) return compactFps(formatMeasuredFps(measuredFps))
-        return if (!isLive && phase == ConnectionPhase.IDLE) "\u2014" else "LINK"
+    @Deprecated("Use MonitorLinkMeter.chipLabel")
+    fun fpsChipLabel(isLive: Boolean, recovering: Boolean, measuredFps: Double,
+        phase: ConnectionPhase): String {
+        val label = MonitorLinkMeter.chipLabel(phase, recovering, false,
+            MonitorLinkMeter.compactFPS(MonitorLinkMeter.formatMeasuredFPS(measuredFps)), measuredFps)
+        return if (isLive && phase == ConnectionPhase.IDLE && !recovering && measuredFps <= 0.0) "LINK" else label
     }
 
     fun liveTileDetail(
@@ -117,17 +103,8 @@ enum class CleanPinTool(val key: String, val title: String) {
     AUDIO("AUDIO", "Audio Levels"),
 }
 
-fun formatCacheSize(bytes: Long): String {
-    if (bytes <= 0L) return "Empty"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    var value = bytes.toDouble()
-    var unit = 0
-    while (value >= 1024.0 && unit < units.lastIndex) {
-        value /= 1024.0
-        unit++
-    }
-    return if (unit == 0) "$bytes B" else String.format(Locale.US, "%.1f %s", value, units[unit])
-}
+/** The cache size line: the shared decimal byte label, "Empty" for nothing cached. */
+fun formatCacheSize(bytes: Long): String = if (bytes <= 0L) "Empty" else MediaClipFormatting.byteLabel(bytes)
 
 fun formatAppVersion(versionName: String, versionCode: Long): String = "$versionName ($versionCode)"
 
@@ -184,10 +161,10 @@ open class OperatorHelpCopy(appName: String) {
         "View the $appName project on GitHub. Opening this may leave the camera Wi-Fi if that is the only network."
     val LINK_HEALTH = "How healthy the camera link is right now \u2014 delivery, not radio RSSI."
     val CLEAR_CACHE =
-        "Removes downloaded clip files from this phone. The clip list stays so you can cache them again from the camera."
+        "Removes cached clips, thumbnails and camera indexes for every camera. Cameras reload their library when connected."
     val LUT_LOOK = "Looks apply on this phone. The file on the camera is unchanged."
     val APP_VERSION = "Current $appName build from the native project metadata."
-    val LOCAL_CACHE = "Originals and playback proxies downloaded from the camera."
+    val LOCAL_CACHE = "Cached clips, thumbnails and camera indexes for every camera on this phone."
     val CACHE_FULL_RESOLUTION =
         "Download the original camera file when you open a clip. Off keeps only the 720p proxy to save space. Share needs the original \u2014 connect the camera if it is not cached."
     val FEED_UPSCALER =
@@ -271,9 +248,4 @@ fun lutLookLabel(
             profile = profile,
         )
     return LutLookResolver.statusLabel(enabled, selection, source)
-}
-
-/** Opens [url] in the browser; nothing happens when no app can. */
-fun openUrl(context: Context, url: String) {
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
 }

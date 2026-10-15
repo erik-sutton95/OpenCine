@@ -189,6 +189,26 @@ private let createdTwoParts = """
         #expect(tokens.load()?.receivedAt == later)
     }
 
+    /// A2-57: the one listing every app's popup offers: the first account's first workspace.
+    @Test func firstWorkspaceProjectsListsTheFirstAccountsFirstWorkspace() async throws {
+        let transport = FakeTransport { request, _ in
+            let path = request.url.path
+            if path.hasSuffix("/accounts") {
+                return json(#"{ "data": [ { "id": "acc-1" }, { "id": "acc-2" } ] }"#)
+            }
+            if path.hasSuffix("/workspaces") {
+                return json(#"{ "data": [ { "id": "ws-1", "name": "Main" }, { "id": "ws-2", "name": "Other" } ] }"#)
+            }
+            return json(#"{ "data": [ { "id": "p-1", "name": "Shoot", "root_folder_id": "f-1" } ] }"#)
+        }
+        let listing = try await client(transport).firstWorkspaceProjects()
+        #expect(listing.accountID == "acc-1" && listing.workspaceID == "ws-1" && listing.workspaceName == "Main")
+        #expect(listing.projects.map(\.id) == ["p-1"])
+        let destination = try #require(FrameioDestination(project: listing.projects[0], in: listing))
+        #expect(destination.folderID == "f-1" && destination.projectName == "Shoot")
+        #expect(await transport.sent.count == 3)
+    }
+
     @Test func freshTokenIsUsedWithoutRefresh() async throws {
         let transport = FakeTransport { _, _ in json(#"{ "data": { "id": "u1" } }"#) }
         let user = try await client(transport, now: epoch.addingTimeInterval(3000)).currentUser()

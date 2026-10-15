@@ -23,7 +23,7 @@ class ManualProblemReportTest {
             releasePackage = "com.opencapture.host",
             versionName = "1.0",
             versionCode = 1,
-            debug = true,
+            environment = "development",
             sourceRevision = "test",
             reportingDsn = null,
             reportingClient = "host-android",

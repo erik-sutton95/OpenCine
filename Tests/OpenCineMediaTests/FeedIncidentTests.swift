@@ -372,6 +372,28 @@ import Testing
         #expect(decoded.header.resolvedBuildIdentity == "unknown")
     }
 
+    @Test func firstDecodeErrorContextRoundTripsAndLegacyRecordsOmitIt() throws {
+        let context = FeedIncidentDecodeErrorContext(
+            status: -12909, nalTypes: [1], accessUnitBytes: 1_234, irapAge: 0.5, inputHz: 37.4)
+        let decoder = FeedIncidentDecoder(lastStatus: -12909, firstError: context)
+        let encoded = try FeedIncidentCoding.encoder().encode(decoder)
+        #expect(
+            try FeedIncidentCoding.decoder().decode(FeedIncidentDecoder.self, from: encoded)
+                == decoder)
+        let legacy = try FeedIncidentCoding.encoder().encode(FeedIncidentDecoder())
+        let json = try #require(JSONSerialization.jsonObject(with: legacy) as? [String: Any])
+        #expect(json["firstError"] == nil)
+        #expect(
+            try FeedIncidentCoding.decoder().decode(FeedIncidentDecoder.self, from: legacy)
+                .firstError == nil)
+        // Bounded: 6-bit NAL types, at most 16; negative sizes and ages and NaN rates vanish.
+        let bounded = FeedIncidentDecodeErrorContext(
+            status: 0, nalTypes: Array(repeating: 99, count: 40), accessUnitBytes: -1,
+            irapAge: -1, parameterSetChangeAge: .infinity, inputHz: .nan)
+        #expect(bounded.nalTypes == Array(repeating: 63, count: 16))
+        #expect(bounded.accessUnitBytes == 0 && bounded.irapAge == nil && bounded.parameterSetChangeAge == nil && bounded.inputHz == 0)
+    }
+
     @Test func nativeBreadcrumbDetailsKeepOnlyTypedTokens() {
         let scene = FeedIncidentNativeBreadcrumb.details(kind: .sceneActivity, detail: "inactive")
         #expect(scene == ["sceneState": "inactive"])

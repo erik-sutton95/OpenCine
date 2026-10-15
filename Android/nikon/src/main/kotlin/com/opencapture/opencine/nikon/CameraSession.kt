@@ -1,6 +1,7 @@
 package com.opencapture.opencine.nikon
 
 import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.vocabulary.StorageReadout
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -71,11 +72,62 @@ public enum class CameraConnectionPhase {
  *
  * The detail carries only display-safe information, such as a camera name or
  * pairing PIN. It must never contain Wi-Fi credentials or raw protocol data.
+ * A [CameraConnectionPhase.FAILED] progress from the Swift session layer also
+ * carries its typed [failure]; the app reads that, never the detail's words.
  */
 public data class CameraConnectionProgress(
     public val phase: CameraConnectionPhase = CameraConnectionPhase.IDLE,
     public val detail: String = "",
+    public val failure: CameraConnectionFailure? = null,
 )
+
+/**
+ * Why a connect attempt failed, typed by the Swift session layer (`AndroidConnectFailure`, whose
+ * raw values are [wireCode]). The app picks its copy and its recovery from this, never from the
+ * failure message, as iOS does from `NativeCameraSessionError`.
+ */
+public enum class CameraConnectionFailure(internal val wireCode: Int) {
+    /** Anything else; the message is the copy. */
+    OTHER(0),
+
+    /** The body refused this initiator: it no longer knows this phone. */
+    REJECTED_INITIATOR(1),
+
+    /** Another initiator holds the body. */
+    BUSY(2),
+
+    /** The body hung up mid-establishment. */
+    CONNECTION_CLOSED(3),
+
+    /** The body did not answer in time. */
+    TIMEOUT(4),
+
+    /** The body offered no pairing code. */
+    PAIRING_CHALLENGE_UNAVAILABLE(5),
+
+    /** The saved camera-side profile does not admit this initiator. */
+    SAVED_PROFILE_REQUIRED(6),
+
+    /** The dial target was not a numeric IPv4 address. */
+    NON_NUMERIC_HOST(7),
+
+    /** The network or the PTP-IP exchange failed below the camera's own answers. */
+    UNREACHABLE(8),
+    ;
+
+    /**
+     * The saved profile cannot open app control, so one fresh pairing is the remedy (iOS
+     * `isSavedProfileUnavailable`): a refusal, a required first pairing, or a body that hangs up
+     * during a pairing-skipped establishment.
+     */
+    public val savedProfileUnavailable: Boolean
+        get() = this == REJECTED_INITIATOR || this == SAVED_PROFILE_REQUIRED || this == CONNECTION_CLOSED
+
+    public companion object {
+        /** The failure for a wire code; an unknown code (a newer core) reads as [OTHER]. */
+        public fun fromWire(code: Int): CameraConnectionFailure = entries.firstOrNull { it.wireCode == code } ?: OTHER
+    }
+}
 
 /**
  * Connection lifecycle of a [CameraSession].
@@ -306,7 +358,12 @@ public data class CameraStorageStatus(
     val totalCapacityBytes: Long,
     /** Currently free capacity in bytes. */
     val freeSpaceBytes: Long,
-)
+) {
+    /** The shared storage readout (A5-11); null for a negative free space or one above a known capacity. */
+    val readout: StorageReadout?
+        get() = if (freeSpaceBytes < 0 || (totalCapacityBytes > 0 && freeSpaceBytes > totalCapacityBytes)) null
+        else StorageReadout(freeSpaceBytes, totalCapacityBytes)
+}
 
 /** Capacity and identity for one connected camera recording card. */
 public data class CameraStorageSlotStatus(

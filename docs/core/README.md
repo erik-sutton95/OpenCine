@@ -16,7 +16,7 @@ interface changes driven by the first real adapter slices (CORE-02).
 | `OpenCineCore` | Value types and the `CameraSession` protocol, plus `CameraValuePin` (a requested setting held against older reports until the camera confirms it or the settle window ends) and `LocalVPNFilter` (local VPN operator copy, the 8 s live-feed hint and tunnel interface names; Kotlin core twin, Android detection in `:platform` `LocalVPNProbe`). Foundation only. | Integrations, multicam, UI presentation, apps |
 | `OpenCineCoreTestSupport` | Deterministic fakes (`FakeCameraSession` in DJI-like, Nikon-like and Luna-like configurations, picture-only and control-only entries) | Test targets only; never link into an app |
 | `OpenCineMedia` | Portable media math: `.cube` parsing and interpolation, custom LUT index, LUT exposure compensation, published transfer curves, scope anchors and display scale, traffic lights, false-colour scales (Video, IRE, Limits, CineStop and the LOG/709 reading), zebra defaults, shutter angle, frame-rate sampling, feed framing, camera link health scoring (`CameraLinkHealthScorer`) and its hysteresis signal bars (`LinkSignalBars`, Kotlin `media` twins in `CameraLinkHealth.kt`). The encoded-unit seam: `EncodedVideoUnit` (stream, generation, codec, Annex-B or JPEG payload, random access, parameter sets, host arrival, optional PTS and format), HEVC/AVC NAL math (`Hevc`, `Avc`, `LiveVideo`), decoder parameter-set policy (`EncoderPresentPath`), present policy (`FeedPresentPolicy`, `SerialSessionGate`, `ExtraMirrorHold`), `DeliveryCadence`, and the Apple-only scope tap `LiveFrameTap`. Diagnostics: `PrivacyRedactor` (the host's `isSafeNetwork` keeps its camera access points), the journal event and report model (`DiagnosticEvent`, `DiagnosticEnvironment` with the host's product name, `DiagnosticReport`) and the typed feed incident model (`FeedIncident*` snapshots, recorder, classifier, `FeedIncidentExport`, `FeedIncidentCoding`); the on-disk incident store stays with the app. Foundation plus OpenCineCore; builds with the Swift Android SDK. | Integrations, app cores, Android JNI facades |
-| `OpenCineFrameIO` | Optional Frame.io delivery: v4 request planning (`FrameioAPI`), OAuth PKCE primitives and IMS token requests (`FrameioOAuth`, `PKCE`), response models, the upload workflow with injected transport, token storage, clock and pause (`FrameioClient`), batch results with history and cleanup reporting (`FrameioDelivery`, `FrameioDeliveryReport`), and an Apple `URLSession` transport. Foundation only (CryptoKit on Apple platforms). See [OpenCineFrameIO](#opencineframeio). | Apps that deliver to Frame.io; Android JNI facades |
+| `OpenCineFrameIO` | Optional Frame.io delivery: v4 request planning (`FrameioAPI`), OAuth PKCE primitives and IMS token requests (`FrameioOAuth`, `PKCE`), response models, the upload workflow with injected transport, token storage, clock and pause (`FrameioClient`, `firstWorkspaceProjects`), the saved destination and project listing values, batch results with history and cleanup reporting (`FrameioDelivery`, `FrameioDeliveryReport`, `FrameioUploadHistoryIndex`), and an Apple `URLSession` transport. Foundation only (CryptoKit on Apple platforms). See [OpenCineFrameIO](#opencineframeio). | Apps that deliver to Frame.io; Android JNI facades |
 | `OpenCineMotion` | Optional. The typed motion seam: `MotionCapabilities` (supported axes, reference frame, `MotionBounds` position bounds, optional rate bound, feedback max age, arrival tolerance, pose reporting support), `MotionTarget` (made only inside the declared bounds), feedback validity over `ObservedValue<GimbalWaypoint>`, the `MotionService` protocol (stick, recenter, timed move to a target, stop, pose stream) and the `MonitorLayoutCapabilities(_:motion:base:)` projection (gimbal = pan and tilt axes, head tracking = gimbal plus camera-reported pose). Shared trajectory math: `GimbalWaypoint`, `GimbalProgram`, `GimbalProgramCurve`, `GimbalPath`, head-look math (`HeadTrack`) and bounded head tracking (`HeadTrackNative`). The programmed-move runner `GimbalMoveEngine` (timed targets, pause and resume, loop verification, the zoom path and its `NativeProgramZoom` demand) bound to the declared `MotionCapabilities`, display-only `GimbalOverlayMotion`, the world level (`WorldLevel` gravity from a camera attitude, the smoothed `LevelReading`, `WorldLevelTarget` and the `WorldLevelSnap` move and judgement), and the waypoint overlay projection (`GimbalWaypointOverlay`, field of view as a parameter) with its picture-direction mapping (`GimbalWaypointPresentation`). Foundation plus OpenCineCore; Core and Media never depend on it. | Gimbal integrations and app cores |
 | `OpenCineRelay` | Optional. The second-screen relay wire, protocol version 1: Bonjour service type, `[u32be length][u8 kind][payload]` framing, JSON messages (hello, state, control token, join denied, commands), the frame blob, exact version check in `WatcherRelayJoin`, the single-holder control lease (`WatcherRelayControlLease`, 20 s park for a dropped watcher), bitrate ladder, encode admission, watcher recovery and focus-point mapping. Golden wire tests pin every message kind. Foundation plus OpenCineCore battery values; sockets, Bonjour and the encoder are in `OpenCineRelayApple`, the passcode keychain stays in the apps. | App cores that host or watch a relay |
 | `OpenCineRelayApple` | Optional. The relay's Apple shell: `WatcherRelayHost` (MainActor model) over `WatcherRelayTransport` (Bonjour listener, admission of two source frames, HEVC re-encode via `WatcherRelayEncoder`, per-peer fan-out, join, lease and denial handling), `WatcherRelayReader` (off-main framing), `WatcherRelayBrowser` and the shared-Wi-Fi `WatcherRelayNetwork` parameters (no peer-to-peer, no cellular). The app supplies its version-mismatch copy, log subsystem and journal; state broadcasts default to 0.2 s. Depends on `OpenCineRelay` plus Network, VideoToolbox, CoreVideo, CoreMedia, Observation and os; every file sits behind `#if canImport(Network)`. | iOS apps that host or watch a relay |
@@ -25,6 +25,31 @@ interface changes driven by the first real adapter slices (CORE-02).
 | Android `com.opencapture.opencine:core` | Kotlin mirror of `OpenCineCore`; the fakes ship as its test fixtures. See [Android](#android). | Android integrations and apps |
 | Android `com.opencapture.opencine:media` | Kotlin side of the encoded-unit seam: `EncodedVideoUnit`, `Hevc`/`Avc`/`LiveVideo` NAL math, and the Android decoder's portable policy (`LiveAccessUnit`, `CompressedAccessUnitAdmission`, `DecoderRandomAccessHold`, `DecoderInputOwnership`, `DecoderErrorLifetime`, `EncoderPresentPath`, `LivePictureSps`, `LiveDecoderTuning`, `LiveHevcCodec`, `LivePipelineCadence`, `LiveViewPresentTiming`, `FeedPresentPolicy`), `PrivacyRedactor` and the typed feed incident model (`FeedIncident*`), with the same names as Swift, plus the bounded manual report `BoundedDiagnosticFormatter` (Swift `DiagnosticReport.manualReport`) and the non-blocking `DiagnosticJournal`. No Android framework: MediaCodec and Surface stay in the app. | Android apps |
 | Android `com.opencapture.opencine:vulkan` | The native Vulkan live-feed renderer `libopc_vulkan.so` (moved unchanged from Pocket, MEDIA-02): imports the decoder's `AHardwareBuffer`, grades with 3D cubes, draws scopes and grab-pass glass, presents to the `SurfaceView` swapchain; upright-raster (Pocket #482) and present-batch lifetime included. Android library (NDK 28.2, CMake, shaders compiled by the NDK `glslc` and embedded), arm64-v8a only. The JNI facade keeps its original name `com.opencapture.openpocketcine.feed.OpcVulkan` because the 21 exported symbols derive from it. The session that drives it stays in the app. | Android apps |
+
+## Timecode compatibility
+
+`CapabilitySnapshot.timecode` retains its published `SupportStatus` type. Read the additive
+`timecodeCapability` for source-declared precision. The support-only initializer does not infer
+precision. Swift Codable retains the published enum case tag under `timecode`, adds the richer
+field separately, and accepts the published tag, the earlier rich-object checkpoint and explicit
+known support strings. Kotlin keeps the original constructor, copy and component signatures.
+
+`CameraTimecode` remains a frame-complete value with an integer `frames` field. Use
+`CameraTimecodeReading` and `CameraSnapshot.timecodeReading` for a source that may report only
+whole seconds. `frameTimecode` converts a reading only when a frame count exists; the legacy
+snapshot observation otherwise has no value and retains its provenance. Current monitor
+formatting reads the precise observation. Copying a snapshot preserves that reading.
+
+The legacy FPS-labelled clock helpers remain for an explicitly known positive caller rate.
+They synthesize a clock counter, not camera frame telemetry. Their optional note method refuses
+nonpositive rates before reserving a reading; static frame-complete synthesis requires a positive
+rate. The former unknown-rate guess is unavailable. Current camera observation callers use the
+no-FPS seconds-only methods. Swift and Kotlin keep these boundaries in step.
+
+The portable `FrameioInternetHop` token owner remains available through app migration beside the
+app shell's `MonitorInternetHop`. It owns no credentials, network actions or UI. Its host supplies
+executor confinement and native leave/rejoin actions. Migrate each consumer in its reviewed pin
+move before removing either legacy contract in a later incompatible release.
 
 ## Retry delay policy
 
@@ -213,25 +238,23 @@ resolves every package dependency a manifest declares, even one only an unused p
 that is why PKCE takes an injected SHA-256 on non-Apple platforms instead of this package
 depending on swift-crypto. An Android facade passes swift-crypto's SHA-256 from its own package.)
 
-The app owns, and this product never names:
-
-- OAuth presentation (`ASWebAuthenticationSession`, Custom Tabs), callback URL schemes and the
-  Adobe client ID / redirect URI from its build configuration.
-- Credential storage: `FrameioTokenStorage` is implemented by the app over its own keychain or
-  keystore namespace (for example service `OpenPocketCine.frameio`). Sharing this package never
-  shares a sign-in. `StoredFrameioToken` keeps the Codable shape the apps already stored.
-- Upload destination preferences, media preparation (exports, LUT bake, sidecars) and history
-  storage (`FrameioUploadHistory`).
+This product never names an app. On iOS, `OpenCineFrameIOApple` is the host every app
+composes: `FrameioAppConfiguration` (the Adobe client ID and redirect URI from the app's
+Info.plist), `FrameioKeychainTokenStore(service:)`, `FrameioWebAuthenticator`
+(`ASWebAuthenticationSession` sign-in), `FrameioDestinationStore(key:)`, `FrameioAccountModel`
+(sign-in state, the first workspace's projects, the saved destination, upload history and the
+delivery remote services) and `FrameioMark`. The app passes only its namespaces
+(`FrameioHostNamespace`: keychain service, destination and history keys), so sharing the host
+never shares a sign-in. `StoredFrameioToken` keeps the Codable shape the apps already stored.
+Android hosts (Custom Tabs, keystore) remain the apps' until their adoption.
 
 ### Network hops and camera claims
 
-`FrameioInternetHop` holds serialized popup/delivery completion authority. An operator-approved
-hop begins with a token; transferring it to delivery invalidates the popup's token without
-another network operation. Only the current token can end the hop, so a late cancelled
-delivery cannot release a successor. Keep this value in the host that owns the route and
-mutate it on that host's executor. Apps supply the native leave/rejoin actions and retain the
-original connection for rejoin. This Swift owner currently serves the iOS-only delivery
-consumers; Android feature adoption remains separate.
+`MonitorInternetHop` (`OpenCineAppKit`) holds the hop: an operator-approved hop begins with a
+token; transferring it to delivery invalidates the popup's token without another network
+operation. Only the current token can end the hop, so a late cancelled delivery cannot release
+a successor, and the return is consumed once. Apps supply the native leave/rejoin actions
+through its `Port` and retain the original connection for rejoin.
 
 Every Frame.io byte, including token refresh and upload parts, goes through
 `FrameioHTTPTransport.send`. That is the single place an app enforces route ownership:
@@ -324,7 +347,7 @@ Same names and semantics, in Kotlin idiom. Where they differ:
 - Cases without payload are `enum class` with `UPPER_SNAKE` constants; cases with payload are a
   `sealed interface` of `data object` and `data class`. Struct mutation is `copy(...)`.
 - `ObservedValue` is covariant: `ObservedValue.unknown` is an `ObservedValue<Nothing>` assignable to any
-  `ObservedValue<T>`, and its private constructor keeps a null value exclusive to it. Durations are
+  `ObservedValue<T>`, and conversions preserve provenance even when their result cannot be represented. Durations are
   `kotlin.time.Duration`; `MonotonicInstant.zero` is `MonotonicInstant.ZERO`.
 - The feed is `val snapshots: StateFlow<CameraSnapshot>` (Swift `snapshots()` returning a
   `.bufferingNewest(1)` stream). Same latest-value conflation; `.value` replaces
