@@ -54,7 +54,7 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
     public var liveFPS: String
     public var batteryPercent: Int {
         didSet {
-            if !batteryReadingWasDeclared { batteryReading = Self.legacyBattery(batteryPercent) }
+            if !batteryReadingWasDeclared { batteryReading = relayLegacyBattery(batteryPercent) }
         }
     }
     public var cameraName: String
@@ -94,7 +94,7 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
             controlOptions: controlOptions,
             cameraModel: cameraModel,
             isNano: isNano,
-            batteryReading: Self.legacyBattery(batteryPercent), batteryExhausted: nil)
+            batteryReading: relayLegacyBattery(batteryPercent), batteryExhausted: nil)
         batteryReadingWasDeclared = false
         batteryExhaustedWasDeclared = false
     }
@@ -159,7 +159,7 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
         batteryReadingWasDeclared = container.contains(.batteryReading)
         batteryReading = batteryReadingWasDeclared
             ? try container.decodeIfPresent(BatteryReading.self, forKey: .batteryReading)
-            : Self.legacyBattery(batteryPercent)
+            : relayLegacyBattery(batteryPercent)
         batteryExhaustedWasDeclared = container.contains(.batteryExhausted)
         batteryExhausted = try container.decodeIfPresent(Bool.self, forKey: .batteryExhausted)
     }
@@ -189,12 +189,6 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
         if batteryExhaustedWasDeclared {
             try container.encode(batteryExhausted, forKey: .batteryExhausted)
         }
-    }
-
-    private static func legacyBattery(_ percent: Int) -> BatteryReading? {
-        guard percent >= 0 else { return nil }
-        return PowerStatus(battery: .init(Double(min(100, percent)) / 100,
-            origin: .cameraReported, at: nil, precision: .quantized(step: 0.01))).batteryReading
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {

@@ -131,7 +131,7 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
             feedLive: feedLive,
             isPhotography: isPhotography,
             feedAspectRatio: feedAspectRatio,
-            batteryReading: Self.legacyBattery(cameraBatteryPercent), batteryExhausted: nil)
+            batteryReading: relayLegacyBattery(cameraBatteryPercent), batteryExhausted: nil)
         batteryReadingWasDeclared = false
         batteryExhaustedWasDeclared = false
     }
@@ -245,7 +245,7 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         batteryReadingWasDeclared = container.contains(.batteryReading)
         batteryReading = batteryReadingWasDeclared
             ? try container.decodeIfPresent(BatteryReading.self, forKey: .batteryReading)
-            : Self.legacyBattery(self.cameraBatteryPercent)
+            : relayLegacyBattery(self.cameraBatteryPercent)
         batteryExhaustedWasDeclared = container.contains(.batteryExhausted)
         batteryExhausted = try container.decodeIfPresent(Bool.self, forKey: .batteryExhausted)
 
@@ -271,12 +271,6 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         if batteryExhaustedWasDeclared {
             try container.encode(batteryExhausted, forKey: .batteryExhausted)
         }
-    }
-
-    private static func legacyBattery(_ percent: Int) -> BatteryReading? {
-        guard percent >= 0 else { return nil }
-        return PowerStatus(battery: .init(Double(min(100, percent)) / 100,
-            origin: .cameraReported, at: nil, precision: .quantized(step: 0.01))).batteryReading
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
@@ -377,4 +371,11 @@ public enum WatchRelayEnvelope {
             }
         }
     }
+}
+
+/// A legacy peer's percent as a reading at the percent precision it implies; negative is unknown.
+func relayLegacyBattery(_ percent: Int) -> BatteryReading? {
+    guard percent >= 0 else { return nil }
+    return PowerStatus(battery: .init(Double(min(100, percent)) / 100,
+        origin: .cameraReported, at: nil, precision: .quantized(step: 0.01))).batteryReading
 }

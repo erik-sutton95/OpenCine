@@ -495,8 +495,6 @@ public final class NikonCameraSession: CameraSession {
         .supported(frameRate(reported).map { .frames(rate: $0, dropFrame: nil) })
     }
 
-    /// The movie rate as the screen-size token reports it, in whole frames per second. Whether a
-    /// body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
     private static func exposureProgram(_ label: String?) -> CameraExposureProgram? {
         switch label {
         case "M": .manual
@@ -515,6 +513,8 @@ public final class NikonCameraSession: CameraSession {
         return CameraRecordingFormat.Dimensions(width: width, height: height)
     }
 
+    /// The movie rate as the screen-size token reports it, in whole frames per second. Whether a
+    /// body's "24p" token records 24000/1001 is unverified on hardware, so none is assumed.
     static func frameRate(_ reported: PTPCameraPropertySnapshot) -> Rational? {
         reported.fps.flatMap { $0 > 0 ? Rational($0) : nil }
     }

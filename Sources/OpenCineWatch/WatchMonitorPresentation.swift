@@ -4,6 +4,8 @@ import OpenCineCore
 /// An honest measured gauge or percentage projection, supplied independently of relay wire types.
 public struct WatchMonitorBattery: Equatable, Sendable {
     public enum Urgency: Equatable, Sendable { case nominal, low, depleted }
+    /// Compatibility gauge fields for the original initializer. A fraction reading has no gauge
+    /// and reports 0 of 0, so new code reads `reading`.
     public let filledBars: Int
     public let barCount: Int
     public let urgency: Urgency
