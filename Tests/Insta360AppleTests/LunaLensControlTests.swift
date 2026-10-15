@@ -67,6 +67,9 @@ final class LunaLensControlTests: XCTestCase {
         source.ingest(settings: settings)
         XCTAssertNil(source.current.value(of: .iso).value, "An unknown program does not declare automatic ISO")
         XCTAssertNil(source.current.value(of: .shutter).value, "An unknown program does not declare automatic shutter")
+        XCTAssertEqual(source.current.capabilities[.iso]?.availability, .unavailable(.notReady),
+            "A withdrawn ISO cannot accept a combined exposure write")
+        XCTAssertEqual(source.current.capabilities[.shutter]?.availability, .unavailable(.notReady))
         XCTAssertTrue(sent.isEmpty)
     }
 
@@ -82,6 +85,9 @@ final class LunaLensControlTests: XCTestCase {
         source.ingest(settings: settings)
         XCTAssertNil(source.current.value(of: .iso).value)
         XCTAssertNil(source.current.value(of: .shutter).value)
+        XCTAssertEqual(source.current.capabilities[.iso]?.availability, .unavailable(.notReady),
+            "A withdrawn ISO cannot accept a combined exposure write")
+        XCTAssertEqual(source.current.capabilities[.shutter]?.availability, .unavailable(.notReady))
         XCTAssertTrue(sent.isEmpty)
     }
 

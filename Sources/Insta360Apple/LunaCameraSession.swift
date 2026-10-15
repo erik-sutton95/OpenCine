@@ -763,9 +763,10 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     }
 
     private func refreshCapabilities() {
-        // A write carries ISO and shutter together, so neither is safe before both are known.
+        // A write carries ISO and shutter together, so neither is safe before both are known. A
+        // withdrawn report keeps its key with an unknown value, so the value decides.
         let exposure: Availability =
-            current.settings[.iso] == nil ? .unavailable(.notReady) : .available
+            current.settings[.iso]?.isKnown == true ? .available : .unavailable(.notReady)
         let recording: Availability =
             switch shootingMode {
             case nil: .unavailable(.notReady)

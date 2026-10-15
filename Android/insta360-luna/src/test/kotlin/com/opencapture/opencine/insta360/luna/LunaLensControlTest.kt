@@ -53,6 +53,9 @@ class LunaLensControlTest {
         h.session.ingest(known.copy(videoExposure = LunaExposure(999_999, 400, 0.02)))
         assertNull(h.current.value(SettingKey.ISO).value, "An unknown program does not declare automatic ISO")
         assertNull(h.current.value(SettingKey.SHUTTER).value, "An unknown program does not declare automatic shutter")
+        val notReady = com.opencapture.opencine.core.Availability.Unavailable(com.opencapture.opencine.core.UnavailableReason.NotReady)
+        assertEquals(notReady, h.current.capabilities.descriptors[SettingKey.ISO]?.availability, "A withdrawn ISO cannot accept a combined exposure write")
+        assertEquals(notReady, h.current.capabilities.descriptors[SettingKey.SHUTTER]?.availability)
         assertTrue(h.sent.isEmpty())
     }
 
@@ -65,6 +68,9 @@ class LunaLensControlTest {
         h.session.ingest(known.copy(videoExposure = null))
         assertNull(h.current.value(SettingKey.ISO).value)
         assertNull(h.current.value(SettingKey.SHUTTER).value)
+        val notReady = com.opencapture.opencine.core.Availability.Unavailable(com.opencapture.opencine.core.UnavailableReason.NotReady)
+        assertEquals(notReady, h.current.capabilities.descriptors[SettingKey.ISO]?.availability, "A withdrawn ISO cannot accept a combined exposure write")
+        assertEquals(notReady, h.current.capabilities.descriptors[SettingKey.SHUTTER]?.availability)
         assertTrue(h.sent.isEmpty())
     }
 

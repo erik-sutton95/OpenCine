@@ -667,8 +667,9 @@ class LunaCameraSession internal constructor(
     }
 
     private fun refreshCapabilities() {
-        // A write carries ISO and shutter together, so neither is safe before both are known.
-        val exposure = if (SettingKey.ISO in current.settings) Availability.Available else Availability.Unavailable(UnavailableReason.NotReady)
+        // A write carries ISO and shutter together, so neither is safe before both are known. A
+        // withdrawn report keeps its key with an unknown value, so the value decides.
+        val exposure = if (current.value(SettingKey.ISO).value != null) Availability.Available else Availability.Unavailable(UnavailableReason.NotReady)
         val emulated = shutterPresentation == HostShutterPresentation.EMULATED_ANGLE
         val shutterAvailability = when {
             !emulated -> exposure
