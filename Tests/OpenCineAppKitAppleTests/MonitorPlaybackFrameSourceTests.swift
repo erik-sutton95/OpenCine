@@ -56,18 +56,16 @@ import XCTest
     /// A host that publishes who owns the audio session hears it from the shared lease.
     func testAudioOwnershipFollowsTheSharedLease() async {
         let audio = Self.silentAudio()
-        var owned: [Bool] = []
+        let owned = OwnershipLog()
         let session = MonitorPlaybackAssistSession(audioSession: audio, native: SimulatedFrameSource(),
-            samples: LiveFrameSampleBus(), audioOwnership: { value in
-                MainActor.assumeIsolated { owned.append(value) }
-            })
+            samples: LiveFrameSampleBus(), audioOwnership: { owned.values.append($0) })
         session.activate()
-        XCTAssertEqual(owned, [true])
+        XCTAssertEqual(owned.values, [true])
         session.close()
         await audio.finishPendingWork()
         let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while owned.count < 2, ContinuousClock.now < deadline { await Task.yield() }
-        XCTAssertEqual(owned, [true, false])
+        while owned.values.count < 2, ContinuousClock.now < deadline { await Task.yield() }
+        XCTAssertEqual(owned.values, [true, false])
     }
 
     /// The page runtime installs the source's own frame source for each admitted item, on the
@@ -113,8 +111,7 @@ import XCTest
             makeFeed: { MonitorPlaybackFeedSession(configuration: .init(), hdrDisplay: { false }) },
             audioSession: Self.silentAudio(), samples: { LiveFrameSampleBus() })
         var made: [SimulatedFrameSource] = []
-        var owner: MonitorOperatorMediaModel<String, String>!
-        owner = presentation.makeOwner(library: fixture.library,
+        let owner = presentation.makeOwner(library: fixture.library,
             recordAdmission: { _ in .init { true } },
             makeNative: { feed in
                 let source = SimulatedFrameSource(feed: feed)
@@ -126,17 +123,14 @@ import XCTest
                         sourceKey: "SIMULATED"))] })
             })
         defer { owner.closePlayback() }
-        var reentered = false
-        withObservationTracking { _ = presentation.native } onChange: {
-            MainActor.assumeIsolated {
-                guard !reentered else { return }
-                reentered = true
-                _ = owner.open(fixture.record, playlist: [fixture.record],
-                    admitted: fixture.library.actionToken)
-            }
+        let reentry = Reentry {
+            _ = owner.open(fixture.record, playlist: [fixture.record], admitted: fixture.library.actionToken)
         }
-        _ = owner.open(fixture.record, playlist: [fixture.record], admitted: fixture.library.actionToken)
-        XCTAssertTrue(reentered)
+        withObservationTracking { _ = presentation.native } onChange: {
+            MainActor.assumeIsolated { reentry.fireOnce() }
+        }
+        reentry.open()
+        XCTAssertTrue(reentry.done)
         let successor = try XCTUnwrap(made.last)
         XCTAssertEqual(made.count, 2)
         XCTAssertTrue(presentation.native === successor, "the successor's source stays installed")
@@ -176,6 +170,18 @@ import XCTest
             }
             try await Task.sleep(for: .milliseconds(20))
         }
+    }
+}
+
+@MainActor private final class OwnershipLog { var values: [Bool] = [] }
+@MainActor private final class Reentry {
+    private(set) var done = false
+    let open: @MainActor () -> Void
+    init(open: @escaping @MainActor () -> Void) { self.open = open }
+    func fireOnce() {
+        guard !done else { return }
+        done = true
+        open()
     }
 }
 
