@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import com.opencapture.monitorui.settings.LocalMonitorSettingsScrollContext
+import com.opencapture.monitorui.settings.MonitorDisplaySettings
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -54,7 +57,9 @@ internal sealed interface MonitorOperatorPictureSettings {
 
     class Configured(
         val assistSections: List<MonitorAssistSettingsSection>,
-        val display: MonitorOperatorDisplaySource,
+        val display: MonitorOperatorDisplaySource?,
+        val borrowedDisplay: MonitorOperatorBorrowedDisplay? = null,
+        val assist: MonitorOperatorAssistSettingsSource? = null,
     ) : MonitorOperatorPictureSettings
 
     class Session(
@@ -87,6 +92,12 @@ internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) 
     var showLutPicker by remember { mutableStateOf(false) }
     val revision = remember { mutableIntStateOf(0) }
     val context = LocalContext.current
+    LaunchedEffect(inputs.selection) {
+        val picture = inputs.picture
+        if (inputs.selection == MonitorSettingsTab.DISPLAY && picture is MonitorOperatorPictureSettings.Configured) {
+            picture.borrowedDisplay?.returnedFromEditor?.invoke()
+        }
+    }
     val openLegal: (MonitorLegalPage) -> Unit = { page ->
         val legal = configuration.legal
         if (legal != null && !legal.open(page, context) { legalPage.value = it }) {
@@ -136,15 +147,29 @@ private fun MonitorOperatorSettingsRows(
         MonitorSettingsTab.SHARING -> SettingsSharing(configuration.sharing, configuration.feedback)
         MonitorSettingsTab.ASSIST -> when (picture) {
             is MonitorOperatorPictureSettings.Deployed -> AssistRows(picture.model, picture.state, picture.app, onOpenLut)
-            is MonitorOperatorPictureSettings.Configured -> MonitorViewAssistSettings(picture.assistSections)
+            is MonitorOperatorPictureSettings.Configured -> {
+                val assist = picture.assist
+                if (assist != null) MonitorOperatorAssistSettings(assist)
+                else MonitorViewAssistSettings(picture.assistSections)
+            }
             is MonitorOperatorPictureSettings.Session -> SessionAssistSettings(picture)
         }
         MonitorSettingsTab.CONTROLS -> SettingsControls(configuration.controls, configuration.feedback)
         MonitorSettingsTab.DISPLAY -> when (picture) {
             is MonitorOperatorPictureSettings.Deployed -> OperatorDisplayRows(picture.model, picture.state, picture.app,
                 configuration.isLive)
-            is MonitorOperatorPictureSettings.Configured -> OperatorDisplaySections(picture.display.session,
-                picture.display.available, picture.display.edit, revision, onPreferenceChanged, configuration.feedback)
+            is MonitorOperatorPictureSettings.Configured -> {
+                val display = picture.display
+                if (display != null) OperatorDisplaySections(display.session,
+                    display.available, display.edit, revision, onPreferenceChanged, configuration.feedback)
+                else {
+                    val borrowed = requireNotNull(picture.borrowedDisplay)
+                    MonitorDisplaySettings(borrowed.layoutTitle, borrowed.layoutHelp, borrowed.choices,
+                        borrowed.selection, borrowed.onSelect, borrowed.expandedSection, borrowed.onExpand,
+                        borrowed.sections, borrowed.order, compact, configuration.feedback,
+                        LocalMonitorSettingsScrollContext.current)
+                }
+            }
             is MonitorOperatorPictureSettings.Session -> SessionDisplaySettings(picture, configuration.isLive,
                 revision, onPreferenceChanged)
         }
