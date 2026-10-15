@@ -56,10 +56,11 @@ enum LunaWiFi {
         return (found, name, macs[name])
     }
     /// `apply` is the backend's scoped hotspot owner; nil keeps the original direct call.
+    /// `prompt` is pending from the system request until iOS answers it.
     static func join(
         _ credentials: LunaStoredWiFi, joinOnce: Bool = false, logPrefix: String,
         apply: (@MainActor (CameraHotspotConfiguration) async throws -> Void)? = nil,
-        reachable: (@MainActor () -> Void)? = nil
+        prompt: LunaJoinPrompt? = nil, reachable: (@MainActor () -> Void)? = nil
     ) async throws {
         try Task.checkCancellation()
         #if targetEnvironment(macCatalyst) || os(macOS)
@@ -77,26 +78,32 @@ enum LunaWiFi {
                     phase: .joiningNetwork)
             }
         #else
-            if let apply {
-                do {
-                    try await apply(.init(selection: .ssid(credentials.ssid),
-                        security: .personal(passphrase: credentials.password), joinOnce: joinOnce))
-                } catch is CancellationError {
-                    throw CancellationError()
-                } catch {
-                    if let failure = applyFailure(error as NSError, logPrefix: logPrefix) { throw failure }
-                }
-            } else {
-                let config = NEHotspotConfiguration(
-                    ssid: credentials.ssid, passphrase: credentials.password, isWEP: false)
-                config.joinOnce = joinOnce
-                try await withCheckedThrowingContinuation {
-                    (continuation: CheckedContinuation<Void, Error>) in
-                    NEHotspotConfigurationManager.shared.apply(config) { error in
-                        if let error = error as NSError?, let failure = applyFailure(error, logPrefix: logPrefix) {
-                            continuation.resume(throwing: failure)
-                        } else {
-                            continuation.resume()
+            // Until iOS answers this request its Join alert may be up; `prompt` holds the
+            // attempt's timeout meanwhile (not the address wait below).
+            do {
+                prompt?.begin()
+                defer { prompt?.end() }
+                if let apply {
+                    do {
+                        try await apply(.init(selection: .ssid(credentials.ssid),
+                            security: .personal(passphrase: credentials.password), joinOnce: joinOnce))
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        if let failure = applyFailure(error as NSError, logPrefix: logPrefix) { throw failure }
+                    }
+                } else {
+                    let config = NEHotspotConfiguration(
+                        ssid: credentials.ssid, passphrase: credentials.password, isWEP: false)
+                    config.joinOnce = joinOnce
+                    try await withCheckedThrowingContinuation {
+                        (continuation: CheckedContinuation<Void, Error>) in
+                        NEHotspotConfigurationManager.shared.apply(config) { error in
+                            if let error = error as NSError?, let failure = applyFailure(error, logPrefix: logPrefix) {
+                                continuation.resume(throwing: failure)
+                            } else {
+                                continuation.resume()
+                            }
                         }
                     }
                 }

@@ -217,7 +217,7 @@ public final class LunaCameraBackend: CameraBackend {
     }
 
     /// The camera AP needs a few seconds (sometimes most of a minute) after the BLE
-    /// handoff wakes it; iOS fails a join to an AP that is not up yet (nehelper 37).
+    /// handoff wakes it; the attempts and their timeout live in `LunaJoinAttempts`.
     private func joinRetrying(
         _ wifi: LunaStoredWiFi, token: Int, budget: Duration = .seconds(60)
     ) async throws {
@@ -236,62 +236,35 @@ public final class LunaCameraBackend: CameraBackend {
     private func joinRetrying(
         _ wifi: LunaStoredWiFi, token: Int, budget: Duration, operations: CameraHotspotOperations?
     ) async throws {
-        let deadline = ContinuousClock.now.advanced(by: budget)
-        var attempt = 0
-        while true {
-            attempt += 1
-            // Already on the camera subnet (auto-join, or the operator joined in Settings).
-            if LunaWiFi.localAddress != nil { noteReachable(token); return }
-            if attempt == 3 {
-                eventHandler?(
+        let prefix = configuration.logPrefix
+        let appName = configuration.appName
+        try await LunaJoinAttempts.run(
+            budget: budget,
+            onCameraNetwork: { [weak self] in
+                // Already on the camera subnet (auto-join, the operator joined in Settings, or
+                // the operator answered the system Join alert late).
+                guard LunaWiFi.localAddress != nil else { return false }
+                self?.noteReachable(token)
+                return true
+            },
+            validate: { [weak self] in
+                guard let self else { throw CancellationError() }
+                try self.validate(token)
+            },
+            attemptStarts: { [weak self] attempt in
+                guard attempt == 3 else { return }
+                self?.eventHandler?(
                     .note(
-                        "If this takes long, open Settings › Wi-Fi and join “\(wifi.ssid)”. \(configuration.appName) continues automatically."
+                        "If this takes long, open Settings › Wi-Fi and join “\(wifi.ssid)”. \(appName) continues automatically."
                     ))
-            }
-            do {
-                // Alternate persistent and join-once configs: iOS can refuse one kind
-                // (internal error 8) while a user-saved network of the same name exists.
-                let once = attempt % 2 == 0
-                let prefix = configuration.logPrefix
-                try await withJoinTimeout {
-                    try await LunaWiFi.join(
-                        wifi, joinOnce: once, logPrefix: prefix, apply: operations?.apply,
-                        reachable: { [weak self] in self?.noteReachable(token) })
-                }
-                return
-            } catch {
-                try validate(token)
-                // The timeout can fire while the system "Join" alert is up; if the
-                // operator then tapped Join, the phone is on the camera network.
-                if LunaWiFi.localAddress != nil { noteReachable(token); return }
-                onLog?("luna: Wi-Fi join attempt \(attempt) failed: \(error.localizedDescription)")
-                guard ContinuousClock.now < deadline else { throw error }
-                // The AP may not beacon yet: drop the config so the next apply
-                // associates fresh instead of reusing a stale one (upstream WiFiJoiner).
-                LunaWiFi.leave(ssid: wifi.ssid, remove: operations?.remove)
-                try await Task.sleep(for: .seconds(3))
-            }
-        }
-    }
-
-    /// Fails the attempt after 35 s so the retry loop can try again. The task group
-    /// still waits for `apply` to return, which it only withholds while the system
-    /// "Join Wi-Fi Network" alert is up (first join after install): waiting for the
-    /// operator's tap there is the intended behaviour. The UI stays live; Cancel works.
-    private func withJoinTimeout(_ work: @escaping @MainActor () async throws -> Void) async throws
-    {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await work() }
-            group.addTask {
-                try await Task.sleep(for: .seconds(35))
-                throw ConnectionFailure.luna(
-                    .joinFailed, "wifi.join-timeout",
-                    "The camera Wi-Fi did not come up. Check that the camera is on and nearby, then try again.",
-                    phase: .joiningNetwork)
-            }
-            try await group.next()
-            group.cancelAll()
-        }
+            },
+            log: { [weak self] in self?.onLog?($0) },
+            leave: { LunaWiFi.leave(ssid: wifi.ssid, remove: operations?.remove) },
+            join: { [weak self] once, prompt in
+                try await LunaWiFi.join(
+                    wifi, joinOnce: once, logPrefix: prefix, apply: operations?.apply, prompt: prompt,
+                    reachable: { [weak self] in self?.noteReachable(token) })
+            })
     }
 
     private func bootstrapOverBluetooth(camera: MonitorCamera, identity: UUID, token: Int)
