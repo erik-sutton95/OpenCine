@@ -14,12 +14,28 @@ class KeystoreSeal internal constructor(
     private val key: () -> SecretKey,
     private val encode: (ByteArray) -> String,
     private val decode: (String) -> ByteArray,
+    private val hasKey: () -> Boolean = { true },
 ) {
     constructor(alias: String) : this(
         { deviceKey(alias) },
         { Base64.encodeToString(it, Base64.NO_WRAP) },
         { Base64.decode(it, Base64.NO_WRAP) },
+        { existingKey(alias) != null },
     )
+
+    /** What opening a stored envelope found. */
+    sealed interface Opened {
+        data class Secret(val secret: String) : Opened
+
+        /**
+         * The device key is gone (a file restored onto another device, or a reset Keystore): the
+         * envelope can never be opened again.
+         */
+        data object KeyGone : Opened
+
+        /** The Keystore did not answer or the envelope is damaged; it may open later. */
+        data class Failed(val reason: String) : Opened
+    }
 
     fun seal(secret: String): String? = runCatching {
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -28,15 +44,19 @@ class KeystoreSeal internal constructor(
         encode(cipher.iv) + SEPARATOR + encode(sealed)
     }.getOrNull()
 
-    fun open(stored: String): String? {
+    fun open(stored: String): String? = (opened(stored) as? Opened.Secret)?.secret
+
+    /** Opens [stored], telling a key that is gone from one that did not answer. */
+    fun opened(stored: String): Opened {
         val parts = stored.split(SEPARATOR, limit = 2)
-        if (parts.size != 2) return null
+        if (parts.size != 2) return Opened.Failed("malformed")
         return runCatching {
+            if (!hasKey()) return Opened.KeyGone
             val cipher = Cipher.getInstance(TRANSFORMATION)
             val iv = decode(parts[0])
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
-            String(cipher.doFinal(decode(parts[1])), Charsets.UTF_8)
-        }.getOrNull()
+            Opened.Secret(String(cipher.doFinal(decode(parts[1])), Charsets.UTF_8))
+        }.getOrElse { Opened.Failed(it.javaClass.simpleName) }
     }
 
     companion object {
@@ -44,9 +64,19 @@ class KeystoreSeal internal constructor(
         private const val KEYSTORE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
 
-        private fun deviceKey(alias: String): SecretKey {
+        /** One process-wide lock: a second key generated under an alias orphans the first's envelopes. */
+        private val keyLock = Any()
+
+        private fun existingKey(alias: String): SecretKey? = synchronized(keyLock) {
             val keystore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-            (keystore.getKey(alias, null) as? SecretKey)?.let { return it }
+            keystore.getKey(alias, null) as? SecretKey
+        }
+
+        private fun deviceKey(alias: String): SecretKey = synchronized(keyLock) {
+            existingKey(alias) ?: generateKey(alias)
+        }
+
+        private fun generateKey(alias: String): SecretKey {
             val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
             generator.init(
                 KeyGenParameterSpec.Builder(

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -371,12 +372,20 @@ internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: ()
         source.watcherCount?.let { SettingsReadout(it) }
         SettingsChoice(source.priority)
         MonitorSettingsInlineRow(source.passcodeTitle, source.passcodeHelp) {
-            BasicTextField(draft, onValueChange = { value ->
-                draft = value.filter(Char::isDigit).take(4)
-                if (draft.length == 4 || draft.isEmpty()) source.setPasscode(draft)
-            }, textStyle = LocalTextStyle.current.copy(color = MonitorPalette.text, fontSize = 14.sp, textAlign = TextAlign.End),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
-                modifier = Modifier.width(96.dp))
+            // The shared rule: only a code that takes effect reaches setPasscode (trimmed, empty
+            // for an open feed); a shorter entry stays a draft and the code in force is kept.
+            Column(horizontalAlignment = Alignment.End) {
+                BasicTextField(draft, onValueChange = { value ->
+                    draft = value
+                    MonitorWatcherPasscodeRule.entry(value).passcode?.let(source.setPasscode)
+                }, textStyle = LocalTextStyle.current.copy(color = MonitorPalette.text, fontSize = 14.sp, textAlign = TextAlign.End),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(), modifier = Modifier.width(120.dp))
+                if (MonitorWatcherPasscodeRule.entry(draft) == MonitorWatcherPasscodeRule.Entry.TooShort) {
+                    Text(MonitorWatcherPasscodeRule.TOO_SHORT_HINT, color = LiveDesign.muted, fontSize = 11.sp,
+                        textAlign = TextAlign.End, modifier = Modifier.width(160.dp))
+                }
+            }
         }
         MonitorSettingsSwitchInlineRow(source.controlRequestsTitle, source.controlRequests, source.controlRequestsHelp) {
             source.setControlRequests(!source.controlRequests); feedback()

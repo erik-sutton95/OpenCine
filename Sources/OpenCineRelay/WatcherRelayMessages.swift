@@ -162,12 +162,11 @@ public enum WatcherRelayJoin: Sendable {
     public static func hostAccepts(
         hello: WatcherRelayHello, requiredPasscode: String, versionMismatchReason: String
     ) -> Result<Void, WatcherRelayJoinDenied> {
-        let need = requiredPasscode.trimmingCharacters(in: .whitespacesAndNewlines)
         if let refusal = RelayJoinPolicy.refusal(
             hello: RelayPeerHello(
                 version: hello.version, hostName: hello.hostName,
                 cameraName: hello.cameraName, passcode: hello.passcode, watcherID: hello.watcherID),
-            profile: .sharedMonitor, requiredPasscode: need,
+            profile: .sharedMonitor, requiredPasscode: requiredPasscode,
             versionMismatchReason: versionMismatchReason, passcodeReason: "Wrong passcode.")
         {
             return .failure(

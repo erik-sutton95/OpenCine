@@ -17,8 +17,23 @@ public object RelayJoinPolicy {
         requiresVersionMatch: Boolean = true,
     ): Refusal? {
         if (requiresVersionMatch && hello.version != profile.version) return Refusal(versionMismatchReason, false)
-        if (requiredPasscode.isNotEmpty() && hello.passcode != requiredPasscode) return Refusal(passcodeReason, true)
+        val required = normalizedPasscode(requiredPasscode)
+        if (required.isNotEmpty() && hello.passcode?.let(::normalizedPasscode) != required) {
+            return Refusal(passcodeReason, true)
+        }
         return null
+    }
+
+    /**
+     * Both sides of a join compare passcodes without surrounding whitespace: the same trim as the
+     * watcher passcode rule (monitor-ui `MonitorWatcherPasscodeRule.normalized`) and Swift's
+     * `whitespacesAndNewlines`.
+     */
+    public fun normalizedPasscode(code: String): String = code.trim { ch ->
+        ch in '\u0009'..'\u000D' || ch == '\u0085' || when (Character.getType(ch).toByte()) {
+            Character.SPACE_SEPARATOR, Character.LINE_SEPARATOR, Character.PARAGRAPH_SEPARATOR -> true
+            else -> false
+        }
     }
 }
 

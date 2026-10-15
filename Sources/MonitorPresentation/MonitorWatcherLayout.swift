@@ -50,14 +50,58 @@ public struct MonitorWatcherConnectionOverlayValue: Equatable, Sendable {
     }
 }
 
-/// Saved passcode UI retains the deployed four-decimal-digit entry rule; wire credentials stay outside UI.
-public struct MonitorWatcherPasscodeDraft: Equatable, Sendable {
-    public private(set) var digits = ""
-    public init() {}
-    public mutating func update(_ text: String) {
-        digits = String(String.UnicodeScalarView(text.unicodeScalars.filter {
-            $0.value <= 0xFFFF && $0.properties.generalCategory == .decimalNumber
-        }.prefix(4)))
+/// The one watcher passcode rule, shared by the broadcaster's setting and the watcher's join
+/// entry on every app and both platforms (Android twin: `MonitorWatcherPasscodeRule`).
+///
+/// A passcode is any text of at least ``minimumLength`` characters (Unicode scalars, so both
+/// platforms count alike) once surrounding whitespace is trimmed; an empty one means an open
+/// broadcast. The relay compares codes after the same trim
+/// (`RelayJoinPolicy`), so what one side accepts the other side matches.
+///
+/// The minimum judges only a code being chosen now. A code saved before this rule (four digits on
+/// one app, free text of any length on others) stays in force: hosts keep requiring it, watchers
+/// keep sending it, and a watcher may answer any non-empty code because only the host knows
+/// which code it requires.
+public enum MonitorWatcherPasscodeRule {
+    public static let minimumLength = 4
+
+    /// Shown under a broadcaster's entry that is not yet long enough to take effect.
+    public static let tooShortHint = "At least 4 characters, or empty for an open feed."
+
+    /// What a broadcaster's entry means.
+    public enum Entry: Equatable, Sendable {
+        /// Empty: the broadcast is open.
+        case open
+        /// A passcode to require, trimmed.
+        case code(String)
+        /// Too short to take effect; the code already in force stays.
+        case tooShort
+
+        /// The value to store and require, nil while the entry is too short.
+        public var passcode: String? {
+            switch self {
+            case .open: ""
+            case .code(let code): code
+            case .tooShort: nil
+            }
+        }
     }
-    public var complete: String? { digits.count == 4 ? digits : nil }
+
+    /// Surrounding spaces, tabs and line breaks never count as part of a passcode.
+    public static func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Judges a passcode a broadcaster is choosing now.
+    public static func entry(_ text: String) -> Entry {
+        let code = normalized(text)
+        if code.isEmpty { return .open }
+        return code.unicodeScalars.count >= minimumLength ? .code(code) : .tooShort
+    }
+
+    /// A watcher's answer to a host that asked for a passcode: the trimmed code, nil when empty.
+    public static func answer(_ text: String) -> String? {
+        let code = normalized(text)
+        return code.isEmpty ? nil : code
+    }
 }

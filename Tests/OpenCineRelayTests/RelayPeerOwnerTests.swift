@@ -59,6 +59,28 @@ import Testing
                 versionMismatchReason: "version", requiresVersionMatch: false) == nil)
     }
 
+    @Test func joinComparesPasscodesTrimmedAndKeepsEverySavedForm() {
+        func refused(_ offered: String?, _ required: String) -> Bool {
+            RelayJoinPolicy.refusal(
+                hello: .init(version: 1, hostName: "Watcher", passcode: offered, watcherID: "w"),
+                profile: .sharedMonitor, requiredPasscode: required,
+                versionMismatchReason: "version")?.passcodeRequired == true
+        }
+        // Saved before the shared rule: four digits (OpenZCine), free text of any length and
+        // untrimmed (OpenPocketCine, OpenInstaCine). Each still admits its watchers.
+        for saved in ["0000", "4821", "a", "ab1", "set pass", " padded ", "pässwörd\n", "🎬🎬"] {
+            #expect(!refused(saved, saved), "\(saved)")
+            #expect(!refused(RelayJoinPolicy.normalizedPasscode(saved), saved), "\(saved)")
+            #expect(refused("other", saved), "\(saved)")
+            #expect(refused(nil, saved), "\(saved)")
+        }
+        #expect(!refused(" 1234\t", "1234"))
+        #expect(!refused("1234", "\u{00A0}1234\u{2003}"))
+        #expect(refused("12 34", "1234"))
+        // Whitespace alone is an open broadcast, as the rule's empty entry is.
+        #expect(!refused(nil, " \n"))
+    }
+
     @Test func slowPeerHasIndependentDepthAndCannotBreakHealthyReferenceChain() {
         var slow = RelayPeerDelivery(authorized: true)
         var healthy = RelayPeerDelivery(authorized: true)

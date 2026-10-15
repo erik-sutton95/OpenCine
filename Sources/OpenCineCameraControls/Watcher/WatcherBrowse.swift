@@ -1,4 +1,5 @@
 #if os(iOS)
+    import MonitorPresentation
     import MonitorUI
     import OpenCineAppKitApple
     import SwiftUI
@@ -115,11 +116,18 @@
                     .font(MonitorTheme.font(14, weight: .medium))
                 SecureField("Passcode", text: $passcode)
                     .textFieldStyle(.roundedBorder)
-                Button("Join") {
-                    host.retryWatcherPasscode(passcode)
-                }
-                .buttonStyle(StartupFilledButtonStyle())
+                    .submitLabel(.join)
+                    .onSubmit(join)
+                Button("Join", action: join)
+                    .buttonStyle(StartupFilledButtonStyle())
+                    .disabled(MonitorWatcherPasscodeRule.answer(passcode) == nil)
             }
+        }
+
+        /// The host decides whether the code is right; any non-empty answer is sent, trimmed.
+        private func join() {
+            guard let code = MonitorWatcherPasscodeRule.answer(passcode) else { return }
+            host.retryWatcherPasscode(code)
         }
     }
 #endif
