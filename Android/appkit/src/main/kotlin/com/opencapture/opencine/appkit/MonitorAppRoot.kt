@@ -50,6 +50,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
@@ -225,13 +228,32 @@ public fun rememberMonitorLaunchSplash(enabled: Boolean = true): MonitorLaunchSp
     return state
 }
 
-/** Keeps the screen on while [enabled]. */
+/** Keeps the screen on while the preference is enabled and this activity is active. */
 @Composable
 public fun MonitorKeepScreenAwake(enabled: Boolean) {
-    val window = LocalActivity.current?.window ?: return
-    LaunchedEffect(window, enabled) {
-        if (enabled) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    val activity = LocalActivity.current ?: return
+    val lifecycle = (activity as? LifecycleOwner)?.lifecycle ?: return
+    val window = activity.window
+    val currentEnabled by rememberUpdatedState(enabled)
+    val owner = remember(window) {
+        MonitorScreenWakeOwner { keepAwake ->
+            if (keepAwake) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+    SideEffect {
+        owner.update(enabled, lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    DisposableEffect(lifecycle, owner) {
+        val observer = LifecycleEventObserver { _, _ ->
+            owner.update(currentEnabled, lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        }
+        lifecycle.addObserver(observer)
+        owner.update(currentEnabled, lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        onDispose {
+            lifecycle.removeObserver(observer)
+            owner.retire()
+        }
     }
 }
 
