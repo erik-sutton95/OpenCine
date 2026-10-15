@@ -51,7 +51,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
             badge = if (auto && preferences.facePriorityExposure) MonitorIcon.SCAN else null)
         append(LiveSheet.EXPO, "EXPOSURE", if (native.aeLocked) CaptureLists.AE_LOCK
             else controlState.snapshot?.exposureProgram?.value?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::exposureProgram) ?: "--")
-        metering?.let { tile -> add(MonitorOperatorLiveReadout("METER", "METER", if (tile.face) "Face" else "Matrix",
+        metering?.let { tile -> add(MonitorOperatorLiveReadout("METER", "METER", tile.label,
             section, action = { if (quickEnabled && lifetime.active) tile.perform() }, quickEnabled = false,
             actionIsCommand = true)) }
         append(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),

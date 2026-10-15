@@ -31,12 +31,17 @@ public class MonitorOperatorStickActions(public val move: (Float, Float) -> Unit
     public val release: () -> Unit, public val recenter: () -> Unit, public val flip: () -> Unit)
 
 /** An optional observed metering choice. Its native setter remains in the integration adapter. */
-public class MonitorOperatorMeteringTile(public val face: Boolean, public val toggle: () -> Unit) {
-    private var isCurrent: () -> Boolean = { true }
-    public constructor(face: Boolean, isCurrent: () -> Boolean, toggle: () -> Unit) : this(face, toggle) {
-        this.isCurrent = isCurrent
-    }
-    public fun perform() { if (isCurrent()) toggle() }
+public class MonitorOperatorMeteringTile(
+    /** Face priority (`true`) or matrix (`false`); `null` is unknown and has no toggle target. */
+    public val face: Boolean?,
+    private val isCurrent: () -> Boolean = { true },
+    public val toggle: () -> Unit,
+) {
+    /** The strip value, with the strip placeholder while the mode is unknown. */
+    public val label: String get() = face?.let { if (it) "Face" else "Matrix" } ?: "--"
+
+    /** Acts only on a known mode, for the source and phase the tile was drawn for. */
+    public fun perform() { if (face != null && isCurrent()) toggle() }
 }
 
 /** Existing coherent hosts and stored preferences, with native zoom/stick facts as small adapters, and the
@@ -61,7 +66,9 @@ public fun MonitorOperatorCaptureStrip(source: MonitorOperatorCaptureSource, sta
     val native = source.host.captureSessionState(status)
     val preferences = source.host.capturePreferences
     val lifetime = rememberMonitorCaptureLifetime(source)
-    val auto = controlState.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC
+    // One rule for the tile and its panel: the common program, else the native report.
+    val auto = controlState.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC ||
+        status.expoMode == CameraCommands.EXPO_AUTO
     val shutter = captureShutterReadout(status, preferences.shutterUsesAngle, preferences.shutterAngleDegrees)
     fun value(sheet: LiveSheet, title: String, readout: String, annotation: String? = null,
         icon: MonitorIcon? = null, badge: MonitorIcon? = null): MonitorValue =
@@ -69,12 +76,12 @@ public fun MonitorOperatorCaptureStrip(source: MonitorOperatorCaptureSource, sta
     val values = buildList {
         add(value(LiveSheet.ISO, "ISO", source.readout(LiveSheet.ISO, status, CaptureLists.isoChipValue(status))))
         add(value(LiveSheet.SHUTTER, if (auto) MonitorExposureReadout.autoEvCaption(status.shutterDenom) else "SHUTTER",
-            source.readout(LiveSheet.SHUTTER, status, if (auto) EvComp.fromRaw(status.evComp)?.label ?: "\u2014" else shutter),
+            source.readout(LiveSheet.SHUTTER, status, if (auto) EvComp.fromRaw(status.evComp)?.label ?: "--" else shutter),
             if (auto && preferences.facePriorityExposure) CaptureLists.FACE_PRIORITY_TITLE else null,
             badge = if (auto && preferences.facePriorityExposure) MonitorIcon.SCAN else null))
         add(value(LiveSheet.EXPO, "EXPOSURE", if (native.aeLocked) CaptureLists.AE_LOCK
             else controlState.snapshot?.exposureProgram?.value?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::exposureProgram) ?: "--"))
-        metering?.let { add(MonitorValue(METER, "METER", if (it.face) "Face" else "Matrix")) }
+        metering?.let { add(MonitorValue(METER, "METER", it.label)) }
         add(value(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null))
         if (capabilities.focus) add(value(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel)))
