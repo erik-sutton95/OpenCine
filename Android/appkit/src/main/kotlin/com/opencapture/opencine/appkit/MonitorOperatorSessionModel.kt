@@ -74,7 +74,10 @@ public class MonitorOperatorSessionModel(
 
     public fun mounts(section: MonitorDisplaySection): Boolean {
         if (editingMode == mode && MonitorDisplayChrome.isConfigurable(section, mode)) return true
-        if (section == MonitorDisplaySection.RAIL_SETTINGS && modes.none { chrome(it).railSettings }) return true
+        if (section == MonitorDisplaySection.RAIL_SETTINGS) {
+            return com.opencapture.monitorui.MonitorSideRailPlan.showsSettings(
+                chrome.railSettings, modes.any { chrome(it).railSettings })
+        }
         return chrome.isVisible(section)
     }
 
