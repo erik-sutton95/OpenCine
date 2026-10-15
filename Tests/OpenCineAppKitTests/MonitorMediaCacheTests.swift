@@ -19,6 +19,7 @@ import Testing
         defer { control.release(); old.abort() }
         let operation = Task.detached { try await old.write(Data([1, 2])) }
         #expect(await control.waitUntilEntered())
+        control.startAdmissionDeadline()
         // RED blocks here until the independent controller releases old I/O. GREEN must
         // finish admission AND publish the exact successor while old I/O is still held.
         #expect(directory.generation == generation)
@@ -168,8 +169,11 @@ import Testing
 }
 
 // The real writer is paused just before its real FileHandle operation. No sleep or
-// timing-based success assertion: admission is recorded before any release. The only
-// deadline lets the unchanged implementation report RED instead of deadlocking MainActor.
+// timing-based success assertion: admission is recorded before any release. The failure
+// deadline starts at admission, after the old write is held, and reports RED instead
+// of deadlocking MainActor if admission waits on that write. A separate equal bound
+// covers only the wait for the old write to enter, so a writer that never reaches IO
+// fails instead of suspending MainActor forever.
 enum CacheWriterRetirement: CaseIterable, Sendable { case retire, replace, abort, clear }
 private final class ControlledCacheWrite: @unchecked Sendable {
     private let condition = NSCondition()
@@ -179,6 +183,20 @@ private final class ControlledCacheWrite: @unchecked Sendable {
     private var deadlineHit = false
     private var waiters: [CheckedContinuation<Bool, Never>] = []
     init() {
+        Thread.detachNewThread { [self] in
+            let deadline = Date().addingTimeInterval(5)
+            condition.lock()
+            while !entered && !released && condition.wait(until: deadline) {}
+            var pending: [CheckedContinuation<Bool, Never>] = []
+            if !entered && !released {
+                deadlineHit = true; released = true
+                pending = waiters; waiters.removeAll(); condition.broadcast()
+            }
+            condition.unlock()
+            for waiter in pending { waiter.resume(returning: false) }
+        }
+    }
+    func startAdmissionDeadline() {
         Thread.detachNewThread { [self] in
             let deadline = Date().addingTimeInterval(5)
             condition.lock()
@@ -196,7 +214,7 @@ private final class ControlledCacheWrite: @unchecked Sendable {
         }
     }
     func write(_ handle: FileHandle, _ bytes: Data) throws {
-        condition.lock(); entered = true
+        condition.lock(); entered = true; condition.broadcast()
         let pending = waiters; waiters.removeAll(); condition.unlock()
         for waiter in pending { waiter.resume(returning: true) }
         condition.lock()
