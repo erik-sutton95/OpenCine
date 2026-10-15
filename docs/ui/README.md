@@ -137,6 +137,34 @@ and landscape compositions retain their existing arrangement.
 platforms. Legacy and canonical live surfaces delegate to it; apps supply visibility
 and reset actions.
 
+## Look libraries and inspector previews
+
+`MonitorLUTPickerView<Looks, Palette, Footer>` accepts any `MonitorLookProvider` and
+`LUTPickerLibrary` descriptors. Apps supply catalogue entries, optional filters, imports,
+deletions and download actions. Embedded pickers leave comparison to the shared inspector
+footer; standalone sheets include it once. Exposure is shown only when the provider's
+`appliesLUTExposure` capability is true. The published `LUTPickerView` remains available.
+Compose uses the existing `LutPickerLibrary` and `LUTPicker` equivalents.
+
+`MonitorLookInspectorPreview<Looks>` shares image marks, scopes and audio rendering over
+that same provider. Existing `MonitorOperatorInspectorPreview` source calls retain their
+concrete type, defaults and contextual invalidation. A host with a calibrated native image
+graph may borrow `MonitorInspectorRenderedPictureSource`: its source/presentation identity
+scopes a cancellable task, and its main-actor read returns only the current immutable image
+and geometry. The host retains native admission, calibration and stale-source rejection.
+Audio remains an optional observation and uses the same shared meter.
+
+`CustomLUTStore.category(named:)` retains existing root-level slots and creates isolated,
+path-safe category stores. `importArchive` streams platform-decoded entries with default
+limits of 16 MiB per cube, 512 MiB total and 512 cubes. It counts actual output bytes,
+validates every cube before installation, rejects duplicate flattened names and unsafe
+paths/symlinks, and atomically installs replacements. Platform adapters keep ZIP decoding
+and checksum verification. Existing usable destinations survive malformed or rejected
+input. Filesystem installation failures roll back earlier replacements; if recovery itself
+fails, the typed error retains the backup directory. Android's existing `MonitorLutLibrary`
+already owns category maps, bounded reads, validation and atomic storage; platform archive
+decoders remain outside the shared UI.
+
 ## Operator settings
 
 Android's deployed, configured and generated-session settings entries each build one
