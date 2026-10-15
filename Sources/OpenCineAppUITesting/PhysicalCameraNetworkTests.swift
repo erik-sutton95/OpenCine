@@ -408,6 +408,12 @@ open class PhysicalCameraNetworkTests: PhysicalNetworkUITestCase {
             self.recordAlerts(answer: true)
             self.joinIfAsked()
             if self.app.buttons["monitor.system.settings"].isHittable {
+                // Evidence first: what "live" looks like with the camera off.
+                self.screenshot("live-while-off")
+                self.attach("live-while-off", String(format: "%.1f s after the tap\n", Date().timeIntervalSince(started))
+                    + self.visibleTexts().joined(separator: "\n"))
+                RunLoop.current.run(until: Date().addingTimeInterval(3))
+                self.screenshot("live-while-off-3s")
                 XCTFail("The camera went live while it was off")
                 return true
             }
