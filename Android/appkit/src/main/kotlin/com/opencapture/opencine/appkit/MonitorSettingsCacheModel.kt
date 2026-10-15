@@ -51,18 +51,21 @@ public fun <P> MonitorMediaLibraryModel<P>.settingsCacheSource(
     storage: MonitorMediaCacheStorage, parent: java.io.File, value: MonitorMediaLibraryState<P> = state.value,
 ): MonitorSettingsCacheSource = allCameraSettingsCacheSource(parent, { storage.directories(parent) }, value)
 
-private fun <P> MonitorMediaLibraryModel<P>.allCameraSettingsCacheSource(
+internal fun <P> MonitorMediaLibraryModel<P>.allCameraSettingsCacheSource(
     parent: java.io.File, directories: () -> List<MonitorMediaCacheDirectory>, value: MonitorMediaLibraryState<P>,
+    clearOtherDirectory: suspend (MonitorMediaCacheDirectory) -> Unit = { it.clear(emptyList()) },
 ): MonitorSettingsCacheSource {
     val admission = actionToken
     val revision = value.cacheRevision
+    val observedLifetimeIsCurrent = value.lifetimeToken == admission.lifetime
     return MonitorSettingsCacheSource(
         MonitorSettingsCacheIdentity(parent.absolutePath, value.lifetimeToken.toString()), revision,
-        isCurrent = { isCurrent(admission) && state.value.cacheRevision == revision },
+        // A content revision renews the readout, while this parent scope retains its action authority.
+        isCurrent = { observedLifetimeIsCurrent && isCurrent(admission) },
         count = { directories().sumOf { it.totalByteCount() } },
         clear = {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            if (!isCurrent(admission) || state.value.cacheRevision != revision) {
+            if (!observedLifetimeIsCurrent || !isCurrent(admission)) {
                 throw com.opencapture.opencine.media.MediaServiceException(com.opencapture.opencine.media.MediaServiceFailure.RETIRED)
             }
             val captured = directories()
@@ -72,7 +75,7 @@ private fun <P> MonitorMediaLibraryModel<P>.allCameraSettingsCacheSource(
                 if (!isCurrent(admission)) {
                     throw com.opencapture.opencine.media.MediaServiceException(com.opencapture.opencine.media.MediaServiceFailure.RETIRED)
                 }
-                if (directory.root.absolutePath != cache.directory.root.absolutePath) directory.clear(emptyList())
+                if (directory.root.absolutePath != cache.directory.root.absolutePath) clearOtherDirectory(directory)
             }
         },
     )
@@ -124,7 +127,8 @@ public class MonitorSettingsCacheModel(private val scope: CoroutineScope) {
         }
         countTask = task
         mutable.value = if (changed) MonitorSettingsCacheState() else
-            mutable.value.copy(bytes = null, readFailed = false, failure = null)
+            mutable.value.copy(bytes = null, readFailed = false,
+                failure = if (mutable.value.clearFailed) mutable.value.failure else null)
         oldCount?.cancel(); oldClear?.cancel()
         if (countOwner === owner && source === next && sourceRevision == revision) task.start()
         else task.cancel()
@@ -161,7 +165,7 @@ public class MonitorSettingsCacheModel(private val scope: CoroutineScope) {
                 }
             }
             finish(owner)
-            if (succeeded && stillOwned && isActive && source === completionSource &&
+            if (stillOwned && isActive && source === completionSource &&
                 sourceRevision == completionRevision && clearOwner == null && admits(captured) &&
                 source === completionSource && sourceRevision == completionRevision) {
                 source?.let { refresh(it) }

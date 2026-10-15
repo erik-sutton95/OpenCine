@@ -121,7 +121,8 @@ public final class MonitorSettingsCacheModel {
         outgoingCount?.cancel(); outgoingClear?.cancel()
         guard countOwner == owner else { return }
         var value = replaced ? State() : snapshot
-        value.bytes = nil; value.readFailed = false; value.failure = nil
+        value.bytes = nil; value.readFailed = false
+        if !value.clearFailed { value.failure = nil }
         publish(value)
     }
 
@@ -160,7 +161,7 @@ public final class MonitorSettingsCacheModel {
                 }
             }
             self.finish(owner)
-            if succeeded, stillOwned, !Task.isCancelled, self.sourceRevision == completionRevision,
+            if stillOwned, !Task.isCancelled, self.sourceRevision == completionRevision,
                 self.admits(captured), self.sourceRevision == completionRevision, let next = self.source {
                 self.refresh(next)
             }
