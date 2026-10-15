@@ -128,7 +128,9 @@
 
         var body: some View {
             let level = abs(rollDeg) < Self.levelDeg
-            let color = level ? MonitorLevelGauge.good : MonitorTheme.accent
+            let good = MonitorTheme.edrSRGB(
+                red: 0.18, green: 0.78, blue: 0.42, gain: MonitorTheme.hdrGain)
+            let color = level ? good : MonitorTheme.accent
             HStack(spacing: 10) {
                 Capsule().fill(color).frame(width: 64, height: 2)
                 Circle().stroke(color, lineWidth: 1.6).frame(width: 10, height: 10)
