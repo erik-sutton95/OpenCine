@@ -2,6 +2,7 @@
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineApple
 import OpenCineCore
 import OpenCineMedia
 import SwiftUI
@@ -151,6 +152,35 @@ final class MonitorSettingsCompositionTests: XCTestCase {
 
     /// The shared scene's settings are the same typed domains a host composes: connection rows,
     /// the common Controls copy, and Help & Feedback over the shell's report and diagnostics.
+    /// A2-78: one Processing card on the Link tab, after the connection and before the saved
+    /// setups: the feed upscaler with the shared help, then the host's own processing rows.
+    func testProcessingIsOneCardWithTheSharedUpscalerHelpBeforeTheSavedSetups() throws {
+        var chosen = MonitorUpscaler.lanczos
+        let hostRow = MonitorSettingsSourceProperty(id: "processing.host", title: "SIMULATED host processing",
+            help: "SIMULATED", value: .reported("SIMULATED"))
+        let processing = MonitorSettingsProcessingSource(
+            upscaler: Binding(get: { chosen }, set: { chosen = $0 }), supported: [.off, .lanczos], rows: [hostRow])
+        let configured = Configuration(safeArea: EdgeInsets(), phase: "SIMULATED phase", isLive: false,
+            close: {}, disconnect: {}, feedback: {},
+            link: .init(transport: "SIMULATED", transportHelp: "", phase: "", phaseHelp: "", network: nil,
+                networkHelp: "", signalBars: nil, saved: [], savedHelp: "", processing: processing),
+            assist: .init(state: assist, switches: [], panels: nil),
+            controls: .init(recordConfirmation: binding, haptics: .init(value: binding, help: ""),
+                keepAwake: .init(value: binding, help: "")))
+        XCTAssertEqual(configured.rows(.link, library: false), [.linkHealth, .connection, .processing, .savedCameras])
+        let group = try XCTUnwrap(processing.group)
+        XCTAssertEqual(group.title, "Processing")
+        XCTAssertEqual(group.properties.map(\.id), ["processing.upscaler", "processing.host"])
+        XCTAssertEqual(group.properties.first?.title, "Feed Upscaler")
+        XCTAssertEqual(group.properties.first?.help, MonitorSettingsCopy.feedUpscaler)
+        guard case .choice(let choice)? = group.properties.first?.value else { return XCTFail("upscaler is a choice") }
+        XCTAssertEqual(choice.options, ["Off", "Fast"])
+        choice.selection.wrappedValue = "Off"
+        XCTAssertEqual(chosen, .off)
+        XCTAssertNil(MonitorSettingsProcessingSource(upscaler: .constant(.lanczos), supported: [.lanczos]).group,
+            "One upscaler and no host rows leaves the card out")
+    }
+
     func testTheSharedSceneFormBuildsTheTypedDomains() {
         var reported = 0, diagnostics = 0
         let actions = ShellActions(diagnostics: { diagnostics += 1 }, reportProblem: { reported += 1 })

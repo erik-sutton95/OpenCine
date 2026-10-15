@@ -190,7 +190,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             MonitorConnectionSettings(transport: link.transport, transportHelp: link.transportHelp,
                 phase: link.phase, phaseHelp: link.phaseHelp, network: link.network, networkHelp: link.networkHelp)
         case .processing:
-            if let processing = link.processing { MonitorProcessingSettings(choice: processing) }
+            if let group = link.processing?.group { MonitorSettingsSourceGroups(groups: [group]) }
         case .savedCameras:
             if let saved = link.saved { MonitorSavedCameraSettings(cameras: saved, emptyHelp: link.savedHelp) }
         default: MonitorSettingsSourceGroups(groups: link.sourceGroups)

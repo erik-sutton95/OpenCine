@@ -3,10 +3,38 @@ import Foundation
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineApple
 import OpenCineMedia
 import SwiftUI
 
-/// Connection facts and an optional SDK processing choice, with no transport ownership.
+/// The Link tab's one Processing card (A2-78, Kotlin `processingChoices` and `processing`): the
+/// feed upscaler with the shared help, then the host's own processing rows. Absent when this
+/// device runs one upscaler and the host adds no rows.
+public struct MonitorSettingsProcessingSource {
+    let upscaler: Binding<MonitorUpscaler>
+    let supported: [MonitorUpscaler]
+    let feedback: () -> Void
+    let rows: [MonitorSettingsSourceProperty]
+    public init(upscaler: Binding<MonitorUpscaler>, supported: [MonitorUpscaler] = MonitorUpscaler.supportedOnThisDevice,
+        feedback: @escaping () -> Void = {}, rows: [MonitorSettingsSourceProperty] = []) {
+        self.upscaler = upscaler; self.supported = supported; self.feedback = feedback; self.rows = rows
+    }
+
+    /// The card the Link tab draws, or nil when there is nothing to choose or report.
+    var group: MonitorSettingsSourceGroup? {
+        let upscaler = self.upscaler
+        let choice = supported.count > 1 ? [MonitorSettingsSourceProperty(id: "processing.upscaler",
+            title: "Feed Upscaler", help: MonitorSettingsCopy.feedUpscaler,
+            value: .choice(.init(options: supported.map(\.rawValue), selection: Binding(
+                get: { upscaler.wrappedValue.rawValue },
+                set: { if let next = MonitorUpscaler(rawValue: $0) { upscaler.wrappedValue = next } }),
+                help: MonitorSettingsCopy.feedUpscaler, feedback: feedback)), compact: true)] : []
+        let properties = choice + rows
+        return properties.isEmpty ? nil : .init(id: "processing", title: "Processing", properties: properties)
+    }
+}
+
+/// Connection facts and the optional processing card, with no transport ownership.
 public struct MonitorSettingsLinkSource {
     let transport: String, transportHelp: String, phase: String, phaseHelp: String
     let network: String?, networkHelp: String
@@ -14,13 +42,13 @@ public struct MonitorSettingsLinkSource {
     /// The saved setups, or nil where the host keeps none (Kotlin `savedCameras`).
     let saved: [MonitorSavedCameraSummary]?
     let savedHelp: String
-    let processing: MonitorMotionChoiceSetting?
+    let processing: MonitorSettingsProcessingSource?
     let sourceGroups: [MonitorSettingsSourceGroup]
     let healthScore: Int?
     let healthCaption: String?
     public init(transport: String, transportHelp: String, phase: String, phaseHelp: String,
         network: String?, networkHelp: String, signalBars: Int?, saved: [MonitorSavedCameraSummary],
-        savedHelp: String, processing: MonitorMotionChoiceSetting? = nil,
+        savedHelp: String, processing: MonitorSettingsProcessingSource? = nil,
         sourceGroups: [MonitorSettingsSourceGroup] = [], healthScore: Int? = nil, healthCaption: String? = nil) {
         self.transport = transport; self.transportHelp = transportHelp; self.phase = phase; self.phaseHelp = phaseHelp
         self.network = network; self.networkHelp = networkHelp; self.signalBars = signalBars
@@ -515,7 +543,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     func rows(_ tab: MonitorSettingsTab, library: Bool) -> [MonitorSettingsRow] {
         switch tab {
         case .link:
-            return [.linkHealth, .connection] + (link.processing == nil ? [] : [.processing])
+            return [.linkHealth, .connection] + (link.processing?.group == nil ? [] : [.processing])
                 + (link.saved == nil ? [] : [.savedCameras]) + (link.sourceGroups.isEmpty ? [] : [.sourceGroups])
         case .sharing:
             guard let sharing else { return [] }
