@@ -4,6 +4,7 @@
     import Observation
     import OpenCineAppKit
     import OpenCineCore
+    import OpenCineHostedAccessibility
     import OpenCineMedia
     import Vision
     @testable import OpenCineCameraControls
@@ -156,7 +157,7 @@
             for _ in 0..<200 {
                 host.view.setNeedsLayout()
                 host.view.layoutIfNeeded()
-                let nodes = Self.elements(host.view)
+                let nodes = HostedAccessibility.leaves(in: host.view)
                 if ["Storage remaining", "Performance", "Power"].allSatisfy({ label in
                     nodes.contains {
                         $0.accessibilityLabel == label && $0.accessibilityFrame.height > 0
@@ -167,15 +168,6 @@
                 try await Task.sleep(for: .milliseconds(20))
             }
             throw NSError(domain: "NativeHeaderFixture", code: 1)
-        }
-        private static func elements(_ object: NSObject) -> [NSObject] {
-            if object.accessibilityElementsHidden { return [] }
-            if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-            if object.isAccessibilityElement { return [object] }
-            if let children = object.accessibilityElements as? [NSObject], !children.isEmpty {
-                return children.flatMap(elements)
-            }
-            return ((object as? UIView)?.subviews ?? []).flatMap(elements)
         }
     }
     /// A foreground scene and successful hierarchy draw are prerequisites, not evidence inferred from AX.
@@ -231,18 +223,7 @@
             }
             return image
         }
-        func nodes() -> [NSObject] {
-            func elements(_ object: NSObject) -> [NSObject] {
-                if object.accessibilityElementsHidden { return [] }
-                if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-                if object.isAccessibilityElement { return [object] }
-                if let children = object.accessibilityElements as? [NSObject], !children.isEmpty {
-                    return children.flatMap(elements)
-                }
-                return ((object as? UIView)?.subviews ?? []).flatMap(elements)
-            }
-            return elements(host.view)
-        }
+        func nodes() -> [NSObject] { HostedAccessibility.leaves(in: host.view) }
     }
 
     private struct HeaderRaster {

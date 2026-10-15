@@ -170,7 +170,7 @@ let package = Package(
             name: "OpenCineAppKitTests",
             dependencies: [
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
-                "MonitorPresentation", "MonitorUI", "OpenCineMedia",
+                "MonitorPresentation", "MonitorUI", "OpenCineMedia", "OpenCineHostedAccessibility",
             ]),
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
@@ -189,7 +189,7 @@ let package = Package(
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
                 "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
             ]),
-        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
+        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review
         // launch (MonitorPresentation `ReviewLaunch`); iOS only, empty elsewhere
         // (docs/conformance/SCENARIOS.md).

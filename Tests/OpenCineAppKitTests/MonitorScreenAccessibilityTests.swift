@@ -2,6 +2,7 @@
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineHostedAccessibility
 import Observation
 import SwiftUI
 import XCTest
@@ -62,37 +63,26 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
             window.isHidden = true
             window.rootViewController = nil
         }
-        host.view.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(300))
-        host.view.layoutIfNeeded()
-        let exposed = Set(Self.accessibilityLeaves(host.view).compactMap(Self.identifier))
-        // The anchor sits outside the screen: without it the walk found no tree at all
-        // (simulator app accessibility off), and every "not exposed" check would pass.
-        try XCTSkipUnless(exposed.contains("probe.anchor"), "No accessibility tree: enable app accessibility")
+        // The anchor sits outside the screen and is always exposed: once it is in the tree the
+        // screen has rendered, so every "not exposed" check reads a complete tree.
+        var exposed = Set<String>()
+        for _ in 0..<250 where !exposed.contains("probe.anchor") {
+            host.view.layoutIfNeeded()
+            exposed = Set(HostedAccessibility.leaves(in: host.view).compactMap(Self.probeIdentifier))
+            if !exposed.contains("probe.anchor") { try await Task.sleep(for: .milliseconds(20)) }
+        }
+        // The shared walk turns the accessibility runtime on wherever it can (a simulator), so
+        // only a host where it cannot (a device without assistive access) may skip.
+        try XCTSkipIf(
+            !exposed.contains("probe.anchor") && !HostedAccessibility.enableRuntime(),
+            "No accessibility tree: enable app accessibility")
+        // Without the anchor every "not exposed" check would pass on an empty tree.
+        XCTAssertTrue(exposed.contains("probe.anchor"), "No accessibility tree from the hosted walk")
         return exposed
     }
 
-    /// The VoiceOver walk: a container vends its elements, a view without them its subviews,
-    /// and an element stops the walk. Hidden views and hidden element subtrees are skipped.
-    private static func accessibilityLeaves(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        // SwiftUI vends its nodes through `accessibilityElements`; `accessibilityElement(at:)`
-        // answers nil for them.
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
-            return elements.flatMap(accessibilityLeaves)
-        }
-        return ((object as? UIView)?.subviews ?? []).flatMap(accessibilityLeaves)
-    }
-
-    /// SwiftUI's nodes answer the selector without declaring `UIAccessibilityIdentification`.
-    private static func identifier(_ object: NSObject) -> String? {
-        let getter = NSSelectorFromString("accessibilityIdentifier")
-        guard object.responds(to: getter),
-            let id = object.perform(getter)?.takeUnretainedValue() as? String, id.hasPrefix("probe.")
-        else { return nil }
-        return id
+    private static func probeIdentifier(_ object: NSObject) -> String? {
+        HostedAccessibility.identifier(object).flatMap { $0.hasPrefix("probe.") ? $0 : nil }
     }
 }
 
