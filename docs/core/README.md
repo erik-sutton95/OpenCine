@@ -416,7 +416,6 @@ macOS 13, watchOS 10.
 
 Apache License 2.0. See the root `LICENSE` and `NOTICE`.
 
-
 ## Source-declared battery reports
 
 `PowerStatus.batteryReading` is the common projection of a charge observation and its declared
@@ -433,7 +432,30 @@ when encoded again. State coalescing includes both charge precision and independ
 
 Android Core exposes the same validated portable fields without a JSON dependency. The portable
 Nikon gauge stays in its original public package and class, in `:nikon-wire`; that module depends
-on Core values and has no JNI, camera-session owner or UI. The wrist UI accesses the exact Core
-reading through Media type aliases, preserving its existing import boundary. Phone live, relay,
+on Core values and has no JNI, camera-session owner or UI. The Android wrist UI accesses the exact
+Core reading through Media type aliases, preserving its existing import boundary; Swift
+`OpenCineWatch` imports `OpenCineCore` directly. Phone live, relay,
 multicam and wrist consumers use these common values. Fractions do not acquire invented bars,
 unknown battery is absent, and only an explicitly exhausted report pulses.
+
+## Common recording and capture values
+
+`CameraSnapshot.recordingFormat` (`CameraRecordingObservations`: dimensions, profile and codec,
+each an `ObservedValue` with its origin) holds what the camera says it records. It is separate
+from preview dimensions and the transport codec, and a format selection never stands in for a
+report. `CameraSnapshot.exposureProgram` is its own observed value (`CameraExposureProgram`).
+Both decode as unknown from older payloads. `MonitorCapturePresentation.recordingFormat`,
+`recordingLabel` and `exposureProgram` give the shared readout copy on both platforms.
+
+Capture readouts choose between the camera's report and a pending command through
+`MonitorCaptureSelection` (`captureValue(_:selection:)`); a pending command never becomes a
+report. `CaptureNativeReadoutPresentation` formats the native shutter angle from the common
+shutter and the reported cadence, and the focus readout from the common mode with native slots.
+
+Integration-owned capture controls stay typed slots on `CaptureSheetHost`: a native capture panel,
+a native quick choice for the format or colour sheet (`CaptureQuickSnapshot.native(sheet:...)`)
+and an optional metering source whose unknown mode has no toggle target. Luna's colour names,
+native colour choices and shape labels live in the integration (`LunaColorMode.label`, Kotlin
+`CameraColorProfile.label`, `aspectLabel`). `MultiviewTile.withPower` is the one projection of
+typed power onto a stage tile, and `WatchRelayState.replacing(power:)` the one for the wrist.
+
