@@ -233,6 +233,19 @@ open class PhysicalNetworkUITestCase: SharedAppUITestCase {
 
     // MARK: Evidence and waiting
 
+    /// Every static text and button label on screen, from one snapshot of the tree (reading element
+    /// by element races a changing connection screen).
+    func visibleTexts() -> [String] {
+        app.debugDescription.split(separator: "\n").compactMap { line in
+            guard line.contains("StaticText") || line.contains("Button"),
+                let start = line.range(of: "label: '") else { return nil }
+            let rest = line[start.upperBound...]
+            guard let end = rest.range(of: "'", options: .backwards) else { return nil }
+            let label = String(rest[..<end.lowerBound])
+            return label.isEmpty ? nil : label
+        }
+    }
+
     func required(_ key: String) throws -> String {
         guard let value = ProcessInfo.processInfo.environment[key], !value.isEmpty else {
             throw XCTSkip("Requires \(key)")
@@ -307,6 +320,7 @@ open class PhysicalCameraNetworkTests: PhysicalNetworkUITestCase {
         }
         let seconds = Date().timeIntervalSince(started)
         attach("denial", "seconds=\(String(format: "%.1f", seconds))\nmessage=\(denial ?? "")")
+        attach("denial-screen", visibleTexts().joined(separator: "\n"))
         screenshot("local-network-denied")
         XCTAssertFalse(app.buttons["monitor.system.settings"].exists, "No live monitor while denied")
 
@@ -323,6 +337,104 @@ open class PhysicalCameraNetworkTests: PhysicalNetworkUITestCase {
         screenshot("local-network-allowed-live")
         XCTAssertFalse(askedForPassword, "The saved camera Wi-Fi password must be kept")
         attach("allowed", "live=true askedForPassword=\(askedForPassword)")
+    }
+
+    // MARK: Z3 item 7b: Local Network allowed before the deadline
+
+    /// Local Network off; connect the saved camera, then turn Local Network on in Settings within
+    /// 8 s and come back: the connect reaches live. The app's Settings page is opened before the
+    /// connect, so the flip itself takes a second. If iOS ends the app on the switch flip, the
+    /// operator taps the row once more; the case records whether that was needed.
+    @MainActor
+    public func testLocalNetworkAllowedBeforeDeadlineConnects() throws {
+        let camera = try required("OPV_PHYSICAL_CAMERA_NAME")
+        launchApp()
+        restoreLocalNetwork = try localNetworkSetting()
+        try setLocalNetwork(false)
+        launchApp()
+        try disconnectIfLive()
+        _ = try localNetworkSwitch()
+        app.activate()
+        try tapSavedRow(camera)
+        let tapped = Date()
+        settings.activate()
+        // Queried again once Settings is in front: the element read before the switch away is stale.
+        let toggle = settings.switches["Local Network"].firstMatch
+        let control = toggle.switches.firstMatch
+        try wait("The Local Network switch back in front", timeout: 4) { control.isHittable }
+        control.tap()
+        try wait("Local Network on", timeout: 5) { toggle.value as? String == "1" }
+        let seconds = Date().timeIntervalSince(tapped)
+        attach("allowed-after", String(format: "%.1f s after the connect tap", seconds))
+        XCTAssertLessThan(seconds, 8.5, "Local Network turned on within 8 s of the connect")
+        app.activate()
+        var retapped = false
+        var failures: [String] = []
+        try wait("Live monitor after Local Network is allowed mid-connect", timeout: 90) {
+            self.recordAlerts(answer: true)
+            self.joinIfAsked()
+            for text in self.visibleTexts()
+            where text.contains("Couldn") || text.localizedCaseInsensitiveContains("local network access") {
+                if !failures.contains(text) { failures.append(text) }
+            }
+            if !retapped, let row = ["Reconnect " + camera, "Connect " + camera].lazy
+                .map({ self.app.buttons[$0].firstMatch }).first(where: { $0.exists && $0.isHittable }) {
+                row.tap()
+                retapped = true
+            }
+            return self.app.buttons["monitor.system.settings"].isHittable
+        }
+        screenshot("allowed-mid-connect-live")
+        attach("result", "retapped=\(retapped) failuresShown=\(failures)")
+    }
+
+    // MARK: Z3 item 7d: the camera off (an ordinary missing network)
+
+    /// With the camera switched off, the saved connect ends in a typed failure within the deadline
+    /// (`OPV_PHYSICAL_MISSING_MAX_SECONDS`, default 60): no stall, no live picture, and not a Local
+    /// Network message. The runner then asks the operator to switch the camera back on (it watches
+    /// for the `missing-failure` attachment); Try again, or the row, must then reach live within
+    /// 10 minutes.
+    @MainActor
+    public func testCameraOffFailsTypedThenRecovers() throws {
+        let camera = try required("OPV_PHYSICAL_CAMERA_NAME")
+        let deadline = Double(ProcessInfo.processInfo.environment["OPV_PHYSICAL_MISSING_MAX_SECONDS"] ?? "") ?? 60
+        launchApp()
+        try disconnectIfLive()
+        let started = Date()
+        try tapSavedRow(camera)
+        var shown: [String] = []
+        try wait("A typed failure for the missing camera", timeout: deadline) {
+            self.recordAlerts(answer: true)
+            self.joinIfAsked()
+            if self.app.buttons["monitor.system.settings"].isHittable {
+                XCTFail("The camera went live while it was off")
+                return true
+            }
+            shown = self.visibleTexts()
+            return shown.contains { $0.contains("Couldn") || $0 == "Try again" || $0 == "Retry" }
+        }
+        let seconds = Date().timeIntervalSince(started)
+        screenshot("missing-failure")
+        attach("missing-failure", "seconds=\(String(format: "%.1f", seconds))\n" + shown.joined(separator: "\n"))
+        XCTAssertFalse(shown.contains { $0.localizedCaseInsensitiveContains("local network") },
+            "A missing camera is not reported as a Local Network problem: \(shown)")
+
+        var lastTry = Date()
+        var tries = 0
+        try wait("Live after the camera is back on", timeout: 600) {
+            self.recordAlerts(answer: true)
+            self.joinIfAsked()
+            if self.app.buttons["monitor.system.settings"].isHittable { return true }
+            guard Date().timeIntervalSince(lastTry) > 20 else { return false }
+            lastTry = Date()
+            let again = ["Try again", "Retry", "Reconnect " + camera, "Connect " + camera].lazy
+                .map { self.app.buttons[$0].firstMatch }.first { $0.exists && $0.isHittable }
+            if let again { again.tap(); tries += 1 }
+            return false
+        }
+        screenshot("missing-recovered-live")
+        attach("recovered", "retries=\(tries)")
     }
 
     // MARK: Z3 item 8: cancel the system join, retry at once
