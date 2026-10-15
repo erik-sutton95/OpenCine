@@ -150,6 +150,8 @@ public struct MonitorSettingsSupportLink {
 }
 
 /// Reporting/authorization remain SDK adapters; common sheet and disclosure lifetime is shared.
+/// The problem report itself is the app root's (A2-24): `report` asks the root to present it, so a
+/// draft survives the monitor ending and the settings cover closing (Kotlin `report`).
 public struct MonitorSettingsSupportSource {
     /// The automatic-reports switch, or nil where the host offers no automatic reports.
     let consent: Binding<Bool>?
@@ -158,7 +160,8 @@ public struct MonitorSettingsSupportSource {
     let sourceURL: URL?, termsURL: URL?
     let saveReport: (() -> URL?)?
     let deleteReports: (() -> Void)?
-    let report: @MainActor @Sendable () -> AnyView
+    /// Asks the app root to present its problem report (`ShellActions.reportProblem`).
+    let report: () -> Void
     let document: (@MainActor @Sendable (MonitorSettingsDocument, @escaping () -> Void) -> AnyView)?
     let shareReport: @MainActor @Sendable (URL) -> AnyView
     let model: MonitorSettingsSupportModel?
@@ -167,7 +170,6 @@ public struct MonitorSettingsSupportSource {
     let privacyDestination: MonitorSettingsBrowserDestination?
     let sourceDestination: MonitorSettingsBrowserDestination?
     let termsDestination: MonitorSettingsBrowserDestination?
-    let reportAction: (() -> Void)?
     let reportTitle: String, reportActionTitle: String, diagnosticsHelp: String
     let supportEmail: String
     let deleteStoredReports: (() -> Void)?
@@ -180,7 +182,7 @@ public struct MonitorSettingsSupportSource {
     public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         deleteHelp: String, sourceHelp: String, termsHelp: String, sourceURL: URL?, termsURL: URL?,
         saveReport: @escaping () -> URL?, deleteReports: @escaping () -> Void,
-        report: @escaping @MainActor @Sendable () -> AnyView,
+        report: @escaping () -> Void,
         document: @escaping @MainActor @Sendable (MonitorSettingsDocument, @escaping () -> Void) -> AnyView,
         shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
         supportEmail: String = "support@opencapture.org") {
@@ -191,7 +193,7 @@ public struct MonitorSettingsSupportSource {
         self.report = report; self.document = document; self.shareReport = shareReport
         self.model = nil; self.actions = nil; self.links = []
         self.privacyDestination = nil; self.sourceDestination = nil; self.termsDestination = nil
-        self.reportAction = nil; self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
+        self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
         self.supportEmail = supportEmail
         self.deleteStoredReports = nil; self.deleteReportsHelp = ""
         self.legal = nil; self.hostActions = []
@@ -204,10 +206,10 @@ public struct MonitorSettingsSupportSource {
         self.consent = nil; self.available = false; self.automaticHelp = ""; self.unavailableHelp = ""
         self.deleteHelp = ""; self.sourceHelp = ""; self.termsHelp = ""; self.sourceURL = nil; self.termsURL = nil
         self.saveReport = nil; self.deleteReports = nil
-        self.report = { AnyView(EmptyView()) }; self.document = nil; self.shareReport = { _ in AnyView(EmptyView()) }
+        self.report = report; self.document = nil; self.shareReport = { _ in AnyView(EmptyView()) }
         self.model = nil; self.actions = nil; self.links = []
         self.privacyDestination = nil; self.sourceDestination = nil; self.termsDestination = nil
-        self.reportAction = report; self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
+        self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
         self.diagnosticsHelp = ""; self.supportEmail = supportEmail
         self.deleteStoredReports = nil; self.deleteReportsHelp = ""
         self.legal = legal; self.hostActions = actions
@@ -217,7 +219,7 @@ public struct MonitorSettingsSupportSource {
         links: [MonitorSettingsSupportLink], privacy: MonitorSettingsBrowserDestination?,
         source: MonitorSettingsBrowserDestination?, terms: MonitorSettingsBrowserDestination?,
         reportTitle: String, reportActionTitle: String, diagnosticsHelp: String,
-        reportAction: (() -> Void)? = nil, report: @escaping @MainActor @Sendable () -> AnyView,
+        report: @escaping () -> Void,
         shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
         deleteStoredReports: (() -> Void)? = nil, deleteReportsHelp: String = "",
         supportEmail: String = "support@opencapture.org", legal: MonitorLegalDocuments? = nil) {
@@ -228,7 +230,7 @@ public struct MonitorSettingsSupportSource {
         self.report = report; self.document = nil; self.shareReport = shareReport
         self.model = model; self.actions = actions; self.links = links
         self.privacyDestination = privacy; self.sourceDestination = source; self.termsDestination = terms
-        self.reportAction = reportAction; self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
+        self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
         self.diagnosticsHelp = diagnosticsHelp
         self.supportEmail = supportEmail
         self.deleteStoredReports = deleteStoredReports; self.deleteReportsHelp = deleteReportsHelp

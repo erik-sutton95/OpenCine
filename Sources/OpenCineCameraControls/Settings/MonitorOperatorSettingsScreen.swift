@@ -31,7 +31,6 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @State private var legalPage: MonitorLegalPage?
     @State private var showLook = false
     @State private var showJoinCode = false
-    @State private var showReport = false
     @State private var showDiagnostics = false
     @State private var supportError = false
     private struct ReportShare: Identifiable { let id = UUID(); let url: URL }
@@ -60,14 +59,13 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     public init(brand: String, configuration: MonitorOperatorSettingsConfiguration<Looks>,
         library: MonitorMediaLibraryModel<Payload>?, selectedTab: Binding<MonitorSettingsTab>,
         scrollOffsets: Binding<[String: CGFloat]>, operatorSession: MonitorOperatorSessionModel<Looks>,
-        sourceIdentity: UUID?, initialReportPresented: Bool = false, safeArea: EdgeInsets? = nil) {
+        sourceIdentity: UUID?, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
         self.preferences = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
         self.configuration = configuration; self.coverSafeArea = safeArea
         self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
         _operatorSession = State(initialValue: operatorSession)
-        _showReport = State(initialValue: initialReportPresented)
     }
 
     private var selectedTab: Binding<MonitorSettingsTab> {
@@ -149,7 +147,6 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
         .sheet(isPresented: $showLook) { source.assistSource.lookCatalog?() }
         .sheet(isPresented: $showJoinCode) { source.sharing?.joinCode?() }
-        .sheet(isPresented: $showReport) { source.support?.report() }
         .sheet(item: $reportShare) { payload in source.support?.shareReport(payload.url) }
         .alert("Report unavailable", isPresented: $supportError) {
             Button("OK", role: .cancel) {}
@@ -158,7 +155,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
     }
     private func retireSheets() {
-        document = nil; legalPage = nil; showLook = false; showJoinCode = false; showReport = false
+        document = nil; legalPage = nil; showLook = false; showJoinCode = false
         reportShare = nil; supportError = false
     }
 
@@ -270,9 +267,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .support:
             if let support = source.support {
                 MonitorSettingsSupportRows(source: support, consent: support.consent.map(observedBinding),
-                    report: {
-                        if let action = support.reportAction { action() } else { showReport = true }
-                    }, openLegal: { legalPage = $0 }, openDocument: { document = $0 })
+                    report: support.report, openLegal: { legalPage = $0 }, openDocument: { document = $0 })
             }
         case .diagnosticOptions:
             if let support = source.support {
