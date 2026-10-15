@@ -126,9 +126,11 @@ final class LUTPickerCompatibilityTests: XCTestCase {
                 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
         }
-        return stride(from: 0, to: bytes.count, by: 4).filter {
-            Int(bytes[$0 + 1]) > 90 && Int(bytes[$0 + 1]) * 10 > Int(bytes[$0]) * 13
-                && Int(bytes[$0 + 1]) * 10 > Int(bytes[$0 + 2]) * 13
+        return stride(from: 0, to: bytes.count, by: 4).filter { index in
+            let red = Int(bytes[index])
+            let green = Int(bytes[index + 1])
+            let blue = Int(bytes[index + 2])
+            return green > 90 && green * 10 > red * 13 && green * 10 > blue * 13
         }.count
     }
 }
