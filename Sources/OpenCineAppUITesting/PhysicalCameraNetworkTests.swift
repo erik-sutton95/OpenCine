@@ -98,21 +98,9 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         let ssid = try required("OPV_PHYSICAL_CAMERA_SSID")
         try forgetWiFi(ssid)
         launchApp()
-        try disconnectIfLive()
-        try tapSavedRow(camera)
-        var cancelled = false
-        do {
-            try wait("The system Join alert", timeout: 60) {
-                if self.app.buttons["monitor.system.settings"].isHittable { return true }
-                if let alert = self.joinAlert() {
-                self.alerts.append("join: " + self.text(of: alert))
-                    alert.buttons["Cancel"].tap()
-                    cancelled = true
-                }
-                return cancelled
-            }
-        }
-        try requireJoinPrompt(cancelled)
+        let alert = try connectUntilJoinPrompt(camera)
+        alerts.append("join: " + text(of: alert))
+        alert.buttons["Cancel"].tap()
         screenshot("join-cancelled")
         // Retry at once: the saved row again if the app is idle, otherwise the app's own join retry.
         // Either way iOS gets at most one more join prompt, and no error may be shown for the retry.
@@ -156,17 +144,15 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         let ssid = try required("OPV_PHYSICAL_CAMERA_SSID")
         try forgetWiFi(ssid)
         launchApp()
-        try disconnectIfLive()
-        try tapSavedRow(camera)
-        var shownAt: Date?
-        try wait("The system Join alert", timeout: 60) {
-            if self.joinAlert() != nil { shownAt = Date() }
-            return shownAt != nil || self.app.buttons["monitor.system.settings"].isHittable
-        }
-        try requireJoinPrompt(shownAt != nil)
+        _ = try connectUntilJoinPrompt(camera)
+        let shownAt = Date()
         // Leave the alert up past the 35 s join group, as an operator who looks away does.
-        while Date().timeIntervalSince(shownAt!) < 36 { RunLoop.current.run(until: Date().addingTimeInterval(1)) }
-        guard let first = joinAlert() else { return XCTFail("The first join alert disappeared on its own") }
+        while Date().timeIntervalSince(shownAt) < 36 { RunLoop.current.run(until: Date().addingTimeInterval(1)) }
+        guard let first = joinAlert() else {
+            screenshot("join-alert-gone")
+            let live = app.buttons["monitor.system.settings"].isHittable
+            return XCTFail("The first join alert disappeared on its own after \(Int(Date().timeIntervalSince(shownAt))) s (live=\(live))")
+        }
         alerts.append("late join: " + text(of: first))
         first.buttons["Join"].tap()
         var second = 0
@@ -205,13 +191,25 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         attach("precondition", "disconnected a live session before the join case")
     }
 
-    /// No join prompt means iOS still had this app's configuration for the camera Wi-Fi: the case
-    /// cannot exercise the join, so it is recorded as not run rather than passed.
-    private func requireJoinPrompt(_ shown: Bool) throws {
-        if !shown && app.buttons["monitor.system.settings"].isHittable {
-            screenshot("no-join-prompt")
-            throw XCTSkip("iOS joined without asking (configuration still installed); join case not exercised")
+    /// Taps the saved row until iOS shows its join alert, and returns that alert unanswered. A session
+    /// that goes live without asking means iOS still had this app's configuration for the camera
+    /// Wi-Fi (left by an earlier run): it is disconnected, which drops the configuration, and the row
+    /// is tapped once more. Still no prompt after that, and the case is recorded as not run.
+    private func connectUntilJoinPrompt(_ camera: String) throws -> XCUIElement {
+        try disconnectIfLive()
+        for attempt in 1...2 {
+            try tapSavedRow(camera)
+            var alert: XCUIElement?
+            try wait("The system Join alert", timeout: 60) {
+                alert = self.joinAlert()
+                return alert != nil || self.app.buttons["monitor.system.settings"].isHittable
+            }
+            if let alert { return alert }
+            screenshot("no-join-prompt-\(attempt)")
+            attach("precondition", "attempt \(attempt): live without a join prompt")
+            try disconnectIfLive()
         }
+        throw XCTSkip("iOS joined without asking twice (configuration still installed); join case not exercised")
     }
 
     private func tapSavedRow(_ camera: String, settle: TimeInterval = 0) throws {
