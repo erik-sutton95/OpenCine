@@ -218,7 +218,7 @@ public fun rememberMonitorLaunchSplash(enabled: Boolean = true): MonitorLaunchSp
     var shown by rememberSaveable { mutableStateOf(!enabled) }
     val state = remember { MonitorLaunchSplashState(!shown) }
     LaunchedEffect(state) {
-        if (state.visible) delay(MonitorLaunchTiming.VISIBLE_MILLIS)
+        if (state.visible) awaitMonitorLaunch()
         state.visible = false
         shown = true
     }

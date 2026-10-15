@@ -1,6 +1,7 @@
 package com.opencapture.opencine.appkit.diagnostics
 
 import android.content.SharedPreferences
+import com.opencapture.opencine.appkit.MonitorStartupConsentAdmission
 import com.opencapture.opencine.media.DiagnosticWire
 import com.opencapture.opencine.media.FeedIncidentBundle
 import com.opencapture.opencine.media.FeedIncidentExport
@@ -53,7 +54,7 @@ public class ReliabilityReportingConsent(private val dsn: ReliabilityReportingDS
     }
 
     public fun shouldOfferAutomaticPrompt(): Boolean =
-        dsn.isAvailable && !decided
+        MonitorStartupConsentAdmission.allows(available = dsn.isAvailable, hasDecision = decided)
 
     public fun bind(prefs: SharedPreferences) {
         restorePersistedChoice(
