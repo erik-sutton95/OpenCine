@@ -30,6 +30,21 @@ open class PhysicalCameraPairingTests: PhysicalNetworkUITestCase {
         assertAlerts(localNetwork: 1, camera: 0)
     }
 
+    // MARK: First-run pairing on the shared pair page
+
+    /// A first install opens on the shared "Find your camera" page: the nearby camera (in "connect
+    /// to smart device" mode on the same Wi-Fi) is picked there and paired to live, answering every
+    /// system prompt as an operator who wants the camera. This saves the camera, which the wizard
+    /// cases need while a fresh install cannot reach the wizard (DEF-Z-FIRSTRUN-WIZARD). Every prompt
+    /// is recorded.
+    @MainActor
+    public func testFirstRunPairsNearbyCameraOnSharedPage() throws {
+        launchApp()
+        try continueToDiscovery()
+        try pairFirstDiscoveredCamera()
+        assertAlerts(localNetwork: nil, camera: nil)
+    }
+
     // MARK: Z3 item 2: cable paths ask no Local Network
 
     /// USB-C: no permissions step, no Local Network alert; the only system prompt is the camera
@@ -83,19 +98,25 @@ open class PhysicalCameraPairingTests: PhysicalNetworkUITestCase {
         let key = try required("OPV_PHYSICAL_AP_KEY")
         try openWizard()
         try choose(card: "Wireless", option: "Camera AP")
-        try allowLocalNetworkOnPermissionsStep()
+        let asked = try allowLocalNetworkOnPermissionsStep()
         try continueToDiscovery(until: { self.app.buttons["Connect my camera"].isHittable })
-        assertAlerts(localNetwork: 1, camera: 0)
+        assertAlerts(localNetwork: asked ? 1 : nil, camera: strictPrompts ? 0 : nil)
         app.buttons["Connect my camera"].tap()
 
         var cameraAlert: XCUIElement?
-        try wait("The scanner's camera request", timeout: 20) {
-            cameraAlert = self.springboard.alerts.allElementsBoundByIndex.first { Self.isCameraAlert(self.text(of: $0)) }
-            return cameraAlert != nil
+        let end = Date().addingTimeInterval(20)
+        while cameraAlert == nil && Date() < end {
+            cameraAlert = springboard.alerts.allElementsBoundByIndex.first { Self.isCameraAlert(self.text(of: $0)) }
+            if cameraAlert == nil { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
         }
-        alerts.append(text(of: cameraAlert!))
-        decline(cameraAlert!)
-        screenshot("scanner-camera-declined")
+        if let cameraAlert {
+            alerts.append(text(of: cameraAlert))
+            decline(cameraAlert)
+            screenshot("scanner-camera-declined")
+        } else {
+            attach("scanner-camera", "no Camera prompt when the scanner opened (already answered)")
+            if strictPrompts { XCTFail("The scanner asks for the camera exactly once") }
+        }
 
         let manual = app.buttons["Enter manually"]
         try wait("Enter manually", timeout: 10) { manual.isHittable }
@@ -113,7 +134,7 @@ open class PhysicalCameraPairingTests: PhysicalNetworkUITestCase {
         try wait("Connect on the join card", timeout: 15) { connect.isHittable }
         connect.tap()
         try waitForLive(timeout: 120)
-        assertAlerts(localNetwork: 1, camera: 1)
+        assertAlerts(localNetwork: asked ? 1 : nil, camera: strictPrompts ? 1 : nil)
     }
 
     // MARK: Z3 item 5: Local Network denied, then allowed in Settings, on the same step
@@ -195,14 +216,32 @@ open class PhysicalCameraPairingTests: PhysicalNetworkUITestCase {
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Local Network")).firstMatch
     }
 
-    private func allowLocalNetworkOnPermissionsStep() throws {
+    /// `OPV_PHYSICAL_STRICT_PROMPTS=0` records the prompt counts without asserting them: for runs
+    /// on an install that already answered them (a camera saved first, so the wizard is reachable).
+    private var strictPrompts: Bool {
+        ProcessInfo.processInfo.environment["OPV_PHYSICAL_STRICT_PROMPTS"] != "0"
+    }
+
+    /// Allows Local Network from the permissions step; false when the wizard skipped that step (a
+    /// camera is already saved), which only a non-strict run accepts.
+    @discardableResult
+    private func allowLocalNetworkOnPermissionsStep() throws -> Bool {
         let row = localNetworkRow()
-        try wait("The permissions step", timeout: 15) { self.stepTitle("Allow permissions") && row.isHittable }
+        let end = Date().addingTimeInterval(15)
+        while !(stepTitle("Allow permissions") && row.isHittable) && Date() < end {
+            if !strictPrompts && stepTitle("Prepare your camera") {
+                attach("permissions-step", "skipped (a camera is already saved)")
+                return false
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        try wait("The permissions step", timeout: 1) { self.stepTitle("Allow permissions") && row.isHittable }
         row.tap()
         try answerLocalNetworkPrompt(allow: true)
         try wait("The row reads Allowed", timeout: 30) { row.label.contains("Allowed") }
         screenshot("permissions-allowed")
         app.buttons["Continue"].tap()
+        return true
     }
 
     private func answerLocalNetworkPrompt(allow: Bool) throws {
@@ -242,7 +281,8 @@ open class PhysicalCameraPairingTests: PhysicalNetworkUITestCase {
         let found = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "pair.device.")).firstMatch
         attach("discovered", found.label)
         found.tap()
-        let action = ["Pair camera", "Connect camera"].lazy.map { self.app.buttons[$0] }.first { $0.waitForExistence(timeout: 5) }
+        let action = ["Pair camera", "Connect camera", "Continue"].lazy.map { self.app.buttons[$0] }
+            .first { $0.waitForExistence(timeout: 5) && $0.isEnabled }
         try XCTUnwrap(action, "A pair or connect action for the selected camera").tap()
         try waitForLive(timeout: Double(ProcessInfo.processInfo.environment["OPV_PHYSICAL_PAIR_SECONDS"] ?? "") ?? 240)
     }
