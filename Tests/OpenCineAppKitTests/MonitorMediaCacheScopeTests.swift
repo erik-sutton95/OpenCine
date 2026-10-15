@@ -4,7 +4,7 @@ import Testing
 
 /// The settings cache scope is every camera's cache on this phone (A2-33): both root owners
 /// enumerate every camera bucket on disk, a count over them sums the buckets, and clearing them
-/// empties every bucket. Dot-prefixed clear scratch trees are never owned cache.
+/// empties every bucket. Valid retired-only buckets remain owned cache until deletion succeeds.
 @MainActor @Suite struct MonitorMediaCacheScopeTests {
     private func parent() -> URL {
         FileManager.default.temporaryDirectory
@@ -67,4 +67,74 @@ import Testing
             #expect(!FileManager.default.fileExists(atPath: directory.root.path))
         }
     }
+    @Test(arguments: [false, true])
+    func retiredOnlyNamespacesAreCountedAndClearCanRetry(usingStorage: Bool) async throws {
+        let parent = parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let retired = parent.appendingPathComponent(".clearing-camera-with-hyphens-01234567-89AB-CDEF-0123-456789ABCDEF")
+        try FileManager.default.createDirectory(at: retired, withIntermediateDirectories: true)
+        try Data(count: 3072).write(to: retired.appendingPathComponent("clip.mov"))
+        // A second retirement and a live root must not duplicate a camera in Settings.
+        let second = parent.appendingPathComponent(".clearing-camera-with-hyphens-FEDCBA98-7654-3210-FEDC-BA9876543210")
+        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+        try Data(count: 1024).write(to: second.appendingPathComponent("clip.mov"))
+        let root = MonitorMediaCacheRoot(root: parent)
+        let storage = MonitorMediaCacheStorage()
+        func discover() -> [MonitorMediaCacheDirectory] {
+            usingStorage ? storage.directories(under: parent) : root.cachedDirectories()
+        }
+        let directories = discover()
+        #expect(directories.map(\.root.lastPathComponent) == ["camera-with-hyphens"])
+        guard let directory = directories.first else { return }
+        #expect(await directory.totalByteCount() == 4096)
+        try write(directory, kilobytes: 2, at: "files/new.mov")
+        #expect(discover().count == 1)
+        #expect(await directory.totalByteCount() == 6144)
+        try await directory.clear(preserving: [])
+        #expect(discover().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: retired.path))
+        #expect(!FileManager.default.fileExists(atPath: second.path))
+    }
+
+    @Test(arguments: [false, true])
+    func discoveryRejectsMalformedRetirementsAndSymbolicLinks(usingStorage: Bool) async throws {
+        let parent = parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let outside = parent.appendingPathExtension("outside")
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try Data(count: 2048).write(to: outside.appendingPathComponent("keep.mov"))
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        let untouched = [".clearing-camera-stale", ".clearing-camera-01234567-89AB-CDEF-0123-456789ABCDEF-extra",
+                         ".clearing-..-01234567-89AB-CDEF-0123-456789ABCDEF", ".hidden"]
+        for name in untouched {
+            try FileManager.default.createDirectory(at: parent.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        for name in ["camera-link", ".clearing-retired-link-01234567-89AB-CDEF-0123-456789ABCDEF"] {
+            try FileManager.default.createSymbolicLink(at: parent.appendingPathComponent(name), withDestinationURL: outside)
+        }
+        let directories = usingStorage ? MonitorMediaCacheStorage().directories(under: parent)
+            : MonitorMediaCacheRoot(root: parent).cachedDirectories()
+        #expect(directories.isEmpty)
+        for directory in directories { try await directory.clear(preserving: []) }
+        #expect(try Data(contentsOf: outside.appendingPathComponent("keep.mov")).count == 2048)
+        for name in untouched { #expect(FileManager.default.fileExists(atPath: parent.appendingPathComponent(name).path)) }
+    }
+
+    @Test(arguments: [false, true])
+    func unpreparedRetirementRemainsAccountedWithoutDeletingItsPreservedMetadata(usingStorage: Bool) async throws {
+        let parent = parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let retired = parent.appendingPathComponent(".retiring-camera-01234567-89AB-CDEF-0123-456789ABCDEF")
+        try FileManager.default.createDirectory(at: retired, withIntermediateDirectories: true)
+        try Data(count: 1024).write(to: retired.appendingPathComponent("index.json"))
+        let directories = usingStorage ? MonitorMediaCacheStorage().directories(under: parent)
+            : MonitorMediaCacheRoot(root: parent).cachedDirectories()
+        #expect(directories.map(\.root.lastPathComponent) == ["camera"])
+        guard let directory = directories.first else { return }
+        #expect(await directory.totalByteCount() == 1024)
+        try await directory.clear(preserving: [])
+        #expect(try Data(contentsOf: retired.appendingPathComponent("index.json")).count == 1024)
+    }
+
 }

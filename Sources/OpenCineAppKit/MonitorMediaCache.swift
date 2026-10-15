@@ -195,22 +195,14 @@ public struct MonitorMediaCacheEntry: Sendable {
         return value
     }
 
-    /// Every camera namespace currently on disk under the root, as their cache directories, in a
-    /// stable order. The settings cache scope counts and clears every camera with this, not only
-    /// the last connected one (A2-33). Dot-prefixed clear scratch trees are never owned cache,
-    /// and a name the namespace validation rejects cannot be addressed, so both stay out.
+    /// Every live or valid retired camera namespace on disk, once each in stable order.
+    /// Settings can account for interrupted Clear operations and retry prepared deletions.
     public func cachedDirectories() -> [MonitorMediaCacheDirectory] {
-        let names = (try? manager.contentsOfDirectory(atPath: root.path)) ?? []
-        return names.sorted().compactMap { name in
-            guard !name.hasPrefix(".") else { return nil }
-            var isDirectory: ObjCBool = false
-            guard manager.fileExists(
-                atPath: root.appendingPathComponent(name).path, isDirectory: &isDirectory),
-                isDirectory.boolValue, let directory = try? directory(namespace: name)
-            else { return nil }
-            return directory
+        MonitorMediaCacheNamespaces.names(under: root, manager: manager).compactMap {
+            try? directory(namespace: $0)
         }
     }
+
 }
 
 @MainActor public final class MonitorMediaCacheDirectory {
@@ -423,7 +415,8 @@ public struct MonitorMediaCacheEntry: Sendable {
         ((try? manager.contentsOfDirectory(
             at: root.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? [])
             .filter {
-                isRetirementName(
+                guard MonitorMediaCacheNamespaces.isDirectory($0, manager: manager) else { return false }
+                return isRetirementName(
                     $0.lastPathComponent, prefix: ".clearing-" + root.lastPathComponent + "-")
                     || (includeUnprepared
                         && (isRetirementName(
@@ -440,6 +433,41 @@ public struct MonitorMediaCacheEntry: Sendable {
         guard let id = UUID(uuidString: suffix) else { return false }
         // The whole suffix must be one canonical UUID, never another root's name or extra text.
         return id.uuidString.caseInsensitiveCompare(suffix) == .orderedSame
+    }
+}
+
+/// Discover only actual child directories. A retirement encodes its namespace followed by one
+/// canonical UUID; malformed or unrelated hidden paths never become cache ownership.
+enum MonitorMediaCacheNamespaces {
+    static func names(under parent: URL, manager: FileManager) -> [String] {
+        let children = (try? manager.contentsOfDirectory(
+            at: parent, includingPropertiesForKeys: nil)) ?? []
+        return Set(children.compactMap { child -> String? in
+            guard isDirectory(child, manager: manager) else { return nil }
+            let name = child.lastPathComponent
+            if !name.hasPrefix(".") { return validNamespace(name) ? name : nil }
+            for prefix in [".clearing-", ".retiring-"] where name.hasPrefix(prefix) {
+                let encoded = String(name.dropFirst(prefix.count))
+                guard encoded.count > 37 else { return nil }
+                let suffix = String(encoded.suffix(36))
+                guard let id = UUID(uuidString: suffix),
+                    id.uuidString.caseInsensitiveCompare(suffix) == .orderedSame,
+                    encoded.dropLast(36).last == "-"
+                else { return nil }
+                let namespace = String(encoded.dropLast(37))
+                return validNamespace(namespace) ? namespace : nil
+            }
+            return nil
+        }).sorted()
+    }
+
+    private static func validNamespace(_ name: String) -> Bool {
+        !name.isEmpty && !name.hasPrefix(".") && !name.contains("/") && !name.contains("\\")
+    }
+
+    nonisolated static func isDirectory(_ url: URL, manager: FileManager) -> Bool {
+        // attributesOfItem inspects the link itself; fileExists(isDirectory:) follows it.
+        (try? manager.attributesOfItem(atPath: url.path)[.type]) as? FileAttributeType == .typeDirectory
     }
 }
 
