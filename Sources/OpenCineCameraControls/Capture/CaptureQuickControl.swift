@@ -27,14 +27,23 @@
         public var nativeEditor: MonitorControlModel.Editor? = nil
         public var audioControl: CaptureAudioControl? = nil
         public var audioSourceID: CaptureAudioSourceID? = nil
-        /// An integration-owned quick choice uses the host slot, never camera-vocabulary wire enums.
-        public var isNative = false
+        /// The sheet an integration-owned quick choice commits through the host slot (format or
+        /// colour), never as camera-vocabulary wire enums; `nil` for every vocabulary choice.
+        public var nativeSheet: CaptureSheet?
 
-        public static func native(kind: Kind, title: String, options: [String], selection: String,
-            context: String, enabled: Bool) -> Self {
+        /// An integration-owned format (`.resolution`) or colour (`.color`) choice; `nil` for any
+        /// other sheet, which has no native quick slot.
+        public static func native(sheet: CaptureSheet, title: String, options: [String], selection: String,
+            context: String, enabled: Bool) -> Self? {
+            let kind: Kind
+            switch sheet {
+            case .resolution: kind = .format
+            case .color: kind = .color
+            default: return nil
+            }
             var result = Self(kind: kind, title: title, options: options, selection: selection,
                 context: context, enabled: enabled)
-            result.isNative = true
+            result.nativeSheet = sheet
             return result
         }
 
@@ -70,7 +79,7 @@
         public var sourceIdentity: SourceIdentity {
             SourceIdentity(
                 kind: kind, title: title, options: options, marked: marked, context: context,
-                enabled: enabled, nativeEditor: nativeEditor, isNative: isNative)
+                enabled: enabled, nativeEditor: nativeEditor, nativeSheet: nativeSheet)
         }
 
         public struct SourceIdentity: Hashable, Sendable {
@@ -81,7 +90,7 @@
             public var context: String
             public var enabled: Bool
             public var nativeEditor: MonitorControlModel.Editor? = nil
-            public var isNative = false
+            public var nativeSheet: CaptureSheet? = nil
         }
 
         public var display: MonitorReadoutSnapshot {
@@ -286,11 +295,9 @@
             guard enabled, options.contains(value), value != selection, !host.sessionLocked else {
                 return
             }
-            if isNative {
-                let sheet: CaptureSheet
-                switch kind { case .format: sheet = .resolution; case .color: sheet = .color; default: return }
+            if let sheet = nativeSheet {
                 guard host.quickSnapshot(sheet) == self else { return }
-                host.commitNativeCaptureQuick(value, sheet: sheet)
+                host.commitNativeCaptureQuick(sheet, selection: value)
                 return
             }
             if let commonField {

@@ -96,7 +96,7 @@
         /// Integration-owned typed controls remain inside the shared sheet chrome.
         func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel?
         var nativeMeteringSource: CaptureNativeMeteringSource? { get }
-        func commitNativeCaptureQuick(_ selection: String, sheet: CaptureSheet)
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String)
 
         /// The camera's reported status.
         var cameraStatus: CameraStatus { get }
@@ -152,7 +152,7 @@
     public extension CaptureSheetHost {
         func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel? { nil }
         var nativeMeteringSource: CaptureNativeMeteringSource? { nil }
-        func commitNativeCaptureQuick(_ selection: String, sheet: CaptureSheet) {}
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String) {}
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,
