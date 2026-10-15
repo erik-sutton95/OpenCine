@@ -46,7 +46,9 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         let isoField = nativeISO ? nil : host.control.captureField(.iso, selection: selection)
         append(.iso, "ISO", commonValue(.iso), field: isoField,
             quickEnabled: nativeISO || isoField != nil)
-        if host.control.snapshot?.exposureProgram.value == .automatic {
+        // One rule for the tile and its panel: the common program, else the native report.
+        let automatic = host.control.snapshot?.exposureProgram.value == .automatic || status.expoMode == .auto
+        if automatic {
             append(.shutter, MonitorExposureReadout.autoEvCaption(shutterDenom: status.shutterDenom),
                 host.captureRouting.commonExposureCompensation ? commonValue(.exposureCompensation) : status.evComp?.label ?? "--",
                 badge: host.facePriorityExposureEnabled ? CaptureLists.facePriorityBadgeIcon : nil)
@@ -98,7 +100,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         let visibleCount = readouts.count + supplementary.count
         let presented = presentedSheet.map { $0() } ?? host.captureSheet
         let panel = presented.map { sheet in
-            let ev = sheet == .shutter && status.expoMode == .auto
+            let ev = sheet == .shutter && automatic
             return MonitorOperatorCameraPanel(key: sheet, top: sheet.isTopAnchored, chrome: .content,
                 title: ev ? "EXPOSURE" : sheet.headerLabel,
                 subtitle: ev ? "Compensation" : sheet == .shutter ? (status.isPhoto ? "Speed" : "Angle · speed")

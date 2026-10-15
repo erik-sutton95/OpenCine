@@ -311,7 +311,7 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
             action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
-            if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel),
+            if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel ?: "REC SETUP"),
         portraitCaption = if (CameraCommands.isPhotoMode(status.shootingMode)) null else recordingFormat?.profile,
         color = if (source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
             row(LiveSheet.COLOR, "Color mode", recordingFormat?.profile, MonitorDisplaySection.COLOR) else null,

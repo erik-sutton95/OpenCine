@@ -33,7 +33,10 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
     val native = source.host.captureSessionState(status)
     val preferences = source.host.capturePreferences
     val lifetime = rememberMonitorCaptureLifetime(source)
-    val auto = controlState.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC
+    // One rule for the tile and its panel: the common program, else the native report.
+    val auto = controlState.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC ||
+        status.expoMode == CameraCommands.EXPO_AUTO
+    val expoMode = if (auto) CameraCommands.EXPO_AUTO else status.expoMode
     val shutter = captureShutterReadout(status, preferences.shutterUsesAngle, preferences.shutterAngleDegrees)
     val readouts = buildList<MonitorOperatorLiveReadout<String, S>> {
         fun append(sheet: LiveSheet, title: String, value: String, annotation: String? = null,
@@ -43,7 +46,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
         }
         append(LiveSheet.ISO, "ISO", source.readout(LiveSheet.ISO, status, CaptureLists.isoChipValue(status)))
         append(LiveSheet.SHUTTER, if (auto) MonitorExposureReadout.autoEvCaption(status.shutterDenom) else "SHUTTER",
-            source.readout(LiveSheet.SHUTTER, status, if (auto) EvComp.fromRaw(status.evComp)?.label ?: "\u2014" else shutter),
+            source.readout(LiveSheet.SHUTTER, status, if (auto) EvComp.fromRaw(status.evComp)?.label ?: "--" else shutter),
             if (auto && preferences.facePriorityExposure) CaptureLists.FACE_PRIORITY_TITLE else null,
             badge = if (auto && preferences.facePriorityExposure) MonitorIcon.SCAN else null)
         append(LiveSheet.EXPO, "EXPOSURE", if (native.aeLocked) CaptureLists.AE_LOCK
@@ -59,9 +62,9 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
     }
     val panel = active?.let { sheet ->
         MonitorOperatorCameraPanel(sheet.name, sheet.isTopAnchored, chrome = MonitorOperatorCameraPanelChrome.CONTENT,
-            title = CaptureLists.headerTitle(sheet, status.expoMode, status.shootingMode),
-            subtitle = CaptureLists.headerSubtitle(sheet, status.expoMode,
-                initialSelectedMode(sheet, status, native, preferences, CaptureLists.isEvSheet(sheet, status.expoMode)),
+            title = CaptureLists.headerTitle(sheet, expoMode, status.shootingMode),
+            subtitle = CaptureLists.headerSubtitle(sheet, expoMode,
+                initialSelectedMode(sheet, status, native, preferences, CaptureLists.isEvSheet(sheet, expoMode)),
                 preferences.facePriorityExposure, status.shootingMode))
     }
     return MonitorOperatorCaptureInputs(readouts, panel, columns = columns, open = { id ->

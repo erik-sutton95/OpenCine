@@ -22,10 +22,10 @@ import kotlin.math.round
 /** A drum detent keeps its typed command value. Display copy never becomes a wire mapping. */
 public data class MonitorCaptureChoice(public val value: SettingValue, public val label: String)
 
-/** One common readout and the immutable editor its gestures opened against. */
 /** Which observation a readout presents; pending commands never become camera reports. */
 public enum class MonitorCaptureSelection { REPORTED, PENDING }
 
+/** One common readout and the immutable editor its gestures opened against. */
 public data class MonitorCaptureField(
     public val key: SettingKey,
     public val title: String,

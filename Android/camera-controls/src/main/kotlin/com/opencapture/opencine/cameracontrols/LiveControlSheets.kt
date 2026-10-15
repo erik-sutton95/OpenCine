@@ -512,6 +512,8 @@ private fun LiveControlSheetContent(
                 onClose = onDismiss,
                 showsClose = !compact,
             )
+            // Composed once: a host panel keeps one slot group per recomposition.
+            val nativePanel = host.nativeCapturePanel(sheet, enabled)
             if (preview != null) {
                 CaptureDrumWheel(
                     options = preview.control.options,
@@ -520,8 +522,8 @@ private fun LiveControlSheetContent(
                     interactive = false,
                     onSelect = {},
                 )
-            } else if (host.nativeCapturePanel(sheet, enabled) != null) {
-                host.nativeCapturePanel(sheet, enabled)?.invoke()
+            } else if (nativePanel != null) {
+                nativePanel()
             } else when (sheet) {
                 LiveSheet.ISO -> {
                     Column(
