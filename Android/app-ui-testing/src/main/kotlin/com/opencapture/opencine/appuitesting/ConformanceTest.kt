@@ -81,6 +81,16 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         return ActivityScenario.launch<Activity>(intent).also { scenario = it }
     }
 
+    /**
+     * Launches the app's real launcher entry with nothing staged, as the operator opens it: the
+     * production camera list and saved connections (physical qualification only).
+     */
+    public fun launchProduction(): ActivityScenario<out Activity> {
+        scenario?.close()
+        val intent = Intent(instrumentation.targetContext, subject.activity)
+        return ActivityScenario.launch<Activity>(intent).also { scenario = it }
+    }
+
     // MARK: The accessibility tree
 
     /**
@@ -342,6 +352,11 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     public fun capture(name: String) {
         val bitmap = automation.takeScreenshot() ?: return
         output("$name.png").use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    /** Saves [text] as `conformance/<name>` in the test storage, beside the screenshots. */
+    public fun evidence(name: String, text: String) {
+        output(name).use { it.write(text.toByteArray()) }
     }
 
     /** Cancels the presented confirmation with its Cancel button; [confirm] (its confirming action) must then be gone. */
