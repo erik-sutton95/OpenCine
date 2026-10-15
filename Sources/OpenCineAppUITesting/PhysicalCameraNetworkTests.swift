@@ -98,19 +98,27 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         let ssid = try required("OPV_PHYSICAL_CAMERA_SSID")
         try forgetWiFi(ssid)
         launchApp()
+        try disconnectIfLive()
         try tapSavedRow(camera)
         var cancelled = false
-        try wait("The system Join alert", timeout: 60) {
-            if let alert = self.joinAlert() {
+        do {
+            try wait("The system Join alert", timeout: 60) {
+                if self.app.buttons["monitor.system.settings"].isHittable { return true }
+                if let alert = self.joinAlert() {
                 self.alerts.append("join: " + self.text(of: alert))
-                alert.buttons["Cancel"].tap()
-                cancelled = true
+                    alert.buttons["Cancel"].tap()
+                    cancelled = true
+                }
+                return cancelled
             }
-            return cancelled
         }
+        try requireJoinPrompt(cancelled)
         screenshot("join-cancelled")
-        try tapSavedRow(camera, settle: 1)
+        // Retry at once: the saved row again if the app is idle, otherwise the app's own join retry.
+        // Either way iOS gets at most one more join prompt, and no error may be shown for the retry.
         var joins = 0
+        var retried = false
+        var errors: [String] = []
         try wait("Live monitor after the retried join", timeout: 120) {
             if let alert = self.joinAlert() {
                 joins += 1
@@ -118,10 +126,24 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
                 alert.buttons["Join"].tap()
             }
             self.recordAlerts(answer: true)
+            if !retried {
+                for title in ["Reconnect " + camera, "Connect " + camera] {
+                    let row = self.app.buttons[title].firstMatch
+                    if row.exists && row.isHittable { row.tap(); retried = true; break }
+                }
+            }
+            // One snapshot of the tree (element-by-element reads race the changing connection UI).
+            for line in self.app.debugDescription.split(separator: "\n")
+            where line.contains("StaticText") && (line.contains("Couldn") || line.contains("failed")) {
+                let text = String(line)
+                if !errors.contains(text) { errors.append(text) }
+            }
             return self.app.buttons["monitor.system.settings"].isHittable
         }
         screenshot("join-retried-live")
+        attach("retry", "joins=\(joins) rowRetried=\(retried) errors=\(errors)")
         XCTAssertLessThanOrEqual(joins, 1, "One system join prompt for the retry")
+        XCTAssertTrue(errors.isEmpty, "No error for the retried join: \(errors)")
     }
 
     // MARK: Z3 item 7c: answer the join late
@@ -134,12 +156,14 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         let ssid = try required("OPV_PHYSICAL_CAMERA_SSID")
         try forgetWiFi(ssid)
         launchApp()
+        try disconnectIfLive()
         try tapSavedRow(camera)
         var shownAt: Date?
         try wait("The system Join alert", timeout: 60) {
             if self.joinAlert() != nil { shownAt = Date() }
-            return shownAt != nil
+            return shownAt != nil || self.app.buttons["monitor.system.settings"].isHittable
         }
+        try requireJoinPrompt(shownAt != nil)
         // Leave the alert up past the 35 s join group, as an operator who looks away does.
         while Date().timeIntervalSince(shownAt!) < 36 { RunLoop.current.run(until: Date().addingTimeInterval(1)) }
         guard let first = joinAlert() else { return XCTFail("The first join alert disappeared on its own") }
@@ -166,6 +190,28 @@ open class PhysicalCameraNetworkTests: SharedAppUITestCase {
         app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1"
         app.launch()
         if appName == nil, !app.label.isEmpty { appName = app.label }
+    }
+
+    /// The join cases need iOS to ask: a live session is disconnected through Operator Setup first,
+    /// which makes the app leave the camera Wi-Fi and drop its hotspot configuration.
+    private func disconnectIfLive() throws {
+        let settingsButton = app.buttons["monitor.system.settings"]
+        guard settingsButton.waitForExistence(timeout: 8), settingsButton.isHittable else { return }
+        settingsButton.tap()
+        let disconnect = app.buttons["monitor.system.disconnect"]
+        try wait("Disconnect in Operator Setup", timeout: 10) { disconnect.isHittable }
+        disconnect.tap()
+        try wait("Camera list after disconnect", timeout: 20) { !self.app.buttons["monitor.system.settings"].exists }
+        attach("precondition", "disconnected a live session before the join case")
+    }
+
+    /// No join prompt means iOS still had this app's configuration for the camera Wi-Fi: the case
+    /// cannot exercise the join, so it is recorded as not run rather than passed.
+    private func requireJoinPrompt(_ shown: Bool) throws {
+        if !shown && app.buttons["monitor.system.settings"].isHittable {
+            screenshot("no-join-prompt")
+            throw XCTSkip("iOS joined without asking (configuration still installed); join case not exercised")
+        }
     }
 
     private func tapSavedRow(_ camera: String, settle: TimeInterval = 0) throws {
