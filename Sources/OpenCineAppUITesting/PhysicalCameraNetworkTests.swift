@@ -171,7 +171,13 @@ open class PhysicalNetworkUITestCase: SharedAppUITestCase {
             self.settings.swipeUp()
             return false
         }
-        row.tap()
+        // A tap while the filtered list still animates is lost: tap until the app's page opens.
+        for _ in 1...3 where !settings.navigationBars[name].exists {
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            if row.isHittable { row.tap() }
+            _ = settings.navigationBars[name].waitForExistence(timeout: 4)
+        }
+        try wait("The \(name) page in Settings", timeout: 2) { self.settings.navigationBars[name].exists }
         attach("settings-page", name + " (through Settings > Apps)")
     }
 
