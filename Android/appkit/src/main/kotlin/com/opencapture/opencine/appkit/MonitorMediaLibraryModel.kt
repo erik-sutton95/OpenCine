@@ -1047,11 +1047,13 @@ public class MonitorMediaLibraryModel<P>(
         // This optimistic local change does not mutate the reported source catalog.
         applyLocalRemoval(accepted, token, removeLocalFavorites = false); return results
     }
-    public suspend fun clearCache() {
+    public suspend fun clearCache() { clearCache(preservingMetadata = true) }
+    /** Settings may drop cached camera metadata; the original no-argument API preserves it. */
+    public suspend fun clearCache(preservingMetadata: Boolean) {
         val token = actionToken; retireOperations()
         currentCoroutineContext().ensureActive()
         if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
-        cache.clear()
+        cache.clear(preservingMetadata)
         currentCoroutineContext().ensureActive()
         if (!isCurrent(token)) throw MediaServiceException(MediaServiceFailure.RETIRED)
         reloadEntries()

@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 /** Settings over a gallery library count and clear exactly that library's directory (A4-05). */
 class MonitorSettingsCacheLibraryTest {
@@ -49,4 +50,55 @@ class MonitorSettingsCacheLibraryTest {
             parent.deleteRecursively()
         }
     }
+    @Test fun allCameraSourcesClearOtherBucketsAndCurrentMetadataAndFenceCurrentWriters() = runTest {
+        for (useStorage in listOf(false, true)) {
+            val parent = Files.createTempDirectory("opencine-settings-all-cache-").toFile()
+            try {
+                val root = MonitorMediaCacheRoot(parent)
+                val storage = MonitorMediaCacheStorage()
+                val directory = if (useStorage) storage.directory(File(parent, "camera")) else root.directory("camera")
+                val cache = MonitorMediaCache(directory, NoCatalog, MonitorMediaOriginalEligibility.ExactSize,
+                    "index.json", listOf("index.json", "color.json"))
+                val library = MonitorMediaLibraryModel(cache, NoFavorites, null, backgroundScope, sleep = {})
+                directory.write(ByteArray(10), "files/clip.mov")
+                directory.write(ByteArray(2), "index.json")
+                val old = directory.beginWrite("files/late.mov")
+                old.write(byteArrayOf(1))
+                File(parent, "other/files/clip.mov").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(99)) }
+                val retired = File(parent, ".clearing-retired-01234567-89AB-CDEF-0123-456789ABCDEF/clip.mov")
+                    .apply { parentFile!!.mkdirs(); writeBytes(ByteArray(7)) }
+                val source = if (useStorage) library.settingsCacheSource(storage = storage, parent = parent)
+                    else library.settingsCacheSource(cacheRoot = root)
+                assertEquals(parent.absolutePath, source.identity.namespace)
+                assertEquals(119L, source.count()) // Includes the pending byte before writer retirement.
+                source.clear()
+                assertFalse(File(parent, "camera/index.json").exists())
+                assertFalse(File(parent, "other").exists()); assertFalse(retired.exists())
+                assertEquals(MonitorMediaCacheFailure.RETIRED,
+                    assertFailsWith<MonitorMediaCacheException> { old.write(byteArrayOf(2)) }.failure)
+                old.abort()
+                assertFalse(source.isCurrent())
+                assertEquals(0L, if (useStorage) library.settingsCacheSource(storage = storage, parent = parent).count()
+                    else library.settingsCacheSource(cacheRoot = root).count())
+                library.close()
+            } finally { parent.deleteRecursively() }
+        }
+    }
+
+    @Test fun retiredAllCameraSourceCannotClearAnotherCamera() = runTest {
+        val parent = Files.createTempDirectory("opencine-settings-stale-cache-").toFile()
+        try {
+            val root = MonitorMediaCacheRoot(parent)
+            val cache = MonitorMediaCache(root.directory("camera"), NoCatalog, MonitorMediaOriginalEligibility.ExactSize,
+                "index.json", listOf("index.json"))
+            val library = MonitorMediaLibraryModel(cache, NoFavorites, null, backgroundScope, sleep = {})
+            val source = library.settingsCacheSource(cacheRoot = root)
+            val other = File(parent, "other/clip.mov").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(7)) }
+            library.close()
+            assertFalse(source.isCurrent())
+            assertFailsWith<com.opencapture.opencine.media.MediaServiceException> { source.clear() }
+            assertEquals(7, other.readBytes().size)
+        } finally { parent.deleteRecursively() }
+    }
+
 }

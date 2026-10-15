@@ -161,10 +161,10 @@ open class OperatorHelpCopy(appName: String) {
         "View the $appName project on GitHub. Opening this may leave the camera Wi-Fi if that is the only network."
     val LINK_HEALTH = "How healthy the camera link is right now \u2014 delivery, not radio RSSI."
     val CLEAR_CACHE =
-        "Removes downloaded clip files from this phone. The clip list stays so you can cache them again from the camera."
+        "Removes cached clips, thumbnails and camera indexes for every camera. Cameras reload their library when connected."
     val LUT_LOOK = "Looks apply on this phone. The file on the camera is unchanged."
     val APP_VERSION = "Current $appName build from the native project metadata."
-    val LOCAL_CACHE = "Originals and playback proxies downloaded from the camera."
+    val LOCAL_CACHE = "Cached clips, thumbnails and camera indexes for every camera on this phone."
     val CACHE_FULL_RESOLUTION =
         "Download the original camera file when you open a clip. Off keeps only the 720p proxy to save space. Share needs the original \u2014 connect the camera if it is not cached."
     val FEED_UPSCALER =

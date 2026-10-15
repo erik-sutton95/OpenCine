@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.ensureActive
 
 /** Namespace and shell lifetime remain independent of cache content revisions. */
 public data class MonitorSettingsCacheIdentity(public val namespace: String, public val source: String?)
@@ -38,6 +39,42 @@ public fun <P> MonitorMediaLibraryModel<P>.settingsCacheSource(
         isCurrent = { isCurrent(admission) && state.value.cacheRevision == revision },
         count = { cache.directory.totalByteCount() },
         clear = { clearCache() },
+    )
+}
+/** Settings scope over every camera owned by the shared root, keeping the current library's fencing. */
+public fun <P> MonitorMediaLibraryModel<P>.settingsCacheSource(
+    cacheRoot: MonitorMediaCacheRoot, value: MonitorMediaLibraryState<P> = state.value,
+): MonitorSettingsCacheSource = allCameraSettingsCacheSource(cacheRoot.root, cacheRoot::cachedDirectories, value)
+
+/** Settings scope over every camera owned by the storage registry under one declared parent. */
+public fun <P> MonitorMediaLibraryModel<P>.settingsCacheSource(
+    storage: MonitorMediaCacheStorage, parent: java.io.File, value: MonitorMediaLibraryState<P> = state.value,
+): MonitorSettingsCacheSource = allCameraSettingsCacheSource(parent, { storage.directories(parent) }, value)
+
+private fun <P> MonitorMediaLibraryModel<P>.allCameraSettingsCacheSource(
+    parent: java.io.File, directories: () -> List<MonitorMediaCacheDirectory>, value: MonitorMediaLibraryState<P>,
+): MonitorSettingsCacheSource {
+    val admission = actionToken
+    val revision = value.cacheRevision
+    return MonitorSettingsCacheSource(
+        MonitorSettingsCacheIdentity(parent.absolutePath, value.lifetimeToken.toString()), revision,
+        isCurrent = { isCurrent(admission) && state.value.cacheRevision == revision },
+        count = { directories().sumOf { it.totalByteCount() } },
+        clear = {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (!isCurrent(admission) || state.value.cacheRevision != revision) {
+                throw com.opencapture.opencine.media.MediaServiceException(com.opencapture.opencine.media.MediaServiceFailure.RETIRED)
+            }
+            val captured = directories()
+            clearCache(preservingMetadata = false)
+            for (directory in captured) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                if (!isCurrent(admission)) {
+                    throw com.opencapture.opencine.media.MediaServiceException(com.opencapture.opencine.media.MediaServiceFailure.RETIRED)
+                }
+                if (directory.root.absolutePath != cache.directory.root.absolutePath) directory.clear(emptyList())
+            }
+        },
     )
 }
 public data class MonitorSettingsCacheState(
