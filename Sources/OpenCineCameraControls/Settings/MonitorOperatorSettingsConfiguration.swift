@@ -162,6 +162,9 @@ public struct MonitorSettingsSupportSource {
     let supportEmail: String
     let deleteStoredReports: (() -> Void)?
     let deleteReportsHelp: String
+    /// Legal pages the shared legal screen shows: bundled text opens in it, a web page keeps the
+    /// host's browser destination. Nil keeps privacy and terms on those destinations only.
+    let legal: MonitorLegalDocuments?
     public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         deleteHelp: String, sourceHelp: String, termsHelp: String, sourceURL: URL?, termsURL: URL?,
         saveReport: @escaping () -> URL?, deleteReports: @escaping () -> Void,
@@ -179,6 +182,7 @@ public struct MonitorSettingsSupportSource {
         self.reportAction = nil; self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
         self.supportEmail = supportEmail
         self.deleteStoredReports = nil; self.deleteReportsHelp = ""
+        self.legal = nil
     }
     @MainActor public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         sourceHelp: String, termsHelp: String, model: MonitorSettingsSupportModel, actions: MonitorSettingsSupportActions,
@@ -188,8 +192,9 @@ public struct MonitorSettingsSupportSource {
         reportAction: (() -> Void)? = nil, report: @escaping @MainActor @Sendable () -> AnyView,
         shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
         deleteStoredReports: (() -> Void)? = nil, deleteReportsHelp: String = "",
-        supportEmail: String = "support@opencapture.org") {
+        supportEmail: String = "support@opencapture.org", legal: MonitorLegalDocuments? = nil) {
         self.consent = consent; self.available = available; self.automaticHelp = automaticHelp; self.unavailableHelp = unavailableHelp
+        self.legal = legal
         self.deleteHelp = ""; self.sourceHelp = sourceHelp; self.termsHelp = termsHelp
         self.sourceURL = source?.url; self.termsURL = terms?.url; self.saveReport = nil; self.deleteReports = nil
         self.report = report; self.document = nil; self.shareReport = shareReport
@@ -207,6 +212,13 @@ public struct MonitorSettingsSupportSource {
 /// expose the same host links, share-diagnostics row and, when the host supplies one, the
 /// delete-stored-reports row the closure-path apps already render.
 extension MonitorSettingsSupportSource {
+    /// Whether a legal page opens in the shared legal screen rather than through the browser.
+    func showsLocally(_ page: MonitorLegalPage) -> Bool {
+        guard let legal else { return false }
+        if case .link = legal[page] { return false }
+        return true
+    }
+
     var reportUnavailableMessage: String {
         "Email \(supportEmail). You can save a report under Diagnostic options."
     }

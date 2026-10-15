@@ -27,6 +27,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private let sourceIdentity: UUID?
     @Environment(\.openURL) private var openURL
     @State private var document: MonitorSettingsDocument?
+    @State private var legalPage: MonitorLegalPage?
     @State private var showLook = false
     @State private var showJoinCode = false
     @State private var showReport = false
@@ -103,6 +104,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         .overlay {
             if let document, let support = source.support {
                 support.document?(document, { self.document = nil })
+            } else if let legalPage, let legal = source.support?.legal {
+                MonitorLegalDocumentScreen(documents: legal, page: legalPage, onClose: { self.legalPage = nil })
             }
         }
         .sheet(isPresented: $showLook) { source.lookCatalog?() }
@@ -116,7 +119,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
     }
     private func retireSheets() {
-        document = nil; showLook = false; showJoinCode = false; showReport = false
+        document = nil; legalPage = nil; showLook = false; showJoinCode = false; showReport = false
         reportShare = nil; supportError = false
     }
 
@@ -304,7 +307,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             if support.model != nil {
                 MonitorSettingsConfiguredSupport(source: support, report: {
                     if let action = support.reportAction { action() } else { showReport = true }
-                })
+                }, openLegal: { legalPage = $0 })
             } else {
                 MonitorSupportSettings(automaticReports: observedBinding(support.consent), available: support.available,
                     automaticHelp: support.automaticHelp, unavailableHelp: support.unavailableHelp,
@@ -351,6 +354,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
 private struct MonitorSettingsConfiguredSupport: View {
     let source: MonitorSettingsSupportSource
     let report: () -> Void
+    let openLegal: (MonitorLegalPage) -> Void
     var body: some View {
         Group {
             MonitorSupportSettings(automaticReports: source.consent, available: source.available,
@@ -358,15 +362,20 @@ private struct MonitorSettingsConfiguredSupport: View {
                 reportTitle: source.reportTitle, reportActionTitle: source.reportActionTitle,
                 actions: source.configuredSupportActions(
                     reportPreparing: source.model?.preparingReport == true),
-                report: report, privacy: { request(source.privacyDestination) })
+                report: report, privacy: { open(.privacy, else: source.privacyDestination) })
             MonitorProjectLegalSettings(sourceHelp: source.sourceHelp, termsHelp: source.termsHelp,
-                source: { request(source.sourceDestination) }, privacy: { request(source.privacyDestination) },
-                terms: { request(source.termsDestination) })
+                source: { request(source.sourceDestination) }, privacy: { open(.privacy, else: source.privacyDestination) },
+                terms: { open(.terms, else: source.termsDestination) },
+                licenses: source.legal == nil ? nil : { openLegal(.licenses) },
+                notice: source.legal == nil ? nil : { openLegal(.notice) })
         }
 
     }
     private func request(_ destination: MonitorSettingsBrowserDestination?) {
         if let destination { source.model?.request(destination) }
+    }
+    private func open(_ page: MonitorLegalPage, else destination: MonitorSettingsBrowserDestination?) {
+        if source.showsLocally(page) { openLegal(page) } else { request(destination) }
     }
 }
 
