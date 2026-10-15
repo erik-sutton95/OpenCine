@@ -214,6 +214,22 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         return replacement
     }
 
+    /// The same state with the session's typed power: the gauge at its declared precision and the
+    /// camera's exhaustion, never a gauge re-derived from the legacy percent.
+    public func replacing(power: PowerStatus) -> WatchRelayState {
+        WatchRelayState(
+            isRecording: isRecording,
+            timecode: timecode,
+            media: media,
+            cameraBatteryPercent: cameraBatteryPercent,
+            cameraName: cameraName,
+            connection: connection,
+            feedLive: feedLive,
+            isPhotography: isPhotography,
+            feedAspectRatio: feedAspectRatio,
+            batteryReading: power.batteryReading, batteryExhausted: power.exhausted.value)
+    }
+
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         isRecording = try container.decode(Bool.self, forKey: .isRecording)

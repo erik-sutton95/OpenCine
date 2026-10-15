@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import OpenCineRelay
 import Testing
 
@@ -41,6 +42,27 @@ import Testing
                 try JSONDecoder().decode(WatchRelayState.self, from: Data(base.replacingOccurrences(of: "REPLACE", with: reading).utf8))
             }
         }
+    }
+
+    /// SIMULATED typed power: the declared gauge and exhaustion replace the legacy percent, and an
+    /// unknown battery stays unknown on the wire instead of falling back to the scalar.
+    @Test func typedPowerReplacesTheLegacyPercentReading() throws {
+        let legacy = WatchRelayState(isRecording: false, timecode: "--:--:--", media: "Unavailable",
+            cameraBatteryPercent: 80, cameraName: "SIMULATED", connection: .connected, feedLive: true)
+        #expect(legacy.batteryReading == .fraction(0.8))
+        let gauge = PowerStatus(
+            battery: ObservedValue(0.4, origin: .cameraReported, at: nil, precision: .quantized(step: 0.2)),
+            exhausted: ObservedValue(true, origin: .cameraReported, at: nil))
+        let declared = legacy.replacing(power: gauge)
+        #expect(declared.batteryReading == .steps(filled: 2, of: 5))
+        #expect(declared.batteryExhausted == true)
+        #expect(declared.cameraBatteryPercent == 80)
+        #expect(!declared.matchesIgnoringLiveReadouts(legacy))
+        let unknown = legacy.replacing(power: .unknown)
+        #expect(unknown.batteryReading == nil)
+        #expect(unknown.batteryExhausted == nil)
+        let wire = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(unknown)) as? [String: Any])
+        #expect(wire["batteryReading"] is NSNull, "Unknown is declared, not omitted for a legacy fallback")
     }
 
     private func preservesBattery(_ original: Data, _ encoded: Data) throws {
