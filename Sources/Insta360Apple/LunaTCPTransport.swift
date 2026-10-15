@@ -4,12 +4,22 @@ import OpenCineCore
 
 @MainActor
 final class LunaTCPTransport {
+    /// Native opening and its deadline vary independently from camera command/source ownership.
+    struct Opening {
+        var start: (NWConnection, @escaping @MainActor (NWConnection.State) -> Void) -> Void
+        var sleep: (Duration) async throws -> Void
+    }
+    private let opening: Opening?
+    init(opening: Opening? = nil) { self.opening = opening }
+
     var onData: ((Data) -> Void)?
     var onDisconnect: ((String) -> Void)?
     private var connection: NWConnection?
     private var ready: CheckedContinuation<Void, Error>?
     private var timeout: Task<Void, Never>?
     private var generation = 0
+    private var permission = CameraNetworkPermissionObservation()
+    private var permissionAttempt: UUID?
     private let queue = DispatchQueue(label: "org.opencine.insta360.tcp", qos: .userInitiated)
     var commandSource: LunaNativeCommandSource {
         .init(transport: self, epoch: generation, endpoint: connection)
@@ -20,6 +30,8 @@ final class LunaTCPTransport {
         disconnect()
         generation += 1
         let token = generation
+        let observation = permission.begin()
+        permissionAttempt = observation
         let tcp = NWProtocolTCP.Options()
         tcp.noDelay = true
         let parameters = NWParameters(tls: nil, tcp: tcp)
@@ -35,29 +47,50 @@ final class LunaTCPTransport {
             try await withCheckedThrowingContinuation {
                 (continuation: CheckedContinuation<Void, Error>) in
                 ready = continuation
-                connection.stateUpdateHandler = { [weak self] state in
-                    Task { @MainActor in
-                        guard let self, self.generation == token else { return }
-                        switch state {
-                        case .ready:
-                            self.timeout?.cancel()
-                            let waiter = self.ready
-                            self.ready = nil
-                            waiter?.resume()
-                        case .failed(let error): self.fail(error.localizedDescription)
-                        case .cancelled: self.fail("The camera video connection closed.")
-                        default: break
+                let stateChanged: @MainActor (NWConnection.State) -> Void = { [weak self] state in
+                    guard let self, self.generation == token else { return }
+                    switch state {
+                    case .ready:
+                        self.timeout?.cancel()
+                        let waiter = self.ready
+                        self.ready = nil
+                        waiter?.resume()
+                    case .waiting(let error):
+                        let dnsCode: Int32?
+                        if case .dns(let code) = error { dnsCode = code } else { dnsCode = nil }
+                        if CameraNetworkPermissionPolicy.isLocalNetworkDenied(
+                            dnsErrorCode: dnsCode,
+                            pathDenied: connection.currentPath?.unsatisfiedReason == .localNetworkDenied)
+                        {
+                            self.permission.observe(.policyDenied, attempt: observation)
                         }
+                    case .failed(let error): self.fail(error.localizedDescription)
+                    case .cancelled: self.fail("The camera video connection closed.")
+                    default: break
                     }
                 }
-                timeout = Task { [weak self] in
-                    try? await Task.sleep(for: .seconds(12))
-                    guard !Task.isCancelled, let self, token == self.generation else { return }
-                    self.fail(
-                        "The camera did not answer on its Wi-Fi network. Check Local Network permission and the camera Wi-Fi connection."
-                    )
+                if let opening {
+                    opening.start(connection, stateChanged)
+                } else {
+                    connection.stateUpdateHandler = { state in
+                        Task { @MainActor in stateChanged(state) }
+                    }
                 }
-                connection.start(queue: queue)
+                timeout = Task { [weak self, opening] in
+                    if let opening { try? await opening.sleep(.seconds(12)) }
+                    else { try? await Task.sleep(for: .seconds(12)) }
+                    guard !Task.isCancelled, let self, token == self.generation else { return }
+                    if self.permission.state == .denied {
+                        self.fail(.luna(
+                            .permission(.localNetwork), "local-network.denied",
+                            "Local Network access is off. Enable it in Settings, then connect again.",
+                            phase: .negotiating, actions: [.openSettings, .retry]))
+                    } else {
+                        self.fail(
+                            "The camera did not answer on its Wi-Fi network. Check Local Network permission and the camera Wi-Fi connection.")
+                    }
+                }
+                if opening == nil { connection.start(queue: queue) }
             }
         } onCancel: {
             Task { @MainActor [weak self] in
@@ -125,6 +158,8 @@ final class LunaTCPTransport {
         waiter?.resume(throwing: CancellationError())
     }
     func disconnect() {
+        if let permissionAttempt { permission.retire(attempt: permissionAttempt) }
+        permissionAttempt = nil
         generation += 1
         timeout?.cancel()
         timeout = nil
@@ -137,14 +172,15 @@ final class LunaTCPTransport {
         waiter?.resume(throwing: CancellationError())
     }
     private func fail(_ message: String) {
+        fail(.luna(.linkLost, "video.failed", message, phase: .negotiating))
+    }
+    private func fail(_ failure: ConnectionFailure) {
         let wasReady = ready == nil
         let waiter = ready
         ready = nil
         disconnect()
-        waiter?.resume(
-            throwing: ConnectionFailure.luna(
-                .linkLost, "video.failed", message, phase: .negotiating))
-        if wasReady { onDisconnect?(message) }
+        waiter?.resume(throwing: failure)
+        if wasReady { onDisconnect?(failure.message) }
     }
     private func receive(token: Int) {
         guard let connection, generation == token else { return }

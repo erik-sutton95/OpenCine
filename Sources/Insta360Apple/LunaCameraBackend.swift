@@ -30,6 +30,9 @@ public final class LunaCameraBackend: CameraBackend {
     public var onDeviceInformation: ((LunaDeviceInformation) -> Void)?
     /// Every request/notification summary, for the shell's diagnostics journal.
     public var onLog: ((String) -> Void)?
+    /// Local Network evidence from the current connect only: a completed control handshake, or
+    /// the camera link's explicit policy denial. Ordinary waiting is never reported.
+    public var onLocalNetworkEvidence: ((CameraNetworkPermissionEvidence) -> Void)?
     /// Media packets seen per UCD2 subtype, with the first bytes of the latest (lab).
     public var mediaSubtypeStats: [UInt8: (count: Int, last: Data)] = [:]
 
@@ -57,6 +60,8 @@ public final class LunaCameraBackend: CameraBackend {
     private var heartbeat: Task<Void, Never>?
     private var statusPoll: Task<Void, Never>?
     private var generation = 0
+    /// The app's one retained hotspot owner for this backend; nil keeps the direct native calls.
+    private let hotspot: CameraHotspotHost?
     private var connectedMedia: LunaMediaService?
     let mediaIO: (any LunaMediaIO)?
     /// App-owned native preparation, fenced by the captured session/epoch at composition.
@@ -91,9 +96,10 @@ public final class LunaCameraBackend: CameraBackend {
     /// Existing-network mode serves a Mac/Simulator already on the camera AP.
     public init(
         useExistingNetwork: Bool = false, configuration: LunaIntegrationConfiguration = .init(),
-        mediaIO: (any LunaMediaIO)? = nil
+        mediaIO: (any LunaMediaIO)? = nil, hotspot: CameraHotspotHost? = nil
     ) {
         existingNetwork = useExistingNetwork
+        self.hotspot = hotspot
         self.configuration = configuration
         self.mediaIO = mediaIO
         store = LunaSecureStore(service: configuration.keychainService)
@@ -177,10 +183,16 @@ public final class LunaCameraBackend: CameraBackend {
             _ = try await send(LunaProtocol.startLiveRequest)
             try validate(token)
             handshakeComplete = true
+            onLocalNetworkEvidence?(.operationSucceeded)
             emit(.streaming)
             startStatusPoll(token: token)
         } catch {
-            if token == generation { disconnect() }
+            if token == generation {
+                if (error as? ConnectionFailure)?.reason == .permission(.localNetwork) {
+                    onLocalNetworkEvidence?(.policyDenied)
+                }
+                disconnect()
+            }
             throw error
         }
     }
@@ -206,6 +218,21 @@ public final class LunaCameraBackend: CameraBackend {
     private func joinRetrying(
         _ wifi: LunaStoredWiFi, token: Int, budget: Duration = .seconds(60)
     ) async throws {
+        guard let hotspot else {
+            try await joinRetrying(wifi, token: token, budget: budget, operations: nil)
+            return
+        }
+        // One scope for the whole loop: a replacement connect retires this loop's queued
+        // removals, and no retry reaches the OS while an earlier apply is still pending.
+        try await hotspot.withAttempt({ [weak self] in self?.generation == token }) { [weak self] operations in
+            guard let self else { throw CancellationError() }
+            try await self.joinRetrying(wifi, token: token, budget: budget, operations: operations)
+        }
+    }
+
+    private func joinRetrying(
+        _ wifi: LunaStoredWiFi, token: Int, budget: Duration, operations: CameraHotspotOperations?
+    ) async throws {
         let deadline = ContinuousClock.now.advanced(by: budget)
         var attempt = 0
         while true {
@@ -224,7 +251,7 @@ public final class LunaCameraBackend: CameraBackend {
                 let once = attempt % 2 == 0
                 let prefix = configuration.logPrefix
                 try await withJoinTimeout {
-                    try await LunaWiFi.join(wifi, joinOnce: once, logPrefix: prefix)
+                    try await LunaWiFi.join(wifi, joinOnce: once, logPrefix: prefix, apply: operations?.apply)
                 }
                 return
             } catch {
@@ -236,7 +263,7 @@ public final class LunaCameraBackend: CameraBackend {
                 guard ContinuousClock.now < deadline else { throw error }
                 // The AP may not beacon yet: drop the config so the next apply
                 // associates fresh instead of reusing a stale one (upstream WiFiJoiner).
-                LunaWiFi.leave(ssid: wifi.ssid)
+                LunaWiFi.leave(ssid: wifi.ssid, remove: operations?.remove)
                 try await Task.sleep(for: .seconds(3))
             }
         }
@@ -440,7 +467,20 @@ public final class LunaCameraBackend: CameraBackend {
 
     public func leaveCameraNetwork() {
         disconnect()
-        if let credentials { LunaWiFi.leave(ssid: credentials.ssid) }
+        if let credentials { leaveNetwork(ssid: credentials.ssid) }
+    }
+
+    /// Leaves `ssid` through this backend's hotspot owner (the direct call without one). Queued
+    /// behind a still pending apply, the removal runs only if no newer connect started first.
+    public func leaveNetwork(ssid: String, isCurrent: @escaping CameraNetworkIsCurrent = { true }) {
+        guard let hotspot else {
+            if isCurrent() { LunaWiFi.leave(ssid: ssid) }
+            return
+        }
+        let retired = generation
+        LunaWiFi.leave(ssid: ssid) { [weak self] ssid in
+            hotspot.remove(ssid) { self?.generation == retired && isCurrent() }
+        }
     }
 
     public func rejoinCameraNetwork() async throws {

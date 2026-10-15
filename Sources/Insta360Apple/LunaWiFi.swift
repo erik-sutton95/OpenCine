@@ -55,8 +55,10 @@ enum LunaWiFi {
         guard let name = ips.keys.first, let found = ips[name], !found.isEmpty else { return nil }
         return (found, name, macs[name])
     }
+    /// `apply` is the backend's scoped hotspot owner; nil keeps the original direct call.
     static func join(
-        _ credentials: LunaStoredWiFi, joinOnce: Bool = false, logPrefix: String
+        _ credentials: LunaStoredWiFi, joinOnce: Bool = false, logPrefix: String,
+        apply: (@MainActor (CameraHotspotConfiguration) async throws -> Void)? = nil
     ) async throws {
         try Task.checkCancellation()
         #if targetEnvironment(macCatalyst) || os(macOS)
@@ -74,24 +76,27 @@ enum LunaWiFi {
                     phase: .joiningNetwork)
             }
         #else
-            let config = NEHotspotConfiguration(
-                ssid: credentials.ssid, passphrase: credentials.password, isWEP: false)
-            config.joinOnce = joinOnce
-            try await withCheckedThrowingContinuation {
-                (continuation: CheckedContinuation<Void, Error>) in
-                NEHotspotConfigurationManager.shared.apply(config) { error in
-                    if let error = error as NSError?,
-                        !(error.domain == NEHotspotConfigurationErrorDomain
-                            && error.code == NEHotspotConfigurationError.alreadyAssociated.rawValue)
-                    {
-                        NSLog("%@ luna: hotspot apply failed %@ %d %@", logPrefix, error.domain, error.code, error.localizedDescription)
-                        continuation.resume(
-                            throwing: ConnectionFailure.luna(
-                                .joinFailed, "wifi.join-refused",
-                                "The camera Wi-Fi could not be joined (\(error.code)). Keep the camera powered on and accept the iOS Wi-Fi prompt.",
-                                phase: .joiningNetwork))
-                    } else {
-                        continuation.resume()
+            if let apply {
+                do {
+                    try await apply(.init(selection: .ssid(credentials.ssid),
+                        security: .personal(passphrase: credentials.password), joinOnce: joinOnce))
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    if let failure = applyFailure(error as NSError, logPrefix: logPrefix) { throw failure }
+                }
+            } else {
+                let config = NEHotspotConfiguration(
+                    ssid: credentials.ssid, passphrase: credentials.password, isWEP: false)
+                config.joinOnce = joinOnce
+                try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<Void, Error>) in
+                    NEHotspotConfigurationManager.shared.apply(config) { error in
+                        if let error = error as NSError?, let failure = applyFailure(error, logPrefix: logPrefix) {
+                            continuation.resume(throwing: failure)
+                        } else {
+                            continuation.resume()
+                        }
                     }
                 }
             }
@@ -109,6 +114,22 @@ enum LunaWiFi {
         }
         await claimScreenAddress(logPrefix: logPrefix)
     }
+
+    #if os(iOS) && !targetEnvironment(macCatalyst)
+    /// "Already associated" is success; any other refusal is the existing join failure.
+    private nonisolated static func applyFailure(_ error: NSError, logPrefix: String) -> ConnectionFailure? {
+        if error.domain == NEHotspotConfigurationErrorDomain,
+            error.code == NEHotspotConfigurationError.alreadyAssociated.rawValue
+        {
+            return nil
+        }
+        NSLog("%@ luna: hotspot apply failed %@ %d %@", logPrefix, error.domain, error.code, error.localizedDescription)
+        return ConnectionFailure.luna(
+            .joinFailed, "wifi.join-refused",
+            "The camera Wi-Fi could not be joined (\(error.code)). Keep the camera powered on and accept the iOS Wi-Fi prompt.",
+            phase: .joiningNetwork)
+    }
+    #endif
 
     /// DHCP-request 192.168.42.253, then ioctl alias. Keep the DHCP address so
     /// the video TCP socket is not torn down.
@@ -183,9 +204,12 @@ enum LunaWiFi {
         #endif
     }
 
-    static func leave(ssid: String) {
+    /// `remove` is the backend's hotspot owner; nil keeps the original direct call.
+    static func leave(ssid: String, remove: (@MainActor (String) -> Void)? = nil) {
         #if os(iOS) && !targetEnvironment(macCatalyst) && !targetEnvironment(simulator)
-            NEHotspotConfigurationManager.shared.removeConfiguration(forSSID: ssid)
+            if let remove { remove(ssid) } else {
+                NEHotspotConfigurationManager.shared.removeConfiguration(forSSID: ssid)
+            }
         #endif
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 import OpenCineDJI
 
 /// The native datalink operations used by one connection run. Production and SIMULATED peers
@@ -35,9 +36,12 @@ public struct DjiAppleConnectionTransport {
         public var wpa3: Bool
         public var otherSSIDs: [String]
         public var persist: Bool
-        public init(ssid: String, password: String, wpa3: Bool, otherSSIDs: [String], persist: Bool) {
+        /// The requesting attempt's validity, checked before any queued hotspot mutation runs.
+        public var isCurrent: CameraNetworkIsCurrent
+        public init(ssid: String, password: String, wpa3: Bool, otherSSIDs: [String], persist: Bool,
+            isCurrent: @escaping CameraNetworkIsCurrent = { true }) {
             self.ssid = ssid; self.password = password; self.wpa3 = wpa3
-            self.otherSSIDs = otherSSIDs; self.persist = persist
+            self.otherSSIDs = otherSSIDs; self.persist = persist; self.isCurrent = isCurrent
         }
     }
 
@@ -48,6 +52,9 @@ public struct DjiAppleConnectionTransport {
         public var rejectsCredentials: (Error) -> Bool
         public var joinHost: (_ ssid: String, _ password: String) async throws -> String?
         public var leave: (String) -> Void
+        /// Leaves only while the requesting attempt is still current, also when queued behind a
+        /// native join that is still pending.
+        public var leaveIfCurrent: (String, @escaping CameraNetworkIsCurrent) -> Void
         public var currentSSID: () async -> String?
         public var candidates: (_ hotspot: Bool) async throws -> [String]
         public var subnetSize: (_ hotspot: Bool) -> Int?
@@ -57,10 +64,12 @@ public struct DjiAppleConnectionTransport {
             rejectsCredentials: @escaping (Error) -> Bool,
             joinHost: @escaping (String, String) async throws -> String?, leave: @escaping (String) -> Void,
             currentSSID: @escaping () async -> String?, candidates: @escaping (Bool) async throws -> [String],
-            subnetSize: @escaping (Bool) -> Int?) {
+            subnetSize: @escaping (Bool) -> Int?,
+            leaveIfCurrent: ((String, @escaping CameraNetworkIsCurrent) -> Void)? = nil) {
             self.cameraPathReady = cameraPathReady; self.stationPathReady = stationPathReady
             self.joinAccessPoint = joinAccessPoint; self.rejectsCredentials = rejectsCredentials
             self.joinHost = joinHost; self.leave = leave; self.currentSSID = currentSSID
+            self.leaveIfCurrent = leaveIfCurrent ?? { ssid, current in if current() { leave(ssid) } }
             self.candidates = candidates; self.subnetSize = subnetSize
         }
     }

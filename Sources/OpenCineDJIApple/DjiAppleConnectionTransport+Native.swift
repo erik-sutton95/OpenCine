@@ -21,17 +21,19 @@ extension DjiAppleConnectionTransport {
                 joinAccessPoint: { request in
                     try await DjiAppleWiFiJoiner.joinCameraAP(ssid: request.ssid,
                         passphrase: request.password, wpa3: request.wpa3,
-                        knownOtherSSIDs: request.otherSSIDs, persist: request.persist, host: host)
+                        knownOtherSSIDs: request.otherSSIDs, persist: request.persist, host: host,
+                        isCurrent: request.isCurrent)
                 }, rejectsCredentials: { DjiAppleWiFiJoiner.JoinError.rejectsCredentials($0) },
                 joinHost: { try await DjiAppleSharedWiFiPath.joinHost(ssid: $0, password: $1) },
-                leave: { DjiAppleWiFiJoiner.leave(ssid: $0) },
-                currentSSID: { await DjiAppleWiFiJoiner.currentSSID() },
+                leave: { DjiAppleWiFiJoiner.leave(ssid: $0, host: host) },
+                currentSSID: { await DjiAppleWiFiJoiner.currentSSID(host: host) },
                 candidates: { try await DjiAppleNetworkDiscovery().candidates(excluding: [], hotspot: $0) },
                 subnetSize: { hotspot in
                     guard let address = DjiAppleSharedWiFiPath.address(hotspot: hotspot),
                         let mask = DjiAppleSharedWiFiPath.netmask(hotspot: hotspot) else { return nil }
                     return MulticamDiscovery.hosts(address: address, mask: mask)?.count
-                }), makeEndpoint: { camera, address, hotspot in
+                }, leaveIfCurrent: { DjiAppleWiFiJoiner.leave(ssid: $0, host: host, isCurrent: $1) }),
+                makeEndpoint: { camera, address, hotspot in
                     DjiAppleDatalink(port: UInt16(camera.model.datalinkPort), tcpPoke: camera.model.tcpPoke,
                         pairingToken: camera.model.pairingToken, stationHost: address,
                         stationHotspot: address != nil && hotspot,
