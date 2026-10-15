@@ -1,4 +1,5 @@
 #if os(iOS)
+    import MonitorPresentation
     import SwiftUI
 
     /// Full-screen operator panel paddings and safe areas (Settings, Media, Legal), shared by the
@@ -80,6 +81,23 @@
                 leading: max(proposed.leading, window.leading),
                 bottom: max(proposed.bottom, window.bottom),
                 trailing: max(proposed.trailing, window.trailing))
+        }
+
+        /// The reference monitor's camera pages (a host's pre page, cameras and pair): the same
+        /// physical-window resolution as the cover, then landscape zeroes the clean short edge
+        /// exactly like the cover page, so the surface hugs that bezel while clearing the island.
+        public static func pageSafeArea(
+            from insets: EdgeInsets,
+            window: EdgeInsets,
+            size: CGSize,
+            orientation: MonitorDeviceOrientation? = nil
+        ) -> EdgeInsets {
+            let resolved = resolvedDeviceSafeArea(insets, window: window)
+            guard size.width > size.height else { return resolved }
+            return fullScreenPanelSafeArea(
+                from: resolved, isPortrait: false,
+                mirrored: LiveMonitorLayout.shouldMirror(
+                    leading: resolved.leading, trailing: resolved.trailing, orientation: orientation))
         }
     }
 #endif

@@ -32,6 +32,22 @@ public fun <P> monitorSettingsCacheSource(library: MonitorMediaLibraryModel<P>):
     return library.settingsCacheSource(value)
 }
 
+/** All-camera settings retain the current library's lifetime and cache-revision admission. */
+@Composable
+public fun <P> monitorSettingsCacheSource(library: MonitorMediaLibraryModel<P>,
+    cacheRoot: com.opencapture.opencine.appkit.MonitorMediaCacheRoot): MonitorSettingsCacheSource {
+    val value by library.state.collectAsState()
+    return library.settingsCacheSource(cacheRoot = cacheRoot, value = value)
+}
+
+/** All-camera settings over one declared parent in the existing shared storage registry. */
+@Composable
+public fun <P> monitorSettingsCacheSource(library: MonitorMediaLibraryModel<P>,
+    storage: com.opencapture.opencine.appkit.MonitorMediaCacheStorage, parent: java.io.File): MonitorSettingsCacheSource {
+    val value by library.state.collectAsState()
+    return library.settingsCacheSource(storage = storage, parent = parent, value = value)
+}
+
 /**
  * SDK adapters provide captured IO; this owner presents count, confirmation, progress and errors.
  * Clearing always asks first (the Pocket baseline): one policy for every app.
@@ -68,7 +84,7 @@ public fun MonitorOperatorCacheSettings(
     if (value.confirmationPresented) AlertDialog(
         onDismissRequest = model::cancelConfirmation,
         title = { Text("Clear cache?", color = LiveDesign.text) },
-        text = { Text("Removes downloaded clip files from this phone. The clip list is kept.", color = LiveDesign.muted) },
+        text = { Text(clearHelp, color = LiveDesign.muted) },
         confirmButton = { TextButton(onClick = model::clear) { Text("Clear", color = MonitorPalette.recording) } },
         dismissButton = { TextButton(onClick = model::cancelConfirmation) { Text("Cancel", color = LiveDesign.muted) } },
         containerColor = LiveDesign.surface,

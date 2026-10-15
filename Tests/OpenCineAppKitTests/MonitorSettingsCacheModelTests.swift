@@ -101,8 +101,36 @@ import Testing
         #expect(await settled { io.clears.count == 1 })
         io.clears[0].continuation.resume(throwing: CocoaError(.fileWriteUnknown))
         #expect(await settled { model.clearFailed && !model.clearing })
+        if await settled({ io.counts.count == 2 }) {
+            io.counts[1].continuation.resume(returning: 8)
+        }
         model.retire(); #expect(!model.clearFailed)
     }
+    @Test func failedClearRecountsRemainingBytesAndRetainsTheFailure() async {
+        guard #available(macOS 14, *) else { return }
+        let model = MonitorSettingsCacheModel(), io = SettingsCacheIO()
+        model.refresh(io.source(.init(namespace: "original-cache", source: UUID())))
+        #expect(await settled { io.counts.count == 1 })
+        io.counts[0].continuation.resume(returning: 800)
+        #expect(await settled { model.bytes == 800 })
+        model.requestClear(); model.clear()
+        #expect(await settled { io.clears.count == 1 })
+        io.clears[0].continuation.resume(throwing: NSError(domain: "SettingsCacheTest", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "remaining bucket failed"]))
+        let recounted = await settled { io.counts.count == 2 }
+        #expect(recounted)
+        #expect(model.clearFailed && !model.clearing)
+        let failure = model.failure
+        #expect(failure != nil)
+        if recounted {
+            #expect(model.bytes == nil)
+            io.counts[1].continuation.resume(returning: 300)
+            #expect(await settled { model.bytes == 300 })
+            #expect(model.clearFailed && model.failure == failure)
+        }
+        model.retire()
+    }
+
     @Test func successfulClearRecountsTheCapturedNamespaceWithoutAContentReport() async {
         guard #available(macOS 14, *) else { return }
         let model = MonitorSettingsCacheModel(), io = SettingsCacheIO()

@@ -218,7 +218,8 @@ public struct MonitorOperatorPhotoScreen<Payload: Sendable, Looks: MonitorLookPr
     private var options: some View {
         GeometryReader { proxy in
             MonitorInspector(title: MonitorAssistSelection.desqueeze.title, viewport: proxy.size,
-                safeArea: LiveMonitorLayout.resolvedSafeArea(proxy.safeAreaInsets, scene: windowGeometry.safeArea),
+                safeArea: OperatorPanelMetrics.resolvedDeviceSafeArea(
+                    proxy.safeAreaInsets, window: windowGeometry.safeArea),
                 helpVisible: Binding(get: { model.helpPresented }, set: { model.helpPresented = $0 }),
                 onClose: { model.optionsPresented = false }) {
                     EmptyView()

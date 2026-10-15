@@ -1,8 +1,9 @@
 #if os(iOS)
 import XCTest
 
-/// A single saved camera setup on the shared page. Main has no legal links on the cameras
-/// pages, so the app passes none (ui-tests-2 lane).
+/// A single saved camera setup on the shared page. Every app's cameras page is the same
+/// composition: a setup never offers Rename setup and the pages carry no legal links (A2-62;
+/// the options were per-app flags on `ShellBrand` and `ShellActions`).
 open class CamerasPageFollowupTests: SharedAppUITestCase {
     override open func setUp() {
         continueAfterFailure = false
@@ -16,19 +17,18 @@ open class CamerasPageFollowupTests: SharedAppUITestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    /// Whether the app's shell renames setups (`ShellBrand.renamesSetups`). Main's does not.
-    open var renamesSetups: Bool { false }
-
-    /// The setup menu offers Rename setup exactly when the app's shell renames setups (a single
-    /// camera Wi-Fi setup has no Forget either).
-    func testASetupOffersRenameOnlyWhereTheShellRenamesSetups() {
+    /// The setup menu offers Forget-style entries only; Rename setup is gone in every app,
+    /// and the cameras page renders no legal links.
+    func testASetupNeverOffersRenameAndThePageHasNoLegalLinks() {
         app.launch()
         let chip = app.buttons.matching(
             NSPredicate(format: "label == %@", "Connect Travel camera over Camera Wi-Fi")
         ).firstMatch
         XCTAssertTrue(chip.waitForExistence(timeout: 10))
         chip.press(forDuration: 0.8)
-        XCTAssertEqual(app.buttons["Rename setup"].waitForExistence(timeout: 2), renamesSetups)
+        XCTAssertFalse(app.buttons["Rename setup"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["legal.privacy"].exists)
+        XCTAssertFalse(app.buttons["legal.terms"].exists)
         capture("single-setup-menu")
     }
 }

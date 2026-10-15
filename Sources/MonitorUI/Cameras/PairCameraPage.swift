@@ -14,8 +14,6 @@
         public var onDiagnostics: () -> Void
         public var onReportProblem: () -> Void
         public var onWatchFeed: (() -> Void)?
-        public var onPrivacy: (() -> Void)?
-        public var onTerms: (() -> Void)?
         public var extra: Extra
 
         public init(
@@ -24,7 +22,6 @@
             onBack: @escaping () -> Void, onDiagnostics: @escaping () -> Void,
             onReportProblem: @escaping () -> Void,
             onWatchFeed: (() -> Void)? = nil,
-            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil,
             @ViewBuilder extra: () -> Extra
         ) {
             self.presentation = presentation
@@ -35,8 +32,6 @@
             self.onDiagnostics = onDiagnostics
             self.onReportProblem = onReportProblem
             self.onWatchFeed = onWatchFeed
-            self.onPrivacy = onPrivacy
-            self.onTerms = onTerms
             self.extra = extra()
         }
 
@@ -143,7 +138,6 @@
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("pair.reportProblem")
-                CameraLegalLinks(onPrivacy: onPrivacy, onTerms: onTerms)
             }
             .padding(11).frame(
                 maxWidth: .infinity, maxHeight: portrait ? nil : .infinity, alignment: .topLeading
@@ -368,14 +362,12 @@
             onSelect: @escaping (String) -> Void, onPrimary: @escaping () -> Void,
             onBack: @escaping () -> Void, onDiagnostics: @escaping () -> Void,
             onReportProblem: @escaping () -> Void,
-            onWatchFeed: (() -> Void)? = nil,
-            onPrivacy: (() -> Void)? = nil, onTerms: (() -> Void)? = nil
+            onWatchFeed: (() -> Void)? = nil
         ) {
             self.init(
                 presentation: presentation, safeArea: safeArea, onSelect: onSelect,
                 onPrimary: onPrimary, onBack: onBack, onDiagnostics: onDiagnostics,
-                onReportProblem: onReportProblem, onWatchFeed: onWatchFeed,
-                onPrivacy: onPrivacy, onTerms: onTerms, extra: { EmptyView() })
+                onReportProblem: onReportProblem, onWatchFeed: onWatchFeed, extra: { EmptyView() })
         }
     }
 

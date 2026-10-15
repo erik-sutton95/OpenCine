@@ -7,6 +7,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.NoSuchFileException
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
@@ -104,6 +107,10 @@ public class MonitorMediaCacheRoot(public val root: File,
             MonitorMediaCacheDirectory(File(root, namespace), accountLegacyUnpreparedRoots)
         }
     }
+    /** Every live or valid retired camera namespace once, in stable order, for Settings count/Clear. */
+    public fun cachedDirectories(): List<MonitorMediaCacheDirectory> =
+        MonitorMediaCacheNamespaces.names(root).map(::directory)
+
 }
 
 public class MonitorMediaCacheDirectory(public val root: File,
@@ -205,7 +212,7 @@ public class MonitorMediaCacheDirectory(public val root: File,
             retired.forEach {
                 if (it.temporary.exists() && !it.temporary.delete()) throw IOException("Cannot retire active cache staging file")
             }
-            if (root.exists()) {
+            if (MonitorMediaCacheNamespaces.isDirectory(root)) {
                 val suffix = "${root.name}-${UUID.randomUUID()}"
                 val retired = File(root.parentFile, ".retiring-$suffix")
                 val ready = File(root.parentFile, ".clearing-$suffix")
@@ -232,20 +239,31 @@ public class MonitorMediaCacheDirectory(public val root: File,
             retiredRoots(includeUnprepared = false)
         } } finally { retired.forEach { it.requestClose() } }
         withContext(Dispatchers.IO) {
-            pending.forEach { if (it.exists() && !it.deleteRecursively()) throw IOException("Cannot delete retired cache") }
+            pending.forEach { directory ->
+                try {
+                    // Files.walk does not follow links, including a nested link outside the cache.
+                    Files.walk(directory.toPath()).use { paths ->
+                        paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+                    }
+                } catch (_: NoSuchFileException) { /* Another Clear already removed this retired root. */ }
+            }
         }
     }
     /** Per-clip shot color codes kept beside this directory's catalog; one store per directory. */
     public val shotColors: MonitorMediaShotColorStore by lazy { MonitorMediaShotColorStore(this) }
     public suspend fun totalByteCount(): Long = withContext(Dispatchers.IO) {
         (listOf(root) + retiredRoots(includeUnprepared = true)).sumOf { directory ->
-            directory.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+            if (!MonitorMediaCacheNamespaces.isDirectory(directory)) 0L else
+                Files.walk(directory.toPath()).use { paths ->
+                    paths.filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }
+                        .mapToLong { Files.size(it) }.sum()
+                }
         }
     }
     private fun retiredRoots(includeUnprepared: Boolean): List<File> = root.parentFile?.listFiles().orEmpty().filter {
-        isRetirementName(it.name, ".clearing-${root.name}-") ||
+        MonitorMediaCacheNamespaces.isDirectory(it) && (isRetirementName(it.name, ".clearing-${root.name}-") ||
             (includeUnprepared && (isRetirementName(it.name, ".retiring-${root.name}-") ||
-                (accountLegacyUnpreparedRoots && it.name.startsWith(".retiring-${root.name}-"))))
+                (accountLegacyUnpreparedRoots && it.name.startsWith(".retiring-${root.name}-")))))
     }
     private fun isRetirementName(name: String, prefix: String): Boolean {
         if (!name.startsWith(prefix)) return false
@@ -433,7 +451,11 @@ public class MonitorMediaCache<P>(
         return MonitorMediaCacheReadPlan(UUID.randomUUID(), directory.generation, plan, eligibility)
     }
     public suspend fun snapshot(records: List<MonitorMediaRecord<P>>): MonitorMediaCacheSnapshot = readPlan(records).read()
-    public suspend fun clear() { directory.clear(preservedMetadata) }
+    public suspend fun clear() { clear(preservingMetadata = true) }
+    /** Settings can remove indexes with the clips; the original no-argument contract keeps them. */
+    public suspend fun clear(preservingMetadata: Boolean) {
+        directory.clear(if (preservingMetadata) preservedMetadata else emptyList())
+    }
 }
 
 

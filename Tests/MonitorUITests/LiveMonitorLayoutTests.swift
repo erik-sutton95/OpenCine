@@ -42,7 +42,7 @@
             XCTAssertEqual(fromInsetBox.width, 390, accuracy: 0.05)
             XCTAssertEqual(fromInsetBox.height, 844, accuracy: 0.05)
 
-            let recovered = LiveMonitorLayout.resolvedSafeArea(EdgeInsets(), scene: inset)
+            let recovered = OperatorPanelMetrics.resolvedDeviceSafeArea(EdgeInsets(), window: inset)
             XCTAssertEqual(recovered.top, 59, accuracy: 0.05)
             XCTAssertEqual(recovered.bottom, 34, accuracy: 0.05)
 

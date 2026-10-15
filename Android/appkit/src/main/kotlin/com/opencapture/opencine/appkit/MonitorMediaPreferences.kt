@@ -63,7 +63,14 @@ public class MonitorMediaPreferences(
 public class MonitorMediaCacheStorage {
     private val directories = mutableMapOf<String, MonitorMediaCacheDirectory>()
     public fun directory(root: File): MonitorMediaCacheDirectory = synchronized(directories) {
-        val root = root.canonicalFile
+        // Resolve trusted ancestors, retaining the camera leaf lexically. A live leaf alias
+        // must not redirect ownership of a retired sibling into an unrelated directory.
+        val normalized = root.absoluteFile.normalize()
+        val root = normalized.parentFile?.canonicalFile?.let { File(it, normalized.name) } ?: normalized
         directories.getOrPut(root.path) { MonitorMediaCacheDirectory(root) }
     }
+    /** Every live or valid retired child camera namespace once, in stable order. */
+    public fun directories(parent: File): List<MonitorMediaCacheDirectory> =
+        MonitorMediaCacheNamespaces.names(parent).map { directory(File(parent, it)) }
+
 }

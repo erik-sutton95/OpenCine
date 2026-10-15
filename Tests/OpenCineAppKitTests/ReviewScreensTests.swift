@@ -170,8 +170,8 @@
             #expect(type(of: page) == PairCameraPage<EmptyView>.self)
         }
 
-        /// Legal links remain reachable on startup and cameras; a lone setup still has its title.
-        @Test func legalAndSingleSetupFixturesRender() throws {
+        /// A lone setup still renders with its custom title; no legal links on the shared pages.
+        @Test func singleSetupFixturesRender() throws {
             let fake = FakeIntegration(id: IntegrationID("test.cameras"))
             var single = T.camera
             single.routes = [T.ap]
@@ -196,14 +196,13 @@
                 try write(
                     CamerasScreen(
                         model: listed, brandName: "REVIEW (SIMULATED)", safeArea: insets,
-                        onPair: {}, onMedia: {}, onSettings: {}, onPrivacy: {}, onTerms: {}),
-                    "17-cameras-legal-single-setup-\(name)", size: bounds)
+                        onPair: {}, onMedia: {}, onSettings: {}),
+                    "17-cameras-single-setup-\(name)", size: bounds)
                 try write(
                     PairScreen(
                         model: model(fake, saved: []), safeArea: insets,
-                        onDone: {}, onDiagnostics: {}, onReportProblem: {}, onPrivacy: {},
-                        onTerms: {}),
-                    "18-pair-startup-legal-\(name)", size: bounds)
+                        onDone: {}, onDiagnostics: {}, onReportProblem: {}),
+                    "18-pair-startup-\(name)", size: bounds)
             }
         }
 
