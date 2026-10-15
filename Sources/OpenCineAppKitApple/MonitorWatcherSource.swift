@@ -247,4 +247,130 @@ private struct WatcherJoinDestination {
         return captured.admits(tapSource)
     }
 }
+
+/// Where a watcher's join to a shared feed stands, for the browse screen.
+public enum WatcherJoinStatus: Equatable, Sendable {
+    case idle
+    case connecting
+    case reconnecting(attempt: Int, maximum: Int)
+    case needsPasscode
+    case live
+    case failed(String)
+}
+
+/// One shared feed found on this network.
+public struct WatcherFeedRow: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let cameraName: String
+
+    public init(id: String, name: String, cameraName: String) {
+        self.id = id
+        self.name = name
+        self.cameraName = cameraName
+    }
+}
+
+/// The watcher side of the shared relay for an app that watches another phone's feed: browse,
+/// join with the remembered passcode, retry a passcode, leave, and the navigation between the
+/// browse screen and the watcher monitor. Its members satisfy the camera controls'
+/// `WatcherBrowseHost`. The app supplies its relay objects, Keychain service and the one chrome
+/// step that differs (closing its own covers).
+@MainActor
+public protocol WatcherRelayViewer: AnyObject {
+    associatedtype WatcherDecoder: MonitorLiveVideoRuntime
+    var relayClient: MonitorWatcherSource<WatcherDecoder> { get }
+    var relayBrowser: WatcherRelayBrowser { get }
+    /// This app's relay secrets.
+    var relayKeychain: WatcherRelayKeychain { get }
+    var isWatchingFeed: Bool { get set }
+    var showsWatcherBrowse: Bool { get set }
+    /// A phone with a live camera of its own does not browse for other feeds.
+    var isLive: Bool { get }
+    /// This phone's name, shown to the sharing phone.
+    var watcherDeviceName: String { get }
+    /// Close the app's own covers so the watcher monitor shows once a join goes live.
+    func dismissCoversForWatching()
+}
+
+extension WatcherRelayViewer {
+    public var watcherJoinStatus: WatcherJoinStatus {
+        switch relayClient.status {
+        case .idle: .idle
+        case .connecting: .connecting
+        case .reconnecting(let attempt):
+            .reconnecting(attempt: attempt, maximum: WatcherRelayRecovery.maximumRetries)
+        case .needsPasscode: .needsPasscode
+        case .live: .live
+        case .failed(let message): .failed(message)
+        }
+    }
+
+    public var watcherFeeds: [WatcherFeedRow] {
+        relayBrowser.hosts.map {
+            WatcherFeedRow(id: $0.id, name: $0.name, cameraName: $0.cameraName)
+        }
+    }
+
+    public var watcherBrowseError: String? { relayBrowser.browseError }
+
+    /// Once accepted, transport failure belongs on the watcher screen until explicit Leave.
+    public var showsWatcherMonitor: Bool { isWatchingFeed }
+
+    public func joinWatcherFeed(id: String) {
+        guard let feed = relayBrowser.hosts.first(where: { $0.id == id }) else { return }
+        joinWatcher(feed)
+    }
+
+    public func openWatcherBrowse() {
+        showsWatcherBrowse = true
+        relayClient.resolveEndpoint = { [weak self] name in
+            self?.relayBrowser.hosts.first { $0.name == name }?.endpoint
+        }
+        relayClient.onReconnect = { [weak self] in self?.startWatcherBrowse() }
+        startWatcherBrowse()
+    }
+
+    public func startWatcherBrowse() {
+        guard !isLive else { return }
+        relayBrowser.start()
+    }
+
+    public func joinWatcher(_ host: WatcherRelayDiscovery) {
+        relayClient.join(
+            endpoint: host.endpoint,
+            hostName: host.name,
+            passcode: relayKeychain.rememberedPasscode(forHost: host.name),
+            watcherID: relayKeychain.installID,
+            deviceName: watcherDeviceName)
+    }
+
+    /// A failed save keeps the passcode for this join; the next join asks again.
+    public func retryWatcherPasscode(_ code: String) {
+        relayKeychain.storeRememberedPasscode(code, forHost: relayClient.hostTitle)
+        relayClient.retryPasscode(code)
+    }
+
+    public func stopWatching() {
+        relayClient.leave()
+        isWatchingFeed = false
+        showsWatcherBrowse = false
+        relayBrowser.stop()
+    }
+
+    /// A passcode demand while watching returns to browse; a live join leaves browse for the
+    /// watcher monitor.
+    public func noteWatcherStatusChanged(_ status: RelayWatcherPhase) {
+        if status == .needsPasscode, isWatchingFeed {
+            isWatchingFeed = false
+            showsWatcherBrowse = true
+            startWatcherBrowse()
+        }
+        if status == .live, showsWatcherBrowse {
+            isWatchingFeed = true
+            showsWatcherBrowse = false
+            dismissCoversForWatching()
+        }
+    }
+}
 #endif
