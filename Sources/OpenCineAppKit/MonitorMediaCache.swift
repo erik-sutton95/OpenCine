@@ -323,7 +323,7 @@ public struct MonitorMediaCacheEntry: Sendable {
             for resource in retired where manager.fileExists(atPath: resource.temporary.path) {
                 try manager.removeItem(at: resource.temporary)
             }
-            if manager.fileExists(atPath: root.path) {
+            if MonitorMediaCacheNamespaces.isDirectory(root, manager: manager) {
                 let suffix = root.lastPathComponent + "-" + UUID().uuidString
                 let retired = root.deletingLastPathComponent().appendingPathComponent(
                     ".retiring-" + suffix)
@@ -394,7 +394,7 @@ public struct MonitorMediaCacheEntry: Sendable {
                 root: root, manager: manager, includeUnprepared: true,
                 accountLegacyUnpreparedRoots: accountLegacyUnpreparedRoots)
         {
-            guard
+            guard MonitorMediaCacheNamespaces.isDirectory(directory, manager: manager),
                 let files = manager.enumerator(
                     at: directory,
                     includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey])

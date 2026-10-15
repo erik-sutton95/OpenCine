@@ -137,4 +137,30 @@ import Testing
         #expect(try Data(contentsOf: retired.appendingPathComponent("index.json")).count == 1024)
     }
 
+    @Test(arguments: [false, true])
+    func retiredNamespaceWithLiveSymlinkCountsAndClearsOnlyOwnedBytes(usingStorage: Bool) async throws {
+        let parent = parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let outside = parent.appendingPathExtension("outside")
+        defer { try? FileManager.default.removeItem(at: outside) }
+        let retired = parent.appendingPathComponent(".clearing-camera-01234567-89AB-CDEF-0123-456789ABCDEF")
+        try FileManager.default.createDirectory(at: retired, withIntermediateDirectories: true)
+        try Data(count: 4096).write(to: retired.appendingPathComponent("owned.mov"))
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let sentinel = outside.appendingPathComponent("keep.mov")
+        try Data([1, 2, 3]).write(to: sentinel)
+        let live = parent.appendingPathComponent("camera")
+        try FileManager.default.createSymbolicLink(at: live, withDestinationURL: outside)
+        let directories = usingStorage ? MonitorMediaCacheStorage().directories(under: parent)
+            : MonitorMediaCacheRoot(root: parent).cachedDirectories()
+        #expect(directories.count == 1)
+        let directory = try #require(directories.first)
+        #expect(directory.root.lastPathComponent == "camera")
+        #expect(await directory.totalByteCount() == 4096)
+        try await directory.clear(preserving: [])
+        #expect(try Data(contentsOf: sentinel) == Data([1, 2, 3]))
+        #expect(!FileManager.default.fileExists(atPath: retired.path))
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: live.path) == outside.path)
+    }
+
 }

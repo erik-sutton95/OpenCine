@@ -31,12 +31,12 @@ import Foundation
         // both `/var/...` and `/private/var/...`, and `resolvingSymlinksInPath`
         // resolves the `/var` alias only while the leaf is missing - so two call
         // orders minted two directory objects for one logical root on hardware.
-        // Canonicalise to the real path of the deepest existing ancestor, re-attach
-        // missing leaves and spell the `/var` alias through its real prefix, so
-        // every consumer of one root shares one directory object everywhere.
+        // Canonicalise the deepest existing parent and re-attach missing components,
+        // spelling `/var` through its real prefix. Never resolve the camera leaf: an
+        // unrelated live symlink must not redirect ownership of its retired siblings.
         let standardized = root.standardizedFileURL
-        var existing = standardized
-        var missing: [String] = []
+        var existing = standardized.deletingLastPathComponent()
+        var missing = standardized.path == "/" ? [] : [standardized.lastPathComponent]
         while existing.path != "/", !manager.fileExists(atPath: existing.path) {
             missing.insert(existing.lastPathComponent, at: 0)
             existing = existing.deletingLastPathComponent()
