@@ -427,8 +427,15 @@ object MonitorLayoutPolicy {
 
     data class Panel(val x: Float, val y: Float, val width: Float, val maxHeight: Float)
 
-    /** The top margin every capture popup keeps inside the safe area. */
-    fun popupTopMargin(safeTop: Float): Float = max(14f, safeTop + 10f)
+    /** The smallest distance any capture popup keeps from the top, and its offset under a safe top inset. */
+    const val POPUP_TOP_MARGIN_MINIMUM = 8f
+
+    /**
+     * The one capture popup top margin, `max(8, safe top + 8)` in dp: the bottom drawer and the
+     * top-edge recording categories both keep it. Twin of Swift `MonitorCapturePopupLayout.topMargin`
+     * (points); both read `Fixtures/popup-top-margin.tsv`.
+     */
+    fun popupTopMargin(safeTop: Float): Float = max(POPUP_TOP_MARGIN_MINIMUM, safeTop + POPUP_TOP_MARGIN_MINIMUM)
 
     fun bottomPanel(panelHeight: Float, width: Float, height: Float, safeLeading: Float,
         safeTrailing: Float, safeTop: Float, safeBottom: Float, portraitFloor: Float? = null): Panel {

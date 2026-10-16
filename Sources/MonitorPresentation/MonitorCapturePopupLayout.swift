@@ -36,6 +36,16 @@ public struct MonitorCapturePopupLayout: Equatable, Sendable {
     public let topCornerRadius: Double
     public let bottomCornerRadius: Double
 
+    /// The one capture popup top margin, `max(8, safe top + 8)`: the bottom drawer and the
+    /// top-edge recording categories both keep it. Kotlin keeps the twin
+    /// `MonitorLayoutPolicy.popupTopMargin` in dp; both read `Fixtures/popup-top-margin.tsv`.
+    public static func topMargin(safeTop: Double) -> Double {
+        max(topMarginMinimum, safeTop + topMarginMinimum)
+    }
+
+    /// The smallest distance any popup keeps from the top, and its offset under a safe top inset.
+    public static let topMarginMinimum: Double = 8
+
     public init(
         viewportWidth: Double, viewportHeight: Double, tablet: Bool,
         safeArea: MonitorSafeArea = .init(), bottomBoundary: Double? = nil,
@@ -52,8 +62,8 @@ public struct MonitorCapturePopupLayout: Equatable, Sendable {
         centerX = min(right - width / 2, max(left + width / 2, w / 2))
         let requestedBottom = bottomBoundary.flatMap { $0.isFinite ? $0 : nil } ?? h
         bottom = min(h, max(0, requestedBottom))
-        // Every popup keeps this top margin inside the safe area.
-        let margin = max(8, safeArea.top + 8, ceiling)
+        // Every popup keeps the one top margin inside the safe area.
+        let margin = max(Self.topMargin(safeTop: safeArea.top), ceiling)
         switch edge {
         case .bottom:
             top = margin
