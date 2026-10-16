@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Bitmap
-import android.graphics.Point
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Build
@@ -61,18 +60,15 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     /** Pixels per dp, for tolerances written in dp as the Swift kit writes them in points. */
     public val density: Float = instrumentation.targetContext.resources.displayMetrics.density
 
+    /** The orientation the kit froze: portrait at the start of each scenario, then what [rotate] set. */
+    private var frozenLandscape = false
+
     @Before
     public fun startInPortrait() {
-        automation.setRotation(rotationFor(landscape = false))
         // A scenario that ended in landscape leaves the display turned; start each one upright.
-        val display = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
-            .getDisplay(Display.DEFAULT_DISPLAY)
-        val until = SystemClock.uptimeMillis() + 5_000
-        while (SystemClock.uptimeMillis() < until) {
-            @Suppress("DEPRECATION") val size = Point().also(display::getRealSize)
-            if (size.x < size.y) break
-            SystemClock.sleep(100)
-        }
+        // [launch] checks that the app's window really comes up that way.
+        frozenLandscape = false
+        automation.setRotation(rotationFor(landscape = false))
     }
 
     @After
@@ -87,7 +83,15 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         scenario?.close()
         val intent = Intent(instrumentation.targetContext, subject.activity)
         review.extras.forEach { (key, value) -> intent.putExtra(key, value) }
-        return ActivityScenario.launch<Activity>(intent).also { scenario = it }
+        val launched = ActivityScenario.launch<Activity>(intent).also { scenario = it }
+        val deadline = SystemClock.uptimeMillis() + 10_000
+        while (mainWindow()?.let { (it.width > it.height) == frozenLandscape } != true) {
+            if (SystemClock.uptimeMillis() > deadline) {
+                fail("The app must open in ${if (frozenLandscape) "landscape" else "portrait"}")
+            }
+            pause(150)
+        }
+        return launched
     }
 
     // MARK: The accessibility tree
@@ -284,6 +288,7 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
      * default) has kept its frame for half a second, as the Swift kit's `rotate` does.
      */
     public fun rotate(landscape: Boolean, settling: (() -> UiNode?)? = null) {
+        frozenLandscape = landscape
         automation.setRotation(rotationFor(landscape))
         val deadline = SystemClock.uptimeMillis() + 10_000
         while (mainWindow()?.let { (it.width > it.height) == landscape } != true) {
@@ -311,12 +316,15 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         "${if (smallest >= 600) "tablet" else "phone"}${smallest}dp"
     }
 
+    /**
+     * Whether the panel is landscape at rotation 0, from the display mode's physical size. The size
+     * and rotation an app process reads can disagree after a scenario left the display turned (the
+     * launcher shows upright on a turned display), which once made "portrait" freeze rotation 90.
+     */
     private val naturalLandscape: Boolean by lazy {
-        val display = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
-            .getDisplay(Display.DEFAULT_DISPLAY)
-        @Suppress("DEPRECATION") val size = Point().also(display::getRealSize)
-        val turned = display.rotation == android.view.Surface.ROTATION_90 || display.rotation == android.view.Surface.ROTATION_270
-        (size.x > size.y) != turned
+        val mode = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
+            .getDisplay(Display.DEFAULT_DISPLAY).mode
+        mode.physicalWidth > mode.physicalHeight
     }
 
     private fun rotationFor(landscape: Boolean): Int =
