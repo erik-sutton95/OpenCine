@@ -71,8 +71,22 @@ object LunaFailures {
         actions: List<RecoveryAction> = listOf(RecoveryAction.Retry),
     ) = ConnectionFailure(reason, phase, "Couldn’t connect over Camera Wi-Fi", message, actions, "${INTEGRATION.rawValue}.$code")
 
-    /** A connect that failed in [phase]: the operator copy is chosen by the phase it failed in. */
-    fun connect(phase: ConnectionPhase): ConnectionFailure = when (phase) {
+    /**
+     * A connect that failed in [phase]: the operator copy is chosen by the phase it failed in.
+     * [advertising] is false when this run has not heard the camera, so it is off or out of range.
+     */
+    fun connect(phase: ConnectionPhase, advertising: Boolean = true): ConnectionFailure = when {
+        phase == ConnectionPhase.CONNECTING_GATT && !advertising -> cameraMissing
+        else -> byPhase(phase)
+    }
+
+    /** The camera did not answer and this run never heard it: it is off or out of range. */
+    val cameraMissing = failure(
+        ConnectionFailure.Reason.NotFound, "bluetooth.camera-missing",
+        "The camera did not answer. Make sure it is turned on and nearby, then try again.", CorePhase.LINK,
+    )
+
+    private fun byPhase(phase: ConnectionPhase): ConnectionFailure = when (phase) {
         ConnectionPhase.AWAITING_APPROVAL -> failure(
             ConnectionFailure.Reason.NotApproved, "approval.incomplete",
             "Camera approval was not completed. Wake Luna and accept the connection on its screen.", CorePhase.AWAITING_APPROVAL,

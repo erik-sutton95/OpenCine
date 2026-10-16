@@ -200,7 +200,7 @@ class LunaBackend(
             catch (error: Exception) {
                 // A withTimeout inside (GATT, greeting) is a CancellationException too; only a real cancel propagates.
                 if (error is CancellationException && !isActive) throw error
-                fail(LunaFailures.connect(_phase.value))
+                fail(LunaFailures.connect(_phase.value, advertising = _found.value.any { it.id == id }))
                 setPhase(ConnectionPhase.FAILED)
             } finally { cleanup() }
         }
