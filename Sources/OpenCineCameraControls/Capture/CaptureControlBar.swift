@@ -39,7 +39,7 @@
                     }
                 }
                 .onChange(of: columns) { _, _ in host.captureDrum = nil }
-                .onChange(of: capabilities.focusMode) { _, on in
+                .onChange(of: controls.focus.isOffered) { _, on in
                     if !on, host.captureSheet == .focus { host.captureSheet = nil }
                 }
                 .onChange(of: capabilities.aperture) { _, on in
@@ -57,13 +57,15 @@
         }
 
         private var capabilities: CaptureSheetCapabilities { host.captureCapabilities }
+        /// The one capability model: which tiles the strip offers.
+        private var controls: ControlCapabilities { host.controlCapabilities }
 
         private var status: CameraStatus { host.cameraStatus }
 
         private var showsAudio: Bool { capabilities.audio && !status.isPhoto }
 
         private var visibleTileCount: Int {
-            4 + (capabilities.faceMetering ? 1 : 0) + (capabilities.focusMode ? 1 : 0)
+            4 + (capabilities.faceMetering ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)
                 + (capabilities.aperture ? 1 : 0) + (showsAudio ? 1 : 0)
         }
 
@@ -102,7 +104,7 @@
                 } else {
                     tile(.wb, label: "WB", value: wbValue, widest: "10000K", valueIcon: wbIcon)
                 }
-                if capabilities.focusMode {
+                if controls.focus.isOffered {
                     tile(.focus, label: "FOCUS", value: focusValue, widest: "Showcase")
                 }
                 if capabilities.aperture {

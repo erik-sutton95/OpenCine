@@ -495,7 +495,7 @@
                     tintPad
                 }
             case .focus:
-                if host.captureCapabilities.focusMode {
+                if host.controlCapabilities.focus.isOffered {
                     focusRows
                 }
             case .aperture:

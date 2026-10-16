@@ -12,6 +12,7 @@ import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.EvComp
 
@@ -31,6 +32,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
 ): MonitorOperatorCaptureInputs<String, S, MonitorOperatorLegacyCaptureIdentity> {
     val controlState by source.control.state.collectAsState()
     val native = source.host.captureSessionState(status)
+    val controls = native.controls(capabilities)
     val preferences = source.host.capturePreferences
     val lifetime = rememberMonitorCaptureLifetime(source)
     // One rule for the tile and its panel: the common program, else the native report.
@@ -56,7 +58,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
             actionIsCommand = true)) }
         append(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null)
-        if (capabilities.focus) append(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel))
+        if (controls.focus.isOffered) append(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel))
         if (capabilities.iris) append(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status)))
         if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) append(LiveSheet.AUDIO, "AUDIO", status.audioLabel)
     }

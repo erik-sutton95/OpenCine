@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.ShutterAngle
 import com.opencapture.opencine.vocabulary.VideoAspect
@@ -423,7 +424,7 @@ private fun LiveControlSheetContent(
     // Effects also guard reseating so a future caller cannot accidentally persist an angle.
     if (preview == null) {
         LaunchedEffect(sheet) {
-            effects.mount(sheet, status, session.focusModeSupported, host::refresh, ::seed, ::reseatIso,
+            effects.mount(sheet, status, session.controls().focus.isOffered, host::refresh, ::seed, ::reseatIso,
                 ceilingSupported = session.nativeISO.ceiling == true)
         }
         // Match iOS CaptureControlSheets onChange keys. Do not reseat ISO/shutter drums
@@ -628,7 +629,7 @@ private fun LiveControlSheetContent(
                     }
                 }
                 LiveSheet.FOCUS -> {
-                    if (session.focusModeSupported) {
+                    if (session.controls().focus.isOffered) {
                         FocusBody(
                             status = status,
                             labels = host.labelProfile.focusLabels,

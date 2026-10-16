@@ -30,6 +30,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         open: ((CaptureSheet) -> Void)? = nil, dismiss: (() -> Void)? = nil) -> Self {
         let status = host.cameraStatus
         let capabilities = host.captureCapabilities
+        let controls = host.controlCapabilities
         var readouts: [MonitorOperatorLiveReadout<CaptureSheet, Section>] = []
         func append(_ sheet: CaptureSheet, _ title: String, _ value: String,
             field: MonitorCaptureField? = nil, icon: MonitorIcon? = nil, badge: MonitorIcon? = nil,
@@ -76,7 +77,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         append(.wb, "WB", wbValue, field: wbField,
             icon: wbIcon,
             quickEnabled: !pendingWB || wbField != nil)
-        if capabilities.focusMode {
+        if controls.focus.isOffered {
             let commonFocus: OpenCineCore.FocusMode?
             if case .focusMode(let value)? = host.control.captureValue(.focusMode, selection: selection) {
                 commonFocus = value

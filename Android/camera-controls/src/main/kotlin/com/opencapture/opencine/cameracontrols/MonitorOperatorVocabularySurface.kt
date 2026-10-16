@@ -42,6 +42,7 @@ import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.media.recordingTimeLabel
 import com.opencapture.opencine.media.StorageReadout
@@ -155,6 +156,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val zones = geometry.zones
     val status = chrome.status
     val capabilities = chrome.capabilities
+    val controls = chrome.capture.host.captureSessionState(status).controls(capabilities)
     val session = chrome.session
     val assist = session.assist
     val locked = session.locked
@@ -165,9 +167,9 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val context = androidx.compose.ui.platform.LocalContext.current
     val usageStore = remember(chrome.preferences, context) { chrome.preferences.assistToolUsagePreferences(context) }
     var usage by remember(usageStore) { mutableStateOf(usageStore.value) }
-    LaunchedEffect(status.shootingMode, capabilities.focus, capabilities.iris, capabilities.audio) {
+    LaunchedEffect(status.shootingMode, controls.focus.isOffered, capabilities.iris, capabilities.audio) {
         state.sheet = CaptureShutterPolicy.retainedSheet(state.sheet, status.shootingMode)
-        if (state.sheet == LiveSheet.FOCUS && !capabilities.focus || state.sheet == LiveSheet.APERTURE && !capabilities.iris) state.sheet = null
+        if (state.sheet == LiveSheet.FOCUS && !controls.focus.isOffered || state.sheet == LiveSheet.APERTURE && !capabilities.iris) state.sheet = null
         if (!capabilities.audio && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
     }
     val meterFeed = if (assist.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent else layout.onFeed

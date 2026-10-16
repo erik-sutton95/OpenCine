@@ -28,6 +28,7 @@ import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.vocabulary.CaptureSessionState
 import com.opencapture.opencine.vocabulary.CaptureSetting
 import com.opencapture.opencine.vocabulary.FocusTrackMode
@@ -150,7 +151,7 @@ public class MonitorOperatorCaptureSource(
                     CaptureLists.wbModeRowSelected(status, locked),
                     context = "${status.wbMode}:${CaptureLists.currentKelvin(status)}:${CaptureLists.currentTint(status)}"))
             }
-            LiveSheet.FOCUS -> if (!state.focusModeSupported) null
+            LiveSheet.FOCUS -> if (!state.controls().focus.isOffered) null
                 else captured(captureQuickFocusControl(status, labels.focusLabels))
             LiveSheet.APERTURE -> if (!state.irisSupported) null else captured(MonitorQuickControl(
                 CaptureLists.apertureLabels(status), ApertureStrategy.label(status.apertureStrategy).orEmpty()))
