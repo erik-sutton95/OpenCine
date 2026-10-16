@@ -38,10 +38,10 @@ import com.opencapture.opencine.appkit.MonitorInteractionTransition
 import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
 import com.opencapture.opencine.appkit.statusPresentation
-import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.ControlCapabilities
 import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.media.recordingTimeLabel
@@ -116,8 +116,8 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         },
         available = MonitorDisplaySection.entries.filter { section ->
             when (section) {
-                MonitorDisplaySection.ZOOM_CHIP -> capabilities.zoom
-                MonitorDisplaySection.GIMBAL_STICK -> capabilities.gimbal
+                MonitorDisplaySection.ZOOM_CHIP -> controls.zoom.isOffered
+                MonitorDisplaySection.GIMBAL_STICK -> controls.gimbal.isOffered
                 // The camera vocabulary reports its codec inside the format chip.
                 MonitorDisplaySection.CODEC -> false
                 else -> true
@@ -211,10 +211,10 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 LiveAutoExposureUnlockButton(onClick = focusActions.unlockAE)
             }
         }, motion = MonitorOperatorMotionViews(controls = { enabled ->
-            MonitorOperatorNativeControls(chrome, layout, capabilities, locked,
+            MonitorOperatorNativeControls(chrome, layout, controls, locked,
                 enabled && interactive, state.capturePresented)
         }, editor = { enabled ->
-            if (enabled && capabilities.gimbal && session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
+            if (enabled && controls.gimbal.isOffered && session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
                 chrome.host.liveGimbalPanel == LiveGimbalPanel.SHEET && !locked)
                 LiveGimbalSheetHost(chrome.host, layout, layout.gimbalCluster(true), layout.safeLeading, layout.safeTrailing,
                     layout.safeTop, layout.safeBottom)
@@ -242,17 +242,17 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
 
 @Composable
 private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChromeSource<Host>,
-    layout: LiveMonitorLayout, capabilities: MonitorLayoutCapabilities,
+    layout: LiveMonitorLayout, controls: ControlCapabilities,
     locked: Boolean, interactive: Boolean, capturePresented: Boolean,
 ): Unit
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val shell by source.shell.state.collectAsState()
     val editing = source.session.isEditing
-    val showGimbal = capabilities.gimbal && source.session.mounts(MonitorDisplaySection.GIMBAL_STICK)
+    val showGimbal = controls.gimbal.isOffered && source.session.mounts(MonitorDisplaySection.GIMBAL_STICK)
     val cluster = layout.gimbalCluster(showGimbal)
     Box(Modifier.fillMaxSize()) {
         source.zoom?.let { zoom ->
-            if (!capturePresented && capabilities.zoom && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
+            if (!capturePresented && controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
                 LiveZoomChip(zoom.factor, locked,
                     Modifier.operatorFrame(cluster.zoom).alpha(if (locked || zoom.dimmed) .4f else 1f)
                         .monitorChromeEditStroke(editing, true), zoom.pinching, zoom.dimmed,
@@ -281,7 +281,7 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
         }
         if (!capturePresented && showGimbal && interactive && !locked && shell.cover == null) {
             LiveGimbalOverlay(source.host, layout, layout.onFeed, locked, cluster.stick,
-                if (capabilities.zoom && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
+                if (controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
                 else MonitorRect(0f, 0f, 0f, 0f))
         }
     }
