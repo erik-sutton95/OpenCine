@@ -29,6 +29,32 @@ public struct MonitorOperatorLiveReadout<Key: Hashable, Section: Hashable>: Iden
     }
 }
 
+/// A coherent native action has its own identity without becoming a common setting or sheet.
+@MainActor public struct MonitorOperatorSupplementaryCaptureReadout<Key: Hashable, Section: Hashable>: Identifiable {
+    public let id: String
+    public let after: Key
+    public let title: String
+    public let value: String
+    public let accessibilityValue: String
+    public let accessibilityIdentifier: String
+    public let section: Section?
+    public let enabled: Bool
+    private let isCurrent: () -> Bool
+    private let action: () -> Void
+    public init(id: String, after: Key, title: String, value: String,
+        accessibilityValue: String, accessibilityIdentifier: String, section: Section? = nil,
+        enabled: Bool, isCurrent: @escaping () -> Bool, action: @escaping () -> Void) {
+        self.id = id; self.after = after; self.title = title; self.value = value
+        self.accessibilityValue = accessibilityValue; self.accessibilityIdentifier = accessibilityIdentifier
+        self.section = section; self.enabled = enabled; self.isCurrent = isCurrent; self.action = action
+    }
+    @discardableResult public func perform(admitted: Bool) -> Bool {
+        guard admitted, enabled, isCurrent() else { return false }
+        action()
+        return true
+    }
+}
+
 public enum MonitorOperatorCameraPanelChrome: Equatable, Sendable {
     case descriptor, content, sharedSheet
 }
@@ -88,6 +114,7 @@ public struct MonitorOperatorCapturePreview<Key: Hashable, NativeIdentity: Hasha
 @MainActor public struct MonitorOperatorCaptureInputs<Key: Hashable, Section: Hashable,
     NativeIdentity: Hashable & Sendable> {
     public let readouts: [MonitorOperatorLiveReadout<Key, Section>]
+    public let supplementaryReadouts: [MonitorOperatorSupplementaryCaptureReadout<Key, Section>]
     public let panel: MonitorOperatorCameraPanel<Key>?
     public let fields: [Key: MonitorCaptureField]
     public let columns: Int?
@@ -109,8 +136,10 @@ public struct MonitorOperatorCapturePreview<Key: Hashable, NativeIdentity: Hasha
         nativeCurrent: @escaping (Key, NativeIdentity) -> Bool,
         nativeCommit: @escaping (Key, NativeIdentity, String) -> Void,
         previewChanged: @escaping (Key, MonitorOperatorCapturePreview<Key, NativeIdentity>?) -> Void = { _, _ in },
-        commitAdmission: @escaping () -> Bool = { true }, presentationOwner: (() -> UUID?)? = nil) {
-        self.readouts = readouts; self.panel = panel; self.fields = fields; self.columns = columns
+        commitAdmission: @escaping () -> Bool = { true }, presentationOwner: (() -> UUID?)? = nil,
+        supplementaryReadouts: [MonitorOperatorSupplementaryCaptureReadout<Key, Section>] = []) {
+        self.readouts = readouts; self.supplementaryReadouts = supplementaryReadouts
+        self.panel = panel; self.fields = fields; self.columns = columns
         self.haptics = haptics; self.open = open; self.dismiss = dismiss; self.isTop = isTop
         self.nativeQuick = nativeQuick; self.nativeCurrent = nativeCurrent; self.nativeCommit = nativeCommit
         self.previewChanged = previewChanged
@@ -187,7 +216,7 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
     }
 
     public var body: some View {
-        let columns = max(1, inputs.columns ?? inputs.readouts.count)
+        let columns = max(1, inputs.columns ?? (inputs.readouts.count + inputs.supplementaryReadouts.count))
         MonitorControlGrid(columns: columns, spacing: columns == 3 ? 8 : 12, equalColumns: columns == 3) {
             ForEach(inputs.readouts) { readout in
                 CaptureStripReadout(inputs: inputs, readout: readout, control: control, state: state,
@@ -201,9 +230,37 @@ public struct MonitorOperatorCaptureStrip<Key: Hashable, Section: Hashable,
                             }.onDisappear { if currentSource() { state.frames[readout.id] = nil } }
                         }
                     }
+                ForEach(inputs.supplementaryReadouts.filter { $0.after == readout.id }) { native in
+                    CaptureSupplementaryReadout(readout: native, inputs: inputs, state: state,
+                        enabled: enabled, commandEnabled: commandEnabled, currentSource: currentSource)
+                }
             }
         }.frame(maxWidth: .infinity)
             .opacity(enabled ? 1 : 0.4)
+    }
+}
+
+private struct CaptureSupplementaryReadout<Key: Hashable, Section: Hashable,
+    NativeIdentity: Hashable & Sendable>: View {
+    let readout: MonitorOperatorSupplementaryCaptureReadout<Key, Section>
+    let inputs: MonitorOperatorCaptureInputs<Key, Section, NativeIdentity>
+    @Bindable var state: MonitorOperatorCaptureState<Key, NativeIdentity>
+    let enabled: Bool
+    let commandEnabled: Bool
+    let currentSource: () -> Bool
+    @Environment(\.scenePhase) private var scenePhase
+    private var admitted: Bool {
+        enabled && commandEnabled && currentSource() && scenePhase == .active
+            && inputs.panel == nil && inputs.commitAdmission() && state.preview == nil
+            && state.ownership.owner == nil && inputs.presentationOwner?() == nil
+    }
+    var body: some View {
+        Button { readout.perform(admitted: admitted) } label: {
+            MonitorReadout(readout.title) { Text(readout.value) }
+        }
+        .buttonStyle(.plain).disabled(!admitted || !readout.enabled)
+        .accessibilityIdentifier(readout.accessibilityIdentifier)
+        .accessibilityLabel(readout.title).accessibilityValue(readout.accessibilityValue)
     }
 }
 

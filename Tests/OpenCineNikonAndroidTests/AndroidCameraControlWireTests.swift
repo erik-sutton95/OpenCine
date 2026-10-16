@@ -43,7 +43,8 @@ struct AndroidCameraControlWireTests {
         #expect(AndroidCameraControlWire.control(selector: 35) == .stillUserModeProgram)
         #expect(AndroidCameraControlWire.control(selector: 36) == .stillPictureControl)
         #expect(AndroidCameraControlWire.control(selector: -1) == nil)
-        #expect(AndroidCameraControlWire.control(selector: 37) == nil)
+        #expect(AndroidCameraControlWire.control(selector: 37) == .movieTone)
+        #expect(AndroidCameraControlWire.control(selector: 38) == nil)
     }
 
     @Test func photoModeSeedsAndPollsTheStillsPropertySet() {

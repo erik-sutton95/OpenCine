@@ -44,18 +44,38 @@ public struct MonitorOperatorPowerReading: Identifiable {
 }
 
 extension MonitorOperatorPowerReading {
+    public static func readoutLabel(_ reading: BatteryReading?) -> String? {
+        switch reading {
+        case .fraction(let value):
+            guard value.isFinite, (0...1).contains(value) else { return nil }
+            return "\(Int((value * 100).rounded()))%"
+        case .steps(let filled, let count):
+            guard count > 0, (0...count).contains(filled) else { return nil }
+            return "\(filled)/\(count)"
+        case nil: return nil
+        }
+    }
+
     /// The camera battery as its source declared it: a gauge keeps its bars (and reads as a
     /// warning at two fifths or less), a fraction prints a percentage,
     /// and an unknown battery is absent rather than an empty gauge (D11).
     public static func camera(_ power: PowerStatus) -> MonitorOperatorPowerReading? {
-        guard let reading = power.batteryReading else { return nil }
+        camera(power.batteryReading, exhausted: power.exhausted.value,
+            charging: power.charging.value ?? power.externalPower.value)
+    }
+
+    public static func camera(_ reading: BatteryReading?, exhausted: Bool? = nil,
+        charging: Bool? = nil) -> MonitorOperatorPowerReading? {
+        guard let reading else { return nil }
         switch reading {
         case .fraction(let value):
+            guard value.isFinite, (0...1).contains(value) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true,
-                percent: Int((value * 100).rounded()), charging: power.charging.value)
+                percent: Int((value * 100).rounded()), exhausted: exhausted == true, charging: charging)
         case .steps(let filled, let count):
+            guard count > 0, (0...count).contains(filled) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true, bars: filled, barCount: count,
-                warning: filled * 5 <= count * 2, charging: power.charging.value)
+                warning: Double(filled) / Double(count) <= 0.4, exhausted: exhausted == true, charging: charging)
         }
     }
 }
@@ -514,21 +534,24 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             let details = visibleFormat.dropFirst(visibleFormat.first?.section == .codec ? 0 : 1)
                 .filter { $0.id != primary?.id }
             let inline = layout.portrait && !photo
-            let readouts = [primary, color].compactMap { $0 } + details
+            // Portrait stacks the capture readouts: resolution and frame rate on top, codec and
+            // color below it. Without a primary, the first lower readout takes the top line.
+            let lower = Array(details) + [color].compactMap { $0 }
+            let top = primary ?? lower.first
+            let below = primary == nil ? Array(lower.dropFirst()) : lower
             let caption =
                 status.portraitFormat != nil && color == nil ? status.portraitCaption : nil
             let fit =
                 inline
-                ? readouts.first.map {
+                ? top.map {
                     primarySizer.fitRow(
                         width: CGFloat(layout.status.width), scale: primaryDisplayScale,
                         typeSize: primaryTypeSize,
                         recording: status.showsRecording
                             ? [status.recording.recordingLabel, status.recording.elapsedLabel] : [],
                         clock: status.showsTimecode ? status.recording.timecode ?? "--:--:--" : nil,
-                        primary: $0.value, details: details.map(\.value), caption: caption,
+                        primary: $0.value, details: below.map(\.value), caption: caption,
                         maximumSize: layout.tablet ? 25 : 23,
-                        color: primary == nil ? nil : color?.value,
                         primaryIsDetail: $0.section == .codec)
                 } : nil
             return MonitorStatusChrome(
@@ -537,21 +560,25 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
                     if inline {
-                        HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
-                            ForEach(readouts) { value in
+                        if let top {
+                            MonitorPortraitFormatGroup(showsDetail: !below.isEmpty || caption != nil) {
                                 headerReadout(
-                                    value, portrait: true, grouped: true,
-                                    detail: value.section == .codec
-                                        || details.contains { $0.id == value.id })
-                            }
-                            if let caption {
-                                MonitorPortraitInlineReadoutText(caption, detail: true)
-                                    .lineLimit(1).fixedSize(horizontal: true, vertical: true)
-                                    .frame(minWidth: 44, minHeight: 44, alignment: .topTrailing)
-                                    .accessibilityLabel(caption)
-                                    .modifier(
-                                        DescriptorEditable<Host>(
-                                            section: primary?.section, mode: editing))
+                                    top, portrait: true, grouped: true, detail: top.section == .codec)
+                            } detail: {
+                                HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
+                                    ForEach(below) { value in
+                                        headerReadout(value, portrait: true, grouped: true, detail: true)
+                                    }
+                                    if let caption {
+                                        MonitorPortraitInlineReadoutText(caption, detail: true)
+                                            .lineLimit(1).fixedSize(horizontal: true, vertical: true)
+                                            .frame(minWidth: 44, maxHeight: .infinity, alignment: .topTrailing)
+                                            .accessibilityLabel(caption)
+                                            .modifier(
+                                                DescriptorEditable<Host>(
+                                                    section: primary?.section, mode: editing))
+                                    }
+                                }
                             }
                         }
                     } else if layout.portrait, let value = status.portraitFormat {
@@ -601,7 +628,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             Group {
                 if grouped {
                         MonitorPortraitInlineReadoutText(value.value, detail: detail)
-                            .frame(minWidth: 44, minHeight: 44, alignment: .topTrailing)
+                            .frame(minWidth: 44, maxHeight: .infinity, alignment: .topTrailing)
                     } else {
                         Text(value.value).font(
                             MonitorTheme.font(

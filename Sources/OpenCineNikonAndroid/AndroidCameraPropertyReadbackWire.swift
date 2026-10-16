@@ -78,7 +78,11 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         rawCompressions: [String] = [],
         codecBitDepths: [String] = [],
         codecBitDepth: String? = nil,
-        advertisedIrisValues: [String] = []
+        movieTones: [String] = [],
+        movieTone: String? = nil,
+        movieToneEditable: Bool = false,
+        advertisedIrisValues: [String] = [],
+        recordingFormats: [NikonRecordingFormatPresentation] = []
     ) {
         self.resolutionFrameRate = resolutionFrameRate
         self.codec = codec
@@ -101,6 +105,7 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         self.shutterLocks = shutterLocks
         self.whiteBalanceTints = whiteBalanceTints
         self.resolutionFrameRates = resolutionFrameRates
+        self.recordingFormats = recordingFormats
         self.codecs = codecs
         self.vibrationReduction = vibrationReduction
         self.electronicVR = electronicVR
@@ -113,6 +118,9 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         self.rawCompressions = rawCompressions
         self.codecBitDepths = codecBitDepths
         self.codecBitDepth = codecBitDepth
+        self.movieTones = movieTones
+        self.movieTone = movieTone
+        self.movieToneEditable = movieToneEditable
     }
 
     /// Current shared-core resolution/frame-rate label matching descriptor options.
@@ -157,6 +165,8 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
     public let whiteBalanceTints: [String]
     /// Recording modes from the camera's screen-size descriptor.
     public let resolutionFrameRates: [String]
+    /// Structured axes decoded from each actual advertised native mode, paired with its exact token.
+    public let recordingFormats: [NikonRecordingFormatPresentation]
     /// Codecs from the camera's file-type descriptor.
     public let codecs: [String]
     /// Movie VR values from the camera descriptor.
@@ -188,6 +198,13 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
     /// Caption of the depth the body is currently recording at ("10-bit"), so the shell can fill
     /// the right side of the pair. Nil when the current codec has no depth choice.
     public let codecBitDepth: String?
+    /// The movie tones (colour) the body offers for the active codec, or its fixed tone
+    /// (R3D NE: Log3G10), from `NikonMovieToneCapability`. Empty when the codec has none.
+    public let movieTones: [String]
+    /// The active codec's reported tone; nil while unknown.
+    public let movieTone: String?
+    /// Whether the operator can change the tone (more than one offered, not fixed by the codec).
+    public let movieToneEditable: Bool
 
     /// Empty capabilities before a successful descriptor refresh.
     public static let empty = AndroidCameraControlCapabilities()
@@ -359,8 +376,14 @@ public enum AndroidCameraPropertyReadbackWire {
         appendOptions(
             "options.resolutionFrameRate", values: controls.resolutionFrameRates, to: &fields)
         append("codecBitDepth", value: controls.codecBitDepth, to: &fields)
+        appendOptions("options.recordingFormat", values: controls.recordingFormats.map {
+            [$0.token, $0.imageArea ?? "", $0.resolution, $0.frameRate].joined(separator: "\u{1E}")
+        }, to: &fields)
         appendOptions("options.codec", values: controls.codecs, to: &fields)
         appendOptions("options.codecBitDepth", values: controls.codecBitDepths, to: &fields)
+        append("movieTone", value: controls.movieTone, to: &fields)
+        append("movieToneEditable", value: controls.movieToneEditable ? "true" : "false", to: &fields)
+        appendOptions("options.movieTone", values: controls.movieTones, to: &fields)
         appendOptions(
             "options.vibrationReduction", values: controls.vibrationReduction, to: &fields)
         appendOptions("options.electronicVr", values: controls.electronicVR, to: &fields)

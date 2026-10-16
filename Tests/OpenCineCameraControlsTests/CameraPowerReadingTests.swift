@@ -22,6 +22,25 @@
             XCTAssertTrue(try XCTUnwrap(MonitorOperatorPowerReading.camera(power(0.4, .quantized(step: 0.2)))).warning)
         }
 
+        func testIndependentExhaustionAndUnknownRemainTruthful() throws {
+            for exhausted in [nil, false, true] as [Bool?] {
+                let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(.steps(filled: 1, of: 4), exhausted: exhausted))
+                XCTAssertEqual(reading.bars, 1)
+                XCTAssertEqual(reading.barCount, 4)
+                XCTAssertEqual(reading.exhausted, exhausted == true)
+                XCTAssertNil(reading.charging)
+                XCTAssertEqual(MonitorOperatorPowerReading.readoutLabel(.steps(filled: 1, of: 4)), "1/4")
+            }
+            XCTAssertEqual(MonitorOperatorPowerReading.readoutLabel(.fraction(0)), "0%")
+            XCTAssertNil(MonitorOperatorPowerReading.camera(nil as BatteryReading?))
+            XCTAssertNil(MonitorOperatorPowerReading.camera(.fraction(.nan)))
+            XCTAssertNil(MonitorOperatorPowerReading.camera(.steps(filled: 1, of: 0)))
+            XCTAssertFalse(try XCTUnwrap(MonitorOperatorPowerReading.camera(.steps(filled: Int.max, of: Int.max))).warning)
+            let external = PowerStatus(battery: .init(0.68, origin: .cameraReported, at: nil),
+                externalPower: .init(true, origin: .cameraReported, at: nil))
+            XCTAssertEqual(MonitorOperatorPowerReading.camera(external)?.charging, true)
+        }
+
         func testAFractionPrintsAPercentageAndUnknownIsAbsent() throws {
             let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(power(0.6, .quantized(step: 0.01), charging: true)))
             XCTAssertEqual(reading.percent, 60)

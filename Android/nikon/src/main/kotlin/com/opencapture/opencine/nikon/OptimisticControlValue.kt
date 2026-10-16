@@ -73,6 +73,7 @@ fun CameraPropertySnapshot.withOptimisticControlValue(
         CameraControl.STILL_RAW_COMPRESSION -> copy(rawCompression = label)
         CameraControl.STILL_USER_MODE_PROGRAM -> copy(userModeProgram = label)
         CameraControl.STILL_PICTURE_CONTROL -> copy(pictureControl = label)
+        CameraControl.MOVIE_TONE -> copy(movieTone = label)
     }
 
 /* Every label below is accepted by `PTPCameraPropertyWrite` in the shared Swift core. */

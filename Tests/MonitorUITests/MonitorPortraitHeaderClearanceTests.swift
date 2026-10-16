@@ -426,10 +426,54 @@
         }
     }
 
+    extension MonitorPortraitHeaderClearanceTests {
+        /// Portrait stacks the format group: resolution and frame rate on top, codec and color
+        /// directly below it, and the top line shares the status row's top edge with the
+        /// timecode and the STBY chip. Phone widths and a tablet canvas.
+        func testPortraitFormatStacksCodecAndColorBelowTheTopAlignedPrimary() async throws {
+            // A tablet canvas needs a tablet host (the shared chrome also reads the device idiom),
+            // so the iPad run covers the tablet canvas and the phone run the phone matrix.
+            var cases: [ProductionHeaderCase] = []
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                let screen = UIScreen.main.bounds.size
+                cases.append(.init(width: min(screen.width, screen.height), safeTop: 24, sideSafe: 0,
+                    height: max(screen.width, screen.height)))
+            } else {
+                for width in [CGFloat(320), 360, 440] {
+                    for side in [CGFloat(0), 20] {
+                        for top in [CGFloat(24), 62] {
+                            cases.append(.init(width: width, safeTop: top, sideSafe: side))
+                        }
+                    }
+                }
+            }
+            for sample in cases {
+                let fixture = try ProductionHeaderFixture(sample)
+                defer { fixture.close() }
+                try await fixture.assertStackedFormatGroup()
+            }
+        }
+
+        /// Landscape keeps format, codec and color side by side on the one status row.
+        func testLandscapeFormatCodecAndColorStayOnTheStatusRow() async throws {
+            let screen = UIScreen.main.bounds.size
+            let sample = UIDevice.current.userInterfaceIdiom == .pad
+                ? ProductionHeaderCase(width: max(screen.width, screen.height), safeTop: 24, sideSafe: 0,
+                    height: min(screen.width, screen.height))
+                : ProductionHeaderCase(width: 956, safeTop: 0, sideSafe: 62, height: 440)
+            do {
+                let fixture = try ProductionHeaderFixture(sample)
+                defer { fixture.close() }
+                try await fixture.assertLandscapeRow()
+            }
+        }
+    }
+
     private struct ProductionHeaderCase {
         let width: CGFloat
         let safeTop: CGFloat
         let sideSafe: CGFloat
+        var height: CGFloat = 956
     }
 
     /// Provenance: the existing CanonicalMonitorRecordAdmissionTests production host seam.
@@ -547,13 +591,13 @@
         init(_ sample: ProductionHeaderCase, codecOnly: Bool = false) throws {
             self.sample = sample
             probe = try ProductionHeaderProbe(codecOnly: codecOnly)
-            live = LiveMonitorLayout.fieldMonitor(size: CGSize(width: sample.width, height: 956),
+            live = LiveMonitorLayout.fieldMonitor(size: CGSize(width: sample.width, height: sample.height),
                 safeArea: EdgeInsets(top: sample.safeTop, leading: sample.sideSafe, bottom: 0,
                     trailing: sample.sideSafe), sourceAspect: 16 / 9, fill: false,
                 showsValues: false, showsBottomBars: false)
             native = try HeaderWindow(rootView: AnyView(
                 ProductionHeaderSurface(probe: probe, live: live).background(.black).ignoresSafeArea()),
-                size: CGSize(width: sample.width, height: 956))
+                size: CGSize(width: sample.width, height: sample.height))
         }
         func close() {
             native.close(); probe.control.unbind()
@@ -657,16 +701,22 @@
                     frame.height, 44 - monitorFloorMeasurementTolerance,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt height target")
             }
-            let row = [recording, clock, format, color, codec]
-            for target in row {
-                XCTAssertEqual(target.accessibilityFrame.minY, live.presentation!.status.y, accuracy: 0.5)
+            // STBY/REC, the clock and the primary share the status row's top edge; codec and
+            // color stack on the detail line under the primary.
+            let row = [recording, clock, format]
+            for target in row + [codec, color] {
                 XCTAssertGreaterThanOrEqual(target.accessibilityFrame.minX, live.presentation!.status.x - 0.5)
                 XCTAssertLessThanOrEqual(target.accessibilityFrame.maxX,
                     live.presentation!.status.x + live.presentation!.status.width + 0.5)
             }
-            for (left, right) in zip(row, row.dropFirst()) {
+            for target in row {
+                XCTAssertEqual(target.accessibilityFrame.minY, live.presentation!.status.y, accuracy: 0.5)
+            }
+            XCTAssertEqual(codec.accessibilityFrame.minY, color.accessibilityFrame.minY, accuracy: 0.5)
+            XCTAssertGreaterThan(codec.accessibilityFrame.minY, format.accessibilityFrame.minY)
+            for (left, right) in Array(zip(row, row.dropFirst())) + [(clock, codec), (codec, color)] {
                 XCTAssertLessThanOrEqual(left.accessibilityFrame.maxX, right.accessibilityFrame.minX + 0.5,
-                    "Every complete readout occupies its own horizontal native target")
+                    "Every complete readout occupies its own native target")
             }
             let actualPicture = native.window.convert(picture.accessibilityFrame, from: nil)
             for (actual, expected) in zip([actualPicture.minX, actualPicture.minY, actualPicture.width, actualPicture.height],
@@ -677,8 +727,13 @@
             for target in [recording, clock, format, color, codec] {
                 _ = try raster.inkBounds(in: native.window.convert(target.accessibilityFrame, from: nil))
             }
-            let nativeHeights = try [clock, format, codec, color].map {
-                try raster.inkBounds(in: native.window.convert($0.accessibilityFrame, from: nil)).height
+            // The primary's target reaches under its glyphs into the detail line; measure its ink above it.
+            let formatGlyphs = CGRect(x: format.accessibilityFrame.minX, y: format.accessibilityFrame.minY,
+                width: format.accessibilityFrame.width,
+                height: codec.accessibilityFrame.minY - format.accessibilityFrame.minY)
+            let nativeHeights = try [clock.accessibilityFrame, formatGlyphs, codec.accessibilityFrame,
+                color.accessibilityFrame].map {
+                try raster.inkBounds(in: native.window.convert($0, from: nil)).height
             }
             let references = try await nativeFontReferences()
             for (actual, lower, upper) in [(nativeHeights[0], references[0], references[1]),
@@ -690,7 +745,7 @@
             }
             let fonts = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
                 "actualGlyphHeightsPixels": nativeHeights, "referenceGlyphHeightsPixels": references,
-                "referenceSizesPoints": [10, 23, 10, 23, 10, 11, 10, 23], "scale": image.scale,
+                "referenceSizesPoints": [10, 23, 10, 23, 10, 11, 10, 11], "scale": image.scale,
             ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
             fonts.lifetime = .keepAlways
             XCTContext.runActivity(named: "SIMULATED actual native Sora font bounds") { $0.add(fonts) }
@@ -709,6 +764,85 @@
             XCTAssertEqual(probe.colorCalls, beforeColor + 1)
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec + 1)
             return nativeHeights
+        }
+        private func settledNodes() async throws -> [NSObject] {
+            var nodes: [NSObject] = []
+            for _ in 0..<200 {
+                native.host.view.setNeedsLayout(); native.host.view.layoutIfNeeded()
+                nodes = native.nodes()
+                if ["Recording format", "Codec", "Color mode"].allSatisfy({ label in
+                    nodes.contains { $0.accessibilityLabel == label }
+                }) { break }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            return nodes
+        }
+        func assertStackedFormatGroup() async throws {
+            let nodes = try await settledNodes()
+            func node(_ label: String) throws -> CGRect {
+                try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                    "Production node \(label) at \(sample)").accessibilityFrame
+            }
+            let field = try XCTUnwrap(live.presentation)
+            XCTAssertTrue(field.portrait)
+            let recording = try node(probe.status.recordingAccessibilityLabel)
+            let clock = try node("Timecode " + (probe.status.timecode ?? ""))
+            let format = try node("Recording format")
+            let codec = try node("Codec")
+            let color = try node("Color mode")
+            let context = "\(sample)"
+            // One top edge for STBY/REC, the clock and the resolution and frame rate.
+            XCTAssertEqual(recording.minY, field.status.y, accuracy: 0.5, context)
+            XCTAssertEqual(clock.minY, field.status.y, accuracy: 0.5, context)
+            XCTAssertEqual(format.minY, field.status.y, accuracy: 0.5, context)
+            // Codec and color share the line under the primary, never beside it.
+            XCTAssertEqual(codec.minY, color.minY, accuracy: 0.5, context)
+            XCTAssertGreaterThan(codec.minY, format.minY + 8, context)
+            XCTAssertLessThan(codec.minY, format.minY + 44, "The detail line sits under the primary glyphs \(context)")
+            XCTAssertLessThanOrEqual(codec.maxX, color.minX + 0.5, "Codec then color \(context)")
+            // One trailing edge for the column, inside the status row.
+            XCTAssertEqual(color.maxX, format.maxX, accuracy: 0.5, context)
+            XCTAssertGreaterThanOrEqual(clock.minX, recording.maxX - 0.5, context)
+            XCTAssertLessThanOrEqual(clock.maxX, min(format.minX, codec.minX) + 0.5, context)
+            XCTAssertLessThanOrEqual(format.maxX, field.status.x + field.status.width + 0.5, context)
+            for target in [format, codec, color] {
+                XCTAssertGreaterThanOrEqual(target.width, 44 - monitorFloorMeasurementTolerance, context)
+                XCTAssertGreaterThanOrEqual(target.height, 44 - monitorFloorMeasurementTolerance, context)
+            }
+            // Painted glyphs: the primary ink ends above the detail line, whose ink starts below it.
+            do {
+                let image = try native.renderedImage()
+                let photo = XCTAttachment(image: image)
+                photo.name = "SIMULATED stacked portrait format group \(sample)"
+                photo.lifetime = .keepAlways
+                XCTContext.runActivity(named: "SIMULATED stacked portrait format group") { $0.add(photo) }
+                let raster = try HeaderRaster(image)
+                let primaryInk = try raster.inkBounds(in: native.window.convert(
+                    CGRect(x: format.minX, y: format.minY, width: format.width, height: codec.minY - format.minY),
+                    from: nil))
+                let detailInk = try raster.inkBounds(in: native.window.convert(
+                    CGRect(x: codec.minX, y: codec.minY, width: color.maxX - codec.minX, height: codec.height),
+                    from: nil))
+                let clockInk = try raster.inkBounds(in: native.window.convert(clock, from: nil))
+                XCTAssertLessThan(primaryInk.maxY, detailInk.minY, context)
+                XCTAssertEqual(primaryInk.minY, clockInk.minY, accuracy: 2 * image.scale,
+                    "Resolution and frame rate paint from the clock's top edge \(context)")
+            }
+        }
+        func assertLandscapeRow() async throws {
+            let nodes = try await settledNodes()
+            func node(_ label: String) throws -> CGRect {
+                try XCTUnwrap(nodes.first { $0.accessibilityLabel == label },
+                    "Production node \(label) at \(sample)").accessibilityFrame
+            }
+            XCTAssertFalse(try XCTUnwrap(live.presentation).portrait)
+            let format = try node("Recording format")
+            let codec = try node("Codec")
+            let color = try node("Color mode")
+            XCTAssertEqual(format.midY, codec.midY, accuracy: 0.5)
+            XCTAssertEqual(codec.midY, color.midY, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(format.maxX, codec.minX + 0.5)
+            XCTAssertLessThanOrEqual(codec.maxX, color.minX + 0.5)
         }
         func assertCodecOnly() async throws {
             var nodes: [NSObject] = []
@@ -785,7 +919,8 @@
         }
         private func nativeFontReferences() async throws -> [CGFloat] {
             let values = ["00:48:03:23", "00:48:03:23", "[FX] 6K · 25p", "[FX] 6K · 25p", "R3D NE", "R3D NE", "D-Log2", "D-Log2"]
-            let sizes: [CGFloat] = [10, 23, 10, 23, 10, 11, 10, 23]
+            // Codec and color share the detail line, so both use the detail size range.
+            let sizes: [CGFloat] = [10, 23, 10, 23, 10, 11, 10, 11]
             let reference = try HeaderWindow(rootView: AnyView(
                 ZStack(alignment: .topLeading) {
                     Color.black
@@ -818,8 +953,16 @@
             let expected = expected ?? [probe.status.recordingLabel + " " + probe.status.elapsedLabel,
                 probe.status.timecode!, "[FX] 6K · 25p", "D-Log2", "R3D NE"]
             var diagnostics: [String] = []
+            // A stacked primary's target reaches under its glyphs; crop it at the detail line.
+            let detailTop = nodes.map(\.accessibilityFrame.minY).filter {
+                $0 > (nodes.first.map(\.accessibilityFrame.minY) ?? 0) + 1
+            }.min()
             for (target, value) in zip(nodes, expected) {
-                let frame = native.window.convert(target.accessibilityFrame, from: nil)
+                var frame = native.window.convert(target.accessibilityFrame, from: nil)
+                if let detailTop, frame.minY < detailTop, frame.maxY > detailTop {
+                    frame.size.height = native.window.convert(
+                        CGPoint(x: 0, y: detailTop), from: nil).y - frame.minY
+                }
                 let left = floor(frame.minX * image.scale); let top = floor(frame.minY * image.scale)
                 let pixels = CGRect(x: left, y: top, width: ceil(frame.maxX * image.scale) - left,
                     height: ceil(frame.maxY * image.scale) - top)
@@ -832,7 +975,13 @@
                     guard let text = observation.topCandidates(1).first?.string else { return nil }
                     return (text, observation.boundingBox)
                 }
-                let actual = tokens.sorted { $0.1.minX < $1.1.minX }.map(\.0).joined(separator: " ")
+                // The REC chip paints exactly two texts (red label, elapsed time). At the regular
+                // tier Vision reads a standalone "|" word between them, which no glyph of this
+                // readout paints (see the attached render); drop only that word, only here.
+                let chip = value == probe.status.recordingLabel + " " + probe.status.elapsedLabel
+                let read = tokens.sorted { $0.1.minX < $1.1.minX }.map(\.0).joined(separator: " ")
+                let actual = chip
+                    ? read.split(separator: " ").filter { $0 != "|" }.joined(separator: " ") : read
                 diagnostics.append("Expected \(value); actual \(actual); original native frame \(frame); tokens \(tokens)")
                 if value == "[FX] 6K · 25p" {
                     // Glyph pixels decide U+00B7. Only the exact observed Vision post-dot-space
@@ -1055,8 +1204,10 @@
                 recording: ["STBY", "00:00"], clock: "00:48:03:23", primary: "[FX] 6K · 25p",
                 details: ["R3D NE"], color: "D-Log2")
             XCTAssertTrue(fit.completeSingleRow, "The actual production320 compact fit must be complete")
-            XCTAssertEqual(fit.primarySize, 10, "Actual failed field font is the original10-point floor")
-            let sizes: [CGFloat] = [10, 11, 13.25, 23]
+            // The stacked format group budgets the wider of its two lines, so the compact 320
+            // primary keeps far more than the old one-row 10-point floor.
+            XCTAssertGreaterThanOrEqual(fit.primarySize, 16, "Stacked compact primary font")
+            let sizes: [CGFloat] = [fit.primarySize, 11, 13.25, 23]
             let originals = ["[FX] 6K · 25p", "[FX]6K · 25p", "[FX] 6K· 25p", "[FX] 6K ·25p",
                 "[FX] 6K • 25p", "[FX] 6K . 25p"]
             let labels = sizes.flatMap { _ in originals }
@@ -1066,7 +1217,7 @@
                     ForEach(labels.indices, id: \.self) { index in
                         let size = sizes[index / 6]
                         Text(labels[index]).font(MonitorTheme.font(size, weight: .medium))
-                            .tracking(size == 10 ? fit.tracking : 0).monospacedDigit().foregroundStyle(.white)
+                            .tracking(index / 6 == 0 ? fit.tracking : 0).monospacedDigit().foregroundStyle(.white)
                             .lineLimit(1).fixedSize().frame(width: 288, height: 32, alignment: .topLeading)
                             .offset(x: 16, y: CGFloat(40 + index * 36))
                             .accessibilityLabel("Native literal space control \(index)")
@@ -1096,7 +1247,7 @@
                 }
                 painted.append(components)
                 metrics.append(["literal": labels[index], "actualAXValue": node.accessibilityValue ?? "",
-                    "fontSizePoints": sizes[index / 6], "trackingPoints": sizes[index / 6] == 10 ? fit.tracking : 0,
+                    "fontSizePoints": sizes[index / 6], "trackingPoints": index / 6 == 0 ? fit.tracking : 0,
                     "actualCompactSizerSizePoints": fit.primarySize, "actualCompactSizerTrackingPoints": fit.tracking,
                     "scale": scale, "gapPixels": gaps(components),
                     "componentsPixels": components.map { [$0.minX, $0.minY, $0.width, $0.height] }])
@@ -1214,7 +1365,9 @@
             let fit = MonitorPortraitPrimarySizer().fitRow(width: 264, scale: 3, typeSize: .large,
                 recording: ["REC", "100:00"], clock: "00:48:03:23", primary: "[FX] 6K · 25p",
                 details: ["R3D NE"], color: "D-Log2")
-            XCTAssertEqual(fit.detailSize, 10, "The recorded compact codec detail tier")
+            // The recorded artifact was read at the old one-row 10-point tier; the stacked group
+            // keeps the codec at the 11-point detail size, and the controls follow that fit.
+            XCTAssertEqual(fit.detailSize, 11, "The stacked compact codec detail tier")
             XCTAssertEqual(fit.completeSingleRow, true, "The recorded complete single-row fit")
             let values = ["R3D NE", "R3DNE"]
             let reference = try HeaderWindow(rootView: AnyView(
