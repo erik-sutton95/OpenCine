@@ -26,6 +26,8 @@ public enum NikonBootstrapObservation: Sendable {
     case screenModes([PTPCameraScreenSizeMode])
     case fileTypes([PTPCameraFileTypeMode])
     case options(PTPPropertyCode, [String])
+    /// The movie tones one per-codec tone property offers (`NikonMovieToneCapability`).
+    case movieTones(PTPPropertyCode, [NikonMovieTone])
     case photographyReady
     case descriptorsReady
 }
@@ -90,6 +92,15 @@ public final class NikonPropertyBootstrap {
             !Task.isCancelled
         {
             receive(.fileTypes(modes))
+        }
+        for property in NikonMovieToneCapability.toneProperties {
+            guard isCurrent(), !Task.isCancelled else { return }
+            guard link.supportsProperty(property),
+                let raw = try? await link.describeCameraPropertyEnum(property, valueByteCount: 1),
+                isCurrent(), !Task.isCancelled
+            else { continue }
+            let tones = NikonMovieToneCapability.tones(fromEnum: raw)
+            if !tones.isEmpty { receive(.movieTones(property, tones)) }
         }
         let controls = Self.movieControls + (photography ? Self.photoControls : [])
         for (property, width) in controls {

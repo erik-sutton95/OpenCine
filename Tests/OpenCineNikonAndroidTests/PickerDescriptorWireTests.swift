@@ -67,6 +67,55 @@ struct PickerDescriptorWireTests {
         #expect(!wire.split(separator: "\n").contains { $0.hasPrefix("tone\t") })
     }
 
+    /// A body with per-codec movie tone properties, on H.265 10-bit in N-Log.
+    private func toneBody() throws -> FakeZRServer {
+        var options = FakeZRServer.Options()
+        options.model = "ZR"
+        options.serialNumber = "6002199"
+        options.movieFileTypeEnum = [0x0031_0C03, 0x0010_0A00, 0x0001_0A00]
+        options.movieFileTypeRaw = 0x0001_0A00
+        options.descriptorEnumOverrides = [.movieH265ToneMode: [0, 1, 2], .movieProResToneMode: [0, 1]]
+        let server = try FakeZRServer(options: options)
+        server.setCameraProperty(.movieH265ToneMode, data: Data([1]))
+        return server
+    }
+
+    @Test func theActiveCodecsTonesReachTheShellAndAToneWritesItsProperty() throws {
+        let server = try toneBody()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+
+        let controls = session.refreshAndroidPropertySnapshot(.bootstrap).controls
+        #expect(controls.movieTones == ["SDR", "HLG", "N-Log"])
+        #expect(controls.movieToneEditable)
+        let wire = AndroidCameraPropertyReadbackWire.encode(
+            session.refreshAndroidPropertySnapshot(.bootstrap))
+        #expect(wire.contains("options.movieTone\tSDR\u{1F}HLG\u{1F}N-Log"))
+        #expect(wire.contains("movieToneEditable\ttrue"))
+
+        try session.applyAndroidControl(.movieTone, label: "HLG")
+        let toneWrites = server.receivedPropertyWrites()
+            .filter { $0.property == PTPPropertyCode.movieH265ToneMode.rawValue }
+            .map(\.data)
+        #expect(toneWrites == [Data([2])])
+        #expect(throws: (any Error).self) { try session.applyAndroidControl(.movieTone, label: "Log3G10") }
+    }
+
+    @Test func r3dReportsItsFixedToneAndRefusesAToneWrite() throws {
+        let server = try toneBody()
+        defer { server.stop() }
+        let session = try connect(to: server)
+        defer { session.disconnect() }
+        _ = session.refreshAndroidPropertySnapshot(.bootstrap)
+        try session.applyControl(.codec, label: "R3D NE")
+        let controls = session.refreshAndroidPropertySnapshot(.bootstrap).controls
+        #expect(controls.movieTones == ["Log3G10"])
+        #expect(controls.movieTone == "Log3G10")
+        #expect(!controls.movieToneEditable)
+        #expect(throws: (any Error).self) { try session.applyAndroidControl(.movieTone, label: "SDR") }
+    }
+
     @Test func pickingTenBitPutsTheAdvertisedTenBitValueOnTheWire() throws {
         let server = try z6iii()
         defer { server.stop() }

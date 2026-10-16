@@ -78,6 +78,9 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         rawCompressions: [String] = [],
         codecBitDepths: [String] = [],
         codecBitDepth: String? = nil,
+        movieTones: [String] = [],
+        movieTone: String? = nil,
+        movieToneEditable: Bool = false,
         advertisedIrisValues: [String] = [],
         recordingFormats: [NikonRecordingFormatPresentation] = []
     ) {
@@ -115,6 +118,9 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
         self.rawCompressions = rawCompressions
         self.codecBitDepths = codecBitDepths
         self.codecBitDepth = codecBitDepth
+        self.movieTones = movieTones
+        self.movieTone = movieTone
+        self.movieToneEditable = movieToneEditable
     }
 
     /// Current shared-core resolution/frame-rate label matching descriptor options.
@@ -192,6 +198,13 @@ public struct AndroidCameraControlCapabilities: Equatable, Sendable {
     /// Caption of the depth the body is currently recording at ("10-bit"), so the shell can fill
     /// the right side of the pair. Nil when the current codec has no depth choice.
     public let codecBitDepth: String?
+    /// The movie tones (colour) the body offers for the active codec, or its fixed tone
+    /// (R3D NE: Log3G10), from `NikonMovieToneCapability`. Empty when the codec has none.
+    public let movieTones: [String]
+    /// The active codec's reported tone; nil while unknown.
+    public let movieTone: String?
+    /// Whether the operator can change the tone (more than one offered, not fixed by the codec).
+    public let movieToneEditable: Bool
 
     /// Empty capabilities before a successful descriptor refresh.
     public static let empty = AndroidCameraControlCapabilities()
@@ -368,6 +381,9 @@ public enum AndroidCameraPropertyReadbackWire {
         }, to: &fields)
         appendOptions("options.codec", values: controls.codecs, to: &fields)
         appendOptions("options.codecBitDepth", values: controls.codecBitDepths, to: &fields)
+        append("movieTone", value: controls.movieTone, to: &fields)
+        append("movieToneEditable", value: controls.movieToneEditable ? "true" : "false", to: &fields)
+        appendOptions("options.movieTone", values: controls.movieTones, to: &fields)
         appendOptions(
             "options.vibrationReduction", values: controls.vibrationReduction, to: &fields)
         appendOptions("options.electronicVr", values: controls.electronicVR, to: &fields)

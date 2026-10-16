@@ -498,7 +498,8 @@ private fun LiveControlSheetContent(
         verticalArrangement = Arrangement.spacedBy(MonitorAssistPanelMetrics.PANEL_GAP_DP.dp),
     ) {
             if (showsHeader) SheetHeader(
-                title = CaptureLists.headerTitle(sheet, status.expoMode, status.shootingMode),
+                title = if (sheet == LiveSheet.COLOR) host.recordingCodecColor(status).title
+                    else CaptureLists.headerTitle(sheet, status.expoMode, status.shootingMode),
                 subtitle =
                     if (compact) "drag to set"
                     else
@@ -522,7 +523,7 @@ private fun LiveControlSheetContent(
                     interactive = false,
                     onSelect = {},
                 )
-            } else if (nativePanel != null) {
+            } else if (nativePanel != null && sheet != LiveSheet.COLOR) {
                 nativePanel()
             } else when (sheet) {
                 LiveSheet.ISO -> {
@@ -659,16 +660,24 @@ private fun LiveControlSheetContent(
                 }
                 LiveSheet.AUDIO -> AudioBody(status, enabled, selectedMode, host)
                 LiveSheet.COLOR ->
-                    CaptureDrumWheel(
-                        options = CaptureLists.colorWheelLabels(status, bodyFamily, bodyName, host.labelProfile),
-                        selection = drumSelection,
-                        interactive = enabled,
+                    // One popup for codec and colour: the codec choices the camera offers, then
+                    // its colour choices. The colour drum keeps each camera's existing behaviour.
+                    CaptureCodecColorPanel(
+                        choices = host.recordingCodecColor(status),
+                        enabled = enabled && !status.isRecording,
+                        onSelectCodec = { id -> if (enabled && !status.isRecording) host.commitRecordingCodec(id) },
+                    ) {
+                        if (nativePanel != null) nativePanel() else CaptureDrumWheel(
+                            options = CaptureLists.colorWheelLabels(status, bodyFamily, bodyName, host.labelProfile),
+                            selection = drumSelection,
+                            interactive = enabled,
 
-                        onSelect = {
-                            drumSelection = it
-                            applyDrum(it)
-                        },
-                    )
+                            onSelect = {
+                                drumSelection = it
+                                applyDrum(it)
+                            },
+                        )
+                    }
                 LiveSheet.FORMAT -> {
                     if (CameraCommands.isPhotoMode(status.shootingMode)) {
                         CaptureDrumWheel(listOf(CaptureLists.PHOTO_FORMAT_READOUT), drumSelection, interactive = false, onSelect = {})
