@@ -3,6 +3,7 @@ import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
 import OpenCineHostedAccessibility
+import OpenCineHostedTestSupport
 import Observation
 import SwiftUI
 import XCTest
@@ -66,10 +67,10 @@ final class MonitorScreenAccessibilityTests: XCTestCase {
         // The anchor sits outside the screen and is always exposed: once it is in the tree the
         // screen has rendered, so every "not exposed" check reads a complete tree.
         var exposed = Set<String>()
-        for _ in 0..<250 where !exposed.contains("probe.anchor") {
+        _ = await HostedCondition.wait {
             host.view.layoutIfNeeded()
             exposed = Set(HostedAccessibility.leaves(in: host.view).compactMap(Self.probeIdentifier))
-            if !exposed.contains("probe.anchor") { try await Task.sleep(for: .milliseconds(20)) }
+            return exposed.contains("probe.anchor")
         }
         // The shared walk turns the accessibility runtime on wherever it can (a simulator), so
         // only a host where it cannot (a device without assistive access) may skip.
