@@ -43,7 +43,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         func commonValue(_ key: SettingKey) -> String {
             host.control.captureValue(key, selection: selection).map(MonitorCapturePresentation.label) ?? "--"
         }
-        let nativeISO = status.isoIndex == .auto && capabilities.isoLimit
+        let nativeISO = status.isoIndex == .auto && controls.nativeISO.ceiling == true
         let isoField = nativeISO ? nil : host.control.captureField(.iso, selection: selection)
         append(.iso, "ISO", commonValue(.iso), field: isoField,
             quickEnabled: nativeISO || isoField != nil)

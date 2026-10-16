@@ -75,7 +75,7 @@
             MonitorControlGrid(
                 columns: gridColumns, spacing: columns == 3 ? 8 : 12, equalColumns: columns == 3
             ) {
-                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && capabilities.isoLimit) {
+                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && controls.nativeISO.ceiling == true) {
                     tile(.iso, label: "ISO", value: isoValue, widest: "25600")
                 } else {
                     commonTile(.iso, key: .iso)

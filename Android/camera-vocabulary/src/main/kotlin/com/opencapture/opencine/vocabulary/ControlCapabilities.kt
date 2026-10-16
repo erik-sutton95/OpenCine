@@ -158,6 +158,9 @@ public data class ControlCapabilities(
         ControlFamily.MULTIVIEW -> multiview.status
     }
 
+    /** The declared native ISO extensions (dual-native hop, auto ceiling); unknown when not declared. */
+    public val nativeISO: CaptureNativeISOCapabilities get() = iso.offer?.nativeISO ?: CaptureNativeISOCapabilities()
+
     /** Every family the shared UI offers as a control. */
     public val offered: Set<ControlFamily> get() = ControlFamily.entries.filter { status(it).isOffered }.toSet()
 

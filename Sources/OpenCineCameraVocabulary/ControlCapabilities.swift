@@ -173,6 +173,9 @@ public struct ControlCapabilities: Equatable, Sendable {
         }
     }
 
+    /// The declared native ISO extensions (dual-native hop, auto ceiling); unknown when not declared.
+    public var nativeISO: CaptureNativeISOCapabilities { iso.offer?.nativeISO ?? .init() }
+
     /// Every family the shared UI offers as a control.
     public var offered: Set<ControlFamily> { Set(ControlFamily.allCases.filter { status($0).isOffered }) }
 

@@ -217,7 +217,7 @@ private fun LiveControlSheetContent(
     }
 
     fun reseatIso() {
-        applyIsoSeat(IsoSheetLogic.reseat(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.nativeISO.ceiling == true))
+        applyIsoSeat(IsoSheetLogic.reseat(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controls().nativeISO.ceiling == true))
     }
 
     fun applySeat(seat: CaptureLists.ShutterSeat) {
@@ -326,7 +326,7 @@ private fun LiveControlSheetContent(
         if (!enabled) return
         when {
             sheet == LiveSheet.ISO && offersIsoAuto -> {
-                val (state, cmd) = IsoSheetLogic.handleModeChange(index, status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.nativeISO.ceiling == true)
+                val (state, cmd) = IsoSheetLogic.handleModeChange(index, status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controls().nativeISO.ceiling == true)
                 applyIsoSeat(state)
                 when (cmd) {
                     is IsoSheetLogic.Command.SetIndex -> host.commit(CaptureSetting.IsoIndex(cmd.index), commonField, status)
@@ -359,7 +359,7 @@ private fun LiveControlSheetContent(
         lastApplied = value
         when (sheet) {
             LiveSheet.ISO -> {
-                when (val cmd = IsoSheetLogic.applyDrum(value, status, selectedMode, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.nativeISO.ceiling == true)) {
+                when (val cmd = IsoSheetLogic.applyDrum(value, status, selectedMode, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controls().nativeISO.ceiling == true)) {
                     is IsoSheetLogic.Command.SetLimit ->
                         commitDrumValue { host.commit(CaptureSetting.IsoLimitRaw(cmd.raw), commonField, status) }
                     is IsoSheetLogic.Command.SetIndex ->
@@ -425,7 +425,7 @@ private fun LiveControlSheetContent(
     if (preview == null) {
         LaunchedEffect(sheet) {
             effects.mount(sheet, status, session.controls().focus.isOffered, host::refresh, ::seed, ::reseatIso,
-                ceilingSupported = session.nativeISO.ceiling == true)
+                ceilingSupported = session.controls().nativeISO.ceiling == true)
         }
         // Match iOS CaptureControlSheets onChange keys. Do not reseat ISO/shutter drums
         // on every live isoIndex / shutterDenom tick: that snaps Manual back to Auto
@@ -535,7 +535,7 @@ private fun LiveControlSheetContent(
                         Box(Modifier.fillMaxWidth()) {
                             if (isIsoAutoTab) {
                                 CaptureDrumWheel(
-                                    options = IsoSheetLogic.autoLabels(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.nativeISO.ceiling == true),
+                                    options = IsoSheetLogic.autoLabels(status, bodyName, host.camera?.captureProfile?.isoAutoRangeFloor, session.controls().nativeISO.ceiling == true),
                                     selection = drumSelection,
                                     interactive = enabled,
 
@@ -548,7 +548,7 @@ private fun LiveControlSheetContent(
                                 host.CommonDrum(sheet, status, commonField, enabled, CaptureWheelState(drumSelection) { drumSelection = it; applyDrum(it) })
                             }
                         }
-                        if (session.nativeISO.hop == true) PrefToggle(
+                        if (session.controls().nativeISO.hop == true) PrefToggle(
                             title = CaptureLists.NATIVE_ISO_HOP_TITLE,
                             help = CaptureLists.NATIVE_ISO_HOP_HELP,
                             checked = prefs.nativeIsoHop,
