@@ -76,9 +76,9 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
         app.launch()
         if let label = env["OPV_OWNED_RESTORE_CONNECT_LABEL"] {
             let connect = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
-            if connect.waitForExistence(timeout: 10) { connect.tap() }
+            if connect.waitForExistence(timeout: 10) { tapWhenReady(connect, in: app) }
         }
-        Thread.sleep(forTimeInterval: 3)
+        waitForLaunchSplash(in: app)
         let source = try optionsLiveProbe(app)
         guard let identity = source.sourceIdentity else {
             throw ReferenceOptionsFailure("Owned monitor cleanup requires a native source identity")
@@ -142,7 +142,7 @@ open class PhysicalReferenceAppTests: SharedAppUITestCase {
         let app = XCUIApplication(bundleIdentifier: bundle)
         if verifyMonitorOptions { app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1" }
         if env["OPV_REFERENCE_LAUNCH"] == "1" { app.launch() } else { app.activate() }
-        Thread.sleep(forTimeInterval: 3)
+        waitForLaunchSplash(in: app)
         snapshot(app, "start")
         let taps = (env["OPV_REFERENCE_TAPS"] ?? "").split(separator: "|").map(String.init)
         for (index, entry) in taps.enumerated() {
