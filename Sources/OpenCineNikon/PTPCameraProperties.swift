@@ -2555,6 +2555,28 @@ public enum WhiteBalanceTint {
         return parts.isEmpty ? "Neutral" : parts.joined(separator: " · ")
     }
 
+    /// Grid cells for an operator readout `label(amberBlueCell:greenMagentaCell:)` produced;
+    /// nil for text that is not such a readout.
+    public static func cells(label: String) -> (amberBlue: Int, greenMagenta: Int)? {
+        if label == "Neutral" { return (0, 0) }
+        var amberBlue = 0
+        var greenMagenta = 0
+        var parts = 0
+        for part in label.split(separator: "\u{00B7}") {
+            let token = part.trimmingCharacters(in: .whitespaces)
+            guard let prefix = token.first, let units = Double(token.dropFirst()) else { return nil }
+            switch prefix {
+            case "A": amberBlue = Int((units / amberBlueUnitsPerCell).rounded())
+            case "B": amberBlue = -Int((units / amberBlueUnitsPerCell).rounded())
+            case "G": greenMagenta = Int((units / greenMagentaUnitsPerCell).rounded())
+            case "M": greenMagenta = -Int((units / greenMagentaUnitsPerCell).rounded())
+            default: return nil
+            }
+            parts += 1
+        }
+        return parts == 0 ? nil : (amberBlue, greenMagenta)
+    }
+
     private static func trimmed(_ value: Double) -> String {
         value == value.rounded() ? String(Int(value)) : String(value)
     }

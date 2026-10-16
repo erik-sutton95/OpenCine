@@ -2,96 +2,6 @@ import Foundation
 import OpenCineAppKit
 import OpenCineCameraVocabulary
 
-/// One write the sheet asks the host to make: the host's own key and a camera label.
-public struct LadderWrite<Key: Equatable & Sendable>: Equatable, Sendable {
-    public let key: Key
-    public let value: String
-
-    public init(key: Key, value: String) {
-        self.key = key
-        self.value = value
-    }
-}
-
-/// A button beside the drum's selected value (Kelvin -10/+10, a codec's two bit depths).
-/// `value` nil disables the button. `lands` true means the written value becomes the drum's value.
-public struct LadderStep: Equatable, Sendable {
-    public let label: String
-    public let value: String?
-    public let description: String
-    public let selected: Bool
-    public let lands: Bool
-
-    public init(
-        label: String, value: String?, description: String, selected: Bool = false,
-        lands: Bool = false
-    ) {
-        self.label = label
-        self.value = value
-        self.description = description
-        self.selected = selected
-        self.lands = lands
-    }
-}
-
-/// One tab: a typed core field (drawn by `MonitorCaptureDrum`) or a label ladder (`MonitorValueDrum`).
-@available(macOS 14, *)
-public struct LadderTab<Key: Equatable & Sendable>: Sendable {
-    public let label: String
-    public let key: Key
-    public let ladder: CaptureLadder
-    public let detail: String?
-    public let activate: LadderWrite<Key>?
-    public let applyOnActivate: Bool
-    public let disabled: Bool
-    public let field: MonitorCaptureField?
-    public let tint: CaptureTint?
-    public let values: (@Sendable (String) -> [String])?
-    public let steps: (@Sendable (String) -> (LadderStep, LadderStep)?)?
-
-    public init(
-        label: String, key: Key, ladder: CaptureLadder, detail: String? = nil,
-        activate: LadderWrite<Key>? = nil, applyOnActivate: Bool = true, disabled: Bool = false,
-        field: MonitorCaptureField? = nil, tint: CaptureTint? = nil,
-        values: (@Sendable (String) -> [String])? = nil,
-        steps: (@Sendable (String) -> (LadderStep, LadderStep)?)? = nil
-    ) {
-        self.label = label
-        self.key = key
-        self.ladder = ladder
-        self.detail = detail
-        self.activate = activate
-        self.applyOnActivate = applyOnActivate
-        self.disabled = disabled
-        self.field = field
-        self.tint = tint
-        self.values = values
-        self.steps = steps
-    }
-}
-
-@available(macOS 14, *)
-public struct LadderSheetPresentation<Key: Equatable & Sendable>: Sendable {
-    public let title: String
-    public let subtitle: String
-    public let tabs: [LadderTab<Key>]
-    public let initialTab: Int
-    public let lock: CaptureLock?
-    public let lockBanner: String?
-
-    public init(
-        title: String, subtitle: String, tabs: [LadderTab<Key>], initialTab: Int = 0,
-        lock: CaptureLock? = nil, lockBanner: String? = nil
-    ) {
-        self.title = title
-        self.subtitle = subtitle
-        self.tabs = tabs
-        self.initialTab = initialTab
-        self.lock = lock
-        self.lockBanner = lockBanner
-    }
-}
-
 /// Whether the tabs and the drum accept input, and whether the lock line is showing.
 struct LadderGates: Equatable, Sendable {
     let tabsEnabled: Bool
@@ -194,6 +104,7 @@ private extension String {
                     .disabled(!enabled || off)
                     .opacity(off ? 0.35 : 1)
                     .accessibilityLabel(title)
+                    .accessibilityIdentifier("monitor.capture.tab.\(index)")
                     .accessibilityAddTraits(active ? .isSelected : [])
                 }
             }
@@ -209,7 +120,7 @@ private extension String {
                 .font(MonitorTheme.font(11, weight: .semibold))
                 .tracking(0.44)
                 .foregroundStyle(active ? MonitorTheme.edrAccent(gain: hdrGain) : MonitorTheme.edrMuted(gain: hdrGain))
-                .lineLimit(1)
+                .lineLimit(1).minimumScaleFactor(0.7)
             if let detail {
                 VStack(spacing: 0) {
                     label
@@ -226,18 +137,16 @@ private extension String {
         }
     }
 
-    /// Label-ladder sheet. Typed tabs draw `MonitorCaptureDrum` and commit through `control`.
-    /// Label tabs draw the shared horizontal drum and report writes through `onWrite`.
-    /// Apps that already have a typed sheet do not construct this.
+    /// Label-ladder sheet controls. Typed tabs draw `MonitorCaptureDrum` and commit through
+    /// `control`. Label tabs draw the shared horizontal drum and report writes through `onWrite`.
+    /// The common capture drawer (`MonitorCapturePanel`) supplies the glass, header and close
+    /// control, as it does for every other camera's popup; this view reports its title to it.
     @available(macOS 14, *)
     public struct LadderSheet<Key: Equatable & Sendable, Footer: View>: View {
         private let presentation: LadderSheetPresentation<Key>
         private let enabled: Bool
         private let onWrite: (LadderWrite<Key>) -> Void
-        private let onClose: () -> Void
         private let control: MonitorControlModel?
-        private let fromTop: Bool
-        private let chromeless: Bool
         private let error: String?
         private let unavailable: String?
         private let onHold: (() -> Void)?
@@ -247,14 +156,13 @@ private extension String {
         @State private var selected: Int
         @State private var landed: [String]
         @State private var applied: [String]
-        @Environment(\.monitorWindowGeometry) private var windowGeometry
         @Environment(\.monitorHDRChromeGain) private var hdrGain
         @Environment(\.ladderOperatorHaptics) private var hapticsEnabled
 
         public init(
             presentation: LadderSheetPresentation<Key>, enabled: Bool,
-            onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
-            control: MonitorControlModel? = nil, fromTop: Bool = false, chromeless: Bool = false, error: String? = nil,
+            onWrite: @escaping (LadderWrite<Key>) -> Void,
+            control: MonitorControlModel? = nil, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
             @ViewBuilder footer: @escaping (LadderTab<Key>) -> Footer
@@ -262,10 +170,7 @@ private extension String {
             self.presentation = presentation
             self.enabled = enabled
             self.onWrite = onWrite
-            self.onClose = onClose
             self.control = control
-            self.fromTop = fromTop
-            self.chromeless = chromeless
             self.error = error
             self.unavailable = unavailable
             self.onHold = onHold
@@ -288,12 +193,6 @@ private extension String {
             }
         }
 
-        private var portrait: Bool {
-            let size = windowGeometry.size
-            if size.width <= 0 || size.height <= 0 { return true }
-            return size.height >= size.width
-        }
-
         private var index: Int {
             min(max(selected, 0), presentation.tabs.count - 1)
         }
@@ -310,30 +209,18 @@ private extension String {
         }
 
         private var sheet: some View {
-            let top = captureTopPadding(fromTop: fromTop, portrait: portrait)
-            let shape = panelShape(fromTop: fromTop, portrait: portrait)
-            return Group {
-                if chromeless {
-                    controls.monitorCapturePanelHeader(title: presentation.title, subtitle: presentation.subtitle)
-                }
-                else {
-                    controls.padding(.horizontal, 14).padding(.top, top)
-                        .padding(.bottom, fromTop ? 14 : 11)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .monitorGlass(in: shape, density: .expanded)
-                }
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("\(presentation.title). \(presentation.subtitle)")
-            .accessibilityIdentifier("ladder_sheet")
-            .contentShape(Rectangle())
-            .onTapGesture {}
-            .modifier(LadderHoldGesture(minimumDuration: 0.45, action: onHold))
+            controls
+                .monitorCapturePanelHeader(title: presentation.title, subtitle: presentation.subtitle)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("\(presentation.title). \(presentation.subtitle)")
+                .accessibilityIdentifier("ladder_sheet")
+                .contentShape(Rectangle())
+                .onTapGesture {}
+                .modifier(LadderHoldGesture(minimumDuration: 0.45, action: onHold))
         }
 
         private var controls: some View {
             VStack(alignment: .leading, spacing: 8) {
-                if !chromeless { header }
                 if let error, !error.isBlank {
                     Text(error)
                         .font(MonitorTheme.font(11, weight: .medium))
@@ -350,7 +237,7 @@ private extension String {
                     lockBanner(banner)
                 }
                 drum
-                    .frame(maxWidth: .infinity, maxHeight: chromeless ? nil : .infinity)
+                    .frame(maxWidth: .infinity)
                 if presentation.tabs.count > 1 {
                     ModeBar(
                         tabs: presentation.tabs.map(\.label), selected: index,
@@ -366,31 +253,6 @@ private extension String {
 
         private var disabledTabs: Set<Int> {
             Set(presentation.tabs.enumerated().compactMap { $0.element.disabled ? $0.offset : nil })
-        }
-
-        private var header: some View {
-            HStack(alignment: .center, spacing: 9) {
-                Text(presentation.title)
-                    .font(MonitorTheme.font(9, weight: .semibold))
-                    .tracking(1.8)
-                    .foregroundStyle(MonitorTheme.edrText(gain: hdrGain))
-                    .lineLimit(1)
-                Text(presentation.subtitle.uppercased())
-                    .font(MonitorTheme.font(8.5))
-                    .tracking(1.19)
-                    .foregroundStyle(MonitorTheme.edrFaint(gain: hdrGain))
-                    .lineLimit(1)
-                    .padding(.bottom, 2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button(action: onClose) {
-                    MonitorIcon.x.frame(width: 13, height: 13)
-                        .foregroundStyle(MonitorTheme.edrMuted(gain: hdrGain))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(MonitorButtonStyle())
-                .accessibilityLabel("Close camera control")
-            }
         }
 
         private func lockBanner(_ text: String) -> some View {
@@ -416,8 +278,10 @@ private extension String {
                         onWrite(LadderWrite(key: tab.key, value: text))
                     }
                 }
-            } else if let field = tab.field, let control {
-                coreDrum(field, control: control)
+            } else if let setting = tab.setting, let control,
+                let field = control.captureField(setting.key)
+            {
+                coreDrum(field, offered: setting.offered, control: control)
             } else {
                 LabelDrum(
                     options: ladderOptions(tab, landed: shown),
@@ -443,9 +307,11 @@ private extension String {
             }
         }
 
-        private func coreDrum(_ field: MonitorCaptureField, control: MonitorControlModel) -> some View {
-            let options = Set(ladderOptions(tab, landed: shown))
-            let filtered = field.choices.filter { options.contains($0.label) }
+        /// The session's field, limited to the values the camera offers on this tab.
+        private func coreDrum(
+            _ field: MonitorCaptureField, offered: [SettingValue], control: MonitorControlModel
+        ) -> some View {
+            let filtered = field.choices.filter { offered.contains($0.value) }
             let choices = filtered.isEmpty ? field.choices : filtered
             return MonitorCaptureDrum(
                 control: control, field: field, enabled: gates.drumEnabled, haptics: hapticsEnabled,
@@ -482,14 +348,14 @@ private extension String {
     extension LadderSheet where Footer == EmptyView {
         public init(
             presentation: LadderSheetPresentation<Key>, enabled: Bool,
-            onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
-            control: MonitorControlModel? = nil, fromTop: Bool = false, chromeless: Bool = false, error: String? = nil,
+            onWrite: @escaping (LadderWrite<Key>) -> Void,
+            control: MonitorControlModel? = nil, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil
         ) {
             self.init(
-                presentation: presentation, enabled: enabled, onWrite: onWrite, onClose: onClose,
-                control: control, fromTop: fromTop, chromeless: chromeless, error: error, unavailable: unavailable,
+                presentation: presentation, enabled: enabled, onWrite: onWrite,
+                control: control, error: error, unavailable: unavailable,
                 onHold: onHold, tintLabel: tintLabel, tintHelp: tintHelp, footer: { _ in EmptyView() }
             )
         }
@@ -755,20 +621,6 @@ private extension String {
         private var glassBright: Color {
             MonitorTheme.edrSRGB(red: 94 / 255, green: 98 / 255, blue: 98 / 255, gain: hdrGain, alpha: 0.18)
         }
-    }
-
-    private func captureTopPadding(fromTop: Bool, portrait: Bool) -> CGFloat {
-        if !fromTop { return 11 }
-        return portrait ? 12 : 16
-    }
-
-    private func panelShape(fromTop: Bool, portrait: Bool) -> UnevenRoundedRectangle {
-        let corner: CGFloat = 16
-        let top: CGFloat = !fromTop || portrait ? corner : 0
-        let bottom: CGFloat = fromTop || portrait ? corner : 0
-        return UnevenRoundedRectangle(
-            topLeadingRadius: top, bottomLeadingRadius: bottom,
-            bottomTrailingRadius: bottom, topTrailingRadius: top)
     }
 
     /// Half towards positive infinity, matching the pad's cell rounding.

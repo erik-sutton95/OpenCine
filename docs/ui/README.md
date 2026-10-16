@@ -86,6 +86,19 @@ The lower UI primitives continue to take values and actions; app-specific native
 bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
 for adapter boundaries, capture ownership and regression guards.
 
+Every camera's control popup (ISO, shutter, white balance, focus and the other drum controls)
+is the one common drawer, `MonitorCapturePanel`, placed by the live surface. Inside it,
+`CaptureSheetPanel` (status-reporting cameras) and `LadderSheet` (cameras that advertise label
+ladders, such as Nikon) draw the same parts: the typed `MonitorCaptureDrum` or the label
+`MonitorValueDrum`, the one `ModeBar` tab strip (tabs carry `monitor.capture.tab.<index>`),
+and `MonitorCaptureToggle` / `MonitorCaptureStepper` rows. Neither draws its own glass, header
+or close control. Camera differences (lock banners, Kelvin and bit-depth step buttons, a
+two-axis tint pad) arrive as typed tab values: the ladder presentation types live in
+`OpenCineCameraVocabulary` (`CaptureLadderSheet.swift`), and `NikonCapturePopupState`
+(`OpenCineNikon`) builds them from session values, so an app adapter only reads its session
+and routes writes. The shared `CapturePopupUITests`
+(`OpenCineAppUITesting`) opens each popup in both orientations in every app.
+
 Grouped movie-format controls live in `OpenCineCameraControls` /
 `camera-controls`, above the lower UI primitives. [`CaptureFormatPicker` and
 `CaptureFormatPickerState`][grouped-format-1] ([Compose][grouped-format-2])
