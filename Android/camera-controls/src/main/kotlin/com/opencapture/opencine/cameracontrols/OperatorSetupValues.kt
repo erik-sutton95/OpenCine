@@ -152,8 +152,7 @@ open class OperatorHelpCopy(appName: String) {
     val REPORT = "Opens a public issue form on GitHub for this project."
     val REPORT_PROBLEM =
         "Tell us what happened. Technical details stay off unless you include them. You can attach up to three photos. Sending does not turn on automatic reports."
-    val RELIABILITY_REPORTS =
-        "Optional: send crash, hang, live-feed reports and session health counts to OpenCapture through Sentry. Off by default. Turn off anytime without losing app features. Uploads wait until you leave camera Wi-Fi. Automatic reports exclude all images. No footage or GPS location. Sentry receives the connection IP; stored event IP and derived geography are removed. See Reporting Privacy below."
+    val RELIABILITY_REPORTS = MonitorSettingsCopy.automaticReports
     val RELIABILITY_UNAVAILABLE =
         "This build cannot send automatic reports. You can still share or delete reports stored on this phone."
     val FEATURE = "Start an idea in this project's feature-request discussion."
@@ -167,8 +166,7 @@ open class OperatorHelpCopy(appName: String) {
     val LOCAL_CACHE = "Cached clips, thumbnails and camera indexes for every camera on this phone."
     val CACHE_FULL_RESOLUTION =
         "Download the original camera file when you open a clip. Off keeps only the 720p proxy to save space. Share needs the original \u2014 connect the camera if it is not cached."
-    val FEED_UPSCALER =
-        "How the live-view frame is enlarged to fill the panel. The camera sends far fewer pixels than the panel has, so something always does this. Off is a plain sample, Fast is a fixed sharpening kernel, and Quality is the OS spatial upscaler.\n\nAI is different in kind: it is a machine-learning model that INFERS detail the camera never captured. It gives the sharpest-looking picture, but the fine texture it adds is invented \u2014 plausible rather than real \u2014 so it can suggest crispness the lens did not record. Judge critical focus on Quality or Fast, and treat AI as a viewing aid rather than evidence.\n\nOnly the options this device supports are shown."
+    val FEED_UPSCALER = MonitorSettingsCopy.feedUpscaler
     val FALSE_COLOR_SCALE =
         "The camera color mode selects D-Log, D-Log2, Rec.709, or HLG automatically. " +
             "CineStop paints five stops around 18% gray, read through the " +

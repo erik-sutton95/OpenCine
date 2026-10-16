@@ -22,6 +22,9 @@ open class GalleryRoundTrip: SharedAppUITestCase {
 
     private func roundTrip(_ layout: MonitorMediaLayout) {
         launch(ReviewLaunch(screen: .media, layout: layout))
+        // The review stages the clips before it opens the gallery; a loaded host takes seconds.
+        XCTAssertTrue(
+            app.scrollViews["monitor.media.gallery"].waitForExistence(timeout: 20), "The gallery is staged")
         let gallery = MediaGalleryProbe(app: app)
         for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
             rotate(orientation, settling: app.scrollViews["monitor.media.gallery"])

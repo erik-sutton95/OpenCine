@@ -6,6 +6,7 @@ import Metal
 import MetalPerformanceShaders
 import VideoToolbox
 import os
+import OpenCineAppleObjC
 #endif
 
 #if os(iOS) && !targetEnvironment(simulator)
@@ -320,7 +321,9 @@ import os
             // A texture output can ride the present's own command buffer: the fit samples it
             // directly, and `processWithCommandBuffer` orders the model against the work around it.
             guard output.texture == nil else {
-                processor.process(with: commandBuffer, parameters: parameters)
+                if let raised = frameProcessorEncode(processor, commandBuffer: commandBuffer, parameters: parameters) {
+                    return refuseRaised(raised)
+                }
                 lastDecline = nil
                 return output.texture
             }
@@ -345,7 +348,10 @@ import os
             }
             if let ticket = pending.ticket {
                 if let modelQueue, let modelBuffer = modelQueue.makeCommandBuffer() {
-                    processor.process(with: modelBuffer, parameters: parameters)
+                    if let raised = frameProcessorEncode(processor, commandBuffer: modelBuffer, parameters: parameters) {
+                        asyncModel.withLock { _ = $0.complete(ticket, failure: raised) }
+                        return refuseRaised(raised)
+                    }
                     modelBuffer.addCompletedHandler { [weak self] buffer in
                         let failure = buffer.error?.localizedDescription
                         self?.asyncModel.withLock { _ = $0.complete(ticket, failure: failure) }
@@ -632,6 +638,21 @@ import os
             let bytes = [24, 16, 8, 0].map { UInt8((format >> $0) & 0xFF) }
             let text = String(decoding: bytes, as: UTF8.self)
             return text.allSatisfy(\.isASCII) ? text : String(format)
+        }
+
+        /// VideoToolbox raised inside the model call (OPENPOCKETCINE-IOS-3M, -3W: a nil insert in
+        /// its own frame list). The session is not trusted after that: end it and stay on the
+        /// fallback scaler, as for any other refused session, rather than end the app.
+        private func refuseRaised(_ raised: String) -> MTLTexture? {
+            processor?.endSession()
+            processor = nil
+            surfaces = []
+            key = nil
+            previousSource = nil
+            previousOutput = nil
+            asyncModel.withLock { $0.reset() }
+            _ = latchOff("super resolution raised \(raised)")
+            return nil
         }
 
         private func latchOff(_ reason: String) -> Bool {

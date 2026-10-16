@@ -453,6 +453,36 @@ public struct FeedIncidentLifecycle: Equatable, Sendable, Codable {
     }
 }
 
+/// The feed watchdog's gating inputs at this sample, so a slow field recovery
+/// shows what held the ladder. Each field is nil when the producer cannot see it.
+/// `hold` is the watchdog's last quiet gate (`FeedWatchdog.Hold`) or the shell's
+/// own pre-tick hold (`foregroundRecover`, `endpointRebuild`, `repairInFlight`).
+public struct FeedIncidentWatchdogGate: Equatable, Sendable, Codable {
+    public var pathReady: Bool?
+    public var repairReady: Bool?
+    public var outputExpected: Bool?
+    public var hold: String?
+
+    public init(
+        pathReady: Bool? = nil, repairReady: Bool? = nil, outputExpected: Bool? = nil,
+        hold: String? = nil
+    ) {
+        self.pathReady = pathReady
+        self.repairReady = repairReady
+        self.outputExpected = outputExpected
+        self.hold = hold.map { FeedIncidentPrivacy.token($0, max: 32) }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            pathReady: try values.decodeIfPresent(Bool.self, forKey: .pathReady),
+            repairReady: try values.decodeIfPresent(Bool.self, forKey: .repairReady),
+            outputExpected: try values.decodeIfPresent(Bool.self, forKey: .outputExpected),
+            hold: try values.decodeIfPresent(String.self, forKey: .hold))
+    }
+}
+
 /// One-second allowlisted stage snapshot. No compressed payload, footage, or PII.
 public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
     public var monotonicNow: TimeInterval
@@ -467,6 +497,8 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
     public var diagnoserRepair: String
     /// Absent on legacy records and producers without socket-level observation.
     public var ingress: FeedIncidentIngress?
+    /// Absent on legacy records and producers without a feed watchdog.
+    public var watchdogGate: FeedIncidentWatchdogGate?
 
     public init(
         monotonicNow: TimeInterval,
@@ -491,6 +523,7 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
         self.diagnoserFailure = FeedIncidentPrivacy.token(diagnoserFailure, max: 32)
         self.diagnoserRepair = FeedIncidentPrivacy.token(diagnoserRepair, max: 32)
         self.ingress = nil
+        self.watchdogGate = nil
     }
 
     public init(
@@ -504,7 +537,8 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
         watchdogAction: String = "none",
         diagnoserFailure: String = "none",
         diagnoserRepair: String = "none",
-        ingress: FeedIncidentIngress?
+        ingress: FeedIncidentIngress?,
+        watchdogGate: FeedIncidentWatchdogGate? = nil
     ) {
         self.init(
             monotonicNow: monotonicNow, wallClock: wallClock, rates: rates,
@@ -512,6 +546,7 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
             watchdogAction: watchdogAction, diagnoserFailure: diagnoserFailure,
             diagnoserRepair: diagnoserRepair)
         self.ingress = ingress
+        self.watchdogGate = watchdogGate
     }
 }
 
@@ -819,15 +854,16 @@ public enum FeedIncidentClassifier: Sendable {
             flowingAlternative: outputFresh,
             threshold: threshold)
 
+        let acceptStale = FeedIncidentPrivacy.isStale(
+            age: snapshot.ages.decodeAcceptAge,
+            hertz: snapshot.rates.decodeAcceptHz,
+            flowingAlternative: snapshot.rates.decodeSubmitHz >= 1,
+            threshold: threshold)
+        let decodeStage: FeedIncidentFailingStage =
+            acceptStale && snapshot.rates.decodeSubmitHz >= 1 ? .decodeAccept : .decodedOutput
         if life.outputObservable && outputStale {
             let currentError = isCurrentDecoderFailure(snapshot.decoder)
-            let acceptStale = FeedIncidentPrivacy.isStale(
-                age: snapshot.ages.decodeAcceptAge,
-                hertz: snapshot.rates.decodeAcceptHz,
-                flowingAlternative: snapshot.rates.decodeSubmitHz >= 1,
-                threshold: threshold)
-            let stage: FeedIncidentFailingStage =
-                acceptStale && snapshot.rates.decodeSubmitHz >= 1 ? .decodeAccept : .decodedOutput
+            let stage = decodeStage
             let kind: FeedIncidentKind
             if currentError {
                 kind = .decoderError
@@ -845,6 +881,20 @@ public enum FeedIncidentClassifier: Sendable {
         {
             return FeedIncidentVerdict(
                 suppression: .none, kind: .assistStalled, failingStage: .assistOutput)
+        }
+        // An unobservable decode path does not make the presenter the stage that stopped.
+        // A current native failure (OPENPOCKETCINE-IOS-2E: -12903 after the scene went
+        // inactive) is a decoder error, and input that stopped arriving is a transport stall.
+        if !life.outputObservable && presentStale {
+            if isCurrentDecoderFailure(snapshot.decoder) {
+                return FeedIncidentVerdict(
+                    suppression: .none, kind: .decoderError, failingStage: decodeStage)
+            }
+            if !inputFresh {
+                return FeedIncidentVerdict(
+                    suppression: .none, kind: .transportStall,
+                    failingStage: packetFresh ? .accessUnit : .packet)
+            }
         }
         if (outputFresh || !life.outputObservable) && presentStale {
             return FeedIncidentVerdict(

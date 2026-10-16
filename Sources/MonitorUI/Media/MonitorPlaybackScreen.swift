@@ -90,6 +90,8 @@
 
         public var body: some View {
             playerContent
+                // A full-screen cover hides the root, so the player publishes the review safe area.
+                .monitorReviewSafeArea()
                 .onChange(of: value.item) { _, _ in
                     cancelDeleteConfirmation()
                     cancelEditing(.contextChanged)

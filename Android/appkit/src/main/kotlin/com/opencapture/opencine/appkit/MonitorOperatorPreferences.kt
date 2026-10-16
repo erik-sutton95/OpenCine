@@ -1,8 +1,12 @@
 package com.opencapture.opencine.appkit
 
 import android.content.SharedPreferences
+import java.util.concurrent.CopyOnWriteArrayList
 
-/** Common choices in one app-supplied preferences file, preserving legacy keys and defaults. */
+/**
+ * Common choices in one app-supplied preferences file, preserving legacy keys and defaults. A root
+ * that reads a choice (screen wake) follows writes through [addChangeListener].
+ */
 public class MonitorOperatorPreferences(
     private val storage: SharedPreferences,
     private val keys: Keys,
@@ -54,7 +58,16 @@ public class MonitorOperatorPreferences(
         get() = storage.getBoolean(keys.cacheOriginals, defaults.cacheOriginals)
         set(value) { write(keys.cacheOriginals, value) }
 
+    private val listeners = CopyOnWriteArrayList<() -> Unit>()
+
+    /** Calls [listener] after each write through these preferences until the handle closes. */
+    public fun addChangeListener(listener: () -> Unit): AutoCloseable {
+        listeners += listener
+        return AutoCloseable { listeners.remove(listener) }
+    }
+
     private fun write(key: String, value: Boolean) {
         storage.edit().putBoolean(key, value).apply()
+        listeners.forEach { it() }
     }
 }

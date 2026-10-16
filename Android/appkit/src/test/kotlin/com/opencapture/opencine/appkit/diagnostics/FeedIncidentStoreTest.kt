@@ -16,6 +16,7 @@ import com.opencapture.opencine.media.FeedIncidentOutcome
 import com.opencapture.opencine.media.FeedIncidentPersistenceJob
 import com.opencapture.opencine.media.FeedIncidentRates
 import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentWatchdogGate
 import com.opencapture.opencine.media.PrivacyRedactor
 import java.io.File
 import kotlin.test.Test
@@ -226,6 +227,32 @@ class FeedIncidentStoreTest {
         val bundle = sampleBundle("ingress-json").copy(prelude = listOf(snapshot))
         val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
         assertEquals(snapshot, decoded.prelude.single())
+    }
+
+    /** PI-2E: the watchdog's gating inputs ride the incident; unknown inputs stay absent (Swift twin). */
+    @Test
+    fun watchdogGateSurvivesJsonRoundTripAndUnknownInputsStayAbsent() {
+        val gate = FeedIncidentWatchdogGate(pathReady = true, repairReady = false, outputExpected = false, hold = "repairNotReady")
+        val snapshot = sampleSnapshot(5.0).copy(watchdogGate = gate)
+        val bundle = sampleBundle("watchdog-gate").copy(prelude = listOf(snapshot))
+        val decoded = assertNotNull(FeedIncidentJson.decode(FeedIncidentJson.encode(bundle)))
+        assertEquals(snapshot, decoded.prelude.single())
+
+        val partial = sampleBundle("partial-gate").copy(
+            prelude = listOf(sampleSnapshot(5.0).copy(watchdogGate = FeedIncidentWatchdogGate(hold = " " + "x".repeat(80)))),
+        )
+        val json = JSONObject(String(FeedIncidentJson.encode(partial), Charsets.UTF_8))
+        val encodedGate = json.getJSONArray("prelude").getJSONObject(0).getJSONObject("watchdogGate")
+        assertEquals(listOf("hold"), encodedGate.keys().asSequence().toList())
+        assertEquals(32, encodedGate.getString("hold").length)
+
+        val legacy = JSONObject(String(FeedIncidentJson.encode(sampleBundle("legacy-gate")), Charsets.UTF_8))
+        val legacySnapshot = legacy.getJSONArray("prelude").getJSONObject(0)
+        assertFalse(legacySnapshot.has("watchdogGate"))
+        assertNull(assertNotNull(FeedIncidentJson.decode(legacy.toString().toByteArray(Charsets.UTF_8))).prelude.single().watchdogGate)
+        legacySnapshot.put("watchdogGate", JSONObject().put("pathReady", "yes").put("hold", ""))
+        val malformed = assertNotNull(FeedIncidentJson.decode(legacy.toString().toByteArray(Charsets.UTF_8))).prelude.single()
+        assertEquals(FeedIncidentWatchdogGate(), malformed.watchdogGate, "Wrong types and empty holds are unknown")
     }
 
     @Test

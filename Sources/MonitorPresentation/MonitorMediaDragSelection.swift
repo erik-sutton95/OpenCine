@@ -180,6 +180,8 @@ public struct MonitorMediaSelectionController: Sendable {
     private var moved = false
     private var scrollLocked = false
     private var sweep: MonitorMediaDragSelection?
+    // Where the pointer rested when the viewport last changed size under a live sweep (nil: armed).
+    private var edgeRestY: Double?
 
     public init(
         movementTolerance: Double = 8, holdMilliseconds: Int = 280,
@@ -276,10 +278,32 @@ public struct MonitorMediaSelectionController: Sendable {
         moved = false
         scrollLocked = false
         downID = nil
+        edgeRestY = nil
+    }
+
+    /// The viewport changed size under a live sweep (the selection tray appears when the sweep
+    /// begins). That can put a pointer that never moved inside an edge band; edge scrolling then
+    /// waits until the pointer itself moves vertically by `movementTolerance` from `pointerY`
+    /// (viewport-local), so the layout alone never scrolls the gallery and widens the range. A still
+    /// hold at the edge of an unchanged viewport still scrolls.
+    public mutating func viewportResized(pointerY: Double) {
+        if consuming && pointerDown { edgeRestY = pointerY }
+    }
+
+    /// The edge velocity for a viewport-local pointer, zero while a resize holds the edge.
+    public mutating func edgeVelocity(pointerY: Double, viewportHeight: Double) -> Double {
+        guard consuming && pointerDown else { return 0 }
+        if let rest = edgeRestY {
+            guard abs(pointerY - rest) >= movementTolerance else { return 0 }
+            edgeRestY = nil
+        }
+        return MonitorMediaSelectionScroll.velocity(
+            pointerY: pointerY, viewportHeight: viewportHeight, configuration: configuration)
     }
 
     public func edgeScroll(elapsed: Double, viewportHeight: Double, scale: Double = 1) -> Double {
         guard consuming && pointerDown && elapsed.isFinite && elapsed > 0 else { return 0 }
+        if let rest = edgeRestY, abs(fingerY - rest) < movementTolerance { return 0 }
         return MonitorMediaSelectionScroll.step(
             pointerY: fingerY, viewportHeight: viewportHeight, elapsed: elapsed,
             scale: scale, configuration: configuration)
@@ -296,6 +320,7 @@ public struct MonitorMediaSelectionController: Sendable {
                 orderedIDs: ids, originID: id, selectedIDs: selected)
         else { return nil }
         sweep = next
+        edgeRestY = nil
         selecting = true
         selected = next.selectedIDs
         return .selection(selecting: true, selected: selected, feedback: .began)

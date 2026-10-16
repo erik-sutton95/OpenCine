@@ -51,6 +51,7 @@ import com.opencapture.monitorui.MonitorMediaDeliveryValue
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.opencine.appkit.*
+import com.opencapture.opencine.vocabulary.MediaClipFormatting
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -223,7 +224,7 @@ fun <C, F, P, X, H> MonitorOperatorDeliveryPopupOverlay(
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .42f)).clickable(
             interactionSource = remember { MutableInteractionSource() }, indication = null) { if (!busy) close() },
             contentAlignment = Alignment.BottomCenter) {
-            MonitorMediaDeliveryPanel(value = deliveryPanelValue(model, busy),
+            MonitorMediaDeliveryPanel(value = deliveryPanelValue(model, state, busy),
                 onAction = { action -> when (action) {
                     MonitorMediaDeliveryValue.Action.Close -> if (!busy) close()
                     MonitorMediaDeliveryValue.Action.Back -> if (!busy) model.back()
@@ -260,8 +261,12 @@ fun <C, F, P, X, H> MonitorOperatorDeliveryPopupOverlay(
         dismissButton = { TextButton(onClick = { showHop = false }) { Text("Cancel") } })
 }
 
-private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparationModel<C, F, P, X, H>, busy: Boolean): MonitorMediaDeliveryValue {
-    val state = model.state.value
+/**
+ * The panel for [state], the model state the popup collected: reading it in composition is what
+ * recomposes the panel when a destination, option or project changes it.
+ */
+private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparationModel<C, F, P, X, H>,
+    state: MonitorDeliveryPreparationModel.State<C, F, P, X>, busy: Boolean): MonitorMediaDeliveryValue {
     val serviceName = model.remotePresentation?.displayName ?: "Upload service"; val selection = state.selection; val remote = state.remoteFacts; val config = state.configuration; val options = model.exportOptions
     val notices = buildList {
         selection.cachedCount?.let { cached -> if (cached < selection.files.size) {
@@ -299,9 +304,26 @@ private fun <C, F, P, X, H> deliveryPanelValue(model: MonitorDeliveryPreparation
             if (remote != null) MonitorMediaDeliveryValue.Destination(MonitorDeliveryDestination.REMOTE_UPLOAD.name, MonitorDeliveryDestination.REMOTE_UPLOAD.title(model.remotePresentation?.displayName), MonitorDeliveryDestination.REMOTE_UPLOAD.subtitle(model.remotePresentation?.displayName), model.destinationEnabled(MonitorDeliveryDestination.REMOTE_UPLOAD)) else null),
         upcoming = MediaDeliveryUpcoming.titles, service = service, export = export,
         footer = if (state.step == MonitorDeliveryPreparationModel.Step.OPTIONS && !model.internetGate) MonitorMediaDeliveryValue.Footer(
+            summary = config?.let { deliverySummary(selection, it, options) },
             postExport = if (state.destination == MonitorDeliveryDestination.NATIVE_SHARE) MonitorMediaDeliveryValue.Choices("", options = listOf(
                 MonitorMediaDeliveryValue.Choice(MonitorDeliveryPostExportAction.SYSTEM_SHARE.name, "Share"), MonitorMediaDeliveryValue.Choice(MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS.name, "Save to Photos")), selectedID = state.action.name) else null,
             actionTitle = if (state.destination == MonitorDeliveryDestination.REMOTE_UPLOAD) "Upload" else if (state.action == MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS) "Save to Photos" else "Share", enabled = model.canContinue && !busy) else null)
+}
+
+/**
+ * The options footer's line: clip count, total size and what is delivered
+ * (Swift `MonitorOperatorDeliveryScreen.summary`).
+ */
+internal fun <C, F> deliverySummary(selection: MonitorDeliverySelectionFacts, config: MonitorDeliveryExportConfiguration<C, F>,
+    options: MonitorDeliveryExportOptions<C, F>?): String {
+    val files = selection.files
+    val known = files.mapNotNull { it.sizeBytes }
+    val bytes = known.fold(0L) { total, value -> if (value > Long.MAX_VALUE - total) Long.MAX_VALUE else total + value }
+    val size = if (bytes == 0L) "0 B" else MediaClipFormatting.byteLabel(bytes)
+    val label = if (known.isEmpty()) "Size unavailable" else if (known.size == files.size) size else "At least $size"
+    val mode = if (config.convertLog) options?.curves?.firstOrNull { it.value == config.logTransform }?.label ?: "Converted log"
+        else if (config.bakeLUT) "LUT baked" else "Camera original"
+    return "${files.size} ${if (files.size == 1) "clip" else "clips"} · $label · $mode"
 }
 
 /** What the delivery chrome shows for one progress value. */

@@ -126,6 +126,30 @@ import Testing
         #expect(dog.tick(snap) == .rebuildVTSession)
     }
 
+    /// Field 1f04a311 (PI-2E): -12903 with referenceRecoveryNeeded, yet the
+    /// watchdog stayed idle for 33 s. Incidents must say which gate held it.
+    @Test func everyQuietTickNamesTheGateThatHeldTheLadder() {
+        var dog = FeedWatchdog()
+        #expect(dog.lastHold == nil)
+        var snap = Self.snapshot()
+        snap.live = false
+        #expect(dog.tick(snap) == .none && dog.lastHold == .notLive)
+        snap = Self.snapshot()
+        snap.pathReady = false
+        #expect(dog.tick(snap) == .none && dog.lastHold == .pathNotReady)
+        snap = Self.snapshot()
+        snap.repairReady = false
+        #expect(dog.tick(snap) == .none && dog.lastHold == .repairNotReady)
+        snap = Self.snapshot()
+        snap.decoderOutputExpected = false
+        #expect(dog.tick(snap) == .none && dog.lastHold == .outputNotExpected)
+        snap.referenceRecoveryNeeded = false
+        #expect(dog.tick(snap) == .none && dog.lastHold == .receiveAlive)
+        #expect(dog.tick(Self.snapshot()) == .rebuildVTSession && dog.lastHold == .fired)
+        #expect(dog.tick(Self.snapshot(elapsed: 1)) == .none && dog.lastHold == .repairDeadline)
+        #expect(dog.stage == .rebuildVT, "Recording the gate does not move the ladder")
+    }
+
     private static func snapshot(elapsed: Double = 0) -> FeedWatchdog.Snapshot {
         FeedWatchdog.Snapshot(
             now: 100 + elapsed,

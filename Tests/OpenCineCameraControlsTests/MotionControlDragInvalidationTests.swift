@@ -1,5 +1,6 @@
 #if os(iOS)
     import Observation
+    import OpenCineHostedAccessibility
     import SwiftUI
     import XCTest
 
@@ -7,6 +8,17 @@
 
     @MainActor
     final class MotionControlDragInvalidationTests: XCTestCase {
+        /// Moves re-evaluate the guarded controls neither with the accessibility runtime off nor
+        /// with it on (measured on brand-new simulators: no re-evaluation over eight moves either
+        /// way). Switching the runtime on changes the environment, and SwiftUI then re-evaluates
+        /// every view that reads it, this consumer included; the switch lands asynchronously, so
+        /// a switch made by an earlier walk in the process could land during the moves and count
+        /// as move re-evaluations. The count below is therefore measured after the runtime is
+        /// live, as every hosted walk in this package leaves it.
+        override func setUp() async throws {
+            await HostedAccessibility.awaitRuntime()
+        }
+
         func testActionGuardBlocksDraggingAndTheReleaseTapWithoutARefreshTimer() {
             XCTAssertTrue(MotionControlInteraction().allowsInteraction(at: 10))
             XCTAssertFalse(MotionControlInteraction(isDragging: true).allowsInteraction(at: 10))

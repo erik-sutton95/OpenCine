@@ -22,6 +22,7 @@ import com.opencapture.opencine.media.FeedIncidentRateObservation
 import com.opencapture.opencine.media.FeedIncidentSchema
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedIncidentTestSource
+import com.opencapture.opencine.media.FeedIncidentWatchdogGate
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
 import com.opencapture.opencine.media.PrivacyRedactor
@@ -162,6 +163,23 @@ public object FeedIncidentJson {
             .put("diagnoserFailure", snap.diagnoserFailure)
             .put("diagnoserRepair", snap.diagnoserRepair)
             .also { obj -> snap.ingress?.let { obj.put("ingress", ingressJson(it)) } }
+            .also { obj -> snap.watchdogGate?.let { obj.put("watchdogGate", watchdogGateJson(it.closed())) } }
+
+    private fun watchdogGateJson(gate: FeedIncidentWatchdogGate): JSONObject =
+        JSONObject().also { obj ->
+            gate.pathReady?.let { obj.put("pathReady", it) }
+            gate.repairReady?.let { obj.put("repairReady", it) }
+            gate.outputExpected?.let { obj.put("outputExpected", it) }
+            gate.hold?.let { obj.put("hold", it) }
+        }
+
+    private fun parseWatchdogGate(json: JSONObject): FeedIncidentWatchdogGate =
+        FeedIncidentWatchdogGate(
+            pathReady = json.opt("pathReady") as? Boolean,
+            repairReady = json.opt("repairReady") as? Boolean,
+            outputExpected = json.opt("outputExpected") as? Boolean,
+            hold = json.opt("hold") as? String,
+        ).closed()
 
     private fun firstErrorJson(context: FeedIncidentDecodeErrorContext): JSONObject =
         JSONObject()
@@ -416,6 +434,7 @@ public object FeedIncidentJson {
                 diagnoserFailure = json.optString("diagnoserFailure", "none"),
                 diagnoserRepair = json.optString("diagnoserRepair", "none"),
                 ingress = json.optJSONObject("ingress")?.let(::parseIngress),
+                watchdogGate = json.optJSONObject("watchdogGate")?.let(::parseWatchdogGate),
             )
         }
     }

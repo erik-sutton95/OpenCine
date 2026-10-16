@@ -134,6 +134,33 @@
         }
     }
 
+    extension View {
+        /// The app root's HDR display composition, one for every app (A2-31): the live chrome's
+        /// HDR gain, the EDR window host and screen-capture tracking, so screen recording,
+        /// AirPlay and mirroring drop back to SDR. `active` is the effective choice (the operator
+        /// preference and not captured); `screenCaptured` follows the main screen.
+        public func monitorHDRDisplay(_ display: LiveHDRDisplay, active: Bool,
+            screenCaptured: Binding<Bool>) -> some View {
+            modifier(MonitorHDRDisplayRoot(display: display, active: active, screenCaptured: screenCaptured))
+        }
+    }
+
+    private struct MonitorHDRDisplayRoot: ViewModifier {
+        let display: LiveHDRDisplay
+        let active: Bool
+        let screenCaptured: Binding<Bool>
+
+        func body(content: Content) -> some View {
+            content
+                .environment(\.monitorHDRChromeGain, active ? CGFloat(display.presentGain) : 1)
+                .background { HDRChromeHost(display: display, enabled: active).allowsHitTesting(false) }
+                .onReceive(NotificationCenter.default.publisher(for: UIScreen.capturedDidChangeNotification)) { _ in
+                    screenCaptured.wrappedValue = UIScreen.main.isCaptured
+                }
+                .onAppear { screenCaptured.wrappedValue = UIScreen.main.isCaptured }
+        }
+    }
+
     /// Enables EDR on the live window so SwiftUI HUD labels can exceed SDR white.
     public struct HDRChromeHost: UIViewRepresentable {
         public var display: LiveHDRDisplay

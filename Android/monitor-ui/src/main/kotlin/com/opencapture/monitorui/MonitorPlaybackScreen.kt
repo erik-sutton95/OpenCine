@@ -654,7 +654,8 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 if (isMuted) MonitorIcon.VOLUME_X else MonitorIcon.VOLUME_2,
                                 if (isMuted) "Unmute" else "Mute", { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
                             )
-                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop clip", { withItem { currentActions.loop(it, !looping) } }, active = looping)
+                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop playback", { withItem { currentActions.loop(it, !looping) } },
+                                active = looping, state = if (looping) "On" else "Off")
                             MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, "Hide playback controls", { chromeVisible = false })
                         }
                     },

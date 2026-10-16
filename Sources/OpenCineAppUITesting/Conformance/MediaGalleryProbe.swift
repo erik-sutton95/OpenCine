@@ -13,8 +13,11 @@ struct MediaGalleryProbe {
     /// Clips at least half inside the gallery viewport (their centre is, so a tap lands on them), in
     /// reading order. A landscape grid card can be taller than half the viewport, so "wholly inside"
     /// can leave no clip at all.
-    func visibleClips() -> [Clip] {
-        guard let root = try? app.snapshot() else { return [] }
+    func visibleClips() -> [Clip] { scan()?.clips ?? [] }
+
+    /// One snapshot's gallery viewport and its visible clips.
+    private func scan() -> (viewport: CGRect, clips: [Clip])? {
+        guard let root = try? app.snapshot() else { return nil }
         var viewport: CGRect?
         var clips: [Clip] = []
         func walk(_ element: XCUIElementSnapshot) {
@@ -29,11 +32,23 @@ struct MediaGalleryProbe {
             element.children.forEach(walk)
         }
         walk(root)
-        guard let viewport else { return [] }
-        return clips.filter {
+        guard let viewport else { return nil }
+        let visible = clips.filter {
             !$0.frame.isEmpty && viewport.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
         }
         .sorted { ($0.frame.minY, $0.frame.minX) < ($1.frame.minY, $1.frame.minX) }
+        return (viewport, visible)
+    }
+
+    /// Two neighbouring clips (reading order) wholly inside the viewport, for a selection sweep. A
+    /// clip cut by the viewport's edge sits where a sweep autoscrolls the gallery and widens the
+    /// selection (a tablet grid's first row under the header).
+    func sweepPair() -> (Clip, Clip)? {
+        guard let scanned = scan() else { return nil }
+        let clips = scanned.clips
+        return zip(clips, clips.dropFirst()).first { first, second in
+            scanned.viewport.contains(first.frame) && scanned.viewport.contains(second.frame)
+        }
     }
 
     /// The first visible clip once the gallery has stopped moving.

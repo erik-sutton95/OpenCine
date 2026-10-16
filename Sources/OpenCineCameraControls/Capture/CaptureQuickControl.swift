@@ -127,6 +127,24 @@
             return display.changedValue(at: display.position(translation: translation))
         }
 
+        /// The primary choices of `sheet` for the camera `controls` describe: focus and iris
+        /// follow the one capability model.
+        public static func primary(
+            _ sheet: CaptureSheet, status: CameraStatus, controls: ControlCapabilities,
+            cameraModel: CameraModel? = nil, facePriorityExposureEnabled: Bool = false,
+            shutterUsesAngle: Bool = false, shutterAngleDegrees: Double = 180, aeLocked: Bool = false,
+            awbLocked: Bool = false, offersAwbLock: Bool = false,
+            focusOptions: [FocusOption] = FocusOption.allCases, profile: CameraLabelProfile = .standard,
+            audioField: CaptureAudioField? = nil, audioSourceID: CaptureAudioSourceID? = nil
+        ) -> Self? {
+            primary(sheet, status: status, cameraModel: cameraModel,
+                supportsFocusMode: controls.focus.isOffered, supportsAperture: controls.iris.isOffered,
+                facePriorityExposureEnabled: facePriorityExposureEnabled, shutterUsesAngle: shutterUsesAngle,
+                shutterAngleDegrees: shutterAngleDegrees, aeLocked: aeLocked, awbLocked: awbLocked,
+                offersAwbLock: offersAwbLock, focusOptions: focusOptions, profile: profile,
+                audioField: audioField, audioSourceID: audioSourceID)
+        }
+
         public static func primary(
             _ sheet: CaptureSheet, status: CameraStatus, cameraModel: CameraModel? = nil,
             supportsFocusMode: Bool = false, supportsAperture: Bool? = nil,
