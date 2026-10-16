@@ -35,7 +35,7 @@ public struct MonitorAssistCapabilities: Hashable, Sendable {
         self.unavailable = unavailable
     }
 
-    /// What Pocket and Insta declare.
+    /// The declaration of an app that adds nothing to the shared list.
     public static let standard = Self()
 
     /// The level has a style to choose.

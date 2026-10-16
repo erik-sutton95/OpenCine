@@ -40,7 +40,7 @@ data class MonitorAssistCapabilities(
         tool !in unavailable && (photography || tool !in photographyOnly)
 
     companion object {
-        /** What Pocket and Insta declare. */
+        /** The declaration of an app that adds nothing to the shared list. */
         val standard: MonitorAssistCapabilities = MonitorAssistCapabilities()
     }
 }
