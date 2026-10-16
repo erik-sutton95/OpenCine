@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Caller-owned diagnostics and permission presentation for one native transport.
 /// The journal may receive camera addresses or names; the caller owns privacy redaction/storage.
@@ -11,6 +12,9 @@ public struct DjiAppleTransportHost: Sendable {
     public var bluetoothDenied: String
     public var bluetoothOff: String
     public var bluetoothNotReady: String
+    /// The host's one retained camera hotspot owner. Nil keeps the legacy native calls for
+    /// existing clients that do not supply one.
+    public var hotspot: CameraHotspotHost?
     #if DEBUG
         /// Explicit test-only source counters/fault injection. Absent in production transports.
         public var debugVideo: DjiAppleVideoTestHooks?
@@ -24,7 +28,8 @@ public struct DjiAppleTransportHost: Sendable {
             (DjiAppleLocalNetworkEvidence, String) -> Void = { _, _ in },
         bluetoothDenied: String = "Bluetooth access is denied. Enable Bluetooth access in Settings, then try again.",
         bluetoothOff: String = "Bluetooth is off. Turn it on in Control Center or Settings, then try again.",
-        bluetoothNotReady: String = "Bluetooth is not ready yet. Try again in a moment."
+        bluetoothNotReady: String = "Bluetooth is not ready yet. Try again in a moment.",
+        hotspot: CameraHotspotHost? = nil
     ) {
         self.logSubsystem = logSubsystem
         self.journal = journal
@@ -33,6 +38,7 @@ public struct DjiAppleTransportHost: Sendable {
         self.bluetoothDenied = bluetoothDenied
         self.bluetoothOff = bluetoothOff
         self.bluetoothNotReady = bluetoothNotReady
+        self.hotspot = hotspot
     }
 }
 
