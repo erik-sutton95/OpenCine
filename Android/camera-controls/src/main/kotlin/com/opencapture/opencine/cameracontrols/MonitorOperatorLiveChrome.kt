@@ -87,7 +87,7 @@ public fun MonitorOperatorCaptureStrip(source: MonitorOperatorCaptureSource, sta
         add(value(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null))
         if (controls.focus.isOffered) add(value(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel)))
-        if (capabilities.iris) add(value(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status))))
+        if (controls.iris.isOffered) add(value(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status))))
         if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode))
             add(value(LiveSheet.AUDIO, "AUDIO", status.audioLabel))
     }

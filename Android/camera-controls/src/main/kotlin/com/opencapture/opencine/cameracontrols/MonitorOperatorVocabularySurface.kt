@@ -167,9 +167,9 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val context = androidx.compose.ui.platform.LocalContext.current
     val usageStore = remember(chrome.preferences, context) { chrome.preferences.assistToolUsagePreferences(context) }
     var usage by remember(usageStore) { mutableStateOf(usageStore.value) }
-    LaunchedEffect(status.shootingMode, controls.focus.isOffered, capabilities.iris, capabilities.audio) {
+    LaunchedEffect(status.shootingMode, controls.focus.isOffered, controls.iris.isOffered, capabilities.audio) {
         state.sheet = CaptureShutterPolicy.retainedSheet(state.sheet, status.shootingMode)
-        if (state.sheet == LiveSheet.FOCUS && !controls.focus.isOffered || state.sheet == LiveSheet.APERTURE && !capabilities.iris) state.sheet = null
+        if (state.sheet == LiveSheet.FOCUS && !controls.focus.isOffered || state.sheet == LiveSheet.APERTURE && !controls.iris.isOffered) state.sheet = null
         if (!capabilities.audio && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
     }
     val meterFeed = if (assist.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent else layout.onFeed

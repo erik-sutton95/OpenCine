@@ -59,7 +59,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
         append(LiveSheet.WB, "WB", source.readout(LiveSheet.WB, status, CaptureLists.wbChipValue(status, native.awbLockKelvin != null)),
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null)
         if (controls.focus.isOffered) append(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel))
-        if (capabilities.iris) append(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status)))
+        if (controls.iris.isOffered) append(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status)))
         if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) append(LiveSheet.AUDIO, "AUDIO", status.audioLabel)
     }
     val panel = active?.let { sheet ->

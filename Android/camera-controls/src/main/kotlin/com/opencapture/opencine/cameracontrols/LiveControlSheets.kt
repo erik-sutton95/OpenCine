@@ -639,7 +639,7 @@ private fun LiveControlSheetContent(
                     }
                 }
                 LiveSheet.APERTURE -> {
-                    if (session.irisSupported) {
+                    if (session.controls().iris.isOffered) {
                         CheckedRows(
                             options = CaptureLists.apertureLabels(status),
                             selected = ApertureStrategy.label(status.apertureStrategy),

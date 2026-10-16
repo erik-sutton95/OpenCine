@@ -499,7 +499,7 @@
                     focusRows
                 }
             case .aperture:
-                if host.captureCapabilities.aperture {
+                if host.controlCapabilities.iris.isOffered {
                     choiceDrum(
                         CaptureLists.apertureStrategies(from: host.cameraStatus).map(\.label),
                         selected: host.cameraStatus.apertureStrategy?.label

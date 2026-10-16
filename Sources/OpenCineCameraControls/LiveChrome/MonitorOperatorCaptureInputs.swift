@@ -85,7 +85,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
             append(.focus, "FOCUS", CaptureNativeReadoutPresentation.focus(common: commonFocus,
                 native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)))
         }
-        if capabilities.aperture {
+        if controls.iris.isOffered {
             append(.aperture, "APERTURE", commonValue(.aperture))
         }
         if capabilities.audio && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }

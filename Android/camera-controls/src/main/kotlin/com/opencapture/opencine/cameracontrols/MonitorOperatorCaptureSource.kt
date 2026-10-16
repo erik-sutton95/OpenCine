@@ -153,7 +153,7 @@ public class MonitorOperatorCaptureSource(
             }
             LiveSheet.FOCUS -> if (!state.controls().focus.isOffered) null
                 else captured(captureQuickFocusControl(status, labels.focusLabels))
-            LiveSheet.APERTURE -> if (!state.irisSupported) null else captured(MonitorQuickControl(
+            LiveSheet.APERTURE -> if (!state.controls().iris.isOffered) null else captured(MonitorQuickControl(
                 CaptureLists.apertureLabels(status), ApertureStrategy.label(status.apertureStrategy).orEmpty()))
             LiveSheet.EXPO -> captured(MonitorQuickControl(CaptureLists.expoLabels(state.aeLocked),
                 CaptureLists.expoSelectedLabel(status.expoMode, state.aeLocked) ?: CaptureLists.expoLabel(status.expoMode)))

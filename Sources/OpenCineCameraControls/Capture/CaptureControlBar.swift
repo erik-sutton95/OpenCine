@@ -42,7 +42,7 @@
                 .onChange(of: controls.focus.isOffered) { _, on in
                     if !on, host.captureSheet == .focus { host.captureSheet = nil }
                 }
-                .onChange(of: capabilities.aperture) { _, on in
+                .onChange(of: controls.iris.isOffered) { _, on in
                     if !on, host.captureSheet == .aperture { host.captureSheet = nil }
                     if !on, host.captureDrum?.sheet == .aperture { host.captureDrum = nil }
                 }
@@ -66,7 +66,7 @@
 
         private var visibleTileCount: Int {
             4 + (capabilities.faceMetering ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)
-                + (capabilities.aperture ? 1 : 0) + (showsAudio ? 1 : 0)
+                + (controls.iris.isOffered ? 1 : 0) + (showsAudio ? 1 : 0)
         }
 
         private var gridColumns: Int { columns == 3 ? 3 : max(visibleTileCount, 1) }
@@ -107,7 +107,7 @@
                 if controls.focus.isOffered {
                     tile(.focus, label: "FOCUS", value: focusValue, widest: "Showcase")
                 }
-                if capabilities.aperture {
+                if controls.iris.isOffered {
                     tile(
                         .aperture, label: "APERTURE", value: apertureValue, widest: "Starburst f/4")
                 }
