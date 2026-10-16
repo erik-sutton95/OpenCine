@@ -13,6 +13,10 @@ public enum MonitorSettingsCopy {
     /// images, footage or location.
     public static let automaticReports =
         "Optional: send crash, hang, live-feed reports and session health counts to OpenCapture through Sentry. Off by default. Turn off anytime without losing app features. Uploads wait until you leave camera Wi-Fi. Automatic reports exclude all images. No footage or GPS location. Sentry receives the connection IP; stored event IP and derived geography are removed. See Reporting Privacy below."
+    /// Shown in place of the false colour and zebra settings while the camera has not named its
+    /// colour curve (product ruling 2026-10-16). Kotlin twin: `MonitorSettingsCopy.sourceCurveUnknown`.
+    public static let sourceCurveUnknown =
+        "Waiting for the camera to report its color curve. False color, zebra and LUT exposure return on their own once it does."
     public static let automaticReportsUnavailable =
         "This build cannot send automatic reports. You can still share or delete reports stored on this phone."
     public static let shareDiagnostics =

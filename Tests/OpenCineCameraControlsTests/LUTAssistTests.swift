@@ -56,6 +56,26 @@
                 cleanPinCases: MonitorAssistTool.allCases.map(MonitorAssistSelection.init))
         }
 
+        /// Product ruling 2026-10-16: a camera that has not reported its colour mode, or reports
+        /// Dolby Vision, has no known source curve; LUT exposure is not offered until it does.
+        func testTheSourceCurveIsUnknownUntilTheCameraReportsALogOrRec709Mode() {
+            let looks = looks()
+            let assist = state(looks)
+            assist.syncLUT(to: nil)
+            XCTAssertNil(looks.sourceTransfer)
+            XCTAssertFalse(looks.appliesLUTExposure)
+            XCTAssertFalse(assist.sourceCurveKnown)
+            assist.syncLUT(to: .dolbyVision)
+            XCTAssertNil(looks.sourceTransfer)
+            XCTAssertFalse(assist.offers(.falseColor))
+            assist.syncLUT(to: .dLog)
+            XCTAssertEqual(looks.sourceTransfer, .dlog)
+            XCTAssertTrue(looks.appliesLUTExposure)
+            XCTAssertTrue(assist.offers(.falseColor) && assist.offers(.zebra))
+            assist.syncLUT(to: nil, isPhoto: true)
+            XCTAssertEqual(looks.sourceTransfer, .rec709, "Photo reads Rec.709")
+        }
+
         /// A host that waits for its saved choices gets no cube, and no official lookup, until ready.
         func testPreparationGateWithholdsTheOfficialCube() {
             let calls = OfficialCalls()

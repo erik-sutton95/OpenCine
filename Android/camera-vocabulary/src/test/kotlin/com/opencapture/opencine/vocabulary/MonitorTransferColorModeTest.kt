@@ -31,4 +31,11 @@ class MonitorTransferColorModeTest {
             assertEquals(MonitorTransfer.REC709, MonitorTransfer.fromColorMode(code))
         }
     }
+
+    /** Product ruling 2026-10-16: no curve before the first colour report or in Dolby Vision; photo reads Rec.709. */
+    @Test fun aStatusKnowsItsSourceCurveOnlyOnceTheCameraNamesOne() {
+        assertNull(CameraStatus().knownMonitorTransfer)
+        assertNull(CameraStatus(colorMode = CameraCommands.COLOR_DOLBY_VISION).knownMonitorTransfer)
+        assertEquals(MonitorTransfer.DLOG, CameraStatus(colorMode = CameraCommands.COLOR_DLOG).knownMonitorTransfer)
+    }
 }

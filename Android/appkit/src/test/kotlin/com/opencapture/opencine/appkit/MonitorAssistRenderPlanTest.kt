@@ -54,4 +54,27 @@ class MonitorAssistRenderPlanTest {
         assertTrue(assist.renderPlan(MonitorTransfer.REC709, 400, raster = raster).splitComparison)
         assertEquals(400, painted.scopeTap.iso)
     }
+
+    /** Product ruling 2026-10-16 (Swift twin: `curveToolsWaitForAKnownSourceCurveAndReturnOnTheirOwn`). */
+    @Test fun anUnknownSourceCurveDrawsNoFalseColourOrZebraAndKeepsTheChoices() {
+        val assist = MonitorAssistState(encoded = """{"tools":["FALSE","ZEBRA","PEAK"]}""")
+        val cube = MonitorLUTCube(2, ByteArray(32))
+        val raster = MonitorAssistRasterValues(falseColorPaint = cube, falseColorWeight = cube)
+        val unknown = assist.renderPlan(null, 400, raster = raster)
+        assertEquals(null, unknown.falseColorPaint); assertEquals(null, unknown.falseColorWeight)
+        assertFalse(unknown.zebraHighlightOn || unknown.zebraMidtoneOn)
+        assertTrue(unknown.peaking)
+        assertTrue(assist.isOn(MonitorAssistTool.FALSE) && assist.isOn(MonitorAssistTool.ZEBRA))
+        val known = assist.renderPlan(MonitorTransfer.DLOG, 400, raster = raster)
+        assertSame(cube, known.falseColorPaint); assertTrue(known.zebraHighlightOn)
+    }
+
+    @Test fun onlyFalseColourAndZebraWaitForTheSourceCurve() {
+        assertEquals(setOf(MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA),
+            MonitorAssistTool.entries.filter { it.readsSourceCurve }.toSet())
+        for (tool in MonitorAssistTool.entries) {
+            assertEquals(!tool.readsSourceCurve, tool.offered(sourceTransfer = null), tool.name)
+            assertTrue(tool.offered(sourceTransfer = MonitorTransfer.REC709), tool.name)
+        }
+    }
 }

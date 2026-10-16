@@ -13,6 +13,7 @@ import com.opencapture.monitorui.MonitorAssistTool
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.opencine.appkit.MonitorAssistRasterValues
 import com.opencapture.opencine.appkit.MonitorAssistState
+import com.opencapture.opencine.appkit.offered
 import com.opencapture.opencine.appkit.renderPlan
 import com.opencapture.opencine.appkit.renderToolVisible
 import com.opencapture.opencine.media.FeedEffectsRenderPlan
@@ -27,7 +28,7 @@ import com.opencapture.opencine.vocabulary.LutCatalog
 import com.opencapture.opencine.vocabulary.LutLookResolver
 import com.opencapture.opencine.vocabulary.LutLookSource
 import com.opencapture.opencine.vocabulary.PlaybackLutColor
-import com.opencapture.opencine.vocabulary.fromColorMode
+import com.opencapture.opencine.vocabulary.knownFromColorMode
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -87,10 +88,15 @@ class MonitorFeedEffectsPlans(
         previewTool: MonitorAssistTool? = null,
         isPhoto: Boolean = false,
     ): FeedEffectsRenderPlan {
+        // An unknown source curve (no colour report yet, Dolby Vision) withholds false colour, zebra and
+        // LUT input exposure until the camera names it (product ruling 2026-10-16).
+        val sourceTransfer = MonitorTransfer.knownFromColorMode(colorMode)
         val lutOn = assist.renderToolVisible(MonitorAssistTool.LUT, playback, previewTool)
-        val falseColor = assist.renderToolVisible(MonitorAssistTool.FALSE, playback, previewTool)
+        val falseColor = assist.renderToolVisible(MonitorAssistTool.FALSE, playback, previewTool) &&
+            MonitorAssistTool.FALSE.offered(sourceTransfer)
         val look = LutLookResolver.resolve(lutSelection, lutOn, colorMode, profile = lookProfile, isPhoto = isPhoto)
-        val lut = lutCube(lutBytes, look, assist.lutExposureStops, colorMode)
+        val exposureStops = if (lutExposureOffered(colorMode)) assist.lutExposureStops else 0.0
+        val lut = lutCube(lutBytes, look, exposureStops, colorMode)
         val scalars = if (packer.isAvailable) packer.feedAssistScalars(colorMode, iso,
             assist.zebraHighlightIRE.toFloat(), assist.zebraMidtoneIRE.toFloat()) else null
         val vectorscope = assist.renderToolVisible(MonitorAssistTool.VECTOR, playback, previewTool) ||
@@ -98,9 +104,9 @@ class MonitorFeedEffectsPlans(
         val vectorLook = if (vectorscope && lut == null &&
             colorMode in listOf(CameraCommands.COLOR_DLOG, CameraCommands.COLOR_DLOG2)) {
             lutCube(lutBytes, LutLookResolver.resolve(LutCatalog.AUTO, true, colorMode,
-                profile = lookProfile, isPhoto = isPhoto), assist.lutExposureStops, colorMode)
+                profile = lookProfile, isPhoto = isPhoto), exposureStops, colorMode)
         } else null
-        return assist.renderPlan(transfer = MonitorTransfer.fromColorMode(colorMode),
+        return assist.renderPlan(transfer = sourceTransfer,
             iso = iso.takeIf { it in 50..102_400 }, playback = playback, previewTool = previewTool, isPhoto = isPhoto,
             raster = MonitorAssistRasterValues(lut = lut, vectorLook = vectorLook,
                 falseColorPaint = if (falseColor) falseColorCube(true, assist.falseColorScale, colorMode, iso, assist.falseColorRec709) else null,
@@ -325,3 +331,9 @@ fun rememberMonitorFeedEffectsPlan(
     }
     return plan
 }
+
+/**
+ * LUT input exposure shifts the picture in stops of the source curve, so it is offered and baked only once
+ * the camera has named that curve (product ruling 2026-10-16; Swift twin `MonitorLUTLooks.appliesLUTExposure`).
+ */
+fun lutExposureOffered(colorMode: Int): Boolean = MonitorTransfer.knownFromColorMode(colorMode) != null

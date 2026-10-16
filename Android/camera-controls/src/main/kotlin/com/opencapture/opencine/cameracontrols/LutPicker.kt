@@ -273,7 +273,7 @@ fun LUTPicker(
                 LUTSplitComparisonBar(
                     splitComparison = splitComparison,
                     splitVertical = splitVertical,
-                    lutExposureStops = lutExposureStops,
+                    lutExposureStops = lutExposureStops.takeIf { lutExposureOffered(colorMode) },
                     onToggleSplit = onToggleSplit,
                     onSplitVertical = onSplitVertical,
                     onExposure = onExposure,

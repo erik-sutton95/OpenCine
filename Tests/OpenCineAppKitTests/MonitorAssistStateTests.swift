@@ -126,6 +126,44 @@ import Testing
         #expect(state.exportCube(bakeExposure: true) == expected)
     }
 
+    /// Product ruling 2026-10-16: false colour, zebra and LUT exposure read the source curve. While
+    /// it is unknown (DJI before its first colour report, Luna Dolby Vision) they are neither offered
+    /// nor drawn and the LUT bakes without input exposure; the operator's choices survive, and the
+    /// tools return without any operator action once the curve is reported.
+    @Test func curveToolsWaitForAKnownSourceCurveAndReturnOnTheirOwn() throws {
+        guard #available(macOS 14, *) else { return }
+        let (defaults, domain) = try storage()
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let looks = StateTestLooks()
+        looks.sourceTransfer = nil
+        let state = MonitorAssistState(
+            looks: looks, storage: defaults, keys: keys, cleanPinCases: allowed)
+        state.toggle(.falseColor)
+        state.toggle(.zebra)
+        state.toggle(.peaking)
+        state.nudgeLUTExposure(1)
+        #expect(!state.sourceCurveKnown)
+        #expect(state.falseColor && state.zebra && state.lutExposureStops == 1)
+        #expect(!state.effects.falseColor && !state.effects.zebra && state.effects.peaking)
+        #expect(!state.offers(.falseColor) && !state.offers(.zebra))
+        #expect(state.offers(.peaking) && state.offers(.lut) && state.offers(.waveform))
+        let cube = try #require(looks.cube)
+        #expect(state.exportCube(bakeExposure: true)
+            == cube.preparedForExport(bakeExposure: true, stops: 0, transfer: .rec709))
+
+        looks.sourceTransfer = .dlog
+        #expect(state.sourceCurveKnown)
+        #expect(state.effects.falseColor && state.effects.zebra)
+        #expect(state.offers(.falseColor) && state.offers(.zebra))
+        #expect(state.exportCube(bakeExposure: true)
+            == cube.preparedForExport(bakeExposure: true, stops: 1, transfer: .rec709))
+    }
+
+    /// The curve-reading tools are exactly false colour and zebra; every other tool is offered alike.
+    @Test func onlyFalseColourAndZebraReadTheSourceCurve() {
+        #expect(MonitorAssistSelection.readsSourceCurve == [.falseColor, .zebra])
+    }
+
     @Test func explicitToggleSideEffectObservesDonorLiveAndPlaybackPersistenceOrder() throws {
         guard #available(macOS 14, *) else { return }
         let (defaults, domain) = try storage()
@@ -270,6 +308,7 @@ import Testing
 @MainActor final class StateTestLooks: MonitorLookProvider {
     var selection = 0
     var transfer = MonitorTransfer.rec709
+    var sourceTransfer: MonitorTransfer? = .rec709
     var bakeTransfer: MonitorTransfer?
     var referenceClipByte = 255
     func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer {

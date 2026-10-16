@@ -15,11 +15,22 @@ public protocol MonitorLookProvider: AnyObject {
     /// Whether the picture this provider's host draws honours `lutExposureStops` before its cube.
     /// The look comparison offers its Exposure control only when it does (A1-37).
     var appliesLUTExposure: Bool { get }
+    /// The curve the source has reported, or nil while it is unknown (product ruling 2026-10-16):
+    /// false colour, zebra and LUT exposure wait for it.
+    var sourceTransfer: MonitorTransfer? { get }
 }
 
 extension MonitorLookProvider {
     /// Existing providers retain the input-exposure control until they declare otherwise.
     public var appliesLUTExposure: Bool { true }
+    /// A provider that declares no source fact always knows its curve.
+    public var sourceTransfer: MonitorTransfer? { transfer }
+}
+
+extension MonitorAssistSelection {
+    /// The tools that read the source curve (product ruling 2026-10-16; Kotlin twin
+    /// `MonitorAssistTool.readsSourceCurve`). While it is unknown they are neither offered nor drawn.
+    public static let readsSourceCurve: Set<MonitorAssistSelection> = [.falseColor, .zebra]
 }
 
 public struct MonitorAssistPreferenceKeys: Sendable {
@@ -115,6 +126,19 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     public var liveCovered = false
     public var allowsTransferInference = true
 
+    /// Whether the source has reported its curve. Until it has, false colour and zebra are not
+    /// offered or drawn and the LUT bakes without input exposure; the operator's choices stay and
+    /// return on their own once the curve is known.
+    public var sourceCurveKnown: Bool { looks.sourceTransfer != nil }
+
+    /// Whether a surface offers `tool` now: a curve-reading tool waits for a known source curve.
+    public func offers(_ tool: MonitorAssistSelection) -> Bool {
+        sourceCurveKnown || !MonitorAssistSelection.readsSourceCurve.contains(tool)
+    }
+
+    /// The input exposure the picture applies: none while the source curve is unknown.
+    private var appliedLUTExposureStops: Double { sourceCurveKnown ? lutExposureStops : 0 }
+
     private func showsScopes(_ tool: MonitorAssistSelection) -> Bool {
         !liveCovered && isVisible(tool)
     }
@@ -135,8 +159,8 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     public var effects: MonitorFrameEffects {
         var result = MonitorFrameEffects()
         result.peaking = isVisible(.peaking)
-        result.zebra = isVisible(.zebra)
-        result.falseColor = isVisible(.falseColor)
+        result.zebra = isVisible(.zebra) && offers(.zebra)
+        result.falseColor = isVisible(.falseColor) && offers(.falseColor)
         result.histogram = showsScopes(.histogram)
         result.waveform = showsScopes(.waveform)
         result.parade = showsScopes(.parade)
@@ -390,16 +414,16 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
     public func inspectorLUT(transfer: MonitorTransfer) -> (dimension: Int, rgba: Data) {
         if let cached = inspectorLUTCache,
             cached.selection == looks.selection, cached.transfer == transfer,
-            cached.stops == lutExposureStops
+            cached.stops == appliedLUTExposureStops
         {
             return (cached.dimension, cached.rgba)
         }
         guard let cube = looks.cube else { return (0, Data()) }
         let gpu = cube.colorCube.compensatingExposure(
-            stops: lutExposureStops, transfer: looks.lutExposureTransfer(for: transfer))
+            stops: appliedLUTExposureStops, transfer: looks.lutExposureTransfer(for: transfer))
         let rgba = gpu.rgbaComponents.withUnsafeBytes { Data($0) }
         inspectorLUTCache = InspectorLUTCache(
-            selection: looks.selection, stops: lutExposureStops, transfer: transfer,
+            selection: looks.selection, stops: appliedLUTExposureStops, transfer: transfer,
             dimension: gpu.size, rgba: rgba)
         return (gpu.size, rgba)
     }
@@ -451,9 +475,12 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
 
     public func encodedSnapshot() -> Data? { try? JSONEncoder().encode(MonitorAssistSnapshot(self)) }
 
+    /// A caller that names the clip's curve bakes on it; otherwise the source's curve, and no input
+    /// exposure while that is unknown.
     public func exportCube(bakeExposure: Bool, transfer: MonitorTransfer? = nil) -> CubeLUT? {
         guard lutEnabled, let cube = lutCube else { return nil }
-        return cube.preparedForExport(bakeExposure: bakeExposure, stops: lutExposureStops,
+        let stops = transfer != nil || sourceCurveKnown ? lutExposureStops : 0
+        return cube.preparedForExport(bakeExposure: bakeExposure, stops: stops,
             transfer: looks.lutExposureTransfer(for: transfer ?? looks.transfer))
     }
 
@@ -461,7 +488,7 @@ public final class MonitorAssistState<Looks: MonitorLookProvider> {
         lutCube = cube
         let transfer = looks.transfer
         let gpu = cube.colorCube.compensatingExposure(
-            stops: lutExposureStops, transfer: looks.lutExposureTransfer(for: transfer))
+            stops: appliedLUTExposureStops, transfer: looks.lutExposureTransfer(for: transfer))
         lutDimension = gpu.size
         lutRGBA = gpu.rgbaComponents.withUnsafeBytes { Data($0) }
     }

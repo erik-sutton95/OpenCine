@@ -35,7 +35,13 @@ public struct MonitorOperatorAssistSettings<Looks: MonitorLookProvider, Palette:
 
     private var sections: [MonitorAssistSettingsSection] {
         var result: [MonitorAssistSettingsSection] = []
-        if available.contains(.falseColor) {
+        // A curve-reading tool explains its wait instead of offering settings (product ruling 2026-10-16).
+        for tool in [MonitorAssistSelection.falseColor, .zebra] where available.contains(tool) && !assist.offers(tool) {
+            if let shared = tool.sharedTool {
+                result.append(.unavailable(tool: shared, message: MonitorSettingsCopy.sourceCurveUnknown))
+            }
+        }
+        if available.contains(.falseColor), assist.offers(.falseColor) {
             let menu = signalOptions.falseColor ?? AnyView(FalseColorAssist.commonMenu(assist: assist, looks: looks,
                 haptics: haptics, compact: true, transfer: transfer, clipByte: clipByte))
             result.append(.falseColor(menu, reset: {
@@ -46,7 +52,7 @@ public struct MonitorOperatorAssistSettings<Looks: MonitorLookProvider, Palette:
                 assist.persist()
             }))
         }
-        if available.contains(.zebra) {
+        if available.contains(.zebra), assist.offers(.zebra) {
             let menu = signalOptions.zebra ?? AnyView(ZebraAssist.longPressMenu(assist: assist, stores: stores,
                 palette: Palette.self, haptics: haptics, transfer: transfer, clipByte: clipByte,
                 compact: true).assistMenu(transfer: transfer, clipByte: clipByte))

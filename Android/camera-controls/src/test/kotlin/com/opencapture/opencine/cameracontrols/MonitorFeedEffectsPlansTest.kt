@@ -7,6 +7,7 @@ import com.opencapture.opencine.media.FeedEffectsRenderPlan
 import com.opencapture.opencine.media.MonitorTransfer
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraLUTProfile
+import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.LutCatalog
 import com.opencapture.opencine.vocabulary.LutCategory
 import com.opencapture.opencine.vocabulary.LutEntry
@@ -153,5 +154,51 @@ class MonitorFeedEffectsPlansTest {
         assertEquals("Auto · D-Log to Rec.709", caption)
         assertNotNull(plan.lutCube)
         assertFalse(plan.peaking); assertFalse(plan.zebraHighlightOn)
+    }
+
+    /**
+     * Product ruling 2026-10-16: an unknown source curve (DJI before its first colour report, Luna Dolby
+     * Vision) bakes no false colour, draws no zebra and bakes the LUT without input exposure; the reported
+     * curve brings them back with the operator's choices intact.
+     */
+    @Test fun anUnknownSourceCurveWithholdsCurveToolsUntilTheCameraReportsIt() {
+        val state = assist(MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.LUT).apply { updateLutExposure(1.0) }
+        val packer = RecordingPacker()
+        val plans = MonitorFeedEffectsPlans(packer)
+        for (unknown in listOf(-1, CameraCommands.COLOR_DOLBY_VISION)) {
+            val plan = plans.create(bytes, state, "creativeMono", unknown, 800, dlogProfile)
+            assertNull(plan.falseColorPaint); assertNull(plan.falseColorWeight)
+            assertFalse(plan.zebraHighlightOn || plan.zebraMidtoneOn)
+            assertNotNull(plan.lutCube)
+        }
+        assertTrue(packer.calls.none { it.startsWith("paint") || it.startsWith("weight") })
+        assertTrue(packer.calls.filter { it.startsWith("creative:") }.all { it.split(":")[2] == "0.0" }, "${packer.calls}")
+        val known = plans.create(bytes, state, "creativeMono", CameraCommands.COLOR_DLOG, 800, dlogProfile)
+        assertNotNull(known.falseColorPaint); assertTrue(known.zebraHighlightOn)
+        assertTrue(packer.calls.any { it.startsWith("creative:") && it.split(":")[2] == "1.0" }, "${packer.calls}")
+        assertTrue(state.isOn(MonitorAssistTool.FALSE) && state.isOn(MonitorAssistTool.ZEBRA))
+    }
+
+    /** The shared live palette offers false colour and zebra only with a known curve; the rest stay. */
+    @Test fun theLivePaletteOffersCurveToolsOnlyWithAKnownCurve() {
+        val unknown = vocabularyAssistTools(CameraStatus(), audio = true)
+        assertFalse(MonitorAssistTool.FALSE in unknown || MonitorAssistTool.ZEBRA in unknown)
+        assertTrue(MonitorAssistTool.PEAK in unknown && MonitorAssistTool.LUT in unknown)
+        val known = vocabularyAssistTools(CameraStatus(colorMode = CameraCommands.COLOR_DLOG), audio = true)
+        assertTrue(MonitorAssistTool.FALSE in known && MonitorAssistTool.ZEBRA in known)
+        assertEquals(MonitorAssistTool.settingsCases.filter { it != MonitorAssistTool.AUDIO },
+            vocabularyAssistTools(CameraStatus(colorMode = CameraCommands.COLOR_NORMAL), audio = false))
+    }
+
+    /** Settings explain the wait on the false colour and zebra cards and offer LUT exposure only with a curve. */
+    @Test fun settingsExplainTheWaitAndTheLutPickerOffersExposureOnlyWithACurve() {
+        for (tool in listOf(MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA)) {
+            assertEquals(MonitorSettingsCopy.sourceCurveUnknown, assistCardUnavailableMessage(tool, null))
+            assertNull(assistCardUnavailableMessage(tool, MonitorTransfer.DLOG))
+        }
+        assertNull(assistCardUnavailableMessage(MonitorAssistTool.WAVE, null))
+        assertFalse(lutExposureOffered(-1))
+        assertFalse(lutExposureOffered(CameraCommands.COLOR_DOLBY_VISION))
+        assertTrue(lutExposureOffered(CameraCommands.COLOR_DLOG))
     }
 }
