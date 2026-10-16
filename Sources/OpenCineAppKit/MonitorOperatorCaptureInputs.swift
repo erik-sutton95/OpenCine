@@ -298,8 +298,14 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
         .init(context: source, field: readout.field,
             native: readout.field == nil ? inputs.nativeQuick(readout.id) : nil)
     }
+    /// An unreported value with nothing to edit stays inert rather than opening an empty panel.
+    private var inert: Bool {
+        MonitorCapturePresentation.readoutIsInert(value: readout.value, field: readout.field,
+            nativeEnabled: capturedSource.native?.enabled, quickEnabled: readout.quickEnabled,
+            hasAction: readout.action != nil)
+    }
     private var canInspect: Bool {
-        enabled && currentSource() && scenePhase == .active
+        !inert && enabled && currentSource() && scenePhase == .active
             && (state.preview == nil || state.preview?.key == readout.id)
     }
     private var presentationOwner: UUID? {

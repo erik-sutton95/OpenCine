@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +58,7 @@ import kotlin.math.roundToInt
 @Immutable
 data class MonitorValue(val id: String, val label: String, val value: String,
     val selected: Boolean = false, val annotation: String? = null,
-    val valueIcon: MonitorIcon? = null, val badgeIcon: MonitorIcon? = null)
+    val valueIcon: MonitorIcon? = null, val badgeIcon: MonitorIcon? = null, val enabled: Boolean = true)
 
 /** Camera values are ready-to-display data; adapters retain interpretation and writes. */
 @Composable
@@ -107,11 +108,14 @@ fun MonitorCameraValues(values: List<MonitorValue>, enabled: Boolean, portrait: 
                             .heightIn(min = if (grid) 32.dp else 34.dp)
                             .then(itemModifier(item.id))
                             .background(if (item.selected) MonitorPalette.accent.copy(alpha = .14f) else Color.Transparent, RoundedCornerShape(8.dp))
-                            .monitorReadoutGesture(quickControl(item.id), enabled && (owner.owner == null || owner.owner == item.id),
+                            .monitorReadoutGesture(quickControl(item.id), enabled && item.enabled && (owner.owner == null || owner.owner == item.id),
                                 { onOpen(item.id) }, { source, value -> onQuickCommit(item.id, source, value) },
                                 quickBottomClearanceDp, owner, item.id,
                                 renderPreview, onPreviewBegin = { notifyQuickActive(true) })
-                            .semantics { contentDescription = "${item.label} ${item.value}${item.annotation?.let { ", $it" }.orEmpty()}" }
+                            .semantics {
+                                contentDescription = "${item.label} ${item.value}${item.annotation?.let { ", $it" }.orEmpty()}"
+                                if (!item.enabled) disabled()
+                            }
                             .monitorReadoutShadow()
                             .padding(horizontal = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,

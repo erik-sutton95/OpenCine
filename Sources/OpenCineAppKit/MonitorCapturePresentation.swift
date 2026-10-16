@@ -48,7 +48,35 @@ public enum MonitorCapturePresentation {
     /// What assistive technology reads for a readout's drawn value: an unreported value is drawn
     /// as a dash and read as "Not set", never as punctuation.
     public static func spokenValue(_ drawn: String) -> String {
-        unreportedMarks.contains(drawn) ? "Not set" : drawn
+        isUnreported(drawn) ? "Not set" : drawn
+    }
+
+    /// Whether a readout's drawn value stands for a value the camera has not reported.
+    public static func isUnreported(_ drawn: String) -> Bool {
+        unreportedMarks.contains(drawn) || drawn == "Not set"
+    }
+
+    /// An unreported readout whose owner offers nothing to edit is inert: it is disabled and opens
+    /// no panel. `editable` is nil when the readout declares no field or native owner; such a
+    /// readout keeps the host's panel unless it disabled its quick control. A host action or a
+    /// reported value always keeps the readout live.
+    public static func readoutIsInert(reported: Bool, editable: Bool?, quickEnabled: Bool,
+        hasAction: Bool) -> Bool {
+        if hasAction || reported { return false }
+        guard let editable else { return !quickEnabled }
+        return !(quickEnabled && editable)
+    }
+
+    /// The same rule for a readout drawn from a common field or a native quick control.
+    @available(macOS 14, *)
+    public static func readoutIsInert(value: String, field: MonitorCaptureField?, nativeEnabled: Bool?,
+        quickEnabled: Bool, hasAction: Bool) -> Bool {
+        if let field {
+            return readoutIsInert(reported: field.selection != nil, editable: field.isEditable,
+                quickEnabled: quickEnabled, hasAction: hasAction)
+        }
+        return readoutIsInert(reported: !isUnreported(value), editable: nativeEnabled,
+            quickEnabled: quickEnabled, hasAction: hasAction)
     }
 
     public static func label(_ value: SettingValue) -> String {
