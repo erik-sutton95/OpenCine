@@ -210,7 +210,8 @@ let package = Package(
         // integration and the Insta360 shell. Wire-free: no protocol frames or byte parsers.
         .target(name: "OpenCineCameraVocabulary", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
         .testTarget(
-            name: "OpenCineCameraVocabularyTests", dependencies: ["OpenCineCameraVocabulary", "OpenCineCore", "OpenCineMedia"]),
+            name: "OpenCineCameraVocabularyTests",
+            dependencies: ["OpenCineCameraVocabulary", "OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
 
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,
@@ -237,7 +238,10 @@ let package = Package(
         // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
         .testTarget(
             name: "OpenCineNikonTests",
-            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMedia", "OpenCineMulticam", "OpenCineCoreTestSupport"]),
+            dependencies: [
+                "OpenCineNikon", "OpenCineCore", "OpenCineMedia", "OpenCineMulticam", "OpenCineCoreTestSupport",
+                "OpenCineCameraVocabulary",
+            ]),
         // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
         // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
         // media browse and the JNI exports of the Kotlin class
@@ -276,7 +280,7 @@ let package = Package(
             name: "Insta360AppleTests",
             dependencies: [
                 "Insta360Apple", "Insta360AppleTestSupport", "Insta360Protocol", "OpenCineCore",
-                "OpenCineMotion", "OpenCineMedia",
+                "OpenCineMotion", "OpenCineMedia", "OpenCineCameraVocabulary",
             ]
         ),
 

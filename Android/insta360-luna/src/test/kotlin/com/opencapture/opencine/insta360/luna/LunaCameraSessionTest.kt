@@ -57,7 +57,7 @@ import kotlin.time.Duration.Companion.seconds
  * A Luna camera behind the session's link: it applies the real SET bodies the session builds and
  * answers readbacks in the real reply encodings. Port of the iOS `LunaCameraSessionTests`.
  */
-private class FakeLuna(
+internal class FakeLuna(
     private val scope: CoroutineScope,
     private val now: () -> MonotonicInstant = { MonotonicInstant(System.nanoTime().nanoseconds) },
 ) {

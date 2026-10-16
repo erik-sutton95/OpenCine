@@ -556,7 +556,7 @@ class DjiCameraSessionAdapterTest {
         }
 
     /** A linked Pocket in Video reporting ISO 400, Auto WB and the given record state. */
-    private class FakePort(recording: Boolean? = false) : PocketControlPort {
+    internal class FakePort(recording: Boolean? = false) : PocketControlPort {
         var state =
             PocketControlState(
                 linkReady = true,
