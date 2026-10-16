@@ -416,6 +416,10 @@ public struct MonitorOperatorCapturePopup<Key: Hashable, Section: Hashable,
                                 content(panel.key, place).disabled(!commandEnabled || !currentSource())
                             }
                         }.id(panel.key)
+                        // One container per open camera panel, as the operator reaches it: UI tests
+                        // and assistive technology find the panel itself, not only its rows.
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("monitor.capture.panel")
                     }
                 }
             } else if let preview = state.preview {
