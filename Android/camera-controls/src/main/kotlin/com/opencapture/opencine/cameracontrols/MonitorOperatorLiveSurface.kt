@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -75,9 +76,15 @@ public class MonitorOperatorAssistSource(public val host: AssistHost,
     public val paradeIntensityScale: Double = 1.0)
 
 /** The picture the source delivers: its aspect, whether the first frame is still awaited, whether the
- * camera shows it vertically or mirrored, and whether the link is recovering. */
+ * camera shows it vertically or mirrored, and whether the link is recovering. A [notice] replaces the
+ * waiting plate's words when the source has no picture to wait for (no camera, a reconnect, a network hop). */
 public data class MonitorOperatorLivePicture(public val aspect: Float, public val waiting: Boolean,
-    public val vertical: Boolean, public val flipped: Boolean, public val recovering: Boolean)
+    public val vertical: Boolean, public val flipped: Boolean, public val recovering: Boolean,
+    public val notice: MonitorOperatorPictureNotice? = null)
+
+/** The picture well's own words: a title, an optional detail, and whether work is under way (a spinner). */
+public data class MonitorOperatorPictureNotice(public val title: String, public val detail: String? = null,
+    public val progress: Boolean = false)
 
 /** How this source records. Photo mode releases through the native shutter slot. [confirmingChanged]
  * reports the record confirmation opening and closing, for record paths outside the monitor (a watch, a
@@ -201,7 +208,9 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
                     MonitorRect(0f, 0f, layout.viewportWidth, layout.viewportHeight), zones != null, Modifier.zIndex(1f))
             views.focusControls?.invoke(this, enabled)
         }, waitingPicture = {
-            if (source.picture.waiting) OperatorWaitingPicture(layout.onFeed, control, source.vpnActive)
+            val notice = source.picture.notice
+            if (notice != null) OperatorPictureNotice(layout.onFeed, notice)
+            else if (source.picture.waiting) OperatorWaitingPicture(layout.onFeed, control, source.vpnActive)
             views.waitingPicture?.invoke()
         }, feedback = {
             OperatorToast(source.note, layout, MonitorDisplaySection.STATUS_BAR in mounted)
@@ -256,6 +265,21 @@ private fun OperatorWaitingPicture(frame: MonitorRect, control: MonitorControlMo
             Text("WAITING FOR LIVE VIEW", color = LiveDesign.text.copy(alpha = .72f), style = LiveType.mono(15f, FontWeight.SemiBold))
             if (hint) Text(LocalVPNFilter.LIVE_HINT, color = LiveDesign.muted, style = LiveType.ui(12f),
                 textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 28.dp))
+        }
+    }
+}
+
+/** The waiting plate's look with the source's own words. */
+@Composable
+private fun OperatorPictureNotice(frame: MonitorRect, notice: MonitorOperatorPictureNotice): Unit {
+    Box(Modifier.frame(frame).background(Color.Black).semantics(mergeDescendants = true) {},
+        contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 28.dp)) {
+            if (notice.progress) CircularProgressIndicator(color = LiveDesign.text.copy(alpha = .72f))
+            Text(notice.title, color = LiveDesign.text.copy(alpha = .72f), style = LiveType.mono(15f, FontWeight.SemiBold),
+                textAlign = TextAlign.Center)
+            notice.detail?.let { Text(it, color = LiveDesign.muted, style = LiveType.ui(12f), textAlign = TextAlign.Center) }
         }
     }
 }
