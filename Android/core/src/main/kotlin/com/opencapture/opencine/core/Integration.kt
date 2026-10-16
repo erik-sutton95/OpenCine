@@ -124,6 +124,16 @@ public interface IntegrationPrompt {
     public val fallbackText: String
 }
 
+/** An explicit operator decision, presented once by the shell for its current source lifetime. */
+public interface ConfirmationPrompt : IntegrationPrompt {
+    public val confirmationID: String
+    public val confirmationTitle: String
+    public val confirmTitle: String
+    public val cancelTitle: String
+    public val confirm: () -> Unit
+    public val cancel: () -> Unit
+}
+
 /** Something the operator must do for the attempt to continue. */
 public sealed interface ConnectionPrompt {
     public val text: String

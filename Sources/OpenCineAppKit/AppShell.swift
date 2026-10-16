@@ -125,6 +125,7 @@
                     page(cover)
                 }
             }
+            .operatorConsentPresenter(model.cameras.consent)
         }
 
         private var hidesMonitor: Bool { coverPresentation == .shell && model.cover != nil }

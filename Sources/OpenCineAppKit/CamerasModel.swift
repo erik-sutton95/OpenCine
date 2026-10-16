@@ -77,6 +77,9 @@ public final class CamerasModel {
     public var scanLooksEmpty = false
     /// The sighting chosen on the pair page.
     public var selection: String?
+    /// The current operator decision, retired with its source before admission. The outermost
+    /// shared presenter for this model (`AppShell`, or a standalone screen) renders it.
+    public let consent = OperatorConsent()
     /// Called once per successful attempt, after the record is saved.
     @ObservationIgnored public var onConnected: (ConnectedCamera) -> Void = { _ in }
     /// The still-looking hint's wait; tests replace it with a manual clock.
@@ -189,12 +192,14 @@ public final class CamerasModel {
 
     public func cancel(_ cameraID: String) {
         guard let attempt = attempts.removeValue(forKey: cameraID) else { return }
+        consent.retire(source: attempt.token)
         attempt.task?.cancel()
         updateDiscovery()
     }
 
     public func cancelAll() {
         for cameraID in Array(attempts.keys) { cancel(cameraID) }
+        consent.retire()
     }
 
     /// Clears a camera's last failure without connecting (a pair page back to choosing).
@@ -241,7 +246,10 @@ public final class CamerasModel {
     private func start(_ target: ConnectTarget, on integration: IntegrationID) {
         guard let entry = entries.first(where: { $0.integration.id == integration }) else { return }
         let cameraID = target.cameraID
-        attempts.removeValue(forKey: cameraID)?.task?.cancel()
+        if let older = attempts.removeValue(forKey: cameraID) {
+            consent.retire(source: older.token)
+            older.task?.cancel()
+        }
         failures[cameraID] = nil
         var attempt = Attempt(target: target, integration: integration)
         let token = attempt.token
@@ -261,13 +269,24 @@ public final class CamerasModel {
         case .progress(let progress, let prompt):
             attempts[cameraID]?.progress = progress
             attempts[cameraID]?.prompt = prompt
+            if case .integration(let value) = prompt,
+                let confirmation = value as? any ConfirmationPrompt
+            {
+                consent.present(confirmation, source: token) { [weak self] in
+                    self?.attempts[cameraID]?.token == token
+                }
+            } else {
+                consent.retire(source: token)
+            }
         case .connected(let camera):
+            consent.retire(source: token)
             attempts[cameraID] = nil
             upsert(camera.saved)
             connected = camera
             onConnected(camera)
             updateDiscovery()
         case .failed(let failure):
+            consent.retire(source: token)
             attempts[cameraID] = nil
             failures[cameraID] = Failure(failure: failure, target: attempt.target)
             updateDiscovery()
@@ -277,6 +296,7 @@ public final class CamerasModel {
     /// The stream ended without an outcome (the attempt was cancelled).
     private func finish(_ cameraID: String, token: UUID) {
         guard attempts[cameraID]?.token == token else { return }
+        consent.retire(source: token)
         attempts[cameraID] = nil
         updateDiscovery()
     }

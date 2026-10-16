@@ -3,6 +3,7 @@ package com.opencapture.opencine.appkit
 import com.opencapture.monitorui.MonitorPairingInstruction
 import com.opencapture.monitorui.MonitorPairingInstructionIcon
 import com.opencapture.opencine.core.ConnectTarget
+import com.opencapture.opencine.core.ConfirmationPrompt
 import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.core.ConnectionPhase
 import com.opencapture.opencine.core.ConnectionPrompt
@@ -68,6 +69,52 @@ class CamerasModelTest {
         Values.model(listOf(fake, listening), backgroundScope, saved, defaults).also { runCurrent() }
 
     private val CamerasModel.now get() = state.value
+
+    @Test fun aNeutralPromptReachesOneConsumedShellConsent() = runTest {
+        val model = model()
+        var admissions = 0
+        val prompt = object : ConfirmationPrompt {
+            override val confirmationID = "SIMULATED-consent"
+            override val confirmationTitle = "Continue?"
+            override val fallbackText = "Another operator loses their session."
+            override val confirmTitle = "Continue"
+            override val cancelTitle = "Cancel"
+            override val confirm = { admissions++; Unit }
+            override val cancel = {}
+        }
+        model.connect(Values.camera)
+        fake.attempts[0].progress(ConnectionPhase.NEGOTIATING, 0, ConnectionPrompt.Integration(prompt))
+        runCurrent()
+        assertEquals("Continue?", model.consent.pending.value?.title)
+        model.consent.confirm(prompt.confirmationID)
+        fake.attempts[0].progress(ConnectionPhase.NEGOTIATING, 0, ConnectionPrompt.Integration(prompt))
+        runCurrent()
+        model.consent.confirm(prompt.confirmationID)
+        assertEquals(1, admissions)
+        assertNull(model.consent.pending.value)
+    }
+
+    @Test fun retiringTheModelAttemptInvalidatesItsShellConsent() = runTest {
+        val model = model()
+        var admissions = 0
+        val prompt = object : ConfirmationPrompt {
+            override val confirmationID = "SIMULATED-retired-consent"
+            override val confirmationTitle = "Continue?"
+            override val fallbackText = "Consent required"
+            override val confirmTitle = "Continue"
+            override val cancelTitle = "Cancel"
+            override val confirm = { admissions++; Unit }
+            override val cancel = {}
+        }
+        model.connect(Values.camera)
+        fake.attempts[0].progress(ConnectionPhase.NEGOTIATING, 0, ConnectionPrompt.Integration(prompt))
+        runCurrent()
+        assertNotNull(model.consent.pending.value)
+        model.cancel(Values.camera.id)
+        model.consent.confirm(prompt.confirmationID)
+        assertEquals(0, admissions)
+        assertNull(model.consent.pending.value)
+    }
 
     @Test
     fun camerasDiscoverPassively() = runTest {

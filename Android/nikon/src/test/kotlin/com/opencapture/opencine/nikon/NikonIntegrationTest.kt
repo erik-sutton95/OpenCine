@@ -35,6 +35,7 @@ private class FakeNikonPort : NikonConnectPort {
     var records: String? = null
     val discovery = mutableListOf<DiscoveryMode?>()
     val connects = mutableListOf<NikonConnectRequest>()
+    val consentedRequests = mutableListOf<NikonConnectRequest>()
     var cancels = 0
     val forgotten = mutableListOf<List<String>>()
     var pending = CompletableDeferred<NikonConnection>()
@@ -46,6 +47,10 @@ private class FakeNikonPort : NikonConnectPort {
         connects += request
         pending = CompletableDeferred()
         return pending.await()
+    }
+    override suspend fun connect(request: NikonConnectRequest, takingOverConfirmed: Boolean): NikonConnection {
+        if (takingOverConfirmed) consentedRequests += request
+        return connect(request)
     }
     override fun cancel() { cancels++ }
     override fun forget(hosts: List<String>) { forgotten += hosts }
@@ -221,6 +226,124 @@ class NikonIntegrationTest {
         job.join()
         assertEquals(1, declined.size)
         assertEquals(1, port.connects.size)
+    }
+
+    @Test
+    fun aHeldSavedSetupUsesTheSameConsentPrompt() = runTest {
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val events = mutableListOf<ConnectionEvent>()
+        val job = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        assertEquals(1, port.connects.size)
+        port.pending.completeExceptionally(NikonConnectException(ConnectionFailure(
+            reason = ConnectionFailure.Reason.HeldElsewhere, title = "Camera in use",
+            message = "Phone B is using this camera. Connecting will disconnect it.",
+            actions = listOf(RecoveryAction.Retry), code = "SIMULATED.held",
+        )))
+        runCurrent()
+        val progress = assertIs<ConnectionEvent.Progress>(events.single())
+        val prompt = assertIs<NikonTakeOverPrompt>(assertIs<ConnectionPrompt.Integration>(progress.prompt).prompt)
+        assertEquals("Phone B is using this camera. Connecting will disconnect it.", prompt.fallbackText)
+        assertEquals(1, port.connects.size, "the held attempt cannot retry until the operator agrees")
+        prompt.cancel()
+        job.join()
+        assertEquals(1, port.connects.size, "declining never retries")
+    }
+
+    @Test
+    fun savedConsentIsOnceOnlyAndAConfirmedFailureCannotAskAgain() = runTest {
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val events = mutableListOf<ConnectionEvent>()
+        val job = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        val held = ConnectionFailure(
+            reason = ConnectionFailure.Reason.HeldElsewhere, title = "Camera in use", message = "Consent required",
+            actions = listOf(RecoveryAction.Retry), code = "SIMULATED.held",
+        )
+        port.pending.completeExceptionally(NikonConnectException(held))
+        runCurrent()
+        val prompt = assertIs<NikonTakeOverPrompt>(assertIs<ConnectionPrompt.Integration>(assertIs<ConnectionEvent.Progress>(events.single()).prompt).prompt)
+        prompt.confirm()
+        prompt.confirm()
+        runCurrent()
+        assertEquals(2, port.connects.size)
+        assertEquals(listOf<NikonConnectRequest>(NikonConnectRequest.Saved("192.168.50.23", RouteKind.INFRASTRUCTURE_NETWORK)), port.consentedRequests)
+        port.pending.completeExceptionally(NikonConnectException(held))
+        job.join()
+        assertEquals(ConnectionFailure.Reason.HeldElsewhere, assertIs<ConnectionEvent.Failed>(events.last()).failure.reason)
+        assertEquals(1, events.filterIsInstance<ConnectionEvent.Progress>().size)
+        prompt.confirm()
+        runCurrent()
+        assertEquals(2, port.connects.size)
+    }
+
+    @Test
+    fun cancellingASavedAttemptRetiresItsUnansweredConsent() = runTest {
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val events = mutableListOf<ConnectionEvent>()
+        val job = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        port.pending.completeExceptionally(NikonConnectException(ConnectionFailure(
+            reason = ConnectionFailure.Reason.HeldElsewhere, title = "Camera in use", message = "Consent required",
+            actions = listOf(RecoveryAction.Retry), code = "SIMULATED.held",
+        )))
+        runCurrent()
+        val prompt = assertIs<NikonTakeOverPrompt>(assertIs<ConnectionPrompt.Integration>(assertIs<ConnectionEvent.Progress>(events.single()).prompt).prompt)
+        job.cancel()
+        job.join()
+        prompt.confirm()
+        runCurrent()
+        assertTrue(port.consentedRequests.isEmpty())
+        assertEquals(1, port.connects.size)
+    }
+
+    @Test fun replacingASavedAttemptRetiresItsUnansweredConsent() = runTest {
+        val camera = cameras().first()
+        val route = camera.routes.first { it.kind == RouteKind.INFRASTRUCTURE_NETWORK }
+        val events = mutableListOf<ConnectionEvent>()
+        val first = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).toList(events) }
+        runCurrent()
+        port.pending.completeExceptionally(NikonConnectException(ConnectionFailure(
+            reason = ConnectionFailure.Reason.HeldElsewhere, title = "Camera in use", message = "Consent required",
+            actions = listOf(RecoveryAction.Retry), code = "SIMULATED.held",
+        )))
+        runCurrent()
+        val prompt = assertIs<NikonTakeOverPrompt>(assertIs<ConnectionPrompt.Integration>(assertIs<ConnectionEvent.Progress>(events.single()).prompt).prompt)
+        val replacement = backgroundScope.launch { nikon.connect(ConnectTarget.Saved(camera, route.id)).collect {} }
+        runCurrent()
+        assertEquals(2, port.connects.size)
+        prompt.confirm()
+        runCurrent()
+        assertTrue(port.consentedRequests.isEmpty(), "an old consent cannot admit a request after replacement")
+        assertEquals(2, port.connects.size)
+        assertTrue(first.isCompleted, "replacement retires the old flow")
+        replacement.cancel()
+        replacement.join()
+    }
+
+    @Test fun aLegacyPortKeepsItsAdmissionThroughTheConfirmedOverload() = runTest {
+        val requests = mutableListOf<NikonConnectRequest>()
+        val denied = NikonConnectException(NikonIntegration.failure(ConnectionFailure.Reason.HeldElsewhere, "SIMULATED.legacy", "Consent required"))
+        val legacy = object : NikonConnectPort {
+            override val sightings = MutableStateFlow<List<NikonSighting>>(emptyList())
+            override val phase = MutableStateFlow<Pair<NikonConnectionPhase, String?>?>(null)
+            override fun savedRecords(): String? = null
+            override fun startDiscovery(mode: DiscoveryMode) {}
+            override fun stopDiscovery() {}
+            override suspend fun connect(request: NikonConnectRequest): NikonConnection {
+                requests += request
+                throw denied
+            }
+            override fun cancel() {}
+            override fun forget(hosts: List<String>) {}
+        }
+        val request = NikonConnectRequest.Saved("SIMULATED-host", RouteKind.INFRASTRUCTURE_NETWORK)
+        val failure = kotlin.test.assertFailsWith<NikonConnectException> { legacy.connect(request, takingOverConfirmed = true) }
+        assertEquals(denied.failure, failure.failure)
+        assertEquals(listOf<NikonConnectRequest>(request), requests)
     }
 
     @Test
