@@ -67,7 +67,6 @@ import com.opencapture.monitorui.MonitorMaterial
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorRecordLamp
 import com.opencapture.monitorui.MonitorRect
-import com.opencapture.monitorui.MonitorToolUsageState
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.MultiviewArrangement
 import com.opencapture.monitorui.MultiviewPresentationLayout
@@ -172,15 +171,19 @@ public fun MultiviewStage(
     network: MultiviewStageButton? = null,
     picture: @Composable (slot: Int) -> Unit,
 ) {
-    var clean by remember { mutableStateOf(false) }
+    val fallback = remember(tiles.size) { MultiviewStageState(maxOf(1, tiles.size)) }
+    val presentation = LocalMultiviewStageState.current ?: fallback
+    val clean = presentation.clean
+    val stageInteractive = interactive && LocalMultiviewStageVisible.current
+    LaunchedEffect(stageInteractive) { if (!stageInteractive) actions.popupsClosed() }
     Box(
         // Hidden from TalkBack while an app overlay covers it.
-        modifier.fillMaxSize().then(if (interactive) Modifier else Modifier.clearAndSetSemantics { }),
+        modifier.fillMaxSize().then(if (stageInteractive) Modifier else Modifier.clearAndSetSemantics { }),
     ) {
         MultiviewTileCanvas(tiles.indices.map { it.toString() }, layout) { index, compact ->
             val overlay = layout.readoutsOverlay && index == selected
             TileView(
-                tiles, index, compact, clean, interactive, selected, arrangement, busy, groupBusy, confirmsRecord,
+                tiles, index, compact, clean, stageInteractive, selected, arrangement, busy, groupBusy, confirmsRecord,
                 actions,
                 // The View Assist palette floats over the main tile's lower left; its footer
                 // starts where the stage value row does.
@@ -202,11 +205,12 @@ public fun MultiviewStage(
                 tools, tiles, arrangement, fill, lut, closing, selected, actions, layout.controlCellSize,
                 Modifier.at(layout.assists), horizontal = layout.assistsHorizontal,
                 fixed = layout.portrait && arrangement == MultiviewArrangement.CENTER_STAGE,
+                presentation = presentation,
                 maxExpandedHeight = if (layout.assistsHorizontal) null else layout.assists.height,
             )
             network?.let { NetworkButton(it, Modifier.at(layout.network), actions.feedback) }
         }
-        DisplayButton(clean, Modifier.at(layout.display), actions.feedback) { clean = !clean }
+        DisplayButton(clean, Modifier.at(layout.display), actions.feedback) { presentation.clean = !clean }
         RecordAllButton(recording, groupBusy, confirmsRecord, layout.record.width, Modifier.at(layout.record), actions)
     }
 }
@@ -265,6 +269,8 @@ private fun ReadoutValue(
     valueSize: Float, titleSize: Float,
 ) {
     var open by remember { mutableStateOf(false) }
+    val visible = LocalMultiviewStageVisible.current
+    LaunchedEffect(visible) { if (!visible) open = false }
     Column(
         modifier.then(
             if (readout.choices.isEmpty()) Modifier else Modifier
@@ -277,7 +283,7 @@ private fun ReadoutValue(
             style = MonitorTypography.readout(valueSize, FontWeight.SemiBold), maxLines = 1)
         Text(readout.title, color = MonitorPalette.muted,
             style = MonitorTypography.text(titleSize, FontWeight.SemiBold), maxLines = 1)
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open && LocalMultiviewStageVisible.current, onDismissRequest = { open = false }) {
             readout.choices.forEach { name ->
                 DropdownMenuItem(text = { Text(name) }, onClick = {
                     open = false
@@ -292,11 +298,21 @@ private fun ReadoutValue(
 private fun AssistPalette(
     tools: List<MultiviewTool>, tiles: List<MultiviewTile?>, arrangement: MultiviewArrangement, fill: Boolean,
     lut: Boolean, closing: Boolean, selected: Int, actions: MultiviewStageActions, cell: Float, modifier: Modifier,
-    horizontal: Boolean, fixed: Boolean, maxExpandedHeight: Float?,
+    horizontal: Boolean, fixed: Boolean, maxExpandedHeight: Float?, presentation: MultiviewStageState,
 ) {
     val cameras = tiles.any { it != null }
     val grid = arrangement == MultiviewArrangement.GRID
-    var usage by remember { mutableStateOf(MonitorToolUsageState()) }
+    val nowClosing by rememberUpdatedState(closing)
+    val expansion = remember(presentation) {
+        object : androidx.compose.runtime.MutableState<Boolean> {
+            override var value: Boolean
+                // A temporary close lock collapses the surface, not the operator's saved preference.
+                get() = !nowClosing && presentation.toolsExpanded
+                set(value) { if (!nowClosing) presentation.toolsExpanded = value }
+            override fun component1(): Boolean = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
     fun title(tool: MultiviewTool) = when (tool) {
         MultiviewTool.LUT -> "Toggle Auto LUT for all cameras"
         MultiviewTool.FIT -> if (fill) "Fit feed in frame" else "Fill frame with feed"
@@ -363,6 +379,7 @@ private fun AssistPalette(
         return
     }
     // Landscape stages mount the palette as Live View does: horizontal, bottom-leading.
+    androidx.compose.runtime.CompositionLocalProvider(com.opencapture.monitorui.LocalMonitorAssistExpansion provides expansion) {
     Box(modifier, contentAlignment = if (horizontal) Alignment.BottomStart else Alignment.BottomCenter) {
         MonitorAssistPalette(
             tools = tools, portrait = !horizontal, locked = closing,
@@ -380,7 +397,7 @@ private fun AssistPalette(
             accessibilityValue = { if (it == MultiviewTool.LUT) { if (lut) "On" else "Off" } else null },
             expansionAccessibilityName = "Multiview tools", expansionAccessibilityIdentifier = "multiview.tools.expand",
             cellSize = cell, maxExpandedHeight = maxExpandedHeight,
-            idOf = { it.name }, usage = usage, onUsageChange = { usage = it },
+            idOf = { it.name }, usage = presentation.toolUsage, onUsageChange = { presentation.toolUsage = it },
             onToggle = ::toggle,
             glyph = glyph,
             chevron = { expanded, vertical ->
@@ -389,6 +406,7 @@ private fun AssistPalette(
                 MonitorIcon(icon, null, Modifier.size(14.dp), MonitorPalette.muted)
             },
         )
+    }
     }
 }
 
@@ -517,7 +535,10 @@ private fun TileView(
     var optionsOpen by remember { mutableStateOf(false) }
     var confirmRecord by remember { mutableStateOf<RecordPlan?>(null) }
     val context = if (tile != null) actions.recordContext(index) else null
-    LaunchedEffect(clean, enabled, tile == null) { if (clean || !enabled || tile == null) optionsOpen = false }
+    LaunchedEffect(clean, enabled, tile == null) {
+        if (clean || !enabled || tile == null) optionsOpen = false
+        if (!enabled || tile == null) confirmRecord = null
+    }
     LaunchedEffect(context?.plan, context?.closing) { confirmRecord = null }
     Box(Modifier.fillMaxSize().background(MonitorPalette.surface, TileShape)) {
         if (tile != null) {
@@ -527,7 +548,7 @@ private fun TileView(
                 Modifier.fillMaxSize().pointerInput(index, enabled) {
                     if (!enabled) return@pointerInput
                     detectTapGestures(
-                        onDoubleTap = { current.openLiveView(index) },
+                        onDoubleTap = { current.popupsClosed(); current.openLiveView(index) },
                         onTap = { current.select(index) },
                     )
                 }.semantics {
@@ -570,7 +591,7 @@ private fun TileView(
                                 record -> context?.plan?.let { plan ->
                                     if (confirmRecording) confirmRecord = plan else actions.record(plan, index)
                                 }
-                                action.id == MultiviewCameraAction.LIVE_VIEW -> actions.openLiveView(index)
+                                action.id == MultiviewCameraAction.LIVE_VIEW -> { actions.popupsClosed(); actions.openLiveView(index) }
                                 else -> actions.perform(action.id, index)
                             }
                         }

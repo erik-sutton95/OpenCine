@@ -25,6 +25,16 @@ The Android source adapter retains its previous fallback geometry and Float
 aspect arithmetic, while Apple uses Double geometry. Sampling is unchanged by
 desqueeze, which corrects presentation only.
 
+Media owns the portable `Peaking` reference detector, measured kernel constants and transfer
+correction, together with zebra zone/stripe math. Peaking paint and sensitivity are aliases of
+`MonitorPeakingColor` and `MonitorPeakingSense`, preserving their stored values. Apple rendering
+and the vocabulary's Android feed-effects wire consume this calibration; app compatibility names
+resolve to the same types. Frozen camera-frame corpus tests remain with the camera parser.
+
+`ThermalTier` preserves the cosmetic 1/1/1.5/2 cadence policy used by non-program multicam
+polling. The existing Android live-view wire validates its raw tiers but retains fixed cadence. Native scope sampling retains its separate, existing 1/1/3/5 load
+policy. Neither policy changes recording commands or stream settings.
+
 Media also owns the portable stereo meter values and `MonitorAudioMeterBallistics`.
 The source passes linear peaks and elapsed seconds; the pure step returns a new
 value with the existing instant attack, 26 dB/s level decay, 1.8 second peak hold

@@ -99,9 +99,10 @@
         private let backdrop: Backdrop
         private let viewport: CGSize
         private let safeArea: EdgeInsets
-        @State private var clean = false
-        @State private var toolsExpanded = false
-        @State private var toolUsage = MonitorToolUsage()
+        @Environment(\.multiviewStageState) private var sharedState
+        @State private var fallbackState: MultiviewStageState
+        private var presentation: MultiviewStageState { sharedState ?? fallbackState }
+        private var clean: Bool { presentation.clean }
         @State private var optionsSlot: Int?
         @Environment(\.scenePhase) private var scenePhase
 
@@ -125,6 +126,8 @@
             actions: MultiviewStageActions, @ViewBuilder picture: @escaping (Int) -> Picture,
             backdrop: Backdrop
         ) {
+            _fallbackState = State(
+                initialValue: MultiviewStageState(slotCount: max(1, tiles.count)))
             self.tiles = tiles
             self.layout = layout
             self.viewport = viewport
@@ -383,7 +386,11 @@
             return MonitorAssistPalette(
                 tools: items, layout: palette,
                 usageSeed: ["LAYOUT": 4, "CAMERA": 3, "FIT": 2, "LUT": 1],
-                usage: $toolUsage, expanded: $toolsExpanded, onToggle: activate,
+                usage: Binding(
+                    get: { presentation.toolUsage }, set: { presentation.toolUsage = $0 }),
+                expanded: Binding(
+                    get: { presentation.toolsExpanded }, set: { presentation.toolsExpanded = $0 }),
+                onToggle: activate,
                 onOptions: { _ in },
                 accessibilityName: "Multiview tools", accessibilityPrefix: "multiview.toolbar"
             ) { id in
@@ -425,7 +432,7 @@
 
         private var displayButton: some View {
             Button {
-                clean.toggle()
+                presentation.clean.toggle()
             } label: {
                 VStack(spacing: 4) {
                     Text("DISP").font(MonitorTheme.font(12, weight: .bold)).tracking(0.4)
@@ -807,7 +814,7 @@
             Group {
                 if let bars {
                     MonitorGaugeBars(
-                        fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color)
+                        filled: bars, count: barCount, tint: color)
                 } else {
                     Text(percent.map { "\($0)%" } ?? MultiviewTally.unavailable)
                 }
@@ -816,7 +823,9 @@
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .foregroundStyle(color)
                 .padding(.horizontal, 6)
-                .frame(width: tablet ? 44 : 40, height: tablet ? 22 : 20, alignment: .leading)
+                .frame(width: bars.map { MonitorGaugeBars.readoutWidth(filled: $0, count: barCount,
+                    minimum: tablet ? 44 : 40, inset: 12) } ?? (tablet ? 44 : 40),
+                    height: tablet ? 22 : 20, alignment: .leading)
                 .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
@@ -826,7 +835,7 @@
 
         /// Phone and camera batteries share one scale.
         private var color: Color {
-            guard let percent = bars.map({ $0 * 100 / max(1, barCount) }) ?? percent else {
+            guard let percent = bars.map({ (Double($0) * 100 / Double(max(1, barCount))).rounded(.towardZero) }) ?? percent.map(Double.init) else {
                 return MonitorTheme.text
             }
             return percent <= 20
@@ -935,7 +944,7 @@
                     Group {
                         if let bars {
                             MonitorGaugeBars(
-                                fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: tint,
+                                filled: bars, count: barCount, tint: tint,
                                 barHeight: 7
                             ).padding(.horizontal, 2)
                         } else {
@@ -946,9 +955,10 @@
                         .monospacedDigit()
                         .foregroundStyle(tint)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                        .minimumScaleFactor(barCount > 10 ? 0.5 : 0.65)
                 }
-                .frame(width: 26, height: 15)
+                .frame(width: bars.map { MonitorGaugeBars.readoutWidth(filled: $0, count: barCount,
+                    minimum: 26, inset: charging ? 13 : 6) } ?? 26, height: 15)
                 .overlay {
                     RoundedRectangle(cornerRadius: 3.5, style: .continuous)
                         .strokeBorder(tint.opacity(0.85), lineWidth: 1.2)
@@ -968,7 +978,7 @@
 
         /// Three or more of five bars (41 and up) green, two (21 to 40) yellow, one red.
         private var tint: Color {
-            guard let percent = bars.map({ $0 * 100 / max(1, barCount) }) ?? percent else {
+            guard let percent = bars.map({ (Double($0) * 100 / Double(max(1, barCount))).rounded(.towardZero) }) ?? percent.map(Double.init) else {
                 return MonitorTheme.faint
             }
             if percent <= 20 { return .red }

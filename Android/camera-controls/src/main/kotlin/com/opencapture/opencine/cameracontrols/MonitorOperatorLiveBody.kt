@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
@@ -37,6 +41,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -83,12 +88,26 @@ public class MonitorOperatorPowerReading(
  * battery is absent rather than an empty gauge (D11). iOS `MonitorOperatorPowerReading.camera`.
  */
 public fun cameraPowerReading(power: PowerStatus): MonitorOperatorPowerReading? =
-    when (val reading = power.batteryReading) {
-        is BatteryReading.Fraction -> MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), power.charging.value)
-        is BatteryReading.Steps -> MonitorOperatorPowerReading(true, null, power.charging.value, reading.filled, reading.of,
-            warning = reading.filled * 5 <= reading.of * 2)
+    cameraPowerReading(power.batteryReading, power.exhausted.value, power.charging.value ?: power.externalPower.value)
+
+public fun cameraPowerReading(reading: BatteryReading?, exhausted: Boolean? = null,
+    charging: Boolean? = null): MonitorOperatorPowerReading? =
+    when (reading) {
+        is BatteryReading.Fraction -> if (reading.value.isFinite() && reading.value in 0.0..1.0)
+            MonitorOperatorPowerReading(true, Math.round(reading.value * 100).toInt(), charging, exhausted = exhausted == true) else null
+        is BatteryReading.Steps -> if (reading.of > 0 && reading.filled in 0..reading.of)
+            MonitorOperatorPowerReading(true, null, charging, reading.filled, reading.of,
+                warning = reading.filled.toDouble() / reading.of <= 0.4, exhausted = exhausted == true) else null
         null -> null
     }
+
+public fun cameraBatteryReadoutLabel(reading: BatteryReading?): String? = when (reading) {
+    is BatteryReading.Fraction -> if (reading.value.isFinite() && reading.value in 0.0..1.0)
+        "${Math.round(reading.value * 100)}%" else null
+    is BatteryReading.Steps -> if (reading.of > 0 && reading.filled in 0..reading.of)
+        "${reading.filled}/${reading.of}" else null
+    null -> null
+}
 /** A supported palette extension retains its native action; all palette rendering remains common. */
 public class MonitorOperatorPaletteItem(
     public val id: String, public val title: String, public val label: String,
@@ -207,18 +226,28 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     val source = MonitorCaptureSourceIdentity(identity.camera, identity.epoch, identity.pictureOwner,
         identity.monitor, identity.picture, identity.phase)
     @Composable fun Readout(value: MonitorOperatorLiveReadout<K, S>, portrait: Boolean = false,
-        caption: String? = null, opens: Boolean = true, accent: Boolean = false) {
-        val decoration = (value.section?.let { edit(it) } ?: Modifier).then(value.itemModifier)
+        caption: String? = null, opens: Boolean = true, accent: Boolean = false, storageReadout: Boolean = false, grouped: Boolean = false, detail: Boolean = false,
+        decoratesSection: Boolean = true) {
+        val decoration = (value.section?.takeIf { decoratesSection }?.let { edit(it) } ?: Modifier).then(value.itemModifier)
             .onGloballyPositioned { coordinates ->
                 val r = coordinates.boundsInRoot()
                 if (currentSource()) with(density) { state.frames[value.id] = MonitorRect(r.left.toDp().value,
                     r.top.toDp().value, r.width.toDp().value, r.height.toDp().value) }
             }
         val label: @Composable () -> Unit = {
-            Box(contentAlignment = Alignment.BottomEnd) {
+            val groupFrame = if (grouped) Modifier
+                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height) else Modifier
+            Box(groupFrame, contentAlignment = if (grouped) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
-                    Text(value.value ?: "--", style = MonitorTypography.readout(if (portrait) {
+                    if (grouped) {
+                        MonitorPortraitInlineReadoutText(value.value ?: "--", detail = detail,
+                            color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
+                    } else if (storageReadout && layout.portrait && !layout.tablet) {
+                        MonitorBoundedReadoutText(value.value ?: "--",
+                            color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text)
+                    } else Text(value.value ?: "--", style = MonitorTypography.readout(if (portrait) {
                         if (photo) 12f else if (layout.tablet) 25f else 23f
                     } else if (layout.tablet) 18f else 16f, FontWeight.Medium),
                         color = if (accent || panel?.key == value.id) MonitorPalette.accent else MonitorPalette.text,
@@ -257,21 +286,57 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         statusInteractive = !assistInspectorPresented),
         modifier, picture = picture,
         status = {
-            MonitorStatusChrome(layout, status.recording(), status.showsTimecode, status.showsRecording,
+            val recording = status.recording()
+            val visibleFormat = status.format.filter { it.section == null || it.section in mounted }
+            val shownPrimary = status.portraitFormat?.takeIf { it.section == null || it.section in mounted }
+                ?: visibleFormat.firstOrNull()
+            val inline = layout.portrait && !photo
+            val shownColor = status.color?.takeIf { it.section == null || it.section in mounted }
+            val details = visibleFormat.drop(if (visibleFormat.firstOrNull()?.section == MonitorDisplaySection.CODEC) 0 else 1)
+                .filter { it.id != shownPrimary?.id }
+            val readouts = listOfNotNull(shownPrimary, shownColor) + details
+            val caption = status.portraitCaption.takeIf { status.portraitFormat != null && shownColor == null }
+            val fit = if (inline && readouts.isNotEmpty()) {
+                fun line(value: MonitorOperatorLiveReadout<K, S>) =
+                    MonitorPortraitReadoutLine(value.value ?: "--", if (value.icon != null) 19f else 0f)
+                rememberMonitorPortraitSingleRowFit(layout.status.width, recording, status.showsRecording,
+                    status.showsTimecode, line(readouts.first()), details.map(::line), caption,
+                    maximumSize = if (layout.tablet) 25f else 23f,
+                    color = if (shownPrimary == null) null else shownColor?.let(::line),
+                    primaryIsDetail = readouts.first().section == MonitorDisplaySection.CODEC)
+            } else null
+            CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
+            MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording,
                 edit(sections.status),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
-                storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false) } },
+                storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true) } },
                 format = {
-                    if (layout.portrait && status.portraitFormat != null) {
+                    if (inline) {
+                        Row(verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
+                            readouts.forEach { value ->
+                                Readout(value, portrait = true, grouped = true,
+                                    detail = value.section == MonitorDisplaySection.CODEC || details.any { it.id == value.id })
+                            }
+                            if (caption != null) {
+                                Box(Modifier.widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                                    .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height)
+                                    .then(shownPrimary?.section?.let { edit(it) } ?: Modifier), contentAlignment = Alignment.TopEnd) {
+                                    MonitorPortraitInlineReadoutText(caption, detail = true)
+                                }
+                            }
+                        }
+                    } else if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
                     } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         status.format.filter { it.section == null || it.section in mounted }.forEach { Readout(it) }
                     }
-                }, color = { status.color?.let { if (it.section == null || it.section in mounted) Readout(it) } },
+                }, color = { if (!inline) shownColor?.let { Readout(it) } },
                 mode = { status.mode?.let { Readout(it, accent = true) } },
                 link = { MonitorTelemetry(status.signalBars, status.fps, emptyList(), horizontal = true,
                     showsLink = linkMounted, showsPower = false) })
+            }
         }, power = {
             MonitorTelemetry(status.signalBars, status.fps, power.map {
                 MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted)

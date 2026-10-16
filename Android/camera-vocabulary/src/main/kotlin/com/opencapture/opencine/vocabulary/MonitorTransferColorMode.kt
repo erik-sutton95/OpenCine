@@ -20,14 +20,20 @@ val MonitorTransfer.Companion.COLOR_DLOG_M: Int get() = CameraCommands.COLOR_DLO
 /** The monitor's I-Log id, never a camera byte ([CameraCommands.COLOR_ILOG]). */
 val MonitorTransfer.Companion.ILOG_BRIDGE_ID: Int get() = CameraCommands.COLOR_ILOG
 
-fun MonitorTransfer.Companion.fromColorMode(code: Int): MonitorTransfer = when (code) {
+/** Compatibility adapter for known legacy codes. Unsupported values stay unknown. */
+fun MonitorTransfer.Companion.knownFromColorMode(code: Int): MonitorTransfer? = when (code) {
+    CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_NORMAL10 -> MonitorTransfer.REC709
     CameraCommands.COLOR_HDR -> MonitorTransfer.HDR
     CameraCommands.COLOR_DLOG -> MonitorTransfer.DLOG
     COLOR_DLOG_M -> MonitorTransfer.DLOGM
     CameraCommands.COLOR_DLOG2 -> MonitorTransfer.DLOG2
     ILOG_BRIDGE_ID -> MonitorTransfer.ILOG
-    else -> MonitorTransfer.REC709
+    else -> null
 }
+
+/** Retained legacy display policy; new source observations use [knownFromColorMode]. */
+fun MonitorTransfer.Companion.fromColorMode(code: Int): MonitorTransfer =
+    knownFromColorMode(code) ?: MonitorTransfer.REC709
 
 /** The curve the monitor reads this status through: its [CameraStatus.monitorColorMode], decoded. */
 val CameraStatus.monitorTransfer: MonitorTransfer

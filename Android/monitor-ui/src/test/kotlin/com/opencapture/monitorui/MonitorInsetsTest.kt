@@ -101,7 +101,7 @@ class LiveMonitorLayoutTest {
         LiveChromeMetrics.scale = 1f
     }
 
-    /** iOS `FieldMonitorLayout.focusReset`: leading of the stick on its bottom edge in both orientations. */
+    /** The compatibility layout follows the same portrait-left and landscape-stick policy as iOS. */
     @Test
     fun focusRecenterSitsLeadingOfTheStickInPortraitAndLandscape() {
         for ((w, h) in listOf(393f to 852f, 852f to 393f)) {
@@ -110,8 +110,14 @@ class LiveMonitorLayoutTest {
             val stick = layout.gimbalCluster(showGimbalButton = true).stick
             val reset = layout.focusReset
             assertFalse(reset.isEmpty, "Recenter needs a slot in ${w}x$h")
-            assertEquals(stick.minX - 50f, reset.minX, 0.05f)
-            assertEquals(stick.maxY, reset.maxY, 0.05f)
+            if (h > w) {
+                assertEquals(maxOf(8f, layout.assist.minX), reset.minX, 0.05f)
+                assertEquals(layout.assist.minY - 8f, reset.maxY, 0.05f)
+                assertTrue(reset.maxX < w / 2f)
+            } else {
+                assertEquals(stick.minX - 50f, reset.minX, 0.05f)
+                assertEquals(stick.maxY, reset.maxY, 0.05f)
+            }
             assertTrue(reset.maxY <= layout.capture.minY)
         }
     }

@@ -470,6 +470,8 @@ public data class CameraControlCapabilities(
     val codecBitDepths: List<CodecBitDepthOption> = emptyList(),
     /** Actual f-number descriptor choices, excluding the legacy body/lens fallback. */
     val advertisedIrisValues: List<String> = emptyList(),
+    /** Native mode axes from Swift, with the exact advertised write token. */
+    val recordingFormats: List<NikonRecordingFormatPresentation> = emptyList(),
 ) {
     /** Returns the advertised labels for one descriptor-dependent control. */
     public fun options(control: CameraControl): List<String> =

@@ -168,7 +168,7 @@ import Testing
                 let text = try String(contentsOf: directory.appending(path: name), encoding: .utf8)
                 if target == "OpenCineRelay" {
                     for line in text.split(separator: "\n") where line.hasPrefix("import ") {
-                        #expect(line == "import Foundation", "\(name): \(line)")
+                        #expect(["import Foundation", "import OpenCineCore"].contains(String(line)), "\(name): \(line)")
                     }
                     #expect(text.firstMatch(of: brands) == nil, "\(name) names a brand")
                 } else if target == "OpenCineRelayApple" {
@@ -199,11 +199,11 @@ import Testing
                     #expect(!text.contains("\u{2014}"), "\(name) has an em dash")
                 } else if target == "OpenCineWatch" {
                     var allowed: Set<String> = [
-                        "Foundation", "OpenCineRelay", "OpenCineApple", "WatchConnectivity", "SwiftUI",
+                        "Foundation", "OpenCineCore", "OpenCineRelay", "OpenCineApple", "WatchConnectivity", "SwiftUI",
                         "WatchKit", "UIKit", "CoreImage", "CoreVideo", "VideoToolbox", "os",
                     ]
                     if name == "WatchMonitorPresentation.swift" {
-                        allowed = ["Foundation"]
+                        allowed = ["Foundation", "OpenCineCore"]
                     } else if name == "WatchUIImagePreviewEncoder.swift" {
                         allowed.formUnion(["ImageIO", "UniformTypeIdentifiers"])
                     }

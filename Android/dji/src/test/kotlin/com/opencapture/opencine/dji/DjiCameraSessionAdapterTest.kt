@@ -53,6 +53,50 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DjiCameraSessionAdapterTest {
+    @Test fun recordingFactsUseReportedDimensionsAndNeverPreviewCodec() = runTest {
+        val port = FakePort()
+        port.capture = DjiCaptureControlState(CameraStatus(resolutionCode = 0x67, fps = 25,
+            colorMode = CameraCommands.COLOR_DLOG2, expoMode = CameraCommands.EXPO_MANUAL), port.state.model)
+        val seam = adapter(port)
+        val format = seam.current.recordingFormat
+        assertEquals(com.opencapture.opencine.core.CameraExposureProgram.MANUAL, seam.current.exposureProgram.value)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(3840, 2880), format.dimensions.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, format.dimensions.origin)
+        assertEquals("D-Log2", format.profile.value)
+        assertNull(format.codec.value, "The preview codec does not declare the recording codec")
+        port.capture = DjiCaptureControlState(CameraStatus(resolutionCode = 0xFF), port.state.model)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingObservations.unknown, seam.current.recordingFormat)
+        assertNull(seam.current.exposureProgram.value)
+        assertTrue(port.fired.isEmpty())
+    }
+
+    /** SIMULATED Nano and Pocket reports: the recording profile reads in each body's colour names. */
+    @Test fun recordingProfileUsesTheBodyColourNames() = runTest {
+        for ((family, expected) in listOf("nano" to "D-Log M 10-bit", "pocket" to "D-Log M")) {
+            val port = FakePort()
+            val base = CameraModel(name = "SIMULATED $family", family = family)
+            val model = base.copy(captureProfile = DjiCaptureCapabilityProfile.make(base))
+            port.state = port.state.copy(model = model)
+            port.capture = DjiCaptureControlState(CameraStatus(colorMode = CameraCommands.COLOR_DLOG_M), model)
+            assertEquals(expected, adapter(port).current.recordingFormat.profile.value, family)
+        }
+    }
+
+    /** SIMULATED existing captured report: a known true charge flag must reach common power. */
+    @Test fun batteryChargingReportsReachCommonPower() = runTest {
+        val port = FakePort()
+        port.state = port.state.copy(batteryPercent = 68)
+        port.capture = DjiCaptureControlState(CameraStatus(charging = true, batteryPercent = 68), port.state.model)
+        val seam = adapter(port)
+        assertEquals(true, seam.current.power.charging.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, seam.current.power.charging.origin)
+        for (reported in listOf(false, true, null)) {
+            port.capture = DjiCaptureControlState(CameraStatus(charging = true, batteryPercent = 68,
+                chargingObservation = reported, chargingObservationDeclared = true), port.state.model)
+            assertEquals(reported, seam.current.power.charging.value)
+        }
+    }
+
     @Test fun legacyTimecodeHelpersRetainSupportAndCompleteFrames() {
         val support: SupportStatus = DjiCameraSessionAdapter.timecodeSupport(null)
         assertEquals(SupportStatus.UNKNOWN, support)

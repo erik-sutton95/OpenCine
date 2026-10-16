@@ -5,9 +5,14 @@ import XCTest
 /// Opt-in qualification against one real camera through the production UI.
 /// App test bundles subclass this class. No review screen, generated media, remote
 /// command endpoint or manufactured camera observation is used.
+///
+/// The cases are synchronous, like every other shared UI flow. A failed XCUI action interrupts the
+/// running case; in an async case XCTest (Xcode 27, iOS 27 devices) then waits forever for the
+/// invocation ("failable invocation block completion"), so the run hung and the teardown never
+/// restored the camera and app settings. A synchronous case unwinds and runs its teardown.
 open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
     @MainActor
-    func testPhysicalMigrationConnectionCapturePlaybackAndSavedRelaunch() async throws {
+    func testPhysicalMigrationConnectionCapturePlaybackAndSavedRelaunch() throws {
         guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
             throw XCTSkip("Requires the opted-in physical migration qualification run")
         }
@@ -16,12 +21,12 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
         #else
         continueAfterFailure = false
         let run = PhysicalMigrationRun(test: self)
-        addTeardownBlock { await run.restore() }
-        try await run.exercise()
+        addTeardownBlock { MainActor.assumeIsolated { run.restore() } }
+        try run.exercise()
         #endif
     }
     @MainActor
-    func testPhysicalBackgroundRecoveryAndFreshNativePicture() async throws {
+    func testPhysicalBackgroundRecoveryAndFreshNativePicture() throws {
         guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
             throw XCTSkip("Requires the opted-in physical migration qualification run")
         }
@@ -30,28 +35,58 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
         #else
         continueAfterFailure = false
         let run = PhysicalMigrationRun(test: self)
-        addTeardownBlock { await run.restore() }
-        try await run.exerciseBackgroundRecoveryAndFreshNativePicture()
-        #endif
-    }
-
-    @MainActor
-    func testPhysicalSettingsRecordingPlaybackReopenAndSavedRelaunch() async throws {
-        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
-            throw XCTSkip("Requires the opted-in physical migration qualification run")
-        }
-        #if targetEnvironment(simulator)
-        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
-        #else
-        continueAfterFailure = false
-        let run = PhysicalMigrationRun(test: self)
-        addTeardownBlock { await run.restore() }
-        try await run.exerciseSettingsRecordingPlaybackReopenAndSavedRelaunch()
+        addTeardownBlock { MainActor.assumeIsolated { run.restore() } }
+        try run.exerciseBackgroundRecoveryAndFreshNativePicture()
         #endif
     }
 
     @MainActor
-    func testPhysicalCapturedOwnClipQueryOrPlaybackReopenAndSavedRelaunch() async throws {
+    func testPhysicalSettingsRecordingPlaybackReopenAndSavedRelaunch() throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_UI_REVIEW"] == "1" else {
+            throw XCTSkip("Requires the opted-in physical migration qualification run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { MainActor.assumeIsolated { run.restore() } }
+        try run.exerciseSettingsRecordingPlaybackReopenAndSavedRelaunch()
+        #endif
+    }
+
+    @MainActor
+    func testPhysicalCameraListDiscovery() throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_ROW_PROBE"] == "1" else {
+            throw XCTSkip("Requires the opted-in read-only discovery run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { MainActor.assumeIsolated { run.restore() } }
+        try run.exerciseCameraListDiscovery()
+        #endif
+    }
+
+    @MainActor
+    func testPhysicalStatusRowReadoutsOnLiveCamera() throws {
+        guard ProcessInfo.processInfo.environment["OPV_PHYSICAL_ROW_PROBE"] == "1" else {
+            throw XCTSkip("Requires the opted-in read-only status row readout run")
+        }
+        #if targetEnvironment(simulator)
+        throw PhysicalMigrationFailure("Physical qualification cannot run on a simulator")
+        #else
+        continueAfterFailure = false
+        let run = PhysicalMigrationRun(test: self)
+        addTeardownBlock { MainActor.assumeIsolated { run.restore() } }
+        try run.exerciseStatusRowReadouts()
+        #endif
+    }
+
+    @MainActor
+    func testPhysicalCapturedOwnClipQueryOrPlaybackReopenAndSavedRelaunch() throws {
         let environment = ProcessInfo.processInfo.environment
         guard environment["OPV_PHYSICAL_UI_REVIEW"] == "1",
             let raw = environment["OPV_PHYSICAL_OWNED_CLIP_JSON"], !raw.isEmpty
@@ -63,8 +98,8 @@ open class PhysicalMigrationQualificationTests: SharedAppUITestCase {
         try request.validate(cameraName: environment["OPV_PHYSICAL_CAMERA_NAME"])
         continueAfterFailure = false
         let run = PhysicalMigrationRun(test: self, bundleIdentifier: request.bundleIdentifier)
-        addTeardownBlock { await run.restore() }
-        try await run.exerciseCapturedOwnClip(request)
+        addTeardownBlock { MainActor.assumeIsolated { run.restore() } }
+        try run.exerciseCapturedOwnClip(request)
         #endif
     }
 
@@ -189,7 +224,7 @@ private struct PhysicalMigrationProbe: Decodable {
         app = XCUIApplication(bundleIdentifier: bundleIdentifier)
     }
 
-    func exercise() async throws {
+    func exercise() throws {
         let environment = ProcessInfo.processInfo.environment
         try require(
             !environment.keys.contains {
@@ -201,28 +236,28 @@ private struct PhysicalMigrationProbe: Decodable {
         XCUIDevice.shared.orientation = .portrait
         let launchedAt = Date().timeIntervalSince1970
         app.launch()
-        try await connectThroughUI(savedOnly: false)
-        let initial = try await freshLive("connected", since: launchedAt)
-        try await reportedRecording(false, source: initial.identity, stage: "connected-idle")
-        try await wait("Initial raw ISO value or automatic intent", timeout: 12) {
+        try connectThroughUI(savedOnly: false)
+        let initial = try freshLive("connected", since: launchedAt)
+        try reportedRecording(false, source: initial.identity, stage: "connected-idle")
+        try wait("Initial raw ISO value or automatic intent", timeout: 12) {
             guard let current = self.observed("live") else { return false }
             if current.cameraISOIsAuto == true { return true }
             return current.cameraISO.map { $0 > 0 } == true
         }
-        _ = try await advancingLive("connected-source-progress", from: initial)
+        _ = try advancingLive("connected-source-progress", from: initial)
         try pictureEvidence("connected-picture", role: "live", identity: initial.identity)
         mark("actual-connection-and-live-picture")
 
-        let before = try await catalogue("before-recording")
-        try await returnToLive("before-recording-return")
-        try await exerciseISO()
-        try await exerciseAssists()
-        try await exerciseSettings()
-        try await exerciseRotation()
-        try await exerciseBackgroundRecovery()
-        try await recordShortClip()
+        let before = try catalogue("before-recording")
+        try returnToLive("before-recording-return")
+        try exerciseISO()
+        try exerciseAssists()
+        try exerciseSettings()
+        try exerciseRotation()
+        try exerciseBackgroundRecovery()
+        try recordShortClip()
 
-        let after = try await catalogue("after-recording")
+        let after = try catalogue("after-recording")
         let added = Set(after.identifiers).subtracting(before.identifiers)
         try require(
             after.count == before.count + 1 && added.count == 1
@@ -232,45 +267,45 @@ private struct PhysicalMigrationProbe: Decodable {
         jsonEvidence("qualification-clip", [
             "identifier": clipID, "before": before.identifiers, "after": after.identifiers,
         ])
-        try await openClip(clipID)
-        let item = try await readyPlayback("qualification-playback")
-        try await exercisePlayback(item, stage: "qualification-playback")
+        try openClip(clipID)
+        let item = try readyPlayback("qualification-playback")
+        try exercisePlayback(item, stage: "qualification-playback")
         mark("own-clip-native-playback")
-        try await tap(app.buttons["monitor.playback.back"], "Back to media")
-        try await wait("Player must retire on return to media", timeout: 10) {
+        try tap(app.buttons["monitor.playback.back"], "Back to media")
+        try wait("Player must retire on return to media", timeout: 10) {
             !self.app.buttons["monitor.playback.back"].exists
         }
-        try await openClip(clipID)
-        let reopened = try await readyPlayback("qualification-playback-reopened")
+        try openClip(clipID)
+        let reopened = try readyPlayback("qualification-playback-reopened")
         try require(reopened.ownerToken != item.ownerToken, "Reopening must admit a fresh playback owner token")
-        try await exercisePlayback(reopened, stage: "qualification-playback-reopened")
+        try exercisePlayback(reopened, stage: "qualification-playback-reopened")
         mark("fresh-playback-item")
-        try await tap(app.buttons["monitor.playback.back"], "Back to media")
-        try await returnToLive("after-playback-return")
+        try tap(app.buttons["monitor.playback.back"], "Back to media")
+        try returnToLive("after-playback-return")
         mark("fresh-live-return")
-        try await exerciseSavedRelaunch(clipID: clipID)
-        try await restoreHaptics()
-        try await restorePalette()
+        try exerciseSavedRelaunch(clipID: clipID)
+        try restoreHaptics()
+        try restorePalette()
         evidence("completed")
         mark("original-settings-restored")
     }
 
     // Scoped entries stay inside this private runner; original helpers are unchanged.
-    func exerciseBackgroundRecoveryAndFreshNativePicture() async throws {
-        try await prepareScopedSavedConnection()
-        try await exerciseBackgroundRecovery()
+    func exerciseBackgroundRecoveryAndFreshNativePicture() throws {
+        try prepareScopedSavedConnection()
+        try exerciseBackgroundRecovery()
         evidence("scoped-background-completed")
     }
 
-    func exerciseSettingsRecordingPlaybackReopenAndSavedRelaunch() async throws {
-        try await prepareScopedSavedConnection()
-        try await captureOriginalISOReadOnly()
-        try await exerciseSettings()
-        let before = try await catalogue("before-recording")
-        try await returnToLive("before-recording-return")
-        try await recordShortClip()
+    func exerciseSettingsRecordingPlaybackReopenAndSavedRelaunch() throws {
+        try prepareScopedSavedConnection()
+        try captureOriginalISOReadOnly()
+        try exerciseSettings()
+        let before = try catalogue("before-recording")
+        try returnToLive("before-recording-return")
+        try recordShortClip()
 
-        let after = try await catalogue("after-recording")
+        let after = try catalogue("after-recording")
         let added = Set(after.identifiers).subtracting(before.identifiers)
         try require(
             after.count == before.count + 1 && added.count == 1
@@ -280,33 +315,127 @@ private struct PhysicalMigrationProbe: Decodable {
         jsonEvidence("qualification-clip", [
             "identifier": clipID, "before": before.identifiers, "after": after.identifiers,
         ])
-        try await openClip(clipID)
-        let item = try await readyPlayback("qualification-playback")
-        try await exercisePlayback(item, stage: "qualification-playback")
+        try openClip(clipID)
+        let item = try readyPlayback("qualification-playback")
+        try exercisePlayback(item, stage: "qualification-playback")
         mark("own-clip-native-playback")
-        try await tap(app.buttons["monitor.playback.back"], "Back to media")
-        try await wait("Player must retire on return to media", timeout: 10) {
+        try tap(app.buttons["monitor.playback.back"], "Back to media")
+        try wait("Player must retire on return to media", timeout: 10) {
             !self.app.buttons["monitor.playback.back"].exists
         }
-        try await openClip(clipID)
-        let reopened = try await readyPlayback("qualification-playback-reopened")
+        try openClip(clipID)
+        let reopened = try readyPlayback("qualification-playback-reopened")
         try require(reopened.ownerToken != item.ownerToken, "Reopening must admit a fresh playback owner token")
-        try await exercisePlayback(reopened, stage: "qualification-playback-reopened")
+        try exercisePlayback(reopened, stage: "qualification-playback-reopened")
         mark("fresh-playback-item")
-        try await tap(app.buttons["monitor.playback.back"], "Back to media")
-        try await returnToLive("after-playback-return")
+        try tap(app.buttons["monitor.playback.back"], "Back to media")
+        try returnToLive("after-playback-return")
         mark("fresh-live-return")
-        try await exerciseSavedRelaunch(clipID: clipID)
-        try await restoreHaptics()
-        let restored = try await freshLive("scoped-settings-restored")
-        try await reportedRecording(false, source: restored.identity, stage: "scoped-settings-restored-idle")
+        try exerciseSavedRelaunch(clipID: clipID)
+        try restoreHaptics()
+        let restored = try freshLive("scoped-settings-restored")
+        try reportedRecording(false, source: restored.identity, stage: "scoped-settings-restored-idle")
         try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
         mark("original-settings-restored")
         evidence("scoped-settings-recording-playback-relaunch-completed")
     }
 
+    // Read-only discovery: what the production cameras page advertises right now.
+    // No connect tap, pairing step, camera write or media operation is issued.
+    func exerciseCameraListDiscovery() throws {
+        let environment = ProcessInfo.processInfo.environment
+        try require(
+            !environment.keys.contains {
+                ($0.hasPrefix("OPV_SIM_") || $0 == "OPV_UI_REVIEW_SCREEN")
+                    && environment[$0]?.isEmpty == false
+            },
+            "Remove simulated-feed and review-screen launch inputs before physical qualification")
+        app.launchEnvironment["OPV_PHYSICAL_UI_REVIEW"] = "1"
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        try wait("Production camera list or live monitor", timeout: 20) {
+            self.answerConnectionAlerts()
+            return self.app.buttons["monitor.system.settings"].isHittable
+                || self.app.buttons["cameras.pair"].isHittable
+        }
+        // Give background discovery (Bluetooth and Wi-Fi scans) a bounded window
+        // before the page contents are recorded.
+        try condition(timeout: 15) {
+            self.answerConnectionAlerts()
+            return self.app.buttons.matching(
+                NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@",
+                    "Connect ", "Reconnect ")).firstMatch.isHittable
+        }
+        let connectRows = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@",
+                "Connect ", "Reconnect ")).allElementsBoundByIndex
+            .filter { !$0.identifier.hasPrefix("pair.") && !$0.identifier.hasPrefix("cameras.setup.") }
+            .map { $0.identifier + "|" + $0.label }
+        let pairRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "pair.device."))
+            .allElementsBoundByIndex.map { $0.identifier + "|" + $0.label }
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "camera-list.ax"; tree.lifetime = .keepAlways; test.add(tree)
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "camera-list.screen"; shot.lifetime = .keepAlways; test.add(shot)
+        jsonEvidence("camera-list", [
+            "at": Date().timeIntervalSince1970,
+            "connectRows": connectRows, "pairRows": pairRows,
+            "liveMonitor": app.buttons["monitor.system.settings"].isHittable,
+        ])
+        mark("camera-list-discovery")
+        evidence("camera-list-recorded")
+        if app.state != .notRunning { app.terminate() }
+    }
+
+    // Read-only status row evidence: a saved connection, the live probe and the
+    // status row exactly as the operator sees it in each orientation. No camera
+    // setting, record or media operation is issued in this exercise.
+    func exerciseStatusRowReadouts() throws {
+        try prepareScopedSavedConnection()
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft, .landscapeRight] {
+            let raw = String(orientation.rawValue)
+            let source = try freshLive("row-before-" + raw)
+            XCUIDevice.shared.orientation = orientation
+            var previous: [CGRect] = []
+            var stableSince = Date()
+            try wait("Rotation must settle with reachable capture controls: " + raw, timeout: 10) {
+                let record = self.app.buttons["monitor.system.record"]
+                // Mid-rotation the record frame can be empty or outside the window, and XCUI
+                // then records a failure instead of answering isHittable: read geometry first.
+                guard (self.app.frame.height > self.app.frame.width) == (orientation == .portrait),
+                    record.exists, !record.frame.isEmpty, self.app.frame.contains(record.frame),
+                    record.isHittable
+                else { return false }
+                let frames = [self.app.frame, record.frame]
+                if frames != previous { previous = frames; stableSince = Date(); return false }
+                return Date().timeIntervalSince(stableSince) >= 0.4
+            }
+            let current = try freshLive("row-live-" + raw)
+            try reportedRecording(false, source: current.identity, stage: "row-idle-" + raw)
+            let name = "status-row." + raw
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = name + ".ax"; tree.lifetime = .keepAlways; test.add(tree)
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = name + ".screen"; shot.lifetime = .keepAlways; test.add(shot)
+            jsonEvidence(name, [
+                "orientation": orientation.rawValue,
+                "at": Date().timeIntervalSince1970,
+                "sourceIdentity": current.identity,
+                "sourceFrameAt": current.frameAt,
+                "cameraISO": current.probe.cameraISO.map { $0 as Any } ?? NSNull(),
+                "cameraISOIsAuto": current.probe.cameraISOIsAuto.map { $0 as Any } ?? NSNull(),
+                "cameraRecording": current.probe.cameraRecording.map { $0 as Any } ?? NSNull(),
+                "nativeDecodeOutputs": current.probe.nativeDecodeOutputs.map { $0 as Any } ?? NSNull(),
+                "sourcePresentations": current.probe.sourcePresentations.map { $0 as Any } ?? NSNull(),
+            ])
+            mark("status-row-" + raw)
+        }
+        evidence("status-row-readouts-completed")
+    }
+
     // Reuses the original playback/relaunch oracles without acquiring record authority.
-    func exerciseCapturedOwnClip(_ request: PhysicalOwnedClipRequest) async throws {
+    func exerciseCapturedOwnClip(_ request: PhysicalOwnedClipRequest) throws {
         let clipID = request.qualificationClip.identifier
         jsonEvidence("owned-clip-prior-proof", [
             "mode": request.mode.rawValue, "bundleIdentifier": request.bundleIdentifier,
@@ -314,10 +443,10 @@ private struct PhysicalMigrationProbe: Decodable {
             "before": request.qualificationClip.before, "after": request.qualificationClip.after,
             "originalOrientation": originalOrientation.rawValue,
         ])
-        try await prepareScopedSavedConnection()
+        try prepareScopedSavedConnection()
         if request.mode == .playback {
-            try await captureOriginalISOReadOnly()
-            try await exerciseSettings()
+            try captureOriginalISOReadOnly()
+            try exerciseSettings()
             guard let originalHaptics, let recordConfirmation, let originalSettingsTab else {
                 throw failure("Captured cleanup preferences are required before owned-clip playback")
             }
@@ -328,7 +457,7 @@ private struct PhysicalMigrationProbe: Decodable {
                 "ISOEvidence": "physical-migration.ISO-original-read-only",
             ])
         }
-        try await openOwnedClipGallery()
+        try openOwnedClipGallery()
         if request.mode == .query {
             let query = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", clipID))
             let clip = query.firstMatch
@@ -343,40 +472,40 @@ private struct PhysicalMigrationProbe: Decodable {
         }
         try require(!recordingStartIssued && !isoDirty,
             "Scoped playback must have no recording or ISO mutation authority")
-        try await openClip(clipID)
-        let item = try await readyPlayback("qualification-playback")
-        try await exercisePlayback(item, stage: "qualification-playback")
+        try openClip(clipID)
+        let item = try readyPlayback("qualification-playback")
+        try exercisePlayback(item, stage: "qualification-playback")
         mark("own-clip-native-playback")
-        try await tap(app.buttons["monitor.playback.back"], "Back to media")
-        try await wait("Player must retire on return to media", timeout: 10) {
+        try tap(app.buttons["monitor.playback.back"], "Back to media")
+        try wait("Player must retire on return to media", timeout: 10) {
             !self.app.buttons["monitor.playback.back"].exists
         }
-        try await openClip(clipID)
-        let reopened = try await readyPlayback("qualification-playback-reopened")
+        try openClip(clipID)
+        let reopened = try readyPlayback("qualification-playback-reopened")
         try require(reopened.ownerToken != item.ownerToken, "Reopening must admit a fresh playback owner token")
-        try await exercisePlayback(reopened, stage: "qualification-playback-reopened")
+        try exercisePlayback(reopened, stage: "qualification-playback-reopened")
         mark("fresh-playback-item")
-        try await tap(app.buttons["monitor.playback.back"], "Back to media")
-        try await returnToLive("after-playback-return")
+        try tap(app.buttons["monitor.playback.back"], "Back to media")
+        try returnToLive("after-playback-return")
         mark("fresh-live-return")
-        try await exerciseSavedRelaunch(clipID: clipID)
-        try await restoreHaptics()
-        let restored = try await freshLive("scoped-settings-restored")
-        try await reportedRecording(false, source: restored.identity, stage: "scoped-settings-restored-idle")
+        try exerciseSavedRelaunch(clipID: clipID)
+        try restoreHaptics()
+        let restored = try freshLive("scoped-settings-restored")
+        try reportedRecording(false, source: restored.identity, stage: "scoped-settings-restored-idle")
         try pictureEvidence("scoped-settings-restored-picture", role: "live", identity: restored.identity)
         mark("original-settings-restored")
         evidence("scoped-owned-clip-playback-relaunch-completed")
     }
 
-    private func openOwnedClipGallery() async throws {
-        let source = try await freshLive("owned-clip-gallery-before")
-        try await reportedRecording(false, source: source.identity, stage: "owned-clip-gallery-idle")
-        try await dismissToLive()
-        try await tap(app.buttons["monitor.system.media"], "Real camera media")
+    private func openOwnedClipGallery() throws {
+        let source = try freshLive("owned-clip-gallery-before")
+        try reportedRecording(false, source: source.identity, stage: "owned-clip-gallery-idle")
+        try dismissToLive()
+        try tap(app.buttons["monitor.system.media"], "Real camera media")
         let gallery = app.scrollViews["monitor.media.gallery"]
-        try await wait("Production media gallery", timeout: 15) { gallery.exists }
+        try wait("Production media gallery", timeout: 15) { gallery.exists }
         let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "monitor.media.category."))
-        try await wait("Media categories", timeout: 10) { categories.count > 0 }
+        try wait("Media categories", timeout: 10) { categories.count > 0 }
         guard let selected = categories.allElementsBoundByIndex.first(where: \.isSelected) else {
             throw failure("Original media category is unknown")
         }
@@ -385,12 +514,12 @@ private struct PhysicalMigrationProbe: Decodable {
         guard let all = categories.allElementsBoundByIndex.first(where: { $0.label == "Show All media" }) else {
             throw failure("The captured clip requires the public All-media category")
         }
-        if !all.isSelected { mediaCategoryDirty = true; try await tap(all, "All media") }
+        if !all.isSelected { mediaCategoryDirty = true; try tap(all, "All media") }
         let filter = app.buttons["monitor.media.filter"]
         try require(filter.exists && filter.value as? String == "Off", "Preserved media filters must permit a complete catalogue")
     }
 
-    private func prepareScopedSavedConnection() async throws {
+    private func prepareScopedSavedConnection() throws {
         let environment = ProcessInfo.processInfo.environment
         try require(
             !environment.keys.contains {
@@ -402,25 +531,25 @@ private struct PhysicalMigrationProbe: Decodable {
         XCUIDevice.shared.orientation = .portrait
         let launchedAt = Date().timeIntervalSince1970
         app.launch()
-        try await connectThroughUI(savedOnly: true)
-        let initial = try await freshLive("connected", since: launchedAt)
-        try await reportedRecording(false, source: initial.identity, stage: "connected-idle")
-        try await wait("Initial raw ISO value or automatic intent", timeout: 12) {
+        try connectThroughUI(savedOnly: true)
+        let initial = try freshLive("connected", since: launchedAt)
+        try reportedRecording(false, source: initial.identity, stage: "connected-idle")
+        try wait("Initial raw ISO value or automatic intent", timeout: 12) {
             guard let current = self.observed("live") else { return false }
             if current.cameraISOIsAuto == true { return true }
             return current.cameraISO.map { $0 > 0 } == true
         }
-        _ = try await advancingLive("connected-source-progress", from: initial)
+        _ = try advancingLive("connected-source-progress", from: initial)
         try pictureEvidence("connected-picture", role: "live", identity: initial.identity)
         mark("actual-connection-and-live-picture")
     }
 
-    private func captureOriginalISOReadOnly() async throws {
-        let source = try await freshLive("ISO-baseline-before")
-        try await reportedRecording(false, source: source.identity, stage: "ISO-baseline-idle")
-        try await tap(app.buttons["monitor.capture.iso"], "Read original ISO setting")
+    private func captureOriginalISOReadOnly() throws {
+        let source = try freshLive("ISO-baseline-before")
+        try reportedRecording(false, source: source.identity, stage: "ISO-baseline-idle")
+        try tap(app.buttons["monitor.capture.iso"], "Read original ISO setting")
         let drum = app.descendants(matching: .any)["Value"].firstMatch
-        try await wait("Reported original ISO detent", timeout: 8) { drum.isHittable }
+        try wait("Reported original ISO detent", timeout: 8) { drum.isHittable }
         let captured: OriginalISO
         if source.probe.cameraISOIsAuto == true {
             guard let label = drum.value as? String, !label.isEmpty, label != "Not set",
@@ -451,43 +580,43 @@ private struct PhysicalMigrationProbe: Decodable {
         }
         originalISO = captured
         evidence("ISO-original-read-only")
-        try await tap(app.buttons["monitor.capture.close"], "Close original ISO setting")
-        _ = try await advancingLive("ISO-baseline-live-owner", from: source)
+        try tap(app.buttons["monitor.capture.close"], "Close original ISO setting")
+        _ = try advancingLive("ISO-baseline-live-owner", from: source)
         mark("read-only-original-ISO-baseline")
     }
 
     // Only the start issued here grants stop authority. An unknown report or a
     // different native source never grants permission to stop another recording.
-    func restore() async {
+    func restore() {
         // One failed restoration must not prevent attempts to restore the other
         // settings. The main flow still stops at its first failed requirement.
         test.continueAfterFailure = true
         if app.state != .notRunning && app.state != .runningForeground { app.activate() }
-        await cleanup("recording") {
+        cleanup("recording") {
             guard self.recordingStartIssued else { return }
-            try await self.dismissToLive()
+            try self.dismissToLive()
             guard let captured = self.recordingSourceIdentity,
                 let current = self.observed("live"),
                 current.sourceIdentity == captured, current.sourceActive == true,
                 current.cameraRecording != nil
             else { throw self.failure("Cannot safely stop: the captured recording source/report is unavailable") }
-            if current.cameraRecording == true { try await self.setRecording(false, source: captured) }
+            if current.cameraRecording == true { try self.setRecording(false, source: captured) }
             self.recordingStartIssued = false
         }
-        await cleanup("ISO") { if self.isoDirty { try await self.restoreISO() } }
+        cleanup("ISO") { if self.isoDirty { try self.restoreISO() } }
         for identifier in dirtyAssists.sorted() {
-            await cleanup(identifier) { try await self.restoreAssist(identifier) }
+            cleanup(identifier) { try self.restoreAssist(identifier) }
         }
-        await cleanup("Haptics") { if self.hapticsDirty { try await self.restoreHaptics() } }
-        await cleanup("media category") { if self.mediaCategoryDirty { try await self.restoreMediaCategory() } }
-        await cleanup("assist palette") { try await self.restorePalette() }
+        cleanup("Haptics") { if self.hapticsDirty { try self.restoreHaptics() } }
+        cleanup("media category") { if self.mediaCategoryDirty { try self.restoreMediaCategory() } }
+        cleanup("assist palette") { try self.restorePalette() }
         jsonEvidence("stage-ledger", ["completedStages": completedStages])
         if app.state != .notRunning { app.terminate() }
         XCUIDevice.shared.orientation = originalOrientation
     }
 
-    private func connectThroughUI(savedOnly: Bool) async throws {
-        try await wait("Production camera list or live monitor", timeout: 20) {
+    private func connectThroughUI(savedOnly: Bool) throws {
+        try wait("Production camera list or live monitor", timeout: 20) {
             self.answerConnectionAlerts()
             return self.app.buttons["monitor.system.settings"].isHittable
                 || self.app.buttons["cameras.pair"].isHittable
@@ -500,10 +629,10 @@ private struct PhysicalMigrationProbe: Decodable {
         // A launch may reconnect automatically. Exercise the real saved-row
         // action anyway, after confirming idle and explicitly disconnecting.
         if app.buttons["monitor.system.settings"].isHittable {
-            let source = try await freshLive("auto-reconnected-source")
-            try await reportedRecording(false, source: source.identity, stage: "auto-reconnected-idle")
-            try await tap(app.buttons["monitor.system.settings"], "Operator Setup")
-            try await tap(app.buttons["monitor.system.disconnect"], "Disconnect idle session")
+            let source = try freshLive("auto-reconnected-source")
+            try reportedRecording(false, source: source.identity, stage: "auto-reconnected-idle")
+            try tap(app.buttons["monitor.system.settings"], "Operator Setup")
+            try tap(app.buttons["monitor.system.disconnect"], "Disconnect idle session")
         }
         let configuredName = ProcessInfo.processInfo.environment["OPV_PHYSICAL_CAMERA_NAME"]
         let wanted = selectedCameraName ?? configuredName
@@ -511,7 +640,7 @@ private struct PhysicalMigrationProbe: Decodable {
         var openedPairing = false
         var selectedPairDevice = false
         var pairingActions: Set<String> = []
-        try await wait("Actual saved/pair UI connection", timeout: 90) {
+        try wait("Actual saved/pair UI connection", timeout: 90) {
             self.answerConnectionAlerts()
             if selected && self.app.buttons["monitor.system.settings"].isHittable { return true }
             if !selected {
@@ -588,12 +717,12 @@ private struct PhysicalMigrationProbe: Decodable {
         }
     }
 
-    private func exerciseISO() async throws {
-        let source = try await freshLive("ISO-before")
-        try await reportedRecording(false, source: source.identity, stage: "ISO-idle")
-        try await tap(app.buttons["monitor.capture.iso"], "ISO control")
+    private func exerciseISO() throws {
+        let source = try freshLive("ISO-before")
+        try reportedRecording(false, source: source.identity, stage: "ISO-idle")
+        try tap(app.buttons["monitor.capture.iso"], "ISO control")
         let drum = app.descendants(matching: .any)["Value"].firstMatch
-        try await wait("Reported ISO detent", timeout: 8) { drum.isHittable }
+        try wait("Reported ISO detent", timeout: 8) { drum.isHittable }
         isoSourceIdentity = source.identity
         if source.probe.cameraISOIsAuto == true {
             guard let label = drum.value as? String, !label.isEmpty, label != "Not set",
@@ -602,8 +731,8 @@ private struct PhysicalMigrationProbe: Decodable {
             originalISO = .automatic(drumLabel: label)
             isoDirty = true
             evidence("ISO-original-automatic")
-            try await tap(app.buttons["Manual"].firstMatch, "Explicit supported Manual ISO mode")
-            try await wait("Raw Manual ISO and supported numeric detent", timeout: 12) {
+            try tap(app.buttons["Manual"].firstMatch, "Explicit supported Manual ISO mode")
+            try wait("Raw Manual ISO and supported numeric detent", timeout: 12) {
                 guard let current = self.observed("live"),
                     current.sourceIdentity == source.identity, current.cameraISOIsAuto == false,
                     let label = drum.value as? String, let value = Int(label), value > 0
@@ -626,11 +755,11 @@ private struct PhysicalMigrationProbe: Decodable {
         evidence("ISO-original")
         var direction: CGFloat = 1
         step(drum, direction: direction)
-        if !(await condition(timeout: 2, { drum.value as? String != String(manual) })) {
+        if !(condition(timeout: 2, { drum.value as? String != String(manual) })) {
             direction = -1
             step(drum, direction: direction)
         }
-        try await wait("Adjacent supported ISO detent", timeout: 5) {
+        try wait("Adjacent supported ISO detent", timeout: 5) {
             guard let value = drum.value as? String, let iso = Int(value) else { return false }
             return iso > 0 && iso != manual
         }
@@ -638,36 +767,36 @@ private struct PhysicalMigrationProbe: Decodable {
             throw failure("The supported adjacent ISO value is unavailable")
         }
         let manualReport: Bool? = source.probe.cameraISOIsAuto == nil ? nil : false
-        try await reportedISO(changed, source: source.identity, isAuto: manualReport, stage: "ISO-adjacent-reported")
+        try reportedISO(changed, source: source.identity, isAuto: manualReport, stage: "ISO-adjacent-reported")
         evidence("ISO-adjacent")
         step(drum, direction: -direction)
-        try await wait("Original manual ISO detent restored", timeout: 5) { drum.value as? String == String(manual) }
-        try await reportedISO(manual, source: source.identity, isAuto: manualReport, stage: "ISO-manual-detent-restored")
-        try await restoreOriginalISO(drum: drum, source: source.identity)
-        try await tap(app.buttons["monitor.capture.close"], "Close ISO")
-        _ = try await advancingLive("ISO-live-owner", from: source)
+        try wait("Original manual ISO detent restored", timeout: 5) { drum.value as? String == String(manual) }
+        try reportedISO(manual, source: source.identity, isAuto: manualReport, stage: "ISO-manual-detent-restored")
+        try restoreOriginalISO(drum: drum, source: source.identity)
+        try tap(app.buttons["monitor.capture.close"], "Close ISO")
+        _ = try advancingLive("ISO-live-owner", from: source)
         mark("supported-ISO-change-and-raw-restoration")
     }
 
-    private func restoreISO() async throws {
-        try await dismissToLive()
+    private func restoreISO() throws {
+        try dismissToLive()
         guard originalISO != nil, let captured = isoSourceIdentity,
             let current = observed("live"), current.sourceIdentity == captured,
             current.sourceActive == true, current.cameraRecording == false
         else { throw failure("Original ISO restoration requires its captured idle source") }
-        try await tap(app.buttons["monitor.capture.iso"], "Restore ISO")
+        try tap(app.buttons["monitor.capture.iso"], "Restore ISO")
         let drum = app.descendants(matching: .any)["Value"].firstMatch
-        try await wait("ISO restoration drum", timeout: 8) { drum.isHittable }
-        try await restoreOriginalISO(drum: drum, source: captured)
-        try await tap(app.buttons["monitor.capture.close"], "Close restored ISO")
+        try wait("ISO restoration drum", timeout: 8) { drum.isHittable }
+        try restoreOriginalISO(drum: drum, source: captured)
+        try tap(app.buttons["monitor.capture.close"], "Close restored ISO")
     }
 
-    private func restoreOriginalISO(drum: XCUIElement, source: String) async throws {
+    private func restoreOriginalISO(drum: XCUIElement, source: String) throws {
         guard let originalISO else { throw failure("Original ISO setting was not captured") }
         switch originalISO {
         case .manual(let value, let isAuto):
             if app.buttons["Manual"].firstMatch.exists && !app.buttons["Manual"].firstMatch.isSelected {
-                try await tap(app.buttons["Manual"].firstMatch, "Restore Manual ISO mode")
+                try tap(app.buttons["Manual"].firstMatch, "Restore Manual ISO mode")
             }
             for _ in 0..<64 {
                 guard let label = drum.value as? String, let current = Int(label) else {
@@ -675,21 +804,21 @@ private struct PhysicalMigrationProbe: Decodable {
                 }
                 if current == value { break }
                 step(drum, direction: current < value ? 1 : -1)
-                try await wait("ISO restoration detent must settle", timeout: 4) { drum.value as? String != label }
+                try wait("ISO restoration detent must settle", timeout: 4) { drum.value as? String != label }
             }
             try require(drum.value as? String == String(value), "Original ISO must remain supported")
-            try await reportedISO(value, source: source, isAuto: isAuto, stage: "ISO-original-reported")
+            try reportedISO(value, source: source, isAuto: isAuto, stage: "ISO-original-reported")
         case .automatic(let label):
-            try await tap(app.buttons["Auto"].firstMatch, "Restore original Auto ISO intent")
-            try await wait("Raw original Auto ISO mode", timeout: 12) {
+            try tap(app.buttons["Auto"].firstMatch, "Restore original Auto ISO intent")
+            try wait("Raw original Auto ISO mode", timeout: 12) {
                 guard let current = self.observed("live"), current.sourceIdentity == source,
                     current.cameraISOIsAuto == true, current.cameraRecording == false
                 else { return false }
                 if let iso = current.cameraISO { return iso > 0 }
                 return true
             }
-            try await selectOriginalAutomaticLabel(label, drum: drum)
-            let restored = try await freshLive("ISO-original-automatic-reported")
+            try selectOriginalAutomaticLabel(label, drum: drum)
+            let restored = try freshLive("ISO-original-automatic-reported")
             try require(restored.identity == source && restored.probe.cameraISOIsAuto == true,
                 "Automatic ISO must be restored by raw report, never a fixed invented numeric value")
         }
@@ -697,7 +826,7 @@ private struct PhysicalMigrationProbe: Decodable {
         evidence("ISO-original-setting-restored")
     }
 
-    private func selectOriginalAutomaticLabel(_ wanted: String, drum: XCUIElement) async throws {
+    private func selectOriginalAutomaticLabel(_ wanted: String, drum: XCUIElement) throws {
         // Manual selection normally leaves the Auto range untouched. If the
         // camera changes it, find the original in the actual bounded drum.
         for direction in [CGFloat(1), CGFloat(-1)] {
@@ -707,7 +836,7 @@ private struct PhysicalMigrationProbe: Decodable {
                 }
                 if current == wanted { return }
                 step(drum, direction: direction)
-                if !(await condition(timeout: 2, { drum.value as? String != current })) { break }
+                if !(condition(timeout: 2, { drum.value as? String != current })) { break }
             }
         }
         throw failure("Original Auto ISO range is no longer supported: " + wanted)
@@ -719,68 +848,68 @@ private struct PhysicalMigrationProbe: Decodable {
         center.press(forDuration: 0.1, thenDragTo: center.withOffset(CGVector(dx: -direction * 56, dy: 0)))
     }
 
-    private func exerciseAssists() async throws {
-        try await revealPalette()
+    private func exerciseAssists() throws {
+        try revealPalette()
         for identifier in ["monitor.assist.PEAK", "monitor.assist.FALSE"] {
-            let source = try await freshLive("assist-before")
+            let source = try freshLive("assist-before")
             let button = app.buttons[identifier]
             try require(button.isHittable, "Required common assist is unavailable: " + identifier)
             let original = try switchValue(button)
             originalAssists[identifier] = original
             dirtyAssists.insert(identifier)
             button.tap()
-            try await wait("Assist must toggle through its public control", timeout: 5) {
+            try wait("Assist must toggle through its public control", timeout: 5) {
                 button.value as? String == (original == "On" ? "Off" : "On")
             }
-            _ = try await advancingLive("assist-enabled-owner", from: source)
-            try await restoreAssist(identifier)
+            _ = try advancingLive("assist-enabled-owner", from: source)
+            try restoreAssist(identifier)
         }
-        let source = try await freshLive("assist-inspector-before")
-        try await revealPalette()
+        let source = try freshLive("assist-inspector-before")
+        try revealPalette()
         app.buttons["monitor.assist.FALSE"].press(forDuration: 0.6)
-        try await wait("Common assist inspector", timeout: 5) { self.app.otherElements["monitor.inspector"].exists }
+        try wait("Common assist inspector", timeout: 5) { self.app.otherElements["monitor.inspector"].exists }
         for title in ["False Color", "Zebra", "Peaking"] {
-            try await tap(app.buttons[title].firstMatch, "Assist inspector " + title)
-            try await wait("Inspector close control " + title, timeout: 5) {
+            try tap(app.buttons[title].firstMatch, "Assist inspector " + title)
+            try wait("Inspector close control " + title, timeout: 5) {
                 self.app.buttons["Close " + title].isHittable
             }
             evidence("assist-inspector-" + title)
         }
-        try await tap(app.buttons["Close Peaking"], "Close assist inspector")
-        _ = try await advancingLive("assist-inspector-owner", from: source)
+        try tap(app.buttons["Close Peaking"], "Close assist inspector")
+        _ = try advancingLive("assist-inspector-owner", from: source)
         mark("operator-assists-and-inspector")
     }
 
-    private func restoreAssist(_ identifier: String) async throws {
-        try await dismissToLive()
-        try await revealPalette()
+    private func restoreAssist(_ identifier: String) throws {
+        try dismissToLive()
+        try revealPalette()
         guard let original = originalAssists[identifier] else { return }
         let button = app.buttons[identifier]
         let current = try switchValue(button)
-        if current != original { try await tap(button, "Restore " + identifier) }
-        try await wait("Original assist restored", timeout: 5) { button.value as? String == original }
+        if current != original { try tap(button, "Restore " + identifier) }
+        try wait("Original assist restored", timeout: 5) { button.value as? String == original }
         dirtyAssists.remove(identifier)
     }
 
-    private func revealPalette() async throws {
+    private func revealPalette() throws {
         let button = paletteHandle
-        try await wait("Assist palette control", timeout: 8) { button.isHittable }
+        try wait("Assist palette control", timeout: 8) { button.isHittable }
         guard button.label == "Show all View Assist tools" || button.label == "Collapse View Assist tools" else {
             throw failure("Assist expansion state must be explicit")
         }
         if originalPaletteExpanded == nil { originalPaletteExpanded = button.label == "Collapse View Assist tools" }
         if button.label == "Show all View Assist tools" { button.tap() }
-        try await wait("Expanded assist palette", timeout: 5) { button.label == "Collapse View Assist tools" }
+        try wait("Expanded assist palette", timeout: 5) { button.label == "Collapse View Assist tools" }
     }
 
-    private func restorePalette() async throws {
+    private func restorePalette() throws {
         guard let originalPaletteExpanded else { return }
-        try await dismissToLive()
+        try dismissToLive()
         let button = paletteHandle
-        try await wait("Palette restoration control", timeout: 8) { button.isHittable }
+        try wait("Palette restoration control", timeout: 8) { button.isHittable }
         let wanted = originalPaletteExpanded ? "Collapse View Assist tools" : "Show all View Assist tools"
         if button.label != wanted { button.tap() }
-        try await wait("Original palette presentation restored", timeout: 5) { button.label == wanted }
+        try wait("Original palette presentation restored", timeout: 5) { button.label == wanted }
     }
 
     private var paletteHandle: XCUIElement {
@@ -788,29 +917,29 @@ private struct PhysicalMigrationProbe: Decodable {
             ["monitor.assists.expand", "monitor.assists.collapse"])).firstMatch
     }
 
-    private func exerciseSettings() async throws {
-        let source = try await freshLive("settings-before")
-        try await openControlsSettings()
+    private func exerciseSettings() throws {
+        let source = try freshLive("settings-before")
+        try openControlsSettings()
         let haptics = app.buttons["Haptics"].firstMatch
         let original = try switchValue(haptics)
         originalHaptics = original
         recordConfirmation = try switchValue(app.buttons["Record confirmation"].firstMatch) == "On"
         hapticsDirty = true
-        try await tap(haptics, "Change common Haptics preference")
-        try await wait("Changed preference", timeout: 5) {
+        try tap(haptics, "Change common Haptics preference")
+        try wait("Changed preference", timeout: 5) {
             haptics.value as? String == (original == "On" ? "Off" : "On")
         }
         evidence("settings-changed")
-        try await closeSettings()
-        _ = try await advancingLive("settings-preserved-owner", from: source)
+        try closeSettings()
+        _ = try advancingLive("settings-preserved-owner", from: source)
         mark("settings-cover-preserves-live-owner")
     }
 
-    private func openControlsSettings() async throws {
-        try await dismissToLive()
-        try await tap(app.buttons["monitor.system.settings"], "Operator Setup")
+    private func openControlsSettings() throws {
+        try dismissToLive()
+        try tap(app.buttons["monitor.system.settings"], "Operator Setup")
         let tabs = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "monitor.settings.tab."))
-        try await wait("Operator settings tabs", timeout: 8) { tabs.count > 0 }
+        try wait("Operator settings tabs", timeout: 8) { tabs.count > 0 }
         if originalSettingsTab == nil {
             guard let selected = tabs.allElementsBoundByIndex.first(where: \.isSelected) else {
                 throw failure("Original settings tab is unavailable")
@@ -819,83 +948,88 @@ private struct PhysicalMigrationProbe: Decodable {
         }
         let controls = app.buttons["monitor.settings.tab.Controls"]
         try reveal(controls, in: app.scrollViews["monitor.settings.tabs"], horizontal: true)
-        try await tap(controls, "Controls settings")
+        try tap(controls, "Controls settings")
         let haptics = app.buttons["Haptics"].firstMatch
         let content = app.scrollViews.allElementsBoundByIndex.first { $0.buttons["Haptics"].exists }
         if let content { try reveal(haptics, in: content, horizontal: false) }
         try require(haptics.isHittable, "Common Haptics setting must be reachable")
     }
 
-    private func closeSettings() async throws {
+    private func closeSettings() throws {
         if let originalSettingsTab {
             let tab = app.buttons[originalSettingsTab]
             try reveal(tab, in: app.scrollViews["monitor.settings.tabs"], horizontal: true)
-            try await tap(tab, "Restore original settings tab")
+            try tap(tab, "Restore original settings tab")
         }
-        try await tap(app.buttons["monitor.page.back"], "Back to live from settings")
+        try tap(app.buttons["monitor.page.back"], "Back to live from settings")
     }
 
-    private func restoreHaptics() async throws {
+    private func restoreHaptics() throws {
         guard hapticsDirty, let originalHaptics else { return }
-        try await openControlsSettings()
+        try openControlsSettings()
         let button = app.buttons["Haptics"].firstMatch
-        if try switchValue(button) != originalHaptics { try await tap(button, "Restore Haptics") }
-        try await wait("Original Haptics restored", timeout: 5) { button.value as? String == originalHaptics }
+        if try switchValue(button) != originalHaptics { try tap(button, "Restore Haptics") }
+        try wait("Original Haptics restored", timeout: 5) { button.value as? String == originalHaptics }
         hapticsDirty = false
         evidence("settings-original-restored")
-        try await closeSettings()
+        try closeSettings()
     }
 
-    private func exerciseRotation() async throws {
+    private func exerciseRotation() throws {
         for orientation in [UIDeviceOrientation.landscapeLeft, .landscapeRight, .portrait] {
-            let source = try await freshLive("rotation-before")
+            let source = try freshLive("rotation-before")
             XCUIDevice.shared.orientation = orientation
             let portrait = orientation == .portrait
             var previous: [CGRect] = []
             var stableSince = Date()
-            try await wait("Rotation must settle with reachable capture controls", timeout: 10) {
+            try wait("Rotation must settle with reachable capture controls", timeout: 10) {
+                let appFrame = self.app.frame
+                guard (appFrame.height > appFrame.width) == portrait else { return false }
                 let record = self.app.buttons["monitor.system.record"]
-                guard record.isHittable, self.app.frame.contains(record.frame),
-                    (self.app.frame.height > self.app.frame.width) == portrait
-                else { return false }
-                let frames = [self.app.frame, record.frame]
+                guard record.exists else { return false }
+                let recordFrame = record.frame
+                guard !recordFrame.isEmpty, appFrame.contains(recordFrame) else { return false }
+                let frames = [appFrame, recordFrame]
                 if frames != previous { previous = frames; stableSince = Date(); return false }
-                return Date().timeIntervalSince(stableSince) >= 0.4
+                // XCTest can abort on an invalid activation point while rotation is still laying
+                // out. Read hittability only after the expected orientation and frames settle.
+                guard Date().timeIntervalSince(stableSince) >= 0.4 else { return false }
+                return record.isHittable
             }
-            _ = try await advancingLive("rotation-owner-" + String(orientation.rawValue), from: source)
+            _ = try advancingLive("rotation-owner-" + String(orientation.rawValue), from: source)
             try pictureEvidence("rotation-picture-" + String(orientation.rawValue), role: "live", identity: source.identity)
         }
         mark("rotation-preserves-live-owner")
     }
 
-    private func exerciseBackgroundRecovery() async throws {
-        let source = try await freshLive("background-before")
+    private func exerciseBackgroundRecovery() throws {
+        let source = try freshLive("background-before")
         evidence("background-before")
         XCUIDevice.shared.press(.home)
-        try await wait("Actual background lifecycle", timeout: 8) {
+        try wait("Actual background lifecycle", timeout: 8) {
             self.app.state == .runningBackground || self.app.state == .runningBackgroundSuspended
         }
         let foregroundAt = Date().timeIntervalSince1970
         app.activate()
-        try await wait("Actual foreground lifecycle", timeout: 8) { self.app.state == .runningForeground }
-        let recovered = try await freshLive("foreground-recovered", since: foregroundAt)
+        try wait("Actual foreground lifecycle", timeout: 8) { self.app.state == .runningForeground }
+        let recovered = try freshLive("foreground-recovered", since: foregroundAt)
         try require(recovered.frameAt > source.frameAt, "Foreground must not reuse the old source frame date")
         if recovered.identity == source.identity {
             try require(countersAdvanced(recovered.probe, after: source.probe), "Available source counters must advance")
         }
-        try await reportedRecording(false, source: recovered.identity, stage: "foreground-idle")
+        try reportedRecording(false, source: recovered.identity, stage: "foreground-idle")
         try pictureEvidence("foreground-picture", role: "live", identity: recovered.identity)
         mark("background-and-fresh-source-recovery")
     }
 
-    private func recordShortClip() async throws {
-        let source = try await freshLive("recording-before")
-        try await reportedRecording(false, source: source.identity, stage: "recording-idle")
-        try await setRecording(true, source: source.identity)
+    private func recordShortClip() throws {
+        let source = try freshLive("recording-before")
+        try reportedRecording(false, source: source.identity, stage: "recording-idle")
+        try setRecording(true, source: source.identity)
         let confirmedAt = ProcessInfo.processInfo.systemUptime
         evidence("short-recording-confirmed-by-raw-camera-report")
         var interrupted = false
-        try await wait("Camera must remain recording for approximately two seconds", timeout: 5) {
+        try wait("Camera must remain recording for approximately two seconds", timeout: 5) {
             guard let current = self.observed("live"),
                 let live = self.liveSource(current), live.identity == source.identity,
                 current.cameraRecording == true, live.frameAt > source.frameAt
@@ -903,39 +1037,39 @@ private struct PhysicalMigrationProbe: Decodable {
             return ProcessInfo.processInfo.systemUptime - confirmedAt >= 2
         }
         try require(!interrupted, "A lost source or raw recording report invalidates the continuous short recording")
-        try await setRecording(false, source: source.identity)
+        try setRecording(false, source: source.identity)
         recordingStartIssued = false
         evidence("short-recording-stopped-by-camera-report")
         mark("short-camera-confirmed-recording")
     }
 
-    private func setRecording(_ start: Bool, source: String) async throws {
+    private func setRecording(_ start: Bool, source: String) throws {
         guard let confirmation = recordConfirmation else { throw failure("Record confirmation preference is unknown") }
-        try await reportedRecording(!start, source: source, stage: start ? "start-admission" : "stop-admission")
+        try reportedRecording(!start, source: source, stage: start ? "start-admission" : "stop-admission")
         let button = app.buttons["monitor.system.record"]
         try require(
             button.label == (start ? "Start recording" : "Stop recording"),
             "The public record action must match the raw camera report")
         if start { recordingSourceIdentity = source }
         if start && !confirmation { recordingStartIssued = true }
-        try await tap(button, start ? "Start recording" : "Stop owned recording")
+        try tap(button, start ? "Start recording" : "Stop owned recording")
         if confirmation {
             let confirm = app.buttons[start ? "Start" : "Stop"].firstMatch
-            try await wait("Public recording confirmation", timeout: 5) { confirm.isHittable }
-            try await reportedRecording(!start, source: source, stage: "record-confirmation-admission")
+            try wait("Public recording confirmation", timeout: 5) { confirm.isHittable }
+            try reportedRecording(!start, source: source, stage: "record-confirmation-admission")
             if start { recordingStartIssued = true }
-            try await tap(confirm, "Confirm recording action")
+            try tap(confirm, "Confirm recording action")
         }
-        try await reportedRecording(start, source: source, stage: start ? "recording-confirmed" : "recording-stopped")
+        try reportedRecording(start, source: source, stage: start ? "recording-confirmed" : "recording-stopped")
     }
 
-    private func catalogue(_ stage: String) async throws -> Catalogue {
-        try await dismissToLive()
-        try await tap(app.buttons["monitor.system.media"], "Real camera media")
+    private func catalogue(_ stage: String) throws -> Catalogue {
+        try dismissToLive()
+        try tap(app.buttons["monitor.system.media"], "Real camera media")
         let gallery = app.scrollViews["monitor.media.gallery"]
-        try await wait("Production media gallery", timeout: 15) { gallery.exists }
+        try wait("Production media gallery", timeout: 15) { gallery.exists }
         let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "monitor.media.category."))
-        try await wait("Media categories", timeout: 10) { categories.count > 0 }
+        try wait("Media categories", timeout: 10) { categories.count > 0 }
         if originalMediaCategory == nil {
             guard let selected = categories.allElementsBoundByIndex.first(where: \.isSelected) else {
                 throw failure("Original media category is unknown")
@@ -944,17 +1078,17 @@ private struct PhysicalMigrationProbe: Decodable {
         }
         let all = categories.allElementsBoundByIndex.first { $0.label == "Show All media" }
         guard let all else { throw failure("A complete All-media catalogue is required") }
-        if !all.isSelected { mediaCategoryDirty = true; try await tap(all, "All media") }
+        if !all.isSelected { mediaCategoryDirty = true; try tap(all, "All media") }
         let filter = app.buttons["monitor.media.filter"]
         try require(filter.exists && filter.value as? String == "Off", "Preserved media filters must permit a complete catalogue")
-        try await scrollGalleryToTop(gallery)
+        try scrollGalleryToTop(gallery)
         let loading = app.staticTexts.matching(NSPredicate(
             format: "label BEGINSWITH[c] %@ OR label BEGINSWITH[c] %@ OR label BEGINSWITH[c] %@",
             "Listing", "Loading", "Scanning")).firstMatch
         var count: Int?
         var previousCount: Int?
         var settledAt = Date()
-        try await wait("Complete camera catalogue count", timeout: 45) {
+        try wait("Complete camera catalogue count", timeout: 45) {
             guard !loading.exists else { settledAt = Date(); return false }
             count = self.categoryCount(all)
             if count != previousCount { previousCount = count; settledAt = Date(); return false }
@@ -983,7 +1117,7 @@ private struct PhysicalMigrationProbe: Decodable {
             if identifiers.count == count { break }
             try require(identifiers.count < count, "Catalogue identifiers exceed its declared All count")
             gallery.swipeUp()
-            try await settleGallery(gallery)
+            try settleGallery(gallery)
         }
         try require(identifiers.count == count, "Every pre-existing asset must be inventoried; a partial screen is insufficient")
         try require(categoryCount(all) == count, "Catalogue must remain stable during its inventory")
@@ -1006,7 +1140,7 @@ private struct PhysicalMigrationProbe: Decodable {
         ).allElementsBoundByIndex.filter(\.exists)
     }
 
-    private func settleGallery(_ gallery: XCUIElement) async throws {
+    private func settleGallery(_ gallery: XCUIElement) throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 5
         var previous = ""
         var stableSince = Date()
@@ -1021,7 +1155,6 @@ private struct PhysicalMigrationProbe: Decodable {
             let settled = predicate()
             guard ProcessInfo.processInfo.systemUptime < deadline else { break }
             if settled { return }
-            await Task.yield()
         }
         throw failure("Native gallery scroll must settle" + (lastProbeFailure.map { ". " + $0 } ?? ""))
     }
@@ -1074,7 +1207,7 @@ private struct PhysicalMigrationProbe: Decodable {
         return String(data: data, encoding: .utf8)
     }
 
-    private func openClip(_ identifier: String) async throws {
+    private func openClip(_ identifier: String) throws {
         let gallery = app.scrollViews["monitor.media.gallery"]
         try require(gallery.exists, "Clip selection requires the public camera catalogue")
         let clip = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
@@ -1089,7 +1222,7 @@ private struct PhysicalMigrationProbe: Decodable {
             let point = CGPoint(x: cell.minX + cell.width * 0.5, y: cell.minY + cell.height * 0.35)
             return viewport.contains(point)
         }
-        for _ in 0..<160 where !artworkTargetIsReachable() { gallery.swipeDown(); try await settleGallery(gallery) }
+        for _ in 0..<160 where !artworkTargetIsReachable() { gallery.swipeDown(); try settleGallery(gallery) }
         try require(artworkTargetIsReachable(), "New qualification clip artwork must be publicly reachable in its gallery")
         let filenames = Set(clip.staticTexts.allElementsBoundByIndex.map(\.label).filter {
             $0.range(of: #"^.+\.[A-Za-z][A-Za-z0-9]{1,7}$"#, options: .regularExpression) != nil
@@ -1104,19 +1237,19 @@ private struct PhysicalMigrationProbe: Decodable {
         evidence("qualification-clip-selected")
         try require(artworkTargetIsReachable(), "The qualification artwork tap must remain inside its gallery")
         clip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
-        try await wait("Native player for the selected qualification filename", timeout: 45) {
+        try wait("Native player for the selected qualification filename", timeout: 45) {
             self.app.buttons["monitor.playback.back"].isHittable && self.app.staticTexts[filename].firstMatch.exists
         }
         jsonEvidence("qualification-playback-selection", ["identifier": identifier, "filename": filename])
     }
 
-    private func scrollGalleryToTop(_ gallery: XCUIElement) async throws {
+    private func scrollGalleryToTop(_ gallery: XCUIElement) throws {
         // Restored gallery scroll positions must not hide existing assets from
         // the inventory. A stationary visible signature bounds the top search.
         for _ in 0..<160 {
             let before = gallerySignature()
             gallery.swipeDown()
-            try await settleGallery(gallery)
+            try settleGallery(gallery)
             if gallerySignature() == before { return }
         }
         throw failure("The bounded catalogue traversal did not reach its beginning")
@@ -1128,22 +1261,22 @@ private struct PhysicalMigrationProbe: Decodable {
         }.joined(separator: "|")
     }
 
-    private func exercisePlayback(_ item: PlaybackSource, stage: String) async throws {
-        try await restartPlayback(item)
-        let before = try await readyPlayback(stage + "-before", captured: item)
-        try await wait("Actual native playback position advances", timeout: 5) {
+    private func exercisePlayback(_ item: PlaybackSource, stage: String) throws {
+        try restartPlayback(item)
+        let before = try readyPlayback(stage + "-before", captured: item)
+        try wait("Actual native playback position advances", timeout: 5) {
             guard let current = self.playbackSource(self.observed("playback")) else { return false }
             return current.matches(item) && current.position > before.position + 0.15
         }
         try pictureEvidence(stage + "-picture", role: "playback", identity: item.identity, ownerToken: item.ownerToken)
         // Reset the short clip before testing transport so reaching its natural
         // end cannot masquerade as a successful Pause command.
-        try await restartPlayback(item)
-        try await tap(app.buttons["Pause"].firstMatch, "Pause actual native playback")
-        try await wait("Pause exposes Play", timeout: 5) { self.app.buttons["Play"].firstMatch.isHittable }
+        try restartPlayback(item)
+        try tap(app.buttons["Pause"].firstMatch, "Pause actual native playback")
+        try wait("Pause exposes Play", timeout: 5) { self.app.buttons["Play"].firstMatch.isHittable }
         var anchor: Double?
         var stableSince = ProcessInfo.processInfo.systemUptime
-        try await wait("Pause must stop actual native position", timeout: 5) {
+        try wait("Pause must stop actual native position", timeout: 5) {
             guard let current = self.playbackSource(self.observed("playback")),
                 current.matches(item), self.app.buttons["Play"].firstMatch.isHittable
             else { return false }
@@ -1158,66 +1291,75 @@ private struct PhysicalMigrationProbe: Decodable {
             }
             return ProcessInfo.processInfo.systemUptime - stableSince >= 1
         }
-        let paused = try await readyPlayback(stage + "-paused", captured: item)
+        let paused = try readyPlayback(stage + "-paused", captured: item)
         evidence(stage + "-paused")
-        try await tap(app.buttons["Play"].firstMatch, "Resume actual native playback")
-        try await wait("Play must resume actual native position", timeout: 5) {
+        try tap(app.buttons["Play"].firstMatch, "Resume actual native playback")
+        try wait("Play must resume actual native position", timeout: 5) {
             guard let current = self.playbackSource(self.observed("playback")) else { return false }
             return current.matches(item) && current.position > paused.position + 0.15
         }
         try pictureEvidence(stage + "-resumed-picture", role: "playback", identity: item.identity, ownerToken: item.ownerToken)
     }
 
-    private func restartPlayback(_ item: PlaybackSource) async throws {
-        _ = try await readyPlayback("playback-reset-ready", captured: item)
-        let pause = app.buttons["Pause"].firstMatch
-        if pause.isHittable {
-            pause.tap()
-            try await wait("Pause before resetting a short clip", timeout: 5) { self.app.buttons["Play"].firstMatch.isHittable }
+    private func restartPlayback(_ item: PlaybackSource) throws {
+        _ = try readyPlayback("playback-reset-ready", captured: item)
+        // One transport button reads Pause, Play or Restart clip. A short clip can end between
+        // reading Pause and tapping it, so tap through a query that matches every label and re-read:
+        // a tap that landed on Restart clip plays again and the next pass pauses it.
+        let play = app.buttons["Play"].firstMatch, restart = app.buttons["Restart clip"].firstMatch
+        let transport = app.buttons.matching(NSPredicate(format: "label IN %@", ["Pause", "Play", "Restart clip"])).firstMatch
+        for _ in 0..<3 where !play.isHittable && !restart.isHittable {
+            try tap(transport, "Pause or restart the short clip")
+            _ = condition(timeout: 3) { play.isHittable }
         }
-        try await tap(app.buttons["Back 15 seconds"].firstMatch, "Seek short clip to its beginning")
-        try await wait("Actual native seek to beginning", timeout: 5) {
+        try require(play.isHittable || restart.isHittable, "The short clip must be paused or ended before its reset")
+        try tap(app.buttons["Back 15 seconds"].firstMatch, "Seek short clip to its beginning")
+        try wait("Actual native seek to beginning", timeout: 5) {
             guard let current = self.playbackSource(self.observed("playback")) else { return false }
             return current.matches(item) && current.position <= 0.15
         }
-        let restart = app.buttons["Restart clip"].firstMatch
         if restart.isHittable { restart.tap() }
-        else { try await tap(app.buttons["Play"].firstMatch, "Play from beginning") }
-        try await wait("Native player exposes Pause", timeout: 5) {
-            self.playbackSource(self.observed("playback"))?.matches(item) == true
-                && self.app.buttons["Pause"].firstMatch.isHittable
+        else { try tap(play, "Play from beginning") }
+        // The cheap transport read goes first: on a busy app one probe read takes several seconds,
+        // and a failure names the label the transport showed instead.
+        try wait("Native player exposes Pause", timeout: 5) {
+            guard self.app.buttons["Pause"].firstMatch.isHittable else {
+                self.lastProbeFailure = "Transport reads " + (transport.exists ? transport.label : "no transport button")
+                return false
+            }
+            return self.playbackSource(self.observed("playback"))?.matches(item) == true
         }
     }
 
-    private func exerciseSavedRelaunch(clipID: String) async throws {
+    private func exerciseSavedRelaunch(clipID: String) throws {
         try require(!recordingStartIssued && !isoDirty, "Recording and ISO must be restored before relaunch")
         app.terminate()
-        try await wait("Actual app termination", timeout: 8) { self.app.state == .notRunning }
+        try wait("Actual app termination", timeout: 8) { self.app.state == .notRunning }
         let relaunchedAt = Date().timeIntervalSince1970
         app.launch()
-        try await connectThroughUI(savedOnly: true)
-        let source = try await freshLive("saved-relaunch-live", since: relaunchedAt)
-        try await reportedRecording(false, source: source.identity, stage: "saved-relaunch-idle")
+        try connectThroughUI(savedOnly: true)
+        let source = try freshLive("saved-relaunch-live", since: relaunchedAt)
+        try reportedRecording(false, source: source.identity, stage: "saved-relaunch-idle")
         guard let originalISO else { throw failure("Original ISO report is unavailable") }
         switch originalISO {
         case .manual(let value, let isAuto):
-            try await reportedISO(value, source: source.identity, isAuto: isAuto, stage: "saved-relaunch-ISO")
+            try reportedISO(value, source: source.identity, isAuto: isAuto, stage: "saved-relaunch-ISO")
         case .automatic(let label):
-            try await wait("Saved relaunch must preserve raw Auto ISO mode", timeout: 12) {
+            try wait("Saved relaunch must preserve raw Auto ISO mode", timeout: 12) {
                 guard let current = self.observed("live"), current.sourceIdentity == source.identity,
                     current.cameraISOIsAuto == true, current.cameraRecording == false
                 else { return false }
                 if let iso = current.cameraISO { return iso > 0 }
                 return true
             }
-            try await tap(app.buttons["monitor.capture.iso"], "Read saved Auto ISO setting")
+            try tap(app.buttons["monitor.capture.iso"], "Read saved Auto ISO setting")
             let drum = app.descendants(matching: .any)["Value"].firstMatch
-            try await wait("Exact saved Auto/range selection", timeout: 8) { drum.value as? String == label }
+            try wait("Exact saved Auto/range selection", timeout: 8) { drum.value as? String == label }
             evidence("saved-relaunch-Auto-ISO")
-            try await tap(app.buttons["monitor.capture.close"], "Close saved Auto ISO setting")
+            try tap(app.buttons["monitor.capture.close"], "Close saved Auto ISO setting")
         }
         try pictureEvidence("saved-relaunch-picture", role: "live", identity: source.identity)
-        try await openControlsSettings()
+        try openControlsSettings()
         guard let originalHaptics, let recordConfirmation else {
             throw failure("Original Haptics or record-confirmation preference is unavailable")
         }
@@ -1227,36 +1369,36 @@ private struct PhysicalMigrationProbe: Decodable {
         try require(
             try switchValue(app.buttons["Record confirmation"].firstMatch) == (recordConfirmation ? "On" : "Off"),
             "Record confirmation preference must remain unchanged")
-        try await closeSettings()
-        _ = try await advancingLive("saved-relaunch-settings-owner", from: source)
-        let persisted = try await catalogue("saved-relaunch")
+        try closeSettings()
+        _ = try advancingLive("saved-relaunch-settings-owner", from: source)
+        let persisted = try catalogue("saved-relaunch")
         try require(persisted.identifiers.contains(clipID), "The qualification clip must remain after relaunch")
-        try await returnToLive("saved-relaunch-return")
+        try returnToLive("saved-relaunch-return")
         mark("saved-connection-media-and-preference-persistence")
     }
 
-    private func returnToLive(_ stage: String) async throws {
-        try await restoreMediaCategory()
+    private func returnToLive(_ stage: String) throws {
+        try restoreMediaCategory()
         let closedAt = Date().timeIntervalSince1970
-        try await tap(app.buttons["monitor.page.back"], "Return from media to live")
-        let current = try await freshLive(stage, since: closedAt)
-        try await reportedRecording(false, source: current.identity, stage: stage + "-idle")
+        try tap(app.buttons["monitor.page.back"], "Return from media to live")
+        let current = try freshLive(stage, since: closedAt)
+        try reportedRecording(false, source: current.identity, stage: stage + "-idle")
         try pictureEvidence(stage + "-picture", role: "live", identity: current.identity)
     }
 
-    private func restoreMediaCategory() async throws {
+    private func restoreMediaCategory() throws {
         guard mediaCategoryDirty, let originalMediaCategory else { return }
         if !app.scrollViews["monitor.media.gallery"].exists {
-            try await dismissToLive()
-            try await tap(app.buttons["monitor.system.media"], "Restore media category")
+            try dismissToLive()
+            try tap(app.buttons["monitor.system.media"], "Restore media category")
         }
         let category = app.buttons[originalMediaCategory]
-        try await tap(category, "Restore original media category")
-        try await wait("Original media category restored", timeout: 5) { category.isSelected }
+        try tap(category, "Restore original media category")
+        try wait("Original media category restored", timeout: 5) { category.isSelected }
         mediaCategoryDirty = false
     }
 
-    private func dismissToLive() async throws {
+    private func dismissToLive() throws {
         for _ in 0..<8 {
             if app.buttons["monitor.capture.close"].isHittable { app.buttons["monitor.capture.close"].tap(); continue }
             if app.buttons["Close clip information"].isHittable { app.buttons["Close clip information"].tap(); continue }
@@ -1270,14 +1412,14 @@ private struct PhysicalMigrationProbe: Decodable {
             if app.buttons["Cancel"].firstMatch.isHittable { app.buttons["Cancel"].firstMatch.tap(); continue }
             break
         }
-        try await wait("Live capture controls", timeout: 20) {
+        try wait("Live capture controls", timeout: 20) {
             self.app.buttons["monitor.system.record"].isHittable && self.app.buttons["monitor.system.settings"].isHittable
         }
     }
 
-    private func freshLive(_ stage: String, since: Double? = nil) async throws -> LiveSource {
+    private func freshLive(_ stage: String, since: Double? = nil) throws -> LiveSource {
         var result: LiveSource?
-        try await wait("Fresh active native live source: " + stage, timeout: 25) {
+        try wait("Fresh active native live source: " + stage, timeout: 25) {
             guard let probe = self.observed("live"), let current = self.liveSource(probe),
                 since == nil || current.frameAt >= since!
             else { return false }
@@ -1289,9 +1431,9 @@ private struct PhysicalMigrationProbe: Decodable {
         return result
     }
 
-    private func advancingLive(_ stage: String, from previous: LiveSource) async throws -> LiveSource {
+    private func advancingLive(_ stage: String, from previous: LiveSource) throws -> LiveSource {
         var result: LiveSource?
-        try await wait("Live owner and actual source frames must advance: " + stage, timeout: 12) {
+        try wait("Live owner and actual source frames must advance: " + stage, timeout: 12) {
             guard let probe = self.observed("live"), let current = self.liveSource(probe),
                 current.identity == previous.identity, current.frameAt > previous.frameAt + 0.15,
                 self.countersAdvanced(current.probe, after: previous.probe)
@@ -1326,9 +1468,9 @@ private struct PhysicalMigrationProbe: Decodable {
         return true
     }
 
-    private func readyPlayback(_ stage: String, captured: PlaybackSource? = nil) async throws -> PlaybackSource {
+    private func readyPlayback(_ stage: String, captured: PlaybackSource? = nil) throws -> PlaybackSource {
         var result: PlaybackSource?
-        try await wait("Actual native playback item and ready picture: " + stage, timeout: 45) {
+        try wait("Actual native playback item and ready picture: " + stage, timeout: 45) {
             guard let current = self.playbackSource(self.observed("playback")) else { return false }
             if let captured, !current.matches(captured) { return false }
             result = current
@@ -1348,15 +1490,15 @@ private struct PhysicalMigrationProbe: Decodable {
         return PlaybackSource(probe: probe, ownerToken: ownerToken, identity: identity, position: position)
     }
 
-    private func reportedRecording(_ recording: Bool, source: String, stage: String) async throws {
-        try await wait("Raw camera recording report: " + stage, timeout: 15) {
+    private func reportedRecording(_ recording: Bool, source: String, stage: String) throws {
+        try wait("Raw camera recording report: " + stage, timeout: 15) {
             guard let probe = self.observed("live"), let current = self.liveSource(probe) else { return false }
             return current.identity == source && probe.cameraRecording == recording
         }
     }
 
-    private func reportedISO(_ iso: Int, source: String, isAuto: Bool? = nil, stage: String) async throws {
-        try await wait("Raw camera ISO report: " + stage, timeout: 12) {
+    private func reportedISO(_ iso: Int, source: String, isAuto: Bool? = nil, stage: String) throws {
+        try wait("Raw camera ISO report: " + stage, timeout: 12) {
             guard let probe = self.observed("live"), let current = self.liveSource(probe) else { return false }
             return current.identity == source && probe.cameraISO == iso && probe.cameraRecording == false
                 && (isAuto == nil || probe.cameraISOIsAuto == isAuto)
@@ -1487,28 +1629,23 @@ private struct PhysicalMigrationProbe: Decodable {
         try require(element.isHittable, "Public control is unreachable: " + element.label)
     }
 
-    private func tap(_ element: XCUIElement, _ action: String) async throws {
-        try await wait("Reachable public action: " + action, timeout: 8) { element.isHittable && element.isEnabled }
+    private func tap(_ element: XCUIElement, _ action: String) throws {
+        try wait("Reachable public action: " + action, timeout: 8) { element.isHittable && element.isEnabled }
         element.tap()
     }
 
-    @MainActor private final class PredicateRead {
-        let predicate: @MainActor () -> Bool
-        init(_ predicate: @escaping @MainActor () -> Bool) { self.predicate = predicate }
+    private func condition(timeout: TimeInterval, _ predicate: @MainActor () -> Bool) -> Bool {
+        // ponytail: a main-thread poll; the queries it reads are main-actor XCUI calls anyway.
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if predicate() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return predicate()
     }
 
-    private func condition(timeout: TimeInterval, _ predicate: @escaping @MainActor () -> Bool) async -> Bool {
-        // XCTest evaluates expectation(for:) predicates on MainActor when awaited
-        // with fulfillment(of:), as documented by the installed XCTest SDK.
-        let read = PredicateRead(predicate)
-        let expectation = test.expectation(for: NSPredicate { _, _ in
-            MainActor.assumeIsolated { read.predicate() }
-        }, evaluatedWith: nil, handler: nil)
-        return await XCTWaiter.fulfillment(of: [expectation], timeout: timeout) == .completed
-    }
-
-    private func wait(_ message: String, timeout: TimeInterval, _ predicate: @escaping @MainActor () -> Bool) async throws {
-        if !(await condition(timeout: timeout, predicate)) {
+    private func wait(_ message: String, timeout: TimeInterval, _ predicate: @MainActor () -> Bool) throws {
+        if !condition(timeout: timeout, predicate) {
             throw failure(message + (lastProbeFailure.map { ". " + $0 } ?? ""))
         }
     }
@@ -1517,8 +1654,8 @@ private struct PhysicalMigrationProbe: Decodable {
         if !condition { throw failure(message) }
     }
 
-    private func cleanup(_ name: String, _ action: @MainActor () async throws -> Void) async {
-        do { try await action() }
+    private func cleanup(_ name: String, _ action: () throws -> Void) {
+        do { try action() }
         catch { evidence("teardown-" + name + "-failed"); XCTFail("Qualification cleanup failed for " + name + ": " + String(describing: error)) }
     }
 

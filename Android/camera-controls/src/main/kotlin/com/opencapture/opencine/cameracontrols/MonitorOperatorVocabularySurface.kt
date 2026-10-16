@@ -105,6 +105,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
     val status = chrome.status
     val capabilities = chrome.capabilities
     val shell by chrome.shell.state.collectAsState()
+    val control by chrome.capture.control.state.collectAsState()
     return MonitorOperatorLiveSource(
         identity = {
             val snapshot = chrome.capture.control.state.value.snapshot
@@ -124,9 +125,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             waiting = !hasPicture, vertical = verticalPicture, flipped = mirrored, recovering = recovering),
         status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
             state.showStorageDuration) { state.showStorageDuration = !state.showStorageDuration },
-        // The vocabulary cannot tell "not charging" from "not reported", so only a charging report shows.
-        cameraBattery = MonitorOperatorPowerReading(true, status.batteryPercent.takeIf { it in 0..100 },
-            status.charging.takeIf { it }),
+        cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
         capture = captureSheetHostInputs(chrome.capture, status, capabilities, state.sheet, { state.sheet = it },
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
@@ -293,13 +292,15 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val field = checkNotNull(layout.field)
     val storage = source.capture.control.state.value.snapshot?.storage
-    val storageLabel = if (duration && !field.portrait) storage?.recordingTimeLabel else storage?.storageReadout?.free
+    val storageLabel = if (duration) storage?.recordingTimeLabel else storage?.storageReadout?.free
     fun row(sheet: LiveSheet, title: String, value: String?, section: MonitorDisplaySection? = null) =
         MonitorOperatorLiveReadout(sheet.name, title, value, section)
     val labels = source.host.labelProfile
+    val recordingFormat = source.capture.control.state.value.snapshot?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::recordingFormat)
+    val formatLabel = recordingFormat?.let(com.opencapture.opencine.appkit.MonitorCapturePresentation::recordingLabel)
     val sheet = CaptureShutterPolicy.portraitSetupSheet(status.shootingMode)
     val format = if (source.session.mounts(MonitorDisplaySection.FORMAT) && !CameraCommands.isPhotoMode(status.shootingMode))
-        listOf(row(LiveSheet.FORMAT, "Recording format", CaptureLists.recFormatChipLabel(status), MonitorDisplaySection.FORMAT)) else emptyList()
+        listOf(row(LiveSheet.FORMAT, "Recording format", formatLabel, MonitorDisplaySection.FORMAT)) else emptyList()
     return MonitorOperatorLiveStatus({ source.capture.control.statusPresentation(status.recordElapsedSec) },
         // The single-camera clock slot follows the DISP section (placeholder by declared precision
         // when the body has no timecode, as main showed it); Multi View tiles follow the declaration.
@@ -307,13 +308,13 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
         CaptureShutterPolicy.showsVideoTransport(status.shootingMode) && source.session.mounts(MonitorDisplaySection.REC_READOUT),
         if (source.session.mounts(MonitorDisplaySection.STORAGE)) MonitorOperatorLiveReadout("STORAGE", "Storage remaining",
             storageLabel ?: StorageReadout.UNAVAILABLE, MonitorDisplaySection.STORAGE,
-            action = { if (!field.portrait) toggleStorage() }, icon = MonitorIcon.CARD_SIM) else null,
+            action = toggleStorage, icon = MonitorIcon.CARD_SIM) else null,
         format, fps, bars, MonitorDisplaySection.BATTERIES,
         portraitFormat = row(sheet, if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) "Shooting mode" else "Recording options",
-            CaptureShutterPolicy.portraitSetupLabel(status)),
-        portraitCaption = CaptureShutterPolicy.portraitSetupCaption(status, source.host.camera?.family.orEmpty(), labels),
-        color = if (!field.portrait && source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
-            row(LiveSheet.COLOR, "Color mode", CameraCommands.colorLabel(status.colorMode, source.host.camera?.family.orEmpty(), labels), MonitorDisplaySection.COLOR) else null,
+            if (CaptureShutterPolicy.portraitSetupOpensMode(status.shootingMode)) CaptureShutterPolicy.portraitSetupLabel(status) else formatLabel ?: "REC SETUP"),
+        portraitCaption = if (CameraCommands.isPhotoMode(status.shootingMode)) null else recordingFormat?.profile,
+        color = if (source.session.mounts(MonitorDisplaySection.COLOR) && CaptureShutterPolicy.showsColorReadout(status.shootingMode))
+            row(LiveSheet.COLOR, "Color mode", recordingFormat?.profile, MonitorDisplaySection.COLOR) else null,
         mode = if (!field.portrait && source.session.mounts(MonitorDisplaySection.FORMAT))
             row(LiveSheet.MODE, "Shooting mode", CameraCommands.shootingModeLabel(status.shootingMode, source.host.camera?.name, labels)) else null,
         recordingSection = MonitorDisplaySection.REC_READOUT, timecodeSection = MonitorDisplaySection.TIMECODE)

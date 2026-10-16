@@ -86,12 +86,14 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
             } else {
                 MonitorGaugeBars(
-                    fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color,
+                    filled: bars, count: barCount, tint: color,
                     barHeight: tablet ? 10 : 9)
             }
         }
         .padding(.horizontal, 6)
-        .frame(width: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height, alignment: .leading)
+        .frame(width: value == nil ? MonitorGaugeBars.readoutWidth(filled: bars, count: barCount,
+            minimum: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), inset: icon == nil ? 12 : 28)
+            : icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height, alignment: .leading)
         .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityElement(children: .ignore)
     }

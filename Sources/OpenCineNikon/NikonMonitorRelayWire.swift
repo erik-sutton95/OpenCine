@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Wire protocol for the monitor relay: one device holds the single camera session and serves the
 /// picture plus the camera's readings to other devices on set.
@@ -208,6 +209,42 @@ public struct NikonMonitorRelayState: Codable, Equatable, Sendable {
         isRecording: Bool,
         allowsControlRequests: Bool? = nil
     ) {
+        self.init(
+            recordState: recordState,
+            resolutionFrameRate: resolutionFrameRate,
+            codec: codec,
+            media: media,
+            liveFPS: liveFPS,
+            cameraBatteryPercent: cameraBatteryPercent,
+            cameraName: cameraName,
+            lens: lens,
+            temperature: temperature,
+            values: values,
+            mediaStatus: mediaStatus,
+            isRecording: isRecording,
+            allowsControlRequests: allowsControlRequests,
+            batteryReading: NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).batteryReading,
+            batteryExhausted: NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).exhaustion)
+        batteryReadingWasDeclared = false
+        batteryExhaustedWasDeclared = false
+    }
+
+    public init(
+        recordState: RecordState,
+        resolutionFrameRate: String,
+        codec: String,
+        media: String,
+        liveFPS: String,
+        cameraBatteryPercent: Int,
+        cameraName: String,
+        lens: String,
+        temperature: String,
+        values: [Value],
+        mediaStatus: MediaStatus?,
+        isRecording: Bool,
+        allowsControlRequests: Bool? = nil,
+        batteryReading: BatteryReading?, batteryExhausted: Bool? = nil
+    ) {
         self.recordState = recordState
         self.resolutionFrameRate = resolutionFrameRate
         self.codec = codec
@@ -221,6 +258,10 @@ public struct NikonMonitorRelayState: Codable, Equatable, Sendable {
         self.mediaStatus = mediaStatus
         self.isRecording = isRecording
         self.allowsControlRequests = allowsControlRequests
+        self.batteryReading = batteryReading
+        self.batteryExhausted = batteryExhausted
+        batteryReadingWasDeclared = true
+        batteryExhaustedWasDeclared = true
     }
 
     public let recordState: RecordState
@@ -238,6 +279,78 @@ public struct NikonMonitorRelayState: Codable, Equatable, Sendable {
     /// Whether the host accepts watcher control requests. Optional on the wire (older hosts
     /// don't send it); absent means allowed  -  the pre-policy behavior.
     public var allowsControlRequests: Bool?
+    public let batteryReading: BatteryReading?
+    public let batteryExhausted: Bool?
+    private var batteryReadingWasDeclared: Bool
+    private var batteryExhaustedWasDeclared: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case recordState, resolutionFrameRate, codec, media, liveFPS, cameraBatteryPercent, cameraName, lens, temperature, values, mediaStatus, isRecording, allowsControlRequests, batteryReading, batteryExhausted
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        recordState = try container.decode(RecordState.self, forKey: .recordState)
+        resolutionFrameRate = try container.decode(String.self, forKey: .resolutionFrameRate)
+        codec = try container.decode(String.self, forKey: .codec)
+        media = try container.decode(String.self, forKey: .media)
+        liveFPS = try container.decode(String.self, forKey: .liveFPS)
+        cameraBatteryPercent = try container.decode(Int.self, forKey: .cameraBatteryPercent)
+        cameraName = try container.decode(String.self, forKey: .cameraName)
+        lens = try container.decode(String.self, forKey: .lens)
+        temperature = try container.decode(String.self, forKey: .temperature)
+        values = try container.decode([Value].self, forKey: .values)
+        mediaStatus = try container.decodeIfPresent(MediaStatus.self, forKey: .mediaStatus)
+        isRecording = try container.decode(Bool.self, forKey: .isRecording)
+        allowsControlRequests = try container.decodeIfPresent(Bool.self, forKey: .allowsControlRequests)
+        batteryReadingWasDeclared = container.contains(.batteryReading)
+        batteryExhaustedWasDeclared = container.contains(.batteryExhausted)
+        batteryReading = batteryReadingWasDeclared
+            ? try container.decodeIfPresent(BatteryReading.self, forKey: .batteryReading)
+            : NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).batteryReading
+        batteryExhausted = batteryExhaustedWasDeclared
+            ? try container.decodeIfPresent(Bool.self, forKey: .batteryExhausted)
+            : batteryReadingWasDeclared ? nil
+                : NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).exhaustion
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(recordState, forKey: .recordState)
+        try container.encode(resolutionFrameRate, forKey: .resolutionFrameRate)
+        try container.encode(codec, forKey: .codec)
+        try container.encode(media, forKey: .media)
+        try container.encode(liveFPS, forKey: .liveFPS)
+        try container.encode(cameraBatteryPercent, forKey: .cameraBatteryPercent)
+        try container.encode(cameraName, forKey: .cameraName)
+        try container.encode(lens, forKey: .lens)
+        try container.encode(temperature, forKey: .temperature)
+        try container.encode(values, forKey: .values)
+        try container.encodeIfPresent(mediaStatus, forKey: .mediaStatus)
+        try container.encode(isRecording, forKey: .isRecording)
+        try container.encodeIfPresent(allowsControlRequests, forKey: .allowsControlRequests)
+        if batteryReadingWasDeclared { try container.encode(batteryReading, forKey: .batteryReading) }
+        if batteryExhaustedWasDeclared { try container.encode(batteryExhausted, forKey: .batteryExhausted) }
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.recordState == rhs.recordState
+            && lhs.resolutionFrameRate == rhs.resolutionFrameRate
+            && lhs.codec == rhs.codec
+            && lhs.media == rhs.media
+            && lhs.liveFPS == rhs.liveFPS
+            && lhs.cameraBatteryPercent == rhs.cameraBatteryPercent
+            && lhs.cameraName == rhs.cameraName
+            && lhs.lens == rhs.lens
+            && lhs.temperature == rhs.temperature
+            && lhs.values == rhs.values
+            && lhs.mediaStatus == rhs.mediaStatus
+            && lhs.isRecording == rhs.isRecording
+            && lhs.allowsControlRequests == rhs.allowsControlRequests
+            && lhs.batteryReading == rhs.batteryReading
+            && lhs.batteryExhausted == rhs.batteryExhausted
+    }
+
 }
 
 /// The readings that belong to one specific frame, sent alongside it.

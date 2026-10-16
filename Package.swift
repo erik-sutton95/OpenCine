@@ -103,8 +103,8 @@ let package = Package(
         // Optional typed motion seam and trajectory math shared by gimbal integrations.
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
-        // Optional second-screen relay wire, control lease and pacing policy. Foundation only.
-        .target(name: "OpenCineRelay"),
+        // Optional second-screen relay wire, control lease and pacing policy. Foundation and Core values.
+        .target(name: "OpenCineRelay", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineRelayTests", dependencies: ["OpenCineRelay"]),
         // The relay's Apple shell: Bonjour listener and browser, HEVC re-encode, socket reader.
         // Relay plus Apple frameworks only; every file sits behind `#if canImport(Network)`.
@@ -126,7 +126,7 @@ let package = Package(
         .target(
             name: "OpenCineWatch",
             dependencies: [
-                "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
+                "OpenCineCore", "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
@@ -150,7 +150,7 @@ let package = Package(
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineHostedAccessibility"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.

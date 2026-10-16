@@ -26,4 +26,20 @@ class BatteryReadingTest {
             assertEquals(expected, power(value, precision).batteryReading, "$value $precision")
         }
     }
+    @Test fun declaredBatteryPrecisionHasStableValidatedWireFields() {
+        for (reading in listOf(BatteryReading.Fraction(0.0), BatteryReading.Fraction(0.68),
+                BatteryReading.Steps(0, 5), BatteryReading.Steps(1, 4))) {
+            assertEquals(reading, BatteryReading.fromWireFields(reading.wireFields))
+        }
+        for (reading in listOf(BatteryReading.Fraction(Double.POSITIVE_INFINITY), BatteryReading.Fraction(-0.1),
+                BatteryReading.Steps(6, 5), BatteryReading.Steps(0, 0))) {
+            kotlin.test.assertFailsWith<IllegalArgumentException> { reading.wireFields }
+        }
+        assertEquals(ObservedValue.unknown, PowerStatus().exhausted)
+        for (exhausted in listOf(false, true)) {
+            val fact = ObservedValue(exhausted, ObservationOrigin.CAMERA_REPORTED, null)
+            assertEquals(fact, PowerStatus(exhausted = fact).copy().exhausted)
+        }
+    }
+
 }

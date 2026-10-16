@@ -147,7 +147,7 @@ public struct LunaPhotographySettings: Equatable, Sendable {
 /// Width/height/fps come from the schema enum name. Observed values:
 /// 24 (4K30), 43 (live 1280x720, measured 25 fps), 48 (4K25), 52 (1080p25),
 /// 211 (8K25), 214 (4K120, slow motion bank), 454 (9:16 3K25), 31, 14.
-public struct LunaVideoResolution: Equatable, Sendable {
+public struct LunaVideoResolution: Hashable, Sendable {
     public let rawValue: UInt64
     public let width: Int
     public let height: Int

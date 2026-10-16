@@ -544,7 +544,9 @@
                     }
                 }
             case .resolution:
-                if isPhoto {
+                if let panel = host.nativeCapturePanel(.resolution, enabled: canApplyDrum) {
+                    panel
+                } else if isPhoto {
                     Text("Photo")
                         .font(MonitorTheme.font(16, weight: .semibold))
                         .foregroundStyle(MonitorTheme.text)
@@ -554,7 +556,8 @@
                     formatPicker
                 }
             case .color:
-                CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection)
+                if let panel = host.nativeCapturePanel(.color, enabled: canApplyDrum) { panel }
+                else { CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection) }
             }
         }
 

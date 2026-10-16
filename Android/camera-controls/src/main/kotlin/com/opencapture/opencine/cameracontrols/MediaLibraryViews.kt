@@ -156,8 +156,8 @@ fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean
     onAll: () -> Unit, onClear: () -> Unit, onCache: () -> Unit, onStar: () -> Unit,
     onDelete: () -> Unit, onShare: () -> Unit, shareEnabled: Boolean = true) {
     com.opencapture.monitorui.MonitorSelectionTray(count) {
-        TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", LiveDesign.accent, onAll)
-        TrayTextChip(MonitorIcon.X, "Clear", LiveDesign.muted, onClear)
+        TrayTextChip(MonitorIcon.CIRCLE_CHECK, "All", "Select all", LiveDesign.accent, onAll)
+        TrayTextChip(MonitorIcon.X, "Clear", "Clear selection", LiveDesign.muted, onClear)
         MediaCircleIconButton(MonitorIcon.DOWNLOAD, "Cache selected clips", onCache, enabled = cacheEnabled, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.STAR, "Favorite selected clips", onStar, enabled = count > 0, size = 34.dp)
         MediaCircleIconButton(MonitorIcon.TRASH, "Delete selected clips", onDelete, enabled = deleteEnabled, size = 34.dp)
@@ -166,8 +166,9 @@ fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean
 }
 
 @Composable
-private fun TrayTextChip(icon: MonitorIcon, label: String, tint: Color, onClick: () -> Unit) {
-    Row(Modifier.height(34.dp).chromeClickable(onClick = onClick).padding(horizontal = 7.dp),
+private fun TrayTextChip(icon: MonitorIcon, label: String, contentDescription: String, tint: Color, onClick: () -> Unit) {
+    Row(Modifier.height(34.dp).chromeClickable(onClick = onClick)
+        .semantics { this.contentDescription = contentDescription }.padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         MonitorIcon(icon, null, Modifier.size(13.dp), tint)
         Text(label, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
