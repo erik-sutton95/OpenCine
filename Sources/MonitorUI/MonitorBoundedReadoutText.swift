@@ -19,7 +19,12 @@
         }
     }
 
-    /// Large primary and small detail readouts form one column while retaining separate native targets.
+    /// Portrait capture readouts stack in one trailing column: resolution and frame rate on top,
+    /// codec and color directly below. The column's top is the primary's top, so the primary
+    /// shares the status row's top edge with the timecode and the STBY/REC chip. Each line keeps
+    /// its own native target: a line reports its glyph height as its ideal size and accepts the
+    /// 44-point target height it is placed with, so the detail line sits right under the
+    /// primary glyphs and its target, laid out later, owns the overlap below them.
     public struct MonitorPortraitFormatGroup<Primary: View, Detail: View>: View {
         private let showsDetail: Bool
         private let primary: () -> Primary
@@ -33,10 +38,56 @@
             self.detail = detail
         }
         public var body: some View {
-            VStack(alignment: .trailing, spacing: 2) {
-                primary().frame(minHeight: 44, alignment: .topTrailing)
-                if showsDetail { detail().frame(minHeight: 44, alignment: .topTrailing) }
+            MonitorPortraitFormatStackLayout {
+                primary().frame(maxHeight: .infinity, alignment: .topTrailing)
+                if showsDetail { detail().frame(maxHeight: .infinity, alignment: .topTrailing) }
             }
+        }
+    }
+
+    /// Trailing column whose second line starts at the first line's glyph height.
+    public struct MonitorPortraitFormatStackLayout: Layout {
+        /// The native target floor every portrait capture line keeps.
+        public let target: CGFloat
+        public init(target: CGFloat = 44) { self.target = target }
+
+        public func sizeThatFits(
+            proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+        ) -> CGSize {
+            frames(subviews: subviews).size
+        }
+
+        public func placeSubviews(
+            in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+        ) {
+            let measured = frames(subviews: subviews)
+            for (view, frame) in zip(subviews, measured.slots) {
+                view.place(
+                    at: CGPoint(x: bounds.maxX - frame.width, y: bounds.minY + frame.minY),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(width: frame.width, height: frame.height))
+            }
+        }
+
+        /// Line frames in column coordinates: each line is as wide as its content and as tall
+        /// as the larger of its glyph height and the target floor; line two begins where the
+        /// primary glyphs end.
+        public func frames(subviews: Subviews) -> (size: CGSize, slots: [CGRect]) {
+            frames(lines: subviews.map { $0.sizeThatFits(.unspecified) })
+        }
+
+        public func frames(lines: [CGSize]) -> (size: CGSize, slots: [CGRect]) {
+            var slots: [CGRect] = []
+            var y: CGFloat = 0
+            var bottom: CGFloat = 0
+            for line in lines {
+                let slot = CGRect(x: 0, y: y, width: line.width, height: max(target, line.height))
+                slots.append(slot)
+                bottom = max(bottom, slot.maxY)
+                y += line.height
+            }
+            let width = lines.map(\.width).max() ?? 0
+            return (CGSize(width: width, height: bottom), slots)
         }
     }
 #endif

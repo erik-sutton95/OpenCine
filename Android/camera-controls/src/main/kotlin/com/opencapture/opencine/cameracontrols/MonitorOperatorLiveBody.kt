@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -221,9 +221,10 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     r.top.toDp().value, r.width.toDp().value, r.height.toDp().value) }
             }
         val label: @Composable () -> Unit = {
+            // Grouped portrait lines keep their target width; MonitorPortraitFormatGroup grants
+            // each line its target-height slot, so glyphs stay top aligned at their own height.
             val groupFrame = if (grouped) Modifier
-                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
-                .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height) else Modifier
+                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width)) else Modifier
             Box(groupFrame, contentAlignment = if (grouped) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
@@ -280,16 +281,19 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             val shownColor = status.color?.takeIf { it.section == null || it.section in mounted }
             val details = visibleFormat.drop(if (visibleFormat.firstOrNull()?.section == MonitorDisplaySection.CODEC) 0 else 1)
                 .filter { it.id != shownPrimary?.id }
-            val readouts = listOfNotNull(shownPrimary, shownColor) + details
+            // Portrait stacks the capture readouts: resolution and frame rate on top, codec and
+            // color below it. Without a primary, the first lower readout takes the top line.
+            val lower = details + listOfNotNull(shownColor)
+            val top = shownPrimary ?: lower.firstOrNull()
+            val below = if (shownPrimary == null) lower.drop(1) else lower
             val caption = status.portraitCaption.takeIf { status.portraitFormat != null && shownColor == null }
-            val fit = if (inline && readouts.isNotEmpty()) {
+            val fit = if (inline && top != null) {
                 fun line(value: MonitorOperatorLiveReadout<K, S>) =
                     MonitorPortraitReadoutLine(value.value ?: "--", if (value.icon != null) 19f else 0f)
                 rememberMonitorPortraitSingleRowFit(layout.status.width, recording, status.showsRecording,
-                    status.showsTimecode, line(readouts.first()), details.map(::line), caption,
+                    status.showsTimecode, line(top), below.map(::line), caption,
                     maximumSize = if (layout.tablet) 25f else 23f,
-                    color = if (shownPrimary == null) null else shownColor?.let(::line),
-                    primaryIsDetail = readouts.first().section == MonitorDisplaySection.CODEC)
+                    primaryIsDetail = top.section == MonitorDisplaySection.CODEC)
             } else null
             CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
             MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording,
@@ -299,20 +303,26 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true) } },
                 format = {
                     if (inline) {
-                        Row(verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
-                            readouts.forEach { value ->
-                                Readout(value, portrait = true, grouped = true,
-                                    detail = value.section == MonitorDisplaySection.CODEC || details.any { it.id == value.id })
-                            }
-                            if (caption != null) {
-                                Box(Modifier.widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
-                                    .heightIn(min = LocalViewConfiguration.current.minimumTouchTargetSize.height)
-                                    .then(shownPrimary?.section?.let { edit(it) } ?: Modifier), contentAlignment = Alignment.TopEnd) {
-                                    MonitorPortraitInlineReadoutText(caption, detail = true)
+                        if (top != null) MonitorPortraitFormatGroup(below.isNotEmpty() || caption != null, primary = {
+                            Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC)
+                        }, detail = {
+                            Row(verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
+                                // Each detail target fills the line slot the group grants it.
+                                below.forEach { value ->
+                                    Box(Modifier.fillMaxHeight(), propagateMinConstraints = true) {
+                                        Readout(value, portrait = true, grouped = true, detail = true)
+                                    }
+                                }
+                                if (caption != null) {
+                                    Box(Modifier.widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                                        .fillMaxHeight()
+                                        .then(shownPrimary?.section?.let { edit(it) } ?: Modifier), contentAlignment = Alignment.TopEnd) {
+                                        MonitorPortraitInlineReadoutText(caption, detail = true)
+                                    }
                                 }
                             }
-                        }
+                        })
                     } else if (layout.portrait && status.portraitFormat != null) {
                         Readout(status.portraitFormat, true, status.portraitCaption)
                     } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {

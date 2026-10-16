@@ -514,21 +514,24 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             let details = visibleFormat.dropFirst(visibleFormat.first?.section == .codec ? 0 : 1)
                 .filter { $0.id != primary?.id }
             let inline = layout.portrait && !photo
-            let readouts = [primary, color].compactMap { $0 } + details
+            // Portrait stacks the capture readouts: resolution and frame rate on top, codec and
+            // color below it. Without a primary, the first lower readout takes the top line.
+            let lower = Array(details) + [color].compactMap { $0 }
+            let top = primary ?? lower.first
+            let below = primary == nil ? Array(lower.dropFirst()) : lower
             let caption =
                 status.portraitFormat != nil && color == nil ? status.portraitCaption : nil
             let fit =
                 inline
-                ? readouts.first.map {
+                ? top.map {
                     primarySizer.fitRow(
                         width: CGFloat(layout.status.width), scale: primaryDisplayScale,
                         typeSize: primaryTypeSize,
                         recording: status.showsRecording
                             ? [status.recording.recordingLabel, status.recording.elapsedLabel] : [],
                         clock: status.showsTimecode ? status.recording.timecode ?? "--:--:--" : nil,
-                        primary: $0.value, details: details.map(\.value), caption: caption,
+                        primary: $0.value, details: below.map(\.value), caption: caption,
                         maximumSize: layout.tablet ? 25 : 23,
-                        color: primary == nil ? nil : color?.value,
                         primaryIsDetail: $0.section == .codec)
                 } : nil
             return MonitorStatusChrome(
@@ -537,21 +540,25 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
                     if inline {
-                        HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
-                            ForEach(readouts) { value in
+                        if let top {
+                            MonitorPortraitFormatGroup(showsDetail: !below.isEmpty || caption != nil) {
                                 headerReadout(
-                                    value, portrait: true, grouped: true,
-                                    detail: value.section == .codec
-                                        || details.contains { $0.id == value.id })
-                            }
-                            if let caption {
-                                MonitorPortraitInlineReadoutText(caption, detail: true)
-                                    .lineLimit(1).fixedSize(horizontal: true, vertical: true)
-                                    .frame(minWidth: 44, minHeight: 44, alignment: .topTrailing)
-                                    .accessibilityLabel(caption)
-                                    .modifier(
-                                        DescriptorEditable<Host>(
-                                            section: primary?.section, mode: editing))
+                                    top, portrait: true, grouped: true, detail: top.section == .codec)
+                            } detail: {
+                                HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
+                                    ForEach(below) { value in
+                                        headerReadout(value, portrait: true, grouped: true, detail: true)
+                                    }
+                                    if let caption {
+                                        MonitorPortraitInlineReadoutText(caption, detail: true)
+                                            .lineLimit(1).fixedSize(horizontal: true, vertical: true)
+                                            .frame(minWidth: 44, maxHeight: .infinity, alignment: .topTrailing)
+                                            .accessibilityLabel(caption)
+                                            .modifier(
+                                                DescriptorEditable<Host>(
+                                                    section: primary?.section, mode: editing))
+                                    }
+                                }
                             }
                         }
                     } else if layout.portrait, let value = status.portraitFormat {
@@ -601,7 +608,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             Group {
                 if grouped {
                         MonitorPortraitInlineReadoutText(value.value, detail: detail)
-                            .frame(minWidth: 44, minHeight: 44, alignment: .topTrailing)
+                            .frame(minWidth: 44, maxHeight: .infinity, alignment: .topTrailing)
                     } else {
                         Text(value.value).font(
                             MonitorTheme.font(
