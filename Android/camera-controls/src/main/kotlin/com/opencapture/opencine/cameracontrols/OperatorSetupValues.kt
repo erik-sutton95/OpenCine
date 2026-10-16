@@ -144,7 +144,7 @@ open class OperatorHelpCopy(appName: String) {
     val GAMEPAD =
         "A connected game controller. The selected gimbal joystick pans and tilts. Cross/A records. Circle/B recenters. Square/X is rotate-180. Triangle/Y tracks a face. L1/R1 jump zoom out/in. L2/R2 hold-to-zoom (deeper is faster). D-pad up/down ISO, left/right shutter. Unplug rests the stick. On-screen stick wins while you hold it."
     val KEEP_SCREEN_AWAKE =
-        "Prevents auto-lock while $appName is open. A monitor should stay lit. Android may still dim when the device overheats."
+        MonitorSettingsCopy.keepScreenAwake
     val HDR_DISPLAY =
         "Outdoor panel brightness, not a grade. WAVE, HISTO, PARADE, VECTOR, zebras and false color still read the decoded camera signal \u2014 judge exposure there, not from how bright the picture looks. Screen recording drops back to a normal SDR picture so the file is not HDR-boosted. This is not the camera's HDR/HLG color mode. Off by default."
     val THEME = "Charcoal field-monitor chrome with Sky Blue accents, tuned for low reflection on set."
@@ -152,8 +152,7 @@ open class OperatorHelpCopy(appName: String) {
     val REPORT = "Opens a public issue form on GitHub for this project."
     val REPORT_PROBLEM =
         "Tell us what happened. Technical details stay off unless you include them. You can attach up to three photos. Sending does not turn on automatic reports."
-    val RELIABILITY_REPORTS =
-        "Optional: send crash, hang, live-feed reports and session health counts to OpenCapture through Sentry. Off by default. Turn off anytime without losing app features. Uploads wait until you leave camera Wi-Fi. Automatic reports exclude all images. No footage or GPS location. Sentry receives the connection IP; stored event IP and derived geography are removed. See Reporting Privacy below."
+    val RELIABILITY_REPORTS = MonitorSettingsCopy.automaticReports
     val RELIABILITY_UNAVAILABLE =
         "This build cannot send automatic reports. You can still share or delete reports stored on this phone."
     val FEATURE = "Start an idea in this project's feature-request discussion."

@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import OpenCineAppKit
 import SwiftUI
 import Testing
@@ -11,7 +12,7 @@ import Testing
 @MainActor
 @Suite struct SettingsSupportParityTests {
     private func source(supportEmail: String = "support@opencapture.org",
-        deleteStoredReports: (() -> Void)? = nil) -> MonitorSettingsSupportSource {
+        deleteStoredReports: (() -> Void)? = nil, legal: MonitorLegalDocuments? = nil) -> MonitorSettingsSupportSource {
         .init(consent: .constant(false), available: true, automaticHelp: "", unavailableHelp: "",
             sourceHelp: "", termsHelp: "", model: MonitorSettingsSupportModel(),
             actions: .init(identity: "SIMULATED", isCurrent: { true }, requiresInternetConsent: nil,
@@ -19,7 +20,19 @@ import Testing
             links: [], privacy: nil, source: nil, terms: nil, reportTitle: "Report a problem",
             reportActionTitle: "Open", diagnosticsHelp: "",
             report: { AnyView(EmptyView()) }, shareReport: { _ in AnyView(EmptyView()) },
-            deleteStoredReports: deleteStoredReports, supportEmail: supportEmail)
+            deleteStoredReports: deleteStoredReports, supportEmail: supportEmail, legal: legal)
+    }
+
+    /// A2-26: bundled pages open in the shared legal screen; web pages keep the browser route.
+    @Test func bundledLegalPagesOpenLocallyAndWebPagesKeepTheBrowserRoute() {
+        let legal = MonitorLegalDocuments(wordmark: "SIMULATED", privacy: .text("P"),
+            terms: .link(URL(string: "https://example.org/terms")!), licenses: .unavailable, notice: .text("N"))
+        let configured = source(legal: legal)
+        #expect(configured.showsLocally(.privacy))
+        #expect(!configured.showsLocally(.terms))
+        #expect(configured.showsLocally(.licenses), "A missing bundled page states that it is unavailable")
+        #expect(configured.showsLocally(.notice))
+        #expect(MonitorLegalPage.allCases.allSatisfy { !source().showsLocally($0) })
     }
 
     @Test func theReportUnavailableAlertUsesTheConfiguredSupportEmail() {
