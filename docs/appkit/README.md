@@ -89,6 +89,35 @@ including legal links and a named single setup in phone and tablet orientations.
 `OPENCINE_SCREENSHOTS` is set (`TEST_RUNNER_OPENCINE_SCREENSHOTS=<dir> xcodebuild test -scheme
 OpenCine-Package -destination <private simulator> -only-testing:OpenCineAppKitTests`).
 
+## Typed setup choices and operator consent
+
+`IntegrationSlots.addSetup` returns an `AddSetupFlow`: an `AddSetupChooser` of typed
+`AddSetupOption` values plus host actions and optional network or credential destinations.
+The shared SwiftUI and Compose chooser renders the same title, detail, action and enabled
+capabilities. Host values retain transport readiness, permission notices and integration-specific
+steps. The published stored `addRoute` callback, initializer, default and mutability remain
+unchanged. Shared screens prefer `addSetup` and otherwise call the legacy callback; a typed-only
+entry does not synthesize legacy access. This preserves the erased callback's actor contract
+without sending its non-Sendable reply or view across actors. `CamerasMapping.addSetupSelection`
+reopens a failed route only while the saved route and an enabled matching option still exist.
+
+Core's neutral `ConfirmationPrompt` supplies an explicit decision's copy and callbacks.
+`CamerasModel.consent` binds it to the attempt token. One shared presenter renders it
+(`operatorConsentPresenter` in SwiftUI, `OperatorConsentDialog` in Compose): `AppShell`,
+`CamerasScreen` and `PairScreen` each request it for their model's owner, the outermost request
+for that exact owner renders, and nested screens defer to it. A standalone screen therefore presents
+its own decisions, a screen under a matching `AppShell` adds no second alert, and a different
+model's presenter never suppresses this one. Removing a screen retires nothing.
+Replies consume their ID before checking current-source admission and invoking the host.
+Replacement, cancellation and terminal events retire the prompt. Retirement invokes no host
+action and sends no camera command. Apps can submit direct connection decisions to the same owner;
+their source predicate must reject a retired route or native connection generation.
+
+Preparation wizards still supply their own integration steps. When an established session has no
+first frame and the app owns progress, render `PairCameraPage` / `MonitorPairCameraPage` from values
+and actions without starting `PairScreen` discovery. A shared connection attempt retains its own
+card or pair-page progress until picture readiness; it needs no additional preparing page.
+
 ## Shell: root, monitor lifetime and common controls (SHELL-03)
 
 `ShellModel` is the app's root state over `CamerasModel`: the route (`cameras`, `pair`,

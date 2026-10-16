@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.opencapture.opencine.core.CameraIntegration
 import com.opencapture.opencine.core.ConnectTarget
 import com.opencapture.opencine.core.ConnectedCamera
+import com.opencapture.opencine.core.ConfirmationPrompt
 import com.opencapture.opencine.core.ConnectionEvent
 import com.opencapture.opencine.core.ConnectionFailure
 import com.opencapture.opencine.core.ConnectionProgress
@@ -41,6 +42,8 @@ public class IntegrationSlots(
     public val prompt: (@Composable (IntegrationPrompt) -> Unit)? = null,
     /** The app's words for a nearby camera's card and pair-page row; null keeps the shell's. */
     public val nearbyCard: ((NearbyCamera) -> NearbyCardCopy)? = null,
+    /** Typed setup capabilities and actions, preferred by the shared screen when present. */
+    public val addSetup: (@Composable (camera: SavedCamera, done: (RouteDraft?) -> Unit) -> AddSetupFlow)? = null,
 )
 
 /** A nearby camera's name, subtitle and status as the app words them (a camera held by another device keeps the shell's status). */
@@ -63,6 +66,9 @@ public class CamerasModel(
     private val scope: CoroutineScope,
     private val routePolicy: RoutePolicy = RoutePolicy.PREFERRED,
 ) {
+    /** The shell's current operator decision; attempt retirement invalidates it before admission. */
+    public val consent: OperatorConsent = OperatorConsent()
+
     /** The saved route a camera's card shows and a tap connects when no attempt or failure names one. */
     public enum class RoutePolicy {
         /** The camera's preferred route, else its first. */
@@ -222,7 +228,7 @@ public class CamerasModel(
 
     public fun cancel(cameraID: String) {
         if (cameraID !in mutable.value.attempts) return
-        tokens.remove(cameraID)
+        tokens.remove(cameraID)?.let(consent::retire)
         jobs.remove(cameraID)?.cancel()
         update { it.copy(attempts = it.attempts - cameraID) }
         updateDiscovery()
@@ -230,6 +236,7 @@ public class CamerasModel(
 
     public fun cancelAll() {
         for (cameraID in mutable.value.attempts.keys.toList()) cancel(cameraID)
+        consent.retire()
     }
 
     /** Clears a camera's last failure without connecting (a pair page back to choosing). */
@@ -269,6 +276,7 @@ public class CamerasModel(
     private fun start(target: ConnectTarget, integration: IntegrationID) {
         val entry = entries.firstOrNull { it.integration.id == integration } ?: return
         val cameraID = target.cameraID
+        tokens[cameraID]?.let(consent::retire)
         jobs.remove(cameraID)?.cancel()
         val token = Any()
         tokens[cameraID] = token
@@ -284,11 +292,17 @@ public class CamerasModel(
         if (tokens[cameraID] !== token) return
         val attempt = mutable.value.attempts[cameraID] ?: return
         when (event) {
-            is ConnectionEvent.Progress -> update {
-                it.copy(attempts = it.attempts + (cameraID to attempt.copy(progress = event.progress, prompt = event.prompt)))
+            is ConnectionEvent.Progress -> {
+                update { it.copy(attempts = it.attempts + (cameraID to attempt.copy(progress = event.progress, prompt = event.prompt))) }
+                val prompt = (event.prompt as? ConnectionPrompt.Integration)?.prompt as? ConfirmationPrompt
+                if (prompt != null) {
+                    consent.present(prompt, source = token, isCurrent = { tokens[cameraID] === token })
+                } else {
+                    consent.retire(token)
+                }
             }
             is ConnectionEvent.Connected -> {
-                tokens.remove(cameraID)
+                tokens.remove(cameraID)?.let(consent::retire)
                 jobs.remove(cameraID)
                 update { it.copy(attempts = it.attempts - cameraID) }
                 upsert(event.camera.saved)
@@ -297,7 +311,7 @@ public class CamerasModel(
                 updateDiscovery()
             }
             is ConnectionEvent.Failed -> {
-                tokens.remove(cameraID)
+                tokens.remove(cameraID)?.let(consent::retire)
                 jobs.remove(cameraID)
                 update { it.copy(attempts = it.attempts - cameraID, failures = it.failures + (cameraID to Failure(event.failure, attempt.target))) }
                 updateDiscovery()
@@ -308,7 +322,7 @@ public class CamerasModel(
     /** The flow ended without an outcome (the attempt was cancelled). */
     private fun finish(cameraID: String, token: Any) {
         if (tokens[cameraID] !== token) return
-        tokens.remove(cameraID)
+        tokens.remove(cameraID)?.let(consent::retire)
         jobs.remove(cameraID)
         update { it.copy(attempts = it.attempts - cameraID) }
         updateDiscovery()

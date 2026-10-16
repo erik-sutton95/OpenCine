@@ -44,6 +44,13 @@ public val ConnectionRouteID.text: String get() = uuid.toString().uppercase()
  * copy (steps, prompts, failures) is rendered as given; the shell's own copy is the pages' frame.
  */
 public object CamerasMapping {
+    /** Reopens a failed saved route only when it still exists and the chooser advertises it. */
+    public fun addSetupSelection(model: CamerasModel, camera: SavedCamera, chooser: AddSetupChooser): String? {
+        val target = model.state.value.failures[camera.id]?.target as? ConnectTarget.Saved ?: return null
+        val kind = camera.routes.firstOrNull { it.id == target.route }?.kind ?: return null
+        return chooser.options.firstOrNull { it.kind == kind && it.enabled }?.id
+    }
+
     /** Saved cameras, most recently connected first. */
     public fun paired(model: CamerasModel): List<CameraItem> {
         val state = model.state.value
