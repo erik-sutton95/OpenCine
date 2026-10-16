@@ -345,8 +345,10 @@ extension WatcherRelayViewer {
             deviceName: watcherDeviceName)
     }
 
-    /// A failed save keeps the passcode for this join; the next join asks again.
+    /// A failed save keeps the passcode for this join; the next join asks again. The answer is
+    /// trimmed by the shared rule and an empty one is ignored.
     public func retryWatcherPasscode(_ code: String) {
+        guard let code = MonitorWatcherPasscodeRule.answer(code) else { return }
         relayKeychain.storeRememberedPasscode(code, forHost: relayClient.hostTitle)
         relayClient.retryPasscode(code)
     }

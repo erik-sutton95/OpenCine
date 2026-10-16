@@ -43,6 +43,27 @@ class RelayPeerOwnerTest {
     }
 
     @Test
+    fun joinComparesPasscodesTrimmedAndKeepsEverySavedForm() {
+        fun refused(offered: String?, required: String): Boolean =
+            RelayJoinPolicy.refusal(RelayPeerHello(1, "Watcher", passcode = offered, watcherID = "w"),
+                RelayWireProfile.SHARED_MONITOR, required, "version")?.passcodeRequired == true
+        // Saved before the shared rule: four digits (OpenZCine), free text of any length and
+        // untrimmed (the iOS apps' hosts this watcher may join). Each still admits its watchers.
+        for (saved in listOf("0000", "4821", "a", "ab1", "set pass", " padded ", "pässwörd\n", "🎬🎬")) {
+            assertFalse(refused(saved, saved), saved)
+            assertFalse(refused(RelayJoinPolicy.normalizedPasscode(saved), saved), saved)
+            assertTrue(refused("other", saved), saved)
+            assertTrue(refused(null, saved), saved)
+        }
+        assertFalse(refused(" 1234\t", "1234"))
+        assertFalse(refused("1234", "\u00A01234\u2003"))
+        assertTrue(refused("12 34", "1234"))
+        assertEquals("\u001F1234", RelayJoinPolicy.normalizedPasscode("\u001F1234"))
+        // Whitespace alone is an open broadcast, as the rule's empty entry is.
+        assertFalse(refused(null, " \n"))
+    }
+
+    @Test
     fun versionAdmissionIsExplicitAndDoesNotReplaceDeployedPermissiveHost() {
         val hello = RelayPeerHello(99, "Peer")
         assertEquals(RelayJoinPolicy.Refusal("version", false),
