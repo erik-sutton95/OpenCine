@@ -290,6 +290,16 @@ class MonitorLayoutPolicyTest {
         assertTrue(s25.gauges.maxX <= s25.picture.x + .01f)
     }
 
+    @Test fun landscapeLinkPillTouchTargetClearsTheLock() {
+        // Swift twin: FieldMonitorLayoutTests; the link pill pads to the 44 dp floor around its drawn height.
+        for ((w, h) in listOf(874f to 402f, 780f to 360f, 1194f to 834f)) {
+            val tablet = minOf(w, h) >= 600f
+            val layout = MonitorLayoutPolicy.fieldMonitor(w, h, safeLeading = if (tablet) 0f else 59f)
+            val pad = (MONITOR_MIN_TAP_TARGET_DP - MonitorLayoutPolicy.telemetryGaugeHeight(tablet)) / 2f
+            assertTrue(layout.gauges.y - pad >= layout.lock.maxY - .01f, "${w}x$h: link pill target overlaps the lock")
+        }
+    }
+
 
     @Test fun fieldMonitorPhoneRestoresCompactTelemetryWithoutChangingThePicture() {
         for (width in listOf(320f, 360f, 440f)) {
