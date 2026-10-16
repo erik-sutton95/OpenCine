@@ -117,7 +117,12 @@
                 XCTAssertTrue(app.frame.contains(clock.frame))
                 XCTAssertTrue(app.frame.contains(recording.frame))
                 XCTAssertTrue(app.frame.contains(format.frame))
-                let text = try paintedText(screenshot.image)
+                // Vision pads its text boxes by a few points (measured: a timecode box starting
+                // 8 pt left of its first painted digit, a box touching a neighbour 11 pt away), so
+                // every geometry check below uses the painted ink inside each recognized box.
+                let text = try paintedText(screenshot.image).map {
+                    PaintedText(value: $0.value, frame: try inkBounds(of: $0.frame, in: screenshot.image))
+                }
                 let recognized = XCTAttachment(
                     string: text.map { "\($0.value): \($0.frame)" }.joined(separator: "\n"))
                 recognized.name =
@@ -258,6 +263,40 @@
                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
             context.draw(source, in: CGRect(x: 0, y: 0, width: 1, height: 1))
             return (Double(bytes[0]) / 255, Double(bytes[1]) / 255, Double(bytes[2]) / 255)
+        }
+
+        /// The bounds of the painted glyphs inside a recognized box: pixels brighter than the dark
+        /// chrome (white and accent ink). An empty box keeps the recognized frame.
+        private func inkBounds(of frame: CGRect, in image: UIImage) throws -> CGRect {
+            let box = frame.intersection(CGRect(origin: .zero, size: image.size)).integral
+            guard !box.isEmpty else { return frame }
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = image.scale
+            let crop = UIGraphicsImageRenderer(size: box.size, format: format).image { _ in
+                image.draw(at: CGPoint(x: -box.minX, y: -box.minY))
+            }
+            let source = try XCTUnwrap(crop.cgImage)
+            let width = source.width, height = source.height
+            var bytes = [UInt8](repeating: 0, count: width * height * 4)
+            let context = try XCTUnwrap(
+                CGContext(
+                    data: &bytes, width: width, height: height, bitsPerComponent: 8,
+                    bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+            var minX = width, minY = height, maxX = -1, maxY = -1
+            for y in 0..<height {
+                for x in 0..<width {
+                    let index = (y * width + x) * 4
+                    guard max(bytes[index], bytes[index + 1], bytes[index + 2]) > 110 else { continue }
+                    minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                }
+            }
+            guard maxX >= minX, maxY >= minY else { return frame }
+            let scale = CGFloat(width) / box.width
+            return CGRect(
+                x: box.minX + CGFloat(minX) / scale, y: box.minY + CGFloat(minY) / scale,
+                width: CGFloat(maxX - minX + 1) / scale, height: CGFloat(maxY - minY + 1) / scale)
         }
 
         private struct PaintedText {
