@@ -33,16 +33,18 @@ public data class MonitorPortraitFormatStackFrames(val width: Int, val height: I
 
 /**
  * Stack frame math shared by the portrait format group (Swift twin:
- * `MonitorPortraitFormatStackLayout.frames(lines:)`): each line is as wide as its content and
- * as tall as the larger of its glyph height and [target]; a line starts where the previous
- * line's glyphs end; lines are end aligned. [lines] are (width, glyph height) pairs.
+ * `MonitorPortraitFormatStackLayout.frames(lines:)`): each line is as wide as its content; a
+ * line starts where the previous line's glyphs end; lines are end aligned. Touch targets tile
+ * without overlap: a line with a line below it is as tall as its glyphs, the last line as tall
+ * as the larger of its glyph height and [target]. [lines] are (width, glyph height) pairs.
  */
 public fun monitorPortraitFormatStackFrames(lines: List<Pair<Int, Int>>, target: Int): MonitorPortraitFormatStackFrames {
     val width = lines.maxOfOrNull { it.first } ?: 0
     var y = 0
     var bottom = 0
-    val slots = lines.map { (lineWidth, glyphHeight) ->
-        val slot = MonitorPortraitFormatLineSlot(width - lineWidth, y, lineWidth, maxOf(target, glyphHeight))
+    val slots = lines.mapIndexed { index, (lineWidth, glyphHeight) ->
+        val height = if (index == lines.lastIndex) maxOf(target, glyphHeight) else glyphHeight
+        val slot = MonitorPortraitFormatLineSlot(width - lineWidth, y, lineWidth, height)
         bottom = maxOf(bottom, slot.y + slot.height)
         y += glyphHeight
         slot
@@ -53,10 +55,10 @@ public fun monitorPortraitFormatStackFrames(lines: List<Pair<Int, Int>>, target:
 /**
  * Portrait capture readouts stack in one end-aligned column: resolution and frame rate on top,
  * codec and color directly below. The column's top is the primary's top, so the primary shares
- * the status row's top edge with the timecode and the STBY/REC chip. Each line keeps its own
- * touch target: a line is measured at its glyph height and placed in a slot at least as tall
- * as the touch target, so the detail line sits right under the primary glyphs and, placed
- * later, owns the overlap below them.
+ * the status row's top edge with the timecode and the STBY/REC chip. Each line is its own touch
+ * target and the targets tile the column without overlapping: a line above another ends where
+ * the next line's glyphs begin, and the last line keeps the touch target height, so the detail
+ * line sits right under the primary glyphs and no tap lands on two readouts.
  */
 @Composable
 public fun MonitorPortraitFormatGroup(showsDetail: Boolean,

@@ -14,7 +14,9 @@ class MonitorPortraitFormatStackTest {
         val (primary, detail) = frames.slots
         assertEquals(0, primary.y, "The primary shares the status row's top edge")
         assertEquals(30, detail.y, "The detail line starts where the primary glyphs end")
-        assertTrue(primary.height >= target && detail.height >= target, "Every line keeps its touch target")
+        assertEquals(30, primary.height, "The primary target ends where the detail line begins")
+        assertTrue(primary.y + primary.height <= detail.y, "No tap lands on two readouts")
+        assertTrue(detail.height >= target, "The last line keeps its touch target")
         assertEquals(frames.width, primary.x + primary.width, "End aligned primary")
         assertEquals(frames.width, detail.x + detail.width, "End aligned detail line")
         assertEquals(150, frames.width)

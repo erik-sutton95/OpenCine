@@ -299,6 +299,7 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
     private let commandEnabled: Bool
     private let currentSource: () -> Bool
     private let coordinateSpace: String
+    private let expandsHeight: Bool
     private let content: () -> Content
     @State private var measuredSize: CGSize = .zero
 
@@ -306,15 +307,18 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         readout: MonitorOperatorLiveReadout<Key, Section>, enabled: Bool, commandEnabled: Bool = true,
         currentSource: @escaping () -> Bool, coordinateSpace: String = "monitor.canvas",
-        @ViewBuilder content: @escaping () -> Content) {
+        expandsHeight: Bool = true, @ViewBuilder content: @escaping () -> Content) {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.readout = readout; self.enabled = enabled; self.commandEnabled = commandEnabled
-        self.currentSource = currentSource; self.coordinateSpace = coordinateSpace; self.content = content
+        self.currentSource = currentSource; self.coordinateSpace = coordinateSpace
+        self.expandsHeight = expandsHeight; self.content = content
     }
 
     public var body: some View {
         let horizontal = measuredSize == .zero ? 0 : max(0, (44 - measuredSize.width) / 2)
-        let vertical = measuredSize == .zero ? 0 : max(0, (44 - measuredSize.height) / 2)
+        // A line of a stacked column already owns its slot's height: growing it would reach
+        // into the neighbouring line's target (`expandsHeight: false`).
+        let vertical = measuredSize == .zero || !expandsHeight ? 0 : max(0, (44 - measuredSize.height) / 2)
         content().background {
             GeometryReader { geometry in
                 Color.clear.preference(key: CaptureHeaderReadoutSizeKey.self,

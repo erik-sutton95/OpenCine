@@ -674,15 +674,23 @@
                     floorPixels,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt native width target")
                 XCTAssertGreaterThanOrEqual(
+                    frame.width, 44 - monitorFloorMeasurementTolerance,
+                    "\(target.accessibilityLabel ?? "target") keeps its 44pt width target")
+                // Stacked targets tile: the primary ends where the detail line begins (no tap
+                // lands on two readouts); the detail line keeps the full 44pt height.
+                guard target !== format else { continue }
+                XCTAssertGreaterThanOrEqual(
                     latticePixelExtent(from: frame.minY, to: frame.maxY, scale: image.scale),
                     floorPixels,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt native height target")
                 XCTAssertGreaterThanOrEqual(
-                    frame.width, 44 - monitorFloorMeasurementTolerance,
-                    "\(target.accessibilityLabel ?? "target") keeps its 44pt width target")
-                XCTAssertGreaterThanOrEqual(
                     frame.height, 44 - monitorFloorMeasurementTolerance,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt height target")
+            }
+            for detail in [codec, color] {
+                XCTAssertLessThanOrEqual(
+                    format.accessibilityFrame.maxY, detail.accessibilityFrame.minY + 0.5,
+                    "The primary target never overlaps \(detail.accessibilityLabel ?? "the detail line")")
             }
             // STBY/REC, the clock and the primary share the status row's top edge; codec and
             // color stack on the detail line under the primary.
@@ -788,7 +796,11 @@
             XCTAssertGreaterThanOrEqual(clock.minX, recording.maxX - 0.5, context)
             XCTAssertLessThanOrEqual(clock.maxX, min(format.minX, codec.minX) + 0.5, context)
             XCTAssertLessThanOrEqual(format.maxX, field.status.x + field.status.width + 0.5, context)
-            for target in [format, codec, color] {
+            // The targets tile: the primary ends where the detail line begins, so no tap lands on
+            // two readouts, and the detail line keeps the full 44pt target.
+            XCTAssertLessThanOrEqual(format.maxY, codec.minY + 0.5, "No overlapping targets \(context)")
+            XCTAssertGreaterThanOrEqual(format.width, 44 - monitorFloorMeasurementTolerance, context)
+            for target in [codec, color] {
                 XCTAssertGreaterThanOrEqual(target.width, 44 - monitorFloorMeasurementTolerance, context)
                 XCTAssertGreaterThanOrEqual(target.height, 44 - monitorFloorMeasurementTolerance, context)
             }

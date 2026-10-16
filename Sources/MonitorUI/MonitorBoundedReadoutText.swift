@@ -21,10 +21,10 @@
 
     /// Portrait capture readouts stack in one trailing column: resolution and frame rate on top,
     /// codec and color directly below. The column's top is the primary's top, so the primary
-    /// shares the status row's top edge with the timecode and the STBY/REC chip. Each line keeps
-    /// its own native target: a line reports its glyph height as its ideal size and accepts the
-    /// 44-point target height it is placed with, so the detail line sits right under the
-    /// primary glyphs and its target, laid out later, owns the overlap below them.
+    /// shares the status row's top edge with the timecode and the STBY/REC chip. Each line is its
+    /// own target and the targets tile the column without overlapping: a line above another ends
+    /// where the next line's glyphs begin, and the last line keeps the 44-point target height, so
+    /// the detail line sits right under the primary glyphs and no tap lands on two readouts.
     public struct MonitorPortraitFormatGroup<Primary: View, Detail: View>: View {
         private let showsDetail: Bool
         private let primary: () -> Primary
@@ -69,9 +69,10 @@
             }
         }
 
-        /// Line frames in column coordinates: each line is as wide as its content and as tall
-        /// as the larger of its glyph height and the target floor; line two begins where the
-        /// primary glyphs end.
+        /// Line frames in column coordinates: each line is as wide as its content; line two
+        /// begins where the primary glyphs end. Targets tile without overlap: a line with a line
+        /// below it is as tall as its glyphs, the last line as tall as the larger of its glyph
+        /// height and the target floor.
         public func frames(subviews: Subviews) -> (size: CGSize, slots: [CGRect]) {
             frames(lines: subviews.map { $0.sizeThatFits(.unspecified) })
         }
@@ -80,8 +81,10 @@
             var slots: [CGRect] = []
             var y: CGFloat = 0
             var bottom: CGFloat = 0
-            for line in lines {
-                let slot = CGRect(x: 0, y: y, width: line.width, height: max(target, line.height))
+            for (index, line) in lines.enumerated() {
+                let last = index == lines.count - 1
+                let slot = CGRect(
+                    x: 0, y: y, width: line.width, height: last ? max(target, line.height) : line.height)
                 slots.append(slot)
                 bottom = max(bottom, slot.maxY)
                 y += line.height

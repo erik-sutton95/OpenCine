@@ -235,8 +235,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     r.top.toDp().value, r.width.toDp().value, r.height.toDp().value) }
             }
         val label: @Composable () -> Unit = {
-            // Grouped portrait lines keep their target width; MonitorPortraitFormatGroup grants
-            // each line its target-height slot, so glyphs stay top aligned at their own height.
+            // Grouped portrait lines keep their target width; MonitorPortraitFormatGroup tiles their
+            // target-height slots without overlap, so glyphs stay top aligned at their own height.
             val groupFrame = if (grouped) Modifier
                 .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width)) else Modifier
             Box(groupFrame, contentAlignment = if (grouped) Alignment.TopEnd else Alignment.BottomEnd) {

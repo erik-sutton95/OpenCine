@@ -624,7 +624,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         grouped: Bool = false, detail: Bool = false, decoratesSection: Bool = true) -> some View {
         MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, readout: value, enabled: presentationAdmitted, commandEnabled: !readOnly,
-            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name) {
+            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
+            expandsHeight: !grouped) {
             Group {
                 if grouped {
                         MonitorPortraitInlineReadoutText(value.value, detail: detail)
@@ -637,6 +638,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                                     : (layout.tablet ? 18 : 16), weight: .medium)
                         )
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                        // The status row lays each readout out at its 44 pt target width, so two
+                        // neighbours (a "--" format beside a "--" color) never share a target.
+                        .frame(minWidth: portrait ? nil : 44)
                 }
             }.overlay(alignment: .bottomTrailing) {
                     if let caption { Text(caption).font(MonitorTheme.font(11, weight: .semibold))

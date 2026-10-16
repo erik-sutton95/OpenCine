@@ -524,7 +524,12 @@ class MonitorPortraitHeaderClearanceTest {
                         assertEquals(canvas.top + field.status.y * density, clock.boundsInRoot.top, .5f)
                         for (target in listOf(format, color, codec)) {
                             assertTrue("Original native target width retained", target.boundsInRoot.width >= 44f * density)
+                        }
+                        // Stacked targets tile: the primary ends where the detail line begins, so no
+                        // tap lands on two readouts; the detail line keeps the full target height.
+                        for (target in listOf(color, codec)) {
                             assertTrue("Original native target height retained", target.boundsInRoot.height >= 48f * density)
+                            assertTrue("No overlapping targets", format.boundsInRoot.bottom <= target.boundsInRoot.top + .5f)
                         }
                         // STBY/REC, the clock and the primary share the status row's top edge; codec
                         // then color stack on the detail line under the primary, end aligned with it.
