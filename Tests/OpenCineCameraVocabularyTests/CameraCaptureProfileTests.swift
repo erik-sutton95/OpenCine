@@ -41,4 +41,14 @@ import Testing
         #expect(CamCapColorMode.wheel(available: colors, order: []) == colors)
         #expect(ColorMode.normal.isoAutoBase == nil)
     }
+
+    /// The colour drum opens on the value the header shows: a reported current mode the body
+    /// list lacks stays on the drum (shown, never offered for a SET); unknown adds nothing.
+    @Test func theColorDrumKeepsTheReportedCurrentModeTheOfferedListLacks() {
+        let offered: [ColorMode] = [.normal, .hdr]
+        #expect(CamCapColorMode.drum(offered: offered, current: .dLog2) == [.normal, .hdr, .dLog2])
+        #expect(CamCapColorMode.drum(offered: offered, current: .hdr) == offered)
+        #expect(CamCapColorMode.drum(offered: offered, current: nil) == offered)
+        #expect(CamCapColorMode.drum(offered: [], current: .iLog) == [.iLog])
+    }
 }

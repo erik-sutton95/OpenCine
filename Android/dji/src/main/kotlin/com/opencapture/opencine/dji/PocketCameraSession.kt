@@ -887,6 +887,22 @@ class PocketCameraSession(
         decoder.attachSurface(surface)
     }
 
+    /**
+     * SIMULATED, debug review only (a `ReviewLaunch` LIVE): presents [status] from [camera] as a live
+     * session through the same reported-capture projection a camera report takes. Opens no radio,
+     * link or decoder; with no link, every command is refused. Never call it in a camera session.
+     */
+    fun stageSimulatedLive(camera: FoundCamera, status: CameraStatus) {
+        check(datalink == null && !isMultiviewBorrowed) { "A simulated review never replaces a camera session" }
+        connectedCamera = camera
+        reportedCapture = status
+        noteReportedExposure(status)
+        _status.value = status
+        _chromeStatus.value = status
+        controlSeam?.sessionDidChange()
+        _phase.value = ConnectionPhase.LIVE
+    }
+
     /** Borrow the tile's transport and decoder; Multiview remains the sole repair owner. */
     fun updateMultiview(camera: FoundCamera?, driver: DatalinkDriver?, status: CameraStatus) {
         if (!isMultiviewBorrowed) return
@@ -3150,15 +3166,20 @@ class PocketCameraSession(
 
     /** Only this frame's own decode counts: never a pin-held or optimistic value. */
     private fun noteReportedControlValues(frame: DumlFrame, decoded: CameraStatus, reported: CameraStatus) {
+        noteReportedExposure(reported)
+        // `0x02/0x80` carries the recording bit; the JNI decode of this frame is camera truth.
+        if (frame.cmdSet == 0x02 && frame.cmdId == 0x80 && frame.payload.size >= 13) {
+            reportedRecording = decoded.isRecording
+        }
+    }
+
+    /** The ISO and white balance a report carries, as the control projection reads them. */
+    private fun noteReportedExposure(reported: CameraStatus) {
         if (reported.isoIndex >= 0) reportedIsoIndex = reported.isoIndex
         if (reported.wbMode == CameraCommands.WB_AUTO) {
             reportedWhiteBalance = ReportedWhiteBalance(CameraCommands.WB_AUTO, 0, reported.wbTint)
         } else if (reported.wbMode == CameraCommands.WB_CUSTOM && reported.wbKelvin >= 2_000) {
             reportedWhiteBalance = ReportedWhiteBalance(CameraCommands.WB_CUSTOM, reported.wbKelvin, reported.wbTint)
-        }
-        // `0x02/0x80` carries the recording bit; the JNI decode of this frame is camera truth.
-        if (frame.cmdSet == 0x02 && frame.cmdId == 0x80 && frame.payload.size >= 13) {
-            reportedRecording = decoded.isRecording
         }
     }
 

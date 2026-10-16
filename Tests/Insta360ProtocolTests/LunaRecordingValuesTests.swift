@@ -8,4 +8,12 @@ struct LunaRecordingValuesTests {
         #expect(LunaColorMode.vivid.label == "Vivid")
         #expect(LunaColorMode.hdr.label == "HDR")
     }
+
+    /// The colour drum opens on the reported colour, even one the native choices lack.
+    @Test func theRecordingColourDrumKeepsTheReportedColour() {
+        let choices = LunaColorMode.nativeRecordingChoices
+        #expect(LunaColorMode.recordingDrum(current: .vivid) == choices + [.vivid])
+        #expect(LunaColorMode.recordingDrum(current: .iLog) == choices)
+        #expect(LunaColorMode.recordingDrum(current: nil) == choices)
+    }
 }

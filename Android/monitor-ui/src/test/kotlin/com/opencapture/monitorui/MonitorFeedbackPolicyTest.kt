@@ -53,19 +53,20 @@ class MonitorFeedbackPolicyTest {
                 assertEquals(w / 2f, panel.x + panel.width / 2f, .001f)
                 assertTrue(panel.width <= if (minOf(w, h) >= 600f) 620f else 480f)
                 assertTrue(panel.x >= maxOf(14f, safe + 4f))
-                assertTrue(panel.y >= 14f)
+                assertTrue(panel.y >= MonitorLayoutPolicy.popupTopMargin(0f))
                 assertEquals(floor?.minus(12f) ?: h, panel.y + minOf(panelHeight, panel.maxHeight), .001f)
             }
         }
     }
 
-    @Test fun topCapturePanelsShareCenterAndHangFromTheTopEdge() {
+    @Test fun topCapturePanelsShareCenterAndKeepThePopupTopMargin() {
         for ((w, h) in listOf(667f to 375f, 874f to 402f, 402f to 874f, 1366f to 1024f)) {
             val floor = if (h > w) h - 116f else null
             val ceiling = if (h > w) 80f else null
             val panel = MonitorLayoutPolicy.topPanel(190f, w, h, 0f, 0f, 0f, 0f, ceiling, floor)
             assertEquals(w / 2f, panel.x + panel.width / 2f, .001f)
-            assertEquals(if (h > w) 86f else 0f, panel.y, .001f)
+            // Landscape floats under the same top margin as the bottom drawer, inside the safe area.
+            assertEquals(if (h > w) 86f else 8f, panel.y, .001f)
             assertTrue(panel.width <= if (minOf(w, h) >= 600f) 620f else 480f)
         }
     }
@@ -90,7 +91,7 @@ class MonitorFeedbackPolicyTest {
         assertEquals(0f, MonitorLayoutPolicy.capturePanelBottomCorner(false, false))
         assertEquals(16f, MonitorLayoutPolicy.capturePanelTopCorner(true, true))
         assertEquals(16f, MonitorLayoutPolicy.capturePanelBottomCorner(true, true))
-        assertEquals(0f, MonitorLayoutPolicy.capturePanelTopCorner(true, false))
+        assertEquals(16f, MonitorLayoutPolicy.capturePanelTopCorner(true, false))
         assertEquals(16f, MonitorLayoutPolicy.capturePanelBottomCorner(true, false))
     }
 

@@ -43,4 +43,21 @@ object CaptureWheels {
         val ranked = order.filter { it.first in have }
         return ranked.ifEmpty { order }
     }
+
+    /**
+     * The colour drum: the [offered] modes plus the camera's reported [current] mode when the
+     * offered list lacks it, so the popup opens centred on the value the header shows. That extra
+     * entry is shown, never sent: a SET goes only to an offered mode. Unknown (-1) adds nothing.
+     * Swift twin: `CamCapColorMode.drum`.
+     */
+    fun colorDrum(
+        offered: List<Pair<Int, String>>,
+        current: Int,
+        family: String,
+        profile: CameraLabelProfile = CameraLabelProfile.standard,
+    ): List<Pair<Int, String>> {
+        if (current < 0 || offered.any { it.first == current }) return offered
+        val label = CameraCommands.colorLabel(current, family, profile)
+        return if (label == CameraCommands.colorLabel(-1, family)) offered else offered + (current to label)
+    }
 }
