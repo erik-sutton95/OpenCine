@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Hardware-qualified catalogue policy. Common controls consume only the resulting values.
 public enum DJICaptureCapabilityProfile {

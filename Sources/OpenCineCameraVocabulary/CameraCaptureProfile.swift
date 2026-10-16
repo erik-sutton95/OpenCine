@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Declared control facts supplied by a camera integration, separate from live observations.
 public struct CameraCaptureProfile: Equatable, Sendable {
