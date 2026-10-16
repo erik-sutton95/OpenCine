@@ -24,14 +24,12 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @State private var operatorSession: MonitorOperatorSessionModel<Looks>
     private let configuration: MonitorOperatorSettingsConfiguration<Looks>?
     private let borrowedSelection: Binding<MonitorSettingsTab>?
-    private let borrowedScrollOffsets: Binding<[String: CGFloat]>?
     private let sourceIdentity: UUID?
     @Environment(\.openURL) private var openURL
     @State private var document: MonitorSettingsDocument?
     @State private var legalPage: MonitorLegalPage?
     @State private var showLook = false
     @State private var showJoinCode = false
-    @State private var showReport = false
     @State private var showDiagnostics = false
     @State private var supportError = false
     private struct ReportShare: Identifiable { let id = UUID(); let url: URL }
@@ -51,28 +49,35 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         self.preferences = preferences; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
         self.configuration = configuration; self.coverSafeArea = safeArea
-        self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
+        self.borrowedSelection = nil; self.sourceIdentity = nil
         self.assistPanels = assistPanels; self.falseColorLooks = falseColorLooks
         _operatorSession = State(initialValue: operatorSession ?? MonitorOperatorSessionModel(shell: shell, assist: assist, display: display))
     }
 
-    /// Complete configured flow over a source's page state and the one display owner.
+    /// Complete configured flow over a source's page state and the one display owner, which also
+    /// keeps each tab's scroll offset.
     public init(brand: String, configuration: MonitorOperatorSettingsConfiguration<Looks>,
         library: MonitorMediaLibraryModel<Payload>?, selectedTab: Binding<MonitorSettingsTab>,
-        scrollOffsets: Binding<[String: CGFloat]>, operatorSession: MonitorOperatorSessionModel<Looks>,
-        sourceIdentity: UUID?, initialReportPresented: Bool = false, safeArea: EdgeInsets? = nil) {
+        operatorSession: MonitorOperatorSessionModel<Looks>,
+        sourceIdentity: UUID?, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
         self.preferences = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
         self.configuration = configuration; self.coverSafeArea = safeArea
-        self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
+        self.borrowedSelection = selectedTab; self.sourceIdentity = sourceIdentity
         _operatorSession = State(initialValue: operatorSession)
-        _showReport = State(initialValue: initialReportPresented)
     }
 
     private var selectedTab: Binding<MonitorSettingsTab> {
         if let borrowedSelection { return borrowedSelection }
         return Binding(get: { operatorSession.settingsTab }, set: { operatorSession.settingsTab = $0 })
+    }
+
+    /// Every form restores each tab's scroll from the one display owner (A2-84).
+    private var scrollOffsets: Binding<[MonitorSettingsTab: CGFloat]> {
+        let session = operatorSession
+        return Binding(get: { session.settingsScrollOffsets.mapValues { CGFloat($0) } },
+            set: { session.settingsScrollOffsets = $0.mapValues { Double($0) } })
     }
 
     public var body: some View {
@@ -135,7 +140,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         let hasLibrary = library != nil
         return MonitorSettingsPage(safeArea: safeArea, brand: brand, selection: selectedTab,
             tabs: source.tabs(library: hasLibrary), isLive: source.isLive, phaseLabel: source.phase,
-            sharingSubtitle: source.sharingSubtitle, scrollOffsets: borrowedScrollOffsets, feedback: source.feedback,
+            sharingSubtitle: source.sharingSubtitle, scrollOffsets: scrollOffsets, feedback: source.feedback,
             onClose: source.close, disconnect: source.disconnect) { tab in
             ForEach(source.rows(tab, library: hasLibrary), id: \.self) { row($0, source) }
         }
@@ -149,7 +154,6 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
         .sheet(isPresented: $showLook) { source.assistSource.lookCatalog?() }
         .sheet(isPresented: $showJoinCode) { source.sharing?.joinCode?() }
-        .sheet(isPresented: $showReport) { source.support?.report() }
         .sheet(item: $reportShare) { payload in source.support?.shareReport(payload.url) }
         .alert("Report unavailable", isPresented: $supportError) {
             Button("OK", role: .cancel) {}
@@ -158,7 +162,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
     }
     private func retireSheets() {
-        document = nil; legalPage = nil; showLook = false; showJoinCode = false; showReport = false
+        document = nil; legalPage = nil; showLook = false; showJoinCode = false
         reportShare = nil; supportError = false
     }
 
@@ -186,7 +190,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             MonitorConnectionSettings(transport: link.transport, transportHelp: link.transportHelp,
                 phase: link.phase, phaseHelp: link.phaseHelp, network: link.network, networkHelp: link.networkHelp)
         case .processing:
-            if let processing = link.processing { MonitorProcessingSettings(choice: processing) }
+            if let group = link.processing?.group { MonitorSettingsSourceGroups(groups: [group]) }
         case .savedCameras:
             if let saved = link.saved { MonitorSavedCameraSettings(cameras: saved, emptyHelp: link.savedHelp) }
         default: MonitorSettingsSourceGroups(groups: link.sourceGroups)
@@ -270,9 +274,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .support:
             if let support = source.support {
                 MonitorSettingsSupportRows(source: support, consent: support.consent.map(observedBinding),
-                    report: {
-                        if let action = support.reportAction { action() } else { showReport = true }
-                    }, openLegal: { legalPage = $0 }, openDocument: { document = $0 })
+                    report: support.report, openLegal: { legalPage = $0 }, openDocument: { document = $0 })
             }
         case .diagnosticOptions:
             if let support = source.support {

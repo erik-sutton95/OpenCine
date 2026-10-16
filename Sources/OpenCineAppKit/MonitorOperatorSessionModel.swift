@@ -14,7 +14,13 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
     public var live: MonitorDisplayChrome { didSet { preferences.live = live } }
     public var clean: MonitorDisplayChrome { didSet { preferences.clean = clean } }
     public var command: MonitorDisplayChrome { didSet { preferences.command = command } }
+    /// The one landing-tab rule (A2-84): Settings opens on the tab the operator last chose in this
+    /// app run, Link at first, whichever entry opens it (home, the monitor, a cover rehost). Only
+    /// the chrome editor's Done picks a tab, Display, the page it returns to.
     public var settingsTab: MonitorSettingsTab = .link
+    /// Each settings tab's scroll offset for this app run, so a tab reopens where it was left
+    /// (A2-84): after Edit view, a cover rehost or closing Settings.
+    public var settingsScrollOffsets: [MonitorSettingsTab: Double] = [:]
     public var editingMode: MonitorDisplayMode? {
         get { displaySession.editingMode }
         set { displaySession.editingMode = newValue }
@@ -113,6 +119,9 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
         settingsTab = .display
         shell.open(.settings)
     }
+
+    /// Opens Settings on the operator's last tab and scroll position (the landing-tab rule).
+    public func openSettings() { shell.open(.settings) }
 
     /// Supply the shell's monitor lifetime, rather than the transport's reusable camera ID.
     public func synchronize(source: UUID?) {

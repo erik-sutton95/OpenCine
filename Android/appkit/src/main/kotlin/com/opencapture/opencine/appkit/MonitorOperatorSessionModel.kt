@@ -36,7 +36,15 @@ public class MonitorOperatorSessionModel(
     public var command: MonitorDisplayChrome
         get() = commandValue
         set(value) { commandValue = value; preferences.command = value }
+    /**
+     * The one landing-tab rule (A2-84): Settings opens on the tab the operator last chose in this app
+     * run, Link at first, whichever entry opens it (home, the monitor, a cover rehost). Only the chrome
+     * editor's Done picks a tab, Display, the page it returns to.
+     */
     public var settingsTab: MonitorSettingsTab by mutableStateOf(MonitorSettingsTab.LINK)
+    /** Each settings tab's scroll offset for this app run, so a tab reopens where it was left (A2-84). */
+    public var settingsScrollOffsets: Map<MonitorSettingsTab, Int> by mutableStateOf(emptyMap())
+        private set
     private val displaySession = MonitorDisplaySession(MonitorDisplayMode.LIVE)
     public var editingMode: MonitorDisplayMode?
         get() = displaySession.editingMode
@@ -118,6 +126,14 @@ public class MonitorOperatorSessionModel(
         if (displaySession.finishEditing(modes) == null) return
         settingsTab = MonitorSettingsTab.DISPLAY
         shell.open(ShellModel.Cover.SETTINGS)
+    }
+
+    /** Opens Settings on the operator's last tab and scroll position (the landing-tab rule). */
+    public fun openSettings(): Unit = shell.open(ShellModel.Cover.SETTINGS)
+
+    /** The settings page reports where [tab] is scrolled to. */
+    public fun noteSettingsScroll(tab: MonitorSettingsTab, offset: Int): Unit {
+        if (settingsScrollOffsets[tab] != offset) settingsScrollOffsets = settingsScrollOffsets + (tab to offset)
     }
 
     /** The shell monitor ID changes on reentry even when the same camera session is reused. */

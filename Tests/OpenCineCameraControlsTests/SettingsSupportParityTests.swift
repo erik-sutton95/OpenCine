@@ -12,14 +12,15 @@ import Testing
 @MainActor
 @Suite struct SettingsSupportParityTests {
     private func source(supportEmail: String = "support@opencapture.org",
-        deleteStoredReports: (() -> Void)? = nil, legal: MonitorLegalDocuments? = nil) -> MonitorSettingsSupportSource {
+        deleteStoredReports: (() -> Void)? = nil, legal: MonitorLegalDocuments? = nil,
+        report: @escaping () -> Void = {}) -> MonitorSettingsSupportSource {
         .init(consent: .constant(false), available: true, automaticHelp: "", unavailableHelp: "",
             sourceHelp: "", termsHelp: "", model: MonitorSettingsSupportModel(),
             actions: .init(identity: "SIMULATED", isCurrent: { true }, requiresInternetConsent: nil,
                 makeReport: { throw CancellationError() }, prepareBrowser: { _ in nil }, open: { _ in false }),
             links: [], privacy: nil, source: nil, terms: nil, reportTitle: "Report a problem",
             reportActionTitle: "Open", diagnosticsHelp: "",
-            report: { AnyView(EmptyView()) }, shareReport: { _ in AnyView(EmptyView()) },
+            report: report, shareReport: { _ in AnyView(EmptyView()) },
             deleteStoredReports: deleteStoredReports, supportEmail: supportEmail, legal: legal)
     }
 
@@ -33,6 +34,19 @@ import Testing
         #expect(configured.showsLocally(.licenses), "A missing bundled page states that it is unavailable")
         #expect(configured.showsLocally(.notice))
         #expect(MonitorLegalPage.allCases.allSatisfy { !source().showsLocally($0) })
+    }
+
+    /// A2-24: every support form asks the app root to present the problem report, so the draft
+    /// lives with the root and survives the monitor ending. The settings screen owns no report sheet.
+    @Test func everySupportFormAsksTheHostRootToPresentTheReport() {
+        var requested: [String] = []
+        source(report: { requested.append("model") }).report()
+        MonitorSettingsSupportSource(report: { requested.append("actions") }).report()
+        MonitorSettingsSupportSource(consent: .constant(false), available: true, automaticHelp: "", unavailableHelp: "",
+            deleteHelp: "", sourceHelp: "", termsHelp: "", sourceURL: nil, termsURL: nil,
+            saveReport: { nil }, deleteReports: {}, report: { requested.append("closure") },
+            document: { _, _ in AnyView(EmptyView()) }, shareReport: { _ in AnyView(EmptyView()) }).report()
+        #expect(requested == ["model", "actions", "closure"])
     }
 
     @Test func theReportUnavailableAlertUsesTheConfiguredSupportEmail() {

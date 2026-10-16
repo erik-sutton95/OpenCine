@@ -15,7 +15,6 @@ import androidx.compose.runtime.LaunchedEffect
 import com.opencapture.monitorui.settings.LocalMonitorSettingsScrollContext
 import com.opencapture.monitorui.settings.MonitorDisplaySettings
 import androidx.compose.runtime.MutableIntState
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -78,8 +77,9 @@ internal class MonitorOperatorSettingsInputs(
     val onSelect: (MonitorSettingsTab) -> Unit,
     val picture: MonitorOperatorPictureSettings,
     val sourceIdentity: Any? = null,
-    /** The open legal page, when a dialog outside the page (the report form) also opens one. */
-    val legalPage: MutableState<MonitorLegalPage?>? = null,
+    /** Each tab's scroll offset and where the open tab is scrolled to (A2-84). */
+    val scrollOffsets: Map<MonitorSettingsTab, Int> = emptyMap(),
+    val onScroll: (MonitorSettingsTab, Int) -> Unit = { _, _ -> },
 )
 
 /** One full-cover settings recipe for every app; [MonitorOperatorPictureSettings] supplies the picture tabs. */
@@ -87,8 +87,7 @@ internal class MonitorOperatorSettingsInputs(
 internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) {
     val configuration = inputs.configuration
     BackHandler(onBack = configuration.close)
-    val ownLegalPage = remember { mutableStateOf<MonitorLegalPage?>(null) }
-    val legalPage = inputs.legalPage ?: ownLegalPage
+    val legalPage = remember { mutableStateOf<MonitorLegalPage?>(null) }
     var showLutPicker by remember { mutableStateOf(false) }
     val revision = remember { mutableIntStateOf(0) }
     val context = LocalContext.current
@@ -112,7 +111,7 @@ internal fun MonitorOperatorSettingsBody(inputs: MonitorOperatorSettingsInputs) 
             configuration.phase, configuration.disconnect, configuration.feedback, tabs = configuration.tabs,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
-            back = configuration.close) { tab ->
+            back = configuration.close, scrollOffsets = inputs.scrollOffsets, onScroll = inputs.onScroll) { tab ->
             key(inputs.sourceIdentity) {
                 MonitorOperatorSettingsRows(inputs, tab, compact, revision, openLegal,
                     onOpenLut = { showLutPicker = true }, onPreferenceChanged = { revision.intValue++ })
