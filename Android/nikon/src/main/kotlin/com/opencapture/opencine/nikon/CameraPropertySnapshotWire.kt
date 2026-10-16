@@ -83,6 +83,7 @@ object CameraPropertySnapshotWire {
             resolutionFrameRate = value.optionalString("resolutionFrameRate"),
             codecSelection = value.optionalString("codecSelection"),
             codecBitDepth = value.optionalString("codecBitDepth"),
+            movieTone = value.optionalString("movieTone"),
             whiteBalanceTint = value.optionalString("whiteBalanceTint"),
             batteryPercent = value.optionalInt("batteryPercent"),
             externalPower = value.optionalBoolean("externalPower"),
@@ -153,6 +154,9 @@ object CameraPropertySnapshotWire {
                     pictureControls = value.options("options.pictureControl"),
                     rawCompressions = value.options("options.rawCompression"),
                     codecBitDepths = value.codecBitDepths("options.codecBitDepth"),
+                    movieTones = value.options("options.movieTone"),
+                    movieToneEditable = value.optionalBoolean("movieToneEditable") == true,
+                    recordingFormats = value.recordingFormats("options.recordingFormat"),
                 ),
         )
     }
@@ -287,6 +291,15 @@ object CameraPropertySnapshotWire {
             } else {
                 CodecBitDepthOption(codec = parts[0], label = parts[1], writeValue = parts[2])
             }
+        }
+
+    /** Grouping is transported as source-decoded axes; labels are never parsed to recover facts. */
+    private fun Map<String, String>.recordingFormats(key: String): List<NikonRecordingFormatPresentation> =
+        options(key).mapNotNull { entry ->
+            val parts = entry.split(FIELD_SEPARATOR)
+            if (parts.size != 4 || parts[0].isBlank()) null else
+                NikonRecordingFormatPresentation(parts[0], parts[1].takeIf(String::isNotBlank),
+                    parts[2].takeIf(String::isNotBlank), parts[3].takeIf(String::isNotBlank))
         }
 
     /** Record separator between the fields of one `options.codecBitDepth` entry. */

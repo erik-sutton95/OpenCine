@@ -29,6 +29,30 @@ import kotlin.time.Duration.Companion.seconds
 /** SIMULATED descriptor and confirmation scenarios; Swift mirrors the same names. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorCapturePresentationTest {
+    @Test fun recordingReadoutsKeepExactCadenceAndUnknownFacts() {
+        val unknown = com.opencapture.opencine.core.CameraSnapshot(com.opencapture.opencine.core.CameraSessionID())
+        assertNull(MonitorCapturePresentation.recordingLabel(MonitorCapturePresentation.recordingFormat(unknown)))
+        val dimensions = assertNotNull(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(3840, 2160))
+        val snapshot = unknown.copy(recordingFormat = com.opencapture.opencine.core.CameraRecordingObservations(
+            dimensions = com.opencapture.opencine.core.ObservedValue(dimensions, com.opencapture.opencine.core.ObservationOrigin.CAMERA_REPORTED, null),
+            profile = com.opencapture.opencine.core.ObservedValue("I-Log", com.opencapture.opencine.core.ObservationOrigin.CAMERA_REPORTED, null)),
+            settings = mapOf(SettingKey.FRAME_RATE to com.opencapture.opencine.core.ObservedValue(SettingValue.FrameRate(Rational(24_000, 1_001)), com.opencapture.opencine.core.ObservationOrigin.CAMERA_REPORTED, null)))
+        val format = MonitorCapturePresentation.recordingFormat(snapshot)
+        assertEquals("4K · 23.98p", MonitorCapturePresentation.recordingLabel(format))
+        assertNull(format.codec)
+        assertEquals("I-Log", format.profile)
+        assertEquals("4K", MonitorCapturePresentation.recordingLabel(com.opencapture.opencine.core.CameraRecordingFormat.measured(dimensions)))
+        assertEquals("1080p 9:16", MonitorCapturePresentation.resolutionLabel(assertNotNull(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(1080, 1920))))
+    }
+
+    @Test fun exposureProgramLabelsUseTheReportedProgram() {
+        assertEquals("M", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.MANUAL))
+        assertEquals("A", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC))
+        assertEquals("I", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.ISO_PRIORITY))
+        assertEquals("S", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY))
+        assertEquals("P", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.PROGRAM))
+    }
+
     /** A5-09: one frame-rate label for every integration; the NTSC family keeps its decimals. */
     @Test fun frameRateLabelsKeepTheExactRate() {
         val table = listOf(
@@ -80,6 +104,39 @@ class MonitorCapturePresentationTest {
         assertNull(hud.elapsedSeconds)
         assertNull(hud.timecode)
         assertEquals("Recording state unknown", hud.recordingAccessibilityLabel)
+    }
+
+    @Test fun reportedAndPendingReadoutsKeepTheirOwnValuesAndTheSameEditor() = runTest {
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        val field = assertNotNull(control.captureField(SettingKey.ISO))
+        val originalReport = control.state.value.snapshot?.value(SettingKey.ISO)
+        assertTrue(control.commit(field.choices.first { it.value == iso(800) }, field))
+        assertEquals("800", control.captureField(SettingKey.ISO)?.label)
+        assertEquals("800", control.captureField(SettingKey.ISO, MonitorCaptureSelection.PENDING)?.label)
+        assertEquals("200", control.captureField(SettingKey.ISO, MonitorCaptureSelection.REPORTED)?.label)
+        assertEquals(iso(200), control.captureValue(SettingKey.ISO, MonitorCaptureSelection.REPORTED))
+        assertEquals(field.editor, control.captureField(SettingKey.ISO, MonitorCaptureSelection.REPORTED)?.editor)
+        assertEquals(originalReport, control.state.value.snapshot?.value(SettingKey.ISO))
+        assertTrue(camera.wire.isEmpty())
+    }
+
+    @Test fun readingMissingCommonObservationsNeverSelectsADefault() = runTest {
+        val camera = FakeCameraSession(FakeCameraSession.lunaLike().behavior,
+            FakeDevice(0x01, emptyMap(), recording = null))
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        assertNull(control.captureValue(SettingKey.ISO, MonitorCaptureSelection.REPORTED))
+        assertNull(control.captureField(SettingKey.ISO))
+        control.bind(camera)
+        for (key in listOf(SettingKey.ISO, SettingKey.SHUTTER, SettingKey.WHITE_BALANCE,
+            SettingKey.FOCUS_MODE, SettingKey.APERTURE, SettingKey.EXPOSURE_COMPENSATION)) {
+            assertNull(control.captureValue(key, MonitorCaptureSelection.REPORTED))
+            assertNull(control.captureValue(key, MonitorCaptureSelection.PENDING))
+        }
+        assertTrue(camera.wire.isEmpty())
     }
 
     @Test fun typedDetentsCoalesceWithoutChangingTheReportedValue() = runTest {

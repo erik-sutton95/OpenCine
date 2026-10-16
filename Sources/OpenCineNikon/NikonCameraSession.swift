@@ -440,12 +440,24 @@ public final class NikonCameraSession: CameraSession {
             &next.power.battery, facts.reported.batteryPercent.flatMap(Self.batteryFraction), at: at,
             // BatteryLevel is the body's five-step gauge, never a percent (A5-01).
             precision: .quantized(step: 1.0 / Double(NikonCameraBatteryGauge.barCount)))
+        Self.observe(&next.power.exhausted,
+            facts.reported.batteryPercent.flatMap { NikonCameraBatteryGauge.gauge(rawBatteryLevel: $0).exhaustion },
+            at: at)
+        Self.observe(&next.power.externalPower, facts.reported.onExternalPower, at: at)
         Self.observe(&next.storage, Self.storageVolumes(facts, previous: next.storage.value, at: at), at: at)
         for (key, value) in Self.reportedSettings(facts.reported) {
             var observation = next.value(of: key)
             Self.observe(&observation, value, at: at)
             next.settings[key] = observation.isKnown ? observation : nil
         }
+        Self.observe(&next.exposureProgram, Self.exposureProgram(facts.reported.exposureMode), at: at)
+        let dimensions = Self.recordingDimensions(facts.reported.resolution)
+        Self.observe(&next.recordingFormat.dimensions, dimensions, at: at)
+        let codec = facts.reported.fileType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        Self.observe(&next.recordingFormat.codec, codec.flatMap { $0.isEmpty ? nil : $0 }, at: at)
+        let profile = codec.flatMap(PTPCameraPropertyDecoders.toneLabel(fromCodec:))
+        Self.observe(&next.recordingFormat.profile, profile, at: at)
+        if profile != nil { next.recordingFormat.profile.origin = .protocolDerived }
         if next != current {
             next.revision = current.revision.next()
             current = next
@@ -506,6 +518,24 @@ public final class NikonCameraSession: CameraSession {
 
     static func timecodeCapability(_ reported: PTPCameraPropertySnapshot) -> TimecodeCapability {
         .supported(frameRate(reported).map { .frames(rate: $0, dropFrame: nil) })
+    }
+
+    private static func exposureProgram(_ label: String?) -> CameraExposureProgram? {
+        switch label {
+        case "M": .manual
+        case "P": .program
+        case "A": .aperturePriority
+        case "S": .shutterPriority
+        case "Auto": .automatic
+        default: nil
+        }
+    }
+
+    private static func recordingDimensions(_ value: String?) -> CameraRecordingFormat.Dimensions? {
+        guard let value else { return nil }
+        let parts = value.split(separator: "x", omittingEmptySubsequences: false)
+        guard parts.count == 2, let width = Int(parts[0]), let height = Int(parts[1]) else { return nil }
+        return CameraRecordingFormat.Dimensions(width: width, height: height)
     }
 
     /// The movie rate as the screen-size token reports it, in whole frames per second. Whether a
@@ -581,7 +611,9 @@ public final class NikonCameraSession: CameraSession {
     }
 
     /// The common value for a selection of `setting`, or `nil` when `label` does not parse.
-    public static func setting(_ setting: NikonControlSetting, label: String) -> SettingValue? {
+    public nonisolated static func setting(
+        _ setting: NikonControlSetting, label: String
+    ) -> SettingValue? {
         switch setting {
         case .iso:
             Int(label.trimmingCharacters(in: .whitespaces)).map { .iso(.manual($0)) }
@@ -603,7 +635,7 @@ public final class NikonCameraSession: CameraSession {
         return blank.applying(property: write.property, data: readback) == requested
     }
 
-    private static func whiteBalance(preset label: String) -> SettingValue {
+    private nonisolated static func whiteBalance(preset label: String) -> SettingValue {
         .whiteBalance(label == "Auto" ? .auto : .preset(label))
     }
 

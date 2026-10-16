@@ -170,7 +170,7 @@ private class CaptureReadoutActions(
     return CaptureReadoutActions(quick, open = {
         if (current() && state.preview == null && (owner.owner == null || owner.owner == ownerId)) {
             if (currentReadout.action != null) {
-                if (!currentReadout.actionIsCommand || commands) currentReadout.action?.invoke()
+                if (!currentReadout.actionIsCommand || (commands && currentInputs.panel == null && currentInputs.commitAdmission())) currentReadout.action?.invoke()
             } else currentInputs.open(currentReadout.id)
         }
     }, commit = { captured, label ->

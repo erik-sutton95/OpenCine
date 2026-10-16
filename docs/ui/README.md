@@ -86,6 +86,19 @@ The lower UI primitives continue to take values and actions; app-specific native
 bounded typed slots. See [monitor composition and capture](../appkit/README.md#monitor-composition-and-capture)
 for adapter boundaries, capture ownership and regression guards.
 
+Every camera's control popup (ISO, shutter, white balance, focus and the other drum controls)
+is the one common drawer, `MonitorCapturePanel`, placed by the live surface. Inside it,
+`CaptureSheetPanel` (status-reporting cameras) and `LadderSheet` (cameras that advertise label
+ladders, such as Nikon) draw the same parts: the typed `MonitorCaptureDrum` or the label
+`MonitorValueDrum`, the one `ModeBar` tab strip (tabs carry `monitor.capture.tab.<index>`),
+and `MonitorCaptureToggle` / `MonitorCaptureStepper` rows. Neither draws its own glass, header
+or close control. Camera differences (lock banners, Kelvin and bit-depth step buttons, a
+two-axis tint pad) arrive as typed tab values: the ladder presentation types live in
+`OpenCineCameraVocabulary` (`CaptureLadderSheet.swift`), and `NikonCapturePopupState`
+(`OpenCineNikon`) builds them from session values, so an app adapter only reads its session
+and routes writes. The shared `CapturePopupUITests`
+(`OpenCineAppUITesting`) opens each popup in both orientations in every app.
+
 Grouped movie-format controls live in `OpenCineCameraControls` /
 `camera-controls`, above the lower UI primitives. [`CaptureFormatPicker` and
 `CaptureFormatPickerState`][grouped-format-1] ([Compose][grouped-format-2])
@@ -339,6 +352,10 @@ does not imply relay or account availability where the host supplies none.
   calculation and Canvas tag layout. These inherited native differences remain
   explicit pending physical qualification. Compose `monitorChromeClickable`
   owns press/tap/hold input and animation, with feedback supplied by the host.
+- `MonitorFocusMark` draws the focus area at the normalized size a camera declares
+  (nil keeps the standard square) and traces the hold-to-lock progress in the accent
+  until the lock engages. Swift only for now: Z Android's focus overlay adopts the
+  Compose layer in its own lane, so the Compose mark keeps the square without progress.
 - Assist menus now own the actual audio, ND notation, peaking, false-color, zebra,
   desqueeze, guide, grid, mirror and help assemblies. They reuse the shared settings
   controls and receive current values/bindings, action closures and host feedback.

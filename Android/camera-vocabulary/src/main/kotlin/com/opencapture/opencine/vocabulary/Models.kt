@@ -152,7 +152,14 @@ data class CameraStatus(
     /** Action 6 `camcap_aperture_ctrl_strategy`. Empty until pushed. */
     val availableApertureStrategies: List<Int> = emptyList(),
     private val decodedTimecode: CameraStatusTimecode? = null,
+    /** Charging is unknown until a source actually reports it, including explicit false. */
+    val chargingObservation: Boolean? = null,
+    val chargingObservationDeclared: Boolean = false,
 ) {
+    /** The charging fact: the declared report (null when the report was invalid), else the legacy
+     *  flag only when it says charging. Never false from an absent report. */
+    val chargingReading: Boolean? get() = if (chargingObservationDeclared) chargingObservation else true.takeIf { charging }
+
 
     /** Typed wire components. Only a legacy caller changing text enters the parsing boundary. */
     @Suppress("DEPRECATION")

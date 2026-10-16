@@ -13,6 +13,9 @@ public struct MonitorCaptureChoice: Hashable, Sendable {
     }
 }
 
+/// Which observation a readout presents; pending commands never become camera reports.
+public enum MonitorCaptureSelection: Hashable, Sendable { case reported, pending }
+
 /// One common readout and the immutable editor its gestures opened against.
 @available(macOS 14, *)
 public struct MonitorCaptureField: Hashable, Sendable {
@@ -99,6 +102,58 @@ public enum MonitorCapturePresentation {
             : String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), rate.doubleValue)
     }
 
+    public static func exposureProgram(_ value: CameraExposureProgram) -> String {
+        switch value {
+        case .automatic, .aperturePriority: "A"
+        case .manual: "M"
+        case .isoPriority: "I"
+        case .shutterPriority: "S"
+        case .program: "P"
+        }
+    }
+
+    /// Recording facts are independent of preview encoding and pending format commands.
+    public static func recordingFormat(_ snapshot: CameraSnapshot) -> CameraRecordingFormat {
+        let rate: Rational?
+        if case .frameRate(let value)? = snapshot.value(of: .frameRate).value { rate = value } else { rate = nil }
+        return CameraRecordingFormat(dimensions: snapshot.recordingFormat.dimensions.value,
+            frameRate: rate, profile: snapshot.recordingFormat.profile.value, codec: snapshot.recordingFormat.codec.value)
+    }
+
+    public static func recordingLabel(_ format: CameraRecordingFormat) -> String? {
+        let size = format.dimensions.map(resolutionLabel)
+        let rate = format.frameRate.map { frameRate($0) + "p" }
+        let parts = [size, rate].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// A compact caption derives from measured geometry and keeps uncommon dimensions exact.
+    public static func resolutionLabel(_ size: CameraRecordingFormat.Dimensions) -> String {
+        let width = max(size.width, size.height)
+        let label: String
+        switch width {
+        case 7680...: label = "8K"
+        case 5000..<7680: label = "6K"
+        case 3500..<5000: label = "4K"
+        case 2880..<3500: label = "3K"
+        case 2500..<2880: label = "2.7K"
+        case 2160 where size.width == size.height: label = "2160p"
+        case 1920: label = "1080p"
+        default: return "\(size.width)×\(size.height)"
+        }
+        let ratio = Double(size.width) / Double(size.height)
+        let aspect: String
+        switch ratio {
+        case let x where abs(x - 16.0 / 9.0) < 0.015: aspect = ""
+        case let x where abs(x - 4.0 / 3.0) < 0.015: aspect = " 4:3"
+        case let x where abs(x - 9.0 / 16.0) < 0.015: aspect = " 9:16"
+        case let x where abs(x - 1.0) < 0.015: aspect = " 1:1"
+        case let x where abs(x - 2.35) < 0.03: aspect = " 2.35:1"
+        default: aspect = ""
+        }
+        return label + aspect
+    }
+
     /// C `%g` (no locale: a locale switches Foundation to `1.5E-05` and `1000000`). The Kotlin
     /// twin mirrors it; both read `Fixtures/capture-label-vectors.tsv`.
     private static func number(_ value: Double) -> String {
@@ -111,6 +166,11 @@ extension MonitorControlModel {
     /// A described common field remains readable while unavailable; only a writable, ready
     /// field gets an editor. No observation or capability is inferred from a brand.
     public func captureField(_ key: SettingKey) -> MonitorCaptureField? {
+        captureField(key, selection: .pending)
+    }
+
+    /// Read a reported or pending value through the same descriptor and editor admission.
+    public func captureField(_ key: SettingKey, selection: MonitorCaptureSelection) -> MonitorCaptureField? {
         guard let title = MonitorCapturePresentation.title(key), let snapshot,
             let descriptor = snapshot.capabilities[key]
         else { return nil }
@@ -123,8 +183,14 @@ extension MonitorControlModel {
             authorized && snapshot.connection == .ready
             && descriptor.access == .readWrite && descriptor.availability == .available
         return MonitorCaptureField(
-            key: key, title: title, selection: shown(key), choices: drum(key, domain: descriptor.domain),
+            key: key, title: title, selection: captureValue(key, selection: selection),
+            choices: drum(key, domain: descriptor.domain),
             editor: writable ? edit(key) : nil)
+    }
+
+    /// Readout observations do not require a writable descriptor or create an editor.
+    public func captureValue(_ key: SettingKey, selection: MonitorCaptureSelection) -> SettingValue? {
+        selection == .pending ? shown(key) : snapshot?.value(of: key).value
     }
 
     /// The drum for a domain, built once per domain rather than on every read.

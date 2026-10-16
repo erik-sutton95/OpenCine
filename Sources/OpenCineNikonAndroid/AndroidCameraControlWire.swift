@@ -28,6 +28,8 @@ enum AndroidCameraControl: Hashable, Sendable {
     case codec
     case vibrationReduction
     case electronicVR
+    /// Movie tone (SDR / HLG / N-Log) of the active codec; the session picks its property.
+    case movieTone
     // Stills / photo-mode controls (photography pickers; the movie controls
     // above stay untouched in photo mode; iOS `CameraPicker.isStillPicker`).
     case stillISO
@@ -81,7 +83,7 @@ enum AndroidCameraControl: Hashable, Sendable {
             // baseISO: the capture-bar dual-base tabs always send Low/High; encode when the
             // active codec is dual-base even if the MovieBaseISO descriptor has not landed.
             true
-        case .whiteBalanceTint, .resolutionFrameRate, .codec, .electronicVR:
+        case .whiteBalanceTint, .resolutionFrameRate, .codec, .electronicVR, .movieTone:
             false
         default:
             // Stills controls skip capability validation outright (`isStillControl`), so this
@@ -124,7 +126,7 @@ enum AndroidCameraControl: Hashable, Sendable {
         case .stillUserModeProgram: .stillUserModeProgram
         case .stillPictureControl: .stillPictureControl
         case .baseISO, .shutterMode, .shutterLock, .whiteBalanceTint,
-            .vibrationReduction, .electronicVR, .stillISOAuto, .stillImageArea:
+            .vibrationReduction, .electronicVR, .movieTone, .stillISOAuto, .stillImageArea:
             // stillISOAuto / stillImageArea are session-local byte writes (no
             // shared label encoder), mirroring iOS's raw property writes.
             nil
@@ -217,6 +219,7 @@ enum AndroidCameraControlWire {
         case 34: return .stillRawCompression
         case 35: return .stillUserModeProgram
         case 36: return .stillPictureControl
+        case 37: return .movieTone
         default: return nil
         }
     }

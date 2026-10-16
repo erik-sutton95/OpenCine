@@ -1,5 +1,11 @@
 package com.opencapture.monitorui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -66,10 +73,17 @@ public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorT
                 else percent?.let(::batteryTint) ?: MonitorPalette.text
             val label = "${if (reading.camera) "Camera" else "Phone"} battery " +
                 (reading.bars?.let { "$it of ${reading.barCount} bars" } ?: percent?.let { "$it percent" } ?: "unavailable")
+            val opacity = if (reading.exhausted && (reading.bars != null || percent != null)) {
+                val transition = rememberInfiniteTransition(label = "reportedLiveBatteryExhaustion")
+                val alpha by transition.animateFloat(initialValue = 1f, targetValue = 0.35f,
+                    animationSpec = infiniteRepeatable(tween(600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                    label = "reportedLiveBatteryExhaustionAlpha")
+                alpha
+            } else 1f
             TelemetryGauge(if (reading.charging == true) MonitorIcon.ZAP else if (reading.camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE,
                 tint, reading.bars?.let { it.toFloat() / reading.barCount.coerceAtLeast(1) } ?: percent?.div(100f) ?: 0f,
                 label, horizontal, if (reading.bars != null) null else percent?.let { "$it%" } ?: "\u2014",
-                barCount = if (reading.bars != null) reading.barCount else 4)
+                barCount = if (reading.bars != null) reading.barCount else 4, filled = reading.bars, opacity = opacity)
         }
     }
     if (horizontal) Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) { gauges() }
@@ -100,11 +114,15 @@ private fun MonitorCameraBatteryGauge(percent: Int, stacked: Boolean = false, sh
 private fun TelemetryGauge(
     icon: MonitorIcon?, tint: Color, fraction: Float, label: String,
     stacked: Boolean, value: String? = null, onClick: (() -> Unit)? = null, barCount: Int = 4,
+    filled: Int? = null, opacity: Float = 1f,
 ) {
     Row(
         Modifier
             // Without the glyph the pill still fits "100%" so values never jitter.
-            .size(if (icon != null) 58.dp else 40.dp, 20.dp)
+            .size((if (filled != null && value == null) monitorGaugeReadoutWidth(filled, barCount,
+                if (icon != null) 58f else 40f, if (icon != null) 28f else 12f)
+                else if (icon != null) 58f else 40f).dp, 20.dp)
+            .alpha(opacity)
             .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(7.dp))
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 6.dp)
@@ -116,22 +134,46 @@ private fun TelemetryGauge(
         if (value != null) {
             Text(value, color = tint, style = MonitorTypography.readout(10f, FontWeight.Bold), maxLines = 1)
         } else {
-            MonitorGaugeBars(fraction, barCount, tint)
+            if (filled != null) MonitorGaugeBars(filled, barCount, tint)
+            else MonitorGaugeBars(fraction, barCount, tint)
         }
     }
 }
 
-/** A coarse gauge as [count] bars, lit up to [fraction]: link delivery, or a camera's battery steps. */
+/** Keep the original fraction entry point for link delivery and existing callers. */
 @Composable
 fun MonitorGaugeBars(fraction: Float, count: Int, tint: Color) {
+    if (count > 10) {
+        val filled = if (!fraction.isFinite() || fraction <= 0f) 0 else if (fraction >= 1f) count
+            else Math.round(fraction.toDouble() * count).toInt()
+        MonitorGaugeStepText(filled, count, tint)
+    } else MonitorGaugeBarCells(count, tint) { index -> fraction >= (index + 1).toFloat() / count.coerceAtLeast(1) }
+}
+
+/** Batteries retain exact integer steps; large counts never allocate a cell per step. */
+@Composable
+fun MonitorGaugeBars(filled: Int, count: Int, tint: Color) {
+    if (count > 10) MonitorGaugeStepText(filled, count, tint)
+    else MonitorGaugeBarCells(count, tint) { index -> index < filled }
+}
+
+internal fun monitorGaugeReadoutWidth(filled: Int, count: Int, minimum: Float, inset: Float): Float =
+    if (count > 10) ("$filled/$count".length * 6f + inset).coerceAtMost(156f).coerceAtLeast(minimum) else minimum
+
+@Composable
+private fun MonitorGaugeStepText(filled: Int, count: Int, tint: Color) {
+    MonitorScaleToFit(minScale = 0.5f) {
+        Text("$filled/$count", color = tint, style = MonitorTypography.readout(10f, FontWeight.Bold),
+            maxLines = 1, softWrap = false, modifier = Modifier.semantics { contentDescription = "$filled of $count bars" })
+    }
+}
+
+@Composable
+private fun MonitorGaugeBarCells(count: Int, tint: Color, lit: (Int) -> Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
-        repeat(count.coerceAtLeast(1)) { index ->
-            Box(
-                Modifier.size(3.5.dp, 9.dp).background(
-                    tint.copy(alpha = if (fraction >= (index + 1).toFloat() / count.coerceAtLeast(1)) 1f else .2f),
-                    RoundedCornerShape(.75.dp),
-                ),
-            )
+        repeat(count.coerceIn(1, 10)) { index ->
+            Box(Modifier.size(3.5.dp, 9.dp).background(tint.copy(alpha = if (lit(index)) 1f else .2f),
+                RoundedCornerShape(.75.dp)))
         }
     }
 }

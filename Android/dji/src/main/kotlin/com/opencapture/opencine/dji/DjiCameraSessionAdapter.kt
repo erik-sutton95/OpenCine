@@ -116,6 +116,7 @@ data class PocketControlState(
     val timecode: CameraTimecode? = null,
     /** `cam_audio_status_v2` in dBFS; `null` until reported ([audioLevels]). */
     val audioLevels: AudioLevels? = null,
+    val charging: Boolean? = null,
     val storage: com.opencapture.opencine.core.StorageStatus? = null,
     val storageTotalMb: Int? = null,
 )
@@ -621,17 +622,18 @@ class DjiCameraSessionAdapter(
                 capabilities = capabilities,
                 mode = mode(state.shootingMode),
                 settings = settings(state) + (port.captureControlState()?.settings ?: emptyMap()),
+                recordingFormat = DjiRecordingObservations.recording(port.captureControlState()?.reported,
+                    state.model?.captureProfile?.labels ?: com.opencapture.opencine.vocabulary.CameraLabelProfile.standard),
+                exposureProgram = DjiRecordingObservations.exposureProgram(port.captureControlState()?.reported),
                 recording = state.recording?.let {
                     ObservedValue(if (it) RecordingState.RECORDING else RecordingState.IDLE, ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,
-                power = state.batteryPercent?.let {
-                    PowerStatus(
-                        battery = ObservedValue(
-                            it / 100.0, ObservationOrigin.CAMERA_REPORTED, null,
-                            precision = ObservationPrecision.Quantized(0.01),
-                        ),
-                    )
-                } ?: PowerStatus.unknown,
+                power = PowerStatus(
+                    battery = state.batteryPercent?.let { ObservedValue(
+                        it / 100.0, ObservationOrigin.CAMERA_REPORTED, null,
+                        precision = ObservationPrecision.Quantized(0.01)) } ?: ObservedValue.unknown,
+                    charging = (state.charging ?: port.captureControlState()?.reported?.chargingReading)?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                ),
                 storage = state.storage ?: state.storageFreeMb?.takeIf { it >= 0 }?.let {
                     val free = ObservedValue(it.toLong() * 1_048_576L, ObservationOrigin.CAMERA_REPORTED, null)
                     ObservedValue(listOf(StorageVolume("active", freeBytes = free,

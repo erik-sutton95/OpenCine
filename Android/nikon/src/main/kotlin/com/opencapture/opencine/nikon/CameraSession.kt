@@ -293,6 +293,9 @@ public enum class CameraControl {
 
     /** Active picture control (profile), such as `"Standard"` or `"Cloud 3"`. */
     STILL_PICTURE_CONTROL,
+
+    /** Movie tone (colour) of the active codec, such as `"N-Log"`; Swift picks the property. */
+    MOVIE_TONE,
 }
 
 /** Progress of a still release as reported by polling after the release op. */
@@ -468,8 +471,17 @@ public data class CameraControlCapabilities(
      * can never name a combination this body did not offer.
      */
     val codecBitDepths: List<CodecBitDepthOption> = emptyList(),
+    /**
+     * The movie tones (colour) the body offers for the active codec, or the codec's fixed tone
+     * (R3D NE: Log3G10), decided by the shared Swift core. Empty when the codec has none.
+     */
+    val movieTones: List<String> = emptyList(),
+    /** Whether the operator can change the tone (more than one offered, not codec-fixed). */
+    val movieToneEditable: Boolean = false,
     /** Actual f-number descriptor choices, excluding the legacy body/lens fallback. */
     val advertisedIrisValues: List<String> = emptyList(),
+    /** Native mode axes from Swift, with the exact advertised write token. */
+    val recordingFormats: List<NikonRecordingFormatPresentation> = emptyList(),
 ) {
     /** Returns the advertised labels for one descriptor-dependent control. */
     public fun options(control: CameraControl): List<String> =
@@ -512,6 +524,7 @@ public data class CameraControlCapabilities(
             CameraControl.CODEC -> codecs
             CameraControl.VIBRATION_REDUCTION -> vibrationReduction
             CameraControl.ELECTRONIC_VR -> electronicVr
+            CameraControl.MOVIE_TONE -> if (movieToneEditable) movieTones else emptyList()
             else -> emptyList()
         }
 }
@@ -568,6 +581,8 @@ public data class CameraPropertySnapshot(
     val codecSelection: String? = null,
     /** Caption of the depth the body is recording at, when [codecSelection]'s row offers a choice. */
     val codecBitDepth: String? = null,
+    /** The active codec's reported movie tone (`SDR`, `HLG`, `N-Log`, `Log3G10`); null while unknown. */
+    val movieTone: String? = null,
     /** Active camera white-balance fine-tune label. */
     val whiteBalanceTint: String? = null,
     /** Battery percentage. */

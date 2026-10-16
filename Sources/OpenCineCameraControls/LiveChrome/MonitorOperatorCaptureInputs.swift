@@ -38,47 +38,69 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
                 field: field, valueIcon: icon, badgeIcon: badge, quickEnabled: quickEnabled,
                 accessibilityIdentifier: "monitor.capture.\(sheet.rawValue)"))
         }
-        let pendingISO = host.captureStripShowsPendingEdits && !(status.isoIndex == .auto && capabilities.isoLimit)
-        let iso = status.isoIndex == .auto ? "Auto" : status.iso > 0 ? "\(status.iso)" : status.isoIndex?.label ?? "\u{2014}"
-        let isoField = pendingISO ? host.control.captureField(.iso) : nil
-        append(.iso, "ISO", pendingISO ? isoField?.label ?? "--" : iso, field: isoField,
-            quickEnabled: !pendingISO || isoField != nil)
-        if status.expoMode == .auto {
-            append(.shutter, MonitorExposureReadout.autoEvCaption(shutterDenom: status.shutterDenom),
-                status.evComp?.label ?? "\u{2014}", badge: host.facePriorityExposureEnabled ? CaptureLists.facePriorityBadgeIcon : nil)
-        } else {
-            let pendingShutter = host.captureStripShowsPendingEdits && !(host.shutterUsesAngle && !status.isPhoto)
-            let field = pendingShutter ? host.control.captureField(.shutter) : nil
-            append(.shutter, "SHUTTER", pendingShutter ? field?.label ?? "--" : CaptureQuickSnapshot.shutterReadout(
-                status: status, shutterUsesAngle: host.shutterUsesAngle, shutterAngleDegrees: host.shutterAngleDegrees), field: field,
-                quickEnabled: !pendingShutter || field != nil)
+        let selection: MonitorCaptureSelection = host.captureStripShowsPendingEdits ? .pending : .reported
+        func commonValue(_ key: SettingKey) -> String {
+            host.control.captureValue(key, selection: selection).map(MonitorCapturePresentation.label) ?? "--"
         }
-        let exposure = host.autoExposureLocked ? CaptureLists.aeLock : status.expoMode == .manual ? "M" : status.expoMode == .auto ? "A" : "\u{2014}"
+        let nativeISO = status.isoIndex == .auto && capabilities.isoLimit
+        let isoField = nativeISO ? nil : host.control.captureField(.iso, selection: selection)
+        append(.iso, "ISO", commonValue(.iso), field: isoField,
+            quickEnabled: nativeISO || isoField != nil)
+        // One rule for the tile and its panel: the common program, else the native report.
+        let automatic = host.control.snapshot?.exposureProgram.value == .automatic || status.expoMode == .auto
+        if automatic {
+            append(.shutter, MonitorExposureReadout.autoEvCaption(shutterDenom: status.shutterDenom),
+                host.captureRouting.commonExposureCompensation ? commonValue(.exposureCompensation) : status.evComp?.label ?? "--",
+                badge: host.facePriorityExposureEnabled ? CaptureLists.facePriorityBadgeIcon : nil)
+        } else {
+            let nativeAngle = host.shutterUsesAngle && !status.isPhoto
+            let field = nativeAngle ? nil : host.control.captureField(.shutter, selection: selection)
+            let shutter: ShutterValue?
+            if case .shutter(let value)? = host.control.captureValue(.shutter, selection: selection) { shutter = value } else { shutter = nil }
+            let rate: Rational?
+            if case .frameRate(let value)? = host.control.snapshot?.value(of: .frameRate).value { rate = value } else { rate = nil }
+            append(.shutter, "SHUTTER", nativeAngle ? CaptureNativeReadoutPresentation.shutterAngle(
+                common: shutter, frameRate: rate, available: CaptureLists.shutterDenoms(from: status),
+                preferredAngle: host.shutterAngleDegrees) : commonValue(.shutter), field: field,
+                quickEnabled: nativeAngle || field != nil)
+        }
+        let exposure = host.autoExposureLocked ? CaptureLists.aeLock : host.control.snapshot?.exposureProgram.value.map(MonitorCapturePresentation.exposureProgram) ?? "--"
         append(.exposure, "EXPOSURE", exposure)
         let pendingWB = host.captureStripShowsPendingEdits && status.whiteBalance?.mode == .custom && !host.autoWhiteBalanceLocked
-        let wbField = pendingWB ? host.control.captureField(.whiteBalance) : nil
-        let displayedWB = host.displayStatus
-        let wbValue: String
-        if host.autoWhiteBalanceLocked { wbValue = CaptureLists.awbLockTile }
-        else if let wb = displayedWB.whiteBalance {
-            wbValue = wb.mode == .custom ? (displayedWB.whiteBalanceKelvin > 0 ? "\(displayedWB.whiteBalanceKelvin)K" : "Custom") : "Auto"
-        } else { wbValue = "\u{2014}" }
-        append(.wb, "WB", pendingWB ? wbField?.label ?? "--" : wbValue, field: wbField,
-            icon: displayedWB.whiteBalance?.mode == .custom ? nil : .aperture,
+        let wbField = pendingWB ? host.control.captureField(.whiteBalance, selection: selection) : nil
+        let wbValue = host.autoWhiteBalanceLocked ? CaptureLists.awbLockTile : commonValue(.whiteBalance)
+        let wbIcon: MonitorIcon?
+        if case .whiteBalance(.auto)? = host.control.captureValue(.whiteBalance, selection: selection) {
+            wbIcon = host.autoWhiteBalanceLocked ? nil : .aperture
+        } else { wbIcon = nil }
+        append(.wb, "WB", wbValue, field: wbField,
+            icon: wbIcon,
             quickEnabled: !pendingWB || wbField != nil)
         if capabilities.focusMode {
-            append(.focus, "FOCUS", FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)?.chip ?? "\u{2014}")
+            let commonFocus: OpenCineCore.FocusMode?
+            if case .focusMode(let value)? = host.control.captureValue(.focusMode, selection: selection) {
+                commonFocus = value
+            } else { commonFocus = nil }
+            append(.focus, "FOCUS", CaptureNativeReadoutPresentation.focus(common: commonFocus,
+                native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)))
         }
         if capabilities.aperture {
-            append(.aperture, "APERTURE", status.irisHundredths.map(ApertureStrategy.fNumberLabel(hundredths:))
-                ?? status.apertureStrategy?.label ?? "\u{2014}")
+            append(.aperture, "APERTURE", commonValue(.aperture))
         }
         if capabilities.audio && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
-        let visibleCount = 4 + (capabilities.faceMetering ? 1 : 0) + (capabilities.focusMode ? 1 : 0)
-            + (capabilities.aperture ? 1 : 0) + (capabilities.audio && !status.isPhoto ? 1 : 0)
+        let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]
+        if let meter = host.nativeMeteringSource {
+            supplementary = [.init(id: "native.metering", after: .exposure, title: "METER",
+                value: meter.face.map { $0 ? "Face" : "Matrix" } ?? "--",
+                accessibilityValue: meter.face.map { $0 ? "Face Priority" : "Matrix" } ?? "Unknown",
+                accessibilityIdentifier: "monitor.capture.metering", section: section,
+                enabled: meter.face != nil, isCurrent: meter.isCurrent,
+                action: { if let face = meter.face { meter.setFace(!face) } })]
+        } else { supplementary = [] }
+        let visibleCount = readouts.count + supplementary.count
         let presented = presentedSheet.map { $0() } ?? host.captureSheet
         let panel = presented.map { sheet in
-            let ev = sheet == .shutter && status.expoMode == .auto
+            let ev = sheet == .shutter && automatic
             return MonitorOperatorCameraPanel(key: sheet, top: sheet.isTopAnchored, chrome: .content,
                 title: ev ? "EXPOSURE" : sheet.headerLabel,
                 subtitle: ev ? "Compensation" : sheet == .shutter ? (status.isPhoto ? "Speed" : "Angle · speed")
@@ -116,7 +138,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
             }, commitAdmission: {
                 !host.sessionLocked && !host.operatorPanelOpen && !host.coverOpen && host.captureSheet == nil
                     && (presentedSheet == nil || presentedSheet?() == nil)
-            }, presentationOwner: { host.captureDrum?.id })
+            }, presentationOwner: { host.captureDrum?.id }, supplementaryReadouts: supplementary)
     }
 }
 #endif

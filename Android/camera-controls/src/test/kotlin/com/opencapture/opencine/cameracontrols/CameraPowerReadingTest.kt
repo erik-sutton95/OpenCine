@@ -37,4 +37,23 @@ class CameraPowerReadingTest {
         assertEquals(true, reading.charging)
         assertNull(cameraPowerReading(power(null, ObservationPrecision.Quantized(0.2))))
     }
+    @Test fun independentExhaustionAndUnknownRemainTruthful() {
+        for (exhausted in listOf(null, false, true)) {
+            val reading = assertNotNull(cameraPowerReading(com.opencapture.opencine.core.BatteryReading.Steps(1, 4), exhausted))
+            assertEquals(1, reading.bars)
+            assertEquals(4, reading.barCount)
+            assertEquals(exhausted == true, reading.exhausted)
+            assertNull(reading.charging)
+            assertEquals("1/4", cameraBatteryReadoutLabel(com.opencapture.opencine.core.BatteryReading.Steps(1, 4)))
+        }
+        assertEquals("0%", cameraBatteryReadoutLabel(com.opencapture.opencine.core.BatteryReading.Fraction(0.0)))
+        assertNull(cameraPowerReading(null as com.opencapture.opencine.core.BatteryReading?))
+        assertNull(cameraPowerReading(com.opencapture.opencine.core.BatteryReading.Fraction(Double.NaN)))
+        assertNull(cameraPowerReading(com.opencapture.opencine.core.BatteryReading.Steps(1, 0)))
+        assertFalse(assertNotNull(cameraPowerReading(com.opencapture.opencine.core.BatteryReading.Steps(Int.MAX_VALUE, Int.MAX_VALUE))).warning)
+        val external = PowerStatus(battery = ObservedValue(0.68, ObservationOrigin.CAMERA_REPORTED, null),
+            externalPower = ObservedValue(true, ObservationOrigin.CAMERA_REPORTED, null))
+        assertEquals(true, cameraPowerReading(external)?.charging)
+    }
+
 }

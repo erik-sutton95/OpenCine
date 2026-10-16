@@ -675,6 +675,21 @@ import Testing
     #expect(WhiteBalanceTint.label(amberBlueCell: -3, greenMagentaCell: 3) == "B1.5 · G0.75")
 }
 
+/// The shared tint pad reports the operator label; it reads back onto the same grid cells.
+@Test func whiteBalanceTintLabelReadsBackOntoItsGridCells() {
+    for amberBlue in WhiteBalanceTint.cellRange {
+        for greenMagenta in WhiteBalanceTint.cellRange {
+            let label = WhiteBalanceTint.label(amberBlueCell: amberBlue, greenMagentaCell: greenMagenta)
+            let cells = WhiteBalanceTint.cells(label: label)
+            #expect(cells?.amberBlue == amberBlue, "\(label)")
+            #expect(cells?.greenMagenta == greenMagenta, "\(label)")
+        }
+    }
+    #expect(WhiteBalanceTint.cells(label: "") == nil)
+    #expect(WhiteBalanceTint.cells(label: "X1") == nil)
+    #expect(WhiteBalanceTint.cells(label: "A") == nil)
+}
+
 @Test func movieVibrationReductionDecodesKnownValues() {
     #expect(PTPCameraPropertyDecoders.movieVibrationReduction(0) == "OFF")
     #expect(PTPCameraPropertyDecoders.movieVibrationReduction(1) == "ON")

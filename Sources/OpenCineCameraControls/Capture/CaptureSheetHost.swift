@@ -4,6 +4,7 @@
     import OpenCineAppKit
     import OpenCineCameraVocabulary
     import OpenCineCore
+    import SwiftUI
 
     /// Where a capture commit came from, so the app can route it along its own path.
     public enum CaptureCommitOrigin {
@@ -75,12 +76,27 @@
         }
     }
 
+    /// Optional integration-owned metering; unknown has no toggle target.
+    @MainActor public struct CaptureNativeMeteringSource {
+        public let face: Bool?
+        public let isCurrent: () -> Bool
+        public let setFace: (Bool) -> Void
+        public init(face: Bool?, isCurrent: @escaping () -> Bool, setFace: @escaping (Bool) -> Void) {
+            self.face = face; self.isCurrent = isCurrent; self.setFace = setFace
+        }
+    }
+
     /// What the capture sheets and readout drums need from an app: its session's report and
     /// flags, its operator choices, one typed commit and two refreshes. App differences arrive
     /// here as values, never as brand branches.
     @MainActor
     public protocol CaptureSheetHost: AnyObject, Observable {
         associatedtype Palette: LiveChromePalette
+        associatedtype NativeCapturePanel: View = EmptyView
+        /// Integration-owned typed controls remain inside the shared sheet chrome.
+        func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel?
+        var nativeMeteringSource: CaptureNativeMeteringSource? { get }
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String)
 
         /// The camera's reported status.
         var cameraStatus: CameraStatus { get }
@@ -132,8 +148,25 @@
         func captureDrumDidCommit(_ value: SettingValue)
         /// The ISO GET the ISO sheet asks for on open; returns once the reply arrived.
         func refreshIsoLimit() async
+
+        /// What the one codec and colour popup lists: the codec choices the camera offers (none
+        /// when it has none) and the colour choices valid for the selected codec.
+        var recordingCodecColor: CaptureCodecColorChoices { get }
+        /// Sends the codec choice `id` (a `recordingCodecColor.codecs` identity).
+        func commitRecordingCodec(_ id: String)
     }
     public extension CaptureSheetHost {
+        func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel? { nil }
+        var nativeMeteringSource: CaptureNativeMeteringSource? { nil }
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String) {}
+        /// A camera without codec choices: the colour modes it offers, by their shown label.
+        var recordingCodecColor: CaptureCodecColorChoices {
+            let labels = colorModes.map { $0.label(for: bodyFamily, in: labelProfile) }
+            return CaptureCodecColorChoices(
+                colors: labels.map { CaptureCodecColorChoice(id: $0, label: $0) },
+                selectedColor: cameraStatus.colorMode?.label(for: bodyFamily, in: labelProfile))
+        }
+        func commitRecordingCodec(_ id: String) {}
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,

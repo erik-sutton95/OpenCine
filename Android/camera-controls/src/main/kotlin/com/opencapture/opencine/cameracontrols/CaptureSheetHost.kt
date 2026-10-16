@@ -5,7 +5,10 @@ import com.opencapture.opencine.appkit.MonitorCaptureField
 import com.opencapture.opencine.appkit.MonitorCapturePreferences
 import com.opencapture.opencine.vocabulary.CameraLabelProfile
 import com.opencapture.opencine.vocabulary.CameraModel
+import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.CaptureCodecColorChoice
+import com.opencapture.opencine.vocabulary.CaptureCodecColorChoices
 import com.opencapture.opencine.vocabulary.CaptureSessionState
 import com.opencapture.opencine.vocabulary.CaptureSetting
 
@@ -21,9 +24,35 @@ data class CaptureSheetRouting(
  * values, never as brand branches.
  */
 interface CaptureSheetHost {
+    /** A native typed body borrows the shared sheet chrome; absent means existing controls. */
+    @Composable fun nativeCapturePanel(sheet: LiveSheet, enabled: Boolean): (@Composable () -> Unit)? = null
+
+    /** Coherent native quick choices retain real backend identifiers in the app adapter. */
+    fun nativeCaptureQuick(sheet: LiveSheet, status: CameraStatus): com.opencapture.monitorui.MonitorQuickControl? = null
+    fun commitNativeCaptureQuick(sheet: LiveSheet, selection: String) {}
+
+    /**
+     * What the one codec and colour popup lists: the codec choices the camera offers (none when it
+     * has none) and the colour choices valid for the selected codec. The default is a camera
+     * without codec choices: the colour modes it offers, by their shown label.
+     */
+    fun recordingCodecColor(status: CameraStatus): CaptureCodecColorChoices {
+        val family = camera?.family ?: "pocket"
+        val labels = CaptureLists.colorWheelLabels(status, family, camera?.name.orEmpty(), labelProfile)
+        return CaptureCodecColorChoices(
+            colors = labels.map { CaptureCodecColorChoice(it, it) },
+            selectedColor = CameraCommands.colorLabel(status.colorMode, family, labelProfile),
+        )
+    }
+
+    /** Sends the codec choice [id] (a [recordingCodecColor] codec identity). */
+    fun commitRecordingCodec(id: String) {}
+
     /** The connected body, or null before one is known. */
     val camera: CameraModel?
     val labelProfile: CameraLabelProfile
+    /** Existing hosts retain their pending readout policy; report-only hosts declare it. */
+    val captureReadoutSelection: com.opencapture.opencine.appkit.MonitorCaptureSelection get() = com.opencapture.opencine.appkit.MonitorCaptureSelection.PENDING
     val audioService: CaptureAudioService? get() = null
     /** Compatibility route for original hosts; migrated composition supplies it explicitly. */
     val captureRouting: CaptureSheetRouting get() = CaptureSheetRouting(commonExposureCompensation = true, commonFocusMode = true)

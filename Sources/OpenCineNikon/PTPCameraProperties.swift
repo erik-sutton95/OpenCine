@@ -61,6 +61,11 @@ extension PTPPropertyCode {
         .movieWBColorTemp,
         .movieRecordScreenSize,
         .movieFileType,
+        // Movie tone per codec family; bodies without them skip them by their advertisement.
+        .movieH265ToneMode,
+        .movieProResToneMode,
+        .movieNRawToneMode,
+        .movieProResRawToneMode,
         .exposureProgramMode,
         .exposureIndicateStatus,
         .exposureIndicateLightup,
@@ -1827,8 +1832,10 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         pictureControl: String? = nil,
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
-        evIndicatorLit: Bool? = nil
+        evIndicatorLit: Bool? = nil,
+        movieTones: [PTPPropertyCode: NikonMovieTone] = [:]
     ) {
+        self.movieTones = movieTones
         self.iso = iso
         self.baseISO = baseISO
         self.isoAuto = isoAuto
@@ -1993,6 +2000,9 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
     /// Stills tone mode ("SDR" / "HLG") — selects the photo exposure-assist transfer curve.
     /// Bodies without the property never fill it; `nil` reads as SDR.
     public let stillToneMode: String?
+    /// The movie tone each per-codec tone property reported (`NikonMovieToneCapability`). A
+    /// missing entry is unknown; `movieTone(forFileType:)` reads the one for the active codec.
+    public let movieTones: [PTPPropertyCode: NikonMovieTone]
     /// The body's exposure-indicator needle in 1/6 EV steps (±60 == ±10 EV).
     public let evIndicatorSixths: Int?
     /// Whether the body's exposure indicator is lit — its value is undefined while unlit.
@@ -2157,6 +2167,9 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             return replacing(
                 pictureControl: PTPCameraPropertyDecoders.pictureControl(
                     ByteCoding.readUInt16LE(bytes, at: 0)))
+        case .movieH265ToneMode, .movieProResToneMode, .movieNRawToneMode, .movieProResRawToneMode:
+            // Unknown or malformed readback retires the older tone rather than becoming SDR.
+            return replacing(movieTone: (property, NikonMovieToneCapability.tone(readback: bytes)))
         case .stillToneMode:
             // Only the existing integration's named enum values are observed facts.
             // Unknown/malformed readback retires an older tone rather than becoming SDR.
@@ -2279,9 +2292,12 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
         evIndicatorLit: Bool? = nil,
-        clearsStillToneMode: Bool = false
+        clearsStillToneMode: Bool = false,
+        movieTone: (property: PTPPropertyCode, tone: NikonMovieTone?)? = nil
     ) -> PTPCameraPropertySnapshot {
-        PTPCameraPropertySnapshot(
+        var tones = movieTones
+        if let movieTone { tones[movieTone.property] = movieTone.tone }
+        return PTPCameraPropertySnapshot(
             iso: iso ?? self.iso,
             baseISO: baseISO ?? self.baseISO,
             isoAuto: isoAuto ?? self.isoAuto,
@@ -2333,7 +2349,8 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             pictureControl: pictureControl ?? self.pictureControl,
             stillToneMode: clearsStillToneMode ? nil : stillToneMode ?? self.stillToneMode,
             evIndicatorSixths: evIndicatorSixths ?? self.evIndicatorSixths,
-            evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit
+            evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit,
+            movieTones: tones
         )
     }
 }
@@ -2536,6 +2553,28 @@ public enum WhiteBalanceTint {
                 (gm > 0 ? "G" : "M") + trimmed(Double(abs(gm)) * greenMagentaUnitsPerCell))
         }
         return parts.isEmpty ? "Neutral" : parts.joined(separator: " · ")
+    }
+
+    /// Grid cells for an operator readout `label(amberBlueCell:greenMagentaCell:)` produced;
+    /// nil for text that is not such a readout.
+    public static func cells(label: String) -> (amberBlue: Int, greenMagenta: Int)? {
+        if label == "Neutral" { return (0, 0) }
+        var amberBlue = 0
+        var greenMagenta = 0
+        var parts = 0
+        for part in label.split(separator: "\u{00B7}") {
+            let token = part.trimmingCharacters(in: .whitespaces)
+            guard let prefix = token.first, let units = Double(token.dropFirst()) else { return nil }
+            switch prefix {
+            case "A": amberBlue = Int((units / amberBlueUnitsPerCell).rounded())
+            case "B": amberBlue = -Int((units / amberBlueUnitsPerCell).rounded())
+            case "G": greenMagenta = Int((units / greenMagentaUnitsPerCell).rounded())
+            case "M": greenMagenta = -Int((units / greenMagentaUnitsPerCell).rounded())
+            default: return nil
+            }
+            parts += 1
+        }
+        return parts == 0 ? nil : (amberBlue, greenMagenta)
     }
 
     private static func trimmed(_ value: Double) -> String {

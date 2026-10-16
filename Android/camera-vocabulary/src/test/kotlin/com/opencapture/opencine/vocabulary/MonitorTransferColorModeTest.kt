@@ -3,8 +3,18 @@ package com.opencapture.opencine.vocabulary
 import com.opencapture.opencine.media.MonitorTransfer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class MonitorTransferColorModeTest {
+    @Test fun unknownLegacyCodesDoNotBecomeSourceCurveObservations() {
+        for (code in listOf(-1, 999, CameraCommands.COLOR_DOLBY_VISION)) {
+            assertNull(MonitorTransfer.knownFromColorMode(code))
+            assertEquals(MonitorTransfer.REC709, MonitorTransfer.fromColorMode(code))
+        }
+        assertEquals(MonitorTransfer.ILOG, MonitorTransfer.knownFromColorMode(CameraCommands.COLOR_ILOG))
+        assertEquals(MonitorTransfer.REC709, MonitorTransfer.knownFromColorMode(CameraCommands.COLOR_NORMAL10))
+    }
+
     @Test fun everyCurveWithAColorModeComesBackFromIt() {
         val dji = MonitorTransfer.entries.filter { it.colorMode >= 0 }
         for (transfer in dji) assertEquals(transfer, MonitorTransfer.fromColorMode(transfer.colorMode))

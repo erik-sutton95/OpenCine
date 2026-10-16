@@ -3,6 +3,21 @@ import MonitorUI
 import SwiftUI
 import UIKit
 
+/// The live link gauge on its own: signal bars, tapping to the feed frame rate. The same gauge the
+/// status deck draws, for a host that places the link reading elsewhere (a command dashboard).
+public struct MonitorOperatorLinkGauge<Palette: LiveChromePalette>: View {
+    private let fps: String?
+    private let signalBars: Int?
+    public init(fps: String?, signalBars: Int?) {
+        self.fps = fps
+        self.signalBars = signalBars
+    }
+    public var body: some View {
+        MonitorOperatorTelemetry<Palette>(
+            fps: fps, signalBars: signalBars, camera: nil, horizontal: true, showsPower: false)
+    }
+}
+
 /// Reported power and delivery facts share one renderer: the phone's own battery, then the
 /// camera's when the source reports one. Coarse camera gauges retain their declared scale;
 /// a missing measurement never becomes a zero-percent battery.
@@ -86,12 +101,14 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
             } else {
                 MonitorGaugeBars(
-                    fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color,
+                    filled: bars, count: barCount, tint: color,
                     barHeight: tablet ? 10 : 9)
             }
         }
         .padding(.horizontal, 6)
-        .frame(width: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height, alignment: .leading)
+        .frame(width: value == nil ? MonitorGaugeBars.readoutWidth(filled: bars, count: barCount,
+            minimum: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), inset: icon == nil ? 12 : 28)
+            : icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height, alignment: .leading)
         .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityElement(children: .ignore)
     }

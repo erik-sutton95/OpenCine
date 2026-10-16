@@ -134,14 +134,8 @@ public data class MultiviewTile(
                 null -> MultiviewTileStatus("Waiting for the camera", inProgress = true) to "Waiting for the camera"
                 else -> MultiviewTileStatus("Connecting…", inProgress = true) to "Connecting…"
             }
-            // A reading declared in coarse steps (a five-bar gauge) is drawn as bars, never a percent.
-            val battery = snapshot?.power?.batteryReading
             return MultiviewTile(
                 name = entry.name,
-                battery = (battery as? BatteryReading.Fraction)?.let { Math.round(it.value * 100).toInt() },
-                batteryBars = (battery as? BatteryReading.Steps)?.filled,
-                batteryBarCount = (battery as? BatteryReading.Steps)?.of ?: 5,
-                charging = snapshot?.power?.charging?.value ?: false,
                 timecode = MonitorTimecodeFormat.label(snapshot),
                 tally = MultiviewTally.text(recording, waiting = waiting, failed = control is ConnectionState.Disconnected),
                 recording = state == RecordingState.RECORDING,
@@ -159,7 +153,7 @@ public data class MultiviewTile(
                     ),
                     MultiviewCameraAction("remove", "Remove camera", MultiviewCameraAction.Kind.DESTRUCTIVE),
                 ),
-            )
+            ).withPower(snapshot?.power)
         }
     }
 }
@@ -283,4 +277,19 @@ public data class MultiviewRecordContext(
         /** A group command is coordinated dispatch, not synchronized recording. */
         public const val GROUP_NOTE: String = "Each camera confirms independently; recording is not synchronized."
     }
+}
+
+/**
+ * The tile's battery from the camera's typed power: a percent or a declared gauge (a five-bar
+ * gauge draws bars, never a percent), and charging as the live chrome reads it (charging, else
+ * external power). Twin of Swift `MultiviewTile.withPower`.
+ */
+public fun MultiviewTile.withPower(power: com.opencapture.opencine.core.PowerStatus?): MultiviewTile {
+    val reading = power?.batteryReading
+    return copy(
+        battery = (reading as? BatteryReading.Fraction)?.let { Math.round(it.value * 100).toInt() },
+        batteryBars = (reading as? BatteryReading.Steps)?.filled,
+        batteryBarCount = (reading as? BatteryReading.Steps)?.of ?: batteryBarCount,
+        charging = (power?.charging?.value ?: power?.externalPower?.value) ?: false,
+    )
 }

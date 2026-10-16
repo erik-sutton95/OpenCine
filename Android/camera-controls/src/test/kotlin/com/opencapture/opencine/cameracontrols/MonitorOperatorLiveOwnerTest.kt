@@ -25,6 +25,54 @@ import kotlin.test.*
 /** SIMULATED releases cross the same source/lifetime seam as both production operator surfaces. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorOperatorLiveOwnerTest {
+    @Test fun emulatedAngleCannotDisplayRetainedLegacyValuesWithoutTheCommonSource() = runTest {
+        val host = Reports()
+        host.status = host.status.copy(shutterDenom = 50, fps = 25)
+        host.capturePreferences = host.capturePreferences.copy(shutterUsesAngle = true)
+        val control = MonitorControlModel(backgroundScope)
+        val source = host.source(control)
+        assertNull(control.state.value.snapshot)
+        assertEquals(50, host.status.shutterDenom, "The legacy facade deliberately retains its old report")
+        assertEquals("--", source.readout(LiveSheet.SHUTTER, host.status, "180°"),
+            "The emulated angle requires the current common shutter and recording cadence")
+        assertTrue(host.commits.isEmpty())
+    }
+
+    @Test fun nativeFocusStrategiesRemainVisibleBesideTheCommonBaseMode() = runTest {
+        val host = Reports()
+        val camera = ReportedCamera()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        val source = host.source(control)
+        for ((strategy, label) in listOf(1 to "Showcase", 2 to "Lock", 3 to "Priority")) {
+            host.status = host.status.copy(focusMode = CameraCommands.FOCUS_CONTINUOUS, focusTrack = strategy)
+            assertEquals(label, source.readout(LiveSheet.FOCUS, host.status, host.status.focusLabel))
+            assertEquals(label, source.quick(LiveSheet.FOCUS, host.status)?.selection)
+            assertEquals(listOf("AF-S", "AF-C", "Showcase", "Lock", "Priority"), source.quick(LiveSheet.FOCUS, host.status)?.options)
+        }
+        host.status = host.status.copy(focusMode = -1, focusTrack = -1)
+        assertEquals("--", source.readout(LiveSheet.FOCUS, host.status, host.status.focusLabel))
+        assertTrue(host.commits.isEmpty(), "Reading native choices never sends a command")
+    }
+
+    @Test fun commonFocusReadoutWinsOverContradictoryNativePresentation() = runTest {
+        val host = Reports()
+        val original = FakeCameraSession.lunaLike()
+        val descriptor = SettingDescriptor(SettingKey.FOCUS_MODE, domain = SettingDomain(listOf(
+            SettingValue.FocusMode(FocusMode.SINGLE), SettingValue.FocusMode(FocusMode.CONTINUOUS))))
+        val mode = original.behavior.modes.getValue(0x01).copy(descriptors = listOf(descriptor), unsupported = emptySet())
+        val camera = FakeCameraSession(original.behavior.copy(modes = mapOf(0x01 to mode)),
+            original.device.copy(settings = mapOf(SettingKey.FOCUS_MODE to SettingValue.FocusMode(FocusMode.CONTINUOUS))))
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        val source = host.source(control)
+        assertEquals(SettingValue.FocusMode(FocusMode.CONTINUOUS), control.state.value.snapshot?.value(SettingKey.FOCUS_MODE)?.value)
+        assertEquals("AF-S", host.status.focusLabel, "The native fixture is deliberately contradictory")
+        assertEquals("AF-C", source.readout(LiveSheet.FOCUS, host.status, host.status.focusLabel))
+        assertTrue(host.commits.isEmpty(), "Formatting never writes the camera")
+    }
+
     @Test fun nativePauseResumePhaseAndRemountRejectOldHeldPointers() = runTest {
         val host = Reports()
         val control = MonitorControlModel(backgroundScope)

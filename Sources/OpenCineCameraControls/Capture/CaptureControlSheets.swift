@@ -544,7 +544,9 @@
                     }
                 }
             case .resolution:
-                if isPhoto {
+                if let panel = host.nativeCapturePanel(.resolution, enabled: canApplyDrum) {
+                    panel
+                } else if isPhoto {
                     Text("Photo")
                         .font(MonitorTheme.font(16, weight: .semibold))
                         .foregroundStyle(MonitorTheme.text)
@@ -554,7 +556,19 @@
                     formatPicker
                 }
             case .color:
-                CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection)
+                // One popup for codec and colour: the codec choices the camera offers, then its
+                // colour choices. The colour drum keeps each camera's existing behaviour.
+                CaptureCodecColorPanel(
+                    choices: host.recordingCodecColor,
+                    enabled: canApplyDrum && !host.cameraStatus.isRecording,
+                    selectCodec: { id in
+                        guard canApplyDrum, !host.cameraStatus.isRecording else { return }
+                        host.commitRecordingCodec(id)
+                    }
+                ) {
+                    if let panel = host.nativeCapturePanel(.color, enabled: canApplyDrum) { panel }
+                    else { CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection) }
+                }
             }
         }
 
@@ -677,15 +691,14 @@
                 title: { $0.label }, select: handleAspectChange)
         }
 
+        /// The one capture mode strip every camera's popup draws (`LadderSheet` uses it too).
         private var modeBar: some View {
-            MonitorCaptureTabs(
-                options: Array(modeTabs.indices), selection: selectedMode,
-                title: { modeTabs[$0] },
-                select: { index in
-                    guard canApplyDrum else { return }
-                    selectedMode = index
-                    handleModeChange(index)
-                })
+            ModeBar(tabs: modeTabs, selected: selectedMode, enabled: true) { index in
+                guard canApplyDrum else { return }
+                selectedMode = index
+                handleModeChange(index)
+            }
+            .environment(\.ladderOperatorHaptics, host.hapticsEnabled)
         }
 
         private func choiceDrum(
@@ -699,6 +712,7 @@
 
         private var headerTitle: String {
             if isEvSheet { return "EXPOSURE" }
+            if sheet == .color { return host.recordingCodecColor.title }
             return sheet.headerLabel
         }
 
