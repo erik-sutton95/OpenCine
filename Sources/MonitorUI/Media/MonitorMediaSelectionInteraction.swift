@@ -25,6 +25,7 @@
         private var displayLink: CADisplayLink?
         private var lastTimestamp: CFTimeInterval = 0
         private var viewportWidth: CGFloat = 0
+        private var viewportHeight: CGFloat = 0
         private var context = ""
         private weak var mountedProbe: UIView?
 
@@ -91,6 +92,7 @@
                     scrollView = scroll
                     mountedProbe = view
                     viewportWidth = scroll.bounds.width
+                    viewportHeight = scroll.bounds.height
                     scroll.addGestureRecognizer(hold)
                     scroll.addGestureRecognizer(pan)
                     // Browsing rejects this pan immediately. Selection gives it
@@ -161,6 +163,7 @@
                 guard controller.consuming else { return }
                 activeRecognizer = recognizer
                 viewportWidth = scroll.bounds.width
+                viewportHeight = scroll.bounds.height
                 publishSelection(event)
                 updateSelection()
                 updateClock()
@@ -218,19 +221,24 @@
             return nearest ? closest?.0 : nil
         }
 
-        private var scrollVelocity: Double {
+        private func edgeVelocity() -> Double {
             guard controller.consuming, let scroll = scrollView else { return 0 }
             let point = scroll.convert(windowPoint, from: scroll.window)
+            let pointerY = Double(point.y - scroll.bounds.minY)
+            // The selection tray shrinks the gallery as the sweep begins; that alone must not scroll.
+            if abs(scroll.bounds.height - viewportHeight) >= 1 {
+                controller.viewportResized(pointerY: pointerY)
+                viewportHeight = scroll.bounds.height
+            }
             guard point.x >= scroll.bounds.minX - 32, point.x <= scroll.bounds.maxX + 32 else {
                 return 0
             }
-            return MonitorMediaSelectionScroll.velocity(
-                pointerY: point.y - scroll.bounds.minY, viewportHeight: scroll.bounds.height,
-                configuration: configuration)
+            return controller.edgeVelocity(
+                pointerY: pointerY, viewportHeight: Double(scroll.bounds.height))
         }
 
         private func updateClock() {
-            guard scrollVelocity != 0 else {
+            guard edgeVelocity() != 0 else {
                 stopClock()
                 return
             }
@@ -256,7 +264,7 @@
                 lastTimestamp == 0
                 ? link.targetTimestamp - link.timestamp : link.timestamp - lastTimestamp
             lastTimestamp = link.timestamp
-            let velocity = scrollVelocity
+            let velocity = edgeVelocity()
             guard velocity != 0 else {
                 stopClock()
                 return

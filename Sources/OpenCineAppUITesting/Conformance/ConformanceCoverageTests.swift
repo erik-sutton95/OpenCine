@@ -6,7 +6,7 @@ import XCTest
 open class ConformanceCoverageTests: SharedAppUITestCase {
     public static let scenarios: [SharedAppUITestCase.Type] = [
         GalleryRoundTrip.self, ShareRoundTrip.self, ConfirmationCancel.self, ChromeEditReturn.self,
-        AccessibilityTraversal.self,
+        AccessibilityTraversal.self, ScreenMatrix.self,
     ]
 
     func testTheAppRunsEveryScenario() throws {

@@ -73,9 +73,15 @@ open class SharedAppUITestCase: XCTestCase {
     /// may overlap. A mode that makes the rest inert (the chrome editor) names its own controls.
     /// Then the screen is attached as `<app>-<device>-<orientation>-<scenario>-<name>`, the
     /// screenshot matrix's name (attachment names cannot hold a `/`).
+    ///
+    /// `safeContent` (the screenshot matrix) names the page content, by identifier prefix, that must
+    /// also lie inside the safe area pages lay out in, which a staged review publishes as
+    /// `monitor.review.safeArea`. The monitor chrome is left out: it uses the corners beside the
+    /// camera housing, whose outline iOS does not publish (the Kotlin twin, `hiddenAreas`, reads the
+    /// cutout's own outline and checks every control).
     public func checkpoint(
-        _ name: String, operable: String = "monitor.", file: StaticString = #filePath,
-        line: UInt = #line
+        _ name: String, operable: String = "monitor.", safeContent: [String] = [],
+        file: StaticString = #filePath, line: UInt = #line
     ) {
         let app = self.app!
         guard let root = try? app.snapshot() else {
@@ -98,6 +104,29 @@ open class SharedAppUITestCase: XCTestCase {
             XCTFail(
                 "\(name): \(button.identifier) \(button.frame) leaves the window \(root.frame)",
                 file: file, line: line)
+        }
+        if !safeContent.isEmpty {
+            // A page presented over the monitor (Z's modal pages) publishes its own marker; the
+            // last one in the tree is the topmost presentation's.
+            var markers: [CGRect] = []
+            func findMarkers(_ element: XCUIElementSnapshot) {
+                if element.identifier == "monitor.review.safeArea" { markers.append(element.frame) }
+                element.children.forEach(findMarkers)
+            }
+            findMarkers(root)
+            if let marker = markers.last {
+                let safe = marker.insetBy(dx: -0.5, dy: -0.5)
+                let content = buttons.filter { button in
+                    safeContent.contains { button.identifier.hasPrefix($0) }
+                }
+                for button in content where !safe.contains(button.frame) {
+                    XCTFail(
+                        "\(name): \(button.identifier) \(button.frame) leaves the safe area \(marker)",
+                        file: file, line: line)
+                }
+            } else {
+                XCTFail("\(name): the staged review publishes no safe area", file: file, line: line)
+            }
         }
         let operated = buttons.filter { $0.identifier.hasPrefix(operable) }
         for (index, first) in operated.enumerated() {

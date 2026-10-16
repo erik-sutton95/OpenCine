@@ -151,7 +151,19 @@ class OperatorSetupState(
     val cameraFamily: String?,
     val layout: MonitorLayoutCapabilities,
     val lookProfile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
+    /**
+     * The shell presents a monitor (Swift `shell.monitor != nil`). What arranges that monitor
+     * follows it; what reports the link (transport, health) follows [phase].
+     */
+    val monitorPresented: Boolean,
 )
+
+/**
+ * Display's Edit view: it arranges the presented monitor, so it is offered whenever one is
+ * presented, whatever the link phase (Swift `MonitorOperatorSettingsScreen.editChrome`).
+ */
+internal fun OperatorSetupState.chromeEdit(begin: (MonitorDisplayMode) -> Unit): ((MonitorDisplayMode) -> Unit)? =
+    if (monitorPresented) begin else null
 
 /** The decoder and link counters the Link Health tile samples twice a second. */
 class OperatorLinkSample(val framesEnqueued: Int, val lastPresentedAt: Long?, val videoPackets: Int, val hasVideoFormat: Boolean)
@@ -712,7 +724,7 @@ private fun ScopeGuideRows(guides: MonitorScopeGuides, onChange: (MonitorScopeGu
 
 /** Main's Display rows; tagged `monitor.settings.display.*` for the instrumented tests. */
 @Composable
-fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp, isLive: Boolean) {
+fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, app: OperatorSetupApp) {
     val view = LocalView.current
     MonitorSettingsRowCard(title = "Panel") {
         MonitorSettingsSwitchInlineRow(
@@ -750,7 +762,7 @@ fun OperatorDisplayRows(model: OperatorSetupModel, state: OperatorSetupState, ap
             model.assist.pinned = next.mapNotNull(MonitorAssistTool::fromPersisted).toSet()
             model.updateCleanViewPinnedTools(next)
         },
-        edit = if (!isLive) null else { mode -> model.beginChromeEditing(mode) },
+        edit = state.chromeEdit(model::beginChromeEditing),
         feedback = { operatorHaptic(view, model.hapticsEnabled) },
     )
 }

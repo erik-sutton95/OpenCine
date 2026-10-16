@@ -14,6 +14,9 @@ public enum MonitorChromeEditBadgeLayout {
     public static let edgeInset: CGFloat = 16
     /// How far a badge may peek past its element's edge. The rest sits on it.
     public static let overhang: CGFloat = 4
+    /// The square a badge is hit across, centred on it (`ChromeEditBadge`'s `minTapTarget()`).
+    /// No two badges' touch targets overlap.
+    public static let touchTarget: CGFloat = 44
 
     public struct Box: Equatable, Sendable {
         public let section: MonitorDisplayChrome.Section
@@ -28,10 +31,12 @@ public enum MonitorChromeEditBadgeLayout {
     public static func badgeFrames(
         _ boxes: [Box],
         viewport: CGSize,
-        badgeSize: CGFloat = badgeSize
+        badgeSize: CGFloat = badgeSize,
+        touchTarget: CGFloat = touchTarget
     ) -> [MonitorDisplayChrome.Section: CGRect] {
         badgeFrames(
-            keyed: boxes.map { ($0.section, $0.frame) }, viewport: viewport, badgeSize: badgeSize)
+            keyed: boxes.map { ($0.section, $0.frame) }, viewport: viewport, badgeSize: badgeSize,
+            touchTarget: touchTarget)
     }
 
     /// The same placement for an app's own chrome sections. `boxes` order is the placement
@@ -39,23 +44,120 @@ public enum MonitorChromeEditBadgeLayout {
     public static func badgeFrames<Key: Hashable>(
         keyed boxes: [(key: Key, frame: CGRect)],
         viewport: CGSize,
-        badgeSize: CGFloat = badgeSize
+        badgeSize: CGFloat = badgeSize,
+        touchTarget: CGFloat = touchTarget
     ) -> [Key: CGRect] {
         let playable = playableRect(in: viewport, badgeSize: badgeSize)
+        // Origin-to-origin distance two badges keep along at least one axis.
+        let spacing = max(badgeSize + badgeGap, touchTarget)
+        let measured = boxes.filter { $0.frame.width > 1 && $0.frame.height > 1 }
         var placed: [CGRect] = []
         var result: [Key: CGRect] = [:]
 
-        for box in boxes where box.frame.width > 1 && box.frame.height > 1 {
-            let candidates = anchors(on: box.frame, viewport: viewport, badgeSize: badgeSize)
-                .map { clamped($0, in: playable) }
-            let choice =
-                candidates.first { candidate in
-                    !placed.contains { overlaps($0, candidate) }
-                } ?? candidates[0]
+        for box in measured {
+            let ranked = rankedAnchors(on: box.frame, viewport: viewport)
+            let candidates = ranked.map {
+                clamped(
+                    $0.frame(on: box.frame, badgeSize: badgeSize, overhang: overhang), in: playable)
+            }
+            let free = candidates.first { candidate in
+                !placed.contains { overlaps($0, candidate, spacing: spacing) }
+            }
+            // Crowded: a box nested in another chrome box is badged only where its own eye fits;
+            // any other box takes the nearest free spot outward from its best anchor.
+            let nested = measured.contains { other in
+                other.key != box.key && other.frame != box.frame && encloses(other.frame, box.frame)
+            }
+            let choice: CGRect?
+            if let free {
+                choice = free
+            } else if nested {
+                choice = nil
+            } else {
+                choice =
+                    stackOutward(
+                        from: ranked[0], start: candidates[0], playable: playable, placed: placed,
+                        spacing: spacing) ?? candidates[0]
+            }
+            guard let choice else { continue }
             placed.append(choice)
             result[box.key] = choice
         }
         return result
+    }
+
+    /// The nearest free spot outward from `anchor`'s `start` inside `playable`: along each
+    /// outward axis the badge slides just past every badge it meets, and the shorter slide wins
+    /// (vertical on a tie).
+    private static func stackOutward(
+        from anchor: Anchor, start: CGRect, playable: CGRect, placed: [CGRect], spacing: CGFloat
+    ) -> CGRect? {
+        let dx: CGFloat
+        switch anchor {
+        case .topLeading, .leading, .bottomLeading: dx = -1
+        case .topTrailing, .trailing, .bottomTrailing: dx = 1
+        case .top, .bottom: dx = 0
+        }
+        let dy: CGFloat
+        switch anchor {
+        case .topLeading, .top, .topTrailing: dy = -1
+        case .bottomLeading, .bottom, .bottomTrailing: dy = 1
+        case .leading, .trailing: dy = 0
+        }
+        var axes: [(x: CGFloat, y: CGFloat)] = []
+        if dy != 0 { axes.append((0, dy)) }
+        if dx != 0 { axes.append((dx, 0)) }
+        var best: CGRect?
+        for axis in axes {
+            guard
+                let frame = slide(
+                    start, x: axis.x, y: axis.y, playable: playable, placed: placed,
+                    spacing: spacing)
+            else { continue }
+            let moved = abs(frame.minX - start.minX) + abs(frame.minY - start.minY)
+            if let current = best,
+                abs(current.minX - start.minX) + abs(current.minY - start.minY) <= moved
+            {
+                continue
+            }
+            best = frame
+        }
+        return best
+    }
+
+    /// `start` moved along (`x`, `y`) just past every placed badge it meets; nil once it leaves
+    /// `playable`.
+    private static func slide(
+        _ start: CGRect, x ux: CGFloat, y uy: CGFloat, playable: CGRect, placed: [CGRect],
+        spacing: CGFloat
+    ) -> CGRect? {
+        var frame = start
+        while true {
+            let hit = placed.filter { overlaps($0, frame, spacing: spacing) }
+            if hit.isEmpty { return frame }
+            var next = frame
+            if uy != 0 {
+                next.origin.y =
+                    uy > 0
+                    ? hit.map(\.minY).max()! + spacing : hit.map(\.minY).min()! - spacing
+            } else {
+                next.origin.x =
+                    ux > 0
+                    ? hit.map(\.minX).max()! + spacing : hit.map(\.minX).min()! - spacing
+            }
+            if (next.minX - frame.minX) * ux + (next.minY - frame.minY) * uy <= 0 { return nil }
+            if next.minX < playable.minX || next.minY < playable.minY
+                || next.maxX > playable.maxX || next.maxY > playable.maxY
+            {
+                return nil
+            }
+            frame = next
+        }
+    }
+
+    private static func encloses(_ outer: CGRect, _ inner: CGRect) -> Bool {
+        outer.minX <= inner.minX && outer.minY <= inner.minY && inner.maxX <= outer.maxX
+            && inner.maxY <= outer.maxY
     }
 
     public static func playableRect(in viewport: CGSize, badgeSize: CGFloat = badgeSize) -> CGRect {
@@ -67,20 +169,19 @@ public enum MonitorChromeEditBadgeLayout {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
-    /// 4 corners + 4 mid-edges, badge mostly overlapping `frame`, inward first.
-    private static func anchors(
-        on frame: CGRect,
-        viewport: CGSize,
-        badgeSize: CGFloat
-    ) -> [CGRect] {
+    /// 4 corners + 4 mid-edges, inward first; ties keep `Anchor.allCases` order.
+    private static func rankedAnchors(on frame: CGRect, viewport: CGSize) -> [Anchor] {
         let preferTrailing = frame.midX < viewport.width / 2
         let preferBottom = frame.midY < viewport.height / 2
-        return Anchor.allCases
-            .sorted {
-                rank($0, preferTrailing: preferTrailing, preferBottom: preferBottom)
-                    < rank($1, preferTrailing: preferTrailing, preferBottom: preferBottom)
+        return Anchor.allCases.enumerated()
+            .sorted { lhs, rhs in
+                let left = rank(
+                    lhs.element, preferTrailing: preferTrailing, preferBottom: preferBottom)
+                let right = rank(
+                    rhs.element, preferTrailing: preferTrailing, preferBottom: preferBottom)
+                return left != right ? left < right : lhs.offset < rhs.offset
             }
-            .map { $0.frame(on: frame, badgeSize: badgeSize, overhang: overhang) }
+            .map(\.element)
     }
 
     private enum Anchor: CaseIterable {
@@ -151,10 +252,16 @@ public enum MonitorChromeEditBadgeLayout {
         return horizontal + vertical
     }
 
-    private static func overlaps(_ a: CGRect, _ b: CGRect) -> Bool {
-        a.minX < b.maxX + badgeGap && b.minX < a.maxX + badgeGap
-            && a.minY < b.maxY + badgeGap && b.minY < a.maxY + badgeGap
+    /// Two badge-sized frames closer than `spacing` on both axes: their touch targets (or discs
+    /// and gap) meet.
+    private static func overlaps(_ a: CGRect, _ b: CGRect, spacing: CGFloat) -> Bool {
+        abs(a.minX - b.minX) < spacing - spacingSlack
+            && abs(a.minY - b.minY) < spacing - spacingSlack
     }
+
+    /// Badges exactly `spacing` apart touch; rounding of a slid origin must not read as a
+    /// collision.
+    private static let spacingSlack: CGFloat = 0.01
 
     private static func clamped(_ frame: CGRect, in playable: CGRect) -> CGRect {
         guard playable.width >= frame.width, playable.height >= frame.height else {

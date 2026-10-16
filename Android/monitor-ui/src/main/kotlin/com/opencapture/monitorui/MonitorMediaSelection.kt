@@ -228,6 +228,8 @@ class MonitorMediaSelectionController(
     private var moved = false
     private var scrollLocked = false
     private var sweep: MonitorMediaDragSelection? = null
+    // Where the finger rested when the viewport last changed size under a live sweep (null: armed).
+    private var edgeRestY: Float? = null
 
     fun bind(ids: List<String>, selecting: Boolean, selected: Set<String>, context: Any? = Unit) {
         if (this.selecting && !selecting) cancel()
@@ -319,16 +321,34 @@ class MonitorMediaSelectionController(
         moved = false
         scrollLocked = false
         downId = null
+        edgeRestY = null
+    }
+
+    /**
+     * The viewport changed size under a live sweep (the selection tray appears when the sweep begins).
+     * That can put a finger that never moved inside an edge band; edge scrolling then waits until the
+     * finger itself moves vertically by [slop] from [pointerY], so the layout alone never scrolls the
+     * gallery and widens the range. A still hold at the edge of an unchanged viewport still scrolls.
+     */
+    fun viewportResized(pointerY: Float = fingerY) {
+        if (sweep != null && pointerDown) edgeRestY = pointerY
+    }
+
+    private fun edgeArmed(): Boolean {
+        val rest = edgeRestY ?: return true
+        if (abs(fingerY - rest) < slop) return false
+        edgeRestY = null
+        return true
     }
 
     fun inEdgeBand(viewportHeight: Float, density: Float = 1f): Boolean {
         val scale = if (density.isFinite() && density > 0f) density else 1f
-        return sweep != null && pointerDown &&
+        return sweep != null && pointerDown && edgeArmed() &&
             MonitorMediaSelectionPolicy.edgeVelocity(fingerY / scale, viewportHeight / scale, configuration) != 0f
     }
 
     fun edgeScroll(dt: Float, viewportHeight: Float, density: Float = 1f): Float {
-        if (sweep == null || !pointerDown || !dt.isFinite() || dt <= 0f) return 0f
+        if (sweep == null || !pointerDown || !dt.isFinite() || dt <= 0f || !edgeArmed()) return 0f
         return MonitorMediaSelectionPolicy.edgeStep(fingerY, viewportHeight, dt, density, configuration)
     }
 
@@ -340,6 +360,7 @@ class MonitorMediaSelectionController(
     private fun begin(id: String): News? {
         val next = MonitorMediaDragSelection.start(ids, id, selected) ?: return null
         sweep = next
+        edgeRestY = null
         selecting = true
         selected = next.selectedIds
         return News.Selection(true, selected, MonitorMediaSelectionFeedback.BEGAN)
