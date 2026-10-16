@@ -49,8 +49,8 @@ import OpenCineMotion
     /// MOVE every `stickInterval` until `endHold()`. A held stick at 0, 0 keeps repeating: on Luna
     /// MOVE 0, 0 is the release request itself.
     public func hold(pan: Double, tilt: Double) {
-        self.pan = Int32((pan * Self.stickFullScale).rounded())
-        self.tilt = Int32((tilt * Self.stickFullScale).rounded())
+        self.pan = Self.wireSpeed(pan)
+        self.tilt = Self.wireSpeed(tilt)
         guard !isHeld else { return }
         isHeld = true
         stream?.cancel()
@@ -61,6 +61,16 @@ import OpenCineMotion
                 try? await self.sleep(Self.stickInterval)
             }
         }
+    }
+
+    /// One axis in wire units. A deflection the caller kept (non-zero) never rounds to 0: on Luna
+    /// MOVE 0 on both axes is the release request, so a slow deflection that rounded to 0 stopped
+    /// the head mid-move (OPENINSTACINE-IOS-3, gamepad at low sensitivity).
+    nonisolated public static func wireSpeed(_ axis: Double) -> Int32 {
+        let clamped = max(-1, min(1, axis))
+        let rounded = Int32((clamped * stickFullScale).rounded())
+        if rounded == 0, clamped != 0 { return clamped > 0 ? 1 : -1 }
+        return rounded
     }
 
     /// Stops repeating MOVE; the caller sends `release()` when it wants the head at rest.
