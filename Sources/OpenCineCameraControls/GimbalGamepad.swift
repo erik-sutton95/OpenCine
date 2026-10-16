@@ -48,6 +48,8 @@
         private var dpadLeft = false
         private var dpadRight = false
         private var haptics: GamepadLimitHaptics?
+        /// The pad whose changes the handler reports; read on the main actor only.
+        private weak var boundPad: GCExtendedGamepad?
 
         public init() {}
 
@@ -77,6 +79,7 @@
             for controller in GCController.controllers() {
                 controller.extendedGamepad?.valueChangedHandler = nil
             }
+            boundPad = nil
             haptics?.detach()
             haptics = nil
             model?.gamepadConnected = false
@@ -132,14 +135,23 @@
                     model.controlNote = connected ? "Gamepad connected" : "Gamepad disconnected"
                 }
             }
+            boundPad = gamepad
             guard let gamepad else {
                 noteBlocked()
                 return
             }
-            gamepad.valueChangedHandler = { [weak self] pad, _ in
-                Task { @MainActor in self?.handle(pad) }
+            // Pin the callback queue instead of relying on GameController's default, and hand it a
+            // handler without actor isolation (GimbalGamepadCallback): the PI-3P / PI-3N crash class.
+            controller?.handlerQueue = .main
+            gamepad.valueChangedHandler = GimbalGamepadCallback.valueChanged { [weak self] in
+                self?.handleBoundPad()
             }
             handle(gamepad)
+        }
+
+        private func handleBoundPad() {
+            guard let boundPad else { return }
+            handle(boundPad)
         }
 
         private func edge(
@@ -279,6 +291,24 @@
                 current: zoomCurrent, y: zoomY, dt: dt, max: model.zoomMax)
             let mag = zoomCurrent / max(zoomAnchor, CamFov.minFactor)
             model.updateZoomPinch(magnification: mag)
+        }
+    }
+
+    /// GameController runs `valueChangedHandler` on the controller's `handlerQueue`. A closure
+    /// formed inside main-actor code is main-actor isolated in Swift 6, and its entry check traps
+    /// when any other queue calls it (PI-3P, PI-3N). This handler is formed outside the actor: it
+    /// runs `body` at once on the main thread (the pinned queue) and hops there from any other.
+    enum GimbalGamepadCallback {
+        nonisolated static func valueChanged(
+            _ body: @escaping @MainActor @Sendable () -> Void
+        ) -> GCExtendedGamepadValueChangedHandler {
+            { _, _ in
+                if Thread.isMainThread {
+                    MainActor.assumeIsolated { body() }
+                } else {
+                    Task { @MainActor in body() }
+                }
+            }
         }
     }
 
