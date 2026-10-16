@@ -1,0 +1,21 @@
+# Golden values for the SIMULATED live review, read by both shells.
+#
+# A `ReviewLaunch` with the LIVE screen stages these camera values in every app, so the live
+# monitor and its popups read the same on iOS and Android. Swift owns them in `ReviewLiveValues`
+# (`Sources/MonitorPresentation`); Kotlin keeps the twin `ReviewLiveValues` (`Android/monitor-ui`).
+# `ReviewLiveValuesVectorTests` (Swift) and `ReviewLiveValuesTest` (Kotlin) both read this file.
+# Debug review only: nothing here reaches a camera.
+#
+# field	value
+iso	1600
+shutterDenominator	50
+whiteBalanceKelvin	5600
+recordWidth	3840
+recordHeight	2160
+framesPerSecond	25
+batteryPercent	68
+storageFreeMebibytes	109568
+storageTotalMebibytes	131072
+timecodeHours	15
+timecodeMinutes	39
+timecodeSeconds	50

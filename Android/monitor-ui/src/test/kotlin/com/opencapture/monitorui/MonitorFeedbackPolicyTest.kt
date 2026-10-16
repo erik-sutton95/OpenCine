@@ -53,7 +53,7 @@ class MonitorFeedbackPolicyTest {
                 assertEquals(w / 2f, panel.x + panel.width / 2f, .001f)
                 assertTrue(panel.width <= if (minOf(w, h) >= 600f) 620f else 480f)
                 assertTrue(panel.x >= maxOf(14f, safe + 4f))
-                assertTrue(panel.y >= 14f)
+                assertTrue(panel.y >= MonitorLayoutPolicy.popupTopMargin(0f))
                 assertEquals(floor?.minus(12f) ?: h, panel.y + minOf(panelHeight, panel.maxHeight), .001f)
             }
         }
@@ -66,7 +66,7 @@ class MonitorFeedbackPolicyTest {
             val panel = MonitorLayoutPolicy.topPanel(190f, w, h, 0f, 0f, 0f, 0f, ceiling, floor)
             assertEquals(w / 2f, panel.x + panel.width / 2f, .001f)
             // Landscape floats under the same top margin as the bottom drawer, inside the safe area.
-            assertEquals(if (h > w) 86f else 14f, panel.y, .001f)
+            assertEquals(if (h > w) 86f else 8f, panel.y, .001f)
             assertTrue(panel.width <= if (minOf(w, h) >= 600f) 620f else 480f)
         }
     }
