@@ -30,8 +30,8 @@ import UIKit
 @MainActor
 public final class MonitorRemoteShutter {
     /// The Controls row title and help every app shows for this owner.
-    public static let title = "Bluetooth Remote Shutter"
-    public static let help =
+    public nonisolated static let title = "Bluetooth Remote Shutter"
+    public nonisolated static let help =
         "A paired Bluetooth shutter remote's button press starts or stops recording while the live view is up front. Inside Settings, Media, or other full-screen pages the volume keys behave normally. The phone's volume keys record too, and Record Confirmation is skipped. Presses arrive as volume commands, so the volume may move momentarily before snapping back; the system volume overlay stays hidden while armed."
 
     /// The host's log, named by its subsystem.
