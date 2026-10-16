@@ -70,6 +70,32 @@ public struct FeedWatchdog: Equatable, Sendable {
         case cooldown
     }
 
+    /// Why the last tick fired nothing. Observation only: incidents record it so a
+    /// slow field recovery shows which gate held the ladder. `fired` after an action.
+    public enum Hold: String, Equatable, Sendable {
+        case fired
+        case notLive
+        case pathNotReady
+        case repairNotReady
+        /// The rebuildVT attempt still owns its output deadline.
+        case repairDeadline
+        /// A rejoin or its cooldown owns the known loss.
+        case rejoinCooldown
+        case gopReset
+        case controlGrace
+        /// Packets arrive and native output is not expected or not stalled.
+        case receiveAlive
+        /// Packets arrive and a decoder fault is visible, but output is not
+        /// expected or no picture was seen, so no decoder repair can start.
+        case outputNotExpected
+        /// Decoder repair is due, but no complete access unit arrived lately.
+        case accessUnitStale
+        case firstVideoWait
+        case rungWait
+        case rebuildBackoff
+        case cooldown
+    }
+
     public enum Action: Equatable, Sendable {
         case none
         case resendLiveViewEnable
@@ -195,6 +221,8 @@ public struct FeedWatchdog: Equatable, Sendable {
 
     public var stage: Stage = .idle
     public private(set) var lastActionAt: TimeInterval = 0
+    /// Gate of the most recent tick; nil before the first. Not ladder state.
+    public private(set) var lastHold: Hold?
     /// Encoder-pause `0x09/0xa8` already sent this stall. Then one UDP rebuild.
     private var encoderPauseEnableSent = false
 
@@ -425,9 +453,10 @@ public struct FeedWatchdog: Equatable, Sendable {
     public mutating func tick(_ snap: Snapshot) -> Action {
         if !snap.live {
             resetIdle()
-            return .none
+            return hold(.notLive)
         }
-        guard snap.pathReady, snap.repairReady else { return .none }
+        guard snap.pathReady else { return hold(.pathNotReady) }
+        guard snap.repairReady else { return hold(.repairNotReady) }
 
         // Native output is measured before assists/presentation. A retained
         // image or arriving compressed AU cannot complete decoder recovery.
@@ -448,7 +477,9 @@ public struct FeedWatchdog: Equatable, Sendable {
         // release its budget; IRAP acceptance alone is not output proof.
         let outputAfterAction = outputAge.map { snap.now - $0 > lastActionAt } ?? false
         if stage == .rebuildVT, decoderNeedsRepair || !outputAfterAction {
-            guard snap.now - lastActionAt >= Self.decoderRepairDeadline else { return .none }
+            guard snap.now - lastActionAt >= Self.decoderRepairDeadline else {
+                return hold(.repairDeadline)
+            }
             return fire(.fullSessionRejoin, at: snap.now)
         }
 
@@ -467,24 +498,29 @@ public struct FeedWatchdog: Equatable, Sendable {
                 if stage == .fullRejoin || stage == .cooldown,
                     snap.now - lastActionAt < Self.cooldownDuration
                 {
-                    return .none
+                    return hold(.rejoinCooldown)
                 }
                 // An IRAP after the last enable answered it. This loss is new and
                 // needs its own request, not the rest of the old 8 s window.
-                if (!Self.irapAnsweredLastEnable(snap)
+                if !Self.irapAnsweredLastEnable(snap)
                     && Self.shouldHoldForGOPReset(
                         secondsSinceLastEnable: snap.secondsSinceLastEnable,
-                        lastVideoPacketAge: snap.lastVideoPacketAge))
-                    || Self.shouldHoldForControlGrace(
-                        snap, stalledStageAge: snap.lastDecoderOutputAge ?? snap.lastDecodedFrameAge
-                    )
+                        lastVideoPacketAge: snap.lastVideoPacketAge)
                 {
-                    return .none
+                    return hold(.gopReset)
+                }
+                if Self.shouldHoldForControlGrace(
+                    snap, stalledStageAge: snap.lastDecoderOutputAge ?? snap.lastDecodedFrameAge)
+                {
+                    return hold(.controlGrace)
                 }
                 return fire(.rebuildVTSession, at: snap.now)
             }
             resetIdle()
-            return .none
+            let faultVisible = snap.referenceRecoveryNeeded || snap.decoderFailed
+            let repairable = snap.decoderOutputExpected && snap.sawPicture
+            if decoderNeedsRepair { return hold(.accessUnitStale) }
+            return hold(faultVisible && !repairable ? .outputNotExpected : .receiveAlive)
         }
 
         // Measure the hold at the stage that stopped: fresh fragments with no
@@ -496,21 +532,21 @@ public struct FeedWatchdog: Equatable, Sendable {
             lastVideoPacketAge: assemblyStalled && enableHadTime
                 ? snap.lastAccessUnitAge : snap.lastVideoPacketAge
         ) {
-            return .none
+            return hold(.gopReset)
         }
 
         if Self.shouldHoldForControlGrace(
             snap,
             stalledStageAge: assemblyStalled ? snap.lastAccessUnitAge : snap.lastVideoPacketAge)
         {
-            return .none
+            return hold(.controlGrace)
         }
 
         // First connect: no video packet yet. Resend enable — do not treat
         // “already rebuilt / no clocks” as a post-video flap.
         if !snap.hadVideo {
             if stage != .idle, snap.now - lastActionAt < Self.escalateAfter {
-                return .none
+                return hold(.firstVideoWait)
             }
             switch stage {
             case .idle:
@@ -520,9 +556,9 @@ public struct FeedWatchdog: Equatable, Sendable {
             case .rebuildVT, .reopenDatalink, .fullRejoin:
                 stage = .cooldown
                 lastActionAt = snap.now
-                return .none
+                return hold(.cooldown)
             case .cooldown:
-                return .none
+                return hold(.cooldown)
             }
         }
 
@@ -538,13 +574,13 @@ public struct FeedWatchdog: Equatable, Sendable {
             // recovering stage now so the chip does not sit on Reconnecting.
             stage = .cooldown
             lastActionAt = snap.now
-            return .none
+            return hold(.cooldown)
         }
         // The enable is answered in about a second or not at all; other rungs
         // (a rebuild's negotiation) keep escalateAfter.
         let rungWait = stage == .resendEnable ? Self.enableAnswerWindow : Self.escalateAfter
         if stage != .idle, snap.now - lastActionAt < rungWait {
-            return .none
+            return hold(.rungWait)
         }
         switch stage {
         case .idle, .resendEnable, .rebuildVT:
@@ -556,7 +592,7 @@ public struct FeedWatchdog: Equatable, Sendable {
             // recent: give it escalateAfter, then re-handshake. The shell
             // already rode one enable with that rebuild.
             if let since = snap.secondsSinceLastRebuild, since < Self.rebuildBackoff {
-                if since < Self.escalateAfter { return .none }
+                if since < Self.escalateAfter { return hold(.rebuildBackoff) }
                 return fire(.fullSessionRejoin, at: snap.now)
             }
             return fire(.reopenDatalink, at: snap.now)
@@ -569,7 +605,7 @@ public struct FeedWatchdog: Equatable, Sendable {
             if snap.now - lastActionAt >= Self.cooldownDuration {
                 return fire(.reopenDatalink, at: snap.now)
             }
-            return .none
+            return hold(.cooldown)
         }
     }
 
@@ -619,7 +655,13 @@ public struct FeedWatchdog: Equatable, Sendable {
         case .none: break
         }
         lastActionAt = now
+        lastHold = .fired
         return action
+    }
+
+    private mutating func hold(_ reason: Hold) -> Action {
+        lastHold = reason
+        return .none
     }
 
     /// Bound repeated SET/throw grace by progress at the stage that stopped.

@@ -136,8 +136,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // Apple runtime: decoded-frame leases, VideoToolbox decoder, UVC capture source. Every
         // file sits behind `#if canImport(...)`; Core and Media never depend on it.
-        .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia"]),
-        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple", "OpenCineMedia"]),
+        .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineAppleObjC"]),
+        // The Objective-C calls Swift cannot make safely (a framework method that raises an
+        // NSException is called inside @try). Foundation, Metal and VideoToolbox only; empty
+        // where they do not exist. Internal to OpenCineApple: no product, nothing else imports it.
+        .target(name: "OpenCineAppleObjC"),
+        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple", "OpenCineAppleObjC", "OpenCineMedia"]),
 
         // MARK: UI
         // Presentation policy and native SwiftUI monitor screens. MonitorUI is iOS-only source
