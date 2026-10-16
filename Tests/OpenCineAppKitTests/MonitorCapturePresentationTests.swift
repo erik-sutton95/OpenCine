@@ -24,6 +24,16 @@ import Testing
         #expect(MonitorCapturePresentation.title(.focusMode) == "FOCUS")
     }
 
+    /// An unreported readout is drawn as a dash but read as "Not set"; a reported one as drawn.
+    @Test func unreportedReadoutsAreSpokenAsNotSet() {
+        for drawn in ["--", "\u{2014}", ""] {
+            #expect(MonitorCapturePresentation.spokenValue(drawn) == "Not set")
+        }
+        for drawn in ["1600", "Auto", "1/50", "AF-C", "\u{2212}0.3"] {
+            #expect(MonitorCapturePresentation.spokenValue(drawn) == drawn)
+        }
+    }
+
     /// A5-09: one frame-rate label for every integration; the NTSC family keeps its decimals.
     @Test func frameRateLabelsKeepTheExactRate() {
         let table: [(Rational, String)] = [

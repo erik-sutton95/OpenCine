@@ -323,7 +323,8 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
     func body(content: Content) -> some View {
         content.modifier(MonitorReadoutGesture(snapshot: quickSnapshot, sourceIdentity: capturedSource,
             isEnabled: canInspect, ownership: $state.ownership, presentationOwner: { presentationOwner }, onEvent: handle))
-            .accessibilityLabel(readout.title).accessibilityValue(readout.value)
+            .accessibilityLabel(readout.title)
+            .accessibilityValue(MonitorCapturePresentation.spokenValue(readout.value))
             .accessibilityIdentifier(readout.accessibilityIdentifier)
             .disabled(!canInspect)
             .onChange(of: inputs.panel?.key) { _, key in

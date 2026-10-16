@@ -42,6 +42,15 @@ public enum MonitorCapturePresentation {
         }
     }
 
+    /// The dashes a readout draws for a value the camera has not reported.
+    public static let unreportedMarks: Set<String> = ["", "--", "\u{2014}"]
+
+    /// What assistive technology reads for a readout's drawn value: an unreported value is drawn
+    /// as a dash and read as "Not set", never as punctuation.
+    public static func spokenValue(_ drawn: String) -> String {
+        unreportedMarks.contains(drawn) ? "Not set" : drawn
+    }
+
     public static func label(_ value: SettingValue) -> String {
         switch value {
         case .iso(.auto): "Auto"
