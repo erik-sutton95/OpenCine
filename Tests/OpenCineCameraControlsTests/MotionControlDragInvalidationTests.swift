@@ -8,10 +8,13 @@
 
     @MainActor
     final class MotionControlDragInvalidationTests: XCTestCase {
-        /// SwiftUI re-evaluates the controls a different number of times with the accessibility
-        /// runtime off (a fresh simulator) than with it on, and switching it on takes effect
-        /// asynchronously, so the count below is measured in one defined state: the runtime live,
-        /// as every hosted walk in this package sets it.
+        /// Moves re-evaluate the guarded controls neither with the accessibility runtime off nor
+        /// with it on (measured on brand-new simulators: no re-evaluation over eight moves either
+        /// way). Switching the runtime on changes the environment, and SwiftUI then re-evaluates
+        /// every view that reads it, this consumer included; the switch lands asynchronously, so
+        /// a switch made by an earlier walk in the process could land during the moves and count
+        /// as move re-evaluations. The count below is therefore measured after the runtime is
+        /// live, as every hosted walk in this package leaves it.
         override func setUp() async throws {
             await HostedAccessibility.awaitRuntime()
         }
