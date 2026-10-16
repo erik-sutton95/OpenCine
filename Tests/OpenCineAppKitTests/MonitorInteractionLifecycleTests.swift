@@ -25,8 +25,11 @@ struct MonitorInteractionLifecycleTests {
         var owner = MonitorInteractionLifecycle()
         _ = owner.update(.init())
         let cover = owner.update(.init(covered: true))
-        #expect(cover.inputAdmission == .blocked(.cover) && cover.dismissTransients)
-        #expect(owner.update(.init()).inputAdmission == .resumed)
+        // The cover keeps an open picker for the return; only held input retires.
+        #expect(cover.inputAdmission == .blocked(.cover) && !cover.dismissTransients && cover.retireReadout)
+        #expect(!cover.collapseAssists)
+        let back = owner.update(.init())
+        #expect(back.inputAdmission == .resumed && !back.dismissTransients)
         #expect(owner.update(.init()).inputAdmission == nil)
     }
     @Test func rotationRetiresReadoutWhileCleanAndEditingRetireAllTransientPresentation() {
@@ -50,5 +53,7 @@ struct MonitorInteractionLifecycleTests {
         #expect(owner.context == nil)
         let reentry = owner.update(.init(covered: true, camera: b))
         #expect(reentry.dismissTransients && reentry.inputAdmission == .blocked(.cover))
+        // A lock under a cover still dismisses.
+        #expect(owner.update(.init(locked: true, covered: true, camera: b)).dismissTransients)
     }
 }
