@@ -5,7 +5,7 @@
              set on it instead of being relaunched mid-test (configuration change 0x80000000). -->
         <activity android:name="com.opencapture.monitorui.MonitorTestActivity" android:exported="false"
             android:configChanges="assetsPaths"
-            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+            android:theme="@style/MonitorTestHost" />
         <activity android:name="com.opencapture.monitorui.MonitorBackdropRenderActivity" android:exported="false"
             android:configChanges="assetsPaths"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />

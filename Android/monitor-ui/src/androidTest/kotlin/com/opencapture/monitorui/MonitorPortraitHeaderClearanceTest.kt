@@ -618,8 +618,15 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
-    /** Focus and a submitted hardware frame precede the unchanged foreground screenshot oracle. */
+    /**
+     * The finished open transition, focus and a submitted hardware frame precede the unchanged
+     * foreground screenshot oracle. The display screenshot shows whatever is on screen, so the
+     * window must have finished animating in (the host has no splash screen over it).
+     */
     private fun awaitForegroundFrame(scenario: ActivityScenario<MonitorTestActivity>) {
+        var entered: CountDownLatch? = null
+        scenario.onActivity { entered = it.entered }
+        assertTrue("The test window's open transition must finish", requireNotNull(entered).await(10, TimeUnit.SECONDS))
         val focused = CountDownLatch(1)
         var focusOwner: ViewTreeObserver? = null
         val focusListener = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
