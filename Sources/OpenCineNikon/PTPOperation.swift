@@ -234,6 +234,14 @@ public enum PTPPropertyCode: UInt32, Sendable {
     /// Stills tone mode (UINT8): the existing integration names 0 SDR and 2 HLG.
     /// Missing or unknown readback does not establish the preview signal calibration.
     case stillToneMode = 0x0001_D01C
+
+    // Movie tone mode (SDR / HLG / N-Log), one property per codec family. Names follow libgphoto2
+    // `ptp.h`; value tables are hardware-read (see `NikonMovieToneCapability`).
+    case movieProResToneMode = 0x0001_D000
+    case movieH265ToneMode = 0x0001_D001
+    case movieNRawToneMode = 0x0001_D028
+    /// libgphoto2 also names this code `MovieQualityNRaw`; the ZR descriptor decides.
+    case movieProResRawToneMode = 0x0001_D029
 }
 
 /// PTP response codes used by the app.

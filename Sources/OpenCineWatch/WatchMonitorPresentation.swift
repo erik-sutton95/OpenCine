@@ -1,19 +1,57 @@
 import Foundation
+import OpenCineCore
 
 /// An honest measured gauge or percentage projection, supplied independently of relay wire types.
 public struct WatchMonitorBattery: Equatable, Sendable {
     public enum Urgency: Equatable, Sendable { case nominal, low, depleted }
+    /// Compatibility gauge fields for the original initializer. A fraction reading has no gauge
+    /// and reports 0 of 0, so new code reads `reading`.
     public let filledBars: Int
     public let barCount: Int
     public let urgency: Urgency
     public let accessibilityLabel: String
+    /// The active presentation reads this common value; fractions have no invented bars.
+    public let reading: BatteryReading
+    public let exhausted: Bool?
 
     public init(filledBars: Int, barCount: Int, urgency: Urgency, accessibilityLabel: String) {
         precondition(barCount > 0 && (0...barCount).contains(filledBars))
         self.filledBars = filledBars; self.barCount = barCount
         self.urgency = urgency; self.accessibilityLabel = accessibilityLabel
+        reading = .steps(filled: filledBars, of: barCount)
+        exhausted = nil
     }
 
+    private init(reading: BatteryReading, exhausted: Bool?, urgency: Urgency, accessibilityLabel: String) {
+        self.reading = reading; self.exhausted = exhausted
+        self.urgency = urgency; self.accessibilityLabel = accessibilityLabel
+        switch reading {
+        case .fraction: filledBars = 0; barCount = 0
+        case .steps(let filled, let count): filledBars = filled; barCount = count
+        }
+    }
+
+    /// A fraction prints a percentage; a declared gauge keeps its actual bar count.
+    public static func measured(_ reading: BatteryReading?, exhausted: Bool? = nil) -> Self? {
+        guard let reading else { return nil }
+        let fraction: Double
+        let label: String
+        switch reading {
+        case .fraction(let value):
+            guard value.isFinite, (0...1).contains(value) else { return nil }
+            fraction = value
+            label = "Camera battery \(Int((value * 100).rounded())) percent"
+        case .steps(let filled, let count):
+            guard count > 0, (0...count).contains(filled) else { return nil }
+            fraction = Double(filled) / Double(count)
+            label = "Camera battery \(filled) of \(count) bars"
+        }
+        return Self(reading: reading, exhausted: exhausted,
+            urgency: fraction <= 0.2 ? .depleted : fraction <= 0.4 ? .low : .nominal,
+            accessibilityLabel: label)
+    }
+
+    @available(*, deprecated, message: "Pass the source-declared BatteryReading to measured(_:exhausted:)")
     public static func percentage(_ reported: Int?) -> Self? {
         guard let reported, reported >= 0 else { return nil }
         let filled = reported == 0 ? 0 : min(5, max(1, Int(ceil(Double(min(100, reported)) / 20))))

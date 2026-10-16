@@ -1324,7 +1324,8 @@ final class FakeZRServer: @unchecked Sendable {
         case .movieFocusMode, .movieAFSubjectDetection, .movieAudioInputSensitivity,
             .audioInputSelection, .movWindNoiseReduction, .movieAttenuator,
             .movie32BitFloatAudioRecording, .movieBaseISO, .movieShutterMode,
-            .movieTVLockSetting, .movieVibrationReduction, .electronicVR:
+            .movieTVLockSetting, .movieVibrationReduction, .electronicVR, .movieH265ToneMode,
+            .movieProResToneMode, .movieNRawToneMode, .movieProResRawToneMode:
             1
         case .movieFileType, .movieShutterAngle, .movieShutterSpeed:
             4

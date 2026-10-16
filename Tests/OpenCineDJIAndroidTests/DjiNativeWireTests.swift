@@ -6,6 +6,24 @@ import Testing
 
 @Suite
 struct DjiNativeWireTests {
+    @Test func chargingDeclarationRoundTripPreservesFalseTrueAndUnknown() {
+        for value: Bool? in [false, true, nil] {
+            var status = CameraStatus()
+            status.charging = true
+            status.chargingObservationDeclared = true
+            status.chargingObservation = value
+            let decoded = DjiNativeWire.status(fromJSON: DjiNativeWire.statusJSON(status))
+            #expect(decoded.chargingObservationDeclared)
+            #expect(decoded.chargingObservation == value)
+        }
+        let old = DjiNativeWire.status(fromJSON: #"{"charging":true}"#)
+        #expect(!old.chargingObservationDeclared)
+        #expect(old.chargingObservation == nil)
+        let explicit = DjiNativeWire.status(fromJSON: #"{"charging":true,"chargingObservation":null}"#)
+        #expect(explicit.chargingObservationDeclared)
+        #expect(explicit.chargingObservation == nil)
+    }
+
     @Test func cameraMeterRoundTripsSeparatelyFromConfiguredEV() {
         var status = CameraStatus()
         status.evComp = .zero

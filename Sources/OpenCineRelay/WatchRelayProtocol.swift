@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Wire protocol shared by the iPhone relay and the watchOS companion.
 ///
@@ -122,6 +123,34 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         isPhotography: Bool = false,
         feedAspectRatio: Double = 16.0 / 9.0
     ) {
+        self.init(
+            isRecording: isRecording,
+            timecode: timecode,
+            media: media,
+            cameraBatteryPercent: cameraBatteryPercent,
+            cameraName: cameraName,
+            connection: connection,
+            feedLive: feedLive,
+            isPhotography: isPhotography,
+            feedAspectRatio: feedAspectRatio,
+            batteryReading: relayLegacyBattery(cameraBatteryPercent), batteryExhausted: nil)
+        batteryReadingWasDeclared = false
+        batteryExhaustedWasDeclared = false
+    }
+
+    public init(
+        isRecording: Bool,
+        timecode: String,
+        media: String,
+        cameraBatteryPercent: Int,
+        cameraName: String,
+        connection: WatchConnectionState,
+        feedLive: Bool,
+        isPhotography: Bool = false,
+        feedAspectRatio: Double = 16.0 / 9.0,
+        batteryReading: BatteryReading?,
+        batteryExhausted: Bool? = nil
+    ) {
         self.isRecording = isRecording
         self.timecode = timecode
         self.media = media
@@ -131,6 +160,10 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         self.feedLive = feedLive
         self.isPhotography = isPhotography
         self.feedAspectRatio = feedAspectRatio > 0 ? feedAspectRatio : 16.0 / 9.0
+        self.batteryReading = batteryReading
+        self.batteryExhausted = batteryExhausted
+        batteryReadingWasDeclared = true
+        batteryExhaustedWasDeclared = true
     }
 
     public let isRecording: Bool
@@ -143,6 +176,13 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
     public let isPhotography: Bool
     public let feedAspectRatio: Double
 
+    /// Charge at the source's declared precision. Explicit wire null remains unknown.
+    public let batteryReading: BatteryReading?
+    /// Camera-reported exhaustion, independent of low charge.
+    public let batteryExhausted: Bool?
+    private var batteryReadingWasDeclared: Bool
+    private var batteryExhaustedWasDeclared: Bool
+
     /// True when nothing the wrist renders as state differs from `other`.
     /// Timecode ticks with the frame stream; including it would put a state
     /// message on the link beside every preview frame.
@@ -150,6 +190,8 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         isRecording == other.isRecording
             && media == other.media
             && cameraBatteryPercent == other.cameraBatteryPercent
+            && batteryReading == other.batteryReading
+            && batteryExhausted == other.batteryExhausted
             && cameraName == other.cameraName
             && connection == other.connection
             && feedLive == other.feedLive
@@ -158,6 +200,25 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
     }
 
     public func replacing(isRecording: Bool) -> WatchRelayState {
+        var replacement = WatchRelayState(
+            isRecording: isRecording,
+            timecode: timecode,
+            media: media,
+            cameraBatteryPercent: cameraBatteryPercent,
+            cameraName: cameraName,
+            connection: connection,
+            feedLive: feedLive,
+            isPhotography: isPhotography,
+            feedAspectRatio: feedAspectRatio,
+            batteryReading: batteryReading, batteryExhausted: batteryExhausted)
+        replacement.batteryReadingWasDeclared = batteryReadingWasDeclared
+        replacement.batteryExhaustedWasDeclared = batteryExhaustedWasDeclared
+        return replacement
+    }
+
+    /// The same state with the session's typed power: the gauge at its declared precision and the
+    /// camera's exhaustion, never a gauge re-derived from the legacy percent.
+    public func replacing(power: PowerStatus) -> WatchRelayState {
         WatchRelayState(
             isRecording: isRecording,
             timecode: timecode,
@@ -167,7 +228,8 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
             connection: connection,
             feedLive: feedLive,
             isPhotography: isPhotography,
-            feedAspectRatio: feedAspectRatio)
+            feedAspectRatio: feedAspectRatio,
+            batteryReading: power.batteryReading, batteryExhausted: power.exhausted.value)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -182,7 +244,51 @@ public struct WatchRelayState: Codable, Equatable, Sendable {
         isPhotography = try container.decodeIfPresent(Bool.self, forKey: .isPhotography) ?? false
         let ratio = try container.decodeIfPresent(Double.self, forKey: .feedAspectRatio)
         feedAspectRatio = (ratio ?? 0) > 0 ? (ratio ?? 0) : 16.0 / 9.0
+        batteryReadingWasDeclared = container.contains(.batteryReading)
+        batteryReading = batteryReadingWasDeclared
+            ? try container.decodeIfPresent(BatteryReading.self, forKey: .batteryReading)
+            : relayLegacyBattery(self.cameraBatteryPercent)
+        batteryExhaustedWasDeclared = container.contains(.batteryExhausted)
+        batteryExhausted = try container.decodeIfPresent(Bool.self, forKey: .batteryExhausted)
+
     }
+    private enum CodingKeys: String, CodingKey {
+        case isRecording, timecode, media, cameraBatteryPercent, cameraName, connection, feedLive, isPhotography, feedAspectRatio, batteryReading, batteryExhausted
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isRecording, forKey: .isRecording)
+        try container.encode(timecode, forKey: .timecode)
+        try container.encode(media, forKey: .media)
+        try container.encode(cameraBatteryPercent, forKey: .cameraBatteryPercent)
+        try container.encode(cameraName, forKey: .cameraName)
+        try container.encode(connection, forKey: .connection)
+        try container.encode(feedLive, forKey: .feedLive)
+        try container.encode(isPhotography, forKey: .isPhotography)
+        try container.encode(feedAspectRatio, forKey: .feedAspectRatio)
+        if batteryReadingWasDeclared {
+            try container.encode(batteryReading, forKey: .batteryReading)
+        }
+        if batteryExhaustedWasDeclared {
+            try container.encode(batteryExhausted, forKey: .batteryExhausted)
+        }
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isRecording == rhs.isRecording
+            && lhs.timecode == rhs.timecode
+            && lhs.media == rhs.media
+            && lhs.cameraBatteryPercent == rhs.cameraBatteryPercent
+            && lhs.cameraName == rhs.cameraName
+            && lhs.connection == rhs.connection
+            && lhs.feedLive == rhs.feedLive
+            && lhs.isPhotography == rhs.isPhotography
+            && lhs.feedAspectRatio == rhs.feedAspectRatio
+            && lhs.batteryReading == rhs.batteryReading
+            && lhs.batteryExhausted == rhs.batteryExhausted
+    }
+
 }
 
 /// Phone → watch preview frame. Throttled and drop-stale (only the latest matters).
@@ -267,4 +373,11 @@ public enum WatchRelayEnvelope {
             }
         }
     }
+}
+
+/// A legacy peer's percent as a reading at the percent precision it implies; negative is unknown.
+func relayLegacyBattery(_ percent: Int) -> BatteryReading? {
+    guard percent >= 0 else { return nil }
+    return PowerStatus(battery: .init(Double(min(100, percent)) / 100,
+        origin: .cameraReported, at: nil, precision: .quantized(step: 0.01))).batteryReading
 }

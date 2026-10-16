@@ -575,22 +575,8 @@ public enum MediaManifest {
     }
 
     private static func resolutionForIndex(_ code: Int) -> String? {
-        switch code {
-        case 10: "1920x1080"  // 0x0A  1080p 16:9 (Xtra-verified)
-        case 12: "1920x1440"  // 0x0C  1080p 4:3
-        case 16: "3840x2160"  // 0x10  4K 16:9
-        case 45: "2688x1512"  // 0x2D  2.7K 16:9
-        case 66: "1080x1920"  // 0x42  1080p 9:16 vertical
-        case 67: "1512x2688"  // 0x43  2.7K 9:16 vertical
-        case 95: "2688x2016"  // 0x5F  2.7K 4:3
-        case 103: "3840x2880"  // 0x67  4K 4:3
-        case 105: "1080x1080"  // 0x69  1080p 1:1
-        case 106: "2160x2160"  // 0x6A  2160p 1:1
-        case 107: "3072x3072"  // 0x6B  3K 1:1
-        case 108: "1728x3072"  // 0x6C  3K 9:16 vertical
-        case 125: "3840x3840"  // 0x7D  4K 1:1, aka OpenGate
-        default: nil
-        }
+        guard let raw = UInt8(exactly: code), let size = DJIRecordingObservations.dimensions(raw) else { return nil }
+        return "\(size.width)x\(size.height)"
     }
 
     private static func fpsInRange(_ bytes: [UInt8], start: Int, end: Int) -> Int? {

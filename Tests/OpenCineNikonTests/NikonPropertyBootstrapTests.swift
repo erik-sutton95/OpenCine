@@ -41,6 +41,23 @@ struct NikonPropertyBootstrapTests {
         #expect(link.clockWrites == 1)
     }
 
+    @Test("Each per-codec tone descriptor is reported after the codecs, by the body's own values")
+    func movieToneDescriptors() async {
+        let link = BootstrapLink()
+        link.toneEnum = [0, 2, 1, 9]
+        var tones: [PTPPropertyCode: [NikonMovieTone]] = [:]
+        await NikonPropertyBootstrap(link: link).run(
+            isCurrent: { true },
+            receive: { observation in
+                if case .movieTones(let property, let offered) = observation { tones[property] = offered }
+            })
+        #expect(Set(tones.keys) == Set(NikonMovieToneCapability.toneProperties))
+        #expect(tones[.movieH265ToneMode] == [.sdr, .hlg, .nLog])
+        let file = link.calls.firstIndex(of: "file")!
+        let tone = link.calls.firstIndex(of: "descriptor \(PTPPropertyCode.movieH265ToneMode)")!
+        #expect(tone > file)
+    }
+
     @Test("Retirement during a read drops its observation and all later bootstrap work")
     func retirementDropsRead() async {
         let link = BootstrapLink()
@@ -63,6 +80,7 @@ private final class BootstrapLink: NikonBootstrapLink {
     var calls: [String] = []
     var clockWrites = 0
     var afterRead: () -> Void = {}
+    var toneEnum: [UInt32] = []
     func supportsProperty(_ property: PTPPropertyCode) -> Bool { true }
     func readCameraProperty(_ property: PTPPropertyCode) async throws -> Data {
         calls.append("read \(property)")
@@ -85,7 +103,7 @@ private final class BootstrapLink: NikonBootstrapLink {
         -> [UInt32]
     {
         calls.append("descriptor \(property)")
-        return []
+        return NikonMovieToneCapability.toneProperties.contains(property) ? toneEnum : []
     }
     func screenSizeModes() async throws -> [PTPCameraScreenSizeMode] {
         calls.append("screen")

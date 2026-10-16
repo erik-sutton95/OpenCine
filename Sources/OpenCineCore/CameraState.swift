@@ -105,14 +105,32 @@ public struct PowerStatus: Hashable, Codable, Sendable {
     public var battery: ObservedValue<Double>
     public var charging: ObservedValue<Bool>
     public var externalPower: ObservedValue<Bool>
+    /// Whether the source reports battery exhaustion; independent of the charge level.
+    public var exhausted: ObservedValue<Bool>
 
     public init(
         battery: ObservedValue<Double> = .unknown, charging: ObservedValue<Bool> = .unknown,
         externalPower: ObservedValue<Bool> = .unknown
     ) {
+        self.init(battery: battery, charging: charging, externalPower: externalPower, exhausted: .unknown)
+    }
+
+    public init(
+        battery: ObservedValue<Double> = .unknown, charging: ObservedValue<Bool> = .unknown,
+        externalPower: ObservedValue<Bool> = .unknown, exhausted: ObservedValue<Bool>
+    ) {
         self.battery = battery
         self.charging = charging
         self.externalPower = externalPower
+        self.exhausted = exhausted
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        battery = try values.decode(ObservedValue<Double>.self, forKey: .battery)
+        charging = try values.decode(ObservedValue<Bool>.self, forKey: .charging)
+        externalPower = try values.decode(ObservedValue<Bool>.self, forKey: .externalPower)
+        exhausted = try values.decodeIfPresent(ObservedValue<Bool>.self, forKey: .exhausted) ?? .unknown
     }
 
     public static let unknown = Self()
@@ -120,11 +138,58 @@ public struct PowerStatus: Hashable, Codable, Sendable {
 
 /// What a battery observation says, at the precision its source declared. Shared chrome renders
 /// this value; it never guesses a gauge from a brand or a percent from a gauge.
-public enum BatteryReading: Hashable, Sendable {
+public enum BatteryReading: Hashable, Codable, Sendable {
     /// A charge fraction, 0...1 (a percentage report or a phone).
     case fraction(Double)
     /// `filled` of `of` gauge steps (a five-bar gauge); never a percentage.
     case steps(filled: Int, of: Int)
+
+    private enum CodingKeys: String, CodingKey { case kind, value, filled, of }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        switch try values.decode(String.self, forKey: .kind) {
+        case "fraction":
+            let value = try values.decode(Double.self, forKey: .value)
+            guard value.isFinite, (0...1).contains(value) else {
+                throw DecodingError.dataCorruptedError(forKey: .value, in: values,
+                    debugDescription: "Battery fraction must be finite and within 0...1")
+            }
+            self = .fraction(value)
+        case "steps":
+            let filled = try values.decode(Int.self, forKey: .filled)
+            let count = try values.decode(Int.self, forKey: .of)
+            guard count > 0, (0...count).contains(filled) else {
+                throw DecodingError.dataCorruptedError(forKey: .filled, in: values,
+                    debugDescription: "Battery steps must lie within the declared gauge")
+            }
+            self = .steps(filled: filled, of: count)
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: values,
+                debugDescription: "Unknown battery reading kind")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .fraction(let value):
+            guard value.isFinite, (0...1).contains(value) else {
+                throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath,
+                    debugDescription: "Battery fraction must be finite and within 0...1"))
+            }
+            try values.encode("fraction", forKey: .kind)
+            try values.encode(value, forKey: .value)
+        case .steps(let filled, let count):
+            guard count > 0, (0...count).contains(filled) else {
+                throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath,
+                    debugDescription: "Battery steps must lie within the declared gauge"))
+            }
+            try values.encode("steps", forKey: .kind)
+            try values.encode(filled, forKey: .filled)
+            try values.encode(count, forKey: .of)
+        }
+    }
 
     /// The step count a declared precision implies: a source reporting in steps of 1/2 to 1/10
     /// has a gauge, a finer one (percent) reports a fraction.
@@ -271,6 +336,9 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
     public var timecodeReading: ObservedValue<CameraTimecodeReading>
     /// Support is `capabilities.audioLevels`.
     public var audioLevels: ObservedValue<AudioLevels>
+    /// Recording observations remain separate from preview dimensions and transport encoding.
+    public var recordingFormat: CameraRecordingObservations
+    public var exposureProgram: ObservedValue<CameraExposureProgram>
 
     public init(
         session: CameraSessionID, epoch: ControlEpoch = .init(), device: CameraDeviceID? = nil,
@@ -291,11 +359,14 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
         self.storage = .unknown
         self.timecodeReading = .unknown
         self.audioLevels = .unknown
+        self.recordingFormat = .unknown
+        self.exposureProgram = .unknown
     }
 
     private enum CodingKeys: String, CodingKey {
         case session, epoch, revision, device, connection, authority, capabilities, mode, settings
         case recording, power, storage, timecode, timecodeReading, audioLevels
+        case recordingFormat, exposureProgram
     }
 
     public init(from decoder: Decoder) throws {
@@ -326,6 +397,11 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
             timecodeReading = compatibility
         }
         audioLevels = try values.decode(ObservedValue<AudioLevels>.self, forKey: .audioLevels)
+        // Original snapshot payloads omit these; all original required fields stay required.
+        recordingFormat = try values.decodeIfPresent(CameraRecordingObservations.self,
+            forKey: .recordingFormat) ?? .unknown
+        exposureProgram = try values.decodeIfPresent(ObservedValue<CameraExposureProgram>.self,
+            forKey: .exposureProgram) ?? .unknown
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -345,6 +421,8 @@ public struct CameraSnapshot: Hashable, Codable, Sendable {
         try values.encode(timecode, forKey: .timecode)
         try values.encode(timecodeReading, forKey: .timecodeReading)
         try values.encode(audioLevels, forKey: .audioLevels)
+        try values.encode(recordingFormat, forKey: .recordingFormat)
+        try values.encode(exposureProgram, forKey: .exposureProgram)
     }
 
     public func value(of key: SettingKey) -> ObservedValue<SettingValue> {
