@@ -11,13 +11,20 @@ public struct MonitorTrackingBracketValue {
     }
 }
 
+/// The focus area: its centre in normalized picture coordinates, and its normalized size when the
+/// camera declares one (nil draws the standard square, `focusBoxSideFraction` of the short side).
 public struct MonitorFocusMark {
     public let point: CGPoint
+    public let size: CGSize?
     public let color: Color
     public let aeLocked: Bool
     public let focusLocked: Bool
-    public init(point: CGPoint, color: Color, aeLocked: Bool = false, focusLocked: Bool = false) {
-        self.point = point; self.color = color; self.aeLocked = aeLocked; self.focusLocked = focusLocked
+    /// How much of the outline the hold to lock has drawn in, 0 to 1, until the lock engages.
+    public let lockProgress: Double
+    public init(point: CGPoint, size: CGSize? = nil, color: Color, aeLocked: Bool = false,
+        focusLocked: Bool = false, lockProgress: Double = 0) {
+        self.point = point; self.size = size; self.color = color; self.aeLocked = aeLocked
+        self.focusLocked = focusLocked; self.lockProgress = min(1, max(0, lockProgress))
     }
 }
 
@@ -36,8 +43,9 @@ public struct MonitorTrackingLayer: View {
                     color: mark.color, lineWidth: mark.lineWidth)
             }
             if let focus {
-                MonitorFocusBoxView(feed: feed, normalized: focus.point, aeLocked: focus.aeLocked,
-                    focusLocked: focus.focusLocked, color: focus.color)
+                MonitorFocusBoxView(feed: feed, normalized: focus.point, size: focus.size,
+                    aeLocked: focus.aeLocked, focusLocked: focus.focusLocked,
+                    lockProgress: focus.lockProgress, color: focus.color)
             }
         }.allowsHitTesting(false).accessibilityHidden(true)
     }
@@ -62,6 +70,14 @@ public struct MonitorTrackingCancelButton: View {
 
 public enum MonitorTrackingGeometry {
     public static let focusBoxSideFraction: CGFloat = 0.14
+    /// The focus area in feed points: the declared normalized size, else the standard square.
+    public static func focusBoxSize(_ size: CGSize?, in feed: CGRect) -> CGSize {
+        guard let size, size.width > 0, size.height > 0 else {
+            let side = min(feed.width, feed.height) * focusBoxSideFraction
+            return CGSize(width: side, height: side)
+        }
+        return CGSize(width: size.width * feed.width, height: size.height * feed.height)
+    }
     public static func feedRect(normalized: CGRect, in feed: CGRect) -> CGRect {
         CGRect(x: feed.minX + normalized.minX * feed.width, y: feed.minY + normalized.minY * feed.height,
             width: max(1, normalized.width * feed.width), height: max(1, normalized.height * feed.height))
@@ -159,25 +175,38 @@ private struct MonitorTrackingBracketView: View {
 private struct MonitorFocusBoxView: View {
     let feed: CGRect
     let normalized: CGPoint
+    let size: CGSize?
     let aeLocked: Bool
     let focusLocked: Bool
+    let lockProgress: Double
     let color: Color
 
     var body: some View {
-        let side = min(feed.width, feed.height) * MonitorTrackingGeometry.focusBoxSideFraction
-        let rect = CGRect(x: 0, y: 0, width: side, height: side)
+        let box = MonitorTrackingGeometry.focusBoxSize(size, in: feed)
+        let rect = CGRect(origin: .zero, size: box)
         let x = feed.minX + normalized.x * feed.width
         let y = feed.minY + normalized.y * feed.height
+        let halfWidth = box.width / 2
+        let halfHeight = box.height / 2
+        let radius = MonitorTrackingGeometry.cornerRadius(for: rect)
         // The tag sits right of the box, or left when the box is near the right edge.
-        let tagLeading = x + side / 2 + 26 > feed.maxX
+        let tagLeading = x + halfWidth + 26 > feed.maxX
         ZStack {
-            RoundedRectangle(
-                cornerRadius: MonitorTrackingGeometry.cornerRadius(for: rect), style: .continuous
-            )
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
             .stroke(color, lineWidth: 1.5)
             .shadow(color: .black.opacity(0.6), radius: 1)
-            .frame(width: side, height: side)
+            .frame(width: box.width, height: box.height)
             .position(x: x, y: y)
+            // The hold to lock traces the outline in the accent until the lock engages.
+            if lockProgress > 0.001, !focusLocked {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .trim(from: 0, to: lockProgress)
+                    .stroke(MonitorTheme.accent,
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    .shadow(color: MonitorTheme.accent.opacity(0.55), radius: 3)
+                    .frame(width: box.width, height: box.height)
+                    .position(x: x, y: y)
+            }
             if aeLocked {
                 Text("AE-L")
                     .font(MonitorTheme.font(9, weight: .semibold))
@@ -186,7 +215,7 @@ private struct MonitorFocusBoxView: View {
                     .shadow(color: .black.opacity(0.8), radius: 1.5, y: 0.5)
                     .fixedSize()
                     .position(
-                        x: tagLeading ? x - side / 2 - 14 : x + side / 2 + 14, y: y - side / 2 + 6)
+                        x: tagLeading ? x - halfWidth - 14 : x + halfWidth + 14, y: y - halfHeight + 6)
             }
             if focusLocked {
                 MonitorIcon.lock
@@ -194,7 +223,7 @@ private struct MonitorFocusBoxView: View {
                     .foregroundStyle(color)
                     .shadow(color: .black.opacity(0.8), radius: 1.5, y: 0.5)
                     .position(
-                        x: tagLeading ? x - side / 2 - 10 : x + side / 2 + 10, y: y + side / 2 - 6)
+                        x: tagLeading ? x - halfWidth - 10 : x + halfWidth + 10, y: y + halfHeight - 6)
             }
         }
         .allowsHitTesting(false)
