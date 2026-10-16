@@ -85,7 +85,6 @@ import com.opencapture.opencine.appkit.MonitorDisplayMode
 import com.opencapture.opencine.appkit.MonitorDisplaySection
 import com.opencapture.opencine.appkit.diagnostics.FeedIncidentRuntime
 import com.opencapture.opencine.appkit.diagnostics.ManualProblemReport
-import com.opencapture.opencine.appkit.diagnostics.ManualProblemReportDialog
 import com.opencapture.opencine.appkit.diagnostics.settingsStatus
 import com.opencapture.opencine.appkit.diagnostics.ReliabilityReporting
 import com.opencapture.opencine.core.MonitorLayoutCapabilities
@@ -106,6 +105,9 @@ import kotlinx.coroutines.delay
 /** What Operator Setup reads and changes on the app's model; each app's AppModel implements it. */
 interface OperatorSetupModel : GamepadHost {
     var operatorSettingsTab: MonitorSettingsTab
+    /** Each settings tab's scroll offset (`MonitorOperatorSessionModel.settingsScrollOffsets`). */
+    val operatorSettingsScrollOffsets: Map<MonitorSettingsTab, Int>
+    fun noteOperatorSettingsScroll(tab: MonitorSettingsTab, offset: Int)
     var chromeEditorReturnMode: MonitorDisplayMode?
     val assist: MonitorAssistState
     val cameras: CamerasModel
@@ -172,8 +174,6 @@ class OperatorDiagnostics(
     val incidents: FeedIncidentRuntime,
     val diagnosticText: () -> String,
     val shareReport: (Context) -> Unit,
-    /** The report form's action pills: full touch targets or main's capsule size. */
-    val reportActionMinimumTouchTarget: Boolean,
 )
 
 /** The app's part of Operator Setup: its name, copy, links, stores and pages. */
@@ -192,6 +192,11 @@ class OperatorSetupApp(
     val information: OperatorAppInformation,
     val sourceUrl: String,
     val diagnostics: OperatorDiagnostics,
+    /**
+     * Opens the app root's problem report (Swift `MonitorSettingsSupportSource.report`, A2-24): the
+     * draft lives with the root, so it outlives the camera session ending and this page closing.
+     */
+    val reportProblem: () -> Unit,
     /** Privacy, terms, licenses and NOTICE, in Settings and wherever the app links privacy. */
     val legal: MonitorLegalDocuments,
     val lutPicker: @Composable (() -> Unit) -> Unit,
@@ -249,30 +254,17 @@ fun OperatorSetupScreen(model: OperatorSetupModel, state: OperatorSetupState, ap
     val bars = OperatorLinkHealth.bars(isLive, sample.videoPackets, sample.hasVideoFormat, measuredFps)
     val phaseLabel = connectionPhaseLabel(state.phase, state.failure)
     val view = LocalView.current
-    val context = LocalContext.current
 
     LaunchedEffect(model.chromeEditorReturnMode) {
         if (model.chromeEditorReturnMode == null) return@LaunchedEffect
         model.chromeEditorReturnMode = null
     }
 
-    val legalPage = remember { mutableStateOf<MonitorLegalPage?>(null) }
-    var showReportForm by remember { mutableStateOf(false) }
     val configuration = operatorSetupConfiguration(model, state, app, isLive, phaseLabel, bars, onClose,
-        feedback = { operatorHaptic(view, model.hapticsEnabled) }, report = { showReportForm = true })
+        feedback = { operatorHaptic(view, model.hapticsEnabled) }, report = app.reportProblem)
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, model.operatorSettingsTab,
-        { model.operatorSettingsTab = it }, MonitorOperatorPictureSettings.Deployed(model, state, app), legalPage = legalPage))
-    if (showReportForm) {
-        val diagnostics = app.diagnostics
-        ManualProblemReportDialog(
-            diagnostics.manualReport, diagnostics.diagnosticText, diagnostics.reportActionMinimumTouchTarget,
-            onClose = { showReportForm = false },
-            onPrivacy = {
-                showReportForm = false
-                app.legal.open(MonitorLegalPage.PRIVACY, context) { legalPage.value = it }
-            },
-        )
-    }
+        { model.operatorSettingsTab = it }, MonitorOperatorPictureSettings.Deployed(model, state, app),
+        scrollOffsets = model.operatorSettingsScrollOffsets, onScroll = model::noteOperatorSettingsScroll))
 }
 
 /** The deployed apps' settings as one configuration over their model: the same recipe every app builds. */

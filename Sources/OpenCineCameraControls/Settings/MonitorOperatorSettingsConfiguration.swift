@@ -3,10 +3,38 @@ import Foundation
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineApple
 import OpenCineMedia
 import SwiftUI
 
-/// Connection facts and an optional SDK processing choice, with no transport ownership.
+/// The Link tab's one Processing card (A2-78, Kotlin `processingChoices` and `processing`): the
+/// feed upscaler with the shared help, then the host's own processing rows. Absent when this
+/// device runs one upscaler and the host adds no rows.
+public struct MonitorSettingsProcessingSource {
+    let upscaler: Binding<MonitorUpscaler>
+    let supported: [MonitorUpscaler]
+    let feedback: () -> Void
+    let rows: [MonitorSettingsSourceProperty]
+    public init(upscaler: Binding<MonitorUpscaler>, supported: [MonitorUpscaler] = MonitorUpscaler.supportedOnThisDevice,
+        feedback: @escaping () -> Void = {}, rows: [MonitorSettingsSourceProperty] = []) {
+        self.upscaler = upscaler; self.supported = supported; self.feedback = feedback; self.rows = rows
+    }
+
+    /// The card the Link tab draws, or nil when there is nothing to choose or report.
+    var group: MonitorSettingsSourceGroup? {
+        let upscaler = self.upscaler
+        let choice = supported.count > 1 ? [MonitorSettingsSourceProperty(id: "processing.upscaler",
+            title: "Feed Upscaler", help: MonitorSettingsCopy.feedUpscaler,
+            value: .choice(.init(options: supported.map(\.rawValue), selection: Binding(
+                get: { upscaler.wrappedValue.rawValue },
+                set: { if let next = MonitorUpscaler(rawValue: $0) { upscaler.wrappedValue = next } }),
+                help: MonitorSettingsCopy.feedUpscaler, feedback: feedback)), compact: true)] : []
+        let properties = choice + rows
+        return properties.isEmpty ? nil : .init(id: "processing", title: "Processing", properties: properties)
+    }
+}
+
+/// Connection facts and the optional processing card, with no transport ownership.
 public struct MonitorSettingsLinkSource {
     let transport: String, transportHelp: String, phase: String, phaseHelp: String
     let network: String?, networkHelp: String
@@ -14,13 +42,13 @@ public struct MonitorSettingsLinkSource {
     /// The saved setups, or nil where the host keeps none (Kotlin `savedCameras`).
     let saved: [MonitorSavedCameraSummary]?
     let savedHelp: String
-    let processing: MonitorMotionChoiceSetting?
+    let processing: MonitorSettingsProcessingSource?
     let sourceGroups: [MonitorSettingsSourceGroup]
     let healthScore: Int?
     let healthCaption: String?
     public init(transport: String, transportHelp: String, phase: String, phaseHelp: String,
         network: String?, networkHelp: String, signalBars: Int?, saved: [MonitorSavedCameraSummary],
-        savedHelp: String, processing: MonitorMotionChoiceSetting? = nil,
+        savedHelp: String, processing: MonitorSettingsProcessingSource? = nil,
         sourceGroups: [MonitorSettingsSourceGroup] = [], healthScore: Int? = nil, healthCaption: String? = nil) {
         self.transport = transport; self.transportHelp = transportHelp; self.phase = phase; self.phaseHelp = phaseHelp
         self.network = network; self.networkHelp = networkHelp; self.signalBars = signalBars
@@ -150,6 +178,8 @@ public struct MonitorSettingsSupportLink {
 }
 
 /// Reporting/authorization remain SDK adapters; common sheet and disclosure lifetime is shared.
+/// The problem report itself is the app root's (A2-24): `report` asks the root to present it, so a
+/// draft survives the monitor ending and the settings cover closing (Kotlin `report`).
 public struct MonitorSettingsSupportSource {
     /// The automatic-reports switch, or nil where the host offers no automatic reports.
     let consent: Binding<Bool>?
@@ -158,7 +188,8 @@ public struct MonitorSettingsSupportSource {
     let sourceURL: URL?, termsURL: URL?
     let saveReport: (() -> URL?)?
     let deleteReports: (() -> Void)?
-    let report: @MainActor @Sendable () -> AnyView
+    /// Asks the app root to present its problem report (`ShellActions.reportProblem`).
+    let report: () -> Void
     let document: (@MainActor @Sendable (MonitorSettingsDocument, @escaping () -> Void) -> AnyView)?
     let shareReport: @MainActor @Sendable (URL) -> AnyView
     let model: MonitorSettingsSupportModel?
@@ -167,7 +198,6 @@ public struct MonitorSettingsSupportSource {
     let privacyDestination: MonitorSettingsBrowserDestination?
     let sourceDestination: MonitorSettingsBrowserDestination?
     let termsDestination: MonitorSettingsBrowserDestination?
-    let reportAction: (() -> Void)?
     let reportTitle: String, reportActionTitle: String, diagnosticsHelp: String
     let supportEmail: String
     let deleteStoredReports: (() -> Void)?
@@ -180,7 +210,7 @@ public struct MonitorSettingsSupportSource {
     public init(consent: Binding<Bool>, available: Bool, automaticHelp: String, unavailableHelp: String,
         deleteHelp: String, sourceHelp: String, termsHelp: String, sourceURL: URL?, termsURL: URL?,
         saveReport: @escaping () -> URL?, deleteReports: @escaping () -> Void,
-        report: @escaping @MainActor @Sendable () -> AnyView,
+        report: @escaping () -> Void,
         document: @escaping @MainActor @Sendable (MonitorSettingsDocument, @escaping () -> Void) -> AnyView,
         shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
         supportEmail: String = "support@opencapture.org") {
@@ -191,7 +221,7 @@ public struct MonitorSettingsSupportSource {
         self.report = report; self.document = document; self.shareReport = shareReport
         self.model = nil; self.actions = nil; self.links = []
         self.privacyDestination = nil; self.sourceDestination = nil; self.termsDestination = nil
-        self.reportAction = nil; self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
+        self.reportTitle = "Report a problem"; self.reportActionTitle = "Open"; self.diagnosticsHelp = ""
         self.supportEmail = supportEmail
         self.deleteStoredReports = nil; self.deleteReportsHelp = ""
         self.legal = nil; self.hostActions = []
@@ -204,10 +234,10 @@ public struct MonitorSettingsSupportSource {
         self.consent = nil; self.available = false; self.automaticHelp = ""; self.unavailableHelp = ""
         self.deleteHelp = ""; self.sourceHelp = ""; self.termsHelp = ""; self.sourceURL = nil; self.termsURL = nil
         self.saveReport = nil; self.deleteReports = nil
-        self.report = { AnyView(EmptyView()) }; self.document = nil; self.shareReport = { _ in AnyView(EmptyView()) }
+        self.report = report; self.document = nil; self.shareReport = { _ in AnyView(EmptyView()) }
         self.model = nil; self.actions = nil; self.links = []
         self.privacyDestination = nil; self.sourceDestination = nil; self.termsDestination = nil
-        self.reportAction = report; self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
+        self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
         self.diagnosticsHelp = ""; self.supportEmail = supportEmail
         self.deleteStoredReports = nil; self.deleteReportsHelp = ""
         self.legal = legal; self.hostActions = actions
@@ -217,7 +247,7 @@ public struct MonitorSettingsSupportSource {
         links: [MonitorSettingsSupportLink], privacy: MonitorSettingsBrowserDestination?,
         source: MonitorSettingsBrowserDestination?, terms: MonitorSettingsBrowserDestination?,
         reportTitle: String, reportActionTitle: String, diagnosticsHelp: String,
-        reportAction: (() -> Void)? = nil, report: @escaping @MainActor @Sendable () -> AnyView,
+        report: @escaping () -> Void,
         shareReport: @escaping @MainActor @Sendable (URL) -> AnyView,
         deleteStoredReports: (() -> Void)? = nil, deleteReportsHelp: String = "",
         supportEmail: String = "support@opencapture.org", legal: MonitorLegalDocuments? = nil) {
@@ -228,7 +258,7 @@ public struct MonitorSettingsSupportSource {
         self.report = report; self.document = nil; self.shareReport = shareReport
         self.model = model; self.actions = actions; self.links = links
         self.privacyDestination = privacy; self.sourceDestination = source; self.termsDestination = terms
-        self.reportAction = reportAction; self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
+        self.reportTitle = reportTitle; self.reportActionTitle = reportActionTitle
         self.diagnosticsHelp = diagnosticsHelp
         self.supportEmail = supportEmail
         self.deleteStoredReports = deleteStoredReports; self.deleteReportsHelp = deleteReportsHelp
@@ -513,7 +543,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     func rows(_ tab: MonitorSettingsTab, library: Bool) -> [MonitorSettingsRow] {
         switch tab {
         case .link:
-            return [.linkHealth, .connection] + (link.processing == nil ? [] : [.processing])
+            return [.linkHealth, .connection] + (link.processing?.group == nil ? [] : [.processing])
                 + (link.saved == nil ? [] : [.savedCameras]) + (link.sourceGroups.isEmpty ? [] : [.sourceGroups])
         case .sharing:
             guard let sharing else { return [] }

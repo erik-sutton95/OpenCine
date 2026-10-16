@@ -18,11 +18,11 @@ import XCTest
                 actions: .init(identity: "SIMULATED", isCurrent: { true }, requiresInternetConsent: nil,
                     makeReport: { throw CancellationError() }, prepareBrowser: { _ in nil }, open: { _ in false }),
                 links: [], privacy: nil, source: nil, terms: nil, reportTitle: "", reportActionTitle: "",
-                diagnosticsHelp: "", report: { AnyView(EmptyView()) }, shareReport: { _ in AnyView(EmptyView()) })
+                diagnosticsHelp: "", report: {}, shareReport: { _ in AnyView(EmptyView()) })
         }
         return .init(consent: .constant(false), available: true, automaticHelp: "", unavailableHelp: "",
             deleteHelp: "", sourceHelp: "", termsHelp: "", sourceURL: nil, termsURL: nil,
-            saveReport: { nil }, deleteReports: {}, report: { AnyView(EmptyView()) },
+            saveReport: { nil }, deleteReports: {}, report: {},
             document: { _, _ in AnyView(EmptyView()) }, shareReport: { _ in AnyView(EmptyView()) })
     }
 }

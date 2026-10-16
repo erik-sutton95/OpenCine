@@ -61,6 +61,31 @@ class MonitorOperatorSessionModelTest {
         assertTrue(camera.wire.isEmpty())
     }
 
+    /** A2-84: Settings opens on the operator's last tab whichever entry opens it, and each tab keeps its
+     * scroll offset across Edit view and the cover closing. */
+    @Test fun settingsKeepTheLastTabAndEachTabsScrollOffset() = runTest {
+        val (model, shell) = fixture()
+        assertEquals(MonitorSettingsTab.LINK, model.settingsTab)
+        assertTrue(model.settingsScrollOffsets.isEmpty())
+        model.settingsTab = MonitorSettingsTab.STORAGE
+        model.openSettings()
+        assertEquals(ShellModel.Cover.SETTINGS, shell.state.value.cover)
+        assertEquals(MonitorSettingsTab.STORAGE, model.settingsTab)
+        model.settingsTab = MonitorSettingsTab.DISPLAY
+        model.noteSettingsScroll(MonitorSettingsTab.DISPLAY, 240)
+        model.noteSettingsScroll(MonitorSettingsTab.STORAGE, 60)
+        model.beginEditing(MonitorDisplayMode.LIVE)
+        assertNull(shell.state.value.cover)
+        model.finishEditing()
+        assertEquals(ShellModel.Cover.SETTINGS, shell.state.value.cover)
+        assertEquals(MonitorSettingsTab.DISPLAY, model.settingsTab)
+        assertEquals(mapOf(MonitorSettingsTab.DISPLAY to 240, MonitorSettingsTab.STORAGE to 60), model.settingsScrollOffsets)
+        shell.dismissCover()
+        model.openSettings()
+        assertEquals(MonitorSettingsTab.DISPLAY, model.settingsTab)
+        assertEquals(240, model.settingsScrollOffsets[MonitorSettingsTab.DISPLAY])
+    }
+
     @Test fun editorForceMountAndSettingsEscapePreserveSavedVisibility() = runTest {
         val (model) = fixture()
         model.live = model.live.copy(railSettings = false, cameraValues = false)

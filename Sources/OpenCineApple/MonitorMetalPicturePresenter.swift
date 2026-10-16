@@ -55,6 +55,19 @@ public final class MonitorMetalPicturePresenter: NSObject, MTKViewDelegate {
         candidate.delegate = self
     }
 
+    /// Puts `view` in the drawable format and dynamic range the current options ask for (A2-31):
+    /// a float extended-range drawable while HDR display is on, 8-bit SDR otherwise. Bakes stay
+    /// 8-bit display-referred either way; the present applies the HDR gain.
+    @MainActor public func configureDisplay(_ view: MTKView) {
+        let current = options()
+        if view.colorPixelFormat != current.drawablePixelFormat {
+            view.colorPixelFormat = current.drawablePixelFormat
+        }
+        if let layer = view.layer as? CAMetalLayer {
+            MonitorHDRDisplay.configure(layer, enabled: current.hdr)
+        }
+    }
+
     public func noteDrawableSize(_ size: CGSize) {
         guard !closed, size.width > 0, size.height > 0, size != drawableSize else { return }
         drawableSize = size
@@ -74,7 +87,7 @@ public final class MonitorMetalPicturePresenter: NSObject, MTKViewDelegate {
             let size = candidate.drawableSize
             guard size.width > 0, size.height > 0 else { return }
             drawableSize = size
-            guard let frame = baker.acquireFrame(for: size, pixelFormat: candidate.colorPixelFormat)
+            guard let frame = baker.acquireFrame(for: size, pixelFormat: MonitorPresentationOptions.bakePixelFormat)
             else { return }
             let baked = frame.texture
             guard let drawable = candidate.currentDrawable,
