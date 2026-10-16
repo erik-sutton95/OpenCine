@@ -47,15 +47,30 @@
         }
     }
 
-    private struct MonitorWindowGeometryObserver: ViewModifier {
-        @State private var geometry = MonitorWindowGeometry()
+    extension View {
+        /// Publishes the page safe area (`monitor.review.safeArea`) from this view during a staged
+        /// review. The root observer does; a page presented as a full-screen cover takes the root
+        /// off screen, so such a page publishes it too.
+        func monitorReviewSafeArea() -> some View { modifier(MonitorReviewSafeAreaPublisher()) }
+    }
 
+    private struct MonitorReviewSafeAreaPublisher: ViewModifier {
         /// Only a staged review (`ReviewLaunch`) in a Debug build publishes the safe area.
         #if DEBUG
             private let reviewed = ReviewLaunch.current != nil
         #else
             private let reviewed = false
         #endif
+
+        func body(content: Content) -> some View {
+            content.background {
+                if reviewed { MonitorReviewSafeAreaMarker().allowsHitTesting(false) }
+            }
+        }
+    }
+
+    private struct MonitorWindowGeometryObserver: ViewModifier {
+        @State private var geometry = MonitorWindowGeometry()
 
         func body(content: Content) -> some View {
             content
@@ -65,9 +80,7 @@
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                .background {
-                    if reviewed { MonitorReviewSafeAreaMarker().allowsHitTesting(false) }
-                }
+                .monitorReviewSafeArea()
         }
     }
 
