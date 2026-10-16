@@ -172,6 +172,20 @@ public class ShellModel(public val cameras: CamerasModel, public val control: Mo
         mutable.update { it.copy(cover = null) }
     }
 
+    /**
+     * The camera body's own gallery, as a camera maker's app shows it: the body entering it
+     * opens Media, and the body leaving it closes Media (which returns the camera to live).
+     * Another cover the operator opened stays. Swift `followCameraGallery(open:)`.
+     */
+    public fun followCameraGallery(open: Boolean) {
+        val shown = state.value.cover
+        if (open && shown == null) {
+            open(Cover.MEDIA)
+        } else if (!open && shown == Cover.MEDIA) {
+            dismissCover()
+        }
+    }
+
     // Scene
 
     /** The OS reports the scene active or not (lifecycle, window focus). */
