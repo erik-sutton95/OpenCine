@@ -38,3 +38,10 @@ fun MonitorTransfer.Companion.fromColorMode(code: Int): MonitorTransfer =
 /** The curve the monitor reads this status through: its [CameraStatus.monitorColorMode], decoded. */
 val CameraStatus.monitorTransfer: MonitorTransfer
     get() = MonitorTransfer.fromColorMode(monitorColorMode)
+
+/**
+ * The source curve the camera has reported, or null before its first colour report and in Dolby Vision
+ * (product ruling 2026-10-16). Curve-reading tools wait for it; photo reads Rec.709.
+ */
+val CameraStatus.knownMonitorTransfer: MonitorTransfer?
+    get() = MonitorTransfer.knownFromColorMode(monitorColorMode)

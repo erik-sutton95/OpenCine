@@ -338,13 +338,15 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
 
     public var body: some View {
-        let tools = assists.tools()
+        // A curve-reading tool waits for a known source curve (product ruling 2026-10-16).
+        let assist = session.assist
+        let tools = assists.tools().filter(assist.offers)
         MonitorOperatorLiveBody(host: host, control: control, session: session, live: layout, source: source,
             facts: .init(identity: source.identity(), available: source.available(), picture: source.picture(), status: source.status(),
                 cameraBattery: source.cameraBattery(), capture: source.capture(), record: source.record(),
                 audio: source.audio(), readOnly: source.readOnly(), borrowed: source.borrowed(),
-                covered: source.coverOpen(), tools: tools, rendered: assists.rendered() ?? Set(tools),
-                fitted: assists.fitted()),
+                covered: source.coverOpen(), tools: tools, rendered: (assists.rendered() ?? Set(tools)).filter(assist.offers),
+                fitted: assists.fitted().filter(assist.offers)),
             assists: assists, views: views, portraitAspect: portraitAspect, picture: picture,
             nativePanel: cameraPanel, photoRelease: photoRelease, preview: preview, lookMenu: lookMenu)
     }
@@ -503,6 +505,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             // The dashboard replaces the picture: no popup or inspector survives entering it.
             .onChange(of: command) { _, command in if command { dismiss(); assist.configureTool = nil } }
             .onChange(of: photo) { _, photo in if photo, assist.configureTool == .audioMeters { assist.configureTool = nil } }
+            // A curve tool's inspector closes when the source curve becomes unknown.
+            .onChange(of: assist.sourceCurveKnown) { _, _ in
+                if let tool = assist.configureTool, !assist.offers(tool) { assist.configureTool = nil }
+            }
             .onDisappear { apply(lifecycle.close()); assist.liveCovered = false }
     }
 

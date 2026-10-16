@@ -12,12 +12,16 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
         public let haptics: String
         public let cacheOriginals: String
         public let legacyKeepScreenAwake: String?
+        /// The remote shutter choice (A2-32). An app that offers no remote shutter names no key.
+        public let remoteShutter: String?
 
         public init(
             keepScreenAwake: String, hdrDisplay: String, recordConfirmation: String,
-            haptics: String, cacheOriginals: String, legacyKeepScreenAwake: String? = nil
+            haptics: String, cacheOriginals: String, legacyKeepScreenAwake: String? = nil,
+            remoteShutter: String? = nil
         ) {
             let keys = [keepScreenAwake, hdrDisplay, recordConfirmation, haptics, cacheOriginals]
+                + (remoteShutter.map { [$0] } ?? [])
             precondition(keys.allSatisfy { !$0.isEmpty } && Set(keys).count == keys.count)
             self.keepScreenAwake = keepScreenAwake
             self.hdrDisplay = hdrDisplay
@@ -25,6 +29,7 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
             self.haptics = haptics
             self.cacheOriginals = cacheOriginals
             self.legacyKeepScreenAwake = legacyKeepScreenAwake
+            self.remoteShutter = remoteShutter
         }
     }
 
@@ -34,16 +39,20 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
         public var recordConfirmation: Bool
         public var haptics: Bool
         public var cacheOriginals: Bool
+        /// On by default: volume and media presses record only while the live view is in front.
+        public var remoteShutter: Bool
 
         public init(
             keepScreenAwake: Bool = true, hdrDisplay: Bool = false,
-            recordConfirmation: Bool = true, haptics: Bool = true, cacheOriginals: Bool = true
+            recordConfirmation: Bool = true, haptics: Bool = true, cacheOriginals: Bool = true,
+            remoteShutter: Bool = true
         ) {
             self.keepScreenAwake = keepScreenAwake
             self.hdrDisplay = hdrDisplay
             self.recordConfirmation = recordConfirmation
             self.haptics = haptics
             self.cacheOriginals = cacheOriginals
+            self.remoteShutter = remoteShutter
         }
     }
 
@@ -92,6 +101,19 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
     public var cacheOriginals: Bool {
         get { access(\.cacheOriginals); return read(keys.cacheOriginals, fallback: defaults.cacheOriginals) }
         set { write(newValue, keys.cacheOriginals, \.cacheOriginals) }
+    }
+
+    /// Whether volume and media presses toggle recording while the live view is in front (A2-32).
+    /// Without a key (the app offers no remote shutter) this reads the default and stores nothing.
+    public var remoteShutter: Bool {
+        get {
+            access(\.remoteShutter)
+            return keys.remoteShutter.map { read($0, fallback: defaults.remoteShutter) } ?? defaults.remoteShutter
+        }
+        set {
+            guard let key = keys.remoteShutter else { return }
+            write(newValue, key, \.remoteShutter)
+        }
     }
 
     private func read(_ key: String, fallback: Bool) -> Bool {

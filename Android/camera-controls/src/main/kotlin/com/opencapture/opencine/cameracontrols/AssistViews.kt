@@ -217,7 +217,7 @@ fun AssistOptionsPanel(
             LUTSplitComparisonBar(
                 splitComparison = state.splitComparison,
                 splitVertical = state.splitVertical,
-                lutExposureStops = if (lut != null) state.lutExposureStops else null,
+                lutExposureStops = if (lut != null && lutExposureOffered(lut.colorMode)) state.lutExposureStops else null,
                 onToggleSplit = { state.setSplitComparison(!state.splitComparison) },
                 onSplitVertical = { state.setSplitComparison(state.splitComparison, it) },
                 onExposure = { state.updateLutExposure(it) },

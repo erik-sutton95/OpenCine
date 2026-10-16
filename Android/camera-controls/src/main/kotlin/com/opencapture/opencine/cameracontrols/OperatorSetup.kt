@@ -78,6 +78,8 @@ import com.opencapture.monitorui.settings.MonitorSettingsSwitchInlineRow
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import com.opencapture.monitorui.settings.MonitorSettingsValueSlider
 import com.opencapture.monitorui.settings.MonitorSettingsValueText
+import com.opencapture.monitorui.settings.MonitorViewAssistSettings
+import com.opencapture.monitorui.settings.MonitorAssistSettingsSection
 import com.opencapture.opencine.appkit.CamerasModel
 import com.opencapture.opencine.appkit.MonitorAssistState
 import com.opencapture.opencine.appkit.MonitorDisplayChrome
@@ -100,6 +102,8 @@ import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.ConnectionPhase
 import com.opencapture.opencine.vocabulary.GamepadGimbalStick
 import com.opencapture.opencine.vocabulary.fromColorMode
+import com.opencapture.opencine.vocabulary.knownFromColorMode
+import com.opencapture.opencine.appkit.offered
 import kotlinx.coroutines.delay
 
 /** What Operator Setup reads and changes on the app's model; each app's AppModel implements it. */
@@ -127,6 +131,12 @@ interface OperatorSetupModel : GamepadHost {
     fun updateHdrDisplay(value: Boolean)
     fun updateCacheFullResolution(value: Boolean)
     fun updateRecordConfirmationEnabled(value: Boolean)
+    /**
+     * The stored remote shutter choice (A2-32), or null when the app offers no remote shutter. An app that
+     * offers it also installs [LocalMonitorRemoteShutter] and passes the choice to its live surface.
+     */
+    val remoteShutterEnabled: Boolean? get() = null
+    fun updateRemoteShutterEnabled(value: Boolean) {}
     fun updateHapticsEnabled(value: Boolean)
     fun updateGimbalStickSensitivity(value: Int)
     fun updateVirtualJoystickSize(value: MonitorJoystickSize)
@@ -327,6 +337,7 @@ private fun operatorSetupConfiguration(
             model.recordConfirmationEnabled, model::updateRecordConfirmationEnabled,
             model.hapticsEnabled, model::updateHapticsEnabled, model.keepScreenAwake, model::updateKeepScreenAwake,
             keepAwakeHelp = app.help.KEEP_SCREEN_AWAKE, hapticsHelp = app.help.HAPTICS,
+            shutter = model.remoteShutterEnabled?.let { MonitorSettingsRemoteShutter.mediaButtons(it, model::updateRemoteShutterEnabled) },
             motion = MonitorSettingsMotionSource(
                 sensitivity = if (!gimbal) null else MonitorMotionIntegerSetting(model.gimbalStickSensitivity, 1..5,
                     app.help.JOYSTICK_SENSITIVITY) { changed(it, model.gimbalStickSensitivity, model::updateGimbalStickSensitivity) },
@@ -389,7 +400,12 @@ internal fun AssistRows(model: OperatorSetupModel, state: OperatorSetupState, ap
     val assist = model.assist
     val colorMode = state.colorMode
     val transfer = MonitorTransfer.fromColorMode(colorMode)
-    @Composable fun card(tool: MonitorAssistTool) = OperatorAssistCard(tool, assist, app.help, app.assistHost, transfer)
+    val sourceTransfer = MonitorTransfer.knownFromColorMode(colorMode)
+    @Composable fun card(tool: MonitorAssistTool) {
+        val unavailable = assistCardUnavailableMessage(tool, sourceTransfer)
+        if (unavailable != null) MonitorViewAssistSettings(listOf(MonitorAssistSettingsSection.Unavailable(tool, unavailable)))
+        else OperatorAssistCard(tool, assist, app.help, app.assistHost, transfer)
+    }
     if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(MonitorAssistTool.FALSE, MonitorAssistTool.ZEBRA, MonitorAssistTool.WAVE, MonitorAssistTool.PARADE,
@@ -771,3 +787,10 @@ private fun operatorHaptic(view: View, enabled: Boolean) {
     if (!enabled) return
     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 }
+
+/**
+ * The View Assist card explanation while the source curve is unknown (product ruling 2026-10-16): false
+ * colour and zebra wait for it and return on their own; null shows the card.
+ */
+internal fun assistCardUnavailableMessage(tool: MonitorAssistTool, sourceTransfer: MonitorTransfer?): String? =
+    if (tool.offered(sourceTransfer)) null else MonitorSettingsCopy.sourceCurveUnknown

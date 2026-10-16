@@ -37,6 +37,7 @@ import com.opencapture.opencine.appkit.MonitorInputBlock
 import com.opencapture.opencine.appkit.MonitorInteractionTransition
 import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
+import com.opencapture.opencine.appkit.offered
 import com.opencapture.opencine.appkit.statusPresentation
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
@@ -53,6 +54,7 @@ import com.opencapture.opencine.vocabulary.LiveFeedFocusGesture
 import com.opencapture.opencine.vocabulary.TrackingBox
 import com.opencapture.opencine.vocabulary.TrackingHud
 import com.opencapture.opencine.vocabulary.VideoResolution
+import com.opencapture.opencine.vocabulary.knownMonitorTransfer
 import com.opencapture.opencine.vocabulary.monitorTransfer
 
 public class MonitorOperatorFocusObservation(public val point: Pair<Float, Float>?, public val tracking: TrackingHud,
@@ -73,6 +75,8 @@ public class MonitorOperatorLiveState {
     public var topQuickActive: Boolean by mutableStateOf(false)
     public var stripQuickActive: Boolean by mutableStateOf(false)
     public var showStorageDuration: Boolean by mutableStateOf(false)
+    /** The record confirmation is open: a remote press must not bypass a dialog the operator sees. */
+    public var recordConfirming: Boolean by mutableStateOf(false)
     public var paletteRevision: Long by mutableStateOf(0L)
         private set
     public val capturePresented: Boolean get() = sheet != null || topQuickActive || stripQuickActive
@@ -132,7 +136,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
         record = MonitorOperatorRecordSource(status.isPhoto, chrome.capture.confirmRecording(), busy,
-            openMode = { state.sheet = LiveSheet.MODE }),
+            openMode = { state.sheet = LiveSheet.MODE }, confirmingChanged = { state.recordConfirming = it }),
         exposure = { readExposure().takeIf { exposureAvailable }?.let { EvComp.fromRaw(it)?.thirds?.div(3.0) } },
         level = level, levelViewFlip = levelViewFlip,
         audio = if (controls.liveAudioLevels.isShown && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
@@ -174,9 +178,11 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
         if (!controls.liveAudioLevels.isShown && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
     }
     val meterFeed = if (assist.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent else layout.onFeed
-    val tools = MonitorAssistTool.settingsCases.filter {
-        it != MonitorAssistTool.AUDIO || controls.liveAudioLevels.isShown && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
-    }
+    val tools = vocabularyAssistTools(status, controls.liveAudioLevels.isShown)
+    val shell by chrome.shell.state.collectAsState()
+    MonitorOperatorRemoteShutterArming(chrome.remoteShutterEnabled,
+        monitorIsFront = shell.monitor != null && shell.cover == null, photo = status.isPhoto,
+        recordConfirming = state.recordConfirming, control = chrome.capture.control)
     val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
         tool, assist.isOn(tool), { assist.toggle(tool) }, tool.hasConfiguration) }
     val native = MonitorOperatorBodyViews(
@@ -326,3 +332,13 @@ private fun <Host> operatorStatusProjection(source: MonitorOperatorLiveChromeSou
 private val MONITOR_OPERATOR_USAGE_SEED = mapOf("PEAK" to 6, "FALSE" to 5, "ZEBRA" to 4,
     "LUT" to 4, "WAVE" to 3, "GUIDES" to 2, "GRID" to 2, "HISTO" to 2, "VECTOR" to 1,
     "PARADE" to 1, "LIGHTS" to 1, "CROSS" to 1, "MIRROR" to 1, "AUDIO" to 1)
+
+/**
+ * The palette the camera-vocabulary surface offers: audio only where the camera reports it, and false
+ * colour and zebra only once the source curve is known (product ruling 2026-10-16).
+ */
+internal fun vocabularyAssistTools(status: CameraStatus, audio: Boolean): List<MonitorAssistTool> =
+    MonitorAssistTool.settingsCases.filter {
+        (it != MonitorAssistTool.AUDIO || audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) &&
+            it.offered(status.knownMonitorTransfer)
+    }

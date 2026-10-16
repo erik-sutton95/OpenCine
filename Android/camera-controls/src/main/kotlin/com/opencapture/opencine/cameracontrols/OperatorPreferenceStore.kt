@@ -36,6 +36,7 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     private val AWAKE_LEGACY = "keep-screen-awake"
     private val RECORD_CONFIRM = key("RecordConfirmation")
     private val HAPTICS = key("HapticsEnabled")
+    private val REMOTE_SHUTTER = key("RemoteShutter")
     private val DISP_LIVE = key("DispChrome.Live")
     private val DISP_CLEAN = key("DispChrome.Clean")
     private val CLEAN_PINS = key("CleanViewPins.v1")
@@ -69,7 +70,7 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     private fun common(context: Context) = MonitorOperatorPreferences(
         storage = prefs(context),
         keys = MonitorOperatorPreferences.Keys(AWAKE, HDR_DISPLAY, RECORD_CONFIRM, HAPTICS,
-            CACHE_FULL_RESOLUTION, AWAKE_LEGACY),
+            CACHE_FULL_RESOLUTION, AWAKE_LEGACY, REMOTE_SHUTTER),
     )
 
     fun keepScreenAwake(context: Context): Boolean = common(context).keepScreenAwake
@@ -80,6 +81,9 @@ open class OperatorPreferenceStore(file: String, private val keyPrefix: String) 
     fun setRecordConfirmationEnabled(context: Context, value: Boolean) { common(context).recordConfirmation = value }
     fun hapticsEnabled(context: Context): Boolean = common(context).haptics
     fun setHapticsEnabled(context: Context, value: Boolean) { common(context).haptics = value }
+    /** Volume and media presses toggle recording while the live view is in front (A2-32); on by default. */
+    fun remoteShutterEnabled(context: Context): Boolean = common(context).remoteShutter
+    fun setRemoteShutterEnabled(context: Context, value: Boolean) { common(context).remoteShutter = value }
 
     /** The shared motion owner over this file's existing keys, defaults and ranges. */
     fun motionPreferences(context: Context) = MonitorMotionPreferences(

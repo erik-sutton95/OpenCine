@@ -22,6 +22,15 @@ public enum MonitorSettingsCopy {
     /// images, footage or location.
     public static let automaticReports =
         "Optional: send crash, hang, live-feed reports and session health counts to OpenCapture through Sentry. Off by default. Turn off anytime without losing app features. Uploads wait until you leave camera Wi-Fi. Automatic reports exclude all images. No footage or GPS location. Sentry receives the connection IP; stored event IP and derived geography are removed. See Reporting Privacy below."
+    /// Shown in place of the false colour and zebra settings while the camera has not named its
+    /// colour curve (product ruling 2026-10-16). Kotlin twin: `MonitorSettingsCopy.sourceCurveUnknown`.
+    public static let sourceCurveUnknown =
+        "Waiting for the camera to report its color curve. False color, zebra and LUT exposure return on their own once it does."
+    /// The reliability-report paragraph of every app's bundled privacy text, the same facts as the
+    /// websites: the random install identifier made on opt-in and deleted on opt-out, and the
+    /// toggle's place. Kotlin twin: `MonitorSettingsCopy.reliabilityReportsPrivacy`.
+    public static let reliabilityReportsPrivacy =
+        "Optional reliability reports\nWith your consent, configured builds send crash, hang and feed diagnostics, app/OS/device versions and session health counts through Sentry, with a random install identifier that is created when you opt in and deleted when you opt out. Automatic reports exclude all images. No footage, screenshots, raw camera packets or GPS location are included. Sentry receives the connection IP; stored event IP and derived geography are removed. Event storage uses Germany. Some provider processing may occur internationally.\nTurn reporting off in Operator Setup > System at any time without losing app features. This clears pending SDK uploads and deletes the install identifier, but does not delete reports already received. Contact us privately to request deletion. The website policy explains retention, transfers and your rights."
     public static let automaticReportsUnavailable =
         "This build cannot send automatic reports. You can still share or delete reports stored on this phone."
     public static let shareDiagnostics =
