@@ -882,6 +882,21 @@ class PocketCameraSession(
         decoder.attachSurface(surface)
     }
 
+    /**
+     * SIMULATED, debug review only (a `ReviewLaunch` LIVE): presents [status] from [camera] as a live
+     * session through the same reported-capture projection a camera report takes. Opens no radio,
+     * link or decoder; with no link, every command is refused. Never call it in a camera session.
+     */
+    fun stageSimulatedLive(camera: FoundCamera, status: CameraStatus) {
+        check(datalink == null && !isMultiviewBorrowed) { "A simulated review never replaces a camera session" }
+        connectedCamera = camera
+        reportedCapture = status
+        _status.value = status
+        _chromeStatus.value = status
+        controlSeam?.sessionDidChange()
+        _phase.value = ConnectionPhase.LIVE
+    }
+
     /** Borrow the tile's transport and decoder; Multiview remains the sole repair owner. */
     fun updateMultiview(camera: FoundCamera?, driver: DatalinkDriver?, status: CameraStatus) {
         if (!isMultiviewBorrowed) return
