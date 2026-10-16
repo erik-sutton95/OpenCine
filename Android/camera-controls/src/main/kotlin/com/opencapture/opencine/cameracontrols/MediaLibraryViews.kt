@@ -47,7 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -165,13 +168,21 @@ fun MediaSelectionTray(count: Int, cacheEnabled: Boolean, deleteEnabled: Boolean
     }
 }
 
+/**
+ * One button to TalkBack, announced by [contentDescription] alone (iOS: one "Clear selection" button):
+ * the visible [label] and glyph are its drawing, not separate nodes read after it. The click stays the
+ * clickable's own, so TalkBack's ACTION_CLICK runs the same handler as a tap.
+ */
 @Composable
 private fun TrayTextChip(icon: MonitorIcon, label: String, contentDescription: String, tint: Color, onClick: () -> Unit) {
     Row(Modifier.height(34.dp).chromeClickable(onClick = onClick)
-        .semantics { this.contentDescription = contentDescription }.padding(horizontal = 7.dp),
+        .semantics(mergeDescendants = true) {
+            this.contentDescription = contentDescription
+            role = Role.Button
+        }.padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         MonitorIcon(icon, null, Modifier.size(13.dp), tint)
-        Text(label, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
+        Text(label, Modifier.clearAndSetSemantics {}, color = tint, style = LiveType.ui(11f, FontWeight.SemiBold))
     }
 }
 
