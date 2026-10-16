@@ -169,6 +169,17 @@ public final class ShellModel {
     public func open(_ cover: Cover) { self.cover = cover }
     public func dismissCover() { cover = nil }
 
+    /// The camera body's own gallery, as a camera maker's app shows it: the body entering it
+    /// opens Media, and the body leaving it closes Media (which returns the camera to live).
+    /// Another cover the operator opened stays.
+    public func followCameraGallery(open: Bool) {
+        if open, cover == nil {
+            self.open(.media)
+        } else if !open, cover == .media {
+            dismissCover()
+        }
+    }
+
     // MARK: Scene
 
     /// The OS reports the scene active or not (scene phase, app notifications, lifecycle).

@@ -170,6 +170,20 @@ import Testing
         #expect(shell.route == .cameras && shell.cover == .settings)
     }
 
+    @available(macOS 14, *)
+    @Test func cameraGalleryOpensAndClosesOnlyTheMediaCover() {
+        let shell = shell()
+        shell.followCameraGallery(open: true)
+        #expect(shell.cover == .media)
+        shell.followCameraGallery(open: false)
+        #expect(shell.cover == nil)
+        shell.open(.settings)
+        shell.followCameraGallery(open: true)
+        #expect(shell.cover == .settings)
+        shell.followCameraGallery(open: false)
+        #expect(shell.cover == .settings)
+    }
+
     /// A2-07: an internet hop leaves the monitor with the gallery cover still open, so the
     /// cover page (and its scroll, filter and selection) is never torn down and rebuilt.
     @available(macOS 14, *)
