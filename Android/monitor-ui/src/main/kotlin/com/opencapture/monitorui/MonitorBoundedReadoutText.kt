@@ -1,18 +1,15 @@
 package com.opencapture.monitorui
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Native text sizing stays within the readable range, then ellipsizes at its lower bound.
@@ -27,13 +24,65 @@ public fun MonitorBoundedReadoutText(value: String, modifier: Modifier = Modifie
         autoSize = if (minimum < maximum) TextAutoSize.StepBased(minimum.sp, maximum.sp, .25f.sp) else null)
 }
 
-/** Primary and detail keep independent touch targets within one portrait group. */
+/** One line slot of the stacked portrait format group, in group coordinates (px). */
+public data class MonitorPortraitFormatLineSlot(val x: Int, val y: Int, val width: Int, val height: Int)
+
+/** Group size and the line slots of the stacked portrait format group. */
+public data class MonitorPortraitFormatStackFrames(val width: Int, val height: Int,
+    val slots: List<MonitorPortraitFormatLineSlot>)
+
+/**
+ * Stack frame math shared by the portrait format group (Swift twin:
+ * `MonitorPortraitFormatStackLayout.frames(lines:)`): each line is as wide as its content and
+ * as tall as the larger of its glyph height and [target]; a line starts where the previous
+ * line's glyphs end; lines are end aligned. [lines] are (width, glyph height) pairs.
+ */
+public fun monitorPortraitFormatStackFrames(lines: List<Pair<Int, Int>>, target: Int): MonitorPortraitFormatStackFrames {
+    val width = lines.maxOfOrNull { it.first } ?: 0
+    var y = 0
+    var bottom = 0
+    val slots = lines.map { (lineWidth, glyphHeight) ->
+        val slot = MonitorPortraitFormatLineSlot(width - lineWidth, y, lineWidth, maxOf(target, glyphHeight))
+        bottom = maxOf(bottom, slot.y + slot.height)
+        y += glyphHeight
+        slot
+    }
+    return MonitorPortraitFormatStackFrames(width, bottom, slots)
+}
+
+/**
+ * Portrait capture readouts stack in one end-aligned column: resolution and frame rate on top,
+ * codec and color directly below. The column's top is the primary's top, so the primary shares
+ * the status row's top edge with the timecode and the STBY/REC chip. Each line keeps its own
+ * touch target: a line is measured at its glyph height and placed in a slot at least as tall
+ * as the touch target, so the detail line sits right under the primary glyphs and, placed
+ * later, owns the overlap below them.
+ */
 @Composable
 public fun MonitorPortraitFormatGroup(showsDetail: Boolean,
     primary: @Composable () -> Unit, detail: @Composable () -> Unit) {
-    val minimum = LocalViewConfiguration.current.minimumTouchTargetSize.height
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Box(Modifier.heightIn(min = minimum), contentAlignment = Alignment.TopEnd) { primary() }
-        if (showsDetail) Box(Modifier.heightIn(min = minimum), contentAlignment = Alignment.TopEnd) { detail() }
+    val target = LocalViewConfiguration.current.minimumTouchTargetSize.height
+    Layout(content = {
+        Box(propagateMinConstraints = true) { primary() }
+        if (showsDetail) Box(propagateMinConstraints = true) { detail() }
+    }) { measurables, constraints ->
+        val lines = measurables.map { line ->
+            val width = minOf(line.maxIntrinsicWidth(Constraints.Infinity), constraints.maxWidth)
+            width to line.minIntrinsicHeight(width)
+        }
+        val frames = monitorPortraitFormatStackFrames(lines, target.roundToPx())
+        val placeables = measurables.zip(frames.slots).map { (line, slot) ->
+            line.measure(Constraints(minWidth = slot.width, maxWidth = maxOf(slot.width, constraints.maxWidth),
+                minHeight = slot.height, maxHeight = slot.height))
+        }
+        val width = maxOf(frames.width, placeables.maxOfOrNull { it.width } ?: 0)
+            .coerceIn(constraints.minWidth, maxOf(constraints.minWidth, constraints.maxWidth))
+        val height = frames.height.coerceIn(constraints.minHeight,
+            if (constraints.hasBoundedHeight) maxOf(constraints.minHeight, constraints.maxHeight) else Int.MAX_VALUE)
+        layout(width, height) {
+            placeables.zip(frames.slots).forEach { (placeable, slot) ->
+                placeable.place(width - placeable.width, slot.y)
+            }
+        }
     }
 }

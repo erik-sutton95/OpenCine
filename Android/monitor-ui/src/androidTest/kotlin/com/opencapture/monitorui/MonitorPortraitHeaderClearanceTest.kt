@@ -178,7 +178,8 @@ class MonitorPortraitHeaderClearanceTest {
                         requireNotNull(codec)
                         val density = activity.resources.displayMetrics.density
                         android.util.Log.i("B5NativeGroup", "drawn=$primaryFrame/$detailFrame AX=${format.boundsInRoot}/${codec.boundsInRoot}")
-                        assertTrue("Detail below primary with separate target: $primaryFrame $detailFrame", detailFrame.top >= primaryFrame.bottom + 1.5f * density)
+                        // The detail line starts where the primary line's own height ends (here a fixed 48dp box).
+                        assertTrue("Detail below primary with separate target: $primaryFrame $detailFrame", detailFrame.top >= primaryFrame.bottom - .5f)
                         assertEquals("One trailing drawn column", primaryFrame.right, detailFrame.right, .5f * density)
                         assertTrue(nodes.any { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "R3D NE" })
                         assertTrue(codec.config[SemanticsActions.OnClick].action!!.invoke())
@@ -340,7 +341,8 @@ class MonitorPortraitHeaderClearanceTest {
                         val nativeMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                         fontReferences = listOf("00:48:03:23" to 10f, "00:48:03:23" to 23f,
                             "[FX] 6K · 25p" to 10f, "[FX] 6K · 25p" to 23f, "R3D NE" to 10f, "R3D NE" to 11f,
-                            "D-Log2" to 10f, "D-Log2" to 23f).map { (value, size) ->
+                            // Codec and color share the detail line, so both use the detail size range.
+                            "D-Log2" to 10f, "D-Log2" to 11f).map { (value, size) ->
                             nativeMeasurer.measure(androidx.compose.ui.text.AnnotatedString(value),
                                 style = MonitorTypography.readout(size, androidx.compose.ui.text.font.FontWeight.Medium))
                         }
@@ -524,15 +526,24 @@ class MonitorPortraitHeaderClearanceTest {
                             assertTrue("Original native target width retained", target.boundsInRoot.width >= 44f * density)
                             assertTrue("Original native target height retained", target.boundsInRoot.height >= 48f * density)
                         }
-                        val row = listOf(recording, clock, format, color, codec)
+                        // STBY/REC, the clock and the primary share the status row's top edge; codec
+                        // then color stack on the detail line under the primary, end aligned with it.
+                        val row = listOf(recording, clock, format)
                         row.forEach { target ->
                             assertEquals(canvas.top + field.status.y * density, target.boundsInRoot.top, .5f)
+                        }
+                        (row + listOf(codec, color)).forEach { target ->
                             assertTrue("All native row frames remain inside side-safe width",
                                 target.boundsInRoot.left >= canvas.left + field.status.x * density - .5f &&
                                 target.boundsInRoot.right <= canvas.left + (field.status.x + field.status.width) * density + .5f)
                         }
-                        row.zipWithNext().forEach { (left, right) ->
-                            assertTrue("Each complete readout owns a horizontal native target",
+                        assertEquals(codec.boundsInRoot.top, color.boundsInRoot.top, .5f)
+                        assertTrue("The detail line sits under the primary glyphs",
+                            codec.boundsInRoot.top > format.boundsInRoot.top + 8f * density &&
+                                codec.boundsInRoot.top < format.boundsInRoot.top + 48f * density)
+                        assertEquals(format.boundsInRoot.right, color.boundsInRoot.right, .5f)
+                        (row.zipWithNext() + listOf(clock to codec, codec to color)).forEach { (left, right) ->
+                            assertTrue("Each complete readout owns its native target",
                                 left.boundsInRoot.right <= right.boundsInRoot.left + .5f)
                         }
                         assertEquals(canvas.left + field.picture.x * density, actualPicture.left, .5f)
