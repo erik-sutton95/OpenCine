@@ -176,7 +176,7 @@ let package = Package(
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
         // protocols; iOS only, empty elsewhere.
         .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
-        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineMotion", "OpenCineApple", "OpenCineMedia", "MonitorUI"]),
         .target(name: "OpenCineFrameIOApple", dependencies: ["OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
         .testTarget(
             name: "OpenCineFrameIOAppleTests",
