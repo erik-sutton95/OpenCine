@@ -130,6 +130,14 @@ extension LunaColorMode {
 
     /// The recording colour profiles offered as native choices, in drawer order.
     public static let nativeRecordingChoices: [LunaColorMode] = [.standard, .iLog, .dolbyVision]
+
+    /// The colour drum: the native choices plus the reported `current` colour when they lack it,
+    /// so the popup opens centred on the colour the header shows. That entry is shown, never
+    /// sent: a SET goes only to a native choice. Kotlin twin: `nativeRecordingColorDrum`.
+    public static func recordingDrum(current: LunaColorMode?) -> [LunaColorMode] {
+        guard let current, !nativeRecordingChoices.contains(current) else { return nativeRecordingChoices }
+        return nativeRecordingChoices + [current]
+    }
 }
 
 public enum LunaExposureProgram: UInt64, Sendable {

@@ -27,3 +27,12 @@ public val CameraColorProfile.label: String get() = when (this) {
 /** The recording colour profiles offered as native choices, in drawer order. */
 public val nativeRecordingColorProfiles: List<CameraColorProfile> =
     listOf(CameraColorProfile.STANDARD, CameraColorProfile.LOG, CameraColorProfile.DOLBY_VISION)
+
+/**
+ * The colour drum: the native choices plus the reported [current] colour when they lack it, so the
+ * popup opens centred on the colour the header shows. That entry is shown, never sent: a SET goes
+ * only to a native choice. Swift twin: `LunaColorMode.recordingDrum`.
+ */
+public fun nativeRecordingColorDrum(current: CameraColorProfile?): List<CameraColorProfile> =
+    if (current == null || current in nativeRecordingColorProfiles) nativeRecordingColorProfiles
+    else nativeRecordingColorProfiles + current

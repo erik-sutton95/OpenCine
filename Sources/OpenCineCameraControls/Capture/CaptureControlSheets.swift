@@ -408,6 +408,7 @@
                     reseatEv()
                 }
                 .onChange(of: host.cameraStatus.colorMode) { _, _ in
+                    if sheet == .color { seed() }
                     guard sheet == .iso else { return }
                     reseatIso()
                 }
@@ -784,8 +785,9 @@
         }
 
         private var colorWheelLabels: [String] {
-            let family = host.bodyFamily
-            return host.colorModes.map { $0.label(for: family, in: host.labelProfile) }
+            CaptureLists.colorDrumLabels(
+                offered: host.colorModes, current: host.cameraStatus.colorMode,
+                family: host.bodyFamily, profile: host.labelProfile)
         }
 
         private var connectedBody: CameraModel? { host.connectedBody }
@@ -954,7 +956,9 @@
         private func applyDrum(_ value: String) {
             guard canApplyDrum, !value.isEmpty, value != lastApplied else { return }
             if sheet == .color, host.cameraStatus.isRecording {
-                if let mode = ColorMode(label: value, in: host.labelProfile) {
+                if let mode = ColorMode(label: value, in: host.labelProfile),
+                    mode != host.cameraStatus.colorMode
+                {
                     host.commit(.colorMode(mode), from: .sheet(commonField))
                 }
                 return
@@ -1000,7 +1004,10 @@
                 guard let resolution = resolutionForTab(selectedMode) else { return }
                 applyVideoFormat(resolution: resolution, frameRate: rate)
             case .color:
-                guard let mode = ColorMode(label: value, in: host.labelProfile) else { return }
+                // The drum's extra entry is the current mode: selecting it sends nothing.
+                guard let mode = ColorMode(label: value, in: host.labelProfile),
+                    mode != host.cameraStatus.colorMode
+                else { return }
                 host.commit(.colorMode(mode), from: .sheet(commonField))
             default:
                 break
@@ -1325,6 +1332,17 @@
         ) -> [ShootingMode] {
             (model?.captureProfile?.labels.shootingModes ?? ShootingMode.allCases).filter {
                 $0 != .livePhoto || ShootingMode.fromStatus(status.shootingMode) == .livePhoto
+            }
+        }
+
+        /// The colour drum's labels: the offered modes plus the reported current one when the
+        /// offered list lacks it, so the drum opens centred on the value the header shows.
+        public static func colorDrumLabels(
+            offered: [ColorMode], current: ColorMode?, family: CameraBodyFamily,
+            profile: CameraLabelProfile
+        ) -> [String] {
+            CamCapColorMode.drum(offered: offered, current: current).map {
+                $0.label(for: family, in: profile)
             }
         }
 
