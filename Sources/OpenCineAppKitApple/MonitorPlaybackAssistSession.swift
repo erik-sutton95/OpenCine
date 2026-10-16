@@ -4,20 +4,24 @@ import Observation
 import OpenCineApple
 import OpenCineMedia
 
-/// Attaches the existing meter/effects to one real native player. Its admission is the
-/// playback item's token; a detached item's callback cannot attach to a successor.
+/// Attaches the existing meter/effects to one native frame source (the plain file owner or an
+/// integration's source over the same feed). Its admission is the playback item's token; a
+/// detached item's callback cannot attach to a successor.
 @MainActor @Observable public final class MonitorPlaybackAssistSession: MonitorPlaybackAssistService {
     @ObservationIgnored private var currentLevels: MonitorAudioMeterLevels?
     public private(set) var audioLevels: MonitorAudioMeterLevels? {
         get { access(keyPath: \.audioLevels); return currentLevels }
         set { currentLevels = newValue; withMutation(keyPath: \.audioLevels) {} }
     }
-    @ObservationIgnored private let native: MonitorApplePlaybackOwner
+    @ObservationIgnored private let native: any MonitorPlaybackFrameSource
     @ObservationIgnored private let samples: LiveFrameSampleBus
     @ObservationIgnored private let meter: MonitorPlaybackAudioMeterRuntime
     @ObservationIgnored private let projectEffects: @MainActor (MonitorFrameEffects) -> MonitorFrameEffects
     @ObservationIgnored private let audio: MonitorPlaybackAudioSession.Lease
     @ObservationIgnored private var token: MonitorPlaybackItemToken?
+    /// The item the audio tap is attached to; retirement detaches from exactly this item.
+    @ObservationIgnored private weak var attached: AVPlayerItem?
+    @ObservationIgnored private let audioOwnership: (@MainActor @Sendable (Bool) -> Void)?
     @ObservationIgnored private var admission: (@MainActor () -> Bool)?
     @ObservationIgnored private var revision = UUID()
     @ObservationIgnored private var request = UUID()
@@ -27,7 +31,7 @@ import OpenCineMedia
     @ObservationIgnored private var effects = MonitorFrameEffects()
 
     // Retain the existing initializer entry point for current and pinned callers.
-    public convenience init(native: MonitorApplePlaybackOwner, samples: LiveFrameSampleBus,
+    public convenience init(native: any MonitorPlaybackFrameSource, samples: LiveFrameSampleBus,
         projectEffects: @escaping @MainActor (MonitorFrameEffects) -> MonitorFrameEffects = { $0 },
         onTapFailure: @escaping @Sendable (Int32) -> Void = { _ in },
         onAudioFailure: @escaping @Sendable (String) -> Void = { _ in }) {
@@ -37,13 +41,18 @@ import OpenCineMedia
     }
 
     /// Supply the host's retained audio session to fence predecessor/successor players.
+    /// `audioOwnership` hears `true` before this player claims the audio session and `false`
+    /// once its release completed.
     public init(audioSession: MonitorPlaybackAudioSession,
-        native: MonitorApplePlaybackOwner, samples: LiveFrameSampleBus,
+        native: any MonitorPlaybackFrameSource, samples: LiveFrameSampleBus,
         projectEffects: @escaping @MainActor (MonitorFrameEffects) -> MonitorFrameEffects = { $0 },
         onTapFailure: @escaping @Sendable (Int32) -> Void = { _ in },
-        onAudioFailure: @escaping @Sendable (String) -> Void = { _ in }) {
+        onAudioFailure: @escaping @Sendable (String) -> Void = { _ in },
+        audioOwnership: (@MainActor @Sendable (Bool) -> Void)? = nil) {
         self.native = native; self.samples = samples; self.projectEffects = projectEffects
-        audio = audioSession.makeLease(onFailure: { failure in onAudioFailure(failure.message) })
+        self.audioOwnership = audioOwnership
+        audio = audioSession.makeLease(onFailure: { failure in onAudioFailure(failure.message) },
+            onReleased: { audioOwnership?(false) })
         meter = MonitorPlaybackAudioMeterRuntime(onTapFailure: onTapFailure)
         native.onItemChanged = { [weak self] item in self?.itemChanged(item) }
     }
@@ -51,7 +60,7 @@ import OpenCineMedia
     public func activate() {
         guard !closed, !activated else { return }
         activated = true
-        audio.activate()
+        audio.activate { [audioOwnership] in audioOwnership?(true) }
     }
 
     public func synchronize(item: MonitorPlaybackItemToken, effects: MonitorFrameEffects,
@@ -101,9 +110,9 @@ import OpenCineMedia
     private func itemChanged(_ item: AVPlayerItem?) {
         guard !closed else { return }
         let captured = revision, token = token
-        meter.detach(from: nil); audioLevels = nil
+        meter.detach(from: attached); attached = nil; audioLevels = nil
         guard let item, let token, current(token, revision: captured) else { return }
-        meter.attach(to: item)
+        meter.attach(to: item); attached = item
         guard current(token, revision: captured) else { return }
         native.feed.setEffects(effects, transfer: effects.transfer, sampleBus: samples)
     }
@@ -112,7 +121,7 @@ import OpenCineMedia
         guard !closed else { return }
         closed = true; revision = UUID(); request = UUID(); token = nil; admission = nil; polling = false
         native.onItemChanged = nil
-        meter.detach(from: native.player.currentItem); meter.close()
+        meter.detach(from: attached ?? native.player.currentItem); attached = nil; meter.close()
         if activated { audio.close() }
         audioLevels = nil
     }
