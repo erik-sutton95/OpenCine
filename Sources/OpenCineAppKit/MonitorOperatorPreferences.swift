@@ -39,7 +39,7 @@ public final class MonitorOperatorPreferences: @unchecked Sendable {
         public var recordConfirmation: Bool
         public var haptics: Bool
         public var cacheOriginals: Bool
-        /// On, like OpenZCine: volume and media presses record only while the live view is in front.
+        /// On by default: volume and media presses record only while the live view is in front.
         public var remoteShutter: Bool
 
         public init(

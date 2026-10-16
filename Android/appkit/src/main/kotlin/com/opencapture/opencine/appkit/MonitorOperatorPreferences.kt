@@ -34,7 +34,7 @@ public class MonitorOperatorPreferences(
         public val recordConfirmation: Boolean = true,
         public val haptics: Boolean = true,
         public val cacheOriginals: Boolean = true,
-        /** On, like OpenZCine: volume and media presses record only while the live view is in front. */
+        /** On by default: volume and media presses record only while the live view is in front. */
         public val remoteShutter: Boolean = true,
     )
 
