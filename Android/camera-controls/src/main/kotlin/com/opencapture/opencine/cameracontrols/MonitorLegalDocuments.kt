@@ -37,8 +37,55 @@ public enum class MonitorLegalPage(public val title: String) {
 
 /** One legal page: text bundled with the app (readable offline) or a page opened in the browser. */
 public sealed interface MonitorLegalDocument {
-    public class Text(public val body: String) : MonitorLegalDocument
+    /** [available] is false for a bundled page this build does not carry; [body] then says so. */
+    public class Text @JvmOverloads constructor(
+        public val body: String,
+        public val available: Boolean = true,
+    ) : MonitorLegalDocument
     public class Link(public val url: String) : MonitorLegalDocument
+
+    public companion object {
+        /** Shown, never an empty page, when a bundled legal file is missing from the build. */
+        public const val UNAVAILABLE_TEXT: String =
+            "This build does not include this document. It is in the project's source repository."
+
+        /** The bundled files joined in order, or the unavailable page when any is missing or blank. */
+        public fun bundledText(parts: List<String?>): Text {
+            val texts = parts.map { it?.trim().orEmpty() }
+            return if (texts.isEmpty() || texts.any { it.isEmpty() }) Text(UNAVAILABLE_TEXT, available = false)
+            else Text(texts.joinToString("\n\n"))
+        }
+
+        /**
+         * One legal file from the Java resources, staged by the owning module's Gradle build from
+         * the repository file, or null when the build lacks it.
+         */
+        public fun resource(path: String): String? =
+            MonitorLegalDocument::class.java.classLoader?.getResourceAsStream(path)
+                ?.bufferedReader()?.use { it.readText() }
+    }
+}
+
+/**
+ * The platform's third-party notices every app ships: OpenCine's THIRD-PARTY-NOTICES.md and the
+ * license texts of the fonts and icons the shared UI bundles, staged by camera-controls' Gradle
+ * build from the same repository files the Swift twin bundles (MonitorUI `Resources`).
+ */
+public object MonitorPlatformLegalNotices {
+    /** Resource paths in reading order. */
+    public val PARTS: List<String> = listOf(
+        "opencine/legal/THIRD-PARTY-NOTICES.md",
+        "opencine/legal/Fonts/OFL-Sora.txt",
+        "opencine/legal/Icons/lucide/LICENSE.txt",
+        "opencine/legal/Icons/assist/LICENSE-Tabler.txt",
+    )
+
+    /** The joined notices, or the unavailable page when this build lacks any part. */
+    public val document: MonitorLegalDocument.Text
+        get() = MonitorLegalDocument.bundledText(PARTS.map(MonitorLegalDocument::resource))
+
+    /** The joined text for a host's licenses page, or null when this build lacks any part. */
+    public val text: String? get() = document.takeIf { it.available }?.body
 }
 
 /**

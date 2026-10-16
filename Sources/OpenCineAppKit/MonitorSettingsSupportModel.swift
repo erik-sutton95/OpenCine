@@ -11,6 +11,13 @@ public struct MonitorSettingsBrowserDestination: Equatable, Sendable, Identifiab
     }
 }
 
+/// The host could not write a diagnostic report; the message names the host's support address.
+public struct MonitorSettingsReportUnavailable: LocalizedError, Equatable, Sendable {
+    public let supportEmail: String
+    public init(supportEmail: String) { self.supportEmail = supportEmail }
+    public var errorDescription: String? { "This phone couldn't save the report. Email \(supportEmail) instead." }
+}
+
 /// Captured browser cleanup stays on the route that prepared this handoff.
 @MainActor
 public struct MonitorSettingsBrowserHandoff {

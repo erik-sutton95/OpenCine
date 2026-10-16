@@ -245,6 +245,22 @@ public final class FrameioAccountModel {
         revision += 1
     }
 
+    /// Settings account actions over this account: on the camera's Wi-Fi, signing in first leaves it
+    /// through the app's one internet hop and comes back afterwards (A2-23). Sign-in failures reach
+    /// the settings model instead of being dropped.
+    public func settingsActions<Route>(
+        hop: MonitorInternetHop<Route>, route: @escaping @MainActor () -> Route?, internetFailure: String
+    ) -> MonitorSettingsAccountActions {
+        .overInternetHop(
+            identity: ObjectIdentifier(self), isCurrent: { [weak self] in self != nil },
+            connect: { [weak self] in
+                guard let self else { throw CancellationError() }
+                try await self.connect()
+            },
+            disconnect: { [weak self] in self?.disconnect() }, hop: hop, route: route,
+            internetFailure: internetFailure)
+    }
+
     public func loadUserIfNeeded() async {
         guard isConnected, user == nil else { return }
         user = try? await client().currentUser()
