@@ -108,6 +108,11 @@
       "manifest": "Package.swift"
     },
     {
+      "name": "OpenCineHostedTestSupport",
+      "kind": "swift-library",
+      "manifest": "Package.swift"
+    },
+    {
       "name": "OpenCineCameraControls",
       "kind": "swift-library",
       "manifest": "Package.swift"
@@ -294,6 +299,12 @@
       "kind": "gradle-module",
       "manifest": "Android/settings.gradle.kts",
       "coordinates": "com.opencapture.opencine:app-ui-testing"
+    },
+    {
+      "name": ":system-hints-testing",
+      "kind": "gradle-module",
+      "manifest": "Android/settings.gradle.kts",
+      "coordinates": "com.opencapture.opencine:system-hints-testing"
     }
   ],
   "layers": {
@@ -340,6 +351,8 @@
       "OpenCineAppUITesting",
       "OpenCineHostedAccessibility",
       "OpenCineHostedAccessibilityTests",
+      "OpenCineHostedTestSupport",
+      "OpenCineHostedTestSupportTests",
       "OpenCineCameraControls",
       "OpenCineCameraControlsTests",
       ":appkit",
@@ -348,7 +361,8 @@
       ":camera-controls",
       ":frameio",
       ":media3",
-      ":app-ui-testing"
+      ":app-ui-testing",
+      ":system-hints-testing"
     ],
     "multicam": [
       "OpenCineMulticam",

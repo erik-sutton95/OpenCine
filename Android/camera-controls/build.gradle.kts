@@ -29,7 +29,10 @@ android {
     sourceSets { getByName("main").resources.srcDir(stagedLegalResourcesDirectory) }
     namespace = "com.opencapture.opencine.cameracontrols"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
-    defaultConfig { minSdk = 29 }
+    defaultConfig {
+        minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -48,6 +51,10 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
+    // GalleryOpeningAdmissionTest: the shared gallery hosted in a real activity on a device.
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
 
 // The link chip vectors are shared with the Swift OpenCineCameraVocabularyTests (Fixtures/ at the

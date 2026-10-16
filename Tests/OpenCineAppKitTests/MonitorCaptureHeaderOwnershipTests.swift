@@ -4,6 +4,7 @@ import MonitorPresentation
 import Observation
 import OpenCineCore
 import OpenCineCoreTestSupport
+import OpenCineHostedAccessibility
 import SwiftUI
 import UIKit
 import XCTest
@@ -226,10 +227,10 @@ private final class HeaderFixture {
     func element(_ identifier: String) async throws -> NSObject {
         for _ in 0..<200 {
             host.view.setNeedsLayout(); host.view.layoutIfNeeded()
-            if let element = Self.leaves(host.view).first(where: { Self.identifier($0) == identifier }) { return element }
+            if let element = HostedAccessibility.leaves(in: host.view).first(where: { HostedAccessibility.identifier($0) == identifier }) { return element }
             await Task.yield()
         }
-        return try XCTUnwrap(Self.leaves(host.view).first { Self.identifier($0) == identifier },
+        return try XCTUnwrap(HostedAccessibility.leaves(in: host.view).first { HostedAccessibility.identifier($0) == identifier },
             "The real shared header/row accessibility element must be mounted")
     }
     func activate(_ element: NSObject, expecting opened: [SettingKey]) async {
@@ -239,18 +240,6 @@ private final class HeaderFixture {
     }
     func settleActions() async {
         for _ in 0..<50 { await Task.yield() }
-    }
-    private static func leaves(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty { return elements.flatMap(leaves) }
-        return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
-    }
-    private static func identifier(_ object: NSObject) -> String? {
-        let getter = NSSelectorFromString("accessibilityIdentifier")
-        guard object.responds(to: getter) else { return nil }
-        return object.perform(getter)?.takeUnretainedValue() as? String
     }
 }
 #endif

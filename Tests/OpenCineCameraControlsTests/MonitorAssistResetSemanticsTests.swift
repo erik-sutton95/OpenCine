@@ -3,6 +3,7 @@ import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
 import OpenCineCameraControls
+import OpenCineHostedAccessibility
 import OpenCineMedia
 import SwiftUI
 import UIKit
@@ -40,26 +41,6 @@ final class MonitorAssistResetSemanticsTests: XCTestCase {
         storage.removePersistentDomain(forName: storageName)
     }
 
-    /// The one preorder accessibility walk this suite needs, reading what UIKit and SwiftUI
-    /// vend from the hosted window.
-    private func leaves(_ root: NSObject) -> [NSObject] {
-        var seen = Set<ObjectIdentifier>(); var result: [NSObject]; var pending = [root]
-        result = []; while let object = pending.popLast() {
-            guard seen.insert(ObjectIdentifier(object)).inserted,
-                !object.accessibilityElementsHidden else { continue }
-            if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { continue }
-            result.append(object)
-            var children = object.accessibilityElements as? [NSObject] ?? []
-            let count = object.accessibilityElementCount()
-            if count > 0, count != NSNotFound {
-                children += (0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject }
-            }
-            children += (object as? UIView)?.subviews ?? []
-            pending += children.reversed()
-        }
-        return result
-    }
-
     private func tapReset(tool: MonitorAssistSelection) async throws {
         let view = MonitorOperatorAssistSettings(assist: assist, stores: stores,
             looks: .signal, palette: MonitorDefaultLivePalette.self,
@@ -71,19 +52,19 @@ final class MonitorAssistResetSemanticsTests: XCTestCase {
         window.makeKeyAndVisible()
         host.view.frame = window.bounds
         defer { window.isHidden = true; window.rootViewController = nil }
-        let mountedExpectation = XCTNSPredicateExpectation(predicate: NSPredicate { [weak self, host] _, _ in
+        let mountedExpectation = XCTNSPredicateExpectation(predicate: NSPredicate { [host] _, _ in
             MainActor.assumeIsolated {
                 host.view.layoutIfNeeded()
-                return self?.leaves(host.view).contains {
+                return HostedAccessibility.elements(in: host.view).contains {
                     $0.accessibilityLabel == "Reset to defaults"
                         && $0.accessibilityTraits.contains(.button)
-                } == true
+                }
             }
         }, object: nil)
         let mounted = await XCTWaiter.fulfillment(of: [mountedExpectation], timeout: 5)
         XCTAssertEqual(mounted, .completed,
             "The rendered settings row card must expose its reset button")
-        guard let button = leaves(host.view).first(where: {
+        guard let button = HostedAccessibility.elements(in: host.view).first(where: {
             $0.accessibilityLabel == "Reset to defaults" && $0.accessibilityTraits.contains(.button)
         }) else { return XCTFail("The reset button disappeared before activation") }
         XCTAssertTrue(button.accessibilityActivate(), "The rendered reset button must activate")
