@@ -93,6 +93,11 @@ public final class MonitorDeliveryCoordinator {
 
     public var isActive: Bool { lifetime.state.running }
 
+    /// Whether delivery covers playback: a run is going, or its share sheet is still up. A
+    /// finished run hands its files to the root share sheet, which hides the player until the
+    /// sheet completes, so playback stays paused until then (A2-71).
+    public var coversPlayback: Bool { isActive || lifetime.state.share != nil }
+
     /// Starts a run after the outgoing captured run has fully ended.
     @discardableResult public func begin(
         onCancel: (() -> Void)? = nil, onComplete: ((Outcome) -> Void)? = nil,
