@@ -21,6 +21,7 @@ import com.opencapture.opencine.decoder.incidentDecoder
 import com.opencapture.opencine.media.FeedIncidentSource
 import com.opencapture.opencine.media.FeedIncidentSnapshot
 import com.opencapture.opencine.media.FeedIncidentThermal
+import com.opencapture.opencine.media.FeedIncidentWatchdogGate
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
 import android.content.Context
@@ -485,6 +486,8 @@ class PocketCameraSession(
     private var mediaListCounter = 1
     private val feedWatchdog = LiveViewEnablePolicy.State()
     private var coreWatchdog = 0L
+    /** Gating inputs of the last watchdog pass, for incidents (PI-2E slow -12903 recovery). */
+    private var watchdogGate: FeedIncidentWatchdogGate? = null
     private var recoveryCameraId: String? = null
     private var recoveryDeviceName = ""
     private var datalink: DatalinkDriver? = null
@@ -1805,6 +1808,7 @@ class PocketCameraSession(
                         presentationExpected = decoder.isPresentationReady && decoder.lastPresentedAt != null,
                     ),
                 ingress = ingressSource?.ingressSnapshot(now / 1000.0),
+                watchdogGate = watchdogGate,
             ),
         )
         source.noteDecoderGeneration(decoder.randomAccess.generation)
@@ -2031,8 +2035,23 @@ class PocketCameraSession(
     }
 
     private fun applyFeedWatchdog(now: Long, packets: Int) {
-        if (needsForegroundRecover) return
-        if (datalink?.isRebuilding == true || feedRecoveryJob != null) return
+        val shellHold =
+            when {
+                needsForegroundRecover -> "foregroundRecover"
+                datalink?.isRebuilding == true -> "endpointRebuild"
+                feedRecoveryJob != null -> "repairInFlight"
+                else -> null
+            }
+        if (shellHold != null) {
+            watchdogGate =
+                FeedIncidentWatchdogGate(
+                    pathReady = cameraPath.isProcessBound(),
+                    repairReady = decoder.isPresentationReady,
+                    outputExpected = decoder.decoderOutputExpected,
+                    hold = shellHold,
+                )
+            return
+        }
         val pictureOwner = mediaPictureGeneration
         val repairLink = datalink
         val decoderInput = decoder.captureInputOwnership()
@@ -2107,7 +2126,15 @@ class PocketCameraSession(
                     append(",\"repairReady\":${decoder.isPresentationReady}")
                     append("}")
                 }
-            when (DjiNative.feedWatchdogTick(coreWatchdog, json)) {
+            val action = DjiNative.feedWatchdogTick(coreWatchdog, json)
+            watchdogGate =
+                FeedIncidentWatchdogGate(
+                    pathReady = snap.pathReady,
+                    repairReady = snap.repairReady,
+                    outputExpected = snap.decoderOutputExpected,
+                    hold = DjiNative.feedWatchdogTick(coreWatchdog, "{\"lastHold\":true}")?.takeIf { it.isNotEmpty() },
+                )
+            when (action) {
                 "resendLiveViewEnable" -> {
                     endGimbalStick()
                     logRecovery(RecoveryAction.ENABLE, RecoveryEffect.REQUESTED, RecoveryReason.WATCHDOG)
@@ -2145,6 +2172,13 @@ class PocketCameraSession(
             }
             return
         }
+        // The JVM fallback ladder does not name its gate: hold stays unknown.
+        watchdogGate =
+            FeedIncidentWatchdogGate(
+                pathReady = snap.pathReady,
+                repairReady = snap.repairReady,
+                outputExpected = snap.decoderOutputExpected,
+            )
         val watchdogBeforeTick = feedWatchdog.capture()
         when (LiveViewEnablePolicy.tick(feedWatchdog, snap)) {
             LiveViewEnablePolicy.Action.NONE -> applyWatchdogNone(snap)

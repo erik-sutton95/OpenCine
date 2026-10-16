@@ -316,6 +316,22 @@ data class FeedIncidentIngress(
     val videoGateOpen: Boolean,
 )
 
+/**
+ * The feed watchdog's gating inputs at this sample (Swift `FeedIncidentWatchdogGate`). Each field is
+ * null when the producer cannot see it. [hold] is the watchdog's last quiet gate (`FeedWatchdog.Hold`)
+ * or the shell's pre-tick hold (`foregroundRecover`, `endpointRebuild`, `repairInFlight`).
+ */
+data class FeedIncidentWatchdogGate(
+    val pathReady: Boolean? = null,
+    val repairReady: Boolean? = null,
+    val outputExpected: Boolean? = null,
+    val hold: String? = null,
+) {
+    /** The gate as reports carry it: [hold] is a bounded token, an empty one is unknown. */
+    fun closed(): FeedIncidentWatchdogGate =
+        copy(hold = hold?.let { FeedIncidentPrivacy.token(it, 32) }?.takeIf { it.isNotEmpty() })
+}
+
 data class FeedIncidentSnapshot(
     val monotonicNow: Double,
     val wallClockMs: Long = 0L,
@@ -328,6 +344,8 @@ data class FeedIncidentSnapshot(
     val diagnoserFailure: String = "none",
     val diagnoserRepair: String = "none",
     val ingress: FeedIncidentIngress? = null,
+    /** Absent on legacy records and producers without a feed watchdog. */
+    val watchdogGate: FeedIncidentWatchdogGate? = null,
 )
 
 data class FeedIncidentBreadcrumb(

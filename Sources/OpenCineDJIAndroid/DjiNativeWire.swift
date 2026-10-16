@@ -1201,7 +1201,8 @@ public enum DjiNativeWire {
     }
 
     /// Stateful tick. Keep the handle for the session: a fresh `FeedWatchdog()`
-    /// every call is always `.idle`.
+    /// every call is always `.idle`. `{"lastHold":true}` returns the gate that
+    /// held the last tick (`FeedWatchdog.Hold`) without ticking.
     public static func feedWatchdogTick(handle: Int64, snapshotJSON: String) -> String {
         let store = watchdogStore
         store.lock.lock()
@@ -1210,6 +1211,10 @@ public enum DjiNativeWire {
         // Shell effect feedback uses the existing JNI entry point. Only the
         // immediately preceding action can be rolled back, once, and only
         // before another tick. A blocked write is not a spent enable rung.
+        // Gate query: the hold of the last tick, for incident telemetry. Not a tick.
+        if jsonBool(snapshotJSON, key: "lastHold", default: false) {
+            return watchdog.lastHold?.rawValue ?? ""
+        }
         if jsonBool(snapshotJSON, key: "rollbackLastAction", default: false) {
             if let previous = store.beforeAction.removeValue(forKey: handle) {
                 store.boxes[handle] = previous
