@@ -6,7 +6,9 @@ import OpenCineCameraVocabulary
 import OpenCineMedia
 import SwiftUI
 
-/// Complete common settings flow over explicit stores and optional media capability.
+/// Complete common settings flow over explicit stores and optional media capability. Every
+/// initializer reaches one typed configuration and one body (A2-35): the shared scene's form
+/// builds its configuration from the shell and preference stores on each render.
 public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLookProvider>: View {
     private let shell: ShellModel?
     private let brand: String
@@ -14,7 +16,6 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @Environment(\.monitorWindowGeometry) private var windowGeometry
     private let actions: ShellActions?
     private let preferences: MonitorOperatorPreferences?
-    private let display: MonitorDisplayPreferences?
     private let assist: MonitorAssistState<Looks>
     private let library: MonitorMediaLibraryModel<Payload>?
     private let availableAssistTools: Set<MonitorAssistSelection>
@@ -27,6 +28,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     private let sourceIdentity: UUID?
     @Environment(\.openURL) private var openURL
     @State private var document: MonitorSettingsDocument?
+    @State private var legalPage: MonitorLegalPage?
     @State private var showLook = false
     @State private var showJoinCode = false
     @State private var showReport = false
@@ -36,6 +38,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @State private var reportShare: ReportShare?
     @State private var preferenceRevision = 0
 
+    /// The shared scene's form: settings over the shell, the common preference stores and the
+    /// media library. A passed `configuration` is used as given.
     public init(shell: ShellModel, brand: String, actions: ShellActions? = nil,
         preferences: MonitorOperatorPreferences, display: MonitorDisplayPreferences,
         assist: MonitorAssistState<Looks>, library: MonitorMediaLibraryModel<Payload>?,
@@ -44,7 +48,7 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         assistPanels: AssistPanelStores? = nil, falseColorLooks: FalseColorLooks = .signal,
         configuration: MonitorOperatorSettingsConfiguration<Looks>? = nil, safeArea: EdgeInsets? = nil) {
         self.shell = shell; self.brand = brand; self.actions = actions
-        self.preferences = preferences; self.display = display; self.assist = assist; self.library = library
+        self.preferences = preferences; self.assist = assist; self.library = library
         self.availableAssistTools = availableAssistTools
         self.configuration = configuration; self.coverSafeArea = safeArea
         self.borrowedSelection = nil; self.borrowedScrollOffsets = nil; self.sourceIdentity = nil
@@ -58,17 +62,12 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         scrollOffsets: Binding<[String: CGFloat]>, operatorSession: MonitorOperatorSessionModel<Looks>,
         sourceIdentity: UUID?, initialReportPresented: Bool = false, safeArea: EdgeInsets? = nil) {
         self.shell = nil; self.brand = brand; self.actions = nil
-        self.preferences = nil; self.display = nil; self.assist = configuration.assist; self.library = library
+        self.preferences = nil; self.assist = configuration.assist; self.library = library
         self.availableAssistTools = []; self.assistPanels = nil; self.falseColorLooks = .signal
         self.configuration = configuration; self.coverSafeArea = safeArea
         self.borrowedSelection = selectedTab; self.borrowedScrollOffsets = scrollOffsets; self.sourceIdentity = sourceIdentity
         _operatorSession = State(initialValue: operatorSession)
         _showReport = State(initialValue: initialReportPresented)
-    }
-
-    private var tabs: [MonitorSettingsTab] {
-        if configuration != nil { return MonitorSettingsTab.allCases }
-        return [.link, .assist, .controls, .display] + (library == nil ? [] : [.storage]) + [.system]
     }
 
     private var selectedTab: Binding<MonitorSettingsTab> {
@@ -79,14 +78,12 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     public var body: some View {
         let _ = preferenceRevision
         Group {
-            if let configuration { configuredPage(configuration) }
+            if let configuration { page(configuration, safeArea: coverSafeArea ?? configuration.safeArea) }
             else {
                 GeometryReader { proxy in
-                    MonitorSettingsPage(safeArea: coverSafeArea ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
-                        proxy.safeAreaInsets, window: windowGeometry.safeArea), brand: brand, selection: selectedTab,
-                        tabs: tabs, isLive: shell?.monitor != nil,
-                        phaseLabel: shell?.monitor?.camera.saved.displayName ?? "No camera connected",
-                        onClose: { shell?.dismissCover() }, disconnect: { shell?.close() }, rows: rows)
+                    let safeArea = coverSafeArea ?? OperatorPanelMetrics.resolvedDeviceSafeArea(
+                        proxy.safeAreaInsets, window: windowGeometry.safeArea)
+                    page(sceneConfiguration(safeArea: safeArea), safeArea: safeArea)
                 }
             }
         }.ignoresSafeArea().preferredColorScheme(.dark)
@@ -94,18 +91,63 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         .onDisappear { retireSheets() }
     }
 
-    private func configuredPage(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
-        MonitorSettingsPage(safeArea: coverSafeArea ?? source.safeArea, brand: brand, selection: selectedTab,
-            tabs: tabs, isLive: source.isLive, phaseLabel: source.phase,
+    /// The shared scene's settings: the same typed domains a host composes, from the shell and
+    /// the common stores (Kotlin `MonitorOperatorSettingsScreen(shell, ...)`).
+    func sceneConfiguration(safeArea: EdgeInsets) -> MonitorOperatorSettingsConfiguration<Looks> {
+        let live = shell?.monitor != nil
+        let phase = shell?.monitor?.camera.saved.displayName ?? "No camera connected"
+        let link = MonitorSettingsLinkSource(transport: live ? "Connected" : "Not connected",
+            transportHelp: "How this phone reaches the camera.", phase: phase, phaseHelp: "The camera this monitor shows.")
+        let tools = MonitorAssistSelection.settingsCases.filter { availableAssistTools.contains($0) }
+        let assistSource = MonitorSettingsAssistSource(state: assist, switches: tools, panels: scenePanels)
+        let controls = MonitorSettingsControlsSource(recordConfirmation: preference(\.recordConfirmation),
+            haptics: MonitorSettingsToggle(value: preference(\.haptics), help: MonitorSettingsCopy.haptics),
+            keepAwake: MonitorSettingsToggle(value: preference(\.keepScreenAwake), help: MonitorSettingsCopy.keepScreenAwake))
+        let display = MonitorSettingsDisplaySource(
+            hdr: MonitorSettingsToggle(value: preference(\.hdrDisplay), help: MonitorSettingsCopy.hdrDisplay))
+        var cache: MonitorSettingsCachePresentation?
+        if let library { cache = .library(library, cacheOriginals: preference(\.cacheOriginals)) }
+        var support: MonitorSettingsSupportSource?
+        if let actions {
+            support = MonitorSettingsSupportSource(report: actions.reportProblem, actions: [MonitorSupportAction(
+                id: "support.diagnostics", title: "Diagnostics", actionTitle: "Share",
+                accessibilityLabel: "Share Diagnostics", action: actions.diagnostics)])
+        }
+        let shell = self.shell
+        return MonitorOperatorSettingsConfiguration(safeArea: safeArea, phase: phase, isLive: live,
+            close: { shell?.dismissCover() }, disconnect: { shell?.close() }, feedback: {}, link: link,
+            assist: assistSource, controls: controls, display: display, cache: cache, support: support)
+    }
+
+    /// The scene's option panels, when it has panel stores.
+    private var scenePanels: (@MainActor () -> AnyView)? {
+        guard let stores = assistPanels else { return nil }
+        let assist = assist, looks = falseColorLooks, available = availableAssistTools
+        let haptics = OperatorHaptics(isEnabled: { [preferences] in preferences?.haptics == true })
+        return {
+            AnyView(MonitorOperatorAssistSettings(assist: assist, stores: stores, looks: looks,
+                palette: MonitorDefaultLivePalette.self, haptics: haptics,
+                transfer: assist.looks.transfer, clipByte: assist.looks.referenceClipByte, available: available))
+        }
+    }
+
+    private func page(_ source: MonitorOperatorSettingsConfiguration<Looks>, safeArea: EdgeInsets) -> some View {
+        let hasLibrary = library != nil
+        return MonitorSettingsPage(safeArea: safeArea, brand: brand, selection: selectedTab,
+            tabs: source.tabs(library: hasLibrary), isLive: source.isLive, phaseLabel: source.phase,
             sharingSubtitle: source.sharingSubtitle, scrollOffsets: borrowedScrollOffsets, feedback: source.feedback,
-            onClose: source.close, disconnect: source.disconnect, rows: rows)
+            onClose: source.close, disconnect: source.disconnect) { tab in
+            ForEach(source.rows(tab, library: hasLibrary), id: \.self) { row($0, source) }
+        }
         .modifier(MonitorSettingsSupportPresentation(source: source.support))
         .overlay {
             if let document, let support = source.support {
                 support.document?(document, { self.document = nil })
+            } else if let legalPage, let legal = source.support?.legal {
+                MonitorLegalDocumentScreen(documents: legal, page: legalPage, onClose: { self.legalPage = nil })
             }
         }
-        .sheet(isPresented: $showLook) { source.lookCatalog?() }
+        .sheet(isPresented: $showLook) { source.assistSource.lookCatalog?() }
         .sheet(isPresented: $showJoinCode) { source.sharing?.joinCode?() }
         .sheet(isPresented: $showReport) { source.support?.report() }
         .sheet(item: $reportShare) { payload in source.support?.shareReport(payload.url) }
@@ -116,112 +158,164 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
     }
     private func retireSheets() {
-        document = nil; showLook = false; showJoinCode = false; showReport = false
+        document = nil; legalPage = nil; showLook = false; showJoinCode = false; showReport = false
         reportShare = nil; supportError = false
     }
 
-    @ViewBuilder private func rows(_ tab: MonitorSettingsTab) -> some View {
-        switch tab {
-        case .link:
-            if let configuration { linkRows(configuration.link, isLive: configuration.isLive) }
-            else {
-                MonitorSettingsRowCard(title: "Connection") {
-                    Text(shell?.monitor?.camera.saved.displayName ?? "No camera connected").foregroundStyle(MonitorTheme.text)
+    /// The one renderer: each row kind draws from its own domain value.
+    @ViewBuilder private func row(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        switch row {
+        case .linkHealth, .connection, .processing, .savedCameras, .sourceGroups: linkRow(row, source)
+        case .sharingUnavailable, .sharing, .watchers, .watchFeed:
+            if let sharing = source.sharing { sharingRow(row, sharing, feedback: source.feedback) }
+        case .assistTools, .assistPanels, .exposureMeter, .look: assistRow(row, source)
+        case .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
+        case .hdrPanel, .displaySections, .account, .cache: displayStorageRow(row, source)
+        case .support, .diagnosticOptions, .projectLegal, .information: systemRow(row, source)
+        }
+    }
+
+    @ViewBuilder private func linkRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        let link = source.link
+        switch row {
+        case .linkHealth:
+            if let score = link.healthScore, let caption = link.healthCaption {
+                MonitorLinkHealthScale(title: "Link Health", caption: caption, score: score)
+            } else { MonitorSettingsLinkHealthCard(isLive: source.isLive, signalBars: link.signalBars).monitorFullWidthCard() }
+        case .connection:
+            MonitorConnectionSettings(transport: link.transport, transportHelp: link.transportHelp,
+                phase: link.phase, phaseHelp: link.phaseHelp, network: link.network, networkHelp: link.networkHelp)
+        case .processing:
+            if let processing = link.processing { MonitorProcessingSettings(choice: processing) }
+        case .savedCameras:
+            if let saved = link.saved { MonitorSavedCameraSettings(cameras: saved, emptyHelp: link.savedHelp) }
+        default: MonitorSettingsSourceGroups(groups: link.sourceGroups)
+        }
+    }
+
+    @ViewBuilder private func assistRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        let assistSource = source.assistSource
+        switch row {
+        case .assistTools:
+            MonitorSettingsRowCard(title: "View Assist") {
+                ForEach(assistSource.switches, id: \.self) { tool in
+                    MonitorSettingsSwitchInlineRow(title: tool.title,
+                        help: "Apply this monitor tool to the displayed picture.", isOn: assist.isOn(tool),
+                        identifier: "monitor.assist.\(tool.rawValue)") { assist.toggle(tool) }
                 }
             }
-        case .assist: assistRows
-        case .controls:
-            if let configuration { controlsRows(configuration) }
-            else {
-                MonitorOperatorSafetySettings(recordConfirmation: preference(\.recordConfirmation),
-                    haptics: preference(\.haptics), keepScreenAwake: preference(\.keepScreenAwake))
-            }
-        case .display: displayRows
-        case .storage:
-            if let configuration { storageRows(configuration) }
-            else if let library { MonitorOperatorCacheSettings(library: library, cacheOriginals: preference(\.cacheOriginals)) }
-        case .system:
-            if let configuration { systemRows(configuration) }
-            else {
-                MonitorSettingsRowCard(title: "Diagnostics") {
-                    if let actions {
-                        Button("Diagnostics", action: actions.diagnostics)
-                        Button("Report a problem", action: actions.reportProblem)
-                    }
-                }
-            }
-        case .sharing:
-            if let configuration, let sharing = configuration.sharing { sharingRows(sharing, configuration: configuration) }
+        case .assistPanels: assistSource.panels?()
+        case .exposureMeter:
+            MonitorExposureMeterSettings(isOn: assist.evMeter, help: assistSource.exposureHelp ?? "",
+                feedback: source.feedback, onToggle: { assist.toggle(.evMeter) })
+        default:
+            MonitorLookSettings(look: assistSource.lookLabel,
+                help: "Looks apply on this phone. The file on the camera is unchanged.", onOpen: { showLook = true })
         }
     }
 
-    @ViewBuilder private var assistRows: some View {
-        if let configuration {
-            configuration.assistSettings()
-            MonitorExposureMeterSettings(isOn: assist.evMeter, help: configuration.exposureHelp,
-                feedback: configuration.feedback, onToggle: { assist.toggle(.evMeter) })
-            if configuration.lookCatalog != nil {
-                MonitorLookSettings(look: configuration.lookLabel,
-                    help: "Looks apply on this phone. The file on the camera is unchanged.", onOpen: { showLook = true })
+    @ViewBuilder private func controlsRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        let controls = source.controls
+        switch row {
+        case .safety:
+            MonitorOperatorSafetySettings(recordConfirmation: controls.recordConfirmation, haptics: controls.haptics.value,
+                keepScreenAwake: controls.keepAwake.value, hapticsHelp: controls.haptics.help,
+                keepScreenAwakeHelp: controls.keepAwake.help, feedback: source.feedback)
+        case .input:
+            if let input = controls.input {
+                MonitorInputOrientationSettings(remoteShutter: input.remoteShutter,
+                    remoteTitle: input.remoteTitle, remoteHelp: input.remoteHelp,
+                    autoRotateFeed: input.autoRotateFeed, rotationHelp: input.rotationHelp, feedback: source.feedback)
             }
-        } else { defaultAssistRows }
-    }
-
-    @ViewBuilder private var defaultAssistRows: some View {
-        MonitorSettingsRowCard(title: "View Assist") {
-            ForEach(MonitorAssistSelection.settingsCases.filter { availableAssistTools.contains($0) }, id: \.self) { tool in
-                MonitorSettingsSwitchInlineRow(title: tool.title,
-                    help: "Apply this monitor tool to the displayed picture.", isOn: assist.isOn(tool),
-                    identifier: "monitor.assist.\(tool.rawValue)") { assist.toggle(tool) }
+        case .gimbal:
+            if let motion = controls.motion, let sensitivity = motion.sensitivity {
+                MonitorGimbalSettings(sensitivity: sensitivity, headTracking: motion.headTracking)
+            }
+        case .joystick:
+            if let joystick = controls.motion?.joystick {
+                MonitorJoystickSettings(size: joystick.size, invertPan: joystick.invertPan, invertTilt: joystick.invertTilt,
+                    deadZone: joystick.deadZone, response: joystick.response, identifierPrefix: joystick.identifier)
+            }
+        default:
+            if let motion = controls.motion, let controller = motion.controller {
+                MonitorControllerSettings(stick: controller, status: motion.controllerStatus, statusHelp: motion.controllerHelp)
             }
         }
-        if let stores = assistPanels {
-            MonitorOperatorAssistSettings(assist: assist, stores: stores, looks: falseColorLooks,
-                palette: MonitorDefaultLivePalette.self, haptics: OperatorHaptics(isEnabled: { preferences?.haptics == true }),
-                transfer: assist.looks.transfer, clipByte: assist.looks.referenceClipByte, available: availableAssistTools)
+    }
+
+    @ViewBuilder private func displayStorageRow(_ row: MonitorSettingsRow,
+        _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        switch row {
+        case .hdrPanel:
+            if let hdr = source.display.hdr {
+                MonitorPanelSettings(hdrDisplay: hdr.value, help: hdr.help, feedback: source.feedback)
+            }
+        case .displaySections:
+            MonitorOperatorDisplaySections(modes: operatorSession.modes, chrome: displayValue, assist: assist,
+                available: source.display.sections, edit: editChrome(source), feedback: source.feedback)
+                .onAppear { operatorSession.returnedMode = nil }
+        case .account:
+            if let account = source.account { MonitorSettingsConfiguredAccount(source: account) }
+        default:
+            if let cache = source.cache ?? libraryCache(source) {
+                MonitorSettingsCapturedCache(source: cache.source, cacheOriginals: cache.cacheOriginals?.value,
+                    cacheHelp: cache.cacheOriginals?.help ?? "", clearHelp: cache.clearHelp, feedback: source.feedback,
+                    scopeHelp: cache.scopeHelp, confirmationMessage: cache.confirmationMessage)
+            }
         }
     }
 
-    private var editChrome: ((MonitorDisplayMode) -> Void)? {
-        guard configuration?.isLive ?? (shell?.monitor != nil) else { return nil }
+    @ViewBuilder private func systemRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
+        switch row {
+        case .support:
+            if let support = source.support {
+                MonitorSettingsSupportRows(source: support, consent: support.consent.map(observedBinding),
+                    report: {
+                        if let action = support.reportAction { action() } else { showReport = true }
+                    }, openLegal: { legalPage = $0 }, openDocument: { document = $0 })
+            }
+        case .diagnosticOptions:
+            if let support = source.support {
+                MonitorDiagnosticSettings(expanded: $showDiagnostics, deleteHelp: support.deleteHelp,
+                    save: {
+                        if let url = support.saveReport?() { reportShare = ReportShare(url: url) }
+                        else { supportError = true }
+                    }, delete: { support.deleteReports?() })
+            }
+        case .projectLegal:
+            if let support = source.support {
+                MonitorSettingsProjectLegalRows(source: support, openLegal: { legalPage = $0 },
+                    openDocument: { document = $0 }, openURL: { openURL($0) })
+            }
+        default:
+            if let information = source.information {
+                MonitorAppInformationSettings(theme: information.theme, protocolName: information.protocolName,
+                    version: information.version, themeHelp: information.themeHelp,
+                    protocolHelp: information.protocolHelp, versionHelp: information.versionHelp)
+            }
+        }
+    }
+
+    private func editChrome(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> ((MonitorDisplayMode) -> Void)? {
+        guard source.isLive else { return nil }
         return operatorSession.beginEditing
     }
 
-    @ViewBuilder private var displayRows: some View {
-        if let configuration {
-            if let hdr = configuration.hdrDisplay {
-                MonitorPanelSettings(hdrDisplay: hdr, help: configuration.hdrHelp, feedback: configuration.feedback)
-            }
-        } else {
-            MonitorPanelSettings(hdrDisplay: preference(\.hdrDisplay),
-                help: "Show the native monitor in HDR when the display supports it.", feedback: {})
-        }
-        MonitorOperatorDisplaySections(modes: operatorSession.modes, chrome: displayValue, assist: assist,
-            available: configuration?.availableDisplay ?? [.statusBar, .cameraValues, .lockButton, .recReadout,
-                .timecode, .toolBar, .railRecord, .railMedia, .railSettings], edit: editChrome,
-            feedback: configuration?.feedback ?? {})
-            .onAppear { operatorSession.returnedMode = nil }
+    /// Published form only: originals caching over this screen's media library.
+    private func libraryCache(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> MonitorSettingsCachePresentation? {
+        guard let library, let originals = source.libraryCacheOriginals else { return nil }
+        return .library(library, cacheOriginals: originals)
     }
 
-    @ViewBuilder private func linkRows(_ link: MonitorSettingsLinkSource, isLive: Bool) -> some View {
-        if let score = link.healthScore, let caption = link.healthCaption {
-            MonitorLinkHealthScale(title: "Link Health", caption: caption, score: score)
-        } else { MonitorSettingsLinkHealthCard(isLive: isLive, signalBars: link.signalBars).monitorFullWidthCard() }
-        MonitorConnectionSettings(transport: link.transport, transportHelp: link.transportHelp,
-            phase: link.phase, phaseHelp: link.phaseHelp, network: link.network, networkHelp: link.networkHelp)
-        if let processing = link.processing { MonitorProcessingSettings(choice: processing) }
-        MonitorSavedCameraSettings(cameras: link.saved, emptyHelp: link.savedHelp)
-        MonitorSettingsSourceGroups(groups: link.sourceGroups)
-    }
-
-    @ViewBuilder private func sharingRows(_ source: MonitorSettingsSharingSource,
-        configuration: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
-        if !source.enabled {
+    @ViewBuilder private func sharingRow(_ row: MonitorSettingsRow, _ source: MonitorSettingsSharingSource,
+        feedback: @escaping () -> Void) -> some View {
+        switch row {
+        case .sharingUnavailable:
             MonitorSettingsRowCard {
                 MonitorSettingsInlineRow(title: source.unavailableTitle, help: source.unavailableHelp,
                     showTopDivider: false) { if let value = source.unavailableValue { MonitorSettingsValueText(value: value) } }
             }
-        } else if configuration.isLive {
+        case .sharing:
             let priorities = source.priorities ?? ["Quality", "High", "Medium", "Steady"]
             let priority = source.prioritySelection ?? Binding(get: {
                 priorities[min(max(0, source.priority?.wrappedValue ?? 0), priorities.count - 1)]
@@ -231,9 +325,10 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             MonitorFeedSharingSettings(sharing: source.sharing, passcode: source.passcode,
                 controlRequests: source.controlRequests, priority: priority, priorities: priorities, help: source.help,
                 showWiFiCode: source.joinCode == nil ? nil : { showJoinCode = true },
-                passcodeChanged: source.passcodeChanged, feedback: configuration.feedback)
+                passcodeChanged: source.passcodeChanged, feedback: feedback)
+        case .watchers:
             if let watchers = source.watchers { watcherRows(watchers) }
-        } else {
+        default:
             MonitorSettingsRowCard {
                 MonitorSettingsInlineRow(title: "Watch a feed", help: source.browseHelp, showTopDivider: false) {
                     MonitorSettingsActionPill(title: "Browse", action: source.browse)
@@ -265,73 +360,12 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         }
     }
 
-    @ViewBuilder private func controlsRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
-        MonitorOperatorSafetySettings(recordConfirmation: source.recordConfirmation, haptics: source.haptics,
-            keepScreenAwake: source.keepAwake, hapticsHelp: source.hapticsHelp,
-            keepScreenAwakeHelp: source.keepAwakeHelp, feedback: source.feedback)
-        if let input = source.input {
-            MonitorInputOrientationSettings(remoteShutter: input.remoteShutter,
-                remoteTitle: input.remoteTitle, remoteHelp: input.remoteHelp,
-                autoRotateFeed: input.autoRotateFeed, rotationHelp: input.rotationHelp, feedback: source.feedback)
-        }
-        if let motion = source.motion {
-            if let sensitivity = motion.sensitivity { MonitorGimbalSettings(sensitivity: sensitivity, headTracking: motion.headTracking) }
-            if let joystick = motion.joystick {
-                MonitorJoystickSettings(size: joystick.size, invertPan: joystick.invertPan, invertTilt: joystick.invertTilt,
-                    deadZone: joystick.deadZone, response: joystick.response, identifierPrefix: joystick.identifier)
-            }
-            if let controller = motion.controller {
-                MonitorControllerSettings(stick: controller, status: motion.controllerStatus, statusHelp: motion.controllerHelp)
-            }
-        }
-    }
-
-    @ViewBuilder private func storageRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
-        if let account = source.account {
-            MonitorSettingsConfiguredAccount(source: account)
-        }
-        if let cache = source.cache {
-            MonitorSettingsCapturedCache(source: cache, cacheOriginals: source.cacheOriginals,
-                cacheHelp: source.cacheHelp, clearHelp: source.clearHelp, feedback: source.feedback,
-                scopeHelp: source.cacheScopeHelp, confirmationMessage: source.cacheConfirmationMessage)
-        } else if let library, let cacheOriginals = source.cacheOriginals {
-            MonitorOperatorCacheSettings(library: library, cacheOriginals: cacheOriginals)
-        }
-    }
-
-    @ViewBuilder private func systemRows(_ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
-        if let support = source.support {
-            if support.model != nil {
-                MonitorSettingsConfiguredSupport(source: support, report: {
-                    if let action = support.reportAction { action() } else { showReport = true }
-                })
-            } else {
-                MonitorSupportSettings(automaticReports: observedBinding(support.consent), available: support.available,
-                    automaticHelp: support.automaticHelp, unavailableHelp: support.unavailableHelp,
-                    report: { showReport = true }, privacy: { document = .privacy })
-                MonitorDiagnosticSettings(expanded: $showDiagnostics, deleteHelp: support.deleteHelp,
-                save: {
-                    if let url = support.saveReport?() { reportShare = ReportShare(url: url) }
-                    else { supportError = true }
-                }, delete: { support.deleteReports?() })
-                MonitorProjectLegalSettings(sourceHelp: support.sourceHelp, termsHelp: support.termsHelp,
-                source: { if let url = support.sourceURL { openURL(url) } }, privacy: { document = .privacy },
-                terms: { if let url = support.termsURL { openURL(url) } },
-                licenses: { document = .licenses }, notice: { document = .notice })
-            }
-        }
-        if let information = source.information {
-            MonitorAppInformationSettings(theme: information.theme, protocolName: information.protocolName,
-                version: information.version, themeHelp: information.themeHelp,
-                protocolHelp: information.protocolHelp, versionHelp: information.versionHelp)
-        }
-    }
     private func observedBinding(_ value: Binding<Bool>) -> Binding<Bool> {
         Binding(get: { value.wrappedValue }, set: { value.wrappedValue = $0; preferenceRevision += 1 })
     }
 
     private func preference(_ field: ReferenceWritableKeyPath<MonitorOperatorPreferences, Bool>) -> Binding<Bool> {
-        guard let preferences else { preconditionFailure("Configured settings require their explicit preference bindings") }
+        guard let preferences else { preconditionFailure("The shared scene's settings read the common preference store") }
         return Binding(get: { preferences[keyPath: field] }, set: {
             preferences[keyPath: field] = $0; preferenceRevision += 1
         })
@@ -348,25 +382,55 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     }
 }
 
-private struct MonitorSettingsConfiguredSupport: View {
+/// Help & Feedback for every support form, in one row order (A2-25).
+private struct MonitorSettingsSupportRows: View {
     let source: MonitorSettingsSupportSource
+    let consent: Binding<Bool>?
     let report: () -> Void
+    let openLegal: (MonitorLegalPage) -> Void
+    let openDocument: (MonitorSettingsDocument) -> Void
     var body: some View {
-        Group {
-            MonitorSupportSettings(automaticReports: source.consent, available: source.available,
-                automaticHelp: source.automaticHelp, unavailableHelp: source.unavailableHelp,
-                reportTitle: source.reportTitle, reportActionTitle: source.reportActionTitle,
-                actions: source.configuredSupportActions(
-                    reportPreparing: source.model?.preparingReport == true),
-                report: report, privacy: { request(source.privacyDestination) })
-            MonitorProjectLegalSettings(sourceHelp: source.sourceHelp, termsHelp: source.termsHelp,
-                source: { request(source.sourceDestination) }, privacy: { request(source.privacyDestination) },
-                terms: { request(source.termsDestination) })
-        }
+        MonitorSupportSettings(automaticReports: consent, available: source.available,
+            automaticHelp: source.automaticHelp, unavailableHelp: source.unavailableHelp,
+            reportTitle: source.reportTitle, reportActionTitle: source.reportActionTitle,
+            actions: source.configuredSupportActions(reportPreparing: source.model?.preparingReport == true),
+            report: report, privacy: privacy)
+    }
+    /// Reporting Privacy: the closure form's document page, else a local or browser privacy page.
+    private var privacy: (() -> Void)? {
+        if source.document != nil { return { openDocument(.privacy) } }
+        if source.showsLocally(.privacy) { return { openLegal(.privacy) } }
+        guard let destination = source.privacyDestination else { return nil }
+        return { source.model?.request(destination) }
+    }
+}
 
+/// Project & Legal: bundled pages open in the shared legal screen, web pages keep the host's
+/// browser destination, and the closure form keeps its document pages and plain links.
+private struct MonitorSettingsProjectLegalRows: View {
+    let source: MonitorSettingsSupportSource
+    let openLegal: (MonitorLegalPage) -> Void
+    let openDocument: (MonitorSettingsDocument) -> Void
+    let openURL: (URL) -> Void
+    var body: some View {
+        if source.document != nil {
+            MonitorProjectLegalSettings(sourceHelp: source.sourceHelp, termsHelp: source.termsHelp,
+                source: { if let url = source.sourceURL { openURL(url) } }, privacy: { openDocument(.privacy) },
+                terms: { if let url = source.termsURL { openURL(url) } },
+                licenses: { openDocument(.licenses) }, notice: { openDocument(.notice) })
+        } else {
+            MonitorProjectLegalSettings(sourceHelp: source.sourceHelp, termsHelp: source.termsHelp,
+                source: { request(source.sourceDestination) }, privacy: { open(.privacy, else: source.privacyDestination) },
+                terms: { open(.terms, else: source.termsDestination) },
+                licenses: source.legal == nil ? nil : { openLegal(.licenses) },
+                notice: source.legal == nil ? nil : { openLegal(.notice) })
+        }
     }
     private func request(_ destination: MonitorSettingsBrowserDestination?) {
         if let destination { source.model?.request(destination) }
+    }
+    private func open(_ page: MonitorLegalPage, else destination: MonitorSettingsBrowserDestination?) {
+        if source.showsLocally(page) { openLegal(page) } else { request(destination) }
     }
 }
 
@@ -494,28 +558,35 @@ public struct MonitorOperatorCacheSettings<Payload: Sendable>: View {
     }
 
     public var body: some View {
-        MonitorSettingsCapturedCache(source: source, cacheOriginals: cacheOriginals,
-            cacheHelp: "Keep originals downloaded for playback.",
-            clearHelp: "Remove downloaded picture files while keeping the clip list.", feedback: {},
-            scopeHelp: "Originals and playback proxies downloaded from the camera.",
-            confirmationMessage: "Removes downloaded picture files while keeping the clip list.")
+        let cache = MonitorSettingsCachePresentation.library(library, cacheOriginals: cacheOriginals)
+        MonitorSettingsCapturedCache(source: cache.source, cacheOriginals: cache.cacheOriginals?.value,
+            cacheHelp: cache.cacheOriginals?.help ?? "", clearHelp: cache.clearHelp, feedback: {},
+            scopeHelp: cache.scopeHelp, confirmationMessage: cache.confirmationMessage)
     }
+}
 
-    private var source: MonitorSettingsCacheSource {
+extension MonitorSettingsCachePresentation {
+    /// Originals and playback proxies a media library downloaded from the camera.
+    @MainActor static func library<Payload: Sendable>(_ library: MonitorMediaLibraryModel<Payload>,
+        cacheOriginals: Binding<Bool>) -> Self {
         let token = library.actionToken
         let revision = library.cacheRevision
         let files = Set(library.entries.values.flatMap { [$0.originalURL, $0.proxyURL, $0.thumbnailURL].compactMap { $0 } })
-        return MonitorSettingsCacheSource(
-            identity: .init(namespace: library.cache.directory.root.path, source: token.lifetime), revision: revision,
-            isCurrent: { library.isCurrent(token) && library.cacheRevision == revision },
-            count: {
-                await Task.detached {
-                    files.reduce(UInt64(0)) { total, file in
-                        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size]) as? NSNumber
-                        return total + (size?.uint64Value ?? 0)
-                    }
-                }.value
-            }, clear: { try await library.clearCache() })
+        return .init(source: MonitorSettingsCacheSource(
+                identity: .init(namespace: library.cache.directory.root.path, source: token.lifetime), revision: revision,
+                isCurrent: { library.isCurrent(token) && library.cacheRevision == revision },
+                count: {
+                    await Task.detached {
+                        files.reduce(UInt64(0)) { total, file in
+                            let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size]) as? NSNumber
+                            return total + (size?.uint64Value ?? 0)
+                        }
+                    }.value
+                }, clear: { try await library.clearCache() }),
+            cacheOriginals: .init(value: cacheOriginals, help: "Keep originals downloaded for playback."),
+            clearHelp: "Remove downloaded picture files while keeping the clip list.",
+            scopeHelp: "Originals and playback proxies downloaded from the camera.",
+            confirmationMessage: "Removes downloaded picture files while keeping the clip list.")
     }
 }
 #endif

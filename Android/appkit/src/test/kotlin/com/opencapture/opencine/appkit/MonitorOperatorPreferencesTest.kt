@@ -54,6 +54,18 @@ class MonitorOperatorPreferencesTest {
         assertFalse(first.haptics)
         assertTrue(third.haptics)
     }
+
+    /** A2-18 for generated apps: the scene root that applies screen wake hears each Settings write. */
+    @Test fun aChangeListenerHearsEachWriteUntilItCloses() {
+        val store = MonitorOperatorPreferences(PreferencesMemory().storage, keys())
+        var heard = 0
+        val listening = store.addChangeListener { heard++ }
+        store.keepScreenAwake = false
+        assertTrue(heard == 1 && !store.keepScreenAwake)
+        listening.close()
+        store.keepScreenAwake = true
+        assertTrue(heard == 1, "A closed listener hears nothing")
+    }
 }
 
 /** Exercises the real SharedPreferences calls without requiring a native Android test host. */

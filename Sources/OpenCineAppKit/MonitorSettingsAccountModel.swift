@@ -41,6 +41,43 @@ public struct MonitorSettingsAccountActions {
     }
 }
 
+@available(macOS 14, *)
+extension MonitorSettingsAccountActions {
+    /// Account actions whose sign-in, on the camera network, first leaves it through the app's one
+    /// internet hop and comes back once the sign-in ends (A2-23). The consent requirement is read
+    /// when the actions are made, so a source made on the camera network asks before leaving it.
+    public static func overInternetHop<Route>(
+        identity: AnyHashable, isCurrent: @escaping @MainActor () -> Bool,
+        connect: @escaping () async throws -> Void, disconnect: @escaping () -> Void,
+        hop: MonitorInternetHop<Route>, route: @escaping @MainActor () -> Route?, internetFailure: String
+    ) -> MonitorSettingsAccountActions {
+        .init(identity: identity, isCurrent: isCurrent, requiresInternetConsent: hop.onCameraNetwork,
+            connect: connect, disconnect: disconnect,
+            beginInternet: { admission in
+                guard let route = route() else { return nil }
+                return hop.settingsLease(route, admission: admission, isCurrent: isCurrent)
+            }, internetFailure: internetFailure)
+    }
+}
+
+@available(macOS 14, *)
+extension MonitorInternetHop {
+    /// The hop as one settings operation's internet lease. It begins from `route` only while
+    /// `admission` holds (nil when refused), stays current while it owns this hop and `isCurrent`
+    /// holds, and its restore ends the hop and runs the one return it owes.
+    public func settingsLease(
+        _ route: Route, admission: @escaping @MainActor () -> Bool,
+        isCurrent: @escaping @MainActor () -> Bool = { true },
+        cleanup: MonitorSettingsInternetCleanup = .onFinish
+    ) -> MonitorSettingsInternetLease? {
+        guard let token = begin(route, admission: admission) else { return nil }
+        return .init(
+            isCurrent: { [weak self] in self?.owns(token) == true && isCurrent() },
+            wait: { [weak self] in await self?.waitForInternet(token) == true },
+            restore: { [weak self] in await self?.end(token)?.value }, cleanup: cleanup)
+    }
+}
+
 /// Owns one accepted account operation across a native settings rehost, without owning credentials.
 @available(macOS 14, *)
 @MainActor @Observable

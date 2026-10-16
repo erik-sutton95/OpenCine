@@ -144,7 +144,7 @@ let package = Package(
         .target(name: "MonitorPresentation", dependencies: ["OpenCineMedia"]),
         .target(
             name: "MonitorUI", dependencies: ["MonitorPresentation", "OpenCineMedia"],
-            resources: [.process("Resources/Fonts"), .copy("Resources/Icons")]
+            resources: [.process("Resources/Fonts"), .copy("Resources/Icons"), .copy("Resources/Legal")]
         ),
         .testTarget(name: "MonitorPresentationTests", dependencies: ["MonitorPresentation"]),
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
