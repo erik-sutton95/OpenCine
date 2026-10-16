@@ -23,14 +23,15 @@ class SharedMonitorGeometryContractTest {
         }
     }
 
-    @Test fun landscapeRecordingCategoriesStayAtTheScreenEdgeAcrossCutoutRotation() {
+    /** Landscape recording categories float under the one popup top margin. */
+    @Test fun landscapeRecordingCategoriesKeepThePopupTopMarginAcrossCutoutRotation() {
         for ((leading, trailing) in listOf(62f to 0f, 0f to 62f)) {
             val layout = MonitorLayoutPolicy.fieldMonitor(874f, 402f, safeLeading = leading,
                 safeTrailing = trailing, safeBottom = 21f)
             // A full-screen drawer owns its bottom content padding; the well stays at the edge.
             val panel = monitorOperatorCapturePlacement(layout, top = true, panelHeight = 190f,
                 safeLeading = leading, safeTrailing = trailing, safeBottom = 0f)
-            assertEquals(0f, panel.y)
+            assertEquals(MonitorLayoutPolicy.popupTopMargin(0f), panel.y)
             assertEquals(402f, panel.y + panel.maxHeight)
             assertEquals(480f, panel.width)
             assertEquals(437f, panel.x + panel.width / 2f)
