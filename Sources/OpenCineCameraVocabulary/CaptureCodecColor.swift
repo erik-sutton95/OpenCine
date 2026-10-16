@@ -55,10 +55,12 @@ public struct CaptureCodecColorChoices: Hashable, Sendable {
         codecs: [Choice] = [], selectedCodec: String? = nil,
         colors: [Choice] = [], selectedColor: String? = nil
     ) {
-        self.codecs = Self.unique(codecs)
-        self.colors = Self.unique(colors)
-        self.selectedCodec = selectedCodec.flatMap { id in self.codecs.contains { $0.id == id } ? id : nil }
-        self.selectedColor = selectedColor.flatMap { id in self.colors.contains { $0.id == id } ? id : nil }
+        let codecs = Self.unique(codecs)
+        let colors = Self.unique(colors)
+        self.codecs = codecs
+        self.colors = colors
+        self.selectedCodec = selectedCodec.flatMap { id in codecs.contains { $0.id == id } ? id : nil }
+        self.selectedColor = selectedColor.flatMap { id in colors.contains { $0.id == id } ? id : nil }
     }
 
     public static let empty = CaptureCodecColorChoices()

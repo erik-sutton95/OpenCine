@@ -83,6 +83,7 @@ object CameraPropertySnapshotWire {
             resolutionFrameRate = value.optionalString("resolutionFrameRate"),
             codecSelection = value.optionalString("codecSelection"),
             codecBitDepth = value.optionalString("codecBitDepth"),
+            movieTone = value.optionalString("movieTone"),
             whiteBalanceTint = value.optionalString("whiteBalanceTint"),
             batteryPercent = value.optionalInt("batteryPercent"),
             externalPower = value.optionalBoolean("externalPower"),
@@ -153,6 +154,8 @@ object CameraPropertySnapshotWire {
                     pictureControls = value.options("options.pictureControl"),
                     rawCompressions = value.options("options.rawCompression"),
                     codecBitDepths = value.codecBitDepths("options.codecBitDepth"),
+                    movieTones = value.options("options.movieTone"),
+                    movieToneEditable = value.optionalBoolean("movieToneEditable") == true,
                     recordingFormats = value.recordingFormats("options.recordingFormat"),
                 ),
         )

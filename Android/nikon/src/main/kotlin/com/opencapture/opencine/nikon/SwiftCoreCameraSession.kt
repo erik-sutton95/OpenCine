@@ -361,6 +361,7 @@ private val CameraControl.nativeSelector: Int
             CameraControl.STILL_RAW_COMPRESSION -> 34
             CameraControl.STILL_USER_MODE_PROGRAM -> 35
             CameraControl.STILL_PICTURE_CONTROL -> 36
+            CameraControl.MOVIE_TONE -> 37
         }
 
 /**

@@ -148,11 +148,25 @@
         func captureDrumDidCommit(_ value: SettingValue)
         /// The ISO GET the ISO sheet asks for on open; returns once the reply arrived.
         func refreshIsoLimit() async
+
+        /// What the one codec and colour popup lists: the codec choices the camera offers (none
+        /// when it has none) and the colour choices valid for the selected codec.
+        var recordingCodecColor: CaptureCodecColorChoices { get }
+        /// Sends the codec choice `id` (a `recordingCodecColor.codecs` identity).
+        func commitRecordingCodec(_ id: String)
     }
     public extension CaptureSheetHost {
         func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel? { nil }
         var nativeMeteringSource: CaptureNativeMeteringSource? { nil }
         func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String) {}
+        /// A camera without codec choices: the colour modes it offers, by their shown label.
+        var recordingCodecColor: CaptureCodecColorChoices {
+            let labels = colorModes.map { $0.label(for: bodyFamily, in: labelProfile) }
+            return CaptureCodecColorChoices(
+                colors: labels.map { CaptureCodecColorChoice(id: $0, label: $0) },
+                selectedColor: cameraStatus.colorMode?.label(for: bodyFamily, in: labelProfile))
+        }
+        func commitRecordingCodec(_ id: String) {}
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,

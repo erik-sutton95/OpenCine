@@ -556,8 +556,19 @@
                     formatPicker
                 }
             case .color:
-                if let panel = host.nativeCapturePanel(.color, enabled: canApplyDrum) { panel }
-                else { CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection) }
+                // One popup for codec and colour: the codec choices the camera offers, then its
+                // colour choices. The colour drum keeps each camera's existing behaviour.
+                CaptureCodecColorPanel(
+                    choices: host.recordingCodecColor,
+                    enabled: canApplyDrum && !host.cameraStatus.isRecording,
+                    selectCodec: { id in
+                        guard canApplyDrum, !host.cameraStatus.isRecording else { return }
+                        host.commitRecordingCodec(id)
+                    }
+                ) {
+                    if let panel = host.nativeCapturePanel(.color, enabled: canApplyDrum) { panel }
+                    else { CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection) }
+                }
             }
         }
 
@@ -702,6 +713,7 @@
 
         private var headerTitle: String {
             if isEvSheet { return "EXPOSURE" }
+            if sheet == .color { return host.recordingCodecColor.title }
             return sheet.headerLabel
         }
 
