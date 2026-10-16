@@ -403,9 +403,10 @@ class LunaCameraSessionTest {
         assertEquals(SupportStatus.UNSUPPORTED, capabilities.audioLevels)
         assertEquals(SupportStatus.SUPPORTED, LunaCameraSession.MOTION.pose)
         assertFalse(MotionAxis.ZOOM in LunaCameraSession.MOTION.axes, "moves keep one zoom")
-        // Audio off although the base has it (unsupported overrides); no iris (fixed aperture).
+        // Audio off although the base has it (unsupported overrides); no iris (fixed aperture);
+        // zoom from Luna's declared stops before the live range arrives (the one control model).
         assertEquals(
-            MonitorLayoutCapabilities(gimbal = true, focus = true, headTracking = true, clipDelete = true, timecode = true),
+            MonitorLayoutCapabilities(gimbal = true, zoom = true, focus = true, headTracking = true, clipDelete = true, timecode = true),
             session.layout(MonitorLayoutCapabilities(audio = true, clipDelete = true)),
         )
         assertNull(session.snapshots.value.timecode.value, "nothing derived yet: unknown")

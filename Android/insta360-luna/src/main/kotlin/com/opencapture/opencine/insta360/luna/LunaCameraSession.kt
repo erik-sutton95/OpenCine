@@ -401,13 +401,12 @@ class LunaCameraSession internal constructor(
     }
 
     /**
-     * What a monitor lays out for this camera (Swift `layout(base:)`): the Core projection of the
-     * snapshot plus the Luna gimbal ([MOTION]). [base] carries what Core has no vocabulary for yet.
+     * What a monitor lays out for this camera (Swift `layout(base:)`): a view of the one control
+     * model ([controlCapabilities]), so the zoom chip follows Luna's declared zoom before the live
+     * range arrives. [base] carries what Core has no vocabulary for yet.
      */
-    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
-        val capabilities = synchronized(lock) { current.capabilities }
-        return MonitorLayoutCapabilities(capabilities, MOTION, base)
-    }
+    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities =
+        com.opencapture.opencine.vocabulary.MonitorLayoutCapabilities(controlCapabilities(), base)
 
     /**
      * The one control model for this camera (Swift `controlCapabilities(codecColor:)`):
