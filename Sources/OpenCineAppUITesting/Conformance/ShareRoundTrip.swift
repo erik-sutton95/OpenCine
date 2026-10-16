@@ -21,12 +21,13 @@ open class ShareRoundTrip: SharedAppUITestCase {
         launch(ReviewLaunch(screen: .media))
         let gallery = MediaGalleryProbe(app: app)
         gallery.scrollTwoScreens()
-        let visible = gallery.visibleClips()
-        guard visible.count > 1 else { return XCTFail("Two visible clips are required") }
+        guard let pair = gallery.sweepPair() else {
+            return XCTFail("Two neighbouring clips wholly in view are required")
+        }
 
         // Two clips selected by the shared drag, then the selection share opened and closed.
-        gallery.center(visible[0]).press(
-            forDuration: 0.4, thenDragTo: gallery.center(visible[1]), withVelocity: .slow,
+        gallery.center(pair.0).press(
+            forDuration: 0.4, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
             thenHoldForDuration: 0)
         let count = app.staticTexts["2 selected"]
         XCTAssertTrue(count.waitForExistence(timeout: 5), "Dragging across two clips selects both")

@@ -26,6 +26,18 @@ public class MediaGalleryProbe(private val test: ConformanceTest) {
             .sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
     }
 
+    /**
+     * Two neighbouring clips (reading order) wholly inside the viewport, for a selection sweep. A clip
+     * cut by the viewport's edge sits where a sweep autoscrolls the gallery and widens the selection
+     * (a tablet grid's first row under the header).
+     */
+    public fun sweepPair(): Pair<Clip, Clip>? {
+        val viewport = viewport() ?: return null
+        return visibleClips().zipWithNext().firstOrNull { (first, second) ->
+            viewport.contains(first.bounds) && viewport.contains(second.bounds)
+        }
+    }
+
     /** The first visible clip once the gallery has stopped moving. */
     public fun settledAnchor(timeoutMs: Long = 10_000): Clip? {
         var last: Clip? = null

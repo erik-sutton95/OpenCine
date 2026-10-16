@@ -42,10 +42,11 @@ open class ConfirmationCancel: SharedAppUITestCase {
         guard gallery.settledAnchor() != nil else {
             return XCTFail("The staged camera clips must show")
         }
-        let visible = gallery.visibleClips()
-        guard visible.count > 1 else { return XCTFail("Two visible clips are required") }
-        gallery.center(visible[0]).press(
-            forDuration: 0.4, thenDragTo: gallery.center(visible[1]), withVelocity: .slow,
+        guard let pair = gallery.sweepPair() else {
+            return XCTFail("Two neighbouring clips wholly in view are required")
+        }
+        gallery.center(pair.0).press(
+            forDuration: 0.4, thenDragTo: gallery.center(pair.1), withVelocity: .slow,
             thenHoldForDuration: 0)
         XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 5))
         // The clips listed once selected (a sweep near an edge may scroll the gallery): cancelling keeps them.

@@ -19,11 +19,10 @@ public abstract class ShareRoundTrip(subject: ConformanceApp) : ConformanceTest(
         launch(ReviewLaunch(ReviewLaunch.Screen.MEDIA))
         val gallery = MediaGalleryProbe(this)
         gallery.scrollTwoScreens()
-        val visible = gallery.visibleClips()
-        assertTrue(visible.size > 1, "Two visible clips are required")
+        val (first, second) = assertNotNull(gallery.sweepPair(), "Two neighbouring clips wholly in view are required")
 
         // Two clips selected by the shared sweep, then the selection share opened and closed.
-        pressAndDrag(visible[0].bounds, visible[1].bounds)
+        pressAndDrag(first.bounds, second.bounds)
         awaitLabel("2 selected", 5_000)
         // Where the gallery rests once selected (a sweep near an edge may scroll it): the share must keep it.
         val anchor = assertNotNull(gallery.settledAnchor(), "No visible clip after the selection")
