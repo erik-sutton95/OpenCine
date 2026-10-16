@@ -142,10 +142,14 @@ class LivePopupPlacementTest {
     }
 
     @Test
-    fun recordingCategoriesHangFromTheLandscapeTopEdge() {
+    fun recordingCategoriesFloatInsideTheLandscapeSafeTop() {
         val panel = LivePopupPlacement.topCapturePanel(190f, 874f, 402f, 59f, 0f, 0f, 0f)
+        val drawer = MonitorLayoutPolicy.bottomPanel(402f, 874f, 402f, 59f, 0f, 0f, 0f)
         assertEquals(437f, panel.x + panel.width / 2f, .001f)
-        assertEquals(0f, panel.y, .001f)
+        assertEquals(14f, panel.y, .001f)
+        assertEquals(drawer.y, panel.y, .001f, "The same top margin as the bottom drawer")
         assertEquals(480f, panel.width)
+        val cutout = LivePopupPlacement.topCapturePanel(190f, 1024f, 768f, 0f, 0f, 24f, 20f)
+        assertEquals(34f, cutout.y, .001f)
     }
 }

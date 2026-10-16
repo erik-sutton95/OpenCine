@@ -50,7 +50,22 @@
             }
         }
 
+        /// The smallest popup top margin in points (`MonitorCapturePopupLayout`).
+        static let popupTopMargin: CGFloat = 8
+
+        /// The capture readouts' labels and values, so the check reads the header, not the popup.
+        private func headerValues() -> [String] {
+            ["monitor.capture.color", "monitor.capture.format"].flatMap { id -> [String] in
+                let element = app.buttons[id]
+                guard element.exists else { return [] }
+                return [element.label, element.value as? String ?? ""]
+            } + app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).allElementsBoundByIndex
+                .map { $0.value as? String ?? "" }
+        }
+
         private func open(_ readout: XCUIElement, orientation: String, readout name: String) throws {
+            // What the header shows before the popup covers it.
+            let shown = [readout.label, readout.value as? String ?? ""] + headerValues()
             readout.tap()
             // The popup container (`monitor.capture.codecColor`) or, where a host draws its own
             // codec control above it, the colour section (`monitor.capture.codecColor.color`).
@@ -72,6 +87,23 @@
             tree.name = "SIMULATED codec and colour popup hierarchy \(name) \(orientation)"
             tree.lifetime = .keepAlways
             add(tree)
+            // The popup opens on the value the header shows, never on the drum's first entry.
+            let drum = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label == %@", "Value")).firstMatch
+            if drum.exists {
+                let selected = drum.value as? String ?? ""
+                XCTAssertTrue(
+                    shown.contains { !$0.isEmpty && ($0 == selected || $0.hasSuffix(selected)) }
+                        && selected != "Not set",
+                    "The \(name) popup must open on the current value, not \(selected); header \(shown)")
+            }
+            // Every popup keeps the popup top margin inside the safe area, in both orientations.
+            let closeControl = app.buttons["monitor.capture.close"]
+            if closeControl.exists {
+                XCTAssertGreaterThanOrEqual(
+                    closeControl.frame.minY - app.frame.minY, Self.popupTopMargin,
+                    "The \(name) popup must not sit flush with the top edge in \(orientation)")
+            }
             // Close through the popup's own close control, else the readout that opened it.
             let close = app.buttons["monitor.capture.close"]
             if close.exists && close.isHittable { close.tap() } else { readout.tap() }
