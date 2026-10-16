@@ -665,6 +665,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             ? .unavailable(.link)
             : session.admitsMultiviewControl ? .owner : .unavailable(.authority)
         next.mode = Self.mode(status)
+        next.recordingFormat = DJIRecordingObservations.recording(session.captureControlState?.reported ?? status,
+            labels: session.connectedModel?.captureProfile?.labels ?? .standard)
+        next.exposureProgram = DJIRecordingObservations.exposureProgram(session.captureControlState?.reported ?? status)
         next.settings = Self.settings(status)
         if let capture = session.captureControlState {
             next.settings.merge(capture.settings) { _, report in report }
@@ -844,6 +847,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             power.battery = ObservedValue(
                 Double(status.batteryPercent) / 100, origin: .cameraReported, at: nil,
                 precision: .quantized(step: 0.01))
+        }
+        if let charging = status.chargingReading {
+            power.charging = ObservedValue(charging, origin: .cameraReported, at: nil)
         }
         return power
     }

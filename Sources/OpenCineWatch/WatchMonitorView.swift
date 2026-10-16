@@ -18,7 +18,7 @@ public struct WatchMonitorView: View {
         let clock = state?.connection == .noCamera ? state?.timecode : controller.frameTimecode ?? state?.timecode
         return WatchMonitorPresentation(sourceRevision: controller.presentationRevision,
             header: clock.flatMap { $0.isEmpty ? nil : $0 } ?? "--:--:--",
-            media: state?.media, battery: .percentage(state?.cameraBatteryPercent),
+            media: state?.media, battery: .measured(state?.batteryReading, exhausted: state?.batteryExhausted),
             recording: state?.isRecording, photography: state?.isPhotography,
             feedAspectRatio: state?.feedAspectRatio,
             canCapture: controller.isReachable && state?.connection == .connected && !controller.isSendingCommand,

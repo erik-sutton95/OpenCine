@@ -27,6 +27,25 @@
         public var nativeEditor: MonitorControlModel.Editor? = nil
         public var audioControl: CaptureAudioControl? = nil
         public var audioSourceID: CaptureAudioSourceID? = nil
+        /// The sheet an integration-owned quick choice commits through the host slot (format or
+        /// colour), never as camera-vocabulary wire enums; `nil` for every vocabulary choice.
+        public var nativeSheet: CaptureSheet?
+
+        /// An integration-owned format (`.resolution`) or colour (`.color`) choice; `nil` for any
+        /// other sheet, which has no native quick slot.
+        public static func native(sheet: CaptureSheet, title: String, options: [String], selection: String,
+            context: String, enabled: Bool) -> Self? {
+            let kind: Kind
+            switch sheet {
+            case .resolution: kind = .format
+            case .color: kind = .color
+            default: return nil
+            }
+            var result = Self(kind: kind, title: title, options: options, selection: selection,
+                context: context, enabled: enabled)
+            result.nativeSheet = sheet
+            return result
+        }
 
         public static func common(_ field: MonitorCaptureField) -> Self {
             Self(
@@ -60,7 +79,7 @@
         public var sourceIdentity: SourceIdentity {
             SourceIdentity(
                 kind: kind, title: title, options: options, marked: marked, context: context,
-                enabled: enabled, nativeEditor: nativeEditor)
+                enabled: enabled, nativeEditor: nativeEditor, nativeSheet: nativeSheet)
         }
 
         public struct SourceIdentity: Hashable, Sendable {
@@ -71,6 +90,7 @@
             public var context: String
             public var enabled: Bool
             public var nativeEditor: MonitorControlModel.Editor? = nil
+            public var nativeSheet: CaptureSheet? = nil
         }
 
         public var display: MonitorReadoutSnapshot {
@@ -273,6 +293,11 @@
         /// preservation, and shutter-angle conversion; the host routes each to its session.
         @MainActor public func apply<Host: CaptureSheetHost>(_ value: String, host: Host) {
             guard enabled, options.contains(value), value != selection, !host.sessionLocked else {
+                return
+            }
+            if let sheet = nativeSheet {
+                guard host.quickSnapshot(sheet) == self else { return }
+                host.commitNativeCaptureQuick(sheet, selection: value)
                 return
             }
             if let commonField {

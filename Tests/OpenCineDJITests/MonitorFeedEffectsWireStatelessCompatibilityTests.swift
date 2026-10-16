@@ -31,4 +31,29 @@ struct MonitorFeedEffectsWireStatelessCompatibilityTests {
         #expect(first == again)
         #expect(borrowed != again)
     }
+
+    /// A source whose colour identity is not a mode byte names its curve; the payload matches
+    /// the byte that names the same curve.
+    @Test func namedCurvesProduceTheSamePayloadsAsTheirModeByte() throws {
+        let source = DJIMonitorColorProfile.value
+        let code = Int(ColorMode.dLog2.rawValue)
+        let transfer = MonitorFeedEffectsWire.monitorTransfer(colorModeCode: code)
+        #expect(transfer == .dlog2)
+        for ordinal in [0, 1, 5] {
+            #expect(try #require(MonitorFeedEffectsWire.packedFalseColorPaint(
+                scaleOrdinal: ordinal, transfer: transfer, iso: 800, sourceProfile: source))
+                == MonitorFeedEffectsWire.packedFalseColorPaint(
+                    scaleOrdinal: ordinal, colorModeCode: code, iso: 800, sourceProfile: source))
+            #expect(try #require(MonitorFeedEffectsWire.packedFalseColorWeight(
+                scaleOrdinal: ordinal, transfer: transfer, iso: 800, sourceProfile: source))
+                == MonitorFeedEffectsWire.packedFalseColorWeight(
+                    scaleOrdinal: ordinal, colorModeCode: code, iso: 800, sourceProfile: source))
+        }
+        #expect(MonitorFeedEffectsWire.assistScalars(transfer: transfer, iso: 800,
+            highlightIRE: 95, midtoneIRE: 42, sourceProfile: source)
+            == MonitorFeedEffectsWire.assistScalars(colorModeCode: code, iso: 800,
+                highlightIRE: 95, midtoneIRE: 42, sourceProfile: source))
+        #expect(MonitorFeedEffectsWire.packedFalseColorPaint(
+            scaleOrdinal: 9, transfer: .ilog, iso: 800, sourceProfile: source) == nil)
+    }
 }

@@ -114,7 +114,9 @@ public struct WatchOperatorScreen: View {
         HStack(spacing: 4) {
             Text(value.media ?? "\u{2014}").frame(maxWidth: .infinity, alignment: .leading)
             captureControl
-            HStack(spacing: 3) { Image(systemName: "camera"); batteryGauge }
+            HStack(spacing: 3) {
+                if value.battery != nil { Image(systemName: "camera"); batteryGauge }
+            }
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }.font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
     }
@@ -160,14 +162,33 @@ public struct WatchOperatorScreen: View {
 
     @ViewBuilder private var batteryGauge: some View {
         if let battery = value.battery {
-            HStack(spacing: 1) {
-                ForEach(0..<battery.barCount, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 0.8, style: .continuous)
-                        .fill(index < battery.filledBars ? batteryTint : Color.white.opacity(0.22))
-                        .frame(width: 2.5, height: 7)
+            TimelineView(.animation(minimumInterval: 0.5,
+                paused: battery.exhausted != true || !interactive)) { context in
+                Group {
+                    switch battery.reading {
+                    case .fraction(let value):
+                        Text("\(Int((value * 100).rounded()))%")
+                    case .steps(let filled, let count):
+                        if count > 10 {
+                            Text(verbatim: "\(filled)/\(count)")
+                                .minimumScaleFactor(0.5)
+                        } else {
+                            HStack(spacing: 1) {
+                                ForEach(0..<count, id: \.self) { index in
+                                    RoundedRectangle(cornerRadius: 0.8, style: .continuous)
+                                        .fill(index < filled ? batteryTint : Color.white.opacity(0.22))
+                                        .frame(width: 2.5, height: 7)
+                                }
+                            }
+                        }
+                    }
                 }
-            }.accessibilityElement().accessibilityLabel(battery.accessibilityLabel)
-        } else { Text("\u{2014}").foregroundStyle(.secondary) }
+                .foregroundStyle(batteryTint)
+                .opacity(battery.exhausted == true && interactive
+                    && Int(context.date.timeIntervalSinceReferenceDate * 2) % 2 == 0 ? 0.35 : 1)
+                .accessibilityElement().accessibilityLabel(battery.accessibilityLabel)
+            }
+        }
     }
 }
 #endif
