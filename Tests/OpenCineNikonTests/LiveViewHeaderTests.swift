@@ -38,6 +38,8 @@ struct LiveViewHeaderTests {
         let angles = try? #require(level)
         #expect(abs((angles?.roll ?? -1) - 10.5) < 0.001)
         #expect(abs((angles?.pitch ?? -1) - 2.0) < 0.001)
+        #expect(angles?.hasPitch == true)
+        #expect(angles?.hasYaw == true)
         #expect(abs((angles?.yaw ?? -1) - 3.25) < 0.001)
     }
 
@@ -54,6 +56,23 @@ struct LiveViewHeaderTests {
         let level = PTPLiveViewObject.levelAngles(
             from: header(recState: 0, roll: 0xFFFF_FFFF, pitch: fixed(2.0), yaw: 0))
         #expect(level == nil)
+    }
+
+    @Test func optionalAngleValidityDistinguishesMissingFromZero() throws {
+        let missing = try #require(
+            PTPLiveViewObject.levelAngles(
+                from: header(recState: 0, roll: fixed(10), pitch: .max, yaw: .max)))
+        #expect(missing.roll == 10)
+        #expect(missing.pitch == 0)
+        #expect(missing.yaw == 0)
+        #expect(!missing.hasPitch)
+        #expect(!missing.hasYaw)
+
+        let level = try #require(
+            PTPLiveViewObject.levelAngles(
+                from: header(recState: 0, roll: 0, pitch: 0, yaw: 0)))
+        #expect(level.hasPitch)
+        #expect(level.hasYaw)
     }
 
     @Test func signedRollWrapsAroundLevel() {

@@ -16,6 +16,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -150,6 +152,53 @@ class SwiftCoreLiveFrameSourceTest {
         assertEquals(true, frame.focus?.trackingAFActive)
         assertEquals(-0.5, frame.level?.rollDegrees)
         assertEquals(1.25, frame.level?.pitchDegrees)
+        assertEquals(false, frame.level?.hasPitch)
+        assertEquals(false, frame.level?.hasYaw)
+    }
+
+    @Test
+    fun `angle validity belongs to the immediately following frame`() = runTest {
+        lateinit var listener: NikonNative.LiveFrameListener
+        val source =
+            SwiftCoreLiveFrameSource(
+                available = { true },
+                start = { listener = it },
+                stop = {},
+                configurePreview = { true },
+                sharingScope = backgroundScope,
+            )
+        val result = async { source.frames.take(2).toList() }
+        runCurrent()
+        for ((index, valid) in listOf(true, false).withIndex()) {
+            listener.onLevelValidity(hasPitch = valid, hasYaw = false)
+            listener.onFrameWithMetadata(
+                jpeg = byteArrayOf(index.toByte()),
+                timestampNanos = (index + 1) * 1_000_000_000L,
+                isRecording = false,
+                leftLevelDb = -60.0,
+                leftPeakDb = -60.0,
+                rightLevelDb = -60.0,
+                rightPeakDb = -60.0,
+                hasAudioLevels = false,
+                hasFocus = false,
+                focusCoordinateWidth = 0,
+                focusCoordinateHeight = 0,
+                focusResult = 0,
+                subjectDetectionActive = false,
+                trackingAFActive = false,
+                selectedBoxIndex = -1,
+                focusBoxes = intArrayOf(),
+                hasLevel = true,
+                levelRollDegrees = 10.0,
+                levelPitchDegrees = 0.0,
+                levelYawDegrees = 0.0,
+            )
+            runCurrent()
+        }
+        val frames = result.await()
+        assertEquals(listOf(true, false), frames.map { it.level?.hasPitch })
+        assertTrue(frames.all { it.level?.hasYaw == false })
+        assertTrue(frames.all { it.level?.rollDegrees == 10.0 })
     }
 
     @Test

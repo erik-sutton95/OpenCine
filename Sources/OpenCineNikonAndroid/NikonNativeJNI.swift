@@ -1007,6 +1007,7 @@
         let onFrame: jmethodID
         /// Additive callback level resolved from the Kotlin listener.
         let callback: LiveFrameCallback
+        let onLevelValidity: jmethodID?
         let onEnded: jmethodID
     }
 
@@ -1068,6 +1069,7 @@
             listener: global,
             onFrame: onFrame,
             callback: callback,
+            onLevelValidity: optionalInstanceMethod(env, cls, "onLevelValidity", "(ZZ)V"),
             onEnded: onEnded)
 
         /// Terminal path on the CALLING (JVM-owned) thread: report the end and
@@ -1170,6 +1172,11 @@
             let env = envOut
         else { return }
         let fns = table(env)
+        if let onLevelValidity = handle.onLevelValidity {
+            var validity = [jvalue(z: level.hasPitch ? 1 : 0), jvalue(z: level.hasYaw ? 1 : 0)]
+            fns.CallVoidMethodA!(env, handle.listener, onLevelValidity, &validity)
+            clearPendingJavaException(env)
+        }
         guard let array = fns.NewByteArray!(env, jsize(jpeg.count)) else {
             clearPendingJavaException(env)
             return

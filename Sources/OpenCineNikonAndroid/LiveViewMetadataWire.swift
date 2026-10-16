@@ -61,6 +61,8 @@ struct LiveViewFocusWire: Equatable, Sendable {
 /// Nikon's fixed-point parsing and angle-wrap policy out of the Kotlin shell.
 struct LiveViewLevelWire: Equatable, Sendable {
     let hasLevel: Bool
+    let hasPitch: Bool
+    let hasYaw: Bool
     let rollDegrees: Double
     let pitchDegrees: Double
     let yawDegrees: Double
@@ -68,6 +70,8 @@ struct LiveViewLevelWire: Equatable, Sendable {
     init(level: PTPLevelAngles?) {
         guard let level else {
             hasLevel = false
+            hasPitch = false
+            hasYaw = false
             rollDegrees = 0
             pitchDegrees = 0
             yawDegrees = 0
@@ -79,6 +83,8 @@ struct LiveViewLevelWire: Equatable, Sendable {
         let yaw = PTPLevelAngles.signedDegrees(level.yaw)
         guard roll.isFinite, pitch.isFinite, yaw.isFinite else {
             hasLevel = false
+            hasPitch = false
+            hasYaw = false
             rollDegrees = 0
             pitchDegrees = 0
             yawDegrees = 0
@@ -86,6 +92,8 @@ struct LiveViewLevelWire: Equatable, Sendable {
         }
 
         hasLevel = true
+        hasPitch = level.hasPitch
+        hasYaw = level.hasYaw
         rollDegrees = roll
         pitchDegrees = pitch
         yawDegrees = yaw
