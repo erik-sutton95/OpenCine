@@ -48,6 +48,8 @@ open class ConfirmationCancel: SharedAppUITestCase {
             forDuration: 0.4, thenDragTo: gallery.center(visible[1]), withVelocity: .slow,
             thenHoldForDuration: 0)
         XCTAssertTrue(app.staticTexts["2 selected"].waitForExistence(timeout: 5))
+        // The clips listed once selected (a sweep near an edge may scroll the gallery): cancelling keeps them.
+        let listed = gallery.visibleClips().map(\.id)
         let deleteSelected = app.buttons["Delete selected"]
         XCTAssertTrue(deleteSelected.isEnabled, "Connected camera clips can be deleted")
         deleteSelected.tap()
@@ -57,7 +59,7 @@ open class ConfirmationCancel: SharedAppUITestCase {
         dismissConfirmation(confirm)
         XCTAssertTrue(app.staticTexts["2 selected"].exists, "Cancelling keeps the selection")
         XCTAssertEqual(
-            gallery.visibleClips().map(\.id), visible.map(\.id),
+            gallery.visibleClips().map(\.id), listed,
             "Cancelling keeps every clip listed")
     }
 

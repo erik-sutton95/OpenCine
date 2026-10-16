@@ -64,6 +64,15 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     @Before
     public fun startInPortrait() {
         automation.setRotation(rotationFor(landscape = false))
+        // A scenario that ended in landscape leaves the display turned; start each one upright.
+        val display = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
+            .getDisplay(Display.DEFAULT_DISPLAY)
+        val until = SystemClock.uptimeMillis() + 5_000
+        while (SystemClock.uptimeMillis() < until) {
+            @Suppress("DEPRECATION") val size = Point().also(display::getRealSize)
+            if (size.x < size.y) break
+            SystemClock.sleep(100)
+        }
     }
 
     @After
@@ -115,7 +124,26 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
                 }
             }
         }
-        return UiSnapshot(nodes, windows, complete)
+        return UiSnapshot(spoken(nodes), windows, complete)
+    }
+
+    /**
+     * What TalkBack announces for a node it focuses that has no description or text of its own (a
+     * Material button whose label is its child `Text`): the labels of the descendants it does not focus
+     * separately, in order. Compose exposes such a button as an unlabelled clickable node over its text.
+     */
+    private fun spoken(nodes: List<UiNode>): List<UiNode> {
+        val children = nodes.indices.groupBy { nodes[it].parent }
+        fun focusable(node: UiNode) = node.info.isClickable || node.info.isFocusable || node.info.isScreenReaderFocusable
+        fun inner(index: Int): List<String> = children[index].orEmpty().flatMap { child ->
+            val node = nodes[child]
+            if (focusable(node)) emptyList() else listOfNotNull(node.label.ifBlank { null }) + inner(child)
+        }
+        return nodes.mapIndexed { index, node ->
+            if (node.label.isNotBlank() || !focusable(node)) node
+            else inner(index).joinToString(", ").takeIf { it.isNotEmpty() }
+                ?.let { UiNode(node.info, node.tag, it, node.window, node.parent, node.inScroll) } ?: node
+        }
     }
 
     /** The first node [match] admits within [timeoutMs]; fails with the tree and a screenshot otherwise. */
@@ -148,16 +176,32 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     /**
      * The node [match] admits, scrolled wholly into its scrolling container first (as a TalkBack user's
      * focus brings it): the node's own show-on-screen action, else its container scrolled towards it.
+     * Compose leaves a scrolled-away child out of the tree altogether; with [container] (the tag of the
+     * scrolling container that holds it) an absent node is looked for by scrolling that container
+     * forward to its end, then back, as TalkBack's next and previous gestures do.
      */
-    public fun reveal(what: String, timeoutMs: Long = 15_000, match: (UiNode) -> Boolean): UiNode {
+    public fun reveal(
+        what: String, timeoutMs: Long = 15_000, container: String? = null, match: (UiNode) -> Boolean,
+    ): UiNode {
         val deadline = SystemClock.uptimeMillis() + timeoutMs
         var attempts = 0
+        var searchForward = true
         while (true) {
             val snapshot = snapshot()
             val node = snapshot.nodes.firstOrNull(match)
+            val holder = container?.let { tag -> snapshot.nodes.firstOrNull { it.visible && it.tag == tag && it.info.isScrollable } }
+            if (node == null && holder != null && SystemClock.uptimeMillis() <= deadline) {
+                val action = if (searchForward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                if (!holder.info.performAction(action)) {
+                    if (!searchForward) fail("$what is not in $container")
+                    searchForward = false
+                }
+                pause(400)
+                continue
+            }
             if (node != null) {
                 val viewport = snapshot.viewport(node)
-                if (node.visible && (viewport == null || viewport.contains(node.bounds, 1))) return node
+                if (node.visible && (viewport == null || viewport.shows(node.bounds))) return node
                 if (attempts++ >= 8) fail("$what cannot be brought on screen")
                 val scroller = snapshot.scroller(node)
                 val shown = node.info.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
@@ -437,3 +481,12 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
 }
 
 internal fun Rect.box(): Box = Box(left, top, right, bottom)
+
+/**
+ * True when [bounds] lies wholly inside this scrolling viewport along the axis it scrolls (a wide
+ * viewport scrolls sideways). Across that axis a control may reach past the viewport: Compose grows a
+ * small control's touch bounds to the minimum touch target, beyond a slim tab strip.
+ */
+internal fun Box.shows(bounds: Box): Boolean =
+    if (width > height) bounds.left >= left - 1 && bounds.right <= right + 1
+    else bounds.top >= top - 1 && bounds.bottom <= bottom + 1

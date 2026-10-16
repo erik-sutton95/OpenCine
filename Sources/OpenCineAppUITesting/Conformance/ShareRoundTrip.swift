@@ -22,9 +22,7 @@ open class ShareRoundTrip: SharedAppUITestCase {
         let gallery = MediaGalleryProbe(app: app)
         gallery.scrollTwoScreens()
         let visible = gallery.visibleClips()
-        guard let anchor = gallery.settledAnchor(), visible.count > 1 else {
-            return XCTFail("Two visible clips are required")
-        }
+        guard visible.count > 1 else { return XCTFail("Two visible clips are required") }
 
         // Two clips selected by the shared drag, then the selection share opened and closed.
         gallery.center(visible[0]).press(
@@ -32,6 +30,10 @@ open class ShareRoundTrip: SharedAppUITestCase {
             thenHoldForDuration: 0)
         let count = app.staticTexts["2 selected"]
         XCTAssertTrue(count.waitForExistence(timeout: 5), "Dragging across two clips selects both")
+        // Where the gallery rests once selected (a sweep near an edge may scroll it): the share must keep it.
+        guard let anchor = gallery.settledAnchor() else {
+            return XCTFail("No visible clip after the selection")
+        }
         app.buttons["Share selected"].tap()
         let close = app.buttons["monitor.share.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5), "The selection share must open")
@@ -57,13 +59,18 @@ open class ShareRoundTrip: SharedAppUITestCase {
         let clipTitle = title.label
         let loop = app.buttons["Loop playback"]
         if loop.value as? String != "On" { loop.tap() }
-        XCTAssertEqual(loop.value as? String, "On")
+        // A player owner may publish the new state a beat after the tap.
+        let on = NSPredicate(format: "value == %@", "On")
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: on, object: loop)], timeout: 3),
+            .completed, "Loop playback turns on")
         app.buttons["Share clip"].tap()
         let destination = app.buttons["monitor.share.destination.nativeShare"]
         XCTAssertTrue(destination.waitForExistence(timeout: 5))
         XCTAssertTrue(destination.isEnabled, "A cached staged clip can be shared")
         destination.tap()
-        XCTAssertTrue(app.staticTexts["monitor.share.summary"].waitForExistence(timeout: 5))
+        // The destination opens its options; an app without export options shows no summary line.
+        XCTAssertTrue(app.buttons["monitor.share.begin"].waitForExistence(timeout: 5))
         checkpoint("clip-share-summary")
         close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))

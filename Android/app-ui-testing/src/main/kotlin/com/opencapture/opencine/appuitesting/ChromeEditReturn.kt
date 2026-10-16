@@ -46,7 +46,9 @@ public abstract class ChromeEditReturn(subject: ConformanceApp) : ConformanceTes
         val record = awaitTag(RECORD, 5_000)
         val snapshot = snapshot()
         assertTrue(snapshot.nodes.none { it.visible && it.tag == DISPLAY }, "Closing Settings returns to the monitor")
-        assertTrue(record.enabled && !snapshot.covers(record), "The monitor works after the editor")
+        // As the Swift twin's `isHittable`: on screen and under nothing. Record itself stays disabled
+        // without an admitted camera (a staged review has none) on both platforms.
+        assertTrue(record.visible && !snapshot.covers(record), "The monitor works after the editor")
         checkpoint("monitor")
         tap(awaitTag(SETTINGS))
         selectDisplay()
@@ -61,7 +63,7 @@ public abstract class ChromeEditReturn(subject: ConformanceApp) : ConformanceTes
     }
 
     private fun selectDisplay() {
-        val display = reveal(DISPLAY) { it.tag == DISPLAY }
+        val display = reveal(DISPLAY, container = TABS) { it.tag == DISPLAY }
         if (!display.selected) tap(display)
         await("$DISPLAY selected", 5_000) { it.tag == DISPLAY && it.selected }
     }
@@ -81,13 +83,15 @@ public abstract class ChromeEditReturn(subject: ConformanceApp) : ConformanceTes
             // A folded card is its header alone.
             section?.let { card -> snapshot.descendants(card).firstOrNull { it.info.isClickable }?.let(::tap) }
         }
-        return reveal("Display settings offer Edit view", 5_000, wanted)
+        return reveal("Display settings offer Edit view", 5_000, match = wanted)
     }
 
     private companion object {
         const val RECORD = "monitor.system.record"
         const val SETTINGS = "monitor.system.settings"
         const val DISPLAY = "monitor.settings.tab.Display"
+        /** The portrait tab strip; a tab scrolled out of it is not in the tree until scrolled back. */
+        const val TABS = "monitor.settings.tabs"
         const val EDIT = "monitor.settings.display.edit."
         const val SECTION = "monitor.settings.display.section."
         const val EYE = "monitor.chromeEdit."
