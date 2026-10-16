@@ -2,9 +2,10 @@ package com.opencapture.monitorui
 
 /**
  * The SIMULATED camera values a [ReviewLaunch] with [ReviewLaunch.Screen.LIVE] stages, so every
- * app's debug review shows the same live monitor: the numbers the iOS reviews stage
- * (`MonitorUIReview.prepare`). Each app maps them into its own integration's session and adds only
- * its own colour name (D-Log2, I-Log). Debug review only; nothing here reaches a camera.
+ * app's debug review shows the same live monitor. Each app maps them into its own integration's
+ * session and adds only its own colour name (D-Log2, I-Log). Twin of Swift `ReviewLiveValues`
+ * (MonitorPresentation); both read `Fixtures/review-live-values.tsv`. Debug review only; nothing
+ * here reaches a camera.
  */
 public data class ReviewLiveValues(
     val iso: Int = 1600,
