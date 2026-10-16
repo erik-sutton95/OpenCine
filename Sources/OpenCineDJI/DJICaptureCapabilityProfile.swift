@@ -25,7 +25,7 @@ public enum DJICaptureCapabilityProfile {
                 [UInt8(0x2D), 0x43, 0x5F, 0x6A].map { (VideoResolution(rawValue: $0), 3.0) }
                 + [UInt8(0x10), 0x67, 0x7D, 0x6B, 0x6C].map { (VideoResolution(rawValue: $0), 2.0) })
             : [:]
-        return CameraCaptureProfile(labels: labels, supportsFocusMode: pocket,
+        var profile = CameraCaptureProfile(labels: labels, supportsFocusMode: pocket,
             supportsTapFocus: pocket, supportsAperture: model.isAction6, hasGimbal: pocket,
             supportsZoom: pocket,
             isoAutoRangeFloor: !pro && (compact.contains("pocket4") || model.isPocket3) ? 50 : 100,
@@ -33,6 +33,25 @@ public enum DJICaptureCapabilityProfile {
             zoom: CameraZoomProfile(stops: stops, restrictedModes: restricted,
                 restrictedStops: pro ? [1, 3] : [1], resolutionCeilings: ceilings),
             looks: DJICameraLUTProfile.make(for: model))
+        profile.controls = controls(for: model)
+        return profile
+    }
+
+    /// Families no setting descriptor carries. Every Osmo body records video in a format and
+    /// colour mode the camera lists, takes photos, serves its card and deletes from it, and has no
+    /// built-in ND. Face metering and audio input follow nothing declared here (unknown, and audio
+    /// follows the live level support). Multiview lists the bodies its captured preview policy
+    /// qualifies; a listed body without a captured preview is experimental, so unknown.
+    static func controls(for model: CameraModel) -> [ControlFamily: SupportStatus] {
+        guard !model.isDrone else { return [:] }
+        let multiview: SupportStatus =
+            !MulticamSupport.appears(model) ? .unsupported
+            : MulticamSupport.hasPreview(model) ? .supported : .unknown
+        return [
+            .ndFilter: .unsupported, .recordingFormat: .supported,
+            .codecColor: ColorMode.catalogueModes(for: model).isEmpty ? .unknown : .supported,
+            .photo: .supported, .media: .supported, .mediaDelete: .supported, .multiview: multiview,
+        ]
     }
 
     /// Accepted Pocket 3 Video `0x02/0x18` pairs: landscape 1080/2.7K/4K and

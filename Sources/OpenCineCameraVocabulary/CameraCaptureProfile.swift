@@ -13,6 +13,10 @@ public struct CameraCaptureProfile: Equatable, Sendable {
     public var zoom: CameraZoomProfile?
     public var looks: CameraLUTProfile?
     public var nativeISO: CaptureNativeISOCapabilities
+    /// Static support of the families no setting descriptor or flag above carries (ND, face
+    /// metering, audio input, photo, camera media, clip delete, multiview, ...). A family not
+    /// listed is unknown. `ControlCapabilities` merges this with the live snapshot.
+    public var controls: [ControlFamily: SupportStatus] = [:]
 
     public init(
         labels: CameraLabelProfile = .standard, supportsFocusMode: Bool? = nil,
