@@ -79,7 +79,7 @@ class CaptureCodecColorTest {
     @Test
     fun nothingOfferedIsEmpty() {
         assertTrue(CaptureCodecColorChoices.EMPTY.isEmpty)
-        assertTrue(CaptureCodecColorChoices.EMPTY.sections.isEmpty)
+        assertTrue(CaptureCodecColorChoices.EMPTY.sections.isEmpty())
         assertFalse(CaptureCodecColorChoices(colors = listOf(choice("x", "X"))).isEmpty)
     }
 }
