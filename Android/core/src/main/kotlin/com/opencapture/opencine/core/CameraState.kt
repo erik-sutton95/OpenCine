@@ -85,6 +85,8 @@ public data class PowerStatus(
     public val battery: ObservedValue<Double> = ObservedValue.unknown,
     public val charging: ObservedValue<Boolean> = ObservedValue.unknown,
     public val externalPower: ObservedValue<Boolean> = ObservedValue.unknown,
+    /** Whether the source reports battery exhaustion; independent of the charge level. */
+    public val exhausted: ObservedValue<Boolean> = ObservedValue.unknown,
 ) {
     /**
      * The battery as its source declared it; `null` when unknown, which shared chrome shows as
@@ -114,7 +116,40 @@ public sealed interface BatteryReading {
     /** [filled] of [of] gauge steps (a five-bar gauge); never a percentage. */
     public data class Steps(public val filled: Int, public val of: Int) : BatteryReading
 
+    /** Portable fields used by the relay codecs; no platform JSON dependency in Core. */
+    public val wireFields: BatteryReadingFields
+        get() = when (this) {
+            is Fraction -> {
+                require(value.isFinite() && value in 0.0..1.0) { "Battery fraction must be finite and within 0..1" }
+                BatteryReadingFields(kind = "fraction", value = value)
+            }
+            is Steps -> {
+                require(of > 0 && filled in 0..of) { "Battery steps must lie within the declared gauge" }
+                BatteryReadingFields(kind = "steps", filled = filled, of = of)
+            }
+        }
+
     public companion object {
+        /** Mirrors Swift BatteryReading's Codable fields and validation. */
+        public fun fromWireFields(fields: BatteryReadingFields): BatteryReading = when (fields.kind) {
+            "fraction" -> {
+                val value = fields.value
+                require(value != null && value.isFinite() && value in 0.0..1.0) {
+                    "Battery fraction must be finite and within 0..1"
+                }
+                Fraction(value)
+            }
+            "steps" -> {
+                val filled = fields.filled
+                val count = fields.of
+                require(filled != null && count != null && count > 0 && filled in 0..count) {
+                    "Battery steps must lie within the declared gauge"
+                }
+                Steps(filled, count)
+            }
+            else -> throw IllegalArgumentException("Unknown battery reading kind")
+        }
+
         /**
          * The step count a declared precision implies: a source reporting in steps of 1/2 to 1/10
          * has a gauge, a finer one (percent) reports a fraction.
@@ -127,6 +162,14 @@ public sealed interface BatteryReading {
         }
     }
 }
+
+/** Stable field names shared by the portable Swift and Kotlin relay payloads. */
+public data class BatteryReadingFields(
+    public val kind: String,
+    public val value: Double? = null,
+    public val filled: Int? = null,
+    public val of: Int? = null,
+)
 
 public data class ControlLease(
     public val id: ControlLeaseID = ControlLeaseID(),
@@ -209,6 +252,10 @@ public data class CameraSnapshot private constructor(
     public val timecode: ObservedValue<CameraTimecode>,
     public val audioLevels: ObservedValue<AudioLevels>,
     public val timecodeReading: ObservedValue<CameraTimecodeReading>,
+    /** Recording observations remain separate from preview dimensions and transport encoding. */
+    public val recordingFormat: CameraRecordingObservations,
+    /** Exposure program is its own observed value, never inferred from a format selection. */
+    public val exposureProgram: ObservedValue<CameraExposureProgram>,
 ) {
     /** The published constructor retains its parameter order and value types. */
     public constructor(
@@ -226,7 +273,9 @@ public data class CameraSnapshot private constructor(
         storage: StorageStatus = ObservedValue.unknown,
         timecode: ObservedValue<CameraTimecode> = ObservedValue.unknown,
         audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
-    ) : this(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecode, audioLevels, timecode.compactMap { CameraTimecodeReading(it) })
+        recordingFormat: CameraRecordingObservations = CameraRecordingObservations.unknown,
+        exposureProgram: ObservedValue<CameraExposureProgram> = ObservedValue.unknown,
+    ) : this(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecode, audioLevels, timecode.compactMap { CameraTimecodeReading(it) }, recordingFormat, exposureProgram)
 
     /** Copy the published fields without losing an unchanged precision-rich reading. */
     public fun copy(
@@ -244,12 +293,14 @@ public data class CameraSnapshot private constructor(
         storage: StorageStatus = this.storage,
         timecode: ObservedValue<CameraTimecode> = this.timecode,
         audioLevels: ObservedValue<AudioLevels> = this.audioLevels,
+        recordingFormat: CameraRecordingObservations = this.recordingFormat,
+        exposureProgram: ObservedValue<CameraExposureProgram> = this.exposureProgram,
     ): CameraSnapshot = CameraSnapshot(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecode, audioLevels,
-        if (timecode == this.timecode) timecodeReading else timecode.compactMap { CameraTimecodeReading(it) })
+        if (timecode == this.timecode) timecodeReading else timecode.compactMap { CameraTimecodeReading(it) }, recordingFormat, exposureProgram)
 
     /** Replace the precise value, projecting the legacy field only when representable. */
     public fun withTimecodeReading(value: ObservedValue<CameraTimecodeReading>): CameraSnapshot =
-        CameraSnapshot(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, value.compactMap { it.frameTimecode }, audioLevels, value)
+        CameraSnapshot(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, value.compactMap { it.frameTimecode }, audioLevels, value, recordingFormat, exposureProgram)
 
     /** The precise reading has its own required label; the published constructor stays callable. */
     public constructor(
@@ -267,7 +318,9 @@ public data class CameraSnapshot private constructor(
         power: PowerStatus = PowerStatus.unknown,
         storage: StorageStatus = ObservedValue.unknown,
         audioLevels: ObservedValue<AudioLevels> = ObservedValue.unknown,
-    ) : this(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecodeReading.compactMap { it.frameTimecode }, audioLevels, timecodeReading)
+        recordingFormat: CameraRecordingObservations = CameraRecordingObservations.unknown,
+        exposureProgram: ObservedValue<CameraExposureProgram> = ObservedValue.unknown,
+    ) : this(session, epoch, revision, device, connection, authority, capabilities, mode, settings, recording, power, storage, timecodeReading.compactMap { it.frameTimecode }, audioLevels, timecodeReading, recordingFormat, exposureProgram)
 
     public fun value(key: SettingKey): ObservedValue<SettingValue> = settings[key] ?: ObservedValue.unknown
 }

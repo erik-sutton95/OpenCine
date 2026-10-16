@@ -44,18 +44,38 @@ public struct MonitorOperatorPowerReading: Identifiable {
 }
 
 extension MonitorOperatorPowerReading {
+    public static func readoutLabel(_ reading: BatteryReading?) -> String? {
+        switch reading {
+        case .fraction(let value):
+            guard value.isFinite, (0...1).contains(value) else { return nil }
+            return "\(Int((value * 100).rounded()))%"
+        case .steps(let filled, let count):
+            guard count > 0, (0...count).contains(filled) else { return nil }
+            return "\(filled)/\(count)"
+        case nil: return nil
+        }
+    }
+
     /// The camera battery as its source declared it: a gauge keeps its bars (and reads as a
     /// warning at two fifths or less), a fraction prints a percentage,
     /// and an unknown battery is absent rather than an empty gauge (D11).
     public static func camera(_ power: PowerStatus) -> MonitorOperatorPowerReading? {
-        guard let reading = power.batteryReading else { return nil }
+        camera(power.batteryReading, exhausted: power.exhausted.value,
+            charging: power.charging.value ?? power.externalPower.value)
+    }
+
+    public static func camera(_ reading: BatteryReading?, exhausted: Bool? = nil,
+        charging: Bool? = nil) -> MonitorOperatorPowerReading? {
+        guard let reading else { return nil }
         switch reading {
         case .fraction(let value):
+            guard value.isFinite, (0...1).contains(value) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true,
-                percent: Int((value * 100).rounded()), charging: power.charging.value)
+                percent: Int((value * 100).rounded()), exhausted: exhausted == true, charging: charging)
         case .steps(let filled, let count):
+            guard count > 0, (0...count).contains(filled) else { return nil }
             return .init(id: "camera", title: "Camera battery", camera: true, bars: filled, barCount: count,
-                warning: filled * 5 <= count * 2, charging: power.charging.value)
+                warning: Double(filled) / Double(count) <= 0.4, exhausted: exhausted == true, charging: charging)
         }
     }
 }

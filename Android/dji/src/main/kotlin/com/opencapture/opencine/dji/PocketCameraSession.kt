@@ -3155,6 +3155,7 @@ class PocketCameraSession(
             model = connectedCamera?.model,
             timecode = status.timecodeValue,
             audioLevels = DjiCameraSessionAdapter.audioLevels(status),
+            charging = status.chargingReading,
         )
     }
 

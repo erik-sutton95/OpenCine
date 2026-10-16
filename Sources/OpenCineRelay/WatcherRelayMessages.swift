@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 public struct WatcherRelayHello: Codable, Equatable, Sendable {
     public var version: Int
@@ -51,7 +52,11 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
     public var color: String
     public var zoom: String
     public var liveFPS: String
-    public var batteryPercent: Int
+    public var batteryPercent: Int {
+        didSet {
+            if !batteryReadingWasDeclared { batteryReading = relayLegacyBattery(batteryPercent) }
+        }
+    }
     public var cameraName: String
     public var iso: String
     public var shutter: String
@@ -75,6 +80,42 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
         cameraModel: String? = nil,
         isNano: Bool? = nil
     ) {
+        self.init(
+            isRecording: isRecording,
+            format: format,
+            color: color,
+            zoom: zoom,
+            liveFPS: liveFPS,
+            batteryPercent: batteryPercent,
+            cameraName: cameraName,
+            iso: iso,
+            shutter: shutter,
+            allowsControlRequests: allowsControlRequests,
+            controlOptions: controlOptions,
+            cameraModel: cameraModel,
+            isNano: isNano,
+            batteryReading: relayLegacyBattery(batteryPercent), batteryExhausted: nil)
+        batteryReadingWasDeclared = false
+        batteryExhaustedWasDeclared = false
+    }
+
+    public init(
+        isRecording: Bool = false,
+        format: String = "",
+        color: String = "",
+        zoom: String = "",
+        liveFPS: String = "",
+        batteryPercent: Int = -1,
+        cameraName: String = "",
+        iso: String = "",
+        shutter: String = "",
+        allowsControlRequests: Bool = true,
+        controlOptions: WatcherRelayControlOptions? = nil,
+        cameraModel: String? = nil,
+        isNano: Bool? = nil,
+        batteryReading: BatteryReading?,
+        batteryExhausted: Bool? = nil
+    ) {
         self.isRecording = isRecording
         self.format = format
         self.color = color
@@ -88,7 +129,86 @@ public struct WatcherRelayState: Codable, Equatable, Sendable {
         self.controlOptions = controlOptions
         self.cameraModel = cameraModel
         self.isNano = isNano
+        self.batteryReading = batteryReading
+        self.batteryExhausted = batteryExhausted
+        batteryReadingWasDeclared = true
+        batteryExhaustedWasDeclared = true
     }
+    /// Charge at the source's declared precision. Explicit wire null remains unknown.
+    public private(set) var batteryReading: BatteryReading?
+    /// Camera-reported exhaustion, independent of low charge.
+    public let batteryExhausted: Bool?
+    private var batteryReadingWasDeclared: Bool
+    private var batteryExhaustedWasDeclared: Bool
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isRecording = try container.decode(Bool.self, forKey: .isRecording)
+        format = try container.decode(String.self, forKey: .format)
+        color = try container.decode(String.self, forKey: .color)
+        zoom = try container.decode(String.self, forKey: .zoom)
+        liveFPS = try container.decode(String.self, forKey: .liveFPS)
+        batteryPercent = try container.decode(Int.self, forKey: .batteryPercent)
+        cameraName = try container.decode(String.self, forKey: .cameraName)
+        iso = try container.decode(String.self, forKey: .iso)
+        shutter = try container.decode(String.self, forKey: .shutter)
+        allowsControlRequests = try container.decode(Bool.self, forKey: .allowsControlRequests)
+        controlOptions = try container.decodeIfPresent(WatcherRelayControlOptions.self, forKey: .controlOptions)
+        cameraModel = try container.decodeIfPresent(String.self, forKey: .cameraModel)
+        isNano = try container.decodeIfPresent(Bool.self, forKey: .isNano)
+        batteryReadingWasDeclared = container.contains(.batteryReading)
+        batteryReading = batteryReadingWasDeclared
+            ? try container.decodeIfPresent(BatteryReading.self, forKey: .batteryReading)
+            : relayLegacyBattery(batteryPercent)
+        batteryExhaustedWasDeclared = container.contains(.batteryExhausted)
+        batteryExhausted = try container.decodeIfPresent(Bool.self, forKey: .batteryExhausted)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isRecording, format, color, zoom, liveFPS, batteryPercent, cameraName, iso, shutter, allowsControlRequests, controlOptions, cameraModel, isNano, batteryReading, batteryExhausted
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isRecording, forKey: .isRecording)
+        try container.encode(format, forKey: .format)
+        try container.encode(color, forKey: .color)
+        try container.encode(zoom, forKey: .zoom)
+        try container.encode(liveFPS, forKey: .liveFPS)
+        try container.encode(batteryPercent, forKey: .batteryPercent)
+        try container.encode(cameraName, forKey: .cameraName)
+        try container.encode(iso, forKey: .iso)
+        try container.encode(shutter, forKey: .shutter)
+        try container.encode(allowsControlRequests, forKey: .allowsControlRequests)
+        try container.encodeIfPresent(controlOptions, forKey: .controlOptions)
+        try container.encodeIfPresent(cameraModel, forKey: .cameraModel)
+        try container.encodeIfPresent(isNano, forKey: .isNano)
+        if batteryReadingWasDeclared {
+            try container.encode(batteryReading, forKey: .batteryReading)
+        }
+        if batteryExhaustedWasDeclared {
+            try container.encode(batteryExhausted, forKey: .batteryExhausted)
+        }
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isRecording == rhs.isRecording
+            && lhs.format == rhs.format
+            && lhs.color == rhs.color
+            && lhs.zoom == rhs.zoom
+            && lhs.liveFPS == rhs.liveFPS
+            && lhs.batteryPercent == rhs.batteryPercent
+            && lhs.cameraName == rhs.cameraName
+            && lhs.iso == rhs.iso
+            && lhs.shutter == rhs.shutter
+            && lhs.allowsControlRequests == rhs.allowsControlRequests
+            && lhs.controlOptions == rhs.controlOptions
+            && lhs.cameraModel == rhs.cameraModel
+            && lhs.isNano == rhs.isNano
+            && lhs.batteryReading == rhs.batteryReading
+            && lhs.batteryExhausted == rhs.batteryExhausted
+    }
+
 }
 
 public struct WatcherRelayFrameMetadata: Codable, Equatable, Sendable {

@@ -9,6 +9,66 @@ import Testing
 /// adapter through the real app session and loopback datalink.
 @MainActor
 @Suite struct DJICameraSessionAdapterPortTests {
+    @Test func recordingFactsUseReportedDimensionsAndNeverPreviewCodec() {
+        let port = FakePort()
+        port.status.videoResolution = .p4K_4x3
+        port.status.videoFormat = VideoFormat(resolution: .p4K_4x3, frameRate: .fps25)
+        port.status.fps = 25
+        port.status.colorMode = .dLog2
+        port.status.expoMode = .manual
+        let seam = DJICameraSessionAdapter(session: port)
+        let format = seam.current.recordingFormat
+        #expect(seam.current.exposureProgram.value == .manual)
+        #expect(format.dimensions.value == CameraRecordingFormat.Dimensions(width: 3840, height: 2880))
+        #expect(format.dimensions.origin == .cameraReported)
+        #expect(format.profile.value == "D-Log2")
+        #expect(format.codec.value == nil, "The preview codec does not declare the recording codec")
+        port.status.videoResolution = VideoResolution(rawValue: 0xFF)
+        port.status.videoFormat = nil
+        port.status.colorMode = nil
+        port.status.expoMode = nil
+        #expect(seam.current.exposureProgram == .unknown)
+        #expect(seam.current.recordingFormat == .unknown)
+        #expect(port.fired.isEmpty)
+    }
+
+    /// SIMULATED Nano report: the recording profile reads in the body's own colour names.
+    @Test func recordingProfileUsesTheBodyColourNames() {
+        let port = FakePort()
+        port.connectedModel = CameraModel.resolve(modelId: 0x0019, name: "OsmoNano-5A31")
+        port.status.colorMode = .normal
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.recordingFormat.profile.value == "Normal 8-bit")
+        port.status.colorMode = .dLogM
+        seam.sessionDidChange()
+        #expect(seam.current.recordingFormat.profile.value == "D-Log M 10-bit")
+    }
+
+    /// SIMULATED complete battery reports; false and true differ from no report.
+    @Test func batteryChargingReportsReachCommonPower() {
+        let port = FakePort()
+        port.status = CameraStatus()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.power.charging.value == nil)
+        for flag: UInt8 in [0, 1] {
+            var payload = [UInt8](repeating: 0, count: 34)
+            payload[20] = 68
+            payload[32] = flag
+            CameraStatusDecoder.apply(Duml.Frame(sender: 0, receiver: 0, seq: 0, flags: 0,
+                cmdSet: 0x0D, cmdId: 0x02, payload: payload), to: &port.status)
+            seam.sessionDidChange()
+            #expect(seam.current.power.charging.value == (flag == 1))
+            #expect(seam.current.power.charging.origin == .cameraReported)
+        }
+        var invalid = [UInt8](repeating: 0, count: 34)
+        invalid[20] = 68
+        invalid[32] = 2
+        CameraStatusDecoder.apply(Duml.Frame(sender: 0, receiver: 0, seq: 0, flags: 0,
+            cmdSet: 0x0D, cmdId: 0x02, payload: invalid), to: &port.status)
+        seam.sessionDidChange()
+        #expect(seam.current.power.charging.value == nil)
+    }
+
     @Test func legacyTimecodeHelpersRetainSupportAndCompleteFrames() throws {
         let support: SupportStatus = DJICameraSessionAdapter.timecodeSupport(nil)
         #expect(support == .unknown)

@@ -23,6 +23,7 @@ android {
 }
 
 dependencies {
+    api(project(":core"))
     // Android supplies org.json; local tests exercise the same codec with the existing fixture library.
     testImplementation(libs.json)
     testImplementation(libs.kotlin.test.junit)

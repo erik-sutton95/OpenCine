@@ -4,6 +4,7 @@
     import OpenCineAppKit
     import OpenCineCameraVocabulary
     import OpenCineCore
+    import SwiftUI
 
     /// Where a capture commit came from, so the app can route it along its own path.
     public enum CaptureCommitOrigin {
@@ -75,12 +76,27 @@
         }
     }
 
+    /// Optional integration-owned metering; unknown has no toggle target.
+    @MainActor public struct CaptureNativeMeteringSource {
+        public let face: Bool?
+        public let isCurrent: () -> Bool
+        public let setFace: (Bool) -> Void
+        public init(face: Bool?, isCurrent: @escaping () -> Bool, setFace: @escaping (Bool) -> Void) {
+            self.face = face; self.isCurrent = isCurrent; self.setFace = setFace
+        }
+    }
+
     /// What the capture sheets and readout drums need from an app: its session's report and
     /// flags, its operator choices, one typed commit and two refreshes. App differences arrive
     /// here as values, never as brand branches.
     @MainActor
     public protocol CaptureSheetHost: AnyObject, Observable {
         associatedtype Palette: LiveChromePalette
+        associatedtype NativeCapturePanel: View = EmptyView
+        /// Integration-owned typed controls remain inside the shared sheet chrome.
+        func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel?
+        var nativeMeteringSource: CaptureNativeMeteringSource? { get }
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String)
 
         /// The camera's reported status.
         var cameraStatus: CameraStatus { get }
@@ -134,6 +150,9 @@
         func refreshIsoLimit() async
     }
     public extension CaptureSheetHost {
+        func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel? { nil }
+        var nativeMeteringSource: CaptureNativeMeteringSource? { nil }
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String) {}
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,

@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineCore
 
 /// Wire protocol shared by the iPhone relay and the watchOS companion.
 ///
@@ -49,6 +50,42 @@ public struct NikonWatchRelayState: Codable, Equatable, Sendable {
         shotsRemaining: String = "",
         feedAspectRatio: Double = 16.0 / 9.0
     ) {
+        self.init(
+            recordState: recordState,
+            timecode: timecode,
+            mediaStatus: mediaStatus,
+            media: media,
+            cameraBatteryPercent: cameraBatteryPercent,
+            cameraName: cameraName,
+            isRecording: isRecording,
+            connection: connection,
+            feedLive: feedLive,
+            liveFPS: liveFPS,
+            isPhotography: isPhotography,
+            shotsRemaining: shotsRemaining,
+            feedAspectRatio: feedAspectRatio,
+            batteryReading: NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).batteryReading, batteryExhausted: NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).exhaustion)
+        batteryReadingWasDeclared = false
+        batteryExhaustedWasDeclared = false
+    }
+
+    public init(
+        recordState: RecordState,
+        timecode: Timecode,
+        mediaStatus: MediaStatus?,
+        media: String,
+        cameraBatteryPercent: Int,
+        cameraName: String,
+        isRecording: Bool,
+        connection: NikonWatchConnectionState,
+        feedLive: Bool,
+        liveFPS: String,
+        isPhotography: Bool = false,
+        shotsRemaining: String = "",
+        feedAspectRatio: Double = 16.0 / 9.0,
+        batteryReading: BatteryReading?,
+        batteryExhausted: Bool? = nil
+    ) {
         self.recordState = recordState
         self.timecode = timecode
         self.mediaStatus = mediaStatus
@@ -63,6 +100,10 @@ public struct NikonWatchRelayState: Codable, Equatable, Sendable {
         self.shotsRemaining = shotsRemaining
         // A non-positive ratio would collapse the wrist's feed box; fall back to cinema.
         self.feedAspectRatio = feedAspectRatio > 0 ? feedAspectRatio : 16.0 / 9.0
+        self.batteryReading = batteryReading
+        self.batteryExhausted = batteryExhausted
+        batteryReadingWasDeclared = true
+        batteryExhaustedWasDeclared = true
     }
 
     public let recordState: RecordState
@@ -87,6 +128,13 @@ public struct NikonWatchRelayState: Codable, Equatable, Sendable {
     /// without a second table to keep in sync.
     public let feedAspectRatio: Double
 
+    /// Charge at the source's declared precision. Explicit wire null remains unknown.
+    public let batteryReading: BatteryReading?
+    /// Camera-reported exhaustion, independent of low charge.
+    public let batteryExhausted: Bool?
+    private var batteryReadingWasDeclared: Bool
+    private var batteryExhaustedWasDeclared: Bool
+
     /// True when nothing the wrist renders *as state* differs from `other`.
     ///
     /// The two readouts that tick on their own are excluded. Timecode rides the frame stream and
@@ -98,6 +146,8 @@ public struct NikonWatchRelayState: Codable, Equatable, Sendable {
             && mediaStatus == other.mediaStatus
             && media == other.media
             && cameraBatteryPercent == other.cameraBatteryPercent
+            && batteryReading == other.batteryReading
+            && batteryExhausted == other.batteryExhausted
             && cameraName == other.cameraName
             && isRecording == other.isRecording
             && connection == other.connection
@@ -132,7 +182,62 @@ public struct NikonWatchRelayState: Codable, Equatable, Sendable {
             try container.decodeIfPresent(String.self, forKey: .shotsRemaining) ?? ""
         let ratio = try container.decodeIfPresent(Double.self, forKey: .feedAspectRatio)
         feedAspectRatio = (ratio ?? 0) > 0 ? (ratio ?? 0) : 16.0 / 9.0
+        batteryReadingWasDeclared = container.contains(.batteryReading)
+        batteryReading = batteryReadingWasDeclared
+            ? try container.decodeIfPresent(BatteryReading.self, forKey: .batteryReading)
+            : NikonCameraBatteryGauge.gauge(rawBatteryLevel: self.cameraBatteryPercent).batteryReading
+        batteryExhaustedWasDeclared = container.contains(.batteryExhausted)
+        batteryExhausted = batteryExhaustedWasDeclared
+            ? try container.decodeIfPresent(Bool.self, forKey: .batteryExhausted)
+            : batteryReadingWasDeclared ? nil
+                : NikonCameraBatteryGauge.gauge(rawBatteryLevel: cameraBatteryPercent).exhaustion
+
     }
+    private enum CodingKeys: String, CodingKey {
+        case recordState, timecode, mediaStatus, media, cameraBatteryPercent, cameraName, isRecording, connection, feedLive, liveFPS, isPhotography, shotsRemaining, feedAspectRatio, batteryReading, batteryExhausted
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(recordState, forKey: .recordState)
+        try container.encode(timecode, forKey: .timecode)
+        try container.encodeIfPresent(mediaStatus, forKey: .mediaStatus)
+        try container.encode(media, forKey: .media)
+        try container.encode(cameraBatteryPercent, forKey: .cameraBatteryPercent)
+        try container.encode(cameraName, forKey: .cameraName)
+        try container.encode(isRecording, forKey: .isRecording)
+        try container.encode(connection, forKey: .connection)
+        try container.encode(feedLive, forKey: .feedLive)
+        try container.encode(liveFPS, forKey: .liveFPS)
+        try container.encode(isPhotography, forKey: .isPhotography)
+        try container.encode(shotsRemaining, forKey: .shotsRemaining)
+        try container.encode(feedAspectRatio, forKey: .feedAspectRatio)
+        if batteryReadingWasDeclared {
+            try container.encode(batteryReading, forKey: .batteryReading)
+        }
+        if batteryExhaustedWasDeclared {
+            try container.encode(batteryExhausted, forKey: .batteryExhausted)
+        }
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.recordState == rhs.recordState
+            && lhs.timecode == rhs.timecode
+            && lhs.mediaStatus == rhs.mediaStatus
+            && lhs.media == rhs.media
+            && lhs.cameraBatteryPercent == rhs.cameraBatteryPercent
+            && lhs.cameraName == rhs.cameraName
+            && lhs.isRecording == rhs.isRecording
+            && lhs.connection == rhs.connection
+            && lhs.feedLive == rhs.feedLive
+            && lhs.liveFPS == rhs.liveFPS
+            && lhs.isPhotography == rhs.isPhotography
+            && lhs.shotsRemaining == rhs.shotsRemaining
+            && lhs.feedAspectRatio == rhs.feedAspectRatio
+            && lhs.batteryReading == rhs.batteryReading
+            && lhs.batteryExhausted == rhs.batteryExhausted
+    }
+
 }
 
 /// Phone → watch preview frame. Throttled and drop-stale (only the latest matters).
@@ -207,6 +312,22 @@ public enum NikonCameraBatteryGauge: Equatable, Sendable {
         case .unknown: return 0
         }
     }
+
+    /// A single common precision projection, including the legacy relay boundary.
+    public var batteryReading: BatteryReading? {
+        powerStatus.batteryReading
+    }
+
+    public var powerStatus: PowerStatus {
+        guard self != .unknown else { return .unknown }
+        return PowerStatus(battery: .init(Double(filledBars) / Double(Self.barCount),
+            origin: .cameraReported, at: nil,
+            precision: .quantized(step: 1 / Double(Self.barCount))),
+            exhausted: .init(isCritical, origin: .cameraReported, at: nil))
+    }
+
+    /// Unknown stays absent; a low ordinary bar explicitly reports no exhaustion.
+    public var exhaustion: Bool? { self == .unknown ? nil : isCritical }
 
     /// Whether the body has disabled the shutter for exhaustion.
     public var isCritical: Bool { self == .critical }

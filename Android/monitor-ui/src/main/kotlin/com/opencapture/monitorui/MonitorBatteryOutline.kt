@@ -53,7 +53,7 @@ fun monitorScaleToFitFactor(
 }
 
 @Composable
-private fun ScaleToFit(
+internal fun MonitorScaleToFit(
     minScale: Float,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
@@ -83,7 +83,7 @@ private fun ScaleToFit(
  */
 @Composable
 fun MonitorBatteryOutlineRow(percent: Int, charging: Boolean, camera: Boolean, bars: Int? = null, barCount: Int = 5) {
-    val level = bars?.let { it * 100 / barCount.coerceAtLeast(1) } ?: percent
+    val level = bars?.let { (it.toDouble() * 100 / barCount.coerceAtLeast(1)).toInt() } ?: percent
     val tint =
         when {
             level < 0 -> MonitorPalette.faint
@@ -104,7 +104,8 @@ fun MonitorBatteryOutlineRow(percent: Int, charging: Boolean, camera: Boolean, b
     ) {
         MonitorIcon(if (camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE, null, Modifier.size(10.dp),
             MonitorPalette.muted)
-        Box(Modifier.size(MONITOR_BATTERY_CELL_W_DP.dp, MONITOR_BATTERY_CELL_H_DP.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size((bars?.let { monitorGaugeReadoutWidth(it, barCount, MONITOR_BATTERY_CELL_W_DP,
+            if (charging) 13f else 6f) } ?: MONITOR_BATTERY_CELL_W_DP).dp, MONITOR_BATTERY_CELL_H_DP.dp), contentAlignment = Alignment.Center) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -112,13 +113,13 @@ fun MonitorBatteryOutlineRow(percent: Int, charging: Boolean, camera: Boolean, b
                     .clip(RoundedCornerShape(2.5.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                ScaleToFit(minScale = 0.65f, modifier = Modifier.fillMaxSize()) {
+                MonitorScaleToFit(minScale = if (bars != null && barCount > 10) 0.5f else 0.65f, modifier = Modifier.fillMaxSize()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(1.dp),
                     ) {
                         if (charging) MonitorIcon(MonitorIcon.ZAP, null, Modifier.size(7.dp), tint)
-                        if (bars != null) MonitorGaugeBars(bars.toFloat() / barCount.coerceAtLeast(1), barCount, tint)
+                        if (bars != null) MonitorGaugeBars(bars, barCount, tint)
                         else Text(
                             readout,
                             color = tint,

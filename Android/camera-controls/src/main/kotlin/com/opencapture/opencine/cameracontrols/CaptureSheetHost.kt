@@ -21,9 +21,18 @@ data class CaptureSheetRouting(
  * values, never as brand branches.
  */
 interface CaptureSheetHost {
+    /** A native typed body borrows the shared sheet chrome; absent means existing controls. */
+    @Composable fun nativeCapturePanel(sheet: LiveSheet, enabled: Boolean): (@Composable () -> Unit)? = null
+
+    /** Coherent native quick choices retain real backend identifiers in the app adapter. */
+    fun nativeCaptureQuick(sheet: LiveSheet, status: CameraStatus): com.opencapture.monitorui.MonitorQuickControl? = null
+    fun commitNativeCaptureQuick(sheet: LiveSheet, selection: String) {}
+
     /** The connected body, or null before one is known. */
     val camera: CameraModel?
     val labelProfile: CameraLabelProfile
+    /** Existing hosts retain their pending readout policy; report-only hosts declare it. */
+    val captureReadoutSelection: com.opencapture.opencine.appkit.MonitorCaptureSelection get() = com.opencapture.opencine.appkit.MonitorCaptureSelection.PENDING
     val audioService: CaptureAudioService? get() = null
     /** Compatibility route for original hosts; migrated composition supplies it explicitly. */
     val captureRouting: CaptureSheetRouting get() = CaptureSheetRouting(commonExposureCompensation = true, commonFocusMode = true)

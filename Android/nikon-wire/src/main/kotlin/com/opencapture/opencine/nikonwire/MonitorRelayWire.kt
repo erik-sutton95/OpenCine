@@ -1,5 +1,7 @@
 package com.opencapture.opencine.nikonwire
 
+import com.opencapture.opencine.core.BatteryReading
+import com.opencapture.opencine.nikon.NikonCameraBatteryGauge
 import java.util.Base64
 import org.json.JSONArray
 import org.json.JSONException
@@ -254,7 +256,9 @@ object MonitorRelayWire {
     )
 
     /** Host → viewer camera readouts; field-for-field the core's `MonitorRelayState`. */
-    data class State(
+    // The deployed DTO keeps its public copy API while codecs own presence metadata.
+    @ExposedCopyVisibility
+    data class State internal constructor(
         val recordState: String,
         val resolutionFrameRate: String,
         val codec: String,
@@ -268,7 +272,83 @@ object MonitorRelayWire {
         val mediaStatus: MediaStatus?,
         val isRecording: Boolean,
         val allowsControlRequests: Boolean? = null,
+        private val reportedBatteryReading: BatteryReading?,
+        private val reportedBatteryExhausted: Boolean?,
+        private val readingDeclared: Boolean,
+        private val exhaustionDeclared: Boolean,
     ) {
+        constructor(
+            recordState: String,
+            resolutionFrameRate: String,
+            codec: String,
+            media: String,
+            liveFPS: String,
+            cameraBatteryPercent: Int,
+            cameraName: String,
+            lens: String,
+            temperature: String,
+            values: List<StateValue>,
+            mediaStatus: MediaStatus?,
+            isRecording: Boolean,
+            allowsControlRequests: Boolean? = null,
+        ) : this(
+            recordState = recordState,
+            resolutionFrameRate = resolutionFrameRate,
+            codec = codec,
+            media = media,
+            liveFPS = liveFPS,
+            cameraBatteryPercent = cameraBatteryPercent,
+            cameraName = cameraName,
+            lens = lens,
+            temperature = temperature,
+            values = values,
+            mediaStatus = mediaStatus,
+            isRecording = isRecording,
+            allowsControlRequests = allowsControlRequests,
+            reportedBatteryReading = null, reportedBatteryExhausted = null,
+            readingDeclared = false, exhaustionDeclared = false,
+        )
+
+        constructor(
+            recordState: String,
+            resolutionFrameRate: String,
+            codec: String,
+            media: String,
+            liveFPS: String,
+            cameraBatteryPercent: Int,
+            cameraName: String,
+            lens: String,
+            temperature: String,
+            values: List<StateValue>,
+            mediaStatus: MediaStatus?,
+            isRecording: Boolean,
+            allowsControlRequests: Boolean? = null,
+            batteryReading: BatteryReading?, batteryExhausted: Boolean? = null,
+        ) : this(
+            recordState = recordState,
+            resolutionFrameRate = resolutionFrameRate,
+            codec = codec,
+            media = media,
+            liveFPS = liveFPS,
+            cameraBatteryPercent = cameraBatteryPercent,
+            cameraName = cameraName,
+            lens = lens,
+            temperature = temperature,
+            values = values,
+            mediaStatus = mediaStatus,
+            isRecording = isRecording,
+            allowsControlRequests = allowsControlRequests,
+            reportedBatteryReading = batteryReading, reportedBatteryExhausted = batteryExhausted,
+            readingDeclared = true, exhaustionDeclared = true,
+        )
+
+        val batteryReading: BatteryReading?
+            get() = if (readingDeclared) reportedBatteryReading else
+                NikonCameraBatteryGauge.gauge(cameraBatteryPercent).batteryReading
+        val batteryExhausted: Boolean?
+            get() = if (exhaustionDeclared) reportedBatteryExhausted else if (readingDeclared) null else
+                NikonCameraBatteryGauge.gauge(cameraBatteryPercent).exhaustion
+
         fun toJson(): JSONObject =
             JSONObject().apply {
                 put("recordState", recordState)
@@ -277,6 +357,8 @@ object MonitorRelayWire {
                 put("media", media)
                 put("liveFPS", liveFPS)
                 put("cameraBatteryPercent", cameraBatteryPercent)
+                if (readingDeclared) put("batteryReading", BatteryRelayJSON.encode(batteryReading))
+                if (exhaustionDeclared) put("batteryExhausted", batteryExhausted ?: JSONObject.NULL)
                 put("cameraName", cameraName)
                 put("lens", lens)
                 put("temperature", temperature)
@@ -319,6 +401,14 @@ object MonitorRelayWire {
                     media = json.getString("media"),
                     liveFPS = json.getString("liveFPS"),
                     cameraBatteryPercent = json.getInt("cameraBatteryPercent"),
+                    reportedBatteryReading = BatteryRelayJSON.decode(json.opt("batteryReading")),
+                    reportedBatteryExhausted = if (json.has("batteryExhausted") && !json.isNull("batteryExhausted")) {
+                        val reported = json.get("batteryExhausted")
+                        require(reported is Boolean) { "Battery exhaustion is not a boolean" }
+                        reported
+                    } else null,
+                    readingDeclared = json.has("batteryReading"),
+                    exhaustionDeclared = json.has("batteryExhausted"),
                     cameraName = json.getString("cameraName"),
                     lens = json.getString("lens"),
                     temperature = json.getString("temperature"),

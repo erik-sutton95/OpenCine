@@ -104,6 +104,7 @@ struct AndroidCameraPropertyReadbackTests {
         #expect(fields["storageSlot.0.storageId"] == String(FakeZRMediaCard.storageID))
         #expect(fields["storageSlot.0.slotNumber"] == "1")
         #expect(fields["resolutionFrameRate"] == "6K · 25p")
+        #expect(fields["options.recordingFormat"] == "6K · 25p\u{1E}\u{1E}6K\u{1E}25p\u{1F}4K · 60p\u{1E}\u{1E}4K\u{1E}60p")
         #expect(fields["codecSelection"] == "R3D NE")
         #expect(fields["tone"] == "Log3G10")
         #expect(fields["whiteBalanceTint"] == "Neutral")

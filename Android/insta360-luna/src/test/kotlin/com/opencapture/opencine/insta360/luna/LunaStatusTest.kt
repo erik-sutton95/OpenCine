@@ -21,6 +21,19 @@ class LunaStatusTest {
         a00601c00603
         """)
 
+    @Test fun nativeRecordingReadoutWithdrawsAnExplicitMissingOptionAndPreservesPartialReplies() {
+        val known = LunaPhotographySettings(types = listOf(31, 35), recordResolution = 48L, colorMode = 2L)
+        val partial = known.merge(LunaPhotographySettings(types = listOf(39), whiteBalanceKelvin = 5600L))
+        assertEquals(48L, partial.recordResolution)
+        assertEquals(2L, partial.colorMode)
+        val formatMissing = partial.merge(LunaPhotographySettings(types = listOf(31)))
+        assertNull(LunaReadout.readout(formatMissing, null, null).recordFormat)
+        assertEquals(CameraColorProfile.LOG, LunaReadout.readout(formatMissing, null, null).color)
+        val profileMissing = partial.merge(LunaPhotographySettings(types = listOf(35)))
+        assertNull(LunaReadout.readout(profileMissing, null, null).color)
+        assertEquals(48L, LunaReadout.readout(profileMissing, null, null).recordFormat?.id)
+    }
+
     @Test fun videoModePhotographyReply() {
         val s = LunaPhotographySettings.parse(videoReply)
         assertEquals(31, s.types.first())
