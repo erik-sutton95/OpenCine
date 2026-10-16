@@ -19,6 +19,9 @@ public struct IntegrationSlots {
     public var pairing: (() -> AnyView)?
     /// Builds a route to add to a saved camera; `nil` cancels.
     public var addRoute: ((SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AnyView)?
+    /// Typed setup capabilities and actions, preferred by the shared screen when present.
+    public var addSetup:
+        (@MainActor (SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AddSetupFlow)?
     /// Renders an integration prompt; `nil` falls back to its text.
     public var prompt: ((any IntegrationPrompt) -> AnyView?)?
     /// The app's words for a nearby camera's card and pair-page row; `nil` keeps the shell's.
@@ -28,10 +31,14 @@ public struct IntegrationSlots {
         pairing: (() -> AnyView)? = nil,
         addRoute: ((SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AnyView)? = nil,
         prompt: ((any IntegrationPrompt) -> AnyView?)? = nil,
-        nearbyCard: ((NearbyCamera) -> NearbyCardCopy)? = nil
+        nearbyCard: ((NearbyCamera) -> NearbyCardCopy)? = nil,
+        addSetup: (
+            @MainActor (SavedCamera, _ done: @escaping (RouteDraft?) -> Void) -> AddSetupFlow
+        )? = nil
     ) {
         self.pairing = pairing
         self.addRoute = addRoute
+        self.addSetup = addSetup
         self.prompt = prompt
         self.nearbyCard = nearbyCard
     }

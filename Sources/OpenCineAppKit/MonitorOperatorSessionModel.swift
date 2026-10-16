@@ -69,7 +69,10 @@ public final class MonitorOperatorSessionModel<Looks: MonitorLookProvider> {
 
     public func mounts(_ section: MonitorDisplayChrome.Section) -> Bool {
         if editingMode == mode, MonitorDisplayChrome.isConfigurable(section, in: mode) { return true }
-        if section == .railSettings, !modes.contains(where: { chrome(for: $0).railSettings }) { return true }
+        if section == .railSettings {
+            return MonitorSideRailPlan.showsSettings(visible: chrome.railSettings,
+                reachable: modes.contains(where: { chrome(for: $0).railSettings }))
+        }
         return chrome.isVisible(section)
     }
 

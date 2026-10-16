@@ -17,7 +17,10 @@ final class MonitorPortraitStatusGeometryTests: XCTestCase {
         addTeardownBlock { try await fixture.close() }
         let value = try await fixture.measure()
         try fixture.requireNativeValues(value)
-        XCTAssertEqual(value.status.width, 412, accuracy: 0.5)
+        // B5 layout mechanism: the portrait band spans the viewport minus both
+        // header insets, max(16, safe + 8) per side (440 - 16 - 16 = 408). The
+        // pre-B5 expectation baked the old 14 pt edge (412).
+        XCTAssertEqual(value.status.width, fixture.probe.statusBandWidth, accuracy: 0.5)
         XCTAssertEqual(value.status.height, 44, accuracy: 0.5)
         XCTAssertGreaterThanOrEqual(value.clock.minX - value.recording.maxX, 8 - 0.5)
         XCTAssertGreaterThanOrEqual(value.format.minX - value.clock.maxX, 8 - 0.5)
@@ -47,7 +50,10 @@ final class MonitorPortraitStatusGeometryTests: XCTestCase {
         addTeardownBlock { try await fixture.close() }
         let value = try await fixture.measure()
         try fixture.requireNativeValues(value)
-        XCTAssertEqual(value.status.width, 292, accuracy: 0.5)
+        // B5 layout mechanism: the portrait band spans the viewport minus both
+        // header insets, max(16, safe + 8) per side (320 - 16 - 16 = 288). The
+        // pre-B5 expectation baked the old 14 pt edge (292).
+        XCTAssertEqual(value.status.width, fixture.probe.statusBandWidth, accuracy: 0.5)
         XCTAssertEqual(value.status.minY, CGFloat(fixture.probe.layout.status.y), accuracy: 0.5)
         XCTAssertGreaterThan(value.status.height, 44)
         XCTAssertGreaterThanOrEqual(value.clock.minX - value.recording.maxX, 8 - 0.5)
@@ -82,6 +88,8 @@ private final class PortraitStatusProbe {
     let compact: Bool
     let rightToLeft: Bool
     let scene: UIWindowScene
+    /// SIMULATED notch-only safe area: no side insets, matching the hosted scene.
+    let safeArea = MonitorSafeArea(top: 62)
     let layout: FieldMonitorLayout
     let control = MonitorControlModel()
     let state = MonitorOperatorCaptureState<String, Never>()
@@ -91,7 +99,14 @@ private final class PortraitStatusProbe {
     init(width: CGFloat, compact: Bool, rightToLeft: Bool, scene: UIWindowScene) {
         self.width = width; self.compact = compact; self.rightToLeft = rightToLeft
         self.scene = scene
-        layout = FieldMonitorLayout(width: Double(width), height: 956, safeArea: .init(top: 62))
+        layout = FieldMonitorLayout(width: Double(width), height: 956, safeArea: safeArea)
+    }
+    /// B5's portrait phone status band width, re-derived from the mechanism that
+    /// produces it (FieldMonitorLayout's portrait header: the band leads and trails
+    /// by max(16, safe + 8), replacing the pre-B5 14 pt edge), not from a recorded
+    /// run, so an inset regression moves the expectation and fails the suite.
+    var statusBandWidth: CGFloat {
+        width - CGFloat(max(16, safeArea.leading + 8)) - CGFloat(max(16, safeArea.trailing + 8))
     }
     var scenePhase: ScenePhase {
         switch scene.activationState {
@@ -144,6 +159,13 @@ private struct PortraitStatusSurface: View {
             enabled: true, commandEnabled: false, currentSource: { true }, coordinateSpace: "status.geometry") {
             Text(value).font(MonitorTheme.font(portrait ? 23 : 16, weight: .medium))
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                // Production gives every portrait header readout a 44 pt minimum frame
+                // (MonitorOperatorLiveSurface.headerReadout), so the readout's own 44 pt
+                // touch target (MonitorOperatorCaptureHeaderReadout) coincides with its
+                // rendered content and its native frame lands exactly on the band. Without
+                // the floor the target centers on the bare glyphs and rides above the band:
+                // a fixture-representativeness gap, not product geometry.
+                .frame(minWidth: 44, minHeight: 44, alignment: .topTrailing)
         }
     }
 }
@@ -298,6 +320,11 @@ private final class PortraitStatusFixture {
         }
     }
     func requireContained(_ value: PortraitStatusMeasurement) {
+        // B5's one-row portrait status places every readout on the rendered band, so
+        // each native touch target must sit inside it (the band's own design: readout
+        // tops share one native anchor, and the telemetry band overlays above through
+        // the layout's telemetry.y - 13 - status.y offset). The fixture readouts carry
+        // production's 44 pt minimum frame, so a lost floor or a moved band fails here.
         for frame in [value.recording, value.clock, value.format] + [value.codec].compactMap({ $0 }) {
             XCTAssertTrue(value.status.insetBy(dx: -0.5, dy: -0.5).contains(frame), "Native frame \(frame) outside status \(value.status)")
             XCTAssertTrue(UIAccessibility.convertToScreenCoordinates(window.bounds, in: window).insetBy(dx: -0.5, dy: -0.5).contains(frame),

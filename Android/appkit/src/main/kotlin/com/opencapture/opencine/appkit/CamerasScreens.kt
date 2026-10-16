@@ -44,6 +44,7 @@ import com.opencapture.monitorui.MonitorLayoutPolicy
 import com.opencapture.monitorui.MonitorPairCameraPage
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.opencine.core.ConnectTarget
+import com.opencapture.opencine.core.ConfirmationPrompt
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.RecoveryAction
@@ -77,7 +78,7 @@ public fun CamerasScreen(
     /** Superseded by the integration's [com.opencapture.opencine.core.IntegrationPresentation.namesSetups]; `false` still hides Rename setup. */
     renamesSetups: Boolean = true,
     onPairNearby: () -> Unit = onPair,
-) {
+): Unit = OperatorConsentPresenter(model.consent) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -100,7 +101,10 @@ public fun CamerasScreen(
         }
     }
     val paired = CamerasMapping.paired(model).map { item ->
-        item.copy(canAddSetup = item.canAddSetup && saved(item.id)?.let { slots(model, it.integration).addRoute } != null)
+        item.copy(canAddSetup = item.canAddSetup && saved(item.id)?.let {
+            val integrationSlots = slots(model, it.integration)
+            integrationSlots.addSetup != null || integrationSlots.addRoute != null
+        } == true)
     }
     MonitorCameraPage(
         brand = brandName,
@@ -187,17 +191,30 @@ public fun CamerasScreen(
         },
     )
     adding?.let { camera ->
-        slots(model, camera.integration).addRoute?.let { slot ->
+        val integrationSlots = slots(model, camera.integration)
+        if (integrationSlots.addSetup != null || integrationSlots.addRoute != null) {
             Dialog(onDismissRequest = { adding = null }) {
-                slot(camera) { draft ->
+                val done: (com.opencapture.opencine.core.RouteDraft?) -> Unit = { draft ->
                     adding = null
                     if (draft != null) model.addRoute(draft, camera)
+                }
+                val typed = integrationSlots.addSetup
+                if (typed != null) {
+                    val flow = typed(camera, done)
+                    val configured = if (flow.initialSelection == null) {
+                        AddSetupFlow(chooser = flow.chooser, onSelect = flow.onSelect, destination = flow.destination,
+                            initialSelection = CamerasMapping.addSetupSelection(model, camera, flow.chooser), onDismiss = flow.onDismiss,
+                            onNoticeAction = flow.onNoticeAction, onCancel = flow.onCancel, cancelTitle = flow.cancelTitle)
+                    } else flow
+                    AddSetupFlowView(configured, Modifier.background(MonitorPalette.surface, RoundedCornerShape(20.dp)))
+                } else {
+                    integrationSlots.addRoute?.invoke(camera, done)
                 }
             }
         }
     }
     state.attempts.values.firstNotNullOfOrNull { attempt ->
-        (attempt.prompt as? ConnectionPrompt.Integration)?.let { prompt -> slots(model, attempt.integration).prompt?.let { it to prompt } }
+        (attempt.prompt as? ConnectionPrompt.Integration)?.takeUnless { it.prompt is ConfirmationPrompt }?.let { prompt -> slots(model, attempt.integration).prompt?.let { it to prompt } }
     }?.let { (slot, prompt) ->
         Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.BottomCenter) { slot(prompt.prompt) }
     }
@@ -274,7 +291,7 @@ public fun PairScreen(
     pairingFlow: IntegrationPairingFlow? = null,
     onPrivacy: (() -> Unit)? = null,
     onTerms: (() -> Unit)? = null,
-) {
+): Unit = OperatorConsentPresenter(model.consent) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
     DisposableEffect(model) {
@@ -310,7 +327,7 @@ public fun PairScreen(
             } else if (attempt != null) {
                 val prompt = attempt.prompt as? ConnectionPrompt.Integration
                 val slot = slots(model, attempt.integration).prompt
-                if (prompt != null && slot != null) slot(prompt.prompt)
+                if (prompt != null && prompt.prompt !is ConfirmationPrompt && slot != null) slot(prompt.prompt)
             } else {
                 model.entries.forEach { entry -> entry.slots.pairing?.invoke() }
             }

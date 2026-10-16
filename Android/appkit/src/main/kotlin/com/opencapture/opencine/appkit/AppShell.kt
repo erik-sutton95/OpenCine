@@ -83,7 +83,7 @@ public fun AppShell(
     prePage: (@Composable () -> Unit)? = null,
     pairingFlow: IntegrationPairingFlow? = null,
     coverPresentation: ShellCoverPresentation = ShellCoverPresentation.MONITOR,
-) {
+): Unit = OperatorConsentPresenter(model.cameras.consent) {
     val shell by model.state.collectAsState()
     val cameras by model.cameras.state.collectAsState()
     Box(modifier.fillMaxSize()) {

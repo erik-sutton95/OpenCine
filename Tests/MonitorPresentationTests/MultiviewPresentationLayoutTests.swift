@@ -120,6 +120,8 @@ struct MultiviewPresentationLayoutTests {
         let live = FieldMonitorLayout(
             width: 393, height: 852, safeArea: .init(top: 59, bottom: 34))
         #expect(layout.sessionControls.y == live.gauges.y)
+        #expect(layout.sessionControls.y == 19)
+        #expect(main.y == 77)
         #expect(main == MonitorRect(
             x: 15, y: layout.sessionControls.maxY + 10, width: 363, height: 204.1875))
         // Readouts sit directly under the main picture, the feeds below them.

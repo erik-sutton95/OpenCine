@@ -78,13 +78,7 @@ public enum MonitorFeedEffectsWire {
 
     /// Display-referred feeds read larger gradients than log (iOS `peakingGateScale`).
     public static func peakingGateScale(for transfer: MonitorTransfer) -> Double {
-        switch transfer {
-        case .rec709, .hdr, .srgb:
-            let gradient = 1.57
-            return gradient * gradient
-        case .dlog, .dlog2, .dlogm, .ilog, .nlog, .log3G10:
-            return 1
-        }
+        Peaking.gateScale(for: transfer)
     }
 
     /// Each JNI call carries its session's ISO, so the facade builds that source's ceiling

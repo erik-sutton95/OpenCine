@@ -8,10 +8,14 @@ import os
 /// Redaction, os_log and journal writes ride a utility queue: `line` never runs regexes or file
 /// I/O on the caller's thread (a socket queue pumping acknowledgements, or Main). Person
 /// identifiers are stripped (the host's `redact`) before a line is stored.
+///
+/// `cap` bounds the file in lines on the trim cadence (Kotlin twin: `DiagnosticJournal(cap)`):
+/// the default keeps the report's journal size; a host journal of closed events or a connect
+/// trace passes its own smaller bound.
 public final class DiagnosticJournal: @unchecked Sendable {
     private let log: Logger
     private let queue = DispatchQueue(label: "opv.control-log", qos: .utility)
-    private let cap = DiagnosticReport.journalCap
+    private let cap: Int
     /// Trim cadence in appends, not a size stat per line.
     private let trimEvery = 128
     private let url: URL?
@@ -24,10 +28,12 @@ public final class DiagnosticJournal: @unchecked Sendable {
 
     public init(
         subsystem: String, category: String, file: URL?,
+        cap: Int = DiagnosticReport.journalCap,
         redact: @escaping @Sendable (String) -> String
     ) {
         log = Logger(subsystem: subsystem, category: category)
         url = file
+        self.cap = max(1, cap)
         self.redact = redact
     }
 

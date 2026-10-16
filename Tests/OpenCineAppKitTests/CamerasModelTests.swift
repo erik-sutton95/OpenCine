@@ -5,6 +5,19 @@ import OpenCineCore
 import OpenCineCoreTestSupport
 import Testing
 
+@MainActor
+private final class ConsentAdmissions { var count = 0 }
+
+private struct TestConfirmationPrompt: ConfirmationPrompt {
+    let confirmationID = UUID().uuidString
+    let confirmationTitle = "Continue?"
+    let fallbackText = "Another operator loses their session."
+    let confirmTitle = "Continue"
+    let cancelTitle = "Cancel"
+    var confirm: @MainActor @Sendable () -> Void
+    var cancel: @MainActor @Sendable () -> Void = {}
+}
+
 /// The shared connection model against scripted integrations. Kotlin mirror: `CamerasModelTest`,
 /// same method names.
 @MainActor
@@ -28,7 +41,37 @@ import Testing
     func model(saved: [SavedCamera] = [camera]) -> CamerasModel {
         let store = SavedCamerasStore(document: defaults.at("document"))
         store.save(saved)
-        return CamerasModel(integrations: [AppIntegration(fake), AppIntegration(listening)], store: store)
+        return CamerasModel(
+            integrations: [AppIntegration(fake), AppIntegration(listening)], store: store)
+    }
+
+    @available(macOS 14, *)
+    @Test func aNeutralPromptReachesOneConsumedShellConsent() async {
+        let model = model()
+        let admissions = ConsentAdmissions()
+        let prompt = TestConfirmationPrompt(confirm: { admissions.count += 1 })
+        model.connect(Self.camera)
+        fake.attempts[0].progress(.negotiating, step: 0, prompt: .integration(prompt))
+        #expect(await eventually { model.consent.pending?.title == "Continue?" })
+        model.consent.confirm(prompt.confirmationID)
+        fake.attempts[0].progress(.negotiating, step: 1, prompt: .integration(prompt))
+        #expect(await eventually { model.attempts[Self.camera.id]?.progress?.current == 1 })
+        model.consent.confirm(prompt.confirmationID)
+        #expect(admissions.count == 1)
+        #expect(model.consent.pending == nil)
+    }
+
+    @available(macOS 14, *)
+    @Test func retiringTheModelAttemptInvalidatesItsShellConsent() async {
+        let model = model()
+        let admissions = ConsentAdmissions()
+        let prompt = TestConfirmationPrompt(confirm: { admissions.count += 1 })
+        model.connect(Self.camera)
+        fake.attempts[0].progress(.negotiating, step: 0, prompt: .integration(prompt))
+        #expect(await eventually { model.consent.pending != nil })
+        model.cancel(Self.camera.id)
+        model.consent.confirm(prompt.confirmationID)
+        #expect(admissions.count == 0 && model.consent.pending == nil)
     }
 
     @available(macOS 14, *)
@@ -73,7 +116,9 @@ import Testing
         let reaching = NearbyCamera(
             id: "n1", savedID: Self.camera.id, name: "CAM-1", model: "Test Body", routes: [.infrastructureNetwork],
             routeKey: Self.wifi.key)
-        for (policy, expected) in [(CamerasModel.RoutePolicy.preferred, Self.ap), (.preferReachable, Self.wifi)] {
+        for (policy, expected) in [
+            (CamerasModel.RoutePolicy.preferred, Self.ap), (.preferReachable, Self.wifi),
+        ] {
             let fake = FakeIntegration(id: IntegrationID("test.cameras"))
             let store = SavedCamerasStore(document: Defaults([:]).at("document"))
             store.save([Self.camera])

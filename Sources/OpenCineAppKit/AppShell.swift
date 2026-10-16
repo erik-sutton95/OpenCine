@@ -104,8 +104,7 @@
                 if let live = model.monitor {
                     monitor(live)
                         .id(live.id)
-                        .accessibilityElement(children: hidesMonitor ? .ignore : .contain)
-                        .accessibilityHidden(hidesMonitor)
+                        .monitorPresentationVisibility(!hidesMonitor)
                         .onAppear { model.noteHost(mounted: true) }
                         .onDisappear { model.noteHost(mounted: false) }
                 } else {
@@ -126,6 +125,7 @@
                     page(cover)
                 }
             }
+            .operatorConsentPresenter(model.cameras.consent)
         }
 
         private var hidesMonitor: Bool { coverPresentation == .shell && model.cover != nil }

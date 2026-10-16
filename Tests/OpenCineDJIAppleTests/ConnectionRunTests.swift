@@ -162,6 +162,34 @@ struct DJIAppleConnectionRunTests {
         #expect(!peer.trace.contains("close endpoint"))
     }
 
+    @Test func apJoinRequestCarriesItsAttemptValidityForQueuedHotspotWork() async {
+        let peer = Peer(); peer.cached = true
+        let gate = Gate()
+        defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
+        peer.onJoin = { await gate.wait() }
+        peer.owner.replace(target: peer.camera, setup: .cameraWiFi)
+        await peer.until { gate.isWaiting }
+        let first = peer.joinRequests.first
+        #expect(first?.isCurrent() == true)
+        peer.onJoin = nil
+        peer.owner.replace(target: peer.camera, setup: .cameraWiFi)
+        await peer.finished()
+        #expect(first?.isCurrent() == false, "the replaced run's queued hotspot work is no longer admitted")
+        #expect(peer.joinRequests.count == 2)
+        gate.resume()
+    }
+
+    @Test func defaultLeaveIfCurrentKeepsTheOriginalLeaveForACurrentRequest() {
+        let left = LeftSSIDs()
+        let network = DjiAppleConnectionTransport.Network(cameraPathReady: { true },
+            stationPathReady: { _ in true }, joinAccessPoint: { _ in }, rejectsCredentials: { _ in false },
+            joinHost: { _, _ in nil }, leave: { left.values.append($0) }, currentSSID: { nil },
+            candidates: { _ in [] }, subnetSize: { _ in nil })
+        network.leaveIfCurrent("A", { true })
+        network.leaveIfCurrent("B", { false })
+        #expect(left.values == ["A"])
+    }
+
     @Test func retiredCredentialRequestCannotCancelSuccessorRequestWithSameOpcode() async {
         let peer = Peer()
         defer { peer.owner.retire(); peer.exchange.stopBLEDrain(); peer.heartbeat.stop() }
@@ -476,6 +504,7 @@ struct DJIAppleConnectionRunTests {
         var onResolve: (() -> Void)?
         var onConnect: (() async throws -> Void)?
         var onJoin: (() async throws -> Void)?
+        var joinRequests: [DjiAppleConnectionTransport.AccessPointJoin] = []
         var onDiscover: (() async throws -> [String])?
         var onOpen: (() async throws -> Void)?
         var onSend: ((Duml.Frame) -> Bool)?
@@ -561,7 +590,9 @@ struct DJIAppleConnectionRunTests {
                     trace.append("disconnect BLE"); continuation?.finish()
                 }, retryableDrop: { _ in false }),
                 network: .init(cameraPathReady: { [unowned self] in apReady }, stationPathReady: { _ in true },
-                    joinAccessPoint: { [unowned self] _ in trace.append("join AP"); try await onJoin?() },
+                    joinAccessPoint: { [unowned self] request in
+                        trace.append("join AP"); joinRequests.append(request); try await onJoin?()
+                    },
                     rejectsCredentials: { [unowned self] _ in rejectJoin }, joinHost: { [unowned self] _, _ in
                         trace.append("join host"); return "192.0.2.2"
                     }, leave: { _ in }, currentSSID: { nil }, candidates: { [unowned self] _ in
@@ -631,3 +662,5 @@ struct DJIAppleConnectionRunTests {
         func close() { closed = true; peer.trace.append("close endpoint") }
     }
 }
+
+@MainActor private final class LeftSSIDs { var values: [String] = [] }

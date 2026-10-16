@@ -15,7 +15,7 @@
         @Environment(\.interfaceLocked) private var locked
         @Binding var menu: LiveTopMenu?
         var layout: LiveMonitorLayout
-        @State private var storagePercent = false
+        @State private var showStorageDuration = false
         @State private var readoutOwnership = MonitorReadoutOwnership()
 
         public init(menu: Binding<LiveTopMenu?>, layout: LiveMonitorLayout) {
@@ -103,7 +103,7 @@
 
         private var storageButton: some View {
             Button {
-                storagePercent.toggle()
+                showStorageDuration.toggle()
             } label: {
                 HStack(spacing: 5) {
                     MonitorIcon.cardSim.frame(width: 12, height: 12)
@@ -113,7 +113,8 @@
                                 ? 14
                                 : (layout.presentation?.tablet == true ? 18 : 16), weight: .medium)
                     ).monospacedDigit()
-                        .lineLimit(1).minimumScaleFactor(0.75)
+                        .lineLimit(1).minimumScaleFactor(
+                            layout.presentation?.portrait == true ? 11.0 / 14.0 : 0.75)
                 }.foregroundStyle(.white)
             }
             .buttonStyle(.monitorTapTarget).accessibilityLabel("Storage remaining")
@@ -121,8 +122,14 @@
         }
 
         private var storage: String {
+            // The unified capability readout owns the values; the toggle shows the volume's
+            // remaining recording time in video, marked estimated by the shared observation.
+            if showStorageDuration && !host.cameraStatus.isPhoto {
+                return host.control.snapshot?.storage.recordingTimeLabel
+                    ?? MonitorStorageReadoutFormat.remainingMinutes(nil)
+            }
             guard let readout = host.control.snapshot?.storage.storageReadout else { return StorageReadout.unavailable }
-            return storagePercent ? readout.percent ?? readout.free : readout.free
+            return readout.free
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {
