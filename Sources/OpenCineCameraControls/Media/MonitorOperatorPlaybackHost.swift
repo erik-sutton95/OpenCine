@@ -15,16 +15,36 @@ import UIKit
 @MainActor public protocol MonitorPlaybackPresentationSource: AnyObject {
     associatedtype Payload: Sendable
     associatedtype Look: Sendable
+    /// What the share popup presents: the record itself unless the source captures more.
+    associatedtype Delivery = MonitorMediaRecord<Payload>
     var presentation: MonitorApplePlaybackPresentation<Payload, Look> { get }
     func makeOwner() -> MonitorOperatorMediaModel<Payload, Look>
     func operations(owner: MonitorOperatorMediaModel<Payload, Look>) -> MonitorOperatorPlaybackOperations<Payload, Look>
     func values(record: MonitorMediaRecord<Payload>, owner: MonitorOperatorMediaModel<Payload, Look>)
         -> MonitorPlaybackSourceValues
+    /// Captures the share popup's request when the operator shares `record`; nil refuses it.
+    func delivery(record: MonitorMediaRecord<Payload>, owner: MonitorOperatorMediaModel<Payload, Look>)
+        -> Delivery?
+    /// Work Close must join before the page dismisses (for example a native transfer the
+    /// source entered). Nil dismisses at once; the join's result decides whether to dismiss.
+    func captureClose(owner: MonitorOperatorMediaModel<Payload, Look>) -> (@MainActor () async -> Bool)?
+}
+
+extension MonitorPlaybackPresentationSource where Delivery == MonitorMediaRecord<Payload> {
+    public func delivery(record: MonitorMediaRecord<Payload>, owner: MonitorOperatorMediaModel<Payload, Look>)
+        -> Delivery? { record }
+}
+
+extension MonitorPlaybackPresentationSource {
+    public func captureClose(owner: MonitorOperatorMediaModel<Payload, Look>) -> (@MainActor () async -> Bool)? {
+        nil
+    }
 }
 
 /// The app state the playback and photo pages read.
 @MainActor public protocol MonitorMediaHost: AnyObject {
-    var assist: MonitorAssistState<MonitorLUTLooks> { get }
+    associatedtype Looks: MonitorLookProvider
+    var assist: MonitorAssistState<Looks> { get }
     var assistToolUsage: MonitorToolUsage { get set }
     /// The app-scoped delivery owner; it covers playback while it runs or shares.
     var delivery: MonitorDeliveryCoordinator { get }
@@ -57,6 +77,23 @@ public struct MonitorMediaPageValues<Palette: LiveChromePalette> {
     }
 }
 
+/// Optional playback page values an app adds to the shared page; the defaults are the shared
+/// page's own.
+public struct MonitorPlaybackPageOptions {
+    public var signalOptions: MonitorOperatorSignalOptions
+    /// The assist tools this source offers in playback; nil offers every shared tool.
+    public var availableAssistTools: Set<MonitorAssistSelection>?
+    public var initialRatingShadeOpen: Bool
+    public var initialChromeVisible: Bool
+
+    public init(signalOptions: MonitorOperatorSignalOptions = .init(),
+        availableAssistTools: Set<MonitorAssistSelection>? = nil,
+        initialRatingShadeOpen: Bool = false, initialChromeVisible: Bool = true) {
+        self.signalOptions = signalOptions; self.availableAssistTools = availableAssistTools
+        self.initialRatingShadeOpen = initialRatingShadeOpen; self.initialChromeVisible = initialChromeVisible
+    }
+}
+
 /// The one playback page of the camera apps: the shared operator screen over a source's item
 /// owner, the native picture, the video backdrop, the delivery cover and the share popup.
 /// The page is covered (playback paused) while its share popup is up and while the app's
@@ -76,22 +113,24 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
     private let captureSource: @MainActor () -> MonitorPlaybackAdmission
     private let preview: (MonitorAssistSelection) -> Preview
     private let lookMenu: () -> LookMenu
-    private let deliveryPopup: (MonitorMediaRecord<Payload>, @escaping () -> Void) -> DeliveryPopup
+    private let deliveryPopup: (Source.Delivery, @escaping () -> Void) -> DeliveryPopup
+    private let options: MonitorPlaybackPageOptions
     @Environment(\.dismiss) private var dismiss
     @State private var page: Page?
     @State private var sourceAdmission: MonitorPlaybackAdmission?
     @State private var pictureGeometry: MonitorPlaybackPictureGeometry?
-    @State private var deliveryRecord: MonitorMediaRecord<Payload>?
+    @State private var delivery: Source.Delivery?
 
     /// `captureSource` runs once when the page opens and returns the admission of the app
     /// source it opened on; `makeSource` builds the camera source for the page.
     public init(opening: MonitorMediaGalleryOpen<Payload>, host: Host, values: MonitorMediaPageValues<Palette>,
+        options: MonitorPlaybackPageOptions = .init(),
         makeSource: @escaping @MainActor () -> Source,
         captureSource: @escaping @MainActor () -> MonitorPlaybackAdmission,
         @ViewBuilder preview: @escaping (MonitorAssistSelection) -> Preview,
         @ViewBuilder lookMenu: @escaping () -> LookMenu,
-        @ViewBuilder deliveryPopup: @escaping (MonitorMediaRecord<Payload>, @escaping () -> Void) -> DeliveryPopup) {
-        self.opening = opening; self.host = host; self.values = values
+        @ViewBuilder deliveryPopup: @escaping (Source.Delivery, @escaping () -> Void) -> DeliveryPopup) {
+        self.opening = opening; self.host = host; self.values = values; self.options = options
         self.makeSource = makeSource; self.captureSource = captureSource
         self.preview = preview; self.lookMenu = lookMenu; self.deliveryPopup = deliveryPopup
     }
@@ -101,8 +140,8 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
             if let page {
                 player(page)
                     .overlay {
-                        if let deliveryRecord {
-                            deliveryPopup(deliveryRecord) { self.deliveryRecord = nil }.zIndex(5)
+                        if let delivery {
+                            deliveryPopup(delivery) { self.delivery = nil }.zIndex(5)
                         }
                     }
                     .overlay {
@@ -126,7 +165,7 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
             haptics: values.haptics,
             usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
             cacheOriginal: values.cacheOriginal(),
-            deliveryPresented: deliveryRecord != nil || host.delivery.coversPlayback,
+            deliveryPresented: delivery != nil || host.delivery.coversPlayback,
             operations: source.operations(owner: owner),
             source: { source.values(record: $0, owner: owner) },
             nativeAssists: { playback in
@@ -134,12 +173,20 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                 return presentation.assists
             }, readScopes: { host.monitorSamples.displayBundle }, configureDisplay: values.configureDisplay,
             sourceCurrent: { sourceAdmission?.isCurrent() == true },
-            close: { dismiss() }, share: { record in
-                deliveryRecord = record
+            close: { close(page) }, share: { record in
+                // A refused capture leaves the page uncovered, as it was before the tap.
+                guard let captured = source.delivery(record: record, owner: owner) else {
+                    owner.setDeliveryPresented(delivery != nil || host.delivery.coversPlayback)
+                    return
+                }
+                delivery = captured
             }, onGeometry: { geometry in
                 guard geometry.item == owner.playback?.token else { return }
                 pictureGeometry = geometry
-            }, picture: { playback, effects in
+            }, initialRatingShadeOpen: options.initialRatingShadeOpen,
+            signalOptions: options.signalOptions, availableAssistTools: options.availableAssistTools,
+            initialChromeVisible: options.initialChromeVisible,
+            picture: { playback, effects in
                 nativePicture(presentation, playback: playback, effects: effects)
             }, preview: preview, lookMenu: lookMenu)
 
@@ -152,9 +199,9 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                 let epoch = samples.inspectorSourceEpoch
                 guard owner.isCurrent(token), let buffer = native.feed.backdropSource() else { return [] }
                 let dimensions = displaySize(playback)
+                var effects = presentation.projectEffects(host.assist.playbackEffects)
                 let rect = DesqueezeAssist.presentationRect(sourceSize: dimensions,
-                    in: CGRect(origin: .zero, size: size), effects: host.assist.playbackEffects)
-                var effects = host.assist.playbackEffects
+                    in: CGRect(origin: .zero, size: size), effects: effects)
                 effects.clipByte = host.frameSamples.exposureCeiling.clipByte(transfer: effects.transfer)
                 return [MonitorVideoBackdropSource(buffer: buffer, effects: effects,
                     frame: MonitorVideoBackdropSource.displayedFrame(
@@ -167,6 +214,15 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
                             && samples.inspectorSourceEpoch == epoch
                     })]
             }
+    }
+
+    /// Close joins the source's entered work first; a stale join never dismisses a newer page.
+    private func close(_ closing: Page) {
+        guard let join = closing.source.captureClose(owner: closing.owner) else { dismiss(); return }
+        Task { @MainActor in
+            guard await join(), page?.source === closing.source else { return }
+            dismiss()
+        }
     }
 
     @ViewBuilder private func nativePicture(_ presentation: MonitorApplePlaybackPresentation<Payload, Look>,
@@ -194,7 +250,8 @@ public struct MonitorOperatorPlaybackHost<Source: MonitorPlaybackPresentationSou
         guard let playback = owner.playback, let native = presentation.native else { return [] }
         let dimensions = displaySize(playback)
         return [.init(source: ObjectIdentifier(native.feed),
-            generation: Int(truncatingIfNeeded: playback.token.revision), effects: host.assist.playbackEffects,
+            generation: Int(truncatingIfNeeded: playback.token.revision),
+            effects: presentation.projectEffects(host.assist.playbackEffects),
             geometry: [dimensions.width, dimensions.height, pictureGeometry?.zoom.scale ?? 1,
                 pictureGeometry?.zoom.offset.width ?? 0, pictureGeometry?.zoom.offset.height ?? 0])]
     }

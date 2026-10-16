@@ -83,7 +83,7 @@ import XCTest
             }, audioSession: Self.silentAudio(), samples: { LiveFrameSampleBus() })
         let owner = presentation.makeOwner(library: fixture.library,
             recordAdmission: { _ in .init { true } },
-            makeNative: { feed in
+            makeNative: { feed -> SimulatedFrameSource in
                 let source = SimulatedFrameSource(feed: feed)
                 sources.append(source)
                 return source
@@ -113,7 +113,7 @@ import XCTest
         var made: [SimulatedFrameSource] = []
         let owner = presentation.makeOwner(library: fixture.library,
             recordAdmission: { _ in .init { true } },
-            makeNative: { feed in
+            makeNative: { feed -> SimulatedFrameSource in
                 let source = SimulatedFrameSource(feed: feed)
                 made.append(source)
                 return source
