@@ -13,6 +13,12 @@ data class CameraCaptureProfile(
     val zoom: CameraZoomProfile? = null,
     val looks: CameraLUTProfile? = null,
     val nativeISO: CaptureNativeISOCapabilities = CaptureNativeISOCapabilities(),
+    /**
+     * Static support of the families no setting descriptor or flag above carries (ND, face
+     * metering, audio input, photo, camera media, clip delete, multiview, ...). A family not
+     * listed is unknown. [ControlCapabilities.derive] merges this with the live snapshot.
+     */
+    val controls: Map<ControlFamily, com.opencapture.opencine.core.SupportStatus> = emptyMap(),
 )
 
 data class CameraZoomProfile(

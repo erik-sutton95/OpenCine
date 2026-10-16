@@ -18,6 +18,7 @@
 // bytes-on-the-wire behavior that ships in the Android `.so`.
 
 import Foundation
+import struct OpenCineCameraVocabulary.CaptureCodecColorChoices
 import OpenCineNikon
 
 /// PTP-IP initiator identity for Android; deliberately the *same* identity iOS presents.
@@ -291,6 +292,8 @@ private struct AndroidRawControlCatalog: Sendable {
     var driveModes: [AndroidRawControlMode<UInt16>] = []
     var meteringModes: [AndroidRawControlMode<UInt16>] = []
     var pictureControls: [AndroidRawControlMode<UInt16>] = []
+    /// Movie tones each per-codec tone property offers (`NikonMovieToneCapability`).
+    var movieTones: [PTPPropertyCode: [NikonMovieTone]] = [:]
     var rawCompressions: [AndroidRawControlMode<UInt8>] = []
 
     func capabilities(
@@ -454,10 +457,29 @@ private struct AndroidRawControlCatalog: Sendable {
             rawCompressions: rawCompressions.map(\.label),
             codecBitDepths: codecBitDepthWireEntries,
             codecBitDepth: currentCodecBitDepthLabel(properties.fileType),
+            movieTones: movieToneChoices(properties).colors.map(\.label),
+            movieTone: movieToneChoices(properties).selectedColorChoice?.label,
+            movieToneEditable: movieToneChoices(properties).colorEditable,
             advertisedIrisValues: apertureDescriptorProperty
                 == PTPIPClientSession.apertureDescriptorProperty(
-                    captureSelector: properties.captureSelector) ? apertures.map(\.label) : []
+                    captureSelector: properties.captureSelector) ? apertures.map(\.label) : [],
+            recordingFormats: screenSizes.map {
+                NikonRecordingFormatPresentation(mode: $0, currentCodec: recognizedCodec,
+                    isNikonZR: usesNikonZRFallbacks)
+            }
         )
+    }
+
+    /// The one codec and colour popup for the active codec, from the shared Nikon capability.
+    func movieToneChoices(_ properties: PTPCameraPropertySnapshot) -> CaptureCodecColorChoices {
+        let raw = PTPCameraPropertyDecoders.fileTypeMode(
+            forFileType: properties.fileType, in: fileTypes)?.raw
+        let offered = raw.flatMap(NikonMovieToneCapability.toneProperty(forFileType:)).flatMap {
+            movieTones[$0]
+        } ?? []
+        return NikonMovieToneCapability.codecColorChoices(
+            codecs: fileTypes, fileType: raw, offered: offered,
+            current: raw.flatMap(properties.movieTone(forFileType:)))
     }
 
     /// The codec picker's rows, grouped by the shared core so both shells collapse a two-depth
@@ -1682,7 +1704,10 @@ public final class PTPIPClientSession: @unchecked Sendable {
             case .mediaModeActive, .mediaModeRequired:
                 return .mediaBusy
             case .operationRejected, .unsupportedProperty:
-                return .unsupported
+                // A per-codec movie tone property is optional: a body without it keeps the tone
+                // unknown and must not degrade the whole refresh.
+                return NikonMovieToneCapability.toneProperties.contains(property)
+                    ? .accepted : .unsupported
             default:
                 return .transportFailed
             }
@@ -1797,6 +1822,8 @@ public final class PTPIPClientSession: @unchecked Sendable {
             refreshAndroidMeteringDescriptor,
             refreshAndroidPictureControlDescriptor,
             refreshAndroidRawCompressionDescriptor,
+            // Per-codec movie tone: bodies without these properties reject the describe.
+            refreshAndroidMovieToneDescriptors,
         ]
         var result: AndroidCameraPropertyRefreshResult = .accepted
         for refresh in refreshers {
@@ -2072,6 +2099,24 @@ public final class PTPIPClientSession: @unchecked Sendable {
         androidControlCatalog.meteringModes = uniqueUInt16Modes(raw) { value in
             let label = PTPCameraPropertyDecoders.exposureMetering(value)
             return label.hasPrefix("0x") ? nil : label
+        }
+    }
+
+    private func refreshAndroidMovieToneDescriptors() throws {
+        var tones: [PTPPropertyCode: [NikonMovieTone]] = [:]
+        defer { androidControlCatalog.movieTones = tones }
+        for property in NikonMovieToneCapability.toneProperties {
+            let raw: [UInt32]
+            do {
+                raw = try descriptorEnumValues(property, valueByteCount: 1)
+            } catch let error as PTPIPClientSessionError
+                where androidDescriptorResult(for: error) == .unsupported
+            {
+                // A body without this codec family's tone property: skip it, keep the others.
+                continue
+            }
+            let offered = NikonMovieToneCapability.tones(fromEnum: raw)
+            if !offered.isEmpty { tones[property] = offered }
         }
     }
 
@@ -2935,6 +2980,14 @@ public final class PTPIPClientSession: @unchecked Sendable {
                 label: label,
                 modes: androidControlCatalog.electronicVR,
                 property: .electronicVR)
+        case .movieTone:
+            guard
+                let raw = PTPCameraPropertyDecoders.fileTypeMode(
+                    forFileType: androidPropertySnapshot.fileType, in: androidControlCatalog.fileTypes)?.raw,
+                let tone = NikonMovieTone(rawValue: label),
+                let write = NikonMovieToneCapability.write(tone, forFileType: raw)
+            else { return [] }
+            return [write]
         case .exposureMode:
             return sharedControlWrites(control, label: label)
         case .stillShutter:
@@ -3049,6 +3102,7 @@ public final class PTPIPClientSession: @unchecked Sendable {
         case .codec: androidControlCatalog.codecWriteLabels
         case .vibrationReduction: capabilities.vibrationReduction
         case .electronicVR: capabilities.electronicVR
+        case .movieTone: capabilities.movieToneEditable ? capabilities.movieTones : []
         case .exposureMode: []
         case .stillISO, .stillISOAuto, .stillShutter, .stillIris, .stillDrive,
             .stillFocusMode, .stillFocusArea, .stillFocusSubject, .stillMeter,

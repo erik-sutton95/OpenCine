@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import MonitorUI
 import SwiftUI
 import UIKit
@@ -28,7 +29,8 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                         value: showsFPS ? fpsValue : (signalBars == nil ? "\u{2014}" : nil),
                         bars: signalBars ?? 0, color: MonitorTheme.accent)
                 }
-                .buttonStyle(.monitorTapTarget)
+                // The landscape layout spaces the gauges for exactly this padded target.
+                .buttonStyle(MonitorTapTargetButtonStyle(minSize: FieldMonitorLayout.minimumTapTarget))
                 .accessibilityLabel(linkLabel)
                 .accessibilityHint(showsFPS ? "Shows signal strength" : "Shows feed frame rate")
                 .accessibilityIdentifier("monitor.telemetry.signal")
@@ -75,7 +77,7 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     static func gauge(icon: MonitorIcon?, value: String?, bars: Int, color: Color,
         barCount: Int = 4) -> some View {
         let tablet = Self.tablet
-        let height: CGFloat = tablet ? 22 : 20
+        let height = CGFloat(FieldMonitorLayout.telemetryGaugeHeight(tablet: tablet))
         return HStack(spacing: 4) {
             if let icon {
                 icon.frame(width: tablet ? 12 : 11, height: tablet ? 12 : 11)
@@ -86,12 +88,14 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
             } else {
                 MonitorGaugeBars(
-                    fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color,
+                    filled: bars, count: barCount, tint: color,
                     barHeight: tablet ? 10 : 9)
             }
         }
         .padding(.horizontal, 6)
-        .frame(width: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height, alignment: .leading)
+        .frame(width: value == nil ? MonitorGaugeBars.readoutWidth(filled: bars, count: barCount,
+            minimum: icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), inset: icon == nil ? 12 : 28)
+            : icon == nil ? (tablet ? 44 : 40) : (tablet ? 64 : 58), height: height, alignment: .leading)
         .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityElement(children: .ignore)
     }

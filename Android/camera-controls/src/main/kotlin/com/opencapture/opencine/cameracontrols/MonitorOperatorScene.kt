@@ -64,7 +64,10 @@ public fun <P, L> MonitorOperatorScene(
         thumbnail = thumbnail, playbackPicture = playbackPicture)
 }
 
-/** A complete operator root. Only native picture, thumbnail and player views vary by platform. */
+/**
+ * A complete operator root. Only native picture, thumbnail and player views vary by platform. The
+ * scene is its app's root, so it owns screen wake from the shared Keep screen awake choice.
+ */
 @Composable
 public fun <P, L> MonitorOperatorScene(
     shell: ShellModel,
@@ -92,6 +95,12 @@ public fun <P, L> MonitorOperatorScene(
         media?.bind(state.monitor?.camera)
         media?.synchronize(state.cover)
     }
+    var keepAwake by remember(operatorPreferences) { mutableStateOf(operatorPreferences.keepScreenAwake) }
+    DisposableEffect(operatorPreferences) {
+        val listening = operatorPreferences.addChangeListener { keepAwake = operatorPreferences.keepScreenAwake }
+        onDispose { listening.close() }
+    }
+    MonitorKeepScreenAwake(keepAwake)
     AppShell(shell, brand, actions, modifier = Modifier.semantics { testTagsAsResourceId = true },
         coverPresentation = ShellCoverPresentation.SHELL, monitor = { live ->
         MonitorOperatorScreen(shell, operatorPreferences, displayPreferences, assist, sourceAspect, availableAssistTools, operatorSession, assistHost, lookOptions) { picture(live) }
@@ -250,6 +259,10 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
     val revision = remember { mutableIntStateOf(0) }
     @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
     fun write(apply: () -> Unit) { apply(); revision.intValue++ }
+    val cache = library?.let {
+        MonitorSettingsCachePresentation(monitorSettingsCacheSource(it), cacheOriginals = preferences.cacheOriginals,
+            setCacheOriginals = { value -> write { preferences.cacheOriginals = value } })
+    }
     val configuration = MonitorOperatorSettingsConfiguration(
         brand = brand, isLive = live, phase = phase, close = shell::dismissCover,
         disconnect = if (live) shell::close else null, feedback = {},
@@ -261,19 +274,15 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
         controls = MonitorSettingsControlsSource(preferences.recordConfirmation, { write { preferences.recordConfirmation = it } },
             preferences.haptics, { write { preferences.haptics = it } },
             preferences.keepScreenAwake, { write { preferences.keepScreenAwake = it } },
-            keepAwakeHelp = "Prevents auto-lock while this app is open. A monitor should stay lit."),
-        cache = library?.let {
-            MonitorSettingsCachePresentation(monitorSettingsCacheSource(it), cacheOriginals = preferences.cacheOriginals,
-                setCacheOriginals = { value -> write { preferences.cacheOriginals = value } })
-        },
+            keepAwakeHelp = MonitorSettingsCopy.keepScreenAwake),
+        cache = cache,
         support = MonitorSettingsSupportSource(report = actions.reportProblem, actions = listOf(
             MonitorSupportAction("support.diagnostics", "Diagnostics", actionTitle = "Share",
                 accessibilityLabel = "Share Diagnostics", action = actions.diagnostics))),
         legal = legal,
-        tabs = listOf(MonitorSettingsTab.LINK, MonitorSettingsTab.ASSIST, MonitorSettingsTab.CONTROLS, MonitorSettingsTab.DISPLAY) +
-            (if (library != null) listOf(MonitorSettingsTab.STORAGE) else emptyList()) + listOf(MonitorSettingsTab.SYSTEM),
     )
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab,
         { session.settingsTab = it }, MonitorOperatorPictureSettings.Session(preferences, session, assist,
-            availableAssistTools, assistHost, lookOptions)))
+            availableAssistTools, assistHost, lookOptions),
+        scrollOffsets = session.settingsScrollOffsets, onScroll = session::noteSettingsScroll))
 }

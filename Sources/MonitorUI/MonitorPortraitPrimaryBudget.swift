@@ -74,7 +74,8 @@
         maximumSize: 23, color: nil, primaryIsDetail: false)
     }
 
-    /// The complete portrait row reserves every independent readout and its native target.
+    /// The portrait status row reserves STBY/REC, the clock and the stacked format group
+    /// (primary above, codec, color and caption below) with every native target.
     public func fitRow(
       width: CGFloat, scale: CGFloat, typeSize: DynamicTypeSize,
       recording: [String], clock: String?, primary: String, details: [String],
@@ -210,20 +211,18 @@
             key.clock.map { measured($0, clockSize, tracking: tracking) + pixel } ?? 0
           let formatWidth: CGFloat
           if inline {
-            let otherWidths = details.reduce(CGFloat(0)) {
-              $0 + max(44, measured($1, detailSize, tracking: tracking) + pixel)
-            }
-            let captionWidth =
-              caption.map { max(44, measured($0, detailSize, tracking: tracking) + pixel) } ?? 0
-            let colorWidth =
-              color.map { max(44, measured($0, primarySize, tracking: tracking) + pixel) } ?? 0
-            let gaps = details.count + (caption == nil ? 0 : 1) + (color == nil ? 0 : 1)
-            formatWidth =
-              max(
-                44,
-                measured(primary, primaryIsDetail ? detailSize : primarySize, tracking: tracking)
-                  + pixel)
-              + colorWidth + otherWidths + captionWidth + CGFloat(gaps) * spacing
+            // The format group stacks: the primary line above, codec, color and caption on
+            // the detail line below, so the group is as wide as its wider line.
+            let lowerItems = details + [color, caption].compactMap { $0 }
+            let lowerWidth =
+              lowerItems.reduce(CGFloat(0)) {
+                $0 + max(44, measured($1, detailSize, tracking: tracking) + pixel)
+              } + CGFloat(max(0, lowerItems.count - 1)) * spacing
+            formatWidth = max(
+              44,
+              measured(primary, primaryIsDetail ? detailSize : primarySize, tracking: tracking)
+                + pixel,
+              lowerWidth)
           } else {
             formatWidth = max(44, detailWidth, measured(primary, primarySize) + pixel)
           }
@@ -262,7 +261,7 @@
     }
   }
 
-  /// One complete label in the inline row. An impossible budget stays an explicit failed fit.
+  /// One complete label in the stacked portrait format group. An impossible budget stays an explicit failed fit.
   public struct MonitorPortraitInlineReadoutText: View {
     @Environment(\.monitorPortraitPrimaryFit) private var fit
     private let value: String

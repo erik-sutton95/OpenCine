@@ -335,7 +335,7 @@ object MonitorLayoutPolicy {
         )
         val lock = MonitorRect(12f, cornerTop, button, button)
         // Gauges share the lock's edge so a 19.5:9 phone's 16:9 picture starts at their trailing edge.
-        val gauges = MonitorRect(lock.x, lock.maxY + 6f, 58f, 68f)
+        val gauges = MonitorRect(lock.x, lock.maxY + landscapeGaugeGap(tablet), 58f, 68f)
         val statusX = max(77f, picture.x + 12f)
         val status = MonitorRect(
             statusX, (if (tablet) 4f else 0f) + controlInset,
@@ -493,6 +493,15 @@ object MonitorLayoutPolicy {
     const val CAMERA_CARD_CORNER = 13f
     /** Space between the Settings and Media system buttons. */
     const val SETTINGS_MEDIA_GAP = 12f
+
+    /** The drawn height of a telemetry gauge pill (link, phone and camera battery); Swift `FieldMonitorLayout`. */
+    fun telemetryGaugeHeight(tablet: Boolean): Float = if (tablet) 22f else 20f
+
+    /**
+     * Space between the landscape lock and the gauge column under it: the link pill's padded touch
+     * target, centred on its drawn pill, must clear the lock's (Swift `landscapeGaugeGap`).
+     */
+    fun landscapeGaugeGap(tablet: Boolean): Float = max(6f, (MONITOR_MIN_TAP_TARGET_DP - telemetryGaugeHeight(tablet)) / 2f)
     const val SETTINGS_TITLE_CONTENT_GAP = 8f
     const val SETTINGS_TITLE_MIN_HEIGHT = 24f
     const val DISP_SIZE = 12f

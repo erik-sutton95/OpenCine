@@ -665,6 +665,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
             ? .unavailable(.link)
             : session.admitsMultiviewControl ? .owner : .unavailable(.authority)
         next.mode = Self.mode(status)
+        next.recordingFormat = DJIRecordingObservations.recording(session.captureControlState?.reported ?? status,
+            labels: session.connectedModel?.captureProfile?.labels ?? .standard)
+        next.exposureProgram = DJIRecordingObservations.exposureProgram(session.captureControlState?.reported ?? status)
         next.settings = Self.settings(status)
         if let capture = session.captureControlState {
             next.settings.merge(capture.settings) { _, report in report }
@@ -845,6 +848,9 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
                 Double(status.batteryPercent) / 100, origin: .cameraReported, at: nil,
                 precision: .quantized(step: 0.01))
         }
+        if let charging = status.chargingReading {
+            power.charging = ObservedValue(charging, origin: .cameraReported, at: nil)
+        }
         return power
     }
 
@@ -862,6 +868,15 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
 }
 
 extension DJICameraSessionAdapter {
+    /// The one control model for the connected body: its declared profile and motion merged with
+    /// the live capabilities. `codecColor` is what the codec and colour popup lists now, when the
+    /// host has it. With no body known only the live snapshot speaks.
+    public func controlCapabilities(codecColor: CaptureCodecColorChoices? = nil) -> ControlCapabilities {
+        let model = session.connectedModel
+        return ControlCapabilities(snapshot: current.capabilities, profile: model?.captureProfile,
+            motion: model?.motion, codecColor: codecColor)
+    }
+
     /// What a monitor lays out for the connected body: the Core projection of `current` plus the
     /// body's motion (`CameraModel.motion`). `base` carries what Core has no vocabulary for yet.
     /// With no body known, motion stays unknown and the Core projection keeps `base`.

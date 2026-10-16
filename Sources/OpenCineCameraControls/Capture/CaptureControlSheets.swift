@@ -247,7 +247,7 @@
                                         category, isPhoto: isPhoto))
                             }
                         }
-                        if sheet == .iso, host.captureCapabilities.nativeIsoHop {
+                        if sheet == .iso, host.controlCapabilities.nativeISO.hop == true {
                             nativeIsoHopToggle
                         }
                         if isEvSheet { facePriorityToggle }
@@ -495,11 +495,11 @@
                     tintPad
                 }
             case .focus:
-                if host.captureCapabilities.focusMode {
+                if host.controlCapabilities.focus.isOffered {
                     focusRows
                 }
             case .aperture:
-                if host.captureCapabilities.aperture {
+                if host.controlCapabilities.iris.isOffered {
                     choiceDrum(
                         CaptureLists.apertureStrategies(from: host.cameraStatus).map(\.label),
                         selected: host.cameraStatus.apertureStrategy?.label
@@ -544,7 +544,9 @@
                     }
                 }
             case .resolution:
-                if isPhoto {
+                if let panel = host.nativeCapturePanel(.resolution, enabled: canApplyDrum) {
+                    panel
+                } else if isPhoto {
                     Text("Photo")
                         .font(MonitorTheme.font(16, weight: .semibold))
                         .foregroundStyle(MonitorTheme.text)
@@ -554,7 +556,19 @@
                     formatPicker
                 }
             case .color:
-                CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection)
+                // One popup for codec and colour: the codec choices the camera offers, then its
+                // colour choices. The colour drum keeps each camera's existing behaviour.
+                CaptureCodecColorPanel(
+                    choices: host.recordingCodecColor,
+                    enabled: canApplyDrum && !host.cameraStatus.isRecording,
+                    selectCodec: { id in
+                        guard canApplyDrum, !host.cameraStatus.isRecording else { return }
+                        host.commitRecordingCodec(id)
+                    }
+                ) {
+                    if let panel = host.nativeCapturePanel(.color, enabled: canApplyDrum) { panel }
+                    else { CaptureDrumWheel<Host>(options: colorWheelLabels, selection: $drumSelection) }
+                }
             }
         }
 
@@ -699,6 +713,7 @@
 
         private var headerTitle: String {
             if isEvSheet { return "EXPOSURE" }
+            if sheet == .color { return host.recordingCodecColor.title }
             return sheet.headerLabel
         }
 
@@ -777,7 +792,7 @@
 
         private var isoAutoDrumLabels: [String] {
             // No settable auto ceiling: a single read-only "Auto" stop, like the WB drum.
-            guard host.captureCapabilities.isoLimit else { return ["Auto"] }
+            guard host.controlCapabilities.nativeISO.ceiling == true else { return ["Auto"] }
             return CaptureLists.isoAutoLabels(from: host.cameraStatus, model: connectedBody)
         }
 
@@ -804,7 +819,7 @@
             case .iso:
                 reseatIso()
                 guard preview == nil,
-                    host.captureCapabilities.nativeISO.ceiling == true,
+                    host.controlCapabilities.nativeISO.ceiling == true,
                     CaptureLists.shouldGetIsoLimit(from: host.cameraStatus)
                 else { return }
                 Task {
@@ -948,7 +963,7 @@
             switch sheet {
             case .iso:
                 if isIsoAutoTab {
-                    guard host.captureCapabilities.nativeISO.ceiling == true,
+                    guard host.controlCapabilities.nativeISO.ceiling == true,
                         let limit = CaptureLists.isoLimit(
                             from: value, status: host.cameraStatus, model: connectedBody)
                     else { return }
@@ -1130,7 +1145,7 @@
         private func reseatIsoAutoDrum() {
             let labels = isoAutoDrumLabels
             let live =
-                host.captureCapabilities.isoLimit
+                host.controlCapabilities.nativeISO.ceiling == true
                 ? CaptureLists.isoAutoLabel(from: host.cameraStatus, model: connectedBody) : "Auto"
             let next = labels.contains(live) ? live : ""
             lastApplied = next

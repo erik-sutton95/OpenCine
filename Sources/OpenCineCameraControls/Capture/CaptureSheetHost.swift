@@ -4,6 +4,7 @@
     import OpenCineAppKit
     import OpenCineCameraVocabulary
     import OpenCineCore
+    import SwiftUI
 
     /// Where a capture commit came from, so the app can route it along its own path.
     public enum CaptureCommitOrigin {
@@ -75,12 +76,60 @@
         }
     }
 
+    extension CaptureSheetCapabilities {
+        /// The legacy flags as a view of the one model (routing stays the host's
+        /// `CaptureSheetRouting`).
+        public init(controls: ControlCapabilities) {
+            self.init(focusMode: controls.focus.isOffered, aperture: controls.iris.isOffered,
+                nativeISO: controls.iso.offer?.nativeISO ?? .init(), audio: controls.audio.isOffered,
+                faceMetering: controls.faceMetering.isOffered)
+        }
+    }
+
+    extension ControlCapabilities {
+        /// The model with a legacy host's capture-sheet flags laid over it, so a host that has not
+        /// adopted `controlCapabilities` offers exactly what its flags said. A flag that is off hides
+        /// the family (unknown unless the model already knows it is not offered).
+        public func overlaying(_ legacy: CaptureSheetCapabilities) -> ControlCapabilities {
+            func flag<Offer>(_ on: Bool, _ capability: ControlCapability<Offer>) -> ControlCapability<Offer> {
+                if on { return capability.isOffered ? capability : .supported(capability.offer) }
+                return capability.isOffered ? .unknown : capability
+            }
+            var controls = self
+            controls.focus = flag(legacy.focusMode, focus)
+            controls.iris = flag(legacy.aperture, iris)
+            controls.audio = flag(legacy.audio, audio)
+            // A legacy host showed its level meter wherever it offered the AUDIO tile.
+            controls.liveAudioLevels = flag(legacy.audio, liveAudioLevels)
+            controls.faceMetering = flag(legacy.faceMetering, faceMetering)
+            var iso = controls.iso.offer ?? ISOOffer()
+            iso.nativeISO = legacy.nativeISO
+            controls.iso = ControlCapability(support: controls.iso.support, access: controls.iso.access, offer: iso)
+            return controls
+        }
+    }
+
+    /// Optional integration-owned metering; unknown has no toggle target.
+    @MainActor public struct CaptureNativeMeteringSource {
+        public let face: Bool?
+        public let isCurrent: () -> Bool
+        public let setFace: (Bool) -> Void
+        public init(face: Bool?, isCurrent: @escaping () -> Bool, setFace: @escaping (Bool) -> Void) {
+            self.face = face; self.isCurrent = isCurrent; self.setFace = setFace
+        }
+    }
+
     /// What the capture sheets and readout drums need from an app: its session's report and
     /// flags, its operator choices, one typed commit and two refreshes. App differences arrive
     /// here as values, never as brand branches.
     @MainActor
     public protocol CaptureSheetHost: AnyObject, Observable {
         associatedtype Palette: LiveChromePalette
+        associatedtype NativeCapturePanel: View = EmptyView
+        /// Integration-owned typed controls remain inside the shared sheet chrome.
+        func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel?
+        var nativeMeteringSource: CaptureNativeMeteringSource? { get }
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String)
 
         /// The camera's reported status.
         var cameraStatus: CameraStatus { get }
@@ -105,7 +154,12 @@
         var autoWhiteBalanceLocked: Bool { get }
         /// Whether AWB lock can pin the live Auto Kelvin now.
         var canLockAutoWhiteBalance: Bool { get }
+        /// Compatibility flags for hosts that have not adopted `controlCapabilities`.
         var captureCapabilities: CaptureSheetCapabilities { get }
+        /// The one typed capability model of the connected camera: what the shared sheets, tiles
+        /// and readouts offer. Supply the integration's model (its static body facts merged with the
+        /// live snapshot); the default reads the legacy `captureCapabilities` over the Core snapshot.
+        var controlCapabilities: ControlCapabilities { get }
         var captureRouting: CaptureSheetRouting { get }
         var audioService: CaptureAudioService? { get }
         /// The FOCUS rows this app offers.
@@ -132,8 +186,30 @@
         func captureDrumDidCommit(_ value: SettingValue)
         /// The ISO GET the ISO sheet asks for on open; returns once the reply arrived.
         func refreshIsoLimit() async
+
+        /// What the one codec and colour popup lists: the codec choices the camera offers (none
+        /// when it has none) and the colour choices valid for the selected codec.
+        var recordingCodecColor: CaptureCodecColorChoices { get }
+        /// Sends the codec choice `id` (a `recordingCodecColor.codecs` identity).
+        func commitRecordingCodec(_ id: String)
     }
     public extension CaptureSheetHost {
+        func nativeCapturePanel(_ sheet: CaptureSheet, enabled: Bool) -> NativeCapturePanel? { nil }
+        var nativeMeteringSource: CaptureNativeMeteringSource? { nil }
+        func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String) {}
+        /// A camera without codec choices: the colour modes it offers, by their shown label.
+        var recordingCodecColor: CaptureCodecColorChoices {
+            let labels = colorModes.map { $0.label(for: bodyFamily, in: labelProfile) }
+            return CaptureCodecColorChoices(
+                colors: labels.map { CaptureCodecColorChoice(id: $0, label: $0) },
+                selectedColor: cameraStatus.colorMode?.label(for: bodyFamily, in: labelProfile))
+        }
+        func commitRecordingCodec(_ id: String) {}
+        var controlCapabilities: ControlCapabilities {
+            ControlCapabilities(snapshot: control.snapshot?.capabilities ?? CapabilitySnapshot(),
+                profile: connectedBody?.captureProfile, codecColor: recordingCodecColor)
+                .overlaying(captureCapabilities)
+        }
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,

@@ -28,6 +28,18 @@ public struct MonitorOperatorLivePresentation {
     }
 }
 
+extension MonitorOperatorLivePresentation {
+    /// Zoom, gimbal and head tracking from the one capability model, laid out over the host's
+    /// `base` sections while a family is still unknown (as `MonitorLayoutCapabilities(controls:base:)`).
+    public init(pictureAspect: Double, pictureWaiting: Bool, verticalPicture: Bool, recovering: Bool,
+        controls: ControlCapabilities, base: MonitorLayoutCapabilities = .init(), watching: Bool) {
+        let layout = MonitorLayoutCapabilities(controls: controls, base: base)
+        self.init(pictureAspect: pictureAspect, pictureWaiting: pictureWaiting,
+            verticalPicture: verticalPicture, recovering: recovering, zoom: layout.zoom,
+            gimbal: layout.gimbal, headTracking: layout.headTracking, watching: watching)
+    }
+}
+
 /// Camera-coordinate focus observations. The surface owns projection, admission and cancel placement.
 public struct MonitorOperatorFocusObservation {
     public let point: CGPoint
@@ -111,9 +123,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                     vertical: source.verticalPicture, flipped: host.livePictureViewFlip, recovering: source.recovering) },
                 status: { Self.status(host) },
                 cameraBattery: {
-                    let percent = host.cameraStatus.batteryPercent
-                    return .init(id: "camera", title: "Camera battery", camera: true,
-                        percent: (0...100).contains(percent) ? percent : nil, charging: host.cameraStatus.charging)
+                    host.control.snapshot.flatMap { MonitorOperatorPowerReading.camera($0.power) }
                 },
                 capture: {
                     .captureSheetHost(host, section: .cameraValues, columns: layout.capture.height > 60 ? 3 : 6,
@@ -135,7 +145,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                 },
                 level: readLevel,
                 audio: {
-                    guard !source.watching, host.captureCapabilities.audio, !host.cameraStatus.isPhoto,
+                    guard !source.watching, host.controlCapabilities.liveAudioLevels.isShown, !host.cameraStatus.isPhoto,
                         let levels = host.cameraStatus.audioMeters else { return nil }
                     return .init(levels: levels, caption: host.cameraStatus.audioChannel?.label)
                 },
@@ -145,7 +155,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             assists: .init(scopes: assists,
                 tools: {
                     MonitorAssistSelection.toolbarCases
-                        + (host.cameraStatus.isPhoto || !host.captureCapabilities.audio ? [] : [.audioMeters])
+                        + (host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown ? [] : [.audioMeters])
                 }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
                 usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
                 usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle),
@@ -170,6 +180,8 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
     private static func status(_ host: Host) -> MonitorOperatorLiveStatus<CaptureSheet, MonitorDisplayChrome.Section> {
         let value = host.cameraStatus
         let photo = value.isPhoto
+        let recordingFormat = host.control.snapshot.map(MonitorCapturePresentation.recordingFormat)
+        let formatLabel = recordingFormat.flatMap(MonitorCapturePresentation.recordingLabel)
         func row(_ key: CaptureSheet, _ title: String, _ text: String,
             _ section: MonitorDisplayChrome.Section? = nil, _ identifier: String) -> MonitorOperatorLiveReadout<CaptureSheet, MonitorDisplayChrome.Section> {
             .init(id: key, title: title, value: text, section: section, accessibilityIdentifier: identifier)
@@ -179,13 +191,13 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             ? row(.resolution, "Storage remaining", readout?.free ?? StorageReadout.unavailable, .storage, "monitor.storage") : nil
         let format = host.chromeSectionMounts(.format) ? [row(photo ? .mode : .resolution,
             photo ? "Shooting mode" : "Recording format",
-            photo ? host.currentShootingMode?.label(for: host.connectedBody) ?? "Photo" : value.videoFormat?.chipLabel ?? "\u{2014}",
+            photo ? host.currentShootingMode?.label(for: host.connectedBody) ?? "Photo" : formatLabel ?? "--",
             .format, photo ? "monitor.capture.mode" : "monitor.capture.format")] : []
         let setup = row(photo ? .mode : .resolution, photo ? "Shooting mode" : "Recording options",
-            photo ? "MODE" : value.videoFormat.map { "\($0.resolution.tabTitle)\($0.frameRate.drumLabel)" } ?? "REC SETUP",
+            photo ? "MODE" : formatLabel ?? "REC SETUP",
             .format, photo ? "monitor.capture.mode" : "monitor.capture.format")
         let color = !photo && host.chromeSectionMounts(.color)
-            ? row(.color, "Color mode", value.colorMode?.label(in: host.labelProfile) ?? "\u{2014}", .color, "monitor.capture.color") : nil
+            ? row(.color, "Color mode", recordingFormat?.profile ?? "--", .color, "monitor.capture.color") : nil
         let mode = !photo ? row(.mode, "Shooting mode", host.currentShootingMode?.label(for: host.connectedBody) ?? "Video",
             nil, "monitor.capture.mode") : nil
         // The single-camera clock slot follows the DISP section (placeholder by declared precision
@@ -194,7 +206,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             showsRecording: host.chromeSectionMounts(.recReadout) && !photo, storage: storage, format: format,
             fps: host.chromeSectionMounts(.batteries) ? host.liveFPS : nil,
             signalBars: host.chromeSectionMounts(.batteries) ? host.liveSignalBars : nil, fpsSection: .batteries,
-            portraitFormat: setup, portraitCaption: photo ? nil : value.colorMode?.label(for: host.bodyFamily, in: host.labelProfile),
+            portraitFormat: setup, portraitCaption: photo ? nil : recordingFormat?.profile,
             color: color, mode: mode,
             storageAlternative: photo ? nil : host.control.snapshot?.storage.recordingTimeLabel)
     }

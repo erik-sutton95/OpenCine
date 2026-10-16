@@ -57,7 +57,8 @@
                     }
                 }
             } color: {
-                if host.chromeSectionMounts(.color), !status.isPhoto {
+                // Portrait hangs the color under the format readout (its caption).
+                if !geometry.portrait, host.chromeSectionMounts(.color), !status.isPhoto {
                     topButton(
                         .color,
                         value: status.colorMode?.label(in: host.labelProfile) ?? "\u{2014}")
@@ -300,7 +301,7 @@
         }
 
         private var tools: [MonitorAssistSelection] {
-            if host.cameraStatus.isPhoto || !host.captureCapabilities.audio {
+            if host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown {
                 return MonitorAssistSelection.toolbarCases
             }
             return MonitorAssistSelection.toolbarCases + [.audioMeters]

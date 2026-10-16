@@ -28,3 +28,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(testFixtures(project(":core")))
 }
+
+// The control-capability vectors the Swift Luna integration writes.
+tasks.withType<Test>().configureEach {
+    systemProperty("opencine.fixtures", rootProject.projectDir.resolve("../Fixtures").absolutePath)
+}

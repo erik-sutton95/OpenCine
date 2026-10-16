@@ -171,6 +171,32 @@ class MonitorMediaSelectionTest {
         assertFalse(controller.consuming)
     }
 
+    @Test fun aViewportResizeUnderAStillSweepScrollsOnlyOnceTheFingerMoves() {
+        // Swift twin: MonitorMediaDragSelectionTests.aViewportResizeUnderAStillSweepScrollsOnlyOnceThePointerMoves.
+        val controller = MonitorMediaSelectionController()
+        controller.bind(letters, false, emptySet())
+        controller.down("a", 10f, 700f, 0L)
+        controller.holdDue(280L)
+        assertFalse(controller.inEdgeBand(800f), "The hold is clear of the edge of the viewport it began in")
+        // The selection tray shrinks the viewport to 720: the same still finger now lies in its bottom band.
+        controller.viewportResized()
+        assertFalse(controller.inEdgeBand(720f))
+        assertEquals(0f, controller.edgeScroll(0.1f, 720f))
+        // A sideways sweep along the row keeps the edge held.
+        controller.move("b", 200f, 702f)
+        assertFalse(controller.inEdgeBand(720f))
+        assertEquals(0f, controller.edgeScroll(0.1f, 720f))
+        // The finger itself moving towards the edge arms it again.
+        controller.move("b", 200f, 710f)
+        assertTrue(controller.inEdgeBand(720f))
+        assertTrue(controller.edgeScroll(0.1f, 720f) > 0f)
+        // A new sweep starts armed: a still hold at the edge of an unchanged viewport scrolls.
+        controller.up(false)
+        controller.down("c", 10f, 710f, 1_000L)
+        controller.holdDue(1_280L)
+        assertTrue(controller.edgeScroll(0.1f, 720f) > 0f)
+    }
+
     @Test fun stationaryEdgeTickCapsDtAndStopsRebuildingUnchangedEndpoints() {
         val controller = MonitorMediaSelectionController()
         controller.bind(letters, false, emptySet())

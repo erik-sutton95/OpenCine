@@ -119,7 +119,7 @@ public enum DjiNativeWire {
         let glamourJSON = status.glamourEnabled.map { bool($0) } ?? "null"
         let selfieFlipJSON = status.selfieFlip.map { bool($0.isOn) } ?? "null"
         return """
-            {"batteryPercent":\(status.batteryPercent),"batteryMilliVolts":\(status.batteryMilliVolts),"batteryMilliAmps":\(status.batteryMilliAmps),"docked":\(bool(status.docked)),"charging":\(bool(status.charging)),"storageTotalMb":\(status.storageTotalMb),"storageFreeMb":\(status.storageFreeMb),"sdTotalMb":\(status.sdTotalMb),"sdFreeMb":\(status.sdFreeMb),"internalTotalMb":\(status.internalTotalMb),"internalFreeMb":\(status.internalFreeMb),"inPlayback":\(bool(status.inPlayback)),"firmware":\(quote(status.firmware)),"isRecording":\(bool(status.isRecording)),"shootingMode":\(status.shootingMode),"recordElapsedSec":\(status.recordElapsedSec),"recordRemainingSec":\(status.recordRemainingSec),"timecode":\(timecodeJSON),"iso":\(status.iso),"shutterDenom":\(status.shutterDenom),"fps":\(status.fps),"expoMode":\(intOrMinus(status.expoMode?.rawValue)),"isoIndex":\(intOrMinus(status.isoIndex?.rawValue)),"colorMode":\(intOrMinus(status.colorMode?.rawValue)),"videoResolution":\(intOrMinus(status.videoResolution?.rawValue)),"fpsIndex":\(intOrMinus(status.videoFormat?.frameRate.rawValue)),"whiteBalanceMode":\(intOrMinus(status.whiteBalance?.mode.rawValue)),"whiteBalanceKelvin":\(status.whiteBalanceKelvin),"whiteBalanceTint":\(status.whiteBalanceTint ?? 0),"autoWhiteBalanceKelvin":\(status.autoWhiteBalanceKelvin),"focusMode":\(intOrMinus(status.focusMode?.rawValue)),"audioChannel":\(intOrMinus(status.audioChannel?.rawValue)),"vocalBoost":\(intOrMinus(status.vocalBoost?.rawValue)),"audioDspAt2":\(intOrMinus(status.audioDspAt2?.rawValue)),"audioDspBlob":\(quote(blob)),"zoomFactorRaw":\(status.zoomFactorRaw),"availableShutterDenoms":\(ints(status.availableShutterDenoms)),"availableIsoIndices":\(ints(isoCaps)),"evComp":\(intOrMinus(status.evComp?.rawValue)),"meteredEv":\(intOrMinus(status.meteredEv?.rawValue)),"isoLimit":\(intOrMinus(status.isoLimit?.rawValue)),"availableColorModes":\(ints(colorCaps)),"availableVideoFormats":\(ints(formatCaps)),"focusX":\(status.focusX),"focusY":\(status.focusY),"hasCameraFocusPoint":\(bool(status.hasCameraFocusPoint)),"focusTrack":\(intOrMinus(status.focusTrack?.rawValue)),"zoomLens":\(intOrMinus(status.zoomLens)),"zoomFactor":\(zoomFactorJSON),"glamourEnabled":\(glamourJSON),"selfieFlip":\(selfieFlipJSON),"gimbalFace":\(intOrMinus(status.gimbalFace?.rawValue)),"gimbalModeFamily":\(intOrMinus(status.gimbalModeFamily?.rawValue)),"windNR":\(intOrMinus(status.windNR?.rawValue)),"directionalAudio":\(intOrMinus(status.directionalAudio?.rawValue)),"audioMetersLeft":\(meters.left.levelDB),"audioMetersRight":\(meters.right.levelDB),"audioPeakLeft":\(meters.left.peakDB),"audioPeakRight":\(meters.right.peakDB),"audioMetersReported":\(bool(status.audioMeters != nil))}
+            {"batteryPercent":\(status.batteryPercent),"batteryMilliVolts":\(status.batteryMilliVolts),"batteryMilliAmps":\(status.batteryMilliAmps),"docked":\(bool(status.docked)),"charging":\(bool(status.charging)),"chargingObservation":\(status.chargingObservation.map { bool($0) } ?? "null"),"chargingObservationDeclared":\(bool(status.chargingObservationDeclared)),"storageTotalMb":\(status.storageTotalMb),"storageFreeMb":\(status.storageFreeMb),"sdTotalMb":\(status.sdTotalMb),"sdFreeMb":\(status.sdFreeMb),"internalTotalMb":\(status.internalTotalMb),"internalFreeMb":\(status.internalFreeMb),"inPlayback":\(bool(status.inPlayback)),"firmware":\(quote(status.firmware)),"isRecording":\(bool(status.isRecording)),"shootingMode":\(status.shootingMode),"recordElapsedSec":\(status.recordElapsedSec),"recordRemainingSec":\(status.recordRemainingSec),"timecode":\(timecodeJSON),"iso":\(status.iso),"shutterDenom":\(status.shutterDenom),"fps":\(status.fps),"expoMode":\(intOrMinus(status.expoMode?.rawValue)),"isoIndex":\(intOrMinus(status.isoIndex?.rawValue)),"colorMode":\(intOrMinus(status.colorMode?.rawValue)),"videoResolution":\(intOrMinus(status.videoResolution?.rawValue)),"fpsIndex":\(intOrMinus(status.videoFormat?.frameRate.rawValue)),"whiteBalanceMode":\(intOrMinus(status.whiteBalance?.mode.rawValue)),"whiteBalanceKelvin":\(status.whiteBalanceKelvin),"whiteBalanceTint":\(status.whiteBalanceTint ?? 0),"autoWhiteBalanceKelvin":\(status.autoWhiteBalanceKelvin),"focusMode":\(intOrMinus(status.focusMode?.rawValue)),"audioChannel":\(intOrMinus(status.audioChannel?.rawValue)),"vocalBoost":\(intOrMinus(status.vocalBoost?.rawValue)),"audioDspAt2":\(intOrMinus(status.audioDspAt2?.rawValue)),"audioDspBlob":\(quote(blob)),"zoomFactorRaw":\(status.zoomFactorRaw),"availableShutterDenoms":\(ints(status.availableShutterDenoms)),"availableIsoIndices":\(ints(isoCaps)),"evComp":\(intOrMinus(status.evComp?.rawValue)),"meteredEv":\(intOrMinus(status.meteredEv?.rawValue)),"isoLimit":\(intOrMinus(status.isoLimit?.rawValue)),"availableColorModes":\(ints(colorCaps)),"availableVideoFormats":\(ints(formatCaps)),"focusX":\(status.focusX),"focusY":\(status.focusY),"hasCameraFocusPoint":\(bool(status.hasCameraFocusPoint)),"focusTrack":\(intOrMinus(status.focusTrack?.rawValue)),"zoomLens":\(intOrMinus(status.zoomLens)),"zoomFactor":\(zoomFactorJSON),"glamourEnabled":\(glamourJSON),"selfieFlip":\(selfieFlipJSON),"gimbalFace":\(intOrMinus(status.gimbalFace?.rawValue)),"gimbalModeFamily":\(intOrMinus(status.gimbalModeFamily?.rawValue)),"windNR":\(intOrMinus(status.windNR?.rawValue)),"directionalAudio":\(intOrMinus(status.directionalAudio?.rawValue)),"audioMetersLeft":\(meters.left.levelDB),"audioMetersRight":\(meters.right.levelDB),"audioPeakLeft":\(meters.left.peakDB),"audioPeakRight":\(meters.right.peakDB),"audioMetersReported":\(bool(status.audioMeters != nil))}
             """
     }
 
@@ -178,6 +178,9 @@ public enum DjiNativeWire {
         status.batteryMilliAmps = int("batteryMilliAmps", default: 0)
         status.docked = flag("docked")
         status.charging = flag("charging")
+        status.chargingObservation = optionalFlag("chargingObservation")
+        status.chargingObservationDeclared = optionalFlag("chargingObservationDeclared")
+            ?? (fields["chargingObservation"] != nil)
         status.storageTotalMb = int("storageTotalMb", default: 0)
         status.storageFreeMb = int("storageFreeMb", default: 0)
         status.sdTotalMb = int("sdTotalMb", default: 0)
@@ -1201,7 +1204,8 @@ public enum DjiNativeWire {
     }
 
     /// Stateful tick. Keep the handle for the session: a fresh `FeedWatchdog()`
-    /// every call is always `.idle`.
+    /// every call is always `.idle`. `{"lastHold":true}` returns the gate that
+    /// held the last tick (`FeedWatchdog.Hold`) without ticking.
     public static func feedWatchdogTick(handle: Int64, snapshotJSON: String) -> String {
         let store = watchdogStore
         store.lock.lock()
@@ -1210,6 +1214,10 @@ public enum DjiNativeWire {
         // Shell effect feedback uses the existing JNI entry point. Only the
         // immediately preceding action can be rolled back, once, and only
         // before another tick. A blocked write is not a spent enable rung.
+        // Gate query: the hold of the last tick, for incident telemetry. Not a tick.
+        if jsonBool(snapshotJSON, key: "lastHold", default: false) {
+            return watchdog.lastHold?.rawValue ?? ""
+        }
         if jsonBool(snapshotJSON, key: "rollbackLastAction", default: false) {
             if let previous = store.beforeAction.removeValue(forKey: handle) {
                 store.boxes[handle] = previous

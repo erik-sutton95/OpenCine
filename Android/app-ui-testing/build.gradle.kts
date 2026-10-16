@@ -31,6 +31,8 @@ dependencies {
     api(libs.androidx.test.runner)
     api(libs.androidx.test.ext.junit)
     api(libs.kotlin.test.junit)
+    // Every app's test APK gets the run listener that keeps Android's full screen tutorial off.
+    api(project(":system-hints-testing"))
     // Screenshots go through the test storage service, so connected runs collect them.
     testImplementation(libs.kotlin.test.junit)
 }

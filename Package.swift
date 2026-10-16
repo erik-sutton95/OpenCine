@@ -62,6 +62,7 @@ let package = Package(
         .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
         // The one hosted accessibility walk, for in-process test bundles; depends on nothing.
         .library(name: "OpenCineHostedAccessibility", targets: ["OpenCineHostedAccessibility"]),
+        .library(name: "OpenCineHostedTestSupport", targets: ["OpenCineHostedTestSupport"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineCameraVocabulary", targets: ["OpenCineCameraVocabulary"]),
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
@@ -103,8 +104,8 @@ let package = Package(
         // Optional typed motion seam and trajectory math shared by gimbal integrations.
         .target(name: "OpenCineMotion", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineMotionTests", dependencies: ["OpenCineMotion"]),
-        // Optional second-screen relay wire, control lease and pacing policy. Foundation only.
-        .target(name: "OpenCineRelay"),
+        // Optional second-screen relay wire, control lease and pacing policy. Foundation and Core values.
+        .target(name: "OpenCineRelay", dependencies: ["OpenCineCore"]),
         .testTarget(name: "OpenCineRelayTests", dependencies: ["OpenCineRelay"]),
         // The relay's Apple shell: Bonjour listener and browser, HEVC re-encode, socket reader.
         // Relay plus Apple frameworks only; every file sits behind `#if canImport(Network)`.
@@ -126,7 +127,7 @@ let package = Package(
         .target(
             name: "OpenCineWatch",
             dependencies: [
-                "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
+                "OpenCineCore", "OpenCineRelay", .target(name: "OpenCineApple", condition: .when(platforms: [.iOS])),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
@@ -135,8 +136,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]),
         // Apple runtime: decoded-frame leases, VideoToolbox decoder, UVC capture source. Every
         // file sits behind `#if canImport(...)`; Core and Media never depend on it.
-        .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia"]),
-        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple", "OpenCineMedia"]),
+        .target(name: "OpenCineApple", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineAppleObjC"]),
+        // The Objective-C calls Swift cannot make safely (a framework method that raises an
+        // NSException is called inside @try). Foundation, Metal and VideoToolbox only; empty
+        // where they do not exist. Internal to OpenCineApple: no product, nothing else imports it.
+        .target(name: "OpenCineAppleObjC"),
+        .testTarget(name: "OpenCineAppleTests", dependencies: ["OpenCineApple", "OpenCineAppleObjC", "OpenCineMedia"]),
 
         // MARK: UI
         // Presentation policy and native SwiftUI monitor screens. MonitorUI is iOS-only source
@@ -144,13 +149,13 @@ let package = Package(
         .target(name: "MonitorPresentation", dependencies: ["OpenCineMedia"]),
         .target(
             name: "MonitorUI", dependencies: ["MonitorPresentation", "OpenCineMedia"],
-            resources: [.process("Resources/Fonts"), .copy("Resources/Icons")]
+            resources: [.process("Resources/Fonts"), .copy("Resources/Icons"), .copy("Resources/Legal")]
         ),
         .testTarget(name: "MonitorPresentationTests", dependencies: ["MonitorPresentation"]),
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -170,13 +175,14 @@ let package = Package(
             name: "OpenCineAppKitTests",
             dependencies: [
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
-                "MonitorPresentation", "MonitorUI", "OpenCineMedia",
+                "MonitorPresentation", "MonitorUI", "OpenCineMedia", "OpenCineHostedAccessibility",
+                "OpenCineHostedTestSupport",
             ]),
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
         // protocols; iOS only, empty elsewhere.
         .target(name: "OpenCineAppKitApple", dependencies: ["OpenCineAppKit", "MonitorUI", "OpenCineApple", "OpenCineMedia", "OpenCineMotion", "OpenCineRelay", "OpenCineRelayApple"]),
-        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineMotion", "OpenCineApple", "OpenCineMedia"]),
+        .testTarget(name: "OpenCineAppKitAppleTests", dependencies: ["OpenCineAppKitApple", "OpenCineAppKit", "OpenCineMotion", "OpenCineApple", "OpenCineMedia", "MonitorUI"]),
         .target(name: "OpenCineFrameIOApple", dependencies: ["OpenCineFrameIO", "OpenCineAppKit", "OpenCineAppKitApple"]),
         .testTarget(
             name: "OpenCineFrameIOAppleTests",
@@ -189,7 +195,7 @@ let package = Package(
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
                 "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
             ]),
-        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
+        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review
         // launch (MonitorPresentation `ReviewLaunch`); iOS only, empty elsewhere
         // (docs/conformance/SCENARIOS.md).
@@ -202,6 +208,10 @@ let package = Package(
         // second copy of a module the host already holds. iOS only, empty elsewhere.
         .target(name: "OpenCineHostedAccessibility"),
         .testTarget(name: "OpenCineHostedAccessibilityTests", dependencies: ["OpenCineHostedAccessibility"]),
+        // The one wait hosted tests share for state UIKit, SwiftUI or AVFoundation produce; same
+        // dependency-free shape as OpenCineHostedAccessibility. Test bundles only, never an app.
+        .target(name: "OpenCineHostedTestSupport"),
+        .testTarget(name: "OpenCineHostedTestSupportTests", dependencies: ["OpenCineHostedTestSupport"]),
 
         // MARK: Camera vocabulary
         // The camera control vocabulary the monitor shells speak (exposure, colour, focus, video
@@ -210,7 +220,8 @@ let package = Package(
         // integration and the Insta360 shell. Wire-free: no protocol frames or byte parsers.
         .target(name: "OpenCineCameraVocabulary", dependencies: ["OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
         .testTarget(
-            name: "OpenCineCameraVocabularyTests", dependencies: ["OpenCineCameraVocabulary", "OpenCineCore", "OpenCineMedia"]),
+            name: "OpenCineCameraVocabularyTests",
+            dependencies: ["OpenCineCameraVocabulary", "OpenCineCore", "OpenCineMedia", "OpenCineMotion"]),
 
         // MARK: DJI
         // DUML, datalink, adverts, camera control/status, commands, feed watchdog, SoftAP,
@@ -237,7 +248,10 @@ let package = Package(
         // `NikonCameraSession`s through the shared engine. The library itself stays Core-only.
         .testTarget(
             name: "OpenCineNikonTests",
-            dependencies: ["OpenCineNikon", "OpenCineCore", "OpenCineMedia", "OpenCineMulticam", "OpenCineCoreTestSupport"]),
+            dependencies: [
+                "OpenCineNikon", "OpenCineCore", "OpenCineMedia", "OpenCineMulticam", "OpenCineCoreTestSupport",
+                "OpenCineCameraVocabulary",
+            ]),
         // Android session layer over OpenCineNikon (moved from OpenZCine's Android facade):
         // PTPIPClientSession, the USB PTP transaction transport, the owner-keyed session registry,
         // media browse and the JNI exports of the Kotlin class
@@ -276,7 +290,7 @@ let package = Package(
             name: "Insta360AppleTests",
             dependencies: [
                 "Insta360Apple", "Insta360AppleTestSupport", "Insta360Protocol", "OpenCineCore",
-                "OpenCineMotion", "OpenCineMedia",
+                "OpenCineMotion", "OpenCineMedia", "OpenCineCameraVocabulary",
             ]
         ),
 

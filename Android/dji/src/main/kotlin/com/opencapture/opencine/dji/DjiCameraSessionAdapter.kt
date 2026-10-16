@@ -48,6 +48,8 @@ import com.opencapture.opencine.vocabulary.CamFov
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.CaptureCodecColorChoices
+import com.opencapture.opencine.vocabulary.ControlCapabilities
 import com.opencapture.opencine.vocabulary.ConnectionPhase as PocketPhase
 import com.opencapture.opencine.vocabulary.EvComp
 import kotlinx.coroutines.CompletableDeferred
@@ -116,6 +118,7 @@ data class PocketControlState(
     val timecode: CameraTimecode? = null,
     /** `cam_audio_status_v2` in dBFS; `null` until reported ([audioLevels]). */
     val audioLevels: AudioLevels? = null,
+    val charging: Boolean? = null,
     val storage: com.opencapture.opencine.core.StorageStatus? = null,
     val storageTotalMb: Int? = null,
 )
@@ -298,6 +301,16 @@ class DjiCameraSessionAdapter(
     }
 
     override fun receipt(operation: OperationID): CommandReceipt? = receipts[operation]
+
+    /**
+     * The one control model for the connected body (Swift `controlCapabilities(codecColor:)`): its
+     * declared profile and motion merged with the live capabilities. [codecColor] is what the codec
+     * and colour popup lists now, when the host has it.
+     */
+    fun controlCapabilities(codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
+        val model = port.controlState().model
+        return ControlCapabilities.derive(current.capabilities, model?.captureProfile, model?.motion, codecColor)
+    }
 
     /**
      * What a monitor lays out for the connected body (Swift `layout(base:)`): the Core projection
@@ -621,17 +634,18 @@ class DjiCameraSessionAdapter(
                 capabilities = capabilities,
                 mode = mode(state.shootingMode),
                 settings = settings(state) + (port.captureControlState()?.settings ?: emptyMap()),
+                recordingFormat = DjiRecordingObservations.recording(port.captureControlState()?.reported,
+                    state.model?.captureProfile?.labels ?: com.opencapture.opencine.vocabulary.CameraLabelProfile.standard),
+                exposureProgram = DjiRecordingObservations.exposureProgram(port.captureControlState()?.reported),
                 recording = state.recording?.let {
                     ObservedValue(if (it) RecordingState.RECORDING else RecordingState.IDLE, ObservationOrigin.CAMERA_REPORTED, null)
                 } ?: ObservedValue.unknown,
-                power = state.batteryPercent?.let {
-                    PowerStatus(
-                        battery = ObservedValue(
-                            it / 100.0, ObservationOrigin.CAMERA_REPORTED, null,
-                            precision = ObservationPrecision.Quantized(0.01),
-                        ),
-                    )
-                } ?: PowerStatus.unknown,
+                power = PowerStatus(
+                    battery = state.batteryPercent?.let { ObservedValue(
+                        it / 100.0, ObservationOrigin.CAMERA_REPORTED, null,
+                        precision = ObservationPrecision.Quantized(0.01)) } ?: ObservedValue.unknown,
+                    charging = (state.charging ?: port.captureControlState()?.reported?.chargingReading)?.let { ObservedValue(it, ObservationOrigin.CAMERA_REPORTED, null) } ?: ObservedValue.unknown,
+                ),
                 storage = state.storage ?: state.storageFreeMb?.takeIf { it >= 0 }?.let {
                     val free = ObservedValue(it.toLong() * 1_048_576L, ObservationOrigin.CAMERA_REPORTED, null)
                     ObservedValue(listOf(StorageVolume("active", freeBytes = free,

@@ -1,5 +1,10 @@
 package com.opencapture.opencine.nikon
 
+import com.opencapture.opencine.core.BatteryReading
+import com.opencapture.opencine.core.ObservationPrecision
+import com.opencapture.opencine.core.ObservedValue
+import com.opencapture.opencine.core.ObservationOrigin
+import com.opencapture.opencine.core.PowerStatus
 import kotlin.math.ceil
 
 /**
@@ -26,6 +31,24 @@ public sealed interface NikonCameraBatteryGauge {
             Critical -> 1
             Unknown -> 0
         }
+
+    /** One common projection, including the legacy relay boundary. */
+    public val batteryReading: BatteryReading?
+        get() = powerStatus.batteryReading
+
+    public val powerStatus: PowerStatus
+        get() = if (this == Unknown) PowerStatus.unknown else PowerStatus(
+            battery = ObservedValue(
+                filledBars.toDouble() / BAR_COUNT,
+                origin = ObservationOrigin.CAMERA_REPORTED,
+                at = null,
+                precision = ObservationPrecision.Quantized(1.0 / BAR_COUNT),
+            ),
+            exhausted = ObservedValue(isCritical, ObservationOrigin.CAMERA_REPORTED, null),
+        )
+
+    /** Low ordinary charge is false, exhaustion is true, and missing data stays unknown. */
+    public val exhaustion: Boolean? get() = if (this == Unknown) null else isCritical
 
     /** Whether the body has disabled the shutter for exhaustion. */
     public val isCritical: Boolean get() = this == Critical

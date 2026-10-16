@@ -65,6 +65,11 @@
                     .easeOut(duration: MonitorLaunchTiming.fadeOutDuration), value: isVisible
                 )
                 .allowsHitTesting(isVisible)
+                // While it shows, one element over its whole frame: an accessibility hit test
+                // (VoiceOver, a UI test's hittability) meets the splash as a touch does, not the
+                // controls already laid out beneath it.
+                .accessibilityElement(children: .combine)
+                .accessibilityHidden(!isVisible)
                 .accessibilityIdentifier("monitor-launch-splash")
         }
     }

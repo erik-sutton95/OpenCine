@@ -7,6 +7,18 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CameraPropertySnapshotWireTest {
+    @Test fun recordingAxesPreserveOpaqueTokensAndNeverParseLabels() {
+        val token = "future exact camera token"
+        val decoded = CameraPropertySnapshotWire.decode(validPayload() +
+            "\noptions.recordingFormat\t$token\u001Earea-a\u001E4K\u001E23.98p")
+        assertTrue(decoded.isValid)
+        assertEquals(listOf(NikonRecordingFormatPresentation(token, "area-a", "4K", "23.98p")),
+            decoded.snapshot.controlCapabilities.recordingFormats)
+        assertTrue(CameraPropertySnapshotWire.decode(validPayload()).snapshot.controlCapabilities.recordingFormats.isEmpty())
+        val invalid = CameraPropertySnapshotWire.decode(validPayload() + "\noptions.recordingFormat\t4K · 25p")
+        assertTrue(invalid.snapshot.controlCapabilities.recordingFormats.isEmpty())
+    }
+
     @Test fun stillToneSemanticReadbackPreservesUnknown() {
         for (label in listOf("SDR", "HLG", "unknown", "1", "255", "")) {
             val decoded = CameraPropertySnapshotWire.decode(validPayload().replace("stillToneMode\tHLG", "stillToneMode\t$label"))

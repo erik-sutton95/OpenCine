@@ -158,6 +158,11 @@ struct FieldMonitorLayoutTests {
                 #expect(
                     layout.media.y == layout.settings.maxY + FieldMonitorLayout.settingsMediaGap)
                 #expect(layout.gauges.y >= layout.lock.maxY + 6)
+                // The link pill's padded touch target clears the lock's.
+                let pad =
+                    (FieldMonitorLayout.minimumTapTarget
+                        - FieldMonitorLayout.telemetryGaugeHeight(tablet: layout.tablet)) / 2
+                #expect(layout.gauges.y - pad >= layout.lock.maxY)
                 #expect(layout.status.midY > layout.picture.y)
                 #expect(
                     layout.status.maxX - layout.recordingReadoutTrailingInset <= layout.picture.maxX

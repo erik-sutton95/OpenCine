@@ -208,11 +208,11 @@ public fun <P> MonitorOperatorCatalogScreen(
                 open = open, select = ::select, thumbnail = thumbnail, presentation = presentation,
                 cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged)
         }, overlays = {
-            MediaCloseButton({ gallery.retire(); close() }, Modifier.align(Alignment.TopEnd).padding(8.dp).testTag("monitor.page.back"))
             library.deletionProgress?.let { progress -> MonitorMediaDeletionOverlay(progress, deletionDetail?.invoke(progress)) }
             state.notice?.let { Text(it, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = LiveDesign.text) }
         }, storageCards = presentation?.storage.orEmpty(),
-            selectStorage = { filter(MonitorMediaGalleryFilterAction.Storage(it), popup = false) })
+            selectStorage = { filter(MonitorMediaGalleryFilterAction.Storage(it), popup = false) },
+            close = { gallery.retire(); close() })
     }
     if (state.confirmationPresented) {
         val confirmation = state.deleteRequestID

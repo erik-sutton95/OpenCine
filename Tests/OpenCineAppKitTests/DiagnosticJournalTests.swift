@@ -25,6 +25,24 @@ import os
         #expect(!lines.contains { $0.contains("tester@example.com") })
     }
 
+    /// A host journal with a smaller bound (Z's closed events and connect trace) trims to its own
+    /// cap on the same cadence, like the Kotlin twin's `DiagnosticJournal(cap)`.
+    @Test func hostCapBoundsTheJournal() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("journal-\(UUID().uuidString).log")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let journal = DiagnosticJournal(
+            subsystem: "com.opencapture.test", category: "events", file: file, cap: 10,
+            redact: { $0 })
+        for index in 0..<140 { journal.line("line \(index)") }
+        let lines = journal.recentLines()
+        // The first line creates the file; the 128th append after it trims to the last 10
+        // (119 to 128), and the last 11 follow.
+        #expect(lines.count == 21)
+        #expect(lines.first?.hasSuffix(" line 119") == true)
+        #expect(lines.last?.hasSuffix(" line 139") == true)
+    }
+
     /// The immediate os_log line of a process about to abort is redacted as well as the stored one.
     @Test func immediateLogLineIsRedactedToo() {
         let calls = OSAllocatedUnfairLock(initialState: 0)
