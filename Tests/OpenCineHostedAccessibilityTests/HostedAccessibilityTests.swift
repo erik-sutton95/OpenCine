@@ -1,5 +1,6 @@
 #if os(iOS)
 import OpenCineHostedAccessibility
+import SwiftUI
 import UIKit
 import XCTest
 
@@ -44,6 +45,45 @@ final class HostedAccessibilityTests: XCTestCase {
         subview.accessibilityIdentifier = "monitor.fixture"
         XCTAssertEqual(HostedAccessibility.identifier(subview), "monitor.fixture")
         XCTAssertNil(HostedAccessibility.identifier(NSObject()))
+    }
+
+    func testLeavesEndAtAnElementAndPreferVendedChildren() {
+        let root = Container()
+        let element = UIView(), nested = UIView(), vended = Stub(), ignoredSubview = UIView()
+        element.isAccessibilityElement = true
+        nested.isAccessibilityElement = true
+        element.addSubview(nested)
+        let group = Container()
+        group.vended = [vended, element]
+        group.addSubview(ignoredSubview)
+        root.indexed = [Stub()]
+        root.addSubview(group)
+        vended.children = []
+        XCTAssertEqual(HostedAccessibility.reachable(in: root), [root, group, vended, element])
+        XCTAssertEqual(HostedAccessibility.leaves(in: root), [element])
+        XCTAssertEqual(HostedAccessibility.reachable(in: Generating(), limit: 40).count, 40)
+    }
+
+    /// The durable fix for walks that found nothing on a fresh simulator: the walk itself turns
+    /// on the accessibility runtime, so SwiftUI vends its tree however the simulator was made.
+    func testAWalkSeesSwiftUINodesWithoutSimulatorAccessibilitySetup() async throws {
+        #if targetEnvironment(simulator)
+            XCTAssertTrue(HostedAccessibility.enableRuntime(), "libAccessibility runtime switches must resolve")
+            let live = await HostedAccessibility.awaitRuntime()
+            XCTAssertTrue(live, "SwiftUI must vend its tree once the runtime is on")
+        #endif
+        let host = UIHostingController(rootView: Text("SIMULATED probe").accessibilityIdentifier("probe.node"))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; window.rootViewController = nil }
+        var found = false
+        for _ in 0..<100 where !found {
+            host.view.layoutIfNeeded()
+            found = HostedAccessibility.leaves(in: host.view).contains { HostedAccessibility.identifier($0) == "probe.node" }
+            if !found { try await Task.sleep(for: .milliseconds(20)) }
+        }
+        XCTAssertTrue(found, "SwiftUI must vend its accessibility tree to the hosted walk")
     }
 }
 

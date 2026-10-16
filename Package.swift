@@ -62,6 +62,7 @@ let package = Package(
         .library(name: "OpenCineAppUITesting", targets: ["OpenCineAppUITesting"]),
         // The one hosted accessibility walk, for in-process test bundles; depends on nothing.
         .library(name: "OpenCineHostedAccessibility", targets: ["OpenCineHostedAccessibility"]),
+        .library(name: "OpenCineHostedTestSupport", targets: ["OpenCineHostedTestSupport"]),
         // Integrations (docs/dji, docs/nikon, docs/insta360).
         .library(name: "OpenCineCameraVocabulary", targets: ["OpenCineCameraVocabulary"]),
         .library(name: "OpenCineDJI", targets: ["OpenCineDJI"]),
@@ -150,7 +151,7 @@ let package = Package(
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.
@@ -170,7 +171,8 @@ let package = Package(
             name: "OpenCineAppKitTests",
             dependencies: [
                 "OpenCineAppKit", "OpenCineCore", "OpenCineCoreTestSupport", "OpenCineMulticam",
-                "MonitorPresentation", "MonitorUI", "OpenCineMedia",
+                "MonitorPresentation", "MonitorUI", "OpenCineMedia", "OpenCineHostedAccessibility",
+                "OpenCineHostedTestSupport",
             ]),
         // The Apple side of the app shell both camera apps share (head tracking, the watcher's
         // Wi-Fi join code, the HDR display state). App differences arrive as host values and
@@ -189,7 +191,7 @@ let package = Package(
                 "OpenCineCameraVocabulary", "MonitorUI", "MonitorPresentation", "OpenCineAppKit", "OpenCineAppKitApple",
                 "OpenCineApple", "OpenCineMedia", "OpenCineMotion",
             ]),
-        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls"]),
+        .testTarget(name: "OpenCineCameraControlsTests", dependencies: ["OpenCineCameraControls", "OpenCineHostedAccessibility"]),
         // XCUITest cases that drive an app only by accessibility identifiers and the typed review
         // launch (MonitorPresentation `ReviewLaunch`); iOS only, empty elsewhere
         // (docs/conformance/SCENARIOS.md).
@@ -202,6 +204,10 @@ let package = Package(
         // second copy of a module the host already holds. iOS only, empty elsewhere.
         .target(name: "OpenCineHostedAccessibility"),
         .testTarget(name: "OpenCineHostedAccessibilityTests", dependencies: ["OpenCineHostedAccessibility"]),
+        // The one wait hosted tests share for state UIKit, SwiftUI or AVFoundation produce; same
+        // dependency-free shape as OpenCineHostedAccessibility. Test bundles only, never an app.
+        .target(name: "OpenCineHostedTestSupport"),
+        .testTarget(name: "OpenCineHostedTestSupportTests", dependencies: ["OpenCineHostedTestSupport"]),
 
         // MARK: Camera vocabulary
         // The camera control vocabulary the monitor shells speak (exposure, colour, focus, video

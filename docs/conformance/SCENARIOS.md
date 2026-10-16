@@ -53,7 +53,7 @@ clips are playable (`ReviewClip` in `OpenCineApple` writes the movie) and cached
 | S2 `ShareRoundTrip` | none | iOS | The selection share keeps the gallery place, the selection and selection mode; the clip share keeps the same clip with Loop on; Back returns to the same place. |
 | S3 `ConfirmationCancel` | `clipDelete` for the camera deletes | iOS | Cancelling playback delete, gallery delete and Clear cache changes nothing. |
 | S4 `ChromeEditReturn` | none | iOS | Done in the chrome editor returns to Display settings with the section in view; closing Settings returns to the monitor; the edit persists. |
-| S5 `AccessibilityTraversal` | none | iOS | Every staged screen and a presented confirmation has a bounded tree whose `monitor.*` controls are labelled. Hosted tests walk trees with `HostedAccessibility` (`OpenCineHostedAccessibility`, self-tested in `OpenCineHostedAccessibilityTests`). |
+| S5 `AccessibilityTraversal` | none | iOS | Every staged screen and a presented confirmation has a bounded tree whose `monitor.*` controls are labelled. Hosted tests walk trees with `HostedAccessibility` (`OpenCineHostedAccessibility`, self-tested in `OpenCineHostedAccessibilityTests`), whose walks turn the simulator's accessibility runtime on in process, so a fresh simulator vends the same tree as one made by `scripts/ios-private-simulator.py` (kept as a second layer). |
 
 Android scenarios (the same IDs) and the tablet cells follow.
 

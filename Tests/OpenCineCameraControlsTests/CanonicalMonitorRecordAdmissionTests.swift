@@ -5,6 +5,7 @@ import MonitorUI
 import Observation
 import OpenCineAppKit
 import OpenCineCore
+import OpenCineHostedAccessibility
 import OpenCineMedia
 import SwiftUI
 import UIKit
@@ -175,12 +176,12 @@ private final class RecordBodyFixture {
     func recordElement() async throws -> NSObject {
         for _ in 0..<200 {
             host.view.setNeedsLayout(); host.view.layoutIfNeeded()
-            if let element = Self.leaves(host.view).first(where: { Self.identifier($0) == "monitor.system.record" }) {
+            if let element = HostedAccessibility.leaves(in: host.view).first(where: { HostedAccessibility.identifier($0) == "monitor.system.record" }) {
                 return element
             }
             await Task.yield()
         }
-        return try XCTUnwrap(Self.leaves(host.view).first { Self.identifier($0) == "monitor.system.record" },
+        return try XCTUnwrap(HostedAccessibility.leaves(in: host.view).first { HostedAccessibility.identifier($0) == "monitor.system.record" },
             "The canonical body's real record element must be mounted")
     }
     func waitForRequests(_ count: Int) async {
@@ -191,20 +192,6 @@ private final class RecordBodyFixture {
     }
     func settleActions() async {
         for _ in 0..<50 { await Task.yield() }
-    }
-    private static func leaves(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
-            return elements.flatMap(leaves)
-        }
-        return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
-    }
-    private static func identifier(_ object: NSObject) -> String? {
-        let getter = NSSelectorFromString("accessibilityIdentifier")
-        guard object.responds(to: getter) else { return nil }
-        return object.perform(getter)?.takeUnretainedValue() as? String
     }
 }
 #endif

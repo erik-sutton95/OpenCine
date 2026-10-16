@@ -26,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import com.opencapture.monitorui.ReviewLaunch
+import com.opencapture.opencine.systemhints.SystemHints
 import java.io.File
 import java.io.OutputStream
 import kotlin.math.ceil
@@ -63,6 +64,8 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
 
     @Before
     public fun startInPortrait() {
+        // Also set by the run listener; idempotent, so a bundle without the listener is covered too.
+        SystemHints.suppress(automation)
         automation.setRotation(rotationFor(landscape = false))
     }
 
