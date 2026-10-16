@@ -2,6 +2,10 @@ package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.vocabulary.CaptureLadder
 import com.opencapture.opencine.vocabulary.CaptureLock
+import com.opencapture.opencine.vocabulary.LadderSheetPresentation
+import com.opencapture.opencine.vocabulary.LadderStep
+import com.opencapture.opencine.vocabulary.LadderTab
+import com.opencapture.opencine.vocabulary.LadderWrite
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
