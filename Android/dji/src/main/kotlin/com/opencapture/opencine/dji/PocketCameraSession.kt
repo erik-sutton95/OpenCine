@@ -20,6 +20,7 @@ import com.opencapture.opencine.media.FeedIncidentRateSampler
 import com.opencapture.opencine.decoder.incidentDecoder
 import com.opencapture.opencine.media.FeedIncidentSource
 import com.opencapture.opencine.media.FeedIncidentSnapshot
+import com.opencapture.opencine.media.FeedIncidentThermal
 import com.opencapture.opencine.media.FeedRepairPhase
 import com.opencapture.opencine.media.FeedRepairRecord
 import android.content.Context
@@ -276,6 +277,7 @@ class PocketCameraSession(
     }
     private val wifiCache = CameraWifiCredentialStore(appContext)
     private val wifiLock = WifiLowLatencyLock(appContext)
+    private val power = appContext.getSystemService(android.os.PowerManager::class.java)
     private var feedSessionId = UUID.randomUUID().toString()
     private var socketGeneration = 0
     /** Open from the first LIVE until the operator disconnects (iOS `incidentSessionActive`). */
@@ -1793,6 +1795,10 @@ class PocketCameraSession(
                         playbackActive = _status.value.inPlayback,
                         connected = _phase.value == ConnectionPhase.LIVE,
                         liveEstablished = decoder.lastPresentedAt != null,
+                        // Thermal and battery saver separate a throttled presenter from a stall
+                        // (S1 telemetry gap on presentStalled; iOS already sends both).
+                        thermalState = FeedIncidentThermal.fromAndroidThermalStatus(power?.currentThermalStatus),
+                        lowPower = power?.isPowerSaveMode == true,
                         sceneActive = !needsForegroundRecover,
                         assistState = "off",
                         outputObservable = decoder.decoderOutputExpected,

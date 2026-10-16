@@ -171,6 +171,18 @@ class FeedIncidentRecorderTest {
     }
 
     @Test
+    fun androidThermalStatusUsesTheIOSScale() {
+        assertEquals("nominal", FeedIncidentThermal.fromAndroidThermalStatus(null))
+        assertEquals("0", FeedIncidentThermal.fromAndroidThermalStatus(0))
+        assertEquals("1", FeedIncidentThermal.fromAndroidThermalStatus(1))
+        assertEquals("1", FeedIncidentThermal.fromAndroidThermalStatus(2))
+        assertEquals("2", FeedIncidentThermal.fromAndroidThermalStatus(3))
+        assertEquals("3", FeedIncidentThermal.fromAndroidThermalStatus(4))
+        assertEquals("3", FeedIncidentThermal.fromAndroidThermalStatus(6))
+        assertEquals("nominal", FeedIncidentThermal.fromAndroidThermalStatus(-1))
+    }
+
+    @Test
     fun sessionOriginIsCopiedAndDoesNotDowngrade() {
         val recorder = FeedIncidentRecorder { "inc-origin" }
         recorder.beginSession(

@@ -285,6 +285,22 @@ data class FeedIncidentLifecycle(
     val presentationExpected: Boolean = true,
 )
 
+/**
+ * Android thermal status (PowerManager.THERMAL_STATUS_*, 0 none to 6 shutdown) in the iOS
+ * producers' scale (ProcessInfo.ThermalState raw value: 0 nominal, 1 fair, 2 serious,
+ * 3 critical), so incidents from both platforms compare. Unknown keeps the model default.
+ */
+object FeedIncidentThermal {
+    fun fromAndroidThermalStatus(status: Int?): String =
+        when (status) {
+            null -> FeedIncidentLifecycle().thermalState
+            0 -> "0"
+            1, 2 -> "1"
+            3 -> "2"
+            else -> if (status > 3) "3" else FeedIncidentLifecycle().thermalState
+        }
+}
+
 /** Observed counts for one endpoint generation, before native video admission. */
 data class FeedIncidentIngress(
     val socketGeneration: Int,
