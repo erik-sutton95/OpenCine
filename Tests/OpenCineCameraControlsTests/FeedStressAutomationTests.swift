@@ -53,11 +53,11 @@ import Testing
         var baseline = FeedStressBaseline(captured: true, isoIndex: .iso100)
         var status = CameraStatus()
         status.isoIndex = .iso200
-        status.isoLimit = .iso1600
+        status.isoLimit = .max1600
         status.whiteBalance = .custom(kelvin: 5_600, tint: 3)
         baseline.fill(from: status)
         #expect(baseline.isoIndex == .iso100)
-        #expect(baseline.isoLimit == .iso1600)
+        #expect(baseline.isoLimit == .max1600)
         #expect(baseline.whiteBalance == .custom(kelvin: 5_600, tint: 3))
     }
 
@@ -68,7 +68,7 @@ import Testing
         baseline.whiteBalance = .auto
         #expect(baseline.isReady(needsLimit: false))
         #expect(!baseline.isReady(needsLimit: true))
-        baseline.isoLimit = .iso1600
+        baseline.isoLimit = .max1600
         #expect(baseline.isReady(needsLimit: true))
     }
 }
