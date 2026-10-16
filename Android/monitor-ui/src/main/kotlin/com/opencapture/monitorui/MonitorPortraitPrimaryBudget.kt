@@ -38,7 +38,18 @@ public fun rememberMonitorPortraitPrimaryFit(width: Float, status: MonitorStatus
         primary, details, inline = false, caption = null, maximumSize = 23f, color = null, primaryIsDetail = false)
 }
 
-/** Independent values remain complete and reserve their actual native touch widths. */
+/**
+ * Width of the stacked portrait format group: the primary line above, the detail line (codec,
+ * color, caption) below. Every item keeps its [target] width; the group is as wide as its
+ * wider line, not the sum of both. Pure so the rule is testable without a text measurer.
+ */
+public fun monitorPortraitStackedFormatWidth(primaryWidth: Int, lowerWidths: List<Int>,
+    target: Int, spacing: Int): Int {
+    val lower = lowerWidths.sumOf { maxOf(target, it) } + (lowerWidths.size - 1).coerceAtLeast(0) * spacing
+    return maxOf(target, primaryWidth, lower)
+}
+
+/** The status row reserves STBY/REC, the clock and the stacked format group with every native target. */
 @Composable
 public fun rememberMonitorPortraitSingleRowFit(width: Float, status: MonitorStatusPresentation,
     showsRecording: Boolean, showsTimecode: Boolean, primary: MonitorPortraitReadoutLine,
@@ -117,15 +128,14 @@ private fun rememberPortraitPrimaryFit(width: Float, status: MonitorStatusPresen
                     2 * recordingPadding.dp.roundToPx() + recordingSpacing.dp.roundToPx() else 0
                 val clockWidth = shape?.let { measured(it, clockSize, tracking = tracking) + 1 } ?: 0
                 val formatWidth = if (inline) {
-                    val primaryWidth = maxOf(targetWidth, measured(primary.value, if (primaryIsDetail) detailSize else primarySize, tracking = tracking) +
-                        primary.leadingWidth.dp.roundToPx() + 1)
-                    val otherWidths = details.sumOf {
-                        maxOf(targetWidth, measured(it.value, detailSize, tracking = tracking) + it.leadingWidth.dp.roundToPx() + 1)
-                    }
-                    val captionWidth = caption?.let { maxOf(targetWidth, measured(it, detailSize, tracking = tracking) + 1) } ?: 0
-                    val colorWidth = color?.let { maxOf(targetWidth, measured(it.value, primarySize, tracking = tracking) + it.leadingWidth.dp.roundToPx() + 1) } ?: 0
-                    val gaps = details.size + (if (caption == null) 0 else 1) + (if (color == null) 0 else 1)
-                    primaryWidth + colorWidth + otherWidths + captionWidth + gaps * spacing.dp.roundToPx()
+                    // The format group stacks: the primary line above, codec, color and caption on
+                    // the detail line below, so the group is as wide as its wider line.
+                    val primaryWidth = measured(primary.value, if (primaryIsDetail) detailSize else primarySize, tracking = tracking) +
+                        primary.leadingWidth.dp.roundToPx() + 1
+                    val lowerWidths = (details + listOfNotNull(color)).map {
+                        measured(it.value, detailSize, tracking = tracking) + it.leadingWidth.dp.roundToPx() + 1
+                    } + listOfNotNull(caption?.let { measured(it, detailSize, tracking = tracking) + 1 })
+                    monitorPortraitStackedFormatWidth(primaryWidth, lowerWidths, targetWidth, spacing.dp.roundToPx())
                 } else maxOf(minimum.roundToPx(), detailWidth, measured(primary.value, primarySize) +
                     primary.leadingWidth.dp.roundToPx() + 1)
                 if (recordingWidth + clockWidth + formatWidth +

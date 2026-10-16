@@ -57,7 +57,8 @@
                     }
                 }
             } color: {
-                if host.chromeSectionMounts(.color), !status.isPhoto {
+                // Portrait hangs the color under the format readout (its caption).
+                if !geometry.portrait, host.chromeSectionMounts(.color), !status.isPhoto {
                     topButton(
                         .color,
                         value: status.colorMode?.label(in: host.labelProfile) ?? "\u{2014}")
