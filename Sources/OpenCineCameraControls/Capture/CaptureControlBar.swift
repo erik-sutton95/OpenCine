@@ -56,7 +56,6 @@
             interfaceLocked || host.sessionLocked
         }
 
-        private var capabilities: CaptureSheetCapabilities { host.captureCapabilities }
         /// The one capability model: which tiles the strip offers.
         private var controls: ControlCapabilities { host.controlCapabilities }
 
@@ -65,7 +64,7 @@
         private var showsAudio: Bool { controls.audio.isOffered && !status.isPhoto }
 
         private var visibleTileCount: Int {
-            4 + (capabilities.faceMetering ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)
+            4 + (controls.faceMetering.isOffered ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)
                 + (controls.iris.isOffered ? 1 : 0) + (showsAudio ? 1 : 0)
         }
 

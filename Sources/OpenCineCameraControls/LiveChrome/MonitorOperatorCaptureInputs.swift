@@ -29,7 +29,6 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         presentedSheet: (() -> CaptureSheet?)? = nil,
         open: ((CaptureSheet) -> Void)? = nil, dismiss: (() -> Void)? = nil) -> Self {
         let status = host.cameraStatus
-        let capabilities = host.captureCapabilities
         let controls = host.controlCapabilities
         var readouts: [MonitorOperatorLiveReadout<CaptureSheet, Section>] = []
         func append(_ sheet: CaptureSheet, _ title: String, _ value: String,
