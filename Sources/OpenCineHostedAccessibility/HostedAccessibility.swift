@@ -16,9 +16,11 @@ public enum HostedAccessibility {
     /// a test that mounts a view before its first walk calls it in `setUp`, so the first render
     /// already builds the tree.
     ///
-    /// On a simulator it loads `libAccessibility` and switches on automation and application
-    /// accessibility, as an assistive client would; the simulator keeps both settings afterwards,
-    /// as `scripts/ios-private-simulator.py` leaves them. On a physical device it does
+    /// On a simulator it loads `libAccessibility` and switches on application accessibility, the
+    /// setting `scripts/ios-private-simulator.py` writes; the simulator keeps it afterwards. It
+    /// leaves automation off: with automation switched on in a booted simulator, later processes
+    /// re-evaluated SwiftUI views more often (MotionControlDragInvalidationTests counted 5 to 12
+    /// evaluations instead of 4). On a physical device it does
     /// nothing, so a test run never changes the phone's own accessibility settings; device runs
     /// keep their skip-with-reason guards. Returns whether the runtime switch was reached.
     @discardableResult
@@ -58,7 +60,7 @@ public enum HostedAccessibility {
         #if targetEnvironment(simulator)
             guard let library = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW) else { return false }
             typealias Switch = @convention(c) (Int32) -> Void
-            let names: [String] = ["_AXSSetAutomationEnabled", "_AXSApplicationAccessibilitySetEnabled"]
+            let names: [String] = ["_AXSApplicationAccessibilitySetEnabled"]
             let switches = names.compactMap { name in dlsym(library, name) }
             for symbol in switches { unsafeBitCast(symbol, to: Switch.self)(1) }
             return switches.count == names.count
