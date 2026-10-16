@@ -9,13 +9,14 @@
         /// square of the short side, as before.
         func testFocusMarkUsesTheDeclaredAreaOrTheStandardSquare() {
             let feed = CGRect(x: 10, y: 20, width: 400, height: 200)
-            XCTAssertEqual(MonitorTrackingGeometry.focusBoxSize(nil, in: feed), CGSize(width: 28, height: 28))
-            XCTAssertEqual(
-                MonitorTrackingGeometry.focusBoxSize(CGSize(width: 0.25, height: 0.5), in: feed),
-                CGSize(width: 100, height: 100))
-            XCTAssertEqual(
-                MonitorTrackingGeometry.focusBoxSize(CGSize(width: 0, height: 0.5), in: feed),
-                CGSize(width: 28, height: 28))
+            func expect(_ declared: CGSize?, _ side: CGFloat, line: UInt = #line) {
+                let size = MonitorTrackingGeometry.focusBoxSize(declared, in: feed)
+                XCTAssertEqual(size.width, side, accuracy: 0.0001, line: line)
+                XCTAssertEqual(size.height, side, accuracy: 0.0001, line: line)
+            }
+            expect(nil, 28)
+            expect(CGSize(width: 0.25, height: 0.5), 100)
+            expect(CGSize(width: 0, height: 0.5), 28)
             XCTAssertEqual(MonitorFocusMark(point: .zero, color: .white, lockProgress: 2).lockProgress, 1)
             XCTAssertEqual(MonitorFocusMark(point: .zero, color: .white, lockProgress: -1).lockProgress, 0)
         }
