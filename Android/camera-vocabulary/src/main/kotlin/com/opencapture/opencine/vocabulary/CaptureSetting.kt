@@ -50,4 +50,30 @@ interface CaptureSessionState {
     /** Original hosts remain compatible; new sources preserve unknown declarations explicitly. */
     val nativeISO: CaptureNativeISOCapabilities
         get() = CaptureNativeISOCapabilities(hop = nativeIsoHopSupported)
+    /**
+     * The integration's one control model for the connected camera (its static body facts merged
+     * with the live snapshot). Null keeps the flags above, for hosts that have not adopted it.
+     */
+    val controlCapabilities: ControlCapabilities? get() = null
+}
+
+/**
+ * What the shared capture UI reads: the host's [CaptureSessionState.controlCapabilities], else the
+ * legacy flags (Swift `ControlCapabilities.overlaying(_:)`). A legacy host's tiles followed its
+ * [layout] sections and its sheets the session flags, so [layout] decides focus, iris, audio,
+ * zoom and gimbal where it is given. A flag that is off is unknown, never unsupported.
+ */
+fun CaptureSessionState.controls(layout: com.opencapture.opencine.core.MonitorLayoutCapabilities? = null): ControlCapabilities {
+    controlCapabilities?.let { return it }
+    fun <T> flag(on: Boolean?): ControlCapability<T> =
+        if (on == true) ControlCapability.supported() else ControlCapability.unknown()
+    return ControlCapabilities(
+        iso = ControlCapability(com.opencapture.opencine.core.SupportStatus.UNKNOWN, offer = ISOOffer(nativeISO = nativeISO)),
+        focus = flag(layout?.focus ?: focusModeSupported),
+        iris = flag(layout?.iris ?: irisSupported),
+        audio = flag(layout?.audio),
+        zoom = flag(layout?.zoom),
+        gimbal = flag(layout?.gimbal),
+        headTracking = flag(layout?.headTracking),
+    )
 }

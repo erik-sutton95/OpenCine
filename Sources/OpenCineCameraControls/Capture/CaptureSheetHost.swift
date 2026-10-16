@@ -76,6 +76,37 @@
         }
     }
 
+    extension CaptureSheetCapabilities {
+        /// The legacy flags as a view of the one model (routing stays the host's
+        /// `CaptureSheetRouting`).
+        public init(controls: ControlCapabilities) {
+            self.init(focusMode: controls.focus.isOffered, aperture: controls.iris.isOffered,
+                nativeISO: controls.iso.offer?.nativeISO ?? .init(), audio: controls.audio.isOffered,
+                faceMetering: controls.faceMetering.isOffered)
+        }
+    }
+
+    extension ControlCapabilities {
+        /// The model with a legacy host's capture-sheet flags laid over it, so a host that has not
+        /// adopted `controlCapabilities` offers exactly what its flags said. A flag that is off hides
+        /// the family (unknown unless the model already knows it is not offered).
+        public func overlaying(_ legacy: CaptureSheetCapabilities) -> ControlCapabilities {
+            func flag<Offer>(_ on: Bool, _ capability: ControlCapability<Offer>) -> ControlCapability<Offer> {
+                if on { return capability.isOffered ? capability : .supported(capability.offer) }
+                return capability.isOffered ? .unknown : capability
+            }
+            var controls = self
+            controls.focus = flag(legacy.focusMode, focus)
+            controls.iris = flag(legacy.aperture, iris)
+            controls.audio = flag(legacy.audio, audio)
+            controls.faceMetering = flag(legacy.faceMetering, faceMetering)
+            var iso = controls.iso.offer ?? ISOOffer()
+            iso.nativeISO = legacy.nativeISO
+            controls.iso = ControlCapability(support: controls.iso.support, access: controls.iso.access, offer: iso)
+            return controls
+        }
+    }
+
     /// Optional integration-owned metering; unknown has no toggle target.
     @MainActor public struct CaptureNativeMeteringSource {
         public let face: Bool?
@@ -121,7 +152,12 @@
         var autoWhiteBalanceLocked: Bool { get }
         /// Whether AWB lock can pin the live Auto Kelvin now.
         var canLockAutoWhiteBalance: Bool { get }
+        /// Compatibility flags for hosts that have not adopted `controlCapabilities`.
         var captureCapabilities: CaptureSheetCapabilities { get }
+        /// The one typed capability model of the connected camera: what the shared sheets, tiles
+        /// and readouts offer. Supply the integration's model (its static body facts merged with the
+        /// live snapshot); the default reads the legacy `captureCapabilities` over the Core snapshot.
+        var controlCapabilities: ControlCapabilities { get }
         var captureRouting: CaptureSheetRouting { get }
         var audioService: CaptureAudioService? { get }
         /// The FOCUS rows this app offers.
@@ -167,6 +203,11 @@
                 selectedColor: cameraStatus.colorMode?.label(for: bodyFamily, in: labelProfile))
         }
         func commitRecordingCodec(_ id: String) {}
+        var controlCapabilities: ControlCapabilities {
+            ControlCapabilities(snapshot: control.snapshot?.capabilities ?? CapabilitySnapshot(),
+                profile: connectedBody?.captureProfile, codecColor: recordingCodecColor)
+                .overlaying(captureCapabilities)
+        }
         /// Compatibility for existing hosts; migrated composition supplies routing explicitly.
         var captureRouting: CaptureSheetRouting {
             .init(commonExposureCompensation: captureCapabilities.commonExposureCompensation,
