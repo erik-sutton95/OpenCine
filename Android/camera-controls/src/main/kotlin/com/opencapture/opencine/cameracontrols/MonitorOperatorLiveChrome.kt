@@ -53,6 +53,8 @@ public class MonitorOperatorLiveChromeSource<Host>(
     public val zoom: MonitorOperatorZoomPresentation?, public val stick: MonitorOperatorStickActions,
     public val returnToStage: (() -> Unit)? = null,
     public val status: CameraStatus, public val capabilities: MonitorLayoutCapabilities,
+    /** The operator's remote shutter choice; it records only where the app provides [LocalMonitorRemoteShutter]. */
+    public val remoteShutterEnabled: Boolean = false,
 ) where Host : CaptureSheetHost, Host : GimbalChromeHost
 
 /** All capture values use the same held editor and full typed sheet, including observed optional metering. */

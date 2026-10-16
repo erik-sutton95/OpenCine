@@ -8,6 +8,9 @@ import androidx.compose.ui.unit.dp
 import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorTypography
 
+/** The remote shutter switch's test tag (A2-32), for the apps' settings UI tests. */
+const val REMOTE_SHUTTER_TAG: String = "monitor.settings.controls.remoteShutter"
+
 /** Known local input/display choices. The host retains persistence and input arming policy. */
 @Composable
 fun MonitorInputOrientationSettings(
@@ -22,7 +25,7 @@ fun MonitorInputOrientationSettings(
     MonitorSettingsRowCard(title = "Input & orientation") {
         if (remoteShutter != null && onRemoteShutter != null) {
             MonitorSettingsSwitchInlineRow(title = remoteTitle, help = remoteHelp,
-                isOn = remoteShutter, showTopDivider = false) {
+                isOn = remoteShutter, showTopDivider = false, testTag = REMOTE_SHUTTER_TAG) {
                 feedback(); onRemoteShutter(!remoteShutter)
             }
             if (remoteCaption != null) Text(remoteCaption, style = MonitorTypography.text(10.5f),

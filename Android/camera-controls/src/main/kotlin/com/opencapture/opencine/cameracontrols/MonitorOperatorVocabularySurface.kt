@@ -72,6 +72,8 @@ public class MonitorOperatorLiveState {
     public var topQuickActive: Boolean by mutableStateOf(false)
     public var stripQuickActive: Boolean by mutableStateOf(false)
     public var showStorageDuration: Boolean by mutableStateOf(false)
+    /** The record confirmation is open: a remote press must not bypass a dialog the operator sees. */
+    public var recordConfirming: Boolean by mutableStateOf(false)
     public var paletteRevision: Long by mutableStateOf(0L)
         private set
     public val capturePresented: Boolean get() = sheet != null || topQuickActive || stripQuickActive
@@ -130,7 +132,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
         record = MonitorOperatorRecordSource(status.isPhoto, chrome.capture.confirmRecording(), busy,
-            openMode = { state.sheet = LiveSheet.MODE }),
+            openMode = { state.sheet = LiveSheet.MODE }, confirmingChanged = { state.recordConfirming = it }),
         exposure = { readExposure().takeIf { exposureAvailable }?.let { EvComp.fromRaw(it)?.thirds?.div(3.0) } },
         level = level, levelViewFlip = levelViewFlip,
         audio = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
@@ -174,6 +176,10 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val tools = MonitorAssistTool.settingsCases.filter {
         it != MonitorAssistTool.AUDIO || capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
     }
+    val shell by chrome.shell.state.collectAsState()
+    MonitorOperatorRemoteShutterArming(chrome.remoteShutterEnabled,
+        monitorIsFront = shell.monitor != null && shell.cover == null, photo = status.isPhoto,
+        recordConfirming = state.recordConfirming, control = chrome.capture.control)
     val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
         tool, assist.isOn(tool), { assist.toggle(tool) }, tool.hasConfiguration) }
     val native = MonitorOperatorBodyViews(
