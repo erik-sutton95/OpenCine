@@ -156,7 +156,9 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
                     }, accessory: { cachingHeader(snapshot) })
                     .id(catalogIdentity)
                 if gallery.filterPopupPresented { filterPopup(snapshot: snapshot, size: proxy.size) }
-                if let progress = library.deletionProgress { deletionOverlay(progress) }
+                if let progress = library.deletionProgress {
+                    MonitorMediaDeletionOverlay(progress: progress, detail: deletionDetail?(progress))
+                }
                 if let notice = gallery.notice {
                     VStack { Spacer(); Text(notice).font(MonitorTheme.font(13, weight: .medium))
                         .foregroundStyle(MonitorTheme.text).padding(.horizontal, 14).padding(.vertical, 9)
@@ -247,20 +249,6 @@ private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>
             }.padding(.horizontal, 14).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
                 .liquidGlass(in: Capsule(), interactive: false)
         }
-    }
-    private func deletionOverlay(_ progress: MonitorMediaDeletionProgress) -> some View {
-        ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
-            VStack(spacing: 6) {
-                Text("Deleting \(progress.selectedCount) \(progress.selectedCount == 1 ? "item" : "items")…")
-                    .font(MonitorTheme.font(14, weight: .semibold)).foregroundStyle(MonitorTheme.text)
-                Text(deletionDetail?(progress) ?? "\(progress.completed) of \(progress.total)")
-                    .font(MonitorTheme.font(11)).foregroundStyle(MonitorTheme.muted)
-                ProgressView(value: progress.total == 0 ? 0 : Double(progress.completed) / Double(progress.total))
-                    .tint(MonitorTheme.accent).frame(width: 220).padding(.top, 6)
-            }.padding(.horizontal, 24).padding(.vertical, 20)
-                .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }.allowsHitTesting(true)
     }
     private var dateBounds: ClosedRange<Date>? {
         let dates = library.records(in: library.category).compactMap { $0.facts.dateKey.flatMap { MediaLibraryQuery.date(fromKey: $0) } }
