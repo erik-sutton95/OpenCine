@@ -314,6 +314,7 @@
       "OpenCineWatch",
       "OpenCineWatchTests",
       "OpenCineApple",
+      "OpenCineAppleObjC",
       "OpenCineAppleTests",
       ":core",
       ":media",

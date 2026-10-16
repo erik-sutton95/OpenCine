@@ -9,6 +9,7 @@ import OpenCineCore
 import UIKit
 import VideoToolbox
 import os
+import OpenCineAppleObjC
 
 /// Admission captured before queued decode, using the existing decoded-stream fence.
 public struct MonitorJPEGDecodeSource: Sendable {
@@ -273,10 +274,13 @@ private final class MonitorDecodedSuperResolution {
             guard let queue = commandQueue, let buffer = queue.makeCommandBuffer() else {
                 return nil
             }
-            processor.process(
-                with: buffer,
+            if let raised = frameProcessorEncode(
+                processor, commandBuffer: buffer,
                 parameters: VTLowLatencySuperResolutionScalerParameters(
                     sourceFrame: sourceFrame, destinationFrame: destinationFrame))
+            {
+                return fail("the model raised \(raised)")
+            }
             buffer.commit()
             buffer.waitUntilCompleted()
             if let error = buffer.error {
@@ -593,6 +597,17 @@ public final class MonitorTemporalNoiseFilter {
                     presentationTimeStamp: CMTime(
                         value: step + CMTimeValue(index + 1), timescale: 600))
             }
+            // A reference whose frame could not be built is a gap the processor fills with nil and
+            // raises on, exactly as an unseeded window did: recheck the window that was BUILT.
+            guard
+                Self.canRun(
+                    past: pastReferences.count, previousWanted: previousFrameCount,
+                    futures: futureReferences.count, futureWanted: futureWanted)
+            else {
+                rememberPast(current)
+                report = "skipped: a reference frame could not be wrapped"
+                return nil
+            }
             guard
                 let parameters = VTTemporalNoiseFilterParameters(
                     sourceFrame: sourceFrame,
@@ -604,7 +619,10 @@ public final class MonitorTemporalNoiseFilter {
             else { return nil }
 
             guard let buffer = queue.makeCommandBuffer() else { return nil }
-            processor.process(with: buffer, parameters: parameters)
+            if let raised = frameProcessorEncode(processor, commandBuffer: buffer, parameters: parameters) {
+                _ = disable("the model raised \(raised)")
+                return nil
+            }
             buffer.commit()
             buffer.waitUntilCompleted()
             if let error = buffer.error {
