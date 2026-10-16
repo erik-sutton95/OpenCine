@@ -331,10 +331,11 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         publish()
     }
 
-    /// What a monitor lays out for this camera: the Core projection of `current` plus the Luna
-    /// gimbal (`motion`). `base` carries what Core has no vocabulary for yet.
+    /// What a monitor lays out for this camera: a view of the one control model
+    /// (`controlCapabilities()`), so the zoom chip follows Luna's declared zoom before the live
+    /// range arrives. `base` carries what Core has no vocabulary for yet.
     public func layout(base: MonitorLayoutCapabilities = .init()) -> MonitorLayoutCapabilities {
-        MonitorLayoutCapabilities(current.capabilities, motion: Self.motion, base: base)
+        MonitorLayoutCapabilities(controls: controlCapabilities(), base: base)
     }
 
     // MARK: - CameraSession

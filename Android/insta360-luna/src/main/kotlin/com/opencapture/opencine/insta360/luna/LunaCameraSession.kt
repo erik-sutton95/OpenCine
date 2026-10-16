@@ -50,6 +50,12 @@ import com.opencapture.opencine.core.TimecodeCapability
 import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.UnavailableReason
 import com.opencapture.opencine.core.WhiteBalanceValue
+import com.opencapture.opencine.vocabulary.CameraCaptureProfile
+import com.opencapture.opencine.vocabulary.CameraZoomProfile
+import com.opencapture.opencine.vocabulary.CaptureCodecColorChoices
+import com.opencapture.opencine.vocabulary.CaptureNativeISOCapabilities
+import com.opencapture.opencine.vocabulary.ControlCapabilities
+import com.opencapture.opencine.vocabulary.ControlFamily
 import com.opencapture.opencine.core.rejection
 import com.opencapture.opencine.motion.MonitorLayoutCapabilities
 import com.opencapture.opencine.motion.MotionAxis
@@ -395,12 +401,21 @@ class LunaCameraSession internal constructor(
     }
 
     /**
-     * What a monitor lays out for this camera (Swift `layout(base:)`): the Core projection of the
-     * snapshot plus the Luna gimbal ([MOTION]). [base] carries what Core has no vocabulary for yet.
+     * What a monitor lays out for this camera (Swift `layout(base:)`): a view of the one control
+     * model ([controlCapabilities]), so the zoom chip follows Luna's declared zoom before the live
+     * range arrives. [base] carries what Core has no vocabulary for yet.
      */
-    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities {
+    fun layout(base: MonitorLayoutCapabilities = MonitorLayoutCapabilities()): MonitorLayoutCapabilities =
+        com.opencapture.opencine.vocabulary.MonitorLayoutCapabilities(controlCapabilities(), base)
+
+    /**
+     * The one control model for this camera (Swift `controlCapabilities(codecColor:)`):
+     * [CAPTURE_PROFILE] and [MOTION] merged with the live capabilities. [codecColor] is what the
+     * codec and colour popup lists now, when the host has it.
+     */
+    fun controlCapabilities(codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
         val capabilities = synchronized(lock) { current.capabilities }
-        return MonitorLayoutCapabilities(capabilities, MOTION, base)
+        return ControlCapabilities.derive(capabilities, CAPTURE_PROFILE, MOTION, codecColor)
     }
 
     // CameraSession.
@@ -731,6 +746,28 @@ class LunaCameraSession internal constructor(
             bounds = MotionBounds(-58.5..235.0, -57.0..90.0),
             maxRateDegPerSec = null, feedbackMaxAge = 300.milliseconds, arrivalToleranceDeg = 0.5,
             pose = SupportStatus.SUPPORTED,
+        )
+        /**
+         * Luna's static control facts (fw 1.1.15; Swift `LunaCameraSession.captureProfile`): focus
+         * modes and tap focus, a fixed aperture, the gimbal, zoom presets 1/2/3/6/15, face
+         * metering, native exposure compensation, no native ISO hop or ISO ceiling, no ND, photo
+         * modes, the camera's media served and deleted over its access point. Multiview is not
+         * declared (unknown).
+         */
+        val CAPTURE_PROFILE = CameraCaptureProfile(
+            supportsFocusMode = true, supportsTapFocus = true, supportsAperture = false, hasGimbal = true,
+            supportsZoom = true, zoom = CameraZoomProfile(stops = listOf(1.0, 2.0, 3.0, 6.0, 15.0)),
+            nativeISO = CaptureNativeISOCapabilities(hop = false, ceiling = false),
+            controls = mapOf(
+                ControlFamily.ND_FILTER to SupportStatus.UNSUPPORTED,
+                ControlFamily.FACE_METERING to SupportStatus.SUPPORTED,
+                ControlFamily.EXPOSURE_COMPENSATION to SupportStatus.SUPPORTED,
+                ControlFamily.RECORDING_FORMAT to SupportStatus.SUPPORTED,
+                ControlFamily.CODEC_COLOR to SupportStatus.SUPPORTED,
+                ControlFamily.PHOTO to SupportStatus.SUPPORTED,
+                ControlFamily.MEDIA to SupportStatus.SUPPORTED,
+                ControlFamily.MEDIA_DELETE to SupportStatus.SUPPORTED,
+            ),
         )
         internal val INTEGRATION = IntegrationID("com.opencapture.insta360.luna")
         /** Official Video ISO wheel. */

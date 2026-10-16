@@ -136,7 +136,7 @@ class NikonOpenCineSessionTest {
         seam.closeNow(SessionCloseReason.REQUESTED)
     }
 
-    private class FakeNikon(properties: CameraPropertySnapshot, reported: Boolean? = false) : CameraSession {
+    internal class FakeNikon(properties: CameraPropertySnapshot, reported: Boolean? = false) : CameraSession {
         override val state =
             MutableStateFlow<CameraSessionState>(
                 CameraSessionState.Connected(CameraIdentity("ZR", "ZR", "3000123")),

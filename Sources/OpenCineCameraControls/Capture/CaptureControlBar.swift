@@ -39,10 +39,10 @@
                     }
                 }
                 .onChange(of: columns) { _, _ in host.captureDrum = nil }
-                .onChange(of: capabilities.focusMode) { _, on in
+                .onChange(of: controls.focus.isOffered) { _, on in
                     if !on, host.captureSheet == .focus { host.captureSheet = nil }
                 }
-                .onChange(of: capabilities.aperture) { _, on in
+                .onChange(of: controls.iris.isOffered) { _, on in
                     if !on, host.captureSheet == .aperture { host.captureSheet = nil }
                     if !on, host.captureDrum?.sheet == .aperture { host.captureDrum = nil }
                 }
@@ -56,15 +56,16 @@
             interfaceLocked || host.sessionLocked
         }
 
-        private var capabilities: CaptureSheetCapabilities { host.captureCapabilities }
+        /// The one capability model: which tiles the strip offers.
+        private var controls: ControlCapabilities { host.controlCapabilities }
 
         private var status: CameraStatus { host.cameraStatus }
 
-        private var showsAudio: Bool { capabilities.audio && !status.isPhoto }
+        private var showsAudio: Bool { controls.audio.isOffered && !status.isPhoto }
 
         private var visibleTileCount: Int {
-            4 + (capabilities.faceMetering ? 1 : 0) + (capabilities.focusMode ? 1 : 0)
-                + (capabilities.aperture ? 1 : 0) + (showsAudio ? 1 : 0)
+            4 + (controls.faceMetering.isOffered ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)
+                + (controls.iris.isOffered ? 1 : 0) + (showsAudio ? 1 : 0)
         }
 
         private var gridColumns: Int { columns == 3 ? 3 : max(visibleTileCount, 1) }
@@ -73,7 +74,7 @@
             MonitorControlGrid(
                 columns: gridColumns, spacing: columns == 3 ? 8 : 12, equalColumns: columns == 3
             ) {
-                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && capabilities.isoLimit) {
+                if !host.captureStripShowsPendingEdits || (status.isoIndex == .auto && controls.nativeISO.ceiling == true) {
                     tile(.iso, label: "ISO", value: isoValue, widest: "25600")
                 } else {
                     commonTile(.iso, key: .iso)
@@ -102,10 +103,10 @@
                 } else {
                     tile(.wb, label: "WB", value: wbValue, widest: "10000K", valueIcon: wbIcon)
                 }
-                if capabilities.focusMode {
+                if controls.focus.isOffered {
                     tile(.focus, label: "FOCUS", value: focusValue, widest: "Showcase")
                 }
-                if capabilities.aperture {
+                if controls.iris.isOffered {
                     tile(
                         .aperture, label: "APERTURE", value: apertureValue, widest: "Starburst f/4")
                 }
