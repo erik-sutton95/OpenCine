@@ -279,6 +279,54 @@ internal class ReliabilityReportingTransport(
     private fun key(envelope: SentryEnvelope): String =
         envelope.header.eventId?.toString() ?: System.identityHashCode(envelope).toString()
 
+    /** Files of envelopes reloaded past the SDK's reader; its `discard` cannot find them. */
+    private val cachedFiles = java.util.concurrent.ConcurrentHashMap<String, File>()
+
+    /** Admits cached envelopes to the pending queue. */
+    private fun reloadDiskCache() {
+        try {
+            for (envelope in options.envelopeDiskCache.take(options.maxCacheItems)) {
+                if (envelope == null) continue // The SDK's Java iterator can yield null.
+                if (pending.size >= options.maxCacheItems) break
+                pending.putIfAbsent(key(envelope), envelope to Hint())
+            }
+        } catch (error: Exception) {
+            // PA-12: the SDK reads the whole cache in one pass, so one malformed file failed
+            // every drain and stranded every healthy report behind it. Read file by file.
+            options.logger.log(SentryLevel.WARNING,
+                "Could not reload cached reliability envelopes (%s); reading files one by one",
+                error.javaClass.simpleName)
+            reloadCacheFiles()
+        }
+    }
+
+    private fun reloadCacheFiles() {
+        try {
+            val read = CachedEnvelopeFiles.read(
+                options.cacheDirPath?.let(::File), options.serializer,
+                System.currentTimeMillis(), options.maxCacheItems)
+            if (read.removed > 0) {
+                options.logger.log(SentryLevel.WARNING,
+                    "Removed %d unreadable cached reliability envelope(s)", read.removed)
+            }
+            for ((file, envelope) in read.entries) {
+                if (pending.size >= options.maxCacheItems) break
+                val id = envelope.header.eventId?.toString() ?: "file:${file.name}"
+                if (pending.putIfAbsent(id, envelope to Hint()) == null) cachedFiles[id] = file
+            }
+        } catch (error: Exception) {
+            // Must not terminate the transport worker or block reports already pending.
+            options.logger.log(SentryLevel.WARNING,
+                "Could not read cached reliability envelope files (%s); retaining disk cache",
+                error.javaClass.simpleName)
+        }
+    }
+
+    private fun forget(id: String, entry: Pair<SentryEnvelope, Hint>) {
+        pending.remove(id, entry)
+        cachedFiles.remove(id)?.delete()
+    }
+
     private fun scheduleDrain() {
         if (closed.get() || !drainScheduled.compareAndSet(false, true)) return
         try {
@@ -290,25 +338,30 @@ internal class ReliabilityReportingTransport(
                     ) return@execute
                     // Reload disk on every idle flush, including native reports cached
                     // before the camera gate opened. Bound memory and queued work.
-                    try {
-                        for (envelope in options.envelopeDiskCache.take(options.maxCacheItems)) {
-                            if (pending.size >= options.maxCacheItems) break
-                            pending.putIfAbsent(key(envelope), envelope to Hint())
-                        }
-                    } catch (error: Exception) {
-                        // A malformed cached envelope must not terminate the transport worker
-                        // or block healthy reports already admitted to the pending queue.
-                        options.logger.log(SentryLevel.WARNING,
-                            "Could not reload cached reliability envelopes (%s); retaining disk cache",
-                            error.javaClass.simpleName)
-                    }
+                    reloadDiskCache()
                     for ((id, entry) in pending.entries.toList()) {
                         if (closed.get() || reporting.gate.shouldBlockUpload ||
                             !reporting.consent.isOptedIn ||
                             System.currentTimeMillis() < nextAttemptAt || limiter.isAnyRateLimitActive
                         ) break
-                        if (post(entry.first)) {
-                            pending.remove(id, entry)
+                        val delivered =
+                            try {
+                                post(entry.first)
+                            } catch (error: Exception) {
+                                // An envelope that cannot even be serialized never will be:
+                                // drop it rather than let the exception end the process.
+                                options.logger.log(SentryLevel.WARNING,
+                                    "Dropping a reliability envelope that cannot be sent (%s)",
+                                    error.javaClass.simpleName)
+                                forget(id, entry)
+                                runCatching { options.envelopeDiskCache.discard(entry.first) }
+                                val sdkHint = io.sentry.util.HintUtils.getSentrySdkHint(entry.second)
+                                (sdkHint as? io.sentry.hints.Retryable)?.setRetry(false)
+                                (sdkHint as? io.sentry.hints.SubmissionResult)?.setResult(false)
+                                continue
+                            }
+                        if (delivered) {
+                            forget(id, entry)
                             finishHint(entry.second, true)
                             failures = 0
                         } else {
@@ -384,6 +437,7 @@ internal class ReliabilityReportingTransport(
         executor.shutdownNow()
         pending.values.forEach { finishHint(it.second, false) }
         pending.clear()
+        cachedFiles.clear()
         limiter.close()
     }
 
