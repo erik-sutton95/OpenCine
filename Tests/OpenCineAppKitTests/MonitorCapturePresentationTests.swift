@@ -8,6 +8,27 @@ import Testing
 /// SIMULATED descriptor and confirmation scenarios. Kotlin mirrors the same names.
 @MainActor
 @Suite struct MonitorCapturePresentationTests {
+    @Test func recordingReadoutsKeepExactCadenceAndUnknownFacts() throws {
+        var snapshot = CameraSnapshot(session: CameraSessionID())
+        #expect(MonitorCapturePresentation.recordingLabel(MonitorCapturePresentation.recordingFormat(snapshot)) == nil)
+        snapshot.recordingFormat.dimensions = ObservedValue(try #require(CameraRecordingFormat.Dimensions(width: 3840, height: 2160)), origin: .cameraReported, at: .zero)
+        snapshot.settings[.frameRate] = ObservedValue(.frameRate(Rational(24_000, 1_001)), origin: .cameraReported, at: .zero)
+        snapshot.recordingFormat.profile = ObservedValue("I-Log", origin: .cameraReported, at: .zero)
+        let format = MonitorCapturePresentation.recordingFormat(snapshot)
+        #expect(MonitorCapturePresentation.recordingLabel(format) == "4K · 23.98p")
+        #expect(format.codec == nil && format.profile == "I-Log")
+        #expect(MonitorCapturePresentation.recordingLabel(CameraRecordingFormat(dimensions: format.dimensions)) == "4K")
+        #expect(MonitorCapturePresentation.resolutionLabel(try #require(CameraRecordingFormat.Dimensions(width: 1080, height: 1920))) == "1080p 9:16")
+    }
+
+    @Test func exposureProgramLabelsUseTheReportedProgram() {
+        #expect(MonitorCapturePresentation.exposureProgram(.manual) == "M")
+        #expect(MonitorCapturePresentation.exposureProgram(.automatic) == "A")
+        #expect(MonitorCapturePresentation.exposureProgram(.isoPriority) == "I")
+        #expect(MonitorCapturePresentation.exposureProgram(.shutterPriority) == "S")
+        #expect(MonitorCapturePresentation.exposureProgram(.program) == "P")
+    }
+
     @Test func commonExposureAndFocusLabelsPreserveTypedDomainValues() {
         let values: [SettingValue] = [
             .exposureCompensation(Rational(-1, 3)), .exposureCompensation(Rational(0, 1)),
@@ -58,6 +79,44 @@ import Testing
         let hud = control.statusPresentation(elapsedSeconds: 0)
         #expect(hud.recording == nil && hud.elapsedSeconds == nil && hud.timecode == nil)
         #expect(hud.recordingAccessibilityLabel == "Recording state unknown")
+    }
+
+    @available(macOS 14, *)
+    @Test func reportedAndPendingReadoutsKeepTheirOwnValuesAndTheSameEditor() async throws {
+        let clock = ManualClock()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel(sleep: { await clock.sleep($0) })
+        control.bind(camera)
+        #expect(await eventually { control.captureField(.iso)?.isEditable == true })
+        let field = try #require(control.captureField(.iso))
+        let originalReport = control.snapshot?.value(of: .iso)
+        let choice = try #require(field.choices.first { $0.value == .iso(.manual(800)) })
+        #expect(control.commit(choice, from: field))
+        #expect(control.captureField(.iso)?.label == "800")
+        #expect(control.captureField(.iso, selection: .pending)?.label == "800")
+        #expect(control.captureField(.iso, selection: .reported)?.label == "200")
+        #expect(control.captureValue(.iso, selection: .reported) == .iso(.manual(200)))
+        #expect(control.captureField(.iso, selection: .reported)?.editor == field.editor)
+        #expect(control.snapshot?.value(of: .iso) == originalReport)
+        #expect(await camera.wire.isEmpty)
+    }
+
+    @available(macOS 14, *)
+    @Test func readingMissingCommonObservationsNeverSelectsADefault() async throws {
+        let camera = FakeCameraSession(behavior: FakeCameraSession.lunaLike().behavior,
+            device: FakeDevice(rawMode: 0x01, settings: [], recording: nil))
+        await camera.cameraReportsStatus()
+        let control = MonitorControlModel()
+        #expect(control.captureValue(.iso, selection: .reported) == nil)
+        #expect(control.captureField(.iso) == nil)
+        control.bind(camera)
+        #expect(await eventually { control.snapshot?.mode.isKnown == true })
+        for key in [SettingKey.iso, .shutter, .whiteBalance, .focusMode, .aperture, .exposureCompensation] {
+            #expect(control.captureValue(key, selection: .reported) == nil)
+            #expect(control.captureValue(key, selection: .pending) == nil)
+        }
+        #expect(await camera.wire.isEmpty)
     }
 
     @available(macOS 14, *)

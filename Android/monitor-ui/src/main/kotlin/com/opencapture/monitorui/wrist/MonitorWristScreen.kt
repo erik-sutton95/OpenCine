@@ -1,5 +1,14 @@
 package com.opencapture.monitorui.wrist
 
+import com.opencapture.opencine.media.BatteryReading
+import com.opencapture.opencine.media.BatteryFraction
+import com.opencapture.opencine.media.BatterySteps
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
@@ -84,7 +93,7 @@ public fun MonitorWristScreen(
             ((maxWidth.value - layout.bottomHorizontalPaddingDp * 2f - 50f) / 2f)
                 .coerceAtLeast(1f)
         val storage = presentation.storageLabel(copy)
-        val batteryPercent = presentation.measuredBattery
+        val batteryReading = presentation.measuredBatteryReading
         Column(
             modifier =
                 Modifier.fillMaxSize(),
@@ -129,7 +138,7 @@ public fun MonitorWristScreen(
                 )
                 Spacer(Modifier.width(6.dp))
                 MonitorWristBatteryReadout(
-                    percent = batteryPercent, copy = copy,
+                    reading = batteryReading, exhausted = presentation.batteryExhausted, copy = copy,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -234,25 +243,50 @@ private fun MonitorWristRecordButton(
 
 /** Compact battery glyph and honest camera charge readout. */
 @Composable
-private fun MonitorWristBatteryReadout(percent: Int?, copy: MonitorWristCopy, modifier: Modifier = Modifier) {
-    val batteryLabel =
-        percent?.let(copy.batteryLabel) ?: copy.unavailable
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (percent != null) {
-            MonitorWristBatteryGlyph(percent)
-            Spacer(Modifier.width(3.dp))
+private fun MonitorWristBatteryReadout(reading: BatteryReading?, exhausted: Boolean?,
+    copy: MonitorWristCopy, modifier: Modifier = Modifier) {
+    val opacity = if (exhausted == true && reading != null) {
+        val transition = rememberInfiniteTransition(label = "reportedBatteryExhaustion")
+        val alpha by transition.animateFloat(initialValue = 1f, targetValue = 0.35f,
+            animationSpec = infiniteRepeatable(tween(500, easing = LinearEasing), RepeatMode.Reverse),
+            label = "reportedBatteryExhaustionAlpha")
+        alpha
+    } else 1f
+    Row(modifier = modifier.alpha(opacity), horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically) {
+        when (reading) {
+            is BatteryFraction -> {
+                val percent = Math.round(reading.value * 100).toInt()
+                MonitorWristBatteryGlyph(percent)
+                Spacer(Modifier.width(3.dp))
+                Text(copy.batteryLabel(percent), color = Color(0xFFC3C5C8), fontSize = 11.sp,
+                    maxLines = 1, textAlign = TextAlign.End)
+            }
+            is BatterySteps -> {
+                val tint = when {
+                    reading.filled.toDouble() / reading.of <= 0.2 -> Color(0xFFE24040)
+                    reading.filled.toDouble() / reading.of <= 0.4 -> Color(0xFFFFB347)
+                    else -> Color(0xFFC3C5C8)
+                }
+                if (reading.of > 10) {
+                    Text("${reading.filled}/${reading.of}", color = tint, fontSize = 11.sp,
+                        maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.semantics {
+                            contentDescription = "Camera battery ${reading.filled} of ${reading.of} bars"
+                        })
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(1.dp), modifier = Modifier.semantics {
+                        contentDescription = "Camera battery ${reading.filled} of ${reading.of} bars"
+                    }) {
+                        repeat(reading.of) { index ->
+                            Box(Modifier.size(width = 2.5.dp, height = 7.dp).background(
+                                if (index < reading.filled) tint else Color.White.copy(alpha = 0.22f),
+                                RoundedCornerShape(0.8.dp)))
+                        }
+                    }
+                }
+            }
+            null -> Unit
         }
-        Text(
-            text = batteryLabel,
-            color = Color(0xFFC3C5C8),
-            fontSize = 11.sp,
-            maxLines = 1,
-            textAlign = TextAlign.End,
-        )
     }
 }
 

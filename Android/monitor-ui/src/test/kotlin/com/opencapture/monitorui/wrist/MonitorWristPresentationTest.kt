@@ -1,6 +1,8 @@
 package com.opencapture.monitorui.wrist
 
 import kotlin.test.*
+import com.opencapture.opencine.media.BatteryFraction
+import com.opencapture.opencine.media.BatterySteps
 
 class MonitorWristPresentationTest {
     private val live = MonitorWristPresentation(3, true, MonitorWristConnection.CONNECTED, true,
@@ -53,4 +55,25 @@ class MonitorWristPresentationTest {
         feedback.retire()
         assertNull(feedback.update(live.copy(sourceRevision = 4, commandMessage = "Refused")))
     }
+    private fun typedBattery(reading: com.opencapture.opencine.media.BatteryReading?, exhausted: Boolean? = null) =
+        MonitorWristPresentation(3, true, MonitorWristConnection.CONNECTED, true,
+            false, false, null, true, 80, "09:30:00:01", null, null, null,
+            batteryReading = reading, batteryExhausted = exhausted)
+
+    @Test fun commonReadingPreservesDeclaredPrecisionAndIndependentExhaustion() {
+        assertEquals(BatteryFraction(0.68), typedBattery(BatteryFraction(0.68)).measuredBatteryReading)
+        for (exhausted in listOf(false, true)) {
+            val gauge = typedBattery(BatterySteps(1, 4), exhausted)
+            assertEquals(BatterySteps(1, 4), gauge.measuredBatteryReading)
+            assertEquals(exhausted, gauge.batteryExhausted)
+            assertEquals(gauge.measuredBatteryReading, gauge.copy(batteryPercent = 99).measuredBatteryReading)
+            assertNull(gauge.copy(connection = MonitorWristConnection.NO_CAMERA).measuredBatteryReading)
+        }
+        assertEquals(BatteryFraction(0.0), typedBattery(BatteryFraction(0.0)).measuredBatteryReading)
+        assertNull(typedBattery(null).measuredBatteryReading)
+        assertNull(typedBattery(BatteryFraction(Double.NaN)).measuredBatteryReading)
+        assertNull(typedBattery(BatterySteps(1, 0)).measuredBatteryReading)
+        assertEquals(BatteryFraction(0.41), live.copy(batteryPercent = 41).measuredBatteryReading)
+    }
+
 }

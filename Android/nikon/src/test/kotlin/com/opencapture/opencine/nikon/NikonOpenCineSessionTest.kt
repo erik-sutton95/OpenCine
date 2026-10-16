@@ -42,6 +42,29 @@ import kotlinx.coroutines.test.runTest
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NikonOpenCineSessionTest {
+    @Test fun recordingFactsUseReportedDimensionsAndNeverPreviewCodec() = runTest {
+        val native = FakeNikon(movie().copy(exposureMode = "S", resolution = "6048x3402", frameRate = 25,
+            codec = "R3D NE 12-bit R3D", tone = "Log3G10"))
+        val at = com.opencapture.opencine.core.MonotonicInstant(42.seconds)
+        val seam = NikonOpenCineSession(native, backgroundScope, clock = { at })
+        val snapshot = seam.refresh()
+        assertEquals(com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY, snapshot.exposureProgram.value)
+        assertEquals(com.opencapture.opencine.core.CameraRecordingFormat.Dimensions.measured(6048, 3402), snapshot.recordingFormat.dimensions.value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, snapshot.recordingFormat.dimensions.origin)
+        assertEquals(at, snapshot.recordingFormat.dimensions.observedAt)
+        assertEquals("R3D NE 12-bit R3D", snapshot.recordingFormat.codec.value)
+        assertEquals("Log3G10", snapshot.recordingFormat.profile.value)
+        assertEquals(ObservationOrigin.PROTOCOL_DERIVED, snapshot.recordingFormat.profile.origin)
+        native.cameraProperties.value = native.cameraProperties.value.copy(resolution = "0x3402",
+            frameRate = 0, codec = "H.265 10-bit MOV", tone = null)
+        val unknown = seam.refresh()
+        assertNull(unknown.recordingFormat.dimensions.value)
+        assertNull(unknown.recordingFormat.profile.value, "A selectable codec does not establish tone")
+        assertEquals("H.265 10-bit MOV", unknown.recordingFormat.codec.value)
+        assertTrue(native.writes.isEmpty() && native.records.isEmpty())
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
     @Test
     fun `movie exposure preserves native labels and only writes the active circuit`() = runTest {
         val properties = movie().copy(
@@ -485,4 +508,25 @@ class NikonOpenCineSessionTest {
             assertNull(seam.outcome(OperationID()))
             assertFailsWith<CameraRecordingException.NotConnected> { seam.setRecording(false) }
         }
+    @Test fun exhaustionAndExternalPowerRemainIndependentReportedFacts() = runTest {
+        val camera = FakeNikon(movie().copy(batteryPercent = 1))
+        val seam = NikonOpenCineSession(camera, backgroundScope)
+        val critical = seam.refresh()
+        camera.cameraProperties.value = movie().copy(batteryPercent = 20)
+        val ordinary = seam.refresh()
+        assertEquals(com.opencapture.opencine.core.BatteryReading.Steps(1, 5), critical.power.batteryReading)
+        assertEquals(critical.power.batteryReading, ordinary.power.batteryReading)
+        assertEquals(true, critical.power.exhausted.value)
+        assertEquals(false, ordinary.power.exhausted.value)
+        assertTrue(critical.revision != ordinary.revision)
+        for (external in listOf(null, false, true)) {
+            camera.cameraProperties.value = movie().copy(batteryPercent = 20, externalPower = external)
+            val power = seam.refresh().power
+            assertEquals(external, power.externalPower.value)
+            assertNull(power.charging.value)
+            assertEquals(false, power.exhausted.value)
+        }
+        seam.closeNow(SessionCloseReason.REQUESTED)
+    }
+
 }
