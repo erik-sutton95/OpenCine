@@ -32,20 +32,16 @@ class MonitorSettingsCompositionTest {
         var stored = false
         val shutter = MonitorSettingsRemoteShutter(false, { stored = it }, "SIMULATED shutter", "SIMULATED caption")
         val shutterOnly = controls(shutter = shutter)
-        assertSame(shutter, shutterOnly.remoteShutterRow)
+        assertSame(shutter, shutterOnly.shutter)
         assertNull(shutterOnly.autoRotateRow, "a remote shutter needs no rotation choice")
-        shutterOnly.remoteShutterRow?.setEnabled?.invoke(true)
+        shutterOnly.shutter?.setEnabled(true)
         assertTrue(stored)
         val rotation = MonitorSettingsAutoRotate(true, {}, help = "SIMULATED help")
         val rotationOnly = controls(autoRotate = rotation)
         assertSame(rotation, rotationOnly.autoRotateRow)
-        assertNull(rotationOnly.remoteShutterRow, "auto-rotate needs no remote shutter")
-        assertNull(controls().remoteShutterRow)
+        assertNull(rotationOnly.shutter, "auto-rotate needs no remote shutter")
+        assertNull(controls().shutter)
         assertNull(controls().autoRotateRow)
-        val legacy = MonitorSettingsControlsSource(false, {}, false, {}, false, {}, "SIMULATED",
-            remoteShutter = true, setRemoteShutter = {}, remoteTitle = "SIMULATED legacy")
-        assertEquals("SIMULATED legacy", legacy.remoteShutterRow?.title)
-        assertNull(legacy.autoRotateRow)
     }
 
     @Test

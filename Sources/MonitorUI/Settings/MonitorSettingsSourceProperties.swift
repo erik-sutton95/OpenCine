@@ -56,12 +56,6 @@ public struct MonitorSettingsInputSource {
     public init(remoteShutter: MonitorSettingsRemoteShutter? = nil, autoRotate: MonitorSettingsAutoRotate? = nil) {
         self.remoteShutter = remoteShutter; self.autoRotate = autoRotate
     }
-    @available(*, deprecated, message: "Declare each capability: init(remoteShutter:autoRotate:)")
-    public init(remoteShutter: Binding<Bool>, remoteTitle: String, remoteHelp: String,
-        autoRotateFeed: Binding<Bool>, rotationHelp: String) {
-        self.init(remoteShutter: .init(enabled: remoteShutter, title: remoteTitle, help: remoteHelp),
-            autoRotate: .init(enabled: autoRotateFeed, help: rotationHelp))
-    }
 }
 
 public struct MonitorSettingsWatchersSource {
