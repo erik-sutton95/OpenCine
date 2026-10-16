@@ -16,7 +16,8 @@ public enum HostedAccessibility {
     /// already builds the tree.
     ///
     /// On a simulator it loads `libAccessibility` and switches on automation and application
-    /// accessibility in this process, as an assistive client would. On a physical device it does
+    /// accessibility, as an assistive client would; the simulator keeps both settings afterwards,
+    /// as `scripts/ios-private-simulator.py` leaves them. On a physical device it does
     /// nothing, so a test run never changes the phone's own accessibility settings; device runs
     /// keep their skip-with-reason guards. Returns whether the runtime switch was reached.
     @discardableResult
