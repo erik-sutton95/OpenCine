@@ -1,6 +1,6 @@
 #if os(iOS)
 import MonitorPresentation
-import MonitorUI
+@testable import MonitorUI
 import OpenCineAppKit
 import OpenCineApple
 import OpenCineCore
@@ -198,7 +198,7 @@ final class MonitorSettingsCompositionTests: XCTestCase {
         XCTAssertEqual(scene.rows(.system, library: false), [.support])
         guard let support = scene.support else { return XCTFail("The scene has Help & Feedback") }
         XCTAssertNil(support.consent, "The scene offers no automatic reports switch")
-        support.reportAction?()
+        support.report()
         XCTAssertEqual(reported, 1)
         let rows = support.configuredSupportActions(reportPreparing: false)
         XCTAssertEqual(rows.map(\.id), ["support.diagnostics"])
