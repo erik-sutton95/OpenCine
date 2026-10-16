@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import com.opencapture.opencine.media.*
+import com.opencapture.opencine.runtime.MonitorPlaybackPictureOwner
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -17,7 +18,8 @@ import java.util.UUID
 import kotlin.time.Duration
 
 /** The existing player SDK boundary only. Shared AppKit owns source/cache/item and scrub policy. */
-public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineScope) : MonitorPlaybackPort {
+public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineScope) : MonitorPlaybackPort,
+    MonitorPlaybackPictureOwner {
     override var onEvent: ((MonitorPlaybackItemToken, MonitorPlaybackEvent) -> Unit)? = null
     private val owner = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
     private var token: MonitorPlaybackItemToken? = null
@@ -35,13 +37,13 @@ public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineSc
     public var sourceAdmission: ((MonitorPlaybackItemToken) -> Boolean)? = null
     private var pictureRetire: (() -> Unit)? = null
     private var pictureClose: (() -> Unit)? = null
-    public fun bindPicture(owner: UUID, retire: () -> Unit, close: () -> Unit) {
+    public override fun bindPicture(owner: UUID, retire: () -> Unit, close: () -> Unit) {
         if (closed || pictureOwner != owner) return
         pictureRetire = retire; pictureClose = close
     }
     private fun admitted(token: MonitorPlaybackItemToken): Boolean = sourceAdmission?.invoke(token) ?: true
 
-    public fun claimPicture(): UUID {
+    public override fun claimPicture(): UUID {
         check(!closed)
         val previous = pictureClose
         val owner = UUID.randomUUID()
@@ -50,12 +52,12 @@ public class Media3PlaybackPort(public val player: ExoPlayer, scope: CoroutineSc
         if (!closed && pictureOwner == owner) player.clearVideoSurface()
         return owner
     }
-    public fun attachPicture(surface: Surface, owner: UUID) {
+    public override fun attachPicture(surface: Surface, owner: UUID) {
         if (!closed && pictureOwner == owner && token?.let(::admitted) != false) {
             player.setVideoSurface(surface); picturePending.value = false
         }
     }
-    public fun releasePicture(owner: UUID) {
+    public override fun releasePicture(owner: UUID) {
         if (closed || pictureOwner != owner) return
         val departing = pictureClose
         pictureOwner = null; pictureRetire = null; pictureClose = null; picturePending.value = false
