@@ -1,29 +1,7 @@
 #if os(iOS)
     import MonitorUI
+    import OpenCineAppKitApple
     import SwiftUI
-
-    /// Where a watcher's join to a shared feed stands, for the browse screen.
-    public enum WatcherJoinStatus: Equatable, Sendable {
-        case idle
-        case connecting
-        case reconnecting(attempt: Int, maximum: Int)
-        case needsPasscode
-        case live
-        case failed(String)
-    }
-
-    /// One shared feed found on this network.
-    public struct WatcherFeedRow: Identifiable, Equatable, Sendable {
-        public let id: String
-        public let name: String
-        public let cameraName: String
-
-        public init(id: String, name: String, cameraName: String) {
-            self.id = id
-            self.name = name
-            self.cameraName = cameraName
-        }
-    }
 
     /// The app side of the watcher browse screen: the shared feeds found, the join status and the
     /// browse, join and leave actions.

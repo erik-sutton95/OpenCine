@@ -166,6 +166,16 @@ struct WatchRelayProtocolTests {
         }
     }
 
+    @Test("Every app's wrist placeholder names that app the same way")
+    func openOnIPhoneNamesTheApp() {
+        #expect(WatchRelayCopy.openOnIPhone(appName: "OpenPocketCine") == "Open OpenPocketCine on iPhone")
+        #expect(WatchRelayCopy.openOnIPhone(appName: "OpenInstaCine") == "Open OpenInstaCine on iPhone")
+        #expect(
+            WatchMonitorPlaceholder.openOnIPhone.copy(
+                openOnIPhone: WatchRelayCopy.openOnIPhone(appName: "OpenZCine"))
+                == "Open OpenZCine on iPhone")
+    }
+
     @Test("Operator copy never names a sister app")
     func operatorCopyIsPocketFacing() {
         let facing = [

@@ -30,8 +30,10 @@ public enum WatchConnectionState: String, Codable, Equatable, Sendable {
 }
 
 /// Operator-facing watch copy. No sister-app names, no opcodes. The "open the app on iPhone"
-/// placeholder names the app, so each app supplies it (``WatchMonitorPlaceholder/copy(openOnIPhone:)``).
+/// placeholder names the app, so each app passes its name (``openOnIPhone(appName:)``).
 public enum WatchRelayCopy: Sendable {
+    /// The wrist placeholder while the iPhone app is not reachable.
+    public static func openOnIPhone(appName: String) -> String { "Open \(appName) on iPhone" }
     public static let noCamera = "No camera connected"
     public static let waitingLive = "Waiting for live view"
     public static let connectFirst = "Connect the camera first."
