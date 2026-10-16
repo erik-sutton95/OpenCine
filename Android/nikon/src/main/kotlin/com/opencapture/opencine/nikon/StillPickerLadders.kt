@@ -93,4 +93,17 @@ object StillPickerLadders {
     /** NEF (RAW) recording compression. */
     val NEF_OPTIONS: List<String> =
         listOf("High efficiency", "High efficiency★", "Lossless compression")
+
+    /**
+     * The DRIVE drum's options: the body's advertised set in release order ([DRIVE_OPTIONS]),
+     * minus the Self-timer and Quick positions this drum does not own. Advertised modes this build
+     * does not know follow the ones it can order, so a newer body's position stays reachable.
+     * Twin of the Swift `StillDriveMode.driveDrumOptions`.
+     */
+    fun driveDrumOptions(advertised: List<String>): List<String> {
+        val offered = advertised.filterNot { it == "Self-timer" || it == "Quick" }
+        if (offered.isEmpty()) return emptyList()
+        val known = DRIVE_OPTIONS.filter(offered::contains)
+        return known + offered.filterNot(DRIVE_OPTIONS::contains)
+    }
 }

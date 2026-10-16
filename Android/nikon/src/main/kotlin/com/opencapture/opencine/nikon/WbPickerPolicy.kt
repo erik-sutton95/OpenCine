@@ -125,4 +125,14 @@ object WbPickerPolicy {
         val next = current + delta
         return next in MINIMUM_KELVIN..MAXIMUM_KELVIN && next != current
     }
+
+    /**
+     * The preset drum for the active codec: R3D clips record no auto white balance, so Auto and
+     * Natural auto are left off while the body records R3D. Twin of the Swift
+     * `whiteBalanceOptions(advertised:codec:)`.
+     */
+    fun whiteBalanceOptions(advertised: List<String>, codec: String?): List<String> {
+        if (codec == null || !codec.uppercase().contains("R3D")) return advertised
+        return advertised.filter { it != "Auto" && it != "Natural auto" }
+    }
 }

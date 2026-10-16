@@ -55,6 +55,31 @@ object WhiteBalanceTint {
         return clamp(ab) to clamp(gm)
     }
 
+    /**
+     * Strict read of a [label] back onto grid cells: null for any shape [label] never writes, so a
+     * camera value outside the grid never moves the pad. Twin of the Swift `cells(label:)`.
+     */
+    fun cells(label: String): Pair<Int, Int>? {
+        if (label == "Neutral") return 0 to 0
+        var amberBlue = 0
+        var greenMagenta = 0
+        var parts = 0
+        for (part in label.split("\u00B7")) {
+            val token = part.trim()
+            val prefix = token.firstOrNull() ?: return null
+            val units = token.drop(1).toDoubleOrNull() ?: return null
+            when (prefix) {
+                'A' -> amberBlue = Math.round(units / amberBlueUnitsPerCell).toInt()
+                'B' -> amberBlue = -Math.round(units / amberBlueUnitsPerCell).toInt()
+                'G' -> greenMagenta = Math.round(units / greenMagentaUnitsPerCell).toInt()
+                'M' -> greenMagenta = -Math.round(units / greenMagentaUnitsPerCell).toInt()
+                else -> return null
+            }
+            parts += 1
+        }
+        return if (parts == 0) null else amberBlue to greenMagenta
+    }
+
     /** Full 13×13 label set in row-major green→magenta / blue→amber order. */
     fun allLabels(): List<String> =
         cellRange.flatMap { gm ->

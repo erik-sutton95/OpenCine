@@ -2,6 +2,7 @@ package com.opencapture.opencine.nikon
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class WhiteBalanceTintTest {
     @Test
@@ -29,5 +30,26 @@ class WhiteBalanceTintTest {
         // Row-major greenMagenta outer (−6…+6), amberBlue inner (−6…+6).
         assertEquals("B3 · M1.5", labels.first())
         assertEquals("A3 · G1.5", labels.last())
+    }
+
+    @Test
+    fun `a tint label reads back onto its grid cells`() {
+        for (amberBlue in WhiteBalanceTint.cellRange) {
+            for (greenMagenta in WhiteBalanceTint.cellRange) {
+                val label = WhiteBalanceTint.label(amberBlue, greenMagenta)
+                assertEquals(amberBlue to greenMagenta, WhiteBalanceTint.cells(label), label)
+            }
+        }
+        assertNull(WhiteBalanceTint.cells(""))
+        assertNull(WhiteBalanceTint.cells("X1"))
+        assertNull(WhiteBalanceTint.cells("A"))
+    }
+
+    @Test
+    fun `R3D leaves the auto presets off the white balance drum`() {
+        val advertised = listOf("Auto", "Natural auto", "Sunny")
+        assertEquals(advertised, WbPickerPolicy.whiteBalanceOptions(advertised, "H.265"))
+        assertEquals(advertised, WbPickerPolicy.whiteBalanceOptions(advertised, null))
+        assertEquals(listOf("Sunny"), WbPickerPolicy.whiteBalanceOptions(advertised, "R3D NE"))
     }
 }
