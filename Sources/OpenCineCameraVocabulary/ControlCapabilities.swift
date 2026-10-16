@@ -179,6 +179,16 @@ public struct ControlCapabilities: Equatable, Sendable {
     /// Every family the shared UI offers as a control.
     public var offered: Set<ControlFamily> { Set(ControlFamily.allCases.filter { status($0).isOffered }) }
 
+    /// The one pre-connection rule, the same in every app: before a camera is connected the
+    /// shared UI offers only what the static profile of the known camera model declares (a saved
+    /// or selected body, or an integration with one model); with no model known it offers no
+    /// camera-dependent control (every family unknown).
+    public init(beforeConnection profile: CameraCaptureProfile?, motion: MotionCapabilities? = nil,
+        codecColor: CaptureCodecColorChoices? = nil) {
+        guard let profile else { self.init(); return }
+        self.init(snapshot: CapabilitySnapshot(), profile: profile, motion: motion, codecColor: codecColor)
+    }
+
     /// Merges the integration's declarations into one model.
     ///
     /// - `snapshot`: the live, revisioned Core capabilities (descriptors, unsupported keys,

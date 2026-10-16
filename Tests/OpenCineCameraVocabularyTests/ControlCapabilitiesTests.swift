@@ -123,4 +123,16 @@ import Testing
         #expect(document.hasSuffix("multiview\tunknown\n"))
         #expect(document.hasPrefix("# Generated"))
     }
+
+    @Test func beforeConnectionOnlyTheKnownModelsProfileIsOffered() {
+        let none = ControlCapabilities(beforeConnection: nil)
+        #expect(none.offered.isEmpty, "no model known: no camera-dependent control")
+        #expect(none.audio.support == .unknown)
+        let profile = CameraCaptureProfile(supportsFocusMode: true, supportsAperture: false, hasGimbal: true)
+        let known = ControlCapabilities(beforeConnection: profile, motion: Self.gimbal)
+        #expect(known.focus.isOffered && known.gimbal.isOffered)
+        #expect(!known.iris.isOffered)
+        #expect(!known.audio.isOffered, "undeclared stays unknown")
+        #expect(known == ControlCapabilities(snapshot: CapabilitySnapshot(), profile: profile, motion: Self.gimbal))
+    }
 }

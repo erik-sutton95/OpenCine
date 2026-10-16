@@ -166,6 +166,18 @@ public data class ControlCapabilities(
 
     public companion object {
         /**
+         * The one pre-connection rule, the same in every app (Swift `init(beforeConnection:)`):
+         * before a camera is connected the shared UI offers only what the static [profile] of the
+         * known camera model declares; with no model known it offers no camera-dependent control.
+         */
+        public fun beforeConnection(
+            profile: CameraCaptureProfile?,
+            motion: MotionCapabilities? = null,
+            codecColor: CaptureCodecColorChoices? = null,
+        ): ControlCapabilities =
+            if (profile == null) ControlCapabilities() else derive(CapabilitySnapshot(), profile, motion, codecColor)
+
+        /**
          * Merges the integration's declarations into one model: [snapshot] is the live Core
          * capabilities, [profile] the body's static declaration (`null` while no body is known),
          * [motion] the body's motion service (with a known body `null` means none), [codecColor]

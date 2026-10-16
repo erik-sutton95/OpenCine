@@ -169,4 +169,17 @@ class ControlCapabilitiesTest {
             ControlFamily.entries.map { it.id },
         )
     }
+
+    @Test
+    fun beforeConnectionOnlyTheKnownModelsProfileIsOffered() {
+        val none = ControlCapabilities.beforeConnection(null)
+        assertTrue(none.offered.isEmpty(), "no model known: no camera-dependent control")
+        assertEquals(SupportStatus.UNKNOWN, none.audio.support)
+        val profile = CameraCaptureProfile(supportsFocusMode = true, hasGimbal = true, supportsAperture = false)
+        val known = ControlCapabilities.beforeConnection(profile, gimbal)
+        assertTrue(known.focus.isOffered && known.gimbal.isOffered)
+        assertFalse(known.iris.isOffered)
+        assertFalse(known.audio.isOffered, "undeclared stays unknown")
+        assertEquals(ControlCapabilities.derive(CapabilitySnapshot(), profile, gimbal), known)
+    }
 }
