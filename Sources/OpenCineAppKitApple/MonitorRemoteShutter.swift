@@ -3,7 +3,7 @@ import AVFoundation
 import MediaPlayer
 import MonitorUI
 import OpenCineAppKit
-import OSLog
+import os
 import SwiftUI
 import UIKit
 
