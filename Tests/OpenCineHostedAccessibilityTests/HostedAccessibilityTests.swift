@@ -69,6 +69,8 @@ final class HostedAccessibilityTests: XCTestCase {
     func testAWalkSeesSwiftUINodesWithoutSimulatorAccessibilitySetup() async throws {
         #if targetEnvironment(simulator)
             XCTAssertTrue(HostedAccessibility.enableRuntime(), "libAccessibility runtime switches must resolve")
+            let live = await HostedAccessibility.awaitRuntime()
+            XCTAssertTrue(live, "SwiftUI must vend its tree once the runtime is on")
         #endif
         let host = UIHostingController(rootView: Text("SIMULATED probe").accessibilityIdentifier("probe.node"))
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 100))

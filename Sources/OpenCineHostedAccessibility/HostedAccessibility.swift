@@ -1,5 +1,6 @@
 #if os(iOS)
 import Darwin
+import SwiftUI
 import UIKit
 
 /// The one accessibility walk for hosted (in-process) tests, which read what UIKit and SwiftUI
@@ -22,6 +23,36 @@ public enum HostedAccessibility {
     /// keep their skip-with-reason guards. Returns whether the runtime switch was reached.
     @discardableResult
     public static func enableRuntime() -> Bool { runtime }
+
+    /// Turns the runtime on (`enableRuntime()`) and waits until SwiftUI in this process actually
+    /// vends its tree: the switch takes effect asynchronously, so a probe view is hosted in a
+    /// window of its own until its node appears, for at most `timeout`. Call it before measuring
+    /// anything the runtime changes, such as how often SwiftUI re-evaluates a view. Returns
+    /// whether the runtime is live; later calls return at once.
+    @MainActor
+    @discardableResult
+    public static func awaitRuntime(timeout: Duration = .seconds(5)) async -> Bool {
+        if runtimeLive { return true }
+        guard enableRuntime() else { return false }
+        let probe = "hosted.accessibility.probe"
+        let host = UIHostingController(rootView: Text("SIMULATED probe").accessibilityIdentifier(probe))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 60))
+        window.rootViewController = host
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while !runtimeLive, ContinuousClock.now < deadline {
+            host.view.layoutIfNeeded()
+            runtimeLive = leaves(in: host.view).contains { identifier($0) == probe }
+            if !runtimeLive { try? await Task.sleep(for: .milliseconds(20)) }
+        }
+        return runtimeLive
+    }
+
+    @MainActor private static var runtimeLive = false
 
     private static let runtime: Bool = {
         #if targetEnvironment(simulator)

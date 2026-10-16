@@ -9,10 +9,11 @@
     @MainActor
     final class MotionControlDragInvalidationTests: XCTestCase {
         /// SwiftUI re-evaluates the controls a different number of times with the accessibility
-        /// runtime off (a fresh simulator) than with it on, so the count below is measured in one
-        /// defined state: the runtime on, as every hosted walk in this package sets it.
+        /// runtime off (a fresh simulator) than with it on, and switching it on takes effect
+        /// asynchronously, so the count below is measured in one defined state: the runtime live,
+        /// as every hosted walk in this package sets it.
         override func setUp() async throws {
-            HostedAccessibility.enableRuntime()
+            await HostedAccessibility.awaitRuntime()
         }
 
         func testActionGuardBlocksDraggingAndTheReleaseTapWithoutARefreshTimer() {
