@@ -41,11 +41,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.opencapture.monitorui.*
 import com.opencapture.monitorui.settings.*
+import com.opencapture.opencine.appkit.MonitorOperatorSessionModel
 import com.opencapture.opencine.appkit.MonitorSettingsCacheSource
 import com.opencapture.opencine.appkit.MonitorSettingsAccountActions
 import com.opencapture.opencine.appkit.MonitorSettingsAccountModel
 import com.opencapture.opencine.core.SavedCamera
 import com.opencapture.opencine.appkit.diagnostics.FeedIncidentRuntime
+import com.opencapture.opencine.appkit.MonitorRemoteShutter
 import com.opencapture.opencine.core.RouteKind
 import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -139,6 +141,29 @@ public class MonitorSettingsMotionSource(
     public val controller: MonitorMotionChoiceSetting? = null,
     public val controllerStatus: String = "Not connected", public val controllerHelp: String = "",
 )
+/** The remote shutter row: the host's stored choice with its title and caption (A2-32). */
+public class MonitorSettingsRemoteShutter(
+    public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
+    public val title: String = "Remote shutter", public val caption: String? = null,
+) {
+    public companion object {
+        /** The media-button shutter [com.opencapture.opencine.appkit.MonitorRemoteShutter] runs, over the host's stored choice. */
+        public fun mediaButtons(enabled: Boolean, setEnabled: (Boolean) -> Unit): MonitorSettingsRemoteShutter =
+            MonitorSettingsRemoteShutter(enabled, setEnabled, MonitorRemoteShutter.TITLE, MonitorRemoteShutter.CAPTION)
+    }
+}
+
+/** The auto-rotate row, for a source that reports the camera body's orientation (A2-32). */
+public class MonitorSettingsAutoRotate(
+    public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
+    public val title: String = "Auto-Rotate Feed", public val help: String = "",
+)
+
+/**
+ * Controls tab. The remote shutter ([shutter]) and auto-rotate ([autoRotate]) are separate
+ * optional capabilities (Swift `MonitorSettingsInputSource`); the flat `remoteShutter` and
+ * `autoRotateFeed` pairs remain for hosts that have not moved to them.
+ */
 public class MonitorSettingsControlsSource(
     public val recordConfirmation: Boolean, public val setRecordConfirmation: (Boolean) -> Unit,
     public val haptics: Boolean, public val setHaptics: (Boolean) -> Unit,
@@ -150,7 +175,21 @@ public class MonitorSettingsControlsSource(
     public val rotationTitle: String = "Auto-Rotate Feed", public val rotationHelp: String = "",
     public val hapticsHelp: String? = null,
     public val motion: MonitorSettingsMotionSource? = null,
-)
+    public val shutter: MonitorSettingsRemoteShutter? = null,
+    public val autoRotate: MonitorSettingsAutoRotate? = null,
+) {
+    /** The declared remote shutter, else the flat pair, else none. */
+    public val remoteShutterRow: MonitorSettingsRemoteShutter?
+        get() = shutter ?: remoteShutter?.let { value ->
+            setRemoteShutter?.let { MonitorSettingsRemoteShutter(value, it, remoteTitle, remoteCaption) }
+        }
+
+    /** The declared auto-rotate, else the flat pair, else none. */
+    public val autoRotateRow: MonitorSettingsAutoRotate?
+        get() = autoRotate ?: autoRotateFeed?.let { value ->
+            setAutoRotateFeed?.let { MonitorSettingsAutoRotate(value, it, rotationTitle, rotationHelp) }
+        }
+}
 /** Cache IO and copy. Clearing always asks first: one confirmation policy for every app. */
 public class MonitorSettingsCachePresentation(
     public val source: MonitorSettingsCacheSource,
@@ -209,6 +248,7 @@ public data class MonitorSettingsInformationSource(
 /**
  * Every app's settings: one value per tab, built by the app from its model. Absent capability
  * sections (motion, sharing, account, cache) are null; the recipe for each tab is the same.
+ * [monitorSettingsTabs] leaves out a tab whose whole domain is absent (Swift's tab rule).
  */
 public class MonitorOperatorSettingsConfiguration(
     public val brand: String, public val isLive: Boolean, public val phase: String,
@@ -224,7 +264,8 @@ public class MonitorOperatorSettingsConfiguration(
     public val diagnostics: MonitorSettingsDiagnosticsSource? = null,
     public val legal: MonitorLegalDocuments? = null,
     public val information: MonitorSettingsInformationSource? = null,
-    public val tabs: List<MonitorSettingsTab> = MonitorSettingsTab.entries,
+    /** By default a tab with nothing in it is left out (iOS hides an empty Sharing tab too). */
+    public val tabs: List<MonitorSettingsTab> = monitorSettingsTabs(sharing, cache, account, unconfiguredAccount),
     /** Legacy captured cards remain available beside typed assist composition. */
     public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
     public val assist: MonitorOperatorAssistSettingsSource? = null,
@@ -244,6 +285,18 @@ public class MonitorOperatorSettingsConfiguration(
         assistSections = assistSections)
 }
 
+/** Stable tab order with Sharing only for a sharing domain and Storage only for a cache or account. */
+public fun monitorSettingsTabs(
+    sharing: MonitorSettingsSharingSource?, cache: MonitorSettingsCachePresentation?,
+    account: MonitorSettingsAccountSource?, unconfiguredAccount: MonitorSettingsReadoutSource? = null,
+): List<MonitorSettingsTab> = MonitorSettingsTab.entries.filter {
+    when (it) {
+        MonitorSettingsTab.SHARING -> sharing != null
+        MonitorSettingsTab.STORAGE -> cache != null || account != null || unconfiguredAccount != null
+        else -> true
+    }
+}
+
 /** Complete settings ownership using actual stores, optional services and bounded native leaves. */
 @Composable
 public fun MonitorOperatorSettingsScreen(
@@ -256,6 +309,23 @@ public fun MonitorOperatorSettingsScreen(
     var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
         MonitorOperatorPictureSettings.Configured(assistSections, display), sourceIdentity))
+}
+
+/**
+ * Settings over the one display owner (A2-84): the page opens on [session]'s last tab and restores
+ * each tab's scroll offset, the twin of Swift's configured `MonitorOperatorSettingsScreen`.
+ */
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    assistSections: List<MonitorAssistSettingsSection>,
+    display: MonitorOperatorDisplaySource,
+    session: MonitorOperatorSessionModel,
+    sourceIdentity: Any? = null,
+): Unit {
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab, { session.settingsTab = it },
+        MonitorOperatorPictureSettings.Configured(assistSections, display), sourceIdentity,
+        scrollOffsets = session.settingsScrollOffsets, onScroll = session::noteSettingsScroll))
 }
 
 /** Shared typed composition through the current settings and legal owners. */
@@ -415,10 +485,13 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
             source.setRecordConfirmation, source.setHaptics, source.setKeepAwake,
             keepScreenAwakeHelp = source.keepAwakeHelp, feedback = feedback)
     }
-    MonitorInputOrientationSettings(source.remoteShutter, source.setRemoteShutter,
-        remoteTitle = source.remoteTitle, remoteCaption = source.remoteCaption,
-        autoRotateFeed = source.autoRotateFeed, onAutoRotateFeed = source.setAutoRotateFeed,
-        rotationTitle = source.rotationTitle, rotationHelp = source.rotationHelp, feedback = feedback)
+    val shutter = source.remoteShutterRow
+    val rotation = source.autoRotateRow
+    MonitorInputOrientationSettings(shutter?.enabled, shutter?.setEnabled,
+        remoteTitle = shutter?.title ?: "Remote shutter", remoteCaption = shutter?.caption,
+        autoRotateFeed = rotation?.enabled, onAutoRotateFeed = rotation?.setEnabled,
+        rotationTitle = rotation?.title ?: "Auto-Rotate Feed", rotationHelp = rotation?.help.orEmpty(),
+        feedback = feedback)
     val motion = source.motion ?: return
     motion.sensitivity?.let { MonitorGimbalSettings(it) }
     motion.joystick?.let { joystick ->

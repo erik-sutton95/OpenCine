@@ -301,7 +301,7 @@
         }
 
         private var tools: [MonitorAssistSelection] {
-            if host.cameraStatus.isPhoto || !host.captureCapabilities.audio {
+            if host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown {
                 return MonitorAssistSelection.toolbarCases
             }
             return MonitorAssistSelection.toolbarCases + [.audioMeters]

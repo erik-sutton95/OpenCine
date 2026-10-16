@@ -2,12 +2,14 @@
 import MonitorPresentation
 import MonitorUI
 import OpenCineAppKit
+import OpenCineAppKitApple
 import OpenCineCore
 import OpenCineMedia
 import SwiftUI
 
 /// Complete operator flow over public camera descriptors and existing shared preferences.
-/// Native picture, thumbnails and playback surfaces are the three platform adapters.
+/// Native picture, thumbnails and playback surfaces are the three platform adapters. The scene is
+/// its app's root, so it owns screen wake from the shared Keep screen awake choice.
 public struct MonitorOperatorScene<Payload: Sendable, Look: Sendable, Looks: MonitorLookProvider,
     Picture: View, Thumbnail: View, PlaybackPicture: View>: View {
     private let shell: ShellModel
@@ -78,6 +80,7 @@ public struct MonitorOperatorScene<Payload: Sendable, Look: Sendable, Looks: Mon
             media?.playback?.setSceneActive(phase == .active)
         }
         .onDisappear { operatorSession.close(); media?.closeGallery() }
+        .monitorScreenWake(enabled: operatorPreferences.keepScreenAwake)
     }
 
     @ViewBuilder private func page(_ cover: ShellModel.Cover, safeArea: EdgeInsets) -> some View {

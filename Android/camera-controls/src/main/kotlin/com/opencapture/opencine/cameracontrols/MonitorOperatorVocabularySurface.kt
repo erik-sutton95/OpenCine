@@ -38,10 +38,11 @@ import com.opencapture.opencine.appkit.MonitorInteractionTransition
 import com.opencapture.opencine.appkit.ShellModel
 import com.opencapture.opencine.appkit.monitorChromeEditStroke
 import com.opencapture.opencine.appkit.statusPresentation
-import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.ControlCapabilities
+import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.media.recordingTimeLabel
 import com.opencapture.opencine.media.StorageReadout
@@ -104,6 +105,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
 ): MonitorOperatorLiveSource<String, MonitorOperatorLegacyCaptureIdentity> where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val status = chrome.status
     val capabilities = chrome.capabilities
+    val controls = chrome.capture.host.captureSessionState(status).controls(capabilities)
     val shell by chrome.shell.state.collectAsState()
     val control by chrome.capture.control.state.collectAsState()
     return MonitorOperatorLiveSource(
@@ -114,8 +116,8 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         },
         available = MonitorDisplaySection.entries.filter { section ->
             when (section) {
-                MonitorDisplaySection.ZOOM_CHIP -> capabilities.zoom
-                MonitorDisplaySection.GIMBAL_STICK -> capabilities.gimbal
+                MonitorDisplaySection.ZOOM_CHIP -> controls.zoom.isOffered
+                MonitorDisplaySection.GIMBAL_STICK -> controls.gimbal.isOffered
                 // The camera vocabulary reports its codec inside the format chip.
                 MonitorDisplaySection.CODEC -> false
                 else -> true
@@ -133,7 +135,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             openMode = { state.sheet = LiveSheet.MODE }),
         exposure = { readExposure().takeIf { exposureAvailable }?.let { EvComp.fromRaw(it)?.thirds?.div(3.0) } },
         level = level, levelViewFlip = levelViewFlip,
-        audio = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
+        audio = if (controls.liveAudioLevels.isShown && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
         readOnly = false, borrowed = shell.monitor?.isBorrowed == true, returnToStage = chrome.returnToStage,
         coverOpen = shell.cover != null, note = note, clearNote = clearNote, vpnActive = vpnActive,
         settings = { chrome.shell.open(ShellModel.Cover.SETTINGS) }, media = { chrome.shell.open(ShellModel.Cover.MEDIA) })
@@ -155,6 +157,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val zones = geometry.zones
     val status = chrome.status
     val capabilities = chrome.capabilities
+    val controls = chrome.capture.host.captureSessionState(status).controls(capabilities)
     val session = chrome.session
     val assist = session.assist
     val locked = session.locked
@@ -165,14 +168,14 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val context = androidx.compose.ui.platform.LocalContext.current
     val usageStore = remember(chrome.preferences, context) { chrome.preferences.assistToolUsagePreferences(context) }
     var usage by remember(usageStore) { mutableStateOf(usageStore.value) }
-    LaunchedEffect(status.shootingMode, capabilities.focus, capabilities.iris, capabilities.audio) {
+    LaunchedEffect(status.shootingMode, controls.focus.isOffered, controls.iris.isOffered, controls.liveAudioLevels.isShown) {
         state.sheet = CaptureShutterPolicy.retainedSheet(state.sheet, status.shootingMode)
-        if (state.sheet == LiveSheet.FOCUS && !capabilities.focus || state.sheet == LiveSheet.APERTURE && !capabilities.iris) state.sheet = null
-        if (!capabilities.audio && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
+        if (state.sheet == LiveSheet.FOCUS && !controls.focus.isOffered || state.sheet == LiveSheet.APERTURE && !controls.iris.isOffered) state.sheet = null
+        if (!controls.liveAudioLevels.isShown && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
     }
     val meterFeed = if (assist.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent else layout.onFeed
     val tools = MonitorAssistTool.settingsCases.filter {
-        it != MonitorAssistTool.AUDIO || capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
+        it != MonitorAssistTool.AUDIO || controls.liveAudioLevels.isShown && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
     }
     val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
         tool, assist.isOn(tool), { assist.toggle(tool) }, tool.hasConfiguration) }
@@ -208,10 +211,10 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
                 LiveAutoExposureUnlockButton(onClick = focusActions.unlockAE)
             }
         }, motion = MonitorOperatorMotionViews(controls = { enabled ->
-            MonitorOperatorNativeControls(chrome, layout, capabilities, locked,
+            MonitorOperatorNativeControls(chrome, layout, controls, locked,
                 enabled && interactive, state.capturePresented)
         }, editor = { enabled ->
-            if (enabled && capabilities.gimbal && session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
+            if (enabled && controls.gimbal.isOffered && session.mounts(MonitorDisplaySection.GIMBAL_STICK) &&
                 chrome.host.liveGimbalPanel == LiveGimbalPanel.SHEET && !locked)
                 LiveGimbalSheetHost(chrome.host, layout, layout.gimbalCluster(true), layout.safeLeading, layout.safeTrailing,
                     layout.safeTop, layout.safeBottom)
@@ -239,17 +242,17 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
 
 @Composable
 private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChromeSource<Host>,
-    layout: LiveMonitorLayout, capabilities: MonitorLayoutCapabilities,
+    layout: LiveMonitorLayout, controls: ControlCapabilities,
     locked: Boolean, interactive: Boolean, capturePresented: Boolean,
 ): Unit
     where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val shell by source.shell.state.collectAsState()
     val editing = source.session.isEditing
-    val showGimbal = capabilities.gimbal && source.session.mounts(MonitorDisplaySection.GIMBAL_STICK)
+    val showGimbal = controls.gimbal.isOffered && source.session.mounts(MonitorDisplaySection.GIMBAL_STICK)
     val cluster = layout.gimbalCluster(showGimbal)
     Box(Modifier.fillMaxSize()) {
         source.zoom?.let { zoom ->
-            if (!capturePresented && capabilities.zoom && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
+            if (!capturePresented && controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP) && !cluster.zoom.isEmpty) {
                 LiveZoomChip(zoom.factor, locked,
                     Modifier.operatorFrame(cluster.zoom).alpha(if (locked || zoom.dimmed) .4f else 1f)
                         .monitorChromeEditStroke(editing, true), zoom.pinching, zoom.dimmed,
@@ -278,7 +281,7 @@ private fun <Host> MonitorOperatorNativeControls(source: MonitorOperatorLiveChro
         }
         if (!capturePresented && showGimbal && interactive && !locked && shell.cover == null) {
             LiveGimbalOverlay(source.host, layout, layout.onFeed, locked, cluster.stick,
-                if (capabilities.zoom && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
+                if (controls.zoom.isOffered && source.session.mounts(MonitorDisplaySection.ZOOM_CHIP)) cluster.zoom
                 else MonitorRect(0f, 0f, 0f, 0f))
         }
     }

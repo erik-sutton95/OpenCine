@@ -1,6 +1,7 @@
 package com.opencapture.opencine.appkit
 
 import com.opencapture.monitorui.MonitorRect
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -66,10 +67,154 @@ class MonitorChromeEditBadgeLayoutTest {
         assertNotNull(placements[MonitorDisplaySection.LOCK_BUTTON])
     }
 
-    private fun assertApart(placements: List<Pair<MonitorDisplaySection, MonitorRect>>) {
+    /**
+     * One table for both twins (Swift: `MonitorChromeEditBadgeLayoutTests.placementTable`): each case lists its
+     * boxes in placement order, the badges' touch target, and the exact badge origin every placed box gets; a
+     * box missing from `expected` gets no badge. Measured cases are the boxes a staged review logged.
+     */
+    private class Case(
+        val name: String,
+        val width: Float,
+        val height: Float,
+        val touchTarget: Float,
+        val boxes: List<Pair<String, MonitorRect>>,
+        val expected: List<Pair<String, Pair<Float, Float>>>,
+    )
+
+    private fun box(key: String, x: Float, y: Float, w: Float, h: Float) = key to MonitorRect(x, y, w, h)
+
+    private val placementTable = listOf(
+        // Measured: iOS 852x393 landscape (the boxes Z RunnerTests pins); iOS S4 runs portrait only.
+        Case(
+            "iosPhoneLandscape", 852f, 393f, 44f,
+            listOf(
+                box("statusBar", 69f, 16f, 678f, 42f),
+                box("railSettings", 763f, 14f, 83f, 289f),
+                box("toolBar", 16f, 321f, 344f, 58f),
+                box("cameraValues", 368f, 321f, 466f, 58f),
+                box("lockButton", 16f, 17f, 40f, 40f),
+                box("batteries", 8f, 63f, 41f, 35f),
+                box("recReadout", 81f, 23f, 67f, 27f),
+                box("codec", 377f, 22f, 98f, 30f),
+                box("storage", 485f, 22f, 132f, 30f),
+                box("fps", 627f, 22f, 108f, 29f),
+            ),
+            listOf(
+                "statusBar" to (725f to 36f),
+                "railSettings" to (759f to 281f),
+                "toolBar" to (338f to 317f),
+                "cameraValues" to (588f to 317f),
+                "lockButton" to (34f to 35f),
+                "batteries" to (27f to 79f),
+                "recReadout" to (126f to 28f),
+                "codec" to (373f to 30f),
+                "storage" to (481f to 30f),
+                "fps" to (623f to 29f),
+            ),
+        ),
+        // Synthetic: b collides on every anchor and slides out to the nearest free spot; c and inner are
+        // nested in bar, whose eye leaves them none, so they get no badge.
+        Case(
+            "crowdedStacksOutwardAndDropsNested", 800f, 400f, 44f,
+            listOf(
+                box("a", 100f, 100f, 30f, 30f),
+                box("b", 100f, 100f, 30f, 30f),
+                box("bar", 400f, 90f, 200f, 50f),
+                box("c", 420f, 100f, 30f, 30f),
+                box("inner", 420f, 100f, 30f, 30f),
+            ),
+            listOf(
+                "a" to (108f to 108f),
+                "b" to (108f to 152f),
+                "bar" to (396f to 118f),
+            ),
+        ),
+        // Measured: Pocket and Insta phone landscape (identical boxes; runs pocket-s4-phone-07,
+        // insta-s4-phone-04).
+        Case(
+            "androidPhoneLandscape", 914.286f, 411.429f, 48f,
+            listOf(
+                box("LOCK_BUTTON", 12.19f, 12.19f, 48f, 48f),
+                box("BATTERIES", 12.19f, 72.381f, 57.905f, 68.19f),
+                box("STATUS_BAR", 103.619f, 0f, 733.714f, 44.19f),
+                box("TOOL_BAR", 12.19f, 297.524f, 89.143f, 110.095f),
+                box("CAMERA_VALUES", 112f, 372.952f, 690.286f, 34.667f),
+                box("RAIL_RECORD", 838.476f, 333.333f, 70.095f, 70.095f),
+                box("RAIL_MEDIA", 849.143f, 72.381f, 48f, 48f),
+                box("RAIL_SETTINGS", 849.143f, 12.19f, 48f, 48f),
+                box("REC_READOUT", 670.095f, 11.81f, 53.333f, 20.571f),
+                box("TIMECODE", 733.333f, 8f, 77.714f, 28.19f),
+                box("FORMAT", 160.381f, 12.571f, 38.476f, 19.429f),
+                box("COLOR", 222.857f, 12.571f, 13.714f, 19.429f),
+                box("STORAGE", 103.619f, 12.571f, 32.762f, 19.429f),
+            ),
+            listOf(
+                "LOCK_BUTTON" to (38.19f to 38.19f),
+                "BATTERIES" to (48.095f to 118.571f),
+                "STATUS_BAR" to (99.619f to 22.19f),
+                "TOOL_BAR" to (79.333f to 293.524f),
+                "CAMERA_VALUES" to (108f to 368.952f),
+                "RAIL_RECORD" to (834.476f to 329.333f),
+                "RAIL_MEDIA" to (845.143f to 98.381f),
+                "RAIL_SETTINGS" to (845.143f to 38.19f),
+                "REC_READOUT" to (666.095f to 16f),
+                "TIMECODE" to (729.333f to 16f),
+                "FORMAT" to (176.857f to 16f),
+            ),
+        ),
+        // Measured: Pocket and Insta tablet portrait (identical boxes; runs pocket-s4-tablet-07,
+        // insta-s4-tablet-04).
+        Case(
+            "androidTabletPortrait", 800f, 1280f, 48f,
+            listOf(
+                box("LOCK_BUTTON", 8f, 1198f, 48f, 48f),
+                box("BATTERIES", 8f, 82f, 58f, 68f),
+                box("STATUS_BAR", 8f, 0f, 772f, 52f),
+                box("TOOL_BAR", 8f, 1006f, 56f, 83f),
+                box("CAMERA_VALUES", 14f, 1122.5f, 772f, 37.5f),
+                box("RAIL_RECORD", 358f, 1180f, 84f, 84f),
+                box("RAIL_MEDIA", 684f, 1198f, 48f, 48f),
+                box("RAIL_SETTINGS", 744f, 1198f, 48f, 48f),
+                box("REC_READOUT", 8f, 0f, 53.5f, 20.5f),
+                box("TIMECODE", 350f, 0f, 88f, 31.5f),
+                box("COLOR", 732f, 0f, 48f, 48f),
+                box("STORAGE", 8f, 52f, 35.5f, 22.5f),
+            ),
+            listOf(
+                "LOCK_BUTTON" to (34f to 1194f),
+                "BATTERIES" to (44f to 128f),
+                "STATUS_BAR" to (758f to 30f),
+                "TOOL_BAR" to (42f to 1002f),
+                "CAMERA_VALUES" to (16f to 1118.5f),
+                "RAIL_RECORD" to (354f to 1176f),
+                "RAIL_MEDIA" to (680f to 1194f),
+                "RAIL_SETTINGS" to (740f to 1194f),
+                "REC_READOUT" to (39.5f to 16f),
+                "TIMECODE" to (416f to 16f),
+                "STORAGE" to (21.5f to 64f),
+            ),
+        ),
+    )
+
+    @Test fun placementTableMatchesTheSwiftTwin() {
+        for (case in placementTable) {
+            val placed = MonitorChromeEditBadgeLayout.badgeFrames(case.boxes, case.width, case.height, case.touchTarget)
+            assertEquals(case.expected.map { it.first }, placed.map { it.first }, "${case.name}: badged boxes")
+            placed.zip(case.expected).forEach { (actual, want) ->
+                val (key, frame) = actual
+                assertEquals(want.second.first, frame.x, .01f, "${case.name} $key x")
+                assertEquals(want.second.second, frame.y, .01f, "${case.name} $key y")
+                assertEquals(size to size, frame.width to frame.height, "${case.name} $key size")
+            }
+            assertApart(placed, maxOf(size, case.touchTarget))
+        }
+    }
+
+    /** No two badges' [reach]-sized squares (the disc, or the touch target centred on it) overlap. */
+    private fun <K> assertApart(placements: List<Pair<K, MonitorRect>>, reach: Float = size) {
         for (i in placements.indices) for (j in i + 1 until placements.size) {
             val (a, b) = placements[i].second to placements[j].second
-            assertTrue(a.x + size <= b.x || b.x + size <= a.x || a.y + size <= b.y || b.y + size <= a.y,
+            assertTrue(abs(a.x - b.x) >= reach || abs(a.y - b.y) >= reach,
                 "${placements[i].first} and ${placements[j].first} badges overlap")
         }
     }

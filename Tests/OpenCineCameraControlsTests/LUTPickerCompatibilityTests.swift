@@ -5,6 +5,7 @@ import OpenCineAppKitApple
 import OpenCineApple
 import OpenCineCameraControls
 import OpenCineCameraVocabulary
+import OpenCineHostedAccessibility
 import OpenCineMedia
 import SwiftUI
 import UIKit
@@ -98,22 +99,7 @@ final class LUTPickerCompatibilityTests: XCTestCase {
             previous?.makeKeyAndVisible()
         }
         var labels: [String] {
-            var seen = Set<ObjectIdentifier>()
-            var result: [String] = []
-            @MainActor func visit(_ object: NSObject) {
-                guard seen.insert(ObjectIdentifier(object)).inserted else { return }
-                if object.isAccessibilityElement, let label = object.accessibilityLabel { result.append(label) }
-                for child in object.accessibilityElements as? [NSObject] ?? [] { visit(child) }
-                let count = object.accessibilityElementCount()
-                if count > 0 && count < 512 {
-                    for index in 0..<count {
-                        if let child = object.accessibilityElement(at: index) as? NSObject { visit(child) }
-                    }
-                }
-                if let view = object as? UIView { for child in view.subviews { visit(child) } }
-            }
-            visit(window)
-            return result
+            HostedAccessibility.elements(in: window).filter(\.isAccessibilityElement).compactMap(\.accessibilityLabel)
         }
     }
 

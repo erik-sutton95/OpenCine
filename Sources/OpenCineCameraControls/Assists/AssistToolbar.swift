@@ -5,7 +5,7 @@
     /// The cinema live-monitor set. MAG is retired; PLAY stays off the video toolbar.
     extension MonitorAssistSelection {
         public var isRetired: Bool { self == .magnification }
-        public var isPhotographyOnly: Bool { self == .instantReview }
+        public var isPhotographyOnly: Bool { MonitorAssistCapabilities.standard.isPhotographyOnly(self) }
 
         /// Playback drops LEVEL (needs live camera attitude) and MAG (no on-feed key).
         /// AUDIO rides last, matching the live strip's trailing section.

@@ -28,6 +28,18 @@ public struct MonitorOperatorLivePresentation {
     }
 }
 
+extension MonitorOperatorLivePresentation {
+    /// Zoom, gimbal and head tracking from the one capability model, laid out over the host's
+    /// `base` sections while a family is still unknown (as `MonitorLayoutCapabilities(controls:base:)`).
+    public init(pictureAspect: Double, pictureWaiting: Bool, verticalPicture: Bool, recovering: Bool,
+        controls: ControlCapabilities, base: MonitorLayoutCapabilities = .init(), watching: Bool) {
+        let layout = MonitorLayoutCapabilities(controls: controls, base: base)
+        self.init(pictureAspect: pictureAspect, pictureWaiting: pictureWaiting,
+            verticalPicture: verticalPicture, recovering: recovering, zoom: layout.zoom,
+            gimbal: layout.gimbal, headTracking: layout.headTracking, watching: watching)
+    }
+}
+
 /// Camera-coordinate focus observations. The surface owns projection, admission and cancel placement.
 public struct MonitorOperatorFocusObservation {
     public let point: CGPoint
@@ -133,7 +145,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                 },
                 level: readLevel,
                 audio: {
-                    guard !source.watching, host.captureCapabilities.audio, !host.cameraStatus.isPhoto,
+                    guard !source.watching, host.controlCapabilities.liveAudioLevels.isShown, !host.cameraStatus.isPhoto,
                         let levels = host.cameraStatus.audioMeters else { return nil }
                     return .init(levels: levels, caption: host.cameraStatus.audioChannel?.label)
                 },
@@ -143,7 +155,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             assists: .init(scopes: assists,
                 tools: {
                     MonitorAssistSelection.toolbarCases
-                        + (host.cameraStatus.isPhoto || !host.captureCapabilities.audio ? [] : [.audioMeters])
+                        + (host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown ? [] : [.audioMeters])
                 }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
                 usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
                 usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle),

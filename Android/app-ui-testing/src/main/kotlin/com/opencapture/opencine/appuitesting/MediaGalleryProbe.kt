@@ -26,6 +26,22 @@ public class MediaGalleryProbe(private val test: ConformanceTest) {
             .sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
     }
 
+    /**
+     * Two neighbouring clips (reading order) wholly inside the viewport, for a selection sweep. A clip
+     * cut by the viewport's edge sits where a sweep autoscrolls the gallery and widens the selection
+     * (a tablet grid's first row under the header). Android reports a node's bounds clipped to what
+     * shows, so a card cut by the viewport's edge reads as inside it, only shorter: a pair clip must
+     * also have the full card height (the tallest clip in the same snapshot). XCUITest frames are not
+     * clipped, so the Swift twin needs only the containment.
+     */
+    public fun sweepPair(): Pair<Clip, Clip>? {
+        val viewport = viewport() ?: return null
+        val clips = visibleClips()
+        val full = clips.maxOfOrNull { it.bounds.height } ?: return null
+        fun whole(clip: Clip) = viewport.contains(clip.bounds) && clip.bounds.height >= full
+        return clips.zipWithNext().firstOrNull { (first, second) -> whole(first) && whole(second) }
+    }
+
     /** The first visible clip once the gallery has stopped moving. */
     public fun settledAnchor(timeoutMs: Long = 10_000): Clip? {
         var last: Clip? = null

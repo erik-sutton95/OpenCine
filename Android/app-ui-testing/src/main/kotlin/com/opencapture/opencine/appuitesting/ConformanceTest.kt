@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Bitmap
-import android.graphics.Point
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Build
@@ -26,8 +25,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import com.opencapture.monitorui.ReviewLaunch
+import com.opencapture.opencine.systemhints.SystemHints
 import java.io.File
 import java.io.OutputStream
+import kotlin.math.abs
 import kotlin.math.ceil
 import org.junit.After
 import org.junit.Before
@@ -61,8 +62,16 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     /** Pixels per dp, for tolerances written in dp as the Swift kit writes them in points. */
     public val density: Float = instrumentation.targetContext.resources.displayMetrics.density
 
+    /** The orientation the kit froze: portrait at the start of each scenario, then what [rotate] set. */
+    private var frozenLandscape = false
+
     @Before
     public fun startInPortrait() {
+        // Also set by the run listener; idempotent, so a bundle without the listener is covered too.
+        SystemHints.suppress(automation)
+        // A scenario that ended in landscape leaves the display turned; start each one upright.
+        // [launch] freezes again once the app is in front and checks that its window turned.
+        frozenLandscape = false
         automation.setRotation(rotationFor(landscape = false))
     }
 
@@ -78,7 +87,13 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         scenario?.close()
         val intent = Intent(instrumentation.targetContext, subject.activity)
         review.extras.forEach { (key, value) -> intent.putExtra(key, value) }
-        return ActivityScenario.launch<Activity>(intent).also { scenario = it }
+        val launched = ActivityScenario.launch<Activity>(intent).also { scenario = it }
+        // Android 14+ restores the user rotation a portrait-only launcher overrode once an app comes to
+        // front (DisplayRotationReversionController#revertOverride), which undoes a freeze made while the
+        // launcher showed and opens the app in the previous scenario's rotation. Freeze again now that
+        // the app is in front; rotate fails clearly if the app does not turn.
+        rotate(frozenLandscape)
+        return launched
     }
 
     /**
@@ -125,7 +140,26 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
                 }
             }
         }
-        return UiSnapshot(nodes, windows, complete)
+        return UiSnapshot(spoken(nodes), windows, complete)
+    }
+
+    /**
+     * What TalkBack announces for a node it focuses that has no description or text of its own (a
+     * Material button whose label is its child `Text`): the labels of the descendants it does not focus
+     * separately, in order. Compose exposes such a button as an unlabelled clickable node over its text.
+     */
+    private fun spoken(nodes: List<UiNode>): List<UiNode> {
+        val children = nodes.indices.groupBy { nodes[it].parent }
+        fun focusable(node: UiNode) = node.info.isClickable || node.info.isFocusable || node.info.isScreenReaderFocusable
+        fun inner(index: Int): List<String> = children[index].orEmpty().flatMap { child ->
+            val node = nodes[child]
+            if (focusable(node)) emptyList() else listOfNotNull(node.label.ifBlank { null }) + inner(child)
+        }
+        return nodes.mapIndexed { index, node ->
+            if (node.label.isNotBlank() || !focusable(node)) node
+            else inner(index).joinToString(", ").takeIf { it.isNotEmpty() }
+                ?.let { UiNode(node.info, node.tag, it, node.window, node.parent, node.inScroll) } ?: node
+        }
     }
 
     /** The first node [match] admits within [timeoutMs]; fails with the tree and a screenshot otherwise. */
@@ -158,16 +192,32 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
     /**
      * The node [match] admits, scrolled wholly into its scrolling container first (as a TalkBack user's
      * focus brings it): the node's own show-on-screen action, else its container scrolled towards it.
+     * Compose leaves a scrolled-away child out of the tree altogether; with [container] (the tag of the
+     * scrolling container that holds it) an absent node is looked for by scrolling that container
+     * forward to its end, then back, as TalkBack's next and previous gestures do.
      */
-    public fun reveal(what: String, timeoutMs: Long = 15_000, match: (UiNode) -> Boolean): UiNode {
+    public fun reveal(
+        what: String, timeoutMs: Long = 15_000, container: String? = null, match: (UiNode) -> Boolean,
+    ): UiNode {
         val deadline = SystemClock.uptimeMillis() + timeoutMs
         var attempts = 0
+        var searchForward = true
         while (true) {
             val snapshot = snapshot()
             val node = snapshot.nodes.firstOrNull(match)
+            val holder = container?.let { tag -> snapshot.nodes.firstOrNull { it.visible && it.tag == tag && it.info.isScrollable } }
+            if (node == null && holder != null && SystemClock.uptimeMillis() <= deadline) {
+                val action = if (searchForward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                if (!holder.info.performAction(action)) {
+                    if (!searchForward) fail("$what is not in $container")
+                    searchForward = false
+                }
+                pause(400)
+                continue
+            }
             if (node != null) {
                 val viewport = snapshot.viewport(node)
-                if (node.visible && (viewport == null || viewport.contains(node.bounds, 1))) return node
+                if (node.visible && (viewport == null || viewport.shows(node.bounds))) return node
                 if (attempts++ >= 8) fail("$what cannot be brought on screen")
                 val scroller = snapshot.scroller(node)
                 val shown = node.info.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
@@ -187,9 +237,29 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
 
     // MARK: Touch
 
+    /**
+     * Taps [node] where it rests now. XCUITest waits for the app to go idle before a tap; here the same
+     * node (its tag, else its label, nearest where it was found) must keep its frame across two
+     * snapshots first, so a node found while its sheet was still sliding in is not tapped where it was.
+     */
     public fun tap(node: UiNode) {
-        val bounds = node.bounds
+        val bounds = settled(node).bounds
         tapAt(bounds.centerX, bounds.centerY)
+    }
+
+    private fun settled(node: UiNode, timeoutMs: Long = 2_000): UiNode {
+        fun find(): UiNode? = snapshot().nodes.filter {
+            it.visible && if (node.tag != null) it.tag == node.tag else it.label == node.label
+        }.minByOrNull { abs(it.bounds.centerX - node.bounds.centerX) + abs(it.bounds.centerY - node.bounds.centerY) }
+        var last = find() ?: return node
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        while (SystemClock.uptimeMillis() < deadline) {
+            pause(120)
+            val now = find() ?: return last
+            if (now.bounds == last.bounds) return now
+            last = now
+        }
+        return last
     }
 
     public fun tapAt(x: Int, y: Int) {
@@ -250,6 +320,7 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
      * default) has kept its frame for half a second, as the Swift kit's `rotate` does.
      */
     public fun rotate(landscape: Boolean, settling: (() -> UiNode?)? = null) {
+        frozenLandscape = landscape
         automation.setRotation(rotationFor(landscape))
         val deadline = SystemClock.uptimeMillis() + 10_000
         while (mainWindow()?.let { (it.width > it.height) == landscape } != true) {
@@ -277,12 +348,15 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
         "${if (smallest >= 600) "tablet" else "phone"}${smallest}dp"
     }
 
+    /**
+     * Whether the panel is landscape at rotation 0, from the display mode's physical size. The size
+     * and rotation an app process reads can disagree after a scenario left the display turned (the
+     * launcher shows upright on a turned display), which once made "portrait" freeze rotation 90.
+     */
     private val naturalLandscape: Boolean by lazy {
-        val display = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
-            .getDisplay(Display.DEFAULT_DISPLAY)
-        @Suppress("DEPRECATION") val size = Point().also(display::getRealSize)
-        val turned = display.rotation == android.view.Surface.ROTATION_90 || display.rotation == android.view.Surface.ROTATION_270
-        (size.x > size.y) != turned
+        val mode = instrumentation.targetContext.getSystemService(DisplayManager::class.java)
+            .getDisplay(Display.DEFAULT_DISPLAY).mode
+        mode.physicalWidth > mode.physicalHeight
     }
 
     private fun rotationFor(landscape: Boolean): Int =
@@ -452,3 +526,12 @@ public abstract class ConformanceTest(protected val subject: ConformanceApp) {
 }
 
 internal fun Rect.box(): Box = Box(left, top, right, bottom)
+
+/**
+ * True when [bounds] lies wholly inside this scrolling viewport along the axis it scrolls (a wide
+ * viewport scrolls sideways). Across that axis a control may reach past the viewport: Compose grows a
+ * small control's touch bounds to the minimum touch target, beyond a slim tab strip.
+ */
+internal fun Box.shows(bounds: Box): Boolean =
+    if (width > height) bounds.left >= left - 1 && bounds.right <= right + 1
+    else bounds.top >= top - 1 && bounds.bottom <= bottom + 1

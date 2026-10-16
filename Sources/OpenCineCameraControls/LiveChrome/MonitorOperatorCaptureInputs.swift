@@ -29,7 +29,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         presentedSheet: (() -> CaptureSheet?)? = nil,
         open: ((CaptureSheet) -> Void)? = nil, dismiss: (() -> Void)? = nil) -> Self {
         let status = host.cameraStatus
-        let capabilities = host.captureCapabilities
+        let controls = host.controlCapabilities
         var readouts: [MonitorOperatorLiveReadout<CaptureSheet, Section>] = []
         func append(_ sheet: CaptureSheet, _ title: String, _ value: String,
             field: MonitorCaptureField? = nil, icon: MonitorIcon? = nil, badge: MonitorIcon? = nil,
@@ -42,7 +42,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         func commonValue(_ key: SettingKey) -> String {
             host.control.captureValue(key, selection: selection).map(MonitorCapturePresentation.label) ?? "--"
         }
-        let nativeISO = status.isoIndex == .auto && capabilities.isoLimit
+        let nativeISO = status.isoIndex == .auto && controls.nativeISO.ceiling == true
         let isoField = nativeISO ? nil : host.control.captureField(.iso, selection: selection)
         append(.iso, "ISO", commonValue(.iso), field: isoField,
             quickEnabled: nativeISO || isoField != nil)
@@ -76,7 +76,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         append(.wb, "WB", wbValue, field: wbField,
             icon: wbIcon,
             quickEnabled: !pendingWB || wbField != nil)
-        if capabilities.focusMode {
+        if controls.focus.isOffered {
             let commonFocus: OpenCineCore.FocusMode?
             if case .focusMode(let value)? = host.control.captureValue(.focusMode, selection: selection) {
                 commonFocus = value
@@ -84,10 +84,10 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
             append(.focus, "FOCUS", CaptureNativeReadoutPresentation.focus(common: commonFocus,
                 native: FocusOption.resolve(mode: status.focusMode, track: status.focusTrack)))
         }
-        if capabilities.aperture {
+        if controls.iris.isOffered {
             append(.aperture, "APERTURE", commonValue(.aperture))
         }
-        if capabilities.audio && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
+        if controls.audio.isOffered && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
         let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]
         if let meter = host.nativeMeteringSource {
             supplementary = [.init(id: "native.metering", after: .exposure, title: "METER",

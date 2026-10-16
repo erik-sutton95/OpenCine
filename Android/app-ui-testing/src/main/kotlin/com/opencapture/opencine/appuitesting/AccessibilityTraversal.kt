@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appuitesting
 
+import android.os.SystemClock
 import com.opencapture.monitorui.ReviewLaunch
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import kotlin.test.assertEquals
@@ -32,14 +33,24 @@ public abstract class AccessibilityTraversal(subject: ConformanceApp) : Conforma
     }
 
     private fun assertTree(name: String, operable: String) {
-        val snapshot = snapshot(NODE_BOUND)
+        // A window that just presented (a dialog over Settings) can report a control before its
+        // label children; a label missing through three seconds is a real one.
+        var snapshot = snapshot(NODE_BOUND)
+        var unlabelled = unlabelled(snapshot)
+        val deadline = SystemClock.uptimeMillis() + 3_000
+        while (unlabelled.isNotEmpty() && SystemClock.uptimeMillis() < deadline) {
+            pause(300)
+            snapshot = snapshot(NODE_BOUND)
+            unlabelled = unlabelled(snapshot)
+        }
         assertTrue(snapshot.complete, "$name: the tree has more than $NODE_BOUND nodes")
-        val unlabelled = snapshot.nodes.filter {
-            it.visible && it.tag?.startsWith("monitor.") == true && it.isControl() && it.label.isBlank()
-        }.map { it.tag }
         assertEquals(emptyList(), unlabelled, "$name: controls without a label")
         checkpoint(name, operable)
     }
+
+    private fun unlabelled(snapshot: UiSnapshot): List<String?> = snapshot.nodes.filter {
+        it.visible && it.tag?.startsWith("monitor.") == true && it.isControl() && it.label.isBlank()
+    }.map { it.tag }
 
     private fun UiNode.isControl(): Boolean =
         info.isClickable || info.isLongClickable || info.isCheckable || info.isEditable || info.rangeInfo != null

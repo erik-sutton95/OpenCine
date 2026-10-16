@@ -64,6 +64,15 @@ public struct FieldMonitorLayout: Equatable, Sendable {
     public static let settingsMediaGap = 12.0
     /// Default on-feed gimbal joystick diameter.
     public static let stickSide = MonitorJoystickSize.medium.side
+    /// The smallest touch target a chrome control is padded to (Apple's 44 pt minimum).
+    public static let minimumTapTarget = 44.0
+    /// The drawn height of a telemetry gauge pill (link, phone and camera battery).
+    public static func telemetryGaugeHeight(tablet: Bool) -> Double { tablet ? 22 : 20 }
+    /// Space between the landscape lock and the gauge column under it: the link pill's padded
+    /// touch target, centred on its drawn pill, must clear the lock's.
+    public static func landscapeGaugeGap(tablet: Bool) -> Double {
+        max(6, (minimumTapTarget - telemetryGaugeHeight(tablet: tablet)) / 2)
+    }
 
     public let viewport: MonitorRect
     public let picture: MonitorRect
@@ -238,7 +247,8 @@ public struct FieldMonitorLayout: Equatable, Sendable {
             lock = .init(
                 x: 18, y: cornerTop, width: button, height: button)
             gauges = .init(
-                x: 18, y: lock.maxY + 6, width: tablet ? 64 : 58, height: tablet ? 76 : 68)
+                x: 18, y: lock.maxY + Self.landscapeGaugeGap(tablet: tablet),
+                width: tablet ? 64 : 58, height: tablet ? 76 : 68)
             telemetry = gauges
             // Keep the full 44pt touch target inside the screen. A 35pt band
             // centred at 21.5pt put its accessibility bounds above the window,

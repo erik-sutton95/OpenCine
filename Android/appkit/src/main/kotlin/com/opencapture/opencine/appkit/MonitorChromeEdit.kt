@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -39,6 +40,7 @@ import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorTypography
 import com.opencapture.monitorui.monitorChromeClickable
 import com.opencapture.monitorui.monitorMaterial
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -177,7 +179,9 @@ public fun <K> MonitorChromeEditBadgeLayer(
     tag: ((K) -> String)? = null,
 ) {
     val haptics = LocalOperatorHaptics.current
-    val frames = MonitorChromeEditBadgeLayout.badgeFrames(boxes, viewportWidth, viewportHeight)
+    // Compose hits (and TalkBack frames) a small clickable across the platform minimum touch target.
+    val felt = max(touchTarget, LocalViewConfiguration.current.minimumTouchTargetSize.width.value)
+    val frames = MonitorChromeEditBadgeLayout.badgeFrames(boxes, viewportWidth, viewportHeight, felt)
     val pad = max(0f, touchTarget - BADGE) / 2f
     frames.forEach { (section, frame) ->
         val on = visible(section)
@@ -297,16 +301,21 @@ public object MonitorChromeEditBadgeLayout {
 
     /**
      * Badge frames for [boxes] in the same space; [boxes] order is the placement priority and
-     * unmeasured (empty) boxes get no badge.
+     * unmeasured (empty) boxes get no badge. [touchTarget] is the square each badge is hit across,
+     * centred on its disc: no two badges' touch targets overlap.
      */
-    public fun <K> badgeFrames(boxes: List<Pair<K, MonitorRect>>, viewportWidth: Float, viewportHeight: Float): List<Pair<K, MonitorRect>> =
-        placeBadges(boxes, viewportWidth, viewportHeight)
+    public fun <K> badgeFrames(
+        boxes: List<Pair<K, MonitorRect>>, viewportWidth: Float, viewportHeight: Float, touchTarget: Float = BADGE,
+    ): List<Pair<K, MonitorRect>> =
+        placeBadges(boxes, viewportWidth, viewportHeight, max(BADGE + BADGE_GAP, touchTarget))
 }
 
 private fun <K> placeBadges(
     boxes: List<Pair<K, MonitorRect>>,
     vw: Float,
     vh: Float,
+    /** Origin-to-origin distance two badges keep along at least one axis. */
+    spacing: Float,
 ): List<Pair<K, MonitorRect>> {
     val playable =
         MonitorRect(
@@ -315,37 +324,93 @@ private fun <K> placeBadges(
             max(BADGE, vw - 2f * EDGE_INSET),
             max(BADGE, vh - 2f * EDGE_INSET),
         )
+    val measured = boxes.filter { !it.second.isEmpty }
     val placed = mutableListOf<MonitorRect>()
     val result = mutableListOf<Pair<K, MonitorRect>>()
-    for ((section, box) in boxes) {
-        if (box.isEmpty) continue
+    for ((section, box) in measured) {
         val preferTrailing = box.midX < vw / 2f
         val preferBottom = box.midY < vh / 2f
-        val candidates =
-            BadgeAnchor.entries
-                .sortedBy { rank(it, preferTrailing, preferBottom) }
-                .map { clampBadge(it.frame(box), playable) }
-        val choice =
-            candidates.firstOrNull { candidate ->
-                placed.none { overlaps(it, candidate) }
-            } ?: candidates.first()
+        val anchors = BadgeAnchor.entries.sortedBy { rank(it, preferTrailing, preferBottom) }
+        val candidates = anchors.map { clampBadge(it.frame(box), playable) }
+        val free = candidates.firstOrNull { candidate -> placed.none { overlaps(it, candidate, spacing) } }
+        // Crowded: a box nested in another chrome box is badged only where its own eye fits; any
+        // other box takes the nearest free spot outward from its best anchor.
+        val nested = measured.any { (other, frame) -> other != section && frame != box && encloses(frame, box) }
+        val choice = free
+            ?: if (nested) null
+            else stackOutward(anchors.first(), candidates.first(), playable, placed, spacing) ?: candidates.first()
+        if (choice == null) continue
         placed += choice
         result += section to choice
     }
     return result
 }
 
+/**
+ * The nearest free spot outward from [anchor]'s [start] inside [playable]: along each outward axis the
+ * badge slides just past every badge it meets, and the shorter slide wins (vertical on a tie).
+ */
+private fun stackOutward(
+    anchor: BadgeAnchor, start: MonitorRect, playable: MonitorRect, placed: List<MonitorRect>, spacing: Float,
+): MonitorRect? {
+    val dx = when (anchor) {
+        BadgeAnchor.TOP_LEADING, BadgeAnchor.LEADING, BadgeAnchor.BOTTOM_LEADING -> -1f
+        BadgeAnchor.TOP_TRAILING, BadgeAnchor.TRAILING, BadgeAnchor.BOTTOM_TRAILING -> 1f
+        BadgeAnchor.TOP, BadgeAnchor.BOTTOM -> 0f
+    }
+    val dy = when (anchor) {
+        BadgeAnchor.TOP_LEADING, BadgeAnchor.TOP, BadgeAnchor.TOP_TRAILING -> -1f
+        BadgeAnchor.BOTTOM_LEADING, BadgeAnchor.BOTTOM, BadgeAnchor.BOTTOM_TRAILING -> 1f
+        BadgeAnchor.LEADING, BadgeAnchor.TRAILING -> 0f
+    }
+    val axes = buildList {
+        if (dy != 0f) add(0f to dy)
+        if (dx != 0f) add(dx to 0f)
+    }
+    return axes.mapNotNull { (ux, uy) -> slide(start, ux, uy, playable, placed, spacing) }
+        .minByOrNull { abs(it.minX - start.minX) + abs(it.minY - start.minY) }
+}
+
+/** [start] moved along ([ux], [uy]) just past every placed badge it meets; null once it leaves [playable]. */
+private fun slide(
+    start: MonitorRect, ux: Float, uy: Float, playable: MonitorRect, placed: List<MonitorRect>, spacing: Float,
+): MonitorRect? {
+    var frame = start
+    while (true) {
+        val hit = placed.filter { overlaps(it, frame, spacing) }
+        if (hit.isEmpty()) return frame
+        val next = if (uy != 0f) {
+            val y = if (uy > 0f) hit.maxOf { it.minY } + spacing else hit.minOf { it.minY } - spacing
+            MonitorRect(frame.x, y, frame.width, frame.height)
+        } else {
+            val x = if (ux > 0f) hit.maxOf { it.minX } + spacing else hit.minOf { it.minX } - spacing
+            MonitorRect(x, frame.y, frame.width, frame.height)
+        }
+        if ((next.minX - frame.minX) * ux + (next.minY - frame.minY) * uy <= 0f) return null
+        if (next.minX < playable.minX || next.minY < playable.minY || next.maxX > playable.maxX ||
+            next.maxY > playable.maxY) return null
+        frame = next
+    }
+}
+
+private fun encloses(outer: MonitorRect, inner: MonitorRect): Boolean =
+    outer.minX <= inner.minX && outer.minY <= inner.minY && inner.maxX <= outer.maxX && inner.maxY <= outer.maxY
+
 private fun clampBadge(frame: MonitorRect, playable: MonitorRect): MonitorRect {
+    if (playable.width < frame.width || playable.height < frame.height) {
+        return MonitorRect(playable.minX, playable.minY, frame.width, frame.height)
+    }
     val x = min(max(frame.minX, playable.minX), playable.maxX - frame.width)
     val y = min(max(frame.minY, playable.minY), playable.maxY - frame.height)
     return MonitorRect(x, y, frame.width, frame.height)
 }
 
-private fun overlaps(a: MonitorRect, b: MonitorRect): Boolean =
-    a.minX < b.maxX + BADGE_GAP &&
-        b.minX < a.maxX + BADGE_GAP &&
-        a.minY < b.maxY + BADGE_GAP &&
-        b.minY < a.maxY + BADGE_GAP
+/** Two badge-sized frames closer than [spacing] on both axes: their touch targets (or discs and gap) meet. */
+private fun overlaps(a: MonitorRect, b: MonitorRect, spacing: Float): Boolean =
+    abs(a.minX - b.minX) < spacing - SPACING_SLACK && abs(a.minY - b.minY) < spacing - SPACING_SLACK
+
+/** Badges exactly [spacing] apart touch; float rounding of a slid origin must not read as a collision. */
+private const val SPACING_SLACK = 0.01f
 
 private fun rank(anchor: BadgeAnchor, preferTrailing: Boolean, preferBottom: Boolean): Int {
     val horizontal =

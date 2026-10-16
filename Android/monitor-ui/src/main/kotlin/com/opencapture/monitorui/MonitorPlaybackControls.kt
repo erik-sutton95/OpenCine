@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -170,6 +171,8 @@ fun MonitorPlaybackActionChip(
     destructive: Boolean = false,
     filled: Boolean = false,
     enabled: Boolean = true,
+    /** What a toggle chip announces after its label (`On`/`Off`), the twin of an iOS accessibility value. */
+    state: String? = null,
     onClickFeedback: () -> Unit = LocalMonitorPlaybackSelectionFeedback.current,
     tint: Color = if (!enabled) MonitorPalette.faint else if (destructive) MonitorPalette.recording else if (active) MonitorPalette.accent else MonitorPalette.text.copy(alpha = 0.86f),
 ) {
@@ -195,7 +198,10 @@ fun MonitorPlaybackActionChip(
                 },
             )
             .monitorChromeClickable(enabled = enabled, onClickFeedback = onClickFeedback, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription }
+            .semantics {
+                this.contentDescription = contentDescription
+                state?.let { this.stateDescription = it }
+            }
             .padding(horizontal = if (title == null) 13.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),

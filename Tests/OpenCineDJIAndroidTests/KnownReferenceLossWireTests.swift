@@ -28,6 +28,27 @@ import Testing
         #expect(tick(117, 17.239, true) == "none")
     }
 
+    @Test func theLastGateIsReadableThroughTheExistingTickEntryPoint() {
+        let handle = DjiNativeWire.feedWatchdogCreate()
+        defer { DjiNativeWire.feedWatchdogDestroy(handle: handle) }
+        let query = #"{"lastHold":true}"#
+        #expect(DjiNativeWire.feedWatchdogTick(handle: handle, snapshotJSON: query) == "", "Never ticked is unknown")
+        #expect(
+            DjiNativeWire.feedWatchdogTick(handle: handle, snapshotJSON: Self.snapshot(loss: true))
+                == "rebuildVTSession")
+        #expect(DjiNativeWire.feedWatchdogTick(handle: handle, snapshotJSON: query) == "fired")
+        #expect(
+            DjiNativeWire.feedWatchdogTick(
+                handle: handle, snapshotJSON: Self.snapshot(now: 101, outputAge: 1.239, loss: true))
+                == "none")
+        #expect(DjiNativeWire.feedWatchdogTick(handle: handle, snapshotJSON: query) == "repairDeadline")
+        #expect(
+            DjiNativeWire.feedWatchdogTick(
+                handle: handle, snapshotJSON: Self.snapshot(now: 116, outputAge: 16.239, loss: true))
+                == "fullSessionRejoin", "A gate query is not a tick and keeps the deadline")
+        #expect(DjiNativeWire.feedWatchdogTick(handle: 0, snapshotJSON: query) == "none")
+    }
+
     private static func snapshot(
         now: Double = 100, outputAge: Double = 0.239, loss: Bool?
     ) -> String {

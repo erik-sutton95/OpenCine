@@ -285,6 +285,22 @@ data class FeedIncidentLifecycle(
     val presentationExpected: Boolean = true,
 )
 
+/**
+ * Android thermal status (PowerManager.THERMAL_STATUS_*, 0 none to 6 shutdown) in the iOS
+ * producers' scale (ProcessInfo.ThermalState raw value: 0 nominal, 1 fair, 2 serious,
+ * 3 critical), so incidents from both platforms compare. Unknown keeps the model default.
+ */
+object FeedIncidentThermal {
+    fun fromAndroidThermalStatus(status: Int?): String =
+        when (status) {
+            null -> FeedIncidentLifecycle().thermalState
+            0 -> "0"
+            1, 2 -> "1"
+            3 -> "2"
+            else -> if (status > 3) "3" else FeedIncidentLifecycle().thermalState
+        }
+}
+
 /** Observed counts for one endpoint generation, before native video admission. */
 data class FeedIncidentIngress(
     val socketGeneration: Int,
@@ -300,6 +316,22 @@ data class FeedIncidentIngress(
     val videoGateOpen: Boolean,
 )
 
+/**
+ * The feed watchdog's gating inputs at this sample (Swift `FeedIncidentWatchdogGate`). Each field is
+ * null when the producer cannot see it. [hold] is the watchdog's last quiet gate (`FeedWatchdog.Hold`)
+ * or the shell's pre-tick hold (`foregroundRecover`, `endpointRebuild`, `repairInFlight`).
+ */
+data class FeedIncidentWatchdogGate(
+    val pathReady: Boolean? = null,
+    val repairReady: Boolean? = null,
+    val outputExpected: Boolean? = null,
+    val hold: String? = null,
+) {
+    /** The gate as reports carry it: [hold] is a bounded token, an empty one is unknown. */
+    fun closed(): FeedIncidentWatchdogGate =
+        copy(hold = hold?.let { FeedIncidentPrivacy.token(it, 32) }?.takeIf { it.isNotEmpty() })
+}
+
 data class FeedIncidentSnapshot(
     val monotonicNow: Double,
     val wallClockMs: Long = 0L,
@@ -312,6 +344,8 @@ data class FeedIncidentSnapshot(
     val diagnoserFailure: String = "none",
     val diagnoserRepair: String = "none",
     val ingress: FeedIncidentIngress? = null,
+    /** Absent on legacy records and producers without a feed watchdog. */
+    val watchdogGate: FeedIncidentWatchdogGate? = null,
 )
 
 data class FeedIncidentBreadcrumb(
@@ -554,21 +588,22 @@ object FeedIncidentClassifier {
                 outputFresh,
                 threshold,
             )
+        val acceptStale =
+            FeedIncidentPrivacy.isStale(
+                snapshot.ages.decodeAcceptAge,
+                snapshot.rates.decodeAcceptHz,
+                snapshot.rates.decodeSubmitHz >= 1.0,
+                threshold,
+            )
+        val decodeStage =
+            if (acceptStale && snapshot.rates.decodeSubmitHz >= 1.0) {
+                FeedIncidentFailingStage.DECODE_ACCEPT
+            } else {
+                FeedIncidentFailingStage.DECODED_OUTPUT
+            }
         if (life.outputObservable && outputStale) {
             val currentError = isCurrentDecoderFailure(snapshot.decoder)
-            val acceptStale =
-                FeedIncidentPrivacy.isStale(
-                    snapshot.ages.decodeAcceptAge,
-                    snapshot.rates.decodeAcceptHz,
-                    snapshot.rates.decodeSubmitHz >= 1.0,
-                    threshold,
-                )
-            val stage =
-                if (acceptStale && snapshot.rates.decodeSubmitHz >= 1.0) {
-                    FeedIncidentFailingStage.DECODE_ACCEPT
-                } else {
-                    FeedIncidentFailingStage.DECODED_OUTPUT
-                }
+            val stage = decodeStage
             val kind =
                 when {
                     currentError -> FeedIncidentKind.DECODER_ERROR
@@ -583,6 +618,20 @@ object FeedIncidentClassifier {
                 FeedIncidentKind.ASSIST_STALLED,
                 FeedIncidentFailingStage.ASSIST_OUTPUT,
             )
+        }
+        // An unobservable decode path does not make the presenter the stage that stopped
+        // (Swift twin; OPENPOCKETCINE-IOS-2E, -K field snapshots).
+        if (!life.outputObservable && presentStale) {
+            if (isCurrentDecoderFailure(snapshot.decoder)) {
+                return FeedIncidentVerdict(FeedIncidentSuppression.NONE, FeedIncidentKind.DECODER_ERROR, decodeStage)
+            }
+            if (!inputFresh) {
+                return FeedIncidentVerdict(
+                    FeedIncidentSuppression.NONE,
+                    FeedIncidentKind.TRANSPORT_STALL,
+                    if (packetFresh) FeedIncidentFailingStage.ACCESS_UNIT else FeedIncidentFailingStage.PACKET,
+                )
+            }
         }
         if ((outputFresh || !life.outputObservable) && presentStale) {
             return FeedIncidentVerdict(

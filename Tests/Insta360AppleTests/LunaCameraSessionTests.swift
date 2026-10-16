@@ -276,7 +276,11 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertTrue(layout.timecode)
         XCTAssertFalse(layout.audio, "unsupported overrides the base")
         XCTAssertFalse(layout.iris, "fixed aperture")
-        XCTAssertEqual(session.layout(base: base), layout)
+        // The session lays out the one control model: Luna declares its zoom stops, so the zoom
+        // chip shows before the live zoom range arrives.
+        var modelLayout = layout
+        modelLayout.zoom = true
+        XCTAssertEqual(session.layout(base: base), modelLayout)
 
         XCTAssertNil(session.current.timecode.value, "nothing derived yet: unknown")
         session.ingest(timecode: CameraTimecodeReading(hours: 15, minutes: 39, seconds: 50))

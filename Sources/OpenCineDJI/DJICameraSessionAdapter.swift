@@ -868,6 +868,15 @@ public final class DJICameraSessionAdapter: OpenCineCore.CameraSession {
 }
 
 extension DJICameraSessionAdapter {
+    /// The one control model for the connected body: its declared profile and motion merged with
+    /// the live capabilities. `codecColor` is what the codec and colour popup lists now, when the
+    /// host has it. With no body known only the live snapshot speaks.
+    public func controlCapabilities(codecColor: CaptureCodecColorChoices? = nil) -> ControlCapabilities {
+        let model = session.connectedModel
+        return ControlCapabilities(snapshot: current.capabilities, profile: model?.captureProfile,
+            motion: model?.motion, codecColor: codecColor)
+    }
+
     /// What a monitor lays out for the connected body: the Core projection of `current` plus the
     /// body's motion (`CameraModel.motion`). `base` carries what Core has no vocabulary for yet.
     /// With no body known, motion stays unknown and the Core projection keeps `base`.

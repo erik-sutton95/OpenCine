@@ -184,6 +184,20 @@ class ShellModelTest {
     }
 
     @Test
+    fun cameraGalleryOpensAndClosesOnlyTheMediaCover() = runTest {
+        val shell = shell()
+        shell.followCameraGallery(open = true)
+        assertEquals(ShellModel.Cover.MEDIA, shell.state.value.cover)
+        shell.followCameraGallery(open = false)
+        assertNull(shell.state.value.cover)
+        shell.open(ShellModel.Cover.SETTINGS)
+        shell.followCameraGallery(open = true)
+        assertEquals(ShellModel.Cover.SETTINGS, shell.state.value.cover)
+        shell.followCameraGallery(open = false)
+        assertEquals(ShellModel.Cover.SETTINGS, shell.state.value.cover)
+    }
+
+    @Test
     fun coverAndRevealPreserveTheHostAndConnection() = runTest {
         val shell = shell()
         val camera = Counted(FakeCameraSession.lunaLike())
