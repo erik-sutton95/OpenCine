@@ -76,7 +76,8 @@ public object MonitorCapturePresentation {
         else -> ""
     }
 
-    internal fun choices(key: SettingKey, domain: SettingDomain?): List<MonitorCaptureChoice> {
+    /** Bounded typed detents from the reported domain; this projection grants no command authority. */
+    public fun choices(key: SettingKey, domain: SettingDomain?): List<MonitorCaptureChoice> {
         if (domain == null) return emptyList()
         val values = domain.choices.filter { it.key == key }.toMutableList()
         val range = domain.range

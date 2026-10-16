@@ -149,3 +149,20 @@ public fun MultiviewStageVisibility(visible: Boolean, content: @Composable () ->
         }) { content() }
     }
 }
+
+/** Working host adapters. Absent scope preserves legacy behavior; explicit empty scope offers no tools. */
+public class MultiviewStageServices(
+    public val availability: MultiviewToolAvailability,
+    public val configureLUT: ((Int) -> Unit)? = null,
+    /** The host derives each member's look from its reported source (Auto LUT), not an operator
+     *  selection. It names the group LUT toggle; it grants no capability. */
+    public val automaticLUT: Boolean = false,
+)
+
+internal val LocalMultiviewStageServices = staticCompositionLocalOf<MultiviewStageServices?> { null }
+
+/** Adds current capability-derived services without changing the stage's existing JVM callable forms. */
+@Composable
+public fun MultiviewStageServicesProvider(services: MultiviewStageServices, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalMultiviewStageServices provides services, content = content)
+}

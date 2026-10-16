@@ -99,6 +99,8 @@
         private let backdrop: Backdrop
         private let viewport: CGSize
         private let safeArea: EdgeInsets
+        @Environment(\.multiviewStageServices) private var services
+        @Environment(\.multiviewStageVisible) private var stageVisible
         @Environment(\.multiviewStageState) private var sharedState
         @State private var fallbackState: MultiviewStageState
         private var presentation: MultiviewStageState { sharedState ?? fallbackState }
@@ -200,6 +202,7 @@
                     for: UIApplication.willResignActiveNotification)
             ) { _ in closePopups() }
             .onDisappear { closePopups() }
+            .onChange(of: stageVisible) { _, visible in if !visible { closePopups() } }
             // A removed camera takes its options with it.
             .onChange(of: optionsSlot.map { tiles.indices.contains($0) && tiles[$0] != nil }) {
                 _, open in
@@ -293,9 +296,12 @@
             }
         }
 
+        private var occupiedSlots: Set<Int> { Set(tiles.indices.filter { tiles[$0] != nil }) }
+
         private var toolItems: [MonitorToolItem] {
-            let cameras = tiles.contains { $0 != nil }
-            return tools.map { tool in
+            let cameras = !occupiedSlots.isEmpty
+            let offered = services?.availability.offeredTools(from: tools, occupiedSlots: occupiedSlots) ?? tools
+            return offered.map { tool in
                 switch tool {
                 case .layout:
                     MonitorToolItem(
@@ -318,8 +324,10 @@
                         accessibilityIdentifier: "multiview.fitFill")
                 case .lut:
                     MonitorToolItem(
-                        id: tool.rawValue, title: "LUT", enabled: lut, hasOptions: false,
-                        available: cameras, accessibilityLabel: "Toggle Auto LUT for all cameras")
+                        id: tool.rawValue, title: "LUT", enabled: lut,
+                        hasOptions: services?.configureLUT != nil,
+                        available: cameras, accessibilityLabel: services?.automaticLUT == false
+                            ? "Toggle LUT for all cameras" : "Toggle Auto LUT for all cameras")
                 }
             }
         }
@@ -352,6 +360,7 @@
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(MonitorButtonStyle())
+                    .modifier(ToolOptionsMenu(enabled: tool.hasOptions) { configureTool(tool.id) })
                     .disabled(!tool.available)
                     .opacity(tool.available ? 1 : 0.4)
                     .accessibilityLabel(tool.accessibilityLabel ?? tool.title)
@@ -391,7 +400,7 @@
                 expanded: Binding(
                     get: { presentation.toolsExpanded }, set: { presentation.toolsExpanded = $0 }),
                 onToggle: activate,
-                onOptions: { _ in },
+                onOptions: configureTool,
                 accessibilityName: "Multiview tools", accessibilityPrefix: "multiview.toolbar"
             ) { id in
                 toolIcon(id)
@@ -402,17 +411,30 @@
 
         private func activate(_ id: String) {
             switch MultiviewTool(rawValue: id) {
-            case .lut: actions.toggleLUT()
+            case .lut:
+                if let services, services.availability.pictureLUTSlot(selected: selected, occupiedSlots: occupiedSlots) == nil { return }
+                actions.toggleLUT()
             case .fit: fill.toggle()
             case .layout: arrangement = arrangement == .grid ? .centerStage : .grid
             case .camera:
                 optionsSlot = nil
-                let slot =
-                    tiles.indices.contains(selected) && tiles[selected] != nil
-                    ? selected : tiles.firstIndex { $0 != nil }
+                let slot: Int?
+                if let services {
+                    slot = services.availability.cameraSettingsSlot(selected: selected, occupiedSlots: occupiedSlots)
+                } else {
+                    slot = tiles.indices.contains(selected) && tiles[selected] != nil
+                        ? selected : tiles.firstIndex { $0 != nil }
+                }
                 if let slot { actions.openSettings(slot) }
             case nil: break
             }
+        }
+
+        private func configureTool(_ id: String) {
+            guard MultiviewTool(rawValue: id) == .lut, let services,
+                let slot = services.availability.pictureLUTSlot(selected: selected, occupiedSlots: occupiedSlots)
+            else { return }
+            services.configureLUT?(slot)
         }
 
         // MARK: Chrome buttons
@@ -984,6 +1006,20 @@
         }
     }
 
+    /// The long-press options menu a tool offers only when its host supplies a working adapter.
+    private struct ToolOptionsMenu: ViewModifier {
+        let enabled: Bool
+        let action: @MainActor () -> Void
+
+        func body(content: Content) -> some View {
+            if enabled {
+                content.contextMenu { Button("Configure LUT") { action() } }
+            } else {
+                content
+            }
+        }
+    }
+
     /// Record on every camera, or on one (`single`, its name). With confirmation on, the
     /// dialog holds the plan the operator saw; any change to it (`MultiviewRecordContext`)
     /// dismisses the dialog, and the approved plan is checked again before it runs.
@@ -993,8 +1029,15 @@
         let context: () -> MultiviewRecordContext
         let record: (RecordPlan) async -> Void
         @ViewBuilder let label: () -> Label
+        @Environment(\.multiviewStageVisible) private var stageVisible
+        @Environment(\.scenePhase) private var scenePhase
+        @State private var approvalRevision = UUID()
         @State private var showingConfirmation = false
-        @State private var pending: MultiviewRecordContext?
+        private struct Approval {
+            let id = UUID()
+            let context: MultiviewRecordContext
+        }
+        @State private var pending: Approval?
 
         public init(
             confirmationEnabled: Bool, single: String? = nil,
@@ -1013,9 +1056,9 @@
             let now = context()
             return Button {
                 let current = context()
-                guard current.canConfirm else { return }
+                guard stageVisible, current.canConfirm else { return }
                 if confirmationEnabled {
-                    pending = current
+                    pending = Approval(context: current)
                     showingConfirmation = true
                 } else {
                     perform(current)
@@ -1023,31 +1066,44 @@
             } label: {
                 label()
             }
-            .disabled(!now.canConfirm)
+            .disabled(!stageVisible || !now.canConfirm)
             .accessibilityHint(now.refusal ?? "")
             .confirmationDialog(
                 now.prompt ?? now.question(single: single != nil), isPresented: $showingConfirmation,
                 titleVisibility: .visible
             ) {
-                Button(now.stopping ? "Stop" : "Start", role: now.stopping ? .destructive : nil) {
-                    guard let pending else { return }
-                    self.pending = nil
-                    perform(pending)
+                if let approved = pending {
+                    Button(now.stopping ? "Stop" : "Start", role: now.stopping ? .destructive : nil) {
+                        guard pending?.id == approved.id else { return }
+                        pending = nil
+                        perform(approved.context)
+                    }
                 }
                 Button("Cancel", role: .cancel) { pending = nil }
             } message: {
                 Text(single ?? MultiviewRecordContext.groupNote)
             }
-            .onChange(of: now) { _, _ in
-                pending = nil
-                showingConfirmation = false
+            .onChange(of: now) { _, _ in retireApproval() }
+            .onChange(of: stageVisible) { _, visible in if !visible { retireApproval() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { retireApproval() } }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                retireApproval()
             }
+            .onDisappear { retireApproval() }
+        }
+
+        private func retireApproval() {
+            approvalRevision = UUID()
+            pending = nil
+            showingConfirmation = false
         }
 
         private func perform(_ approved: MultiviewRecordContext) {
+            let revision = approvalRevision
             Task { @MainActor in
                 let current = context()
-                guard approved == current, current.canConfirm else { return }
+                guard stageVisible, approvalRevision == revision,
+                    approved == current, current.canConfirm else { return }
                 await record(approved.plan)
             }
         }

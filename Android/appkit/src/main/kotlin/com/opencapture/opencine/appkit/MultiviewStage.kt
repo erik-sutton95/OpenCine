@@ -199,6 +199,33 @@ public object MultiviewTally {
 /** The stage's assist tools. Apps list the ones they offer, in their palette order. */
 public enum class MultiviewTool { LAYOUT, CAMERA, FIT, LUT }
 
+/** Working host adapters for occupied member slots. An empty value offers no executable tools. */
+public data class MultiviewToolAvailability(
+    val cameraSettingsSlots: Set<Int> = emptySet(),
+    val pictureLUTSlots: Set<Int> = emptySet(),
+) {
+    /** Preserve the caller's order while intersecting services with current occupied slots. */
+    public fun offeredTools(requested: List<MultiviewTool>, occupiedSlots: Set<Int>): List<MultiviewTool> =
+        requested.filter { tool ->
+            when (tool) {
+                MultiviewTool.CAMERA -> cameraSettingsSlots.any { it in occupiedSlots }
+                MultiviewTool.LUT -> pictureLUTSlots.any { it in occupiedSlots }
+                MultiviewTool.LAYOUT, MultiviewTool.FIT -> true
+            }
+        }
+
+    public fun cameraSettingsSlot(selected: Int, occupiedSlots: Set<Int>): Int? =
+        preferred(selected, cameraSettingsSlots, occupiedSlots)
+
+    public fun pictureLUTSlot(selected: Int, occupiedSlots: Set<Int>): Int? =
+        preferred(selected, pictureLUTSlots, occupiedSlots)
+
+    private fun preferred(selected: Int, services: Set<Int>, occupiedSlots: Set<Int>): Int? {
+        val admitted = services.intersect(occupiedSlots)
+        return selected.takeIf { it in admitted } ?: admitted.minOrNull()
+    }
+}
+
 /** One camera the Add camera list offers. */
 public data class MultiviewPickerRow(
     val id: String,

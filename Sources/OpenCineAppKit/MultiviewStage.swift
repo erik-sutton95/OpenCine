@@ -185,6 +185,46 @@ public enum MultiviewTool: String, CaseIterable, Sendable {
     case lut = "LUT"
 }
 
+/// Slots backed by the host's currently admitted settings and native picture-look adapters.
+/// Unknown or missing services are absent; offered tools retain the caller's existing order.
+public struct MultiviewToolAvailability: Hashable, Sendable {
+    public var cameraSettingsSlots: Set<Int>
+    public var pictureLUTSlots: Set<Int>
+
+    public init(cameraSettingsSlots: Set<Int> = [], pictureLUTSlots: Set<Int> = []) {
+        self.cameraSettingsSlots = cameraSettingsSlots
+        self.pictureLUTSlots = pictureLUTSlots
+    }
+
+    /// Intersects executable services with the stage's current occupied, valid tile indices.
+    public func offeredTools(
+        from requested: [MultiviewTool], occupiedSlots: Set<Int>
+    ) -> [MultiviewTool] {
+        requested.filter { tool in
+            switch tool {
+            case .camera: !cameraSettingsSlots.isDisjoint(with: occupiedSlots)
+            case .lut: !pictureLUTSlots.isDisjoint(with: occupiedSlots)
+            case .layout, .fit: true
+            }
+        }
+    }
+
+    /// The selected settings adapter, or the first currently occupied admitted slot.
+    public func cameraSettingsSlot(selected: Int, occupiedSlots: Set<Int>) -> Int? {
+        selectedSlot(selected, services: cameraSettingsSlots, occupied: occupiedSlots)
+    }
+
+    /// The selected picture-look adapter, or the first currently occupied admitted slot.
+    public func pictureLUTSlot(selected: Int, occupiedSlots: Set<Int>) -> Int? {
+        selectedSlot(selected, services: pictureLUTSlots, occupied: occupiedSlots)
+    }
+
+    private func selectedSlot(_ selected: Int, services: Set<Int>, occupied: Set<Int>) -> Int? {
+        let admitted = services.intersection(occupied)
+        return admitted.contains(selected) ? selected : admitted.min()
+    }
+}
+
 /// One camera the Add camera list offers.
 public struct MultiviewPickerRow: Hashable, Sendable, Identifiable {
     public var id: String

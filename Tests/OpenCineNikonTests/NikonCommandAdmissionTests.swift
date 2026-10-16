@@ -157,6 +157,92 @@ struct NikonCommandAdmissionTests {
         #expect(!runtime.hasQueuedCommands)
     }
 
+    @Test("Member guarded writes retire at its queued safe point, while legacy writes still execute")
+    func memberQueuedAdmissionIsExplicitAndLegacyWritesRemainUnchanged() async throws {
+        let link = AdmittedLink()
+        let gate = ReceiptGate()
+        let admission = NikonCommandAdmission(owner: try #require(link.commandOwner), isCurrent: { gate.isCurrent })
+        let member = NikonMemberControl(serialNumber: link.serialNumber,
+            facts: NikonCameraSessionTests.movieFacts(), commandOwner: link.commandOwner,
+            isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+        let approved = member.session.request(.set(.iso(.manual(1600))), admission: admission)
+        #expect(approved.stage == .admitted)
+        gate.revoke()
+        #expect(await member.service(link).isEmpty)
+        #expect(member.session.receipt(of: approved.operation)?.stage == .rejected(.authorityExpired))
+        #expect(link.commands.isEmpty)
+        #expect(!member.hasQueuedCommands)
+        let direct = member.session.request(.set(.iso(.manual(3200))))
+        #expect(direct.stage == .admitted)
+        _ = await member.service(link)
+        #expect(member.session.receipt(of: direct.operation)?.stage == .confirmed)
+        #expect(link.writes.count == 1)
+        #expect(member.session.refresh().value(of: .iso).value == .iso(.manual(3200)))
+    }
+
+    @Test("Member guarded adapter fails closed when no established transport owner was supplied")
+    func memberMissingAdapterAndWrongOwnerCannotQueueCommands() throws {
+        let link = AdmittedLink()
+        let admission = NikonCommandAdmission(owner: try #require(link.commandOwner), isCurrent: { true })
+        let legacy = NikonMemberControl(serialNumber: link.serialNumber,
+            facts: NikonCameraSessionTests.movieFacts(), isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+        #expect(legacy.session.request(.set(.iso(.manual(1600))), admission: admission).stage == .rejected(.authorityExpired))
+        #expect(!legacy.hasQueuedCommands)
+        let member = NikonMemberControl(serialNumber: link.serialNumber,
+            facts: NikonCameraSessionTests.movieFacts(), commandOwner: link.commandOwner,
+            isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+        let other = NikonCommandAdmission(owner: NikonCommandOwner(), isCurrent: { true })
+        #expect(member.session.request(.set(.iso(.manual(1600))), admission: other).stage == .rejected(.authorityExpired))
+        #expect(!member.hasQueuedCommands)
+    }
+
+    @Test("A member's held native queue refuses expired first sends and finishes entered readback")
+    func memberHeldNativeDispatchKeepsOriginalOutcome() async throws {
+        for hold in [AdmittedLink.Hold.beforeDispatch, .afterDispatch] {
+            let link = AdmittedLink()
+            let gate = ReceiptGate()
+            let admission = NikonCommandAdmission(owner: try #require(link.commandOwner), isCurrent: { gate.isCurrent })
+            let member = NikonMemberControl(serialNumber: link.serialNumber,
+                facts: NikonCameraSessionTests.movieFacts(), commandOwner: link.commandOwner,
+                isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+            let approved = member.session.request(.set(.iso(.manual(1600))), admission: admission)
+            #expect(approved.stage == .admitted)
+            link.hold = hold
+            let work = Task { await member.service(link) }
+            await link.waitUntilHeld()
+            #expect(link.writes.count == (hold == .beforeDispatch ? 0 : 1))
+            gate.revoke()
+            link.release()
+            _ = await work.value
+            #expect(link.writes.count == (hold == .beforeDispatch ? 0 : 1))
+            #expect(member.session.receipt(of: approved.operation)?.stage ==
+                (hold == .beforeDispatch ? .rejected(.authorityExpired) : .confirmed))
+            #expect(!member.hasQueuedCommands)
+        }
+    }
+
+    @Test("A member completes the first accepted part but never sends the successor after retirement")
+    func memberMultipartWriteDoesNotBorrowRetiredEditor() async throws {
+        let link = AdmittedLink()
+        let gate = ReceiptGate()
+        let admission = NikonCommandAdmission(owner: try #require(link.commandOwner), isCurrent: { gate.isCurrent })
+        let member = NikonMemberControl(serialNumber: link.serialNumber,
+            facts: NikonCameraSessionTests.movieFacts(), commandOwner: link.commandOwner,
+            isCameraRefusal: NativeCameraSessionError.isCameraRefusal)
+        let approved = member.session.request(.set(.whiteBalance(.kelvin(4000))), admission: admission)
+        #expect(approved.stage == .admitted)
+        link.hold = .afterDispatch
+        let work = Task { await member.service(link) }
+        await link.waitUntilHeld()
+        #expect(link.writes.count == 1)
+        gate.revoke()
+        link.release()
+        _ = await work.value
+        #expect(link.writes.count == 1)
+        #expect(member.session.receipt(of: approved.operation)?.stage == .outcomeUnknown)
+        #expect(!member.hasQueuedCommands)
+    }
+
     #if canImport(Darwin) && canImport(os)
         @Test(
             "Authority revoked behind the actual transaction gate cannot send first-request bytes")

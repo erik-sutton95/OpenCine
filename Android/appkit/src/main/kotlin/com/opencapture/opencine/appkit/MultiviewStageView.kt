@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.opencapture.monitorui.MonitorAssistIcon
 import com.opencapture.monitorui.MonitorAssistPalette
 import com.opencapture.monitorui.MonitorAuxCircleButton
@@ -300,7 +304,10 @@ private fun AssistPalette(
     lut: Boolean, closing: Boolean, selected: Int, actions: MultiviewStageActions, cell: Float, modifier: Modifier,
     horizontal: Boolean, fixed: Boolean, maxExpandedHeight: Float?, presentation: MultiviewStageState,
 ) {
-    val cameras = tiles.any { it != null }
+    val services = LocalMultiviewStageServices.current
+    val occupied = tiles.indices.filter { tiles[it] != null }.toSet()
+    val offered = services?.availability?.offeredTools(tools, occupied) ?: tools
+    val cameras = occupied.isNotEmpty()
     val grid = arrangement == MultiviewArrangement.GRID
     val nowClosing by rememberUpdatedState(closing)
     val expansion = remember(presentation) {
@@ -314,7 +321,7 @@ private fun AssistPalette(
         }
     }
     fun title(tool: MultiviewTool) = when (tool) {
-        MultiviewTool.LUT -> "Toggle Auto LUT for all cameras"
+        MultiviewTool.LUT -> if (services?.automaticLUT == false) "Toggle LUT for all cameras" else "Toggle Auto LUT for all cameras"
         MultiviewTool.FIT -> if (fill) "Fit feed in frame" else "Fill frame with feed"
         MultiviewTool.LAYOUT -> if (grid) "Show Focused stage" else "Show Grid"
         MultiviewTool.CAMERA -> "Camera settings"
@@ -327,16 +334,25 @@ private fun AssistPalette(
         MultiviewTool.LAYOUT -> "multiview.layout"
         MultiviewTool.CAMERA -> "multiview.settings"
     }
+    fun configure(tool: MultiviewTool) {
+        if (tool != MultiviewTool.LUT) return
+        val slot = services?.availability?.pictureLUTSlot(selected, occupied) ?: return
+        services.configureLUT?.invoke(slot)
+    }
     fun toggle(tool: MultiviewTool) {
         actions.feedback()
         when (tool) {
-            MultiviewTool.LUT -> actions.toggleLut()
+            MultiviewTool.LUT -> {
+                if (services != null && services.availability.pictureLUTSlot(selected, occupied) == null) return
+                actions.toggleLut()
+            }
             MultiviewTool.FIT -> actions.setFill(!fill)
             MultiviewTool.LAYOUT ->
                 actions.arrange(if (grid) MultiviewArrangement.CENTER_STAGE else MultiviewArrangement.GRID)
             MultiviewTool.CAMERA -> {
-                val slot = selected.takeIf { tiles.getOrNull(it) != null } ?: tiles.indexOfFirst { it != null }
-                if (slot >= 0) actions.openSettings(slot)
+                val slot = if (services != null) services.availability.cameraSettingsSlot(selected, occupied)
+                    else selected.takeIf { it in occupied } ?: occupied.minOrNull()
+                if (slot != null) actions.openSettings(slot)
             }
         }
     }
@@ -355,7 +371,7 @@ private fun AssistPalette(
         // Portrait Center stage: the same tools as a plain, always-visible column spanning
         // the secondary feeds. No chevron, drag or collapse.
         Column(modifier.glass(ControlShape).padding(4.dp)) {
-            tools.forEach { tool ->
+            offered.forEach { tool ->
                 val available = isAvailable(tool) && !closing
                 Box(
                     Modifier.weight(1f).fillMaxWidth().heightIn(min = 44.dp)
@@ -366,7 +382,8 @@ private fun AssistPalette(
                             if (tool == MultiviewTool.LUT) stateDescription = if (isOn(tool)) "On" else "Off"
                             role = Role.Button
                         }
-                        .monitorChromeClickable(enabled = available, onClickFeedback = actions.feedback) {
+                        .monitorChromeClickable(enabled = available, onClickFeedback = actions.feedback,
+                            onLongClick = if (tool == MultiviewTool.LUT && services?.configureLUT != null) ({ configure(tool) }) else null) {
                             toggle(tool)
                         },
                     contentAlignment = Alignment.Center,
@@ -382,7 +399,7 @@ private fun AssistPalette(
     androidx.compose.runtime.CompositionLocalProvider(com.opencapture.monitorui.LocalMonitorAssistExpansion provides expansion) {
     Box(modifier, contentAlignment = if (horizontal) Alignment.BottomStart else Alignment.BottomCenter) {
         MonitorAssistPalette(
-            tools = tools, portrait = !horizontal, locked = closing,
+            tools = offered, portrait = !horizontal, locked = closing,
             isOn = ::isOn,
             title = ::title, label = { tool -> when (tool) {
                 MultiviewTool.LUT -> "LUT"
@@ -390,7 +407,7 @@ private fun AssistPalette(
                 MultiviewTool.LAYOUT -> if (grid) "FOCUS" else "GRID"
                 MultiviewTool.CAMERA -> "CAM"
             } },
-            hasOptions = { false }, onOptions = {},
+            hasOptions = { it == MultiviewTool.LUT && services?.configureLUT != null }, onOptions = ::configure,
             isAvailable = ::isAvailable,
             accessibilityLabel = ::title,
             accessibilityIdentifier = ::identifier,
@@ -439,6 +456,8 @@ private fun DisplayButton(clean: Boolean, modifier: Modifier, feedback: () -> Un
     }
 }
 
+private class GroupRecordApproval(val plan: RecordPlan)
+
 @Composable
 private fun RecordAllButton(
     recording: Boolean, groupBusy: Boolean, confirm: Boolean, diameter: Float, modifier: Modifier,
@@ -449,20 +468,40 @@ private fun RecordAllButton(
     val context = actions.recordContext(null)
     val plan = context.plan
     val enabled = context.canConfirm
-    var pending by remember { mutableStateOf<RecordPlan?>(null) }
-    LaunchedEffect(plan, enabled) { pending = null }
-    pending?.let { approved ->
-        MultiviewRecordConfirmation(approved, null, context.prompt, onDismiss = { pending = null }) {
+    val visible = LocalMultiviewStageVisible.current
+    val latestVisible by rememberUpdatedState(visible)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var pending by remember { mutableStateOf<GroupRecordApproval?>(null) }
+    LaunchedEffect(plan, enabled, visible) { pending = null }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) pending = null
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
             pending = null
-            val now = actions.recordContext(null)
-            if (now.canConfirm && approved == now.plan) actions.record(approved, null)
+        }
+    }
+    pending?.takeIf { visible }?.let { approved ->
+        MultiviewRecordConfirmation(approved.plan, null, context.prompt,
+            onDismiss = { if (pending === approved) pending = null }) {
+            if (pending === approved) {
+                pending = null
+                val now = actions.recordContext(null)
+                if (latestVisible && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                    now.canConfirm && approved.plan == now.plan) actions.record(approved.plan, null)
+            }
         }
     }
     val refusal = context.refusal
     Box(
         modifier.alpha(if (enabled || groupBusy) 1f else 0.4f)
             .monitorChromeClickable(enabled = enabled, onClickFeedback = actions.feedback) {
-                if (confirm) pending = plan else actions.record(plan, null)
+                val now = actions.recordContext(null)
+                if (latestVisible && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && now.canConfirm) {
+                    if (confirm) pending = GroupRecordApproval(now.plan) else actions.record(now.plan, null)
+                }
             }
             .semantics {
                 contentDescription = if (recording) "Stop all recording" else "Record all"

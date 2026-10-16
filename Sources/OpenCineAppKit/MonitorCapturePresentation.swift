@@ -64,7 +64,8 @@ public enum MonitorCapturePresentation {
         }
     }
 
-    static func choices(_ key: SettingKey, domain: SettingDomain?) -> [MonitorCaptureChoice] {
+    /// Bounded typed detents from the reported domain; this projection grants no command authority.
+    public static func choices(_ key: SettingKey, domain: SettingDomain?) -> [MonitorCaptureChoice] {
         guard let domain else { return [] }
         var values = domain.choices.filter { $0.key == key }
         if key == .whiteBalance, let range = domain.range {
