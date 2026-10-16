@@ -306,6 +306,49 @@ import Testing
         #expect(FeedIncidentExport.envelope(from: bundle).trigger == "none")
     }
 
+    /// PA-1V and the decoder clusters: the call that raised the error class and the decode state
+    /// the incident opened on are searchable tags, as buckets. Kotlin twin in FeedIncidentExportTest.
+    @Test func envelopeTagsTheDecodeStateTheIncidentOpenedOn() throws {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-decode" })
+        _ = recorder.beginSession(Fixture.context())
+        var onset = Fixture.snap(now: 3, acceptHz: 0, errorClass: "nativeDecoder")
+        onset.decoder.errorCall = "outputCallback"
+        onset.decoder.awaitingIrap = true
+        onset.decoder.lastIrapAge = 7
+        _ = recorder.recordSnapshot(onset)
+        var bundle = try #require(recorder.noteUnexpectedDisconnect(now: 4)?.bundle)
+        #expect(bundle.header.errorClass == "nativeDecoder")
+        var envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect(envelope.decoderCall == "outputCallback")
+        #expect(envelope.keyframeWait == "awaiting")
+        #expect(envelope.irapAge == "5-30s")
+        #expect(envelope.decodeFlow == "rejecting")
+
+        bundle.prelude[bundle.prelude.count - 1].decoder.errorCall = "somethingNew"
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderCall == "other")
+        bundle.header.errorClass = nil
+        #expect(FeedIncidentExport.envelope(from: bundle).decoderCall == "none")
+        bundle.prelude = []
+        bundle.during = []
+        envelope = FeedIncidentExport.envelope(from: bundle)
+        #expect([envelope.keyframeWait, envelope.irapAge, envelope.decodeFlow] == ["unknown", "unknown", "unknown"])
+
+        #expect(FeedIncidentExport.irapAgeBucket(nil) == "never")
+        #expect(FeedIncidentExport.irapAgeBucket(0.4) == "0-1s")
+        #expect(FeedIncidentExport.irapAgeBucket(1) == "1-5s")
+        #expect(FeedIncidentExport.irapAgeBucket(30) == "30s+")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 0, acceptHz: 0) == "idle")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 25, acceptHz: 12) == "partial")
+        #expect(FeedIncidentExport.decodeFlow(submitHz: 25, acceptHz: 25) == "flowing")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "submit") == "decodeFrame")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "display") == "displayLayer")
+        #expect(FeedIncidentExport.appleDecoderCall(origin: "none") == nil)
+        #expect(
+            FeedIncidentExport.decoderCalls.isSuperset(of: [
+                "createSession", "decodeFrame", "outputCallback", "displayLayer", "getInputBuffer",
+            ]))
+    }
+
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {
         var recorder = FeedIncidentRecorder()
         _ = recorder.beginSession(Fixture.context())

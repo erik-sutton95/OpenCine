@@ -729,6 +729,10 @@ public final class ReliabilityReporting: @unchecked Sendable {
             "trigger": envelope.trigger,
             "recoveredBy": envelope.recoveredBy,
             "gap": FeedIncidentExport.gapBucket(envelope.worstGapSeconds),
+            "decoderCall": envelope.decoderCall,
+            "keyframeWait": envelope.keyframeWait,
+            "irapAge": envelope.irapAge,
+            "decodeFlow": envelope.decodeFlow,
         ]
         event.extra = [
             "schemaVersion": envelope.schemaVersion,
@@ -762,6 +766,10 @@ public final class ReliabilityReporting: @unchecked Sendable {
                 "trigger": envelope.trigger,
                 "recoveredBy": envelope.recoveredBy,
                 "worstGapSeconds": envelope.worstGapSeconds,
+                "decoderCall": envelope.decoderCall,
+                "keyframeWait": envelope.keyframeWait,
+                "irapAge": envelope.irapAge,
+                "decodeFlow": envelope.decodeFlow,
             ]
         ]
         return privacy.scrub(event)
