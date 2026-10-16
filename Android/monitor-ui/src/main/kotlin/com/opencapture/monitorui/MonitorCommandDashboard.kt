@@ -202,7 +202,7 @@ private fun commandStyle(size: Float, weight: FontWeight, mono: Boolean = false)
     )
 
 /**
- * The command dashboard (iOS `CommandPrimaryGrid` and `CommandSideColumn`): a reorderable grid of [tiles] and the
+ * The command dashboard (SwiftUI twin: MonitorUI `MonitorCommandDashboard`): a reorderable grid of [tiles] and the
  * [sections] column; landscape adds the [health] strip ending in [healthTrailing]. Portrait
  * stacks a compact grid over the sections in one scroller. [pending] is true while any write
  * is in flight and [applying] names the request it carries. Long press and drag reorders a
@@ -323,7 +323,7 @@ internal fun <K : Any, R : Any> MonitorCommandGrid(
     var suppressCameraClicksUntil by remember { mutableLongStateOf(0L) }
     val density = LocalDensity.current
     BoxWithConstraints(modifier.clipToBounds()) {
-        // iOS CommandPrimaryGrid: max(44, (height - spacing * (rows-1)) / rows)
+        // iOS MonitorCommandGrid: max(44, (height - spacing * (rows-1)) / rows)
         val rowHeight = maxOf(44.dp, (maxHeight - spacing * (rows - 1)) / rows)
         val spacingPx = with(density) { spacing.toPx() }
         val tileWidth = (maxWidth - spacing * (columns - 1)) / columns
@@ -594,8 +594,8 @@ private fun <K : Any, R : Any> CommandSections(
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    // iOS CommandSideColumn VStack spacing: 4 between sections; CommandSection title 9.5 bold,
-    // rows VStack spacing 5, CmdRow HStack spacing 6.
+    // iOS CommandSections VStack spacing: 4 between sections; section title 9.5 bold,
+    // rows VStack spacing 5, row HStack spacing 6.
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         sections.forEach { section ->
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -606,7 +606,7 @@ private fun <K : Any, R : Any> CommandSections(
                     modifier = Modifier.padding(start = 2.dp),
                 )
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    // iOS CmdRow: pairs, a leftover cell spans the row (prototype `.span2`).
+                    // iOS CommandSections: pairs, a leftover cell spans the row (prototype `.span2`).
                     section.cells.chunked(2).forEach { row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { cell ->

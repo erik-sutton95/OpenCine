@@ -321,6 +321,23 @@ does not imply relay or account availability where the host supplies none.
   sampling, compensation and source calibration stay outside the UI. Existing
   Swift width spreading and Compose native Canvas typography remain explicit
   platform behavior. Empty/neutral successors remove the previous colored bars.
+- `MonitorCommandDashboard` and `MonitorCommandGrid` are the command dashboard (DISP 3) on
+  both platforms, with the same names, values (`MonitorCommandTile<Kind, Request>`,
+  `MonitorCommandSection`, `MonitorCommandHealth`), constants (three columns, 9 point/dp
+  spacing, 44 minimum and 76 portrait row, 42/44 side cells, 12 corner radius), order math
+  (`monitorCommandTileOrder`, `moveMonitorCommandTile`, in MonitorPresentation on Swift) and
+  reorder rules: a long press lifts only a painted tile that has a kind, the held tile follows
+  the finger inside the grid, a move is reported as (kind, slot) only when the slot changes,
+  and a drop or cancel keeps taps from opening a tile for 150 ms
+  (`MonitorCommandGridDrag`). Read-only and locked tiles stay reorderable. Apps supply tile
+  kinds, values, requests and the trailing health chip; `MonitorCommandTileOrderPreferences`
+  (appkit) stores the order under the app's key. Swift keeps the donor iOS drawing: rows cap
+  at 150 points on a tablet with a 34 point value, values shrink by `minimumScaleFactor`
+  instead of Compose's length steps, read-only values keep the text color (Compose mutes them),
+  the health strip spans the full width above grid and side column (Compose puts it over the
+  grid only) and the side column is 27 percent of the picture, at least 160 points (Compose
+  weights 2.35 to 0.85), with the masked fade and "More" hint. Swift spells accessibility as
+  label, value and hint; Compose as one content description.
 - `MonitorFeedGrid`, `MonitorFeedCrosshair` and `MonitorAspectGuideFrames` own native
   picture framing. Guide labels and enum identities retain the persisted app values;
   apps keep selection, storage and source geometry. The guide mask dims only the

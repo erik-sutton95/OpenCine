@@ -327,10 +327,13 @@ missing or malformed data, unknown tool IDs survive, and a failed nonfinite writ
 the previous stored bytes intact. The mirrored preference tests cover the legacy schema,
 ranking inputs, empty values, separate app/key namespaces and these codec differences.
 
-`MonitorCommandTileOrderPreferences` (Android) stores the command dashboard tile order as
-comma-joined enum names under the app's storage and key, normalized on read and write
-(`monitorCommandTileOrder`: duplicates and retired names drop, new tiles join at the end).
-OpenZCine keeps its existing `display.commandGrid.order.v1` key, so stored orders carry over.
+`MonitorCommandTileOrderPreferences` stores the command dashboard tile order under the app's
+storage and key, normalized on read and write (`monitorCommandTileOrder`: duplicates and retired
+names drop, new tiles join at the end). Android stores comma-joined enum names; Swift stores a
+JSON array of raw values, the bytes `JSONEncoder` writes for an array of the app's tile kinds.
+Reads never rewrite absent or malformed data. OpenZCine keeps its existing keys
+(`display.commandGrid.order.v1` on Android, `commandGridOrder.v1` on iOS), so stored orders
+carry over.
 
 ## Multiview stage
 
