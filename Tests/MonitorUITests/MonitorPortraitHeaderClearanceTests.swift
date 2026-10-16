@@ -5,6 +5,7 @@
     import OpenCineAppKit
     import OpenCineCore
     import OpenCineHostedAccessibility
+    import OpenCineHostedTestSupport
     import OpenCineMedia
     import Vision
     @testable import OpenCineCameraControls
@@ -543,14 +544,15 @@
         @discardableResult
         func assertCompleteRow() async throws -> [CGFloat] {
             var nodes: [NSObject] = []
-            for _ in 0..<200 {
+            let described = await HostedCondition.wait {
                 native.host.view.setNeedsLayout(); native.host.view.layoutIfNeeded()
                 nodes = native.nodes()
-                if nodes.contains(where: { $0.accessibilityLabel == "Timecode " + (probe.status.timecode ?? "") })
+                return nodes.contains(where: { $0.accessibilityLabel == "Timecode " + (probe.status.timecode ?? "") })
                     && nodes.contains(where: { $0.accessibilityLabel == probe.status.recordingAccessibilityLabel
-                        && $0.accessibilityValue == probe.status.elapsedLabel }) { break }
-                try await Task.sleep(for: .milliseconds(20))
+                        && $0.accessibilityValue == probe.status.elapsedLabel })
             }
+            XCTAssertTrue(described, "The native tree must describe the current recording state")
+            try await awaitPaintedRecording(in: nodes)
             // Retain original-source pixels and real inventory before a missing color can throw.
             let availabilityImage = try native.renderedImage()
             let availabilityPhoto = XCTAttachment(image: availabilityImage)
@@ -679,25 +681,24 @@
             let beforeFormat = probe.formatCalls; let beforeCodec = probe.codecCalls
             let beforeColor = probe.colorCalls
             XCTAssertTrue(format.accessibilityActivate())
-            for _ in 0..<200 where probe.formatCalls == beforeFormat { await Task.yield() }
+            _ = await HostedCondition.wait { probe.formatCalls != beforeFormat }
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec)
             XCTAssertTrue(codec.accessibilityActivate())
-            for _ in 0..<200 where probe.codecCalls == beforeCodec { await Task.yield() }
+            _ = await HostedCondition.wait { probe.codecCalls != beforeCodec }
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec + 1)
             XCTAssertEqual(probe.colorCalls, beforeColor)
             XCTAssertTrue(color.accessibilityActivate())
-            for _ in 0..<200 where probe.colorCalls == beforeColor { await Task.yield() }
+            _ = await HostedCondition.wait { probe.colorCalls != beforeColor }
             XCTAssertEqual(probe.colorCalls, beforeColor + 1)
             XCTAssertEqual(probe.formatCalls, beforeFormat + 1); XCTAssertEqual(probe.codecCalls, beforeCodec + 1)
             return nativeHeights
         }
         func assertCodecOnly() async throws {
             var nodes: [NSObject] = []
-            for _ in 0..<200 {
+            _ = await HostedCondition.wait {
                 native.host.view.layoutIfNeeded()
                 nodes = native.nodes()
-                if nodes.contains(where: { $0.accessibilityLabel == "Codec" }) { break }
-                try await Task.sleep(for: .milliseconds(20))
+                return nodes.contains(where: { $0.accessibilityLabel == "Codec" })
             }
             let image = try native.renderedImage()
             let photo = XCTAttachment(image: image)
@@ -761,7 +762,7 @@
             try assertCompletePaint(image, nodes: row,
                 expected: [probe.status.recordingLabel + " " + probe.status.elapsedLabel, probe.status.timecode!, "R3D NE"])
             XCTAssertTrue(codec.accessibilityActivate())
-            for _ in 0..<200 where probe.codecCalls == 0 { await Task.yield() }
+            _ = await HostedCondition.wait { probe.codecCalls != 0 }
             XCTAssertEqual(probe.codecCalls, 1); XCTAssertEqual(probe.formatCalls, 0); XCTAssertEqual(probe.colorCalls, 0)
         }
         private func nativeFontReferences() async throws -> [CGFloat] {
@@ -780,10 +781,9 @@
                 }.frame(width: 320, height: 956, alignment: .topLeading).ignoresSafeArea()),
                 size: CGSize(width: 320, height: 956))
             defer { reference.close() }
-            for _ in 0..<200 {
+            _ = await HostedCondition.wait {
                 reference.host.view.layoutIfNeeded()
-                if reference.nodes().filter({ $0.accessibilityLabel?.hasPrefix("Native Sora reference") == true }).count == values.count { break }
-                try await Task.sleep(for: .milliseconds(20))
+                return reference.nodes().filter({ $0.accessibilityLabel?.hasPrefix("Native Sora reference") == true }).count == values.count
             }
             let image = try reference.renderedImage()
             let evidence = XCTAttachment(image: image)
@@ -795,6 +795,41 @@
                 try raster.inkBounds(in: CGRect(x: 16, y: CGFloat(40 + index * 60), width: 288, height: 48)).height
             }
         }
+        /// The text Vision reads in one native pixel field of a rendered image.
+        private static func paintedTokens(_ image: UIImage, pixels: CGRect) throws -> [(String, CGRect)] {
+            let crop = try XCTUnwrap(image.cgImage?.cropping(to: pixels), "Original native field crop")
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate; request.usesLanguageCorrection = false
+            request.recognitionLanguages = ["en-US"]
+            try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
+            return (request.results ?? []).compactMap { observation -> (String, CGRect)? in
+                guard let text = observation.topCandidates(1).first?.string else { return nil }
+                return (text, observation.boundingBox)
+            }
+        }
+        /// SwiftUI updates the accessibility tree from the view graph before the text layer
+        /// repaints, and under load the repaint lands later (STBY pixels with a REC tree).
+        /// Waits for the actual painted recording state; the oracle below still judges it.
+        private func awaitPaintedRecording(in nodes: [NSObject]) async throws {
+            guard let recording = nodes.first(where: { $0.accessibilityLabel == probe.status.recordingAccessibilityLabel })
+            else { return }
+            let expected = probe.status.recordingLabel + " " + probe.status.elapsedLabel
+            let frame = native.window.convert(recording.accessibilityFrame, from: nil)
+            var last = ""
+            let painted = await HostedCondition.wait {
+                guard let image = try? native.renderedImage() else { return false }
+                let left = floor(frame.minX * image.scale); let top = floor(frame.minY * image.scale)
+                let pixels = CGRect(x: left, y: top, width: ceil(frame.maxX * image.scale) - left,
+                    height: ceil(frame.maxY * image.scale) - top)
+                guard let tokens = try? Self.paintedTokens(image, pixels: pixels) else { return false }
+                last = tokens.sorted { $0.1.minX < $1.1.minX }.map(\.0).joined(separator: " ")
+                return last == expected
+            }
+            if !painted {
+                // The paint oracle below reports the mismatch; record what the wait last read.
+                XCTContext.runActivity(named: "SIMULATED recording paint never reached \(expected); last read \(last)") { _ in }
+            }
+        }
         private func assertCompletePaint(_ image: UIImage, nodes: [NSObject], expected: [String]? = nil) throws {
             let expected = expected ?? [probe.status.recordingLabel + " " + probe.status.elapsedLabel,
                 probe.status.timecode!, "[FX] 6K · 25p", "D-Log2", "R3D NE"]
@@ -804,15 +839,7 @@
                 let left = floor(frame.minX * image.scale); let top = floor(frame.minY * image.scale)
                 let pixels = CGRect(x: left, y: top, width: ceil(frame.maxX * image.scale) - left,
                     height: ceil(frame.maxY * image.scale) - top)
-                let crop = try XCTUnwrap(image.cgImage?.cropping(to: pixels), "Original native field crop")
-                let request = VNRecognizeTextRequest()
-                request.recognitionLevel = .accurate; request.usesLanguageCorrection = false
-                request.recognitionLanguages = ["en-US"]
-                try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
-                let tokens = (request.results ?? []).compactMap { observation -> (String, CGRect)? in
-                    guard let text = observation.topCandidates(1).first?.string else { return nil }
-                    return (text, observation.boundingBox)
-                }
+                let tokens = try Self.paintedTokens(image, pixels: pixels)
                 let actual = tokens.sorted { $0.1.minX < $1.1.minX }.map(\.0).joined(separator: " ")
                 diagnostics.append("Expected \(value); actual \(actual); original native frame \(frame); tokens \(tokens)")
                 if value == "[FX] 6K · 25p" {
