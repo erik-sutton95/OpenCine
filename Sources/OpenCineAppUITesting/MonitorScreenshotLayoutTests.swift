@@ -19,7 +19,9 @@
         /// supplied) still has its header checked; only the picture checks need the fixture.
         open var reviewPaintsGeneratedPicture: Bool { false }
 
-        open var expectedStorageText: String { "107 GB" }
+        /// The DJI-wire fixture's 107 GiB free card, read in the shared decimal storage units
+        /// (138e1d6b unified every storage readout on bytes).
+        open var expectedStorageText: String { "114.89 GB" }
         open var expectedCameraPowerValue: String { "68 percent" }
         open var expectedCameraPercentText: String? { "68%" }
 
