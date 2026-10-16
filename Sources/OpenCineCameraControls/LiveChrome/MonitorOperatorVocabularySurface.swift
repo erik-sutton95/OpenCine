@@ -133,7 +133,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
                 },
                 level: readLevel,
                 audio: {
-                    guard !source.watching, host.captureCapabilities.audio, !host.cameraStatus.isPhoto,
+                    guard !source.watching, host.controlCapabilities.liveAudioLevels.isShown, !host.cameraStatus.isPhoto,
                         let levels = host.cameraStatus.audioMeters else { return nil }
                     return .init(levels: levels, caption: host.cameraStatus.audioChannel?.label)
                 },
@@ -143,7 +143,7 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
             assists: .init(scopes: assists,
                 tools: {
                     MonitorAssistSelection.toolbarCases
-                        + (host.cameraStatus.isPhoto || !host.captureCapabilities.audio ? [] : [.audioMeters])
+                        + (host.cameraStatus.isPhoto || !host.controlCapabilities.liveAudioLevels.isShown ? [] : [.audioMeters])
                 }, rendered: { nil }, fitted: { [] }, signalOptions: .init(),
                 usage: Binding(get: { host.assistToolUsage }, set: { host.assistToolUsage = $0 }),
                 usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: host.assist.toggle),

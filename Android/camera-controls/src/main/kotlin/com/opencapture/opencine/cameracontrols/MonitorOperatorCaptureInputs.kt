@@ -60,7 +60,7 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null)
         if (controls.focus.isOffered) append(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel))
         if (controls.iris.isOffered) append(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status)))
-        if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) append(LiveSheet.AUDIO, "AUDIO", status.audioLabel)
+        if (controls.audio.isOffered && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) append(LiveSheet.AUDIO, "AUDIO", status.audioLabel)
     }
     val panel = active?.let { sheet ->
         MonitorOperatorCameraPanel(sheet.name, sheet.isTopAnchored, chrome = MonitorOperatorCameraPanelChrome.CONTENT,

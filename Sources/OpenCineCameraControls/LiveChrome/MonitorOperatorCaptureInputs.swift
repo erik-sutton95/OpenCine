@@ -88,7 +88,7 @@ extension MonitorOperatorCaptureInputs where Key == CaptureSheet, NativeIdentity
         if controls.iris.isOffered {
             append(.aperture, "APERTURE", commonValue(.aperture))
         }
-        if capabilities.audio && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
+        if controls.audio.isOffered && !status.isPhoto { append(.audio, "AUDIO", status.audioChannel?.label ?? "\u{2014}") }
         let supplementary: [MonitorOperatorSupplementaryCaptureReadout<CaptureSheet, Section>]
         if let meter = host.nativeMeteringSource {
             supplementary = [.init(id: "native.metering", after: .exposure, title: "METER",

@@ -62,7 +62,7 @@
 
         private var status: CameraStatus { host.cameraStatus }
 
-        private var showsAudio: Bool { capabilities.audio && !status.isPhoto }
+        private var showsAudio: Bool { controls.audio.isOffered && !status.isPhoto }
 
         private var visibleTileCount: Int {
             4 + (capabilities.faceMetering ? 1 : 0) + (controls.focus.isOffered ? 1 : 0)

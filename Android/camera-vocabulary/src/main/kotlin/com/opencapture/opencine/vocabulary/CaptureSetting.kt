@@ -72,6 +72,8 @@ fun CaptureSessionState.controls(layout: com.opencapture.opencine.core.MonitorLa
         focus = flag(layout?.focus ?: focusModeSupported),
         iris = flag(layout?.iris ?: irisSupported),
         audio = flag(layout?.audio),
+        // A legacy host showed its level meter wherever it offered the AUDIO tile.
+        liveAudioLevels = flag(layout?.audio),
         zoom = flag(layout?.zoom),
         gimbal = flag(layout?.gimbal),
         headTracking = flag(layout?.headTracking),

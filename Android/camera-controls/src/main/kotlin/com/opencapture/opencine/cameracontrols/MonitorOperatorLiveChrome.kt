@@ -88,7 +88,7 @@ public fun MonitorOperatorCaptureStrip(source: MonitorOperatorCaptureSource, sta
             icon = if (CaptureLists.wbIsAuto(status) && native.awbLockKelvin == null) MonitorIcon.APERTURE else null))
         if (controls.focus.isOffered) add(value(LiveSheet.FOCUS, "FOCUS", source.readout(LiveSheet.FOCUS, status, status.focusLabel)))
         if (controls.iris.isOffered) add(value(LiveSheet.APERTURE, "APERTURE", source.readout(LiveSheet.APERTURE, status, ApertureStrategy.tileValue(status))))
-        if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode))
+        if (controls.audio.isOffered && CaptureShutterPolicy.showsAudioControls(status.shootingMode))
             add(value(LiveSheet.AUDIO, "AUDIO", status.audioLabel))
     }
     com.opencapture.monitorui.MonitorCameraValues(values, enabled && lifetime.active, portrait, modifier,

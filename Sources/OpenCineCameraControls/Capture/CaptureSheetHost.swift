@@ -99,6 +99,8 @@
             controls.focus = flag(legacy.focusMode, focus)
             controls.iris = flag(legacy.aperture, iris)
             controls.audio = flag(legacy.audio, audio)
+            // A legacy host showed its level meter wherever it offered the AUDIO tile.
+            controls.liveAudioLevels = flag(legacy.audio, liveAudioLevels)
             controls.faceMetering = flag(legacy.faceMetering, faceMetering)
             var iso = controls.iso.offer ?? ISOOffer()
             iso.nativeISO = legacy.nativeISO

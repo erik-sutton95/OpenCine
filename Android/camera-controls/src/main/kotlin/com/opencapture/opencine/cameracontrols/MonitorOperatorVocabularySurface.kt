@@ -105,6 +105,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
 ): MonitorOperatorLiveSource<String, MonitorOperatorLegacyCaptureIdentity> where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val status = chrome.status
     val capabilities = chrome.capabilities
+    val controls = chrome.capture.host.captureSessionState(status).controls(capabilities)
     val shell by chrome.shell.state.collectAsState()
     val control by chrome.capture.control.state.collectAsState()
     return MonitorOperatorLiveSource(
@@ -134,7 +135,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
             openMode = { state.sheet = LiveSheet.MODE }),
         exposure = { readExposure().takeIf { exposureAvailable }?.let { EvComp.fromRaw(it)?.thirds?.div(3.0) } },
         level = level, levelViewFlip = levelViewFlip,
-        audio = if (capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
+        audio = if (controls.liveAudioLevels.isShown && CaptureShutterPolicy.showsAudioControls(status.shootingMode)) audioOverlayChannels(status) else null,
         readOnly = false, borrowed = shell.monitor?.isBorrowed == true, returnToStage = chrome.returnToStage,
         coverOpen = shell.cover != null, note = note, clearNote = clearNote, vpnActive = vpnActive,
         settings = { chrome.shell.open(ShellModel.Cover.SETTINGS) }, media = { chrome.shell.open(ShellModel.Cover.MEDIA) })
@@ -167,14 +168,14 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val context = androidx.compose.ui.platform.LocalContext.current
     val usageStore = remember(chrome.preferences, context) { chrome.preferences.assistToolUsagePreferences(context) }
     var usage by remember(usageStore) { mutableStateOf(usageStore.value) }
-    LaunchedEffect(status.shootingMode, controls.focus.isOffered, controls.iris.isOffered, capabilities.audio) {
+    LaunchedEffect(status.shootingMode, controls.focus.isOffered, controls.iris.isOffered, controls.liveAudioLevels.isShown) {
         state.sheet = CaptureShutterPolicy.retainedSheet(state.sheet, status.shootingMode)
         if (state.sheet == LiveSheet.FOCUS && !controls.focus.isOffered || state.sheet == LiveSheet.APERTURE && !controls.iris.isOffered) state.sheet = null
-        if (!capabilities.audio && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
+        if (!controls.liveAudioLevels.isShown && assist.configureTool == MonitorAssistTool.AUDIO) assist.configureTool = null
     }
     val meterFeed = if (assist.isVisible(MonitorAssistTool.DESQ)) geometry.pictureContent else layout.onFeed
     val tools = MonitorAssistTool.settingsCases.filter {
-        it != MonitorAssistTool.AUDIO || capabilities.audio && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
+        it != MonitorAssistTool.AUDIO || controls.liveAudioLevels.isShown && CaptureShutterPolicy.showsAudioControls(status.shootingMode)
     }
     val palette = tools.map { tool -> MonitorOperatorPaletteItem(tool.name, tool.title, tool.chipLabel,
         tool, assist.isOn(tool), { assist.toggle(tool) }, tool.hasConfiguration) }
