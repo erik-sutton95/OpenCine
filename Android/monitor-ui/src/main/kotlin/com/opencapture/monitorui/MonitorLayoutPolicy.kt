@@ -427,26 +427,33 @@ object MonitorLayoutPolicy {
 
     data class Panel(val x: Float, val y: Float, val width: Float, val maxHeight: Float)
 
+    /** The top margin every capture popup keeps inside the safe area. */
+    fun popupTopMargin(safeTop: Float): Float = max(14f, safeTop + 10f)
+
     fun bottomPanel(panelHeight: Float, width: Float, height: Float, safeLeading: Float,
         safeTrailing: Float, safeTop: Float, safeBottom: Float, portraitFloor: Float? = null): Panel {
         val edge = max(14f, max(safeLeading, safeTrailing) + 4f)
         val panelWidth = min(if (min(width, height) >= 600f) 620f else 480f, max(0f, width - edge * 2f))
         val bottom = if (height > width && portraitFloor != null) min(height, portraitFloor - 12f)
             else height - max(0f, safeBottom)
-        val top = max(14f, safeTop + 10f)
+        val top = popupTopMargin(safeTop)
         val room = max(0f, bottom - top)
         return Panel((width - panelWidth) / 2f, max(top, bottom - min(panelHeight, room)), panelWidth, room)
     }
 
-    /** Format / color / mode hang from the top edge. Portrait sits 6dp below the info bar. */
+    /**
+     * Format / color / mode open from the top. Portrait sits 6dp below the info bar; landscape
+     * floats inside the safe area under the same top margin as [bottomPanel].
+     */
     fun topPanel(panelHeight: Float, width: Float, height: Float, safeLeading: Float,
         safeTrailing: Float, safeTop: Float, safeBottom: Float, portraitCeiling: Float? = null,
         portraitFloor: Float? = null): Panel {
         val edge = max(14f, max(safeLeading, safeTrailing) + 4f)
         val panelWidth = min(if (min(width, height) >= 600f) 620f else 480f, max(0f, width - edge * 2f))
         val portrait = height > width
-        val top = if (portrait && portraitCeiling != null) min(height, max(0f, portraitCeiling + 6f))
-            else 0f
+        val margin = popupTopMargin(safeTop)
+        val top = if (portrait && portraitCeiling != null) min(height, max(margin, portraitCeiling + 6f))
+            else min(height, margin)
         val bottom = if (portrait && portraitFloor != null) min(height, portraitFloor - 12f)
             else height - max(0f, safeBottom)
         val room = max(0f, bottom - top)
@@ -499,9 +506,8 @@ object MonitorLayoutPolicy {
     const val DISP_TRACKING = 0.48f
     const val CAPTURE_PANEL_CORNER = 16f
 
-    /** Portrait floating popups round every corner; landscape attached edges stay square. */
-    fun capturePanelTopCorner(fromTop: Boolean, portrait: Boolean): Float =
-        if (!fromTop || portrait) CAPTURE_PANEL_CORNER else 0f
+    /** Floating popups round every corner; only a landscape bottom drawer's attached edge stays square. */
+    fun capturePanelTopCorner(fromTop: Boolean, portrait: Boolean): Float = CAPTURE_PANEL_CORNER
 
     fun capturePanelBottomCorner(fromTop: Boolean, portrait: Boolean): Float =
         if (fromTop || portrait) CAPTURE_PANEL_CORNER else 0f

@@ -52,19 +52,22 @@ public struct MonitorCapturePopupLayout: Equatable, Sendable {
         centerX = min(right - width / 2, max(left + width / 2, w / 2))
         let requestedBottom = bottomBoundary.flatMap { $0.isFinite ? $0 : nil } ?? h
         bottom = min(h, max(0, requestedBottom))
+        // Every popup keeps this top margin inside the safe area.
+        let margin = max(8, safeArea.top + 8, ceiling)
         switch edge {
         case .bottom:
-            top = max(8, safeArea.top + 8, ceiling)
+            top = margin
             topPadding = 11
             bottomPadding = max(12, safeArea.bottom > 0 ? safeArea.bottom + 6 : 12)
             topCornerRadius = 16
             bottomCornerRadius = portrait ? 16 : 0
         case .top:
+            // Portrait parks below the info bar; landscape floats under the popup margin.
             let requestedTop = topBoundary.flatMap { $0.isFinite ? $0 : nil } ?? 0
-            top = min(h, max(0, requestedTop))
+            top = min(h, max(margin, requestedTop))
             topPadding = portrait ? 12 : 16
             bottomPadding = 14
-            topCornerRadius = portrait ? 16 : 0
+            topCornerRadius = 16
             bottomCornerRadius = 16
         }
         maximumHeight = max(0, bottom - top)
