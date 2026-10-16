@@ -227,7 +227,9 @@ extension MonitorOperatorLiveSurface where Host: LiveChromeHost & GimbalPanelHos
     var locked: Bool { host.operatorSession.locked }
     var interactive: Bool { !host.isEditingChrome }
     var visible: Bool { !host.coverOpen || host.isEditingChrome }
-    var capturePresented: Bool { host.captureSheet != nil || host.captureDrum != nil }
+    /// Every picker, top or bottom, hides the zoom chip and the gimbal stick (Compose counts its
+    /// format and color sheets the same way).
+    var capturePresented: Bool { host.captureSheet != nil || host.captureDrum != nil || interaction.topMenu != nil }
     var showsGimbal: Bool { source.gimbal == true && host.chromeSectionMounts(.gimbalStick) }
     var cluster: GimbalCluster { layout.gimbalCluster(showGimbalButton: showsGimbal) }
     func rect(_ region: MonitorLayoutRegion) -> CGRect {
