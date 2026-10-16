@@ -235,12 +235,13 @@
                     "monitor.command.tile." + (tile.kind.map { String(describing: $0) } ?? String(index)))
                 .accessibilityAddTraits(request != nil ? .isButton : [])
                 .modifier(OptionalAction(name: nil, perform: open))
-                .modifier(
-                    OptionalAction(
-                        name: "Move \(tile.title) earlier", perform: move(to: index - 1, when: index > 0)))
+                // SwiftUI lists the outermost named action first: "earlier" before "later".
                 .modifier(
                     OptionalAction(
                         name: "Move \(tile.title) later", perform: move(to: index + 1, when: index < count - 1)))
+                .modifier(
+                    OptionalAction(
+                        name: "Move \(tile.title) earlier", perform: move(to: index - 1, when: index > 0)))
         }
 
         private func move(to target: Int, when allowed: Bool) -> (() -> Void)? {
