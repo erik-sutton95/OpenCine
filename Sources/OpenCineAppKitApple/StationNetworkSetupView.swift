@@ -10,18 +10,19 @@
     /// and hotspot state, and whether the camera accepts a join.
     public struct StationNetworkServices {
         /// Networks this app saved with their passwords, oldest first.
-        public var savedNetworks: () -> [StationNetwork]
+        public var savedNetworks: @MainActor () -> [StationNetwork]
         /// This phone's current Wi-Fi name, nil when iOS withholds it.
         public var currentSSID: @MainActor () async -> String?
         /// This phone's Personal Hotspot is up.
-        public var hotspotActive: () -> Bool
+        public var hotspotActive: @MainActor () -> Bool
         /// The camera's join command accepts this network name and password.
-        public var acceptsJoin: (String, String) -> Bool
+        public var acceptsJoin: @MainActor (String, String) -> Bool
 
         public init(
-            savedNetworks: @escaping () -> [StationNetwork],
+            savedNetworks: @escaping @MainActor () -> [StationNetwork],
             currentSSID: @escaping @MainActor () async -> String?,
-            hotspotActive: @escaping () -> Bool, acceptsJoin: @escaping (String, String) -> Bool
+            hotspotActive: @escaping @MainActor () -> Bool,
+            acceptsJoin: @escaping @MainActor (String, String) -> Bool
         ) {
             self.savedNetworks = savedNetworks
             self.currentSSID = currentSSID
