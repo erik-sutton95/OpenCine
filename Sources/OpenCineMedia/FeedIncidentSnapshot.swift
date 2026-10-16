@@ -819,15 +819,16 @@ public enum FeedIncidentClassifier: Sendable {
             flowingAlternative: outputFresh,
             threshold: threshold)
 
+        let acceptStale = FeedIncidentPrivacy.isStale(
+            age: snapshot.ages.decodeAcceptAge,
+            hertz: snapshot.rates.decodeAcceptHz,
+            flowingAlternative: snapshot.rates.decodeSubmitHz >= 1,
+            threshold: threshold)
+        let decodeStage: FeedIncidentFailingStage =
+            acceptStale && snapshot.rates.decodeSubmitHz >= 1 ? .decodeAccept : .decodedOutput
         if life.outputObservable && outputStale {
             let currentError = isCurrentDecoderFailure(snapshot.decoder)
-            let acceptStale = FeedIncidentPrivacy.isStale(
-                age: snapshot.ages.decodeAcceptAge,
-                hertz: snapshot.rates.decodeAcceptHz,
-                flowingAlternative: snapshot.rates.decodeSubmitHz >= 1,
-                threshold: threshold)
-            let stage: FeedIncidentFailingStage =
-                acceptStale && snapshot.rates.decodeSubmitHz >= 1 ? .decodeAccept : .decodedOutput
+            let stage = decodeStage
             let kind: FeedIncidentKind
             if currentError {
                 kind = .decoderError
@@ -845,6 +846,20 @@ public enum FeedIncidentClassifier: Sendable {
         {
             return FeedIncidentVerdict(
                 suppression: .none, kind: .assistStalled, failingStage: .assistOutput)
+        }
+        // An unobservable decode path does not make the presenter the stage that stopped.
+        // A current native failure (OPENPOCKETCINE-IOS-2E: -12903 after the scene went
+        // inactive) is a decoder error, and input that stopped arriving is a transport stall.
+        if !life.outputObservable && presentStale {
+            if isCurrentDecoderFailure(snapshot.decoder) {
+                return FeedIncidentVerdict(
+                    suppression: .none, kind: .decoderError, failingStage: decodeStage)
+            }
+            if !inputFresh {
+                return FeedIncidentVerdict(
+                    suppression: .none, kind: .transportStall,
+                    failingStage: packetFresh ? .accessUnit : .packet)
+            }
         }
         if (outputFresh || !life.outputObservable) && presentStale {
             return FeedIncidentVerdict(

@@ -554,21 +554,22 @@ object FeedIncidentClassifier {
                 outputFresh,
                 threshold,
             )
+        val acceptStale =
+            FeedIncidentPrivacy.isStale(
+                snapshot.ages.decodeAcceptAge,
+                snapshot.rates.decodeAcceptHz,
+                snapshot.rates.decodeSubmitHz >= 1.0,
+                threshold,
+            )
+        val decodeStage =
+            if (acceptStale && snapshot.rates.decodeSubmitHz >= 1.0) {
+                FeedIncidentFailingStage.DECODE_ACCEPT
+            } else {
+                FeedIncidentFailingStage.DECODED_OUTPUT
+            }
         if (life.outputObservable && outputStale) {
             val currentError = isCurrentDecoderFailure(snapshot.decoder)
-            val acceptStale =
-                FeedIncidentPrivacy.isStale(
-                    snapshot.ages.decodeAcceptAge,
-                    snapshot.rates.decodeAcceptHz,
-                    snapshot.rates.decodeSubmitHz >= 1.0,
-                    threshold,
-                )
-            val stage =
-                if (acceptStale && snapshot.rates.decodeSubmitHz >= 1.0) {
-                    FeedIncidentFailingStage.DECODE_ACCEPT
-                } else {
-                    FeedIncidentFailingStage.DECODED_OUTPUT
-                }
+            val stage = decodeStage
             val kind =
                 when {
                     currentError -> FeedIncidentKind.DECODER_ERROR
@@ -583,6 +584,20 @@ object FeedIncidentClassifier {
                 FeedIncidentKind.ASSIST_STALLED,
                 FeedIncidentFailingStage.ASSIST_OUTPUT,
             )
+        }
+        // An unobservable decode path does not make the presenter the stage that stopped
+        // (Swift twin; OPENPOCKETCINE-IOS-2E, -K field snapshots).
+        if (!life.outputObservable && presentStale) {
+            if (isCurrentDecoderFailure(snapshot.decoder)) {
+                return FeedIncidentVerdict(FeedIncidentSuppression.NONE, FeedIncidentKind.DECODER_ERROR, decodeStage)
+            }
+            if (!inputFresh) {
+                return FeedIncidentVerdict(
+                    FeedIncidentSuppression.NONE,
+                    FeedIncidentKind.TRANSPORT_STALL,
+                    if (packetFresh) FeedIncidentFailingStage.ACCESS_UNIT else FeedIncidentFailingStage.PACKET,
+                )
+            }
         }
         if ((outputFresh || !life.outputObservable) && presentStale) {
             return FeedIncidentVerdict(

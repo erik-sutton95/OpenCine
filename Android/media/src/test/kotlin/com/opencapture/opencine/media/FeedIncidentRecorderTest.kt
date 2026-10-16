@@ -123,6 +123,53 @@ class FeedIncidentRecorderTest {
         assertEquals(0.0, recorder.healthyExposure, 0.001)
     }
 
+    // Swift twin: FeedIncidentRecorderTests (OPENPOCKETCINE-IOS-2E event 1f04a311).
+    @Test
+    fun unobservableDecoderFailureIsADecoderErrorNotAPresentationStall() {
+        val snapshot =
+            healthy(30.0).copy(
+                rates = FeedIncidentRates(decodeSubmitHz = 5.5, decodeAcceptHz = 5.4, decodedOutputHz = 5.4, presentHz = 10.9),
+                ages =
+                    FeedIncidentAges(
+                        packetAge = 0.01, accessUnitAge = 0.01, decodeAcceptAge = 9.3,
+                        decodedOutputAge = 9.3, presentAge = 9.3,
+                    ),
+                decoder =
+                    FeedIncidentDecoder(errorClass = "nativeDecoder", errorCount = 2, decoderFailed = true, errorAge = 9.1),
+                lifecycle = FeedIncidentLifecycle(connected = true, liveEstablished = true, outputObservable = false),
+            )
+        val verdict = FeedIncidentClassifier.classify(snapshot)
+        assertEquals(FeedIncidentKind.DECODER_ERROR, verdict.kind)
+        assertEquals(FeedIncidentFailingStage.DECODE_ACCEPT, verdict.failingStage)
+    }
+
+    // Swift twin (OPENPOCKETCINE-IOS-K event 0d4710fd): camera input stopped.
+    @Test
+    fun unobservableOutputWithStaleInputIsATransportStall() {
+        val snapshot =
+            healthy(10.0).copy(
+                rates = FeedIncidentRates(),
+                ages = FeedIncidentAges(packetAge = 4.7, accessUnitAge = 4.7, presentAge = 4.7),
+                lifecycle = FeedIncidentLifecycle(connected = true, liveEstablished = true, outputObservable = false),
+            )
+        val verdict = FeedIncidentClassifier.classify(snapshot)
+        assertEquals(FeedIncidentKind.TRANSPORT_STALL, verdict.kind)
+        assertEquals(FeedIncidentFailingStage.PACKET, verdict.failingStage)
+    }
+
+    @Test
+    fun unobservableOutputWithFreshInputStaysAPresentationStall() {
+        val snapshot =
+            healthy(10.0).copy(
+                rates = FeedIncidentRates(packetHz = 25.0, accessUnitHz = 25.0),
+                ages = FeedIncidentAges(packetAge = 0.04, accessUnitAge = 0.04, presentAge = 4.0),
+                lifecycle = FeedIncidentLifecycle(connected = true, liveEstablished = true, outputObservable = false),
+            )
+        val verdict = FeedIncidentClassifier.classify(snapshot)
+        assertEquals(FeedIncidentKind.PRESENT_STALLED, verdict.kind)
+        assertEquals(FeedIncidentFailingStage.PRESENTATION, verdict.failingStage)
+    }
+
     @Test
     fun sessionOriginIsCopiedAndDoesNotDowngrade() {
         val recorder = FeedIncidentRecorder { "inc-origin" }
