@@ -45,6 +45,33 @@ import Testing
         #expect(!control.hitFailureDeadline)
     }
 
+    @Test func retirementScanningChecksOwnershipBeforeMetadata() async throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let unrelated = ["other", ".clearing-camera-invalid", ".clearing-camera-extra-" + UUID().uuidString]
+        let manager = RetirementMetadataFileManager(unrelated: Set(unrelated))
+        let directory = MonitorMediaCacheDirectory(root: parent.appendingPathComponent("camera"), fileManager: manager)
+        let prepared = parent.appendingPathComponent(".clearing-camera-" + UUID().uuidString)
+        let unprepared = parent.appendingPathComponent(".retiring-camera-" + UUID().uuidString)
+        for (root, count) in [(directory.root, 2), (prepared, 3), (unprepared, 5)] {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try Data(repeating: 1, count: count).write(to: root.appendingPathComponent("take.mov"))
+        }
+        for name in unrelated {
+            try FileManager.default.createDirectory(at: parent.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        let linked = parent.appendingPathComponent(".clearing-camera-" + UUID().uuidString)
+        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: parent.appendingPathComponent("other"))
+        #expect(await directory.totalByteCount() == 10)
+        #expect(manager.unrelatedLookups.isEmpty)
+        try await directory.clear(preserving: [])
+        #expect(manager.unrelatedLookups.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: prepared.path))
+        #expect(try Data(contentsOf: unprepared.appendingPathComponent("take.mov")) == Data(repeating: 1, count: 5))
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: linked.path) == parent.appendingPathComponent("other").path)
+        for name in unrelated { #expect(FileManager.default.fileExists(atPath: parent.appendingPathComponent(name).path)) }
+    }
+
     @Test func retiringWritesPreservesResumableFilesAndFencesOldFinally() async throws {
         let (parent, directory) = directory()
         defer { try? FileManager.default.removeItem(at: parent) }
@@ -175,6 +202,21 @@ import Testing
 // covers only the wait for the old write to enter, so a writer that never reaches IO
 // fails instead of suspending MainActor forever.
 enum CacheWriterRetirement: CaseIterable, Sendable { case retire, replace, abort, clear }
+private final class RetirementMetadataFileManager: FileManager, @unchecked Sendable {
+    private let lock = NSLock()
+    private let unrelated: Set<String>
+    private var lookups: [String] = []
+    init(unrelated: Set<String>) { self.unrelated = unrelated; super.init() }
+    var unrelatedLookups: [String] {
+        lock.lock(); defer { lock.unlock() }; return lookups
+    }
+    override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+        if unrelated.contains(URL(fileURLWithPath: path).lastPathComponent) {
+            lock.lock(); lookups.append(path); lock.unlock()
+        }
+        return try super.attributesOfItem(atPath: path)
+    }
+}
 private final class ControlledCacheWrite: @unchecked Sendable {
     private let condition = NSCondition()
     private var entered = false

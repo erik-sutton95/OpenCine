@@ -514,8 +514,8 @@ public struct MonitorMediaCacheRemoval: Equatable, Sendable {
         ((try? manager.contentsOfDirectory(
             at: root.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? [])
             .filter {
-                guard MonitorMediaCacheNamespaces.isDirectory($0, manager: manager) else { return false }
-                return isRetirementName(
+                // Reject unrelated siblings before asking the filesystem for metadata.
+                let owned = isRetirementName(
                     $0.lastPathComponent, prefix: ".clearing-" + root.lastPathComponent + "-")
                     || (includeUnprepared
                         && (isRetirementName(
@@ -524,6 +524,7 @@ public struct MonitorMediaCacheRemoval: Equatable, Sendable {
                             || (accountLegacyUnpreparedRoots
                                 && $0.lastPathComponent.hasPrefix(
                                     ".retiring-" + root.lastPathComponent + "-"))))
+                return owned && MonitorMediaCacheNamespaces.isDirectory($0, manager: manager)
             }
     }
     private nonisolated static func isRetirementName(_ name: String, prefix: String) -> Bool {
