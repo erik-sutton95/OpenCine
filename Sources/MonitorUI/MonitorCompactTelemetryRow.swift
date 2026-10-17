@@ -71,22 +71,37 @@ public struct MonitorCompactTelemetryRow<Storage: View, Link: View, Power: View>
     private let storage: () -> Storage
     private let link: () -> Link
     private let power: () -> Power
+    private let minimumStatusTop: (CGFloat) -> Void
 
     public init(layout: FieldMonitorLayout, safeArea: MonitorSafeArea, metrics: MonitorTelemetryMetrics,
         @ViewBuilder storage: @escaping () -> Storage, @ViewBuilder link: @escaping () -> Link,
         @ViewBuilder power: @escaping () -> Power) {
+        self.init(layout: layout, safeArea: safeArea, metrics: metrics, minimumStatusTop: { _ in },
+            storage: storage, link: link, power: power)
+    }
+
+    public init(layout: FieldMonitorLayout, safeArea: MonitorSafeArea, metrics: MonitorTelemetryMetrics,
+        minimumStatusTop: @escaping (CGFloat) -> Void, @ViewBuilder storage: @escaping () -> Storage,
+        @ViewBuilder link: @escaping () -> Link, @ViewBuilder power: @escaping () -> Power) {
         self.layout = layout; self.safeArea = safeArea; self.metrics = metrics
         self.storage = storage; self.link = link; self.power = power
+        self.minimumStatusTop = minimumStatusTop
     }
 
     public var body: some View {
         CompactTelemetryRowLayout(layout: layout, safeArea: safeArea, referenceLinkWidth: metrics.pillWidth,
-            scale: Double(scale)) {
+            scale: Double(scale), powerHeight: metrics.pillHeight) {
             HStack(spacing: 0) { storage() }
             HStack(spacing: 0) { link() }.environment(\.monitorAdaptiveTelemetryPadding, true)
-            HStack(spacing: 0) { power() }
+            HStack(spacing: 0) { power() }.environment(\.monitorAdaptiveTelemetryPadding, true)
         }
-        .frame(width: layout.viewport.width, height: 48, alignment: .leading)
+        .frame(width: layout.viewport.width, alignment: .leading)
+        .background(GeometryReader { geometry in
+            let extra = max(0, geometry.size.height - 48)
+            let minimumTop = extra > 0 ? layout.telemetry.y - 13 + 24
+                - layout.telemetry.height / 2 + metrics.pillHeight + extra + 8 : 0
+            Color.clear.onChange(of: minimumTop, initial: true) { _, top in minimumStatusTop(top) }
+        })
         .offset(y: layout.telemetry.y - 13)
     }
 }
@@ -96,46 +111,79 @@ private struct CompactTelemetryRowLayout: Layout {
     let safeArea: MonitorSafeArea
     let referenceLinkWidth: Double
     let scale: Double
+    let powerHeight: Double
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let measured = frames(proposal: proposal, subviews: subviews)
-        return CGSize(width: layout.viewport.width,
-            height: max(proposal.height ?? 0, 44, measured?.storage.height ?? 0,
-                measured?.link.height ?? 0, measured?.power.height ?? 0))
+        return CGSize(width: layout.viewport.width, height: 48 + (measured?.extraHeight ?? 0))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard let measured = frames(proposal: proposal, subviews: subviews) else { return }
         if measured.storage.width > 0 {
             subviews[0].place(at: CGPoint(x: bounds.minX + measured.budget.leading
-                + measured.budget.storageWidth / 2, y: bounds.midY), anchor: .center,
+                + measured.budget.storageWidth / 2, y: bounds.minY + 24), anchor: .center,
                 proposal: ProposedViewSize(measured.storage))
         }
-        subviews[1].place(at: CGPoint(x: bounds.minX + measured.budget.performanceX, y: bounds.midY),
+        subviews[1].place(at: CGPoint(x: bounds.minX + measured.budget.performanceX, y: bounds.minY + 24),
             anchor: .leading, proposal: ProposedViewSize(measured.link))
         subviews[2].place(at: CGPoint(x: bounds.minX + measured.budget.powerX,
-            y: bounds.midY - layout.telemetry.height / 2),
+            y: bounds.minY + 24 - layout.telemetry.height / 2 + (measured.budget.wrapsPower ? 56 : 0)),
             anchor: .topLeading, proposal: ProposedViewSize(measured.power))
     }
 
     private func frames(proposal: ProposedViewSize, subviews: Subviews) -> (
-        storage: CGSize, link: CGSize, power: CGSize, budget: MonitorCompactTelemetryBudget
+        storage: CGSize, link: CGSize, power: CGSize, budget: MonitorCompactTelemetryBudget, extraHeight: CGFloat
     )? {
         guard subviews.count == 3 else { return nil }
         let preferredLink = subviews[1].sizeThatFits(.unspecified)
         let legacyWidth = max(0, layout.telemetry.x - layout.status.x - 8
             - (preferredLink.width > 0 ? referenceLinkWidth : 0) - 8)
         let original = subviews[0].sizeThatFits(
-            ProposedViewSize(width: legacyWidth, height: proposal.height))
+            ProposedViewSize(width: legacyWidth, height: 48))
         let storage = CGSize(width: min(legacyWidth, original.width), height: original.height)
-        let power = subviews[2].sizeThatFits(.unspecified)
+        let power = subviews[2].sizeThatFits(ProposedViewSize(
+            width: layout.viewport.width - max(14, safeArea.leading) - max(14, safeArea.trailing), height: nil))
+        let minimumLink = subviews[1].sizeThatFits(ProposedViewSize(width: 0, height: 48))
         let budget = MonitorCompactTelemetryBudget(layout: layout, safeLeading: safeArea.leading,
             safeTrailing: safeArea.trailing, storageWidth: Double(storage.width),
             powerWidth: Double(power.width), linkWidth: Double(preferredLink.width),
-            minimumTarget: FieldMonitorLayout.minimumTapTarget, scale: scale)
+            minimumTarget: FieldMonitorLayout.minimumTapTarget, scale: scale,
+            minimumLinkWidth: Double(minimumLink.width))
         let link = subviews[1].sizeThatFits(
-            ProposedViewSize(width: budget.performanceWidth, height: proposal.height))
-        return (storage, link, power, budget)
+            ProposedViewSize(width: budget.performanceWidth, height: 48))
+        let extraHeight = (budget.wrapsPower ? 56 : 0) + max(0, power.height - powerHeight)
+        return (storage, link, power, budget, extraHeight)
+    }
+}
+
+/// Exact native pills wrap together when the declared values exceed the available line.
+public struct MonitorTelemetryPowerLayout: Layout {
+    public init() {}
+
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrangement(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let measured = arrangement(width: bounds.width, subviews: subviews)
+        for (index, origin) in measured.origins.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                proposal: .unspecified)
+        }
+    }
+
+    private func arrangement(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var x: CGFloat = 0, y: CGFloat = 0, lineHeight: CGFloat = 0, usedWidth: CGFloat = 0
+        var origins: [CGPoint] = []
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += lineHeight + 6; lineHeight = 0 }
+            origins.append(CGPoint(x: x, y: y))
+            usedWidth = max(usedWidth, x + size.width)
+            x += size.width + 6; lineHeight = max(lineHeight, size.height)
+        }
+        return (CGSize(width: usedWidth, height: y + lineHeight), origins)
     }
 }
 #endif

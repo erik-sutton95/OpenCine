@@ -12,6 +12,7 @@
     private let showsTimecode: Bool
     private let showsRecording: Bool
     private let showsCompactTelemetry: Bool
+    private let minimumOccupiedTop: Double
     private let storage: () -> Storage
     private let format: () -> Format
     private let color: () -> ColorProfile
@@ -21,6 +22,7 @@
     public init(
       layout: FieldMonitorLayout, status: MonitorStatusPresentation,
       showsTimecode: Bool = true, showsRecording: Bool = true, showsCompactTelemetry: Bool = true,
+      minimumOccupiedTop: Double = 0,
       @ViewBuilder storage: @escaping () -> Storage,
       @ViewBuilder format: @escaping () -> Format,
       @ViewBuilder color: @escaping () -> ColorProfile,
@@ -32,6 +34,7 @@
       self.showsTimecode = showsTimecode
       self.showsRecording = showsRecording
       self.showsCompactTelemetry = showsCompactTelemetry
+      self.minimumOccupiedTop = minimumOccupiedTop
       self.storage = storage
       self.format = format
       self.color = color
@@ -43,7 +46,8 @@
       Group {
         if layout.portrait {
           MonitorPortraitStatusLayout(
-            minimumHeight: layout.status.height, availableTop: layout.status.y, spacing: primaryFit?.spacing ?? 8,
+            minimumHeight: layout.status.height, availableTop: layout.status.y,
+            minimumOccupiedTop: minimumOccupiedTop, spacing: primaryFit?.spacing ?? 8,
             allowsFallbackRows: !(primaryFit?.completeSingleRow ?? false)
           ) {
             HStack(spacing: 0) { if showsRecording { MonitorRecordingReadout(status: status) } }
@@ -143,6 +147,7 @@
   private struct MonitorPortraitStatusLayout: Layout {
     let minimumHeight: CGFloat
     let availableTop: CGFloat
+    let minimumOccupiedTop: CGFloat
     let spacing: CGFloat
     let allowsFallbackRows: Bool
 
@@ -205,7 +210,7 @@
       // Read the unshifted target edge, including fallback-row placement. Only an actual
       // viewport obstruction moves the complete status row; independent telemetry stays fixed.
       let occupiedTop = min(0, formatY + targetTop)
-      let clearance = max(0, -(availableTop + occupiedTop))
+      let clearance = max(0, minimumOccupiedTop - (availableTop + occupiedTop))
       return (
         CGSize(width: width, height: height + clearance),
         [

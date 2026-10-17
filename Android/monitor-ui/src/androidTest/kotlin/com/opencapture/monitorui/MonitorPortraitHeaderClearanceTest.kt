@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import com.opencapture.opencine.appkit.chromeEditable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
@@ -382,7 +383,9 @@ class MonitorPortraitHeaderClearanceTest {
         codecOnly: Boolean = false, compareStandbyRecording: Boolean = false, useActualHostHeight: Boolean = false,
         verifyNativeTaps: Boolean = false, verifyViewport: Boolean = false,
         captureRails: MutableMap<String, Rect>? = null, expectedRails: Map<String, Rect>? = null,
-        compactEditorMode: com.opencapture.opencine.appkit.MonitorDisplayMode? = null) {
+        compactEditorMode: com.opencapture.opencine.appkit.MonitorDisplayMode? = null,
+        declaredGauge: com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading? = null,
+        verifyInsetMovement: Boolean = false) {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
             val control = com.opencapture.opencine.appkit.MonitorControlModel(scope)
@@ -397,6 +400,7 @@ class MonitorPortraitHeaderClearanceTest {
             val identity = com.opencapture.opencine.cameracontrols.MonitorOperatorLiveIdentity(null, null, null,
                 picture = "SIMULATED production primary")
             var elapsed by androidx.compose.runtime.mutableStateOf(durations.first())
+            var liveTop by androidx.compose.runtime.mutableStateOf(top)
             var primaryCalls = 0; var codecCalls = 0; var colorCalls = 0
             val placed = CountDownLatch(1)
             var fontReferences = emptyList<TextLayoutResult>()
@@ -436,6 +440,9 @@ class MonitorPortraitHeaderClearanceTest {
                         model.beginEditing(compactEditorMode)
                     }
                     activity.setContent {
+                        val currentLive = LiveMonitorLayout.fieldMonitor(width, canvasHeightDp, side, side, liveTop, 0f,
+                            showsBottomBars = false, pictureAspect = 16f / 9f, showsValues = false)
+                        val currentField = requireNotNull(currentLive.field)
                         val nativeMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                         val mainMaximum = if (field.tablet) 25f else 23f
                         fontReferences = listOf("00:48:03:23" to 10f, "00:48:03:23" to mainMaximum,
@@ -474,20 +481,20 @@ class MonitorPortraitHeaderClearanceTest {
                                 if (compactEditorMode != null) setOf(com.opencapture.opencine.appkit.MonitorDisplaySection.STORAGE,
                                     com.opencapture.opencine.appkit.MonitorDisplaySection.FPS) else emptySet(),
                             picture = com.opencapture.opencine.cameracontrols.MonitorOperatorLivePicture(16f / 9f, false, false, false, false),
-                            status = status, cameraBattery = com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading(true, 68),
+                            status = status, cameraBattery = declaredGauge ?: com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading(true, 68),
                             capture = inputs, record = com.opencapture.opencine.cameracontrols.MonitorOperatorRecordSource(false, false, false, null),
                             exposure = null, level = null, levelViewFlip = false, audio = null, readOnly = false, borrowed = false,
                             returnToStage = null, coverOpen = false, note = null, clearNote = {}, vpnActive = { false }, settings = {}, media = {})
                         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black), contentAlignment = Alignment.TopStart) {
                             Box(Modifier.requiredSize(width.dp, canvasHeightDp.dp).onGloballyPositioned { canvas = it.boundsInRoot(); placed.countDown() }) {
                                 com.opencapture.opencine.cameracontrols.MonitorOperatorLiveSurface(control, model,
-                                    com.opencapture.opencine.cameracontrols.MonitorOperatorLiveLayout(live, null, field.picture, field.viewport, 16f / 9f),
+                                    com.opencapture.opencine.cameracontrols.MonitorOperatorLiveLayout(currentLive, null, currentField.picture, currentField.viewport, 16f / 9f),
                                     source, com.opencapture.opencine.cameracontrols.MonitorOperatorLiveAssists(null, emptyList(), emptySet(), null,
                                         com.opencapture.opencine.cameracontrols.MonitorOperatorSignalOptions(), MonitorToolUsageState(), {}, emptyMap()),
                                     com.opencapture.opencine.cameracontrols.MonitorOperatorBodyViews(),
                                     picture = {
-                                        Box(Modifier.offset(field.picture.x.dp, field.picture.y.dp)
-                                            .requiredSize(field.picture.width.dp, field.picture.height.dp)
+                                        Box(Modifier.offset(currentField.picture.x.dp, currentField.picture.y.dp)
+                                            .requiredSize(currentField.picture.width.dp, currentField.picture.height.dp)
                                             .background(androidx.compose.ui.graphics.Color.Green)
                                             .semantics { contentDescription = "SIMULATED production picture" }
                                             .onGloballyPositioned { actualPicture = it.boundsInRoot() })
@@ -502,8 +509,48 @@ class MonitorPortraitHeaderClearanceTest {
                     }
                 }
                 assertTrue("Actual production composition must lay out", placed.await(5, TimeUnit.SECONDS))
+                if (verifyInsetMovement) {
+                    for ((index, inset) in listOf(0f, 64f, 84f, 0f).withIndex()) {
+                        scenario.onActivity { liveTop = inset }
+                        awaitForegroundFrame(scenario)
+                        var powerBottom = 0f; var density = 1f
+                        val composedTargets = mutableMapOf<String, Rect>()
+                        scenario.onActivity { activity ->
+                            density = activity.resources.displayMetrics.density
+                            val origin = IntArray(2)
+                            activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0).getLocationOnScreen(origin)
+                            val nodes = nativeNodes(activity.window.decorView)
+                            val power = nodes.filter { it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull()
+                                ?.let { label -> label.startsWith("Phone battery ") || label.startsWith("Camera battery ") } == true }
+                            assertEquals(2, power.size)
+                            powerBottom = power.maxOf { it.boundsInRoot.bottom } + origin[1]
+                            for (label in listOf("Recording format", "Codec", "Color mode")) {
+                                val target = nodes.single { it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == label }
+                                composedTargets[label] = target.boundsInRoot.translate(origin[0].toFloat(), origin[1].toFloat())
+                                assertTrue(target.config[SemanticsActions.OnClick].action!!.invoke())
+                            }
+                            assertEquals(index + 1, primaryCalls); assertEquals(index + 1, codecCalls); assertEquals(index + 1, colorCalls)
+                            val shot = requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+                            try { activity.cacheDir.resolve("SIMULATED-declared-inset-$inset-${android.os.SystemClock.uptimeMillis()}.png")
+                                .outputStream().use { assertTrue(shot.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                            } finally { shot.recycle() }
+                        }
+                        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                        InstrumentationRegistry.getInstrumentation().uiAutomation.waitForIdle(100, 5_000)
+                        for (label in listOf("Recording format", "Codec", "Color mode")) {
+                            val target = nativeClickableTarget(label, refreshOwner = true)
+                            android.util.Log.i("DeclaredGaugeInsets", JSONObject().put("inset", inset).put("label", label)
+                                .put("density", density).put("powerBottom", powerBottom).put("target", target.toShortString())
+                                .put("composedTarget", composedTargets.getValue(label).toString()).toString())
+                            assertTrue("Actual displaced $label target clears native power at inset$inset by8dp",
+                                target.top >= powerBottom + 8f * density - 1f)
+                        }
+                    }
+                    return
+                }
                 if (compactEditorMode != null) {
-                    assertCompactEditorDimming(scenario, requireNotNull(session), compactEditorMode)
+                    assertCompactEditorDimming(scenario, requireNotNull(session), compactEditorMode,
+                        powerIsGreen = declaredGauge == null)
                     return
                 }
                 for (duration in durations) {
@@ -828,9 +875,35 @@ class MonitorPortraitHeaderClearanceTest {
         compactTogglePreservesStorageAndNativeFPSGlyphs(MonitorTelemetryMetrics.PHONE, 122f, 10f)
     }
 
+    /** SIMULATED: exact dense values retain native glyphs and occupied action clearance. */
+    @Test(timeout = 180_000) fun compactDeclaredGaugesKeepFullFontAndOccupiedClearance() {
+        for (count in listOf(100, Int.MAX_VALUE)) {
+            compactTogglePreservesStorageAndNativeFPSGlyphs(MonitorTelemetryMetrics.TABLET, 0f, 11f,
+                MonitorTelemetryPower(true, null, bars = count, barCount = count))
+        }
+    }
+
+    /** SIMULATED production editor keeps one Status owner after its header is displaced. */
+    @Test(timeout = 180_000) fun compactDeclaredGaugeRetainsProductionEditorOwnership() {
+        for (mode in listOf(com.opencapture.opencine.appkit.MonitorDisplayMode.LIVE,
+            com.opencapture.opencine.appkit.MonitorDisplayMode.CLEAN)) {
+            productionPrimaryCase(320f, 24f, 0f, listOf(null), compactEditorMode = mode,
+                declaredGauge = com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading(true, null,
+                    bars = Int.MAX_VALUE, barCount = Int.MAX_VALUE))
+        }
+    }
+
+    /** SIMULATED actual composition updates the occupied boundary when only its inset changes. */
+    @Test(timeout = 180_000) fun compactDeclaredGaugeRetainsClearanceWhenSafeTopChanges() {
+        productionPrimaryCase(320f, 0f, 0f, listOf(null), verifyInsetMovement = true,
+            declaredGauge = com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading(true, null,
+                bars = Int.MAX_VALUE, barCount = Int.MAX_VALUE))
+    }
+
     private fun compactTogglePreservesStorageAndNativeFPSGlyphs(metrics: MonitorTelemetryMetrics,
-        expectedPowerWidth: Float, literalFpsFont: Float) {
-        for (width in listOf(320f, 360f, 440f)) for (value in listOf("\u2014", "107 GB", "123456789 GB")) {
+        expectedPowerWidth: Float, literalFpsFont: Float, declaredGauge: MonitorTelemetryPower? = null) {
+        for (width in if (declaredGauge == null) listOf(320f, 360f, 440f) else listOf(320f, 440f))
+            for (value in if (declaredGauge == null) listOf("\u2014", "107 GB", "123456789 GB") else listOf("123456789 GB")) {
             ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
                 var candidate by androidx.compose.runtime.mutableStateOf(false)
                 var storageFrame = Rect.Zero
@@ -855,7 +928,7 @@ class MonitorPortraitHeaderClearanceTest {
                                 showsPower = false)
                         }
                         val power: @androidx.compose.runtime.Composable () -> Unit = {
-                            MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100), MonitorTelemetryPower(true, 68)),
+                            MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100), declaredGauge ?: MonitorTelemetryPower(true, 68)),
                                 true, metrics = metrics, showsLink = false,
                                 modifier = Modifier.onGloballyPositioned { powerFrame = it.boundsInRoot() })
                         }
@@ -870,7 +943,18 @@ class MonitorPortraitHeaderClearanceTest {
                                     Box(Modifier.offset(field.telemetry.x.dp, field.telemetry.y.dp)) { power() }
                                 }
                                 Text("25 fps", style = MonitorTypography.readout(literalFpsFont, FontWeight.Bold),
-                                    color = MonitorPalette.accent, modifier = Modifier.offset(20.dp, 100.dp))
+                                    color = MonitorPalette.accent, modifier = Modifier.offset(20.dp, (if (declaredGauge == null) 100 else 200).dp))
+                                if (declaredGauge != null) Text("${declaredGauge.bars}/${declaredGauge.barCount}",
+                                    style = MonitorTypography.readout(10f, FontWeight.Bold), color = MonitorPalette.text,
+                                    modifier = Modifier.offset(20.dp, 240.dp))
+                                if (declaredGauge != null) {
+                                    Text("${declaredGauge.bars}/${declaredGauge.barCount}",
+                                        style = MonitorTypography.readout(9f, FontWeight.Bold), color = MonitorPalette.text,
+                                        modifier = Modifier.offset(20.dp, 280.dp).testTag("wide-gauge-smaller"))
+                                    Text("${declaredGauge.bars}/${declaredGauge.barCount}".dropLast(1),
+                                        style = MonitorTypography.readout(10f, FontWeight.Bold), color = MonitorPalette.text,
+                                        modifier = Modifier.offset(20.dp, 320.dp).testTag("wide-gauge-shorter"))
+                                }
                             }
                         }
                     }
@@ -929,8 +1013,30 @@ class MonitorPortraitHeaderClearanceTest {
                         assertEquals("Keep original native storage allocation", originalStorageWidth, storageFrame.width, .05f)
                         val linkFrame = button!!.boundsInRoot
                         assertTrue("Full native horizontal target floor", linkFrame.width >= 48f * density - 1f)
-                        assertTrue("Actual link target clears real power", linkFrame.right + 8f * density <= powerFrame.left + 1f)
-                        assertEquals("Power uses the actual declared metrics", expectedPowerWidth * density, powerFrame.width, .5f)
+                        if (declaredGauge == null) {
+                            assertTrue("Actual link target clears real power", linkFrame.right + 8f * density <= powerFrame.left + 1f)
+                            assertEquals("Power uses the actual declared metrics", expectedPowerWidth * density, powerFrame.width, .5f)
+                        } else {
+                            assertTrue("Power clears the complete occupied action targets by8dp",
+                                linkFrame.right + 8f * density <= powerFrame.left + 1f ||
+                                    maxOf(storageTarget.bottom.toFloat(), performanceTarget.bottom.toFloat()) + 8f * density <= powerFrame.top + 1f)
+                            val expected = "${declaredGauge.bars}/${declaredGauge.barCount}"
+                            val counts = nodes.filter { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == expected &&
+                                it.config.getOrNull(SemanticsProperties.TestTag) != "wide-gauge-smaller" }
+                            assertEquals("Both exact full native count strings exist", 2, counts.size)
+                            val layouts = counts.sortedBy { it.boundsInRoot.top }.map { node ->
+                                val result = mutableListOf<TextLayoutResult>()
+                                assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(result)); result.single()
+                            }
+                            assertFalse("Full count must not ellipsize", layouts[0].isLineEllipsized(0))
+                            for (glyph in expected.indices) {
+                                assertEquals(layouts[1].getBoundingBox(glyph).width, layouts[0].getBoundingBox(glyph).width, .05f)
+                                assertEquals(layouts[1].getBoundingBox(glyph).height, layouts[0].getBoundingBox(glyph).height, .05f)
+                            }
+                            val smaller = nodes.single { it.config.getOrNull(SemanticsProperties.TestTag) == "wide-gauge-smaller" }
+                            val shorter = nodes.single { it.config.getOrNull(SemanticsProperties.TestTag) == "wide-gauge-shorter" }
+                            assertDeclaredGaugeRaster(activity.window.decorView, counts.sortedBy { it.boundsInRoot.top }, smaller, shorter)
+                        }
                         assertTrue("Safe leading target", storageFrame.center.x - maxOf(storageFrame.width, 48f * density) / 2 >= canvas.left + 14f * density - 1f)
                         assertTrue("Safe trailing power", powerFrame.right <= canvas.left + (width - 14f) * density + 1f)
                         if (fps) {
@@ -960,6 +1066,35 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
+    private fun assertDeclaredGaugeRaster(decor: View, counts: List<SemanticsNode>, smaller: SemanticsNode, shorter: SemanticsNode) {
+        fun root(view: View): View? = if (view is RootForTest) view else if (view is ViewGroup)
+            (0 until view.childCount).firstNotNullOfOrNull { root(view.getChildAt(it)) } else null
+        val origin = IntArray(2).also(requireNotNull(root(decor))::getLocationOnScreen)
+        val shot = requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        try {
+            fun ink(node: SemanticsNode): android.graphics.Rect {
+                val frame = node.boundsInRoot.translate(origin[0].toFloat(), origin[1].toFloat())
+                var left = shot.width; var top = shot.height; var right = -1; var bottom = -1
+                for (y in kotlin.math.floor(frame.top).toInt().coerceAtLeast(0) until kotlin.math.ceil(frame.bottom).toInt().coerceAtMost(shot.height))
+                    for (x in kotlin.math.floor(frame.left).toInt().coerceAtLeast(0) until kotlin.math.ceil(frame.right).toInt().coerceAtMost(shot.width)) {
+                        val color = shot.getPixel(x, y)
+                        if (minOf(Color.red(color), Color.green(color), Color.blue(color)) >= 180) {
+                            left = minOf(left, x); top = minOf(top, y); right = maxOf(right, x); bottom = maxOf(bottom, y)
+                        }
+                    }
+                assertTrue("Native count pixels must exist", right >= left && bottom >= top)
+                return android.graphics.Rect(left, top, right + 1, bottom + 1)
+            }
+            val actual = ink(counts[0]); val literal = ink(counts[1]); val small = ink(smaller); val short = ink(shorter)
+            assertEquals("Every full10sp count glyph survives native raster", literal.width().toFloat(), actual.width().toFloat(), 1f)
+            assertEquals("Native count font height", literal.height().toFloat(), actual.height().toFloat(), 1f)
+            assertTrue("Native font oracle rejects the actual9sp control", small.width() < literal.width() - 1)
+            assertTrue("Native full-value oracle rejects the actually shortened count", short.width() < literal.width() - 1)
+            android.util.Log.i("DeclaredGaugeRaster", JSONObject().put("actual", actual.toShortString())
+                .put("literal", literal.toShortString()).put("smallerNegative", small.toShortString()).put("shorterNegative", short.toShortString()).toString())
+        } finally { shot.recycle() }
+    }
+
     @androidx.compose.runtime.Composable
     private fun legacyStatusEditReference(model: com.opencapture.opencine.appkit.MonitorOperatorSessionModel,
         mode: com.opencapture.opencine.appkit.MonitorDisplayMode): Modifier {
@@ -985,7 +1120,7 @@ class MonitorPortraitHeaderClearanceTest {
 
     private fun assertCompactEditorDimming(scenario: ActivityScenario<MonitorTestActivity>,
         model: com.opencapture.opencine.appkit.MonitorOperatorSessionModel,
-        mode: com.opencapture.opencine.appkit.MonitorDisplayMode) {
+        mode: com.opencapture.opencine.appkit.MonitorDisplayMode, powerIsGreen: Boolean = true) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         var original: Bitmap? = null
         var originalFrames = emptyMap<String, Rect>()
@@ -1036,7 +1171,7 @@ class MonitorPortraitHeaderClearanceTest {
                             val referenceRatio = nativeBrightnessRatio(before, shot, frames.getValue("reference"), false)
                             val storageRatio = nativeBrightnessRatio(before, shot, frames.getValue("storage"), false)
                             val linkRatio = nativeBrightnessRatio(before, shot, frames.getValue("link"), false)
-                            val powerRatio = nativeBrightnessRatio(before, shot, frames.getValue("power"), true)
+                            val powerRatio = nativeBrightnessRatio(before, shot, frames.getValue("power"), powerIsGreen)
                             assertEquals("Storage keeps original Status group dimming", referenceRatio, storageRatio, .05f)
                             assertEquals("Link keeps original Status group dimming", referenceRatio, linkRatio, .05f)
                             assertEquals("Power keeps its separate visible owner", 1f, powerRatio, .05f)
@@ -1128,7 +1263,7 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
-    private fun nativeClickableTarget(prefix: String): android.graphics.Rect {
+    private fun nativeClickableTarget(prefix: String, refreshOwner: Boolean = false): android.graphics.Rect {
         fun find(root: android.view.accessibility.AccessibilityNodeInfo): android.graphics.Rect? {
             fun search(node: android.view.accessibility.AccessibilityNodeInfo,
                 parentOwner: android.view.accessibility.AccessibilityNodeInfo?): android.graphics.Rect? {
@@ -1136,6 +1271,7 @@ class MonitorPortraitHeaderClearanceTest {
                 if (node.contentDescription?.toString()?.startsWith(prefix) == true && owner != null) {
                     // Compose may put the label on a child of the native click owner.
                     // Return that real nearest owner's platform bounds without changing them.
+                    if (refreshOwner && !owner.refresh()) return null
                     return android.graphics.Rect().also(owner::getBoundsInScreen)
                 }
                 for (child in 0 until node.childCount) {

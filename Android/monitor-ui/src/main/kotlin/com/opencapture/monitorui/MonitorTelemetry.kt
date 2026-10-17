@@ -27,6 +27,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -100,7 +106,24 @@ public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorT
                 opacity = opacity, metrics = metrics)
         }
     }
-    if (horizontal) Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) { gauges() }
+    if (horizontal && showsPower && !showsLink && LocalMonitorAdaptiveTelemetryPadding.current) {
+        Layout(content = gauges, modifier = modifier) { children, constraints ->
+            val pills = children.map { it.measure(Constraints()) }
+            val gap = 6.dp.roundToPx()
+            val positions = mutableListOf<Pair<Int, Int>>()
+            var x = 0; var y = 0; var lineHeight = 0; var width = 0
+            pills.forEach { pill ->
+                if (x > 0 && x + pill.width > constraints.maxWidth) { x = 0; y += lineHeight + gap; lineHeight = 0 }
+                positions += x to y
+                width = maxOf(width, x + pill.width)
+                x += pill.width + gap; lineHeight = maxOf(lineHeight, pill.height)
+            }
+            layout(width, y + lineHeight) {
+                pills.forEachIndexed { index, pill -> pill.place(positions[index].first, positions[index].second) }
+            }
+        }
+    }
+    else if (horizontal) Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) { gauges() }
     else Column(modifier, verticalArrangement = Arrangement.spacedBy(metrics.stackSpacing.dp)) { gauges() }
 }
 
@@ -151,16 +174,24 @@ private fun TelemetryGauge(
     }
     if (LocalMonitorAdaptiveTelemetryPadding.current) {
         val minimumTarget = maxOf(48f, LocalViewConfiguration.current.minimumTouchTargetSize.width.value)
-        Layout(content = content, modifier = appearance.height(metrics.pillHeight.dp)) { children, constraints ->
+        Layout(content = content, modifier = appearance.height(metrics.pillHeight.dp), measurePolicy = object : MeasurePolicy {
+          override fun MeasureScope.measure(children: List<Measurable>, constraints: Constraints): MeasureResult {
             val child = children.single().measure(constraints.copy(minWidth = 0, minHeight = 0,
                 maxWidth = Constraints.Infinity))
             val fit = MonitorTelemetryPadding.pixels(child.width, constraints.maxWidth,
                 preferredWidth.dp.roundToPx(), ceil(minimumTarget.dp.toPx()).toInt(), 6.dp.roundToPx())
             val height = metrics.pillHeight.dp.roundToPx().coerceIn(constraints.minHeight, constraints.maxHeight)
-            layout(fit.width, height) {
+            return layout(fit.width, height) {
                 child.place(fit.padding, (height - child.height) / 2)
             }
-        }
+          }
+          override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+              maxOf(ceil(minimumTarget.dp.toPx()).toInt(), measurables.single().maxIntrinsicWidth(height))
+          override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+              maxOf(preferredWidth.dp.roundToPx(), measurables.single().maxIntrinsicWidth(height) + 2 * 6.dp.roundToPx())
+          override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int = metrics.pillHeight.dp.roundToPx()
+          override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int = metrics.pillHeight.dp.roundToPx()
+        })
     } else {
         Box(Modifier.size(preferredWidth.dp, metrics.pillHeight.dp).then(appearance)
             .padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) { content() }
@@ -195,7 +226,7 @@ private fun MonitorGaugeBars(filled: Int, count: Int, tint: Color, barHeight: Fl
 }
 
 internal fun monitorGaugeReadoutWidth(filled: Int, count: Int, minimum: Float, inset: Float): Float =
-    if (count > 10) ("$filled/$count".length * 6f + inset).coerceAtMost(156f).coerceAtLeast(minimum) else minimum
+    if (count > 10) ("$filled/$count".length * 6f + inset).coerceAtLeast(minimum) else minimum
 
 @Composable
 private fun MonitorGaugeStepText(filled: Int, count: Int, tint: Color) {
