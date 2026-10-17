@@ -421,7 +421,7 @@ private extension String {
             } else {
                 LabelDrum(
                     options: ladderOptions(tab, landed: shown),
-                    selection: shown.isBlank ? (ladderOptions(tab, landed: shown).first ?? "") : shown,
+                    selection: shown,
                     marked: tab.ladder.marked, enabled: gates.drumEnabled, haptics: hapticsEnabled,
                     steps: tab.steps?(shown),
                     onSelect: { value in
