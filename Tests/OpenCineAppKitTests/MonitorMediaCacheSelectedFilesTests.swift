@@ -19,6 +19,57 @@ private final class SelectedCacheFileManager: FileManager, @unchecked Sendable {
         FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     }
 
+    @Test func selectedDirectoriesRemoveNestedBytesAndPreserveUnselectedMedia() throws {
+        let directory = MonitorMediaCacheDirectory(root: root())
+        defer { try? FileManager.default.removeItem(at: directory.root) }
+        try directory.write(Data(count: 3), at: "camera/thumbs/old/a.jpg")
+        try directory.write(Data(count: 4), at: "camera/thumbs/old/deep/b.jpg")
+        try directory.write(Data(count: 7), at: "local/recording.mov")
+        try directory.write(Data(count: 11), at: "camera/keep.txt")
+        let result = try directory.removeFiles(["camera/thumbs/old"])
+        #expect(result.removedBytes == 7 && result.remainingFiles.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: try directory.url("camera/thumbs/old").path))
+        #expect(try directory.read("local/recording.mov") == Data(count: 7))
+        #expect(try directory.read("camera/keep.txt") == Data(count: 11))
+    }
+
+    @Test func selectedDirectoryFailuresRetainDeclaredRootForAnAccurateRetry() throws {
+        let manager = SelectedCacheFileManager()
+        let directory = MonitorMediaCacheDirectory(root: root(), fileManager: manager)
+        defer { try? FileManager.default.removeItem(at: directory.root) }
+        try directory.write(Data(count: 4), at: "camera/thumbs/free.jpg")
+        try directory.write(Data(count: 6), at: "camera/thumbs/old/blocked.jpg")
+        manager.deniedName = "blocked.jpg"
+        let result = try directory.removeFiles(["camera/thumbs/free.jpg", "camera/thumbs/old"])
+        #expect(result.removedBytes == 4 && result.remainingFiles == ["camera/thumbs/old"])
+        manager.deniedName = nil
+        let retry = try directory.removeFiles(["camera/thumbs/free.jpg", "camera/thumbs/old"])
+        #expect(retry.removedBytes == 6 && retry.remainingFiles.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: try directory.url("camera/thumbs/old").path))
+    }
+
+    @Test func selectedDirectoryNeverFollowsAnOutsideLink() throws {
+        let directory = MonitorMediaCacheDirectory(root: root())
+        let outside = root()
+        defer {
+            try? FileManager.default.removeItem(at: directory.root)
+            try? FileManager.default.removeItem(at: outside)
+        }
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let keep = outside.appendingPathComponent("keep.jpg")
+        try Data(count: 9).write(to: keep)
+        try directory.write(Data(count: 3), at: "camera/thumbs/old/a.jpg")
+        let link = try directory.url("camera/thumbs/old/link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+        let result = try directory.removeFiles(["camera/thumbs/old"])
+        #expect(result.removedBytes == 3 && result.remainingFiles == ["camera/thumbs/old"])
+        #expect(try Data(contentsOf: keep) == Data(count: 9))
+        #expect(try FileManager.default.attributesOfItem(atPath: link.path)[.type] as? FileAttributeType == .typeSymbolicLink)
+        try FileManager.default.removeItem(at: link)
+        let retry = try directory.removeFiles(result.remainingFiles)
+        #expect(retry.removedBytes == 0 && retry.remainingFiles.isEmpty)
+    }
+
     @Test func selectedCountAndClearPreserveOtherMediaAndReportActualRemovals() async throws {
         let directory = MonitorMediaCacheDirectory(root: root())
         defer { try? FileManager.default.removeItem(at: directory.root) }

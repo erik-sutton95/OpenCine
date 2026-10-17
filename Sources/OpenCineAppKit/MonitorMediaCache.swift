@@ -414,36 +414,65 @@ public struct MonitorMediaCacheRemoval: Equatable, Sendable {
         }
     }
 
-    /// Retires this directory's writers and removes only declared regular files in place.
-    /// No suspension can admit a successor writer between retirement and removal. The caller
-    /// retains its operation deadline; cancellation stops before the next filesystem mutation.
+    /// Retires writers and removes declared files and real descendants of declared directories.
+    /// Only empty directories are removed; links, successors and unnamed staging stay intact.
+    /// The caller retains its deadline; cancellation stops before the next filesystem mutation.
     public func removeFiles(_ addresses: [String]) throws -> MonitorMediaCacheRemoval {
         try Task.checkCancellation()
         let selected = try selectedFiles(addresses)
+        let access = MediaCacheFileAccess(manager: manager)
+        let selections = try selected.map { ($0, try access.selectedRemovalFiles(root: root, address: $0)) }
+        let paths = try selectedFiles(selections.flatMap { $0.1 })
+        let reservations = try Dictionary(uniqueKeysWithValues: paths.map { (try url($0).path, UUID()) })
         // Retire the captured root access, retaining every unnamed staging file. A selective
         // clear cannot infer that an unfinished import is disposable cache.
-        let retired = writes.withLock {
+        let (captured, retired) = try writes.withLock {
+            try Task.checkCancellation()
             writes.generation &+= 1
             writes.current.removeAll()
             let resources = Array(writes.resources.values)
             writes.resources.removeAll()
-            return resources
+            writes.current.merge(reservations) { _, token in token }
+            return (writes.generation, resources)
         }
-        defer { for resource in retired { resource.requestClose() } }
-        let access = MediaCacheFileAccess(manager: manager)
+        defer {
+            writes.withLock {
+                for (path, token) in reservations where writes.current[path] == token {
+                    writes.current[path] = nil
+                }
+            }
+            for resource in retired { resource.requestClose() }
+        }
         var bytes: UInt64 = 0
         var remaining: [String] = []
-        for address in selected {
-            try Task.checkCancellation()
-            do {
-                guard let size = try access.selectedFileSize(root: root, address: address) else {
+        for (declared, paths) in selections {
+            var failed = false
+            for address in paths {
+                try Task.checkCancellation()
+                do {
+                    guard let info = try access.selectedItem(root: root, address: address) else { continue }
+                    let destination = try url(address)
+                    try writes.withLock {
+                        guard writes.generation == captured else { throw MonitorMediaCacheError.retired }
+                        guard let token = reservations[destination.path], writes.current[destination.path] == token else { return }
+                        if info.isDirectory {
+                            // rmdir is nonrecursive, so a new or unselected child is never swept away.
+                            if rmdir(destination.path) != 0 {
+                                let code = errno
+                                if code != ENOENT { throw NSError(domain: NSPOSIXErrorDomain, code: Int(code)) }
+                            }
+                        } else {
+                            try manager.removeItem(at: destination)
+                            bytes += info.size
+                        }
+                        writes.current[destination.path] = nil
+                    }
+                } catch MonitorMediaCacheError.retired { throw MonitorMediaCacheError.retired
+                } catch let error as CocoaError where MediaCacheFileAccess.isMissing(error) {
                     continue
-                }
-                try manager.removeItem(at: url(address))
-                bytes += size
-            } catch let error as CocoaError where MediaCacheFileAccess.isMissing(error) {
-                continue
-            } catch { remaining.append(address) }
+                } catch { failed = true }
+            }
+            if failed { remaining.append(declared) }
         }
         return .init(removedBytes: bytes, remainingFiles: remaining)
     }
@@ -551,6 +580,22 @@ private struct MediaCacheFileAccess: @unchecked Sendable {
     }
 
     func selectedFileSize(root: URL, address: String) throws -> UInt64? {
+        guard let info = try selectedItem(root: root, address: address) else { return nil }
+        guard !info.isDirectory else { throw MonitorMediaCacheError.invalidAddress }
+        return info.size
+    }
+
+    func selectedRemovalFiles(root: URL, address: String) throws -> [String] {
+        try Task.checkCancellation()
+        do {
+            guard try selectedItem(root: root, address: address)?.isDirectory == true else { return [address] }
+            let children = try manager.contentsOfDirectory(atPath: root.appendingPathComponent(address).path)
+            return try children.sorted().flatMap { try selectedRemovalFiles(root: root, address: address + "/" + $0) } + [address]
+        } catch is CancellationError { throw CancellationError()
+        } catch { return [address] }
+    }
+
+    func selectedItem(root: URL, address: String) throws -> (isDirectory: Bool, size: UInt64)? {
         do {
             guard
                 try manager.attributesOfItem(atPath: root.path)[.type] as? FileAttributeType
@@ -562,13 +607,16 @@ private struct MediaCacheFileAccess: @unchecked Sendable {
                 location.appendPathComponent(String(piece))
                 let info = try manager.attributesOfItem(atPath: location.path)
                 let last = index == pieces.count - 1
-                guard info[.type] as? FileAttributeType == (last ? .typeRegular : .typeDirectory)
-                else { throw MonitorMediaCacheError.invalidAddress }
+                let type = info[.type] as? FileAttributeType
+                guard type == .typeDirectory || (last && type == .typeRegular) else {
+                    throw MonitorMediaCacheError.invalidAddress
+                }
                 if last {
+                    if type == .typeDirectory { return (true, 0) }
                     guard let bytes = (info[.size] as? NSNumber)?.uint64Value else {
                         throw CocoaError(.fileReadUnknown)
                     }
-                    return bytes
+                    return (false, bytes)
                 }
             }
             throw MonitorMediaCacheError.invalidAddress
