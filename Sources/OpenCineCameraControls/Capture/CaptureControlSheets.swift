@@ -216,10 +216,9 @@
                 Group {
                     if let held = preview {
                         if let field = held.snapshot.commonField {
-                            MonitorCaptureDrum(
-                                control: host.control, field: field, enabled: false,
-                                haptics: host.hapticsEnabled, previewPosition: held.position,
-                                previewSelection: held.selection)
+                            fieldLadder(
+                                field, choices: field.choices, enabled: false,
+                                previewPosition: held.position, previewSelection: held.selection)
                         } else {
                             CaptureDrumWheel<Host>(
                                 options: held.snapshot.options,
@@ -941,15 +940,29 @@
                     default: return false
                     }
                 }
-                MonitorCaptureDrum(
-                    control: host.control, field: field, enabled: canApplyDrum && editingAllowed,
-                    haptics: host.hapticsEnabled, choices: choices, marked: marked
-                ) { value in
-                    host.captureDrumDidCommit(value)
-                }
+                fieldLadder(field, choices: choices, marked: marked,
+                    enabled: canApplyDrum && editingAllowed)
             } else {
                 Text("Setting not available").foregroundStyle(MonitorTheme.muted)
             }
+        }
+
+        private func fieldLadder(
+            _ field: MonitorCaptureField, choices: [MonitorCaptureChoice],
+            marked: Set<String> = [], enabled: Bool,
+            previewPosition: Double? = nil, previewSelection: String? = nil
+        ) -> some View {
+            LadderSheet(
+                presentation: LadderSheetPresentation(title: "", subtitle: "", tabs: [
+                    LadderTab(label: "", key: field.key,
+                        ladder: CaptureLadder(current: field.label,
+                            values: choices.map(\.label), marked: marked), applyOnActivate: false)
+                ]), enabled: enabled, onWrite: { _ in },
+                control: host.control,
+                host: LadderSheetHost(selectedTab: 0, selection: previewSelection ?? field.label,
+                    drum: .field(field, choices: choices), previewPosition: previewPosition,
+                    onSelectTab: { _ in }, onCommitted: host.captureDrumDidCommit)
+            ).environment(\.ladderOperatorHaptics, host.hapticsEnabled)
         }
 
         private func applyDrum(_ value: String) {
@@ -1293,13 +1306,22 @@
         @Environment(\.captureDrumPreview) private var preview
 
         var body: some View {
-            MonitorValueDrum(
-                options: preview?.snapshot.options ?? options,
-                selection: preview.map { .constant($0.selection) } ?? $selection,
-                markedValues: preview?.snapshot.marked ?? markedValues,
-                isInteractive: isInteractive, haptics: host.hapticsEnabled,
-                previewPosition: preview?.position, interactionIdentity: interactionIdentity
-            )
+            let values = preview?.snapshot.options ?? options
+            let shown = preview?.selection ?? selection
+            let marked = preview?.snapshot.marked ?? markedValues
+            LadderSheet(
+                presentation: LadderSheetPresentation(title: "", subtitle: "", tabs: [
+                    LadderTab(label: "", key: 0,
+                        ladder: CaptureLadder(current: shown.isEmpty ? nil : shown,
+                            values: values, marked: marked), applyOnActivate: false)
+                ]), enabled: isInteractive, onWrite: { write in
+                    guard preview == nil else { return }
+                    selection = write.value
+                },
+                host: LadderSheetHost(selectedTab: 0, selection: shown, drum: .labels,
+                    previewPosition: preview?.position, interactionIdentity: interactionIdentity,
+                    onSelectTab: { _ in })
+            ).environment(\.ladderOperatorHaptics, host.hapticsEnabled)
         }
     }
 

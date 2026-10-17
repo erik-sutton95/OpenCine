@@ -155,7 +155,7 @@ let package = Package(
         // Native view tests: iOS only (xcodebuild on a simulator); empty under macOS `swift test`.
         .testTarget(
             name: "MonitorUITests",
-            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
+            dependencies: ["MonitorUI", "MonitorPresentation", "OpenCineAppKitApple", "OpenCineCameraControls", "OpenCineCoreTestSupport", "OpenCineHostedAccessibility", "OpenCineHostedTestSupport"]),
 
         // MARK: Multicam
         // Manufacturer-independent multicam engine. Foundation and OpenCineCore only.

@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
@@ -29,6 +31,7 @@ const val MONITOR_MIN_TAP_TARGET_DP = 44f
 /**
  * Actual native press/tap/hold input; hosts supply their own optional feedback. A control drawn
  * smaller than [MONITOR_MIN_TAP_TARGET_DP] is still hit across that size, without moving anything drawn.
+ * Disabled controls keep their accessibility state and return pointers to the surface underneath.
  */
 @Composable
 fun Modifier.monitorChromeClickable(
@@ -49,7 +52,10 @@ fun Modifier.monitorChromeClickable(
             scaleY = scale
         }
     val clicks =
-        if (onLongClick != null) {
+        if (!enabled) {
+            // A disabled clickable still wins Compose hit testing above a picker backdrop.
+            Modifier.semantics(mergeDescendants = true) { disabled() }
+        } else if (onLongClick != null) {
             Modifier.combinedClickable(
                 enabled = enabled,
                 interactionSource = interaction,
