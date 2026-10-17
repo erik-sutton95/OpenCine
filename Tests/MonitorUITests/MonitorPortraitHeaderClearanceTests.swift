@@ -396,12 +396,12 @@
             previousKeyWindow?.makeKeyAndVisible()
             UIDevice.current.isBatteryMonitoringEnabled = previousBatteryMonitoring
         }
-        func renderedImage() throws -> UIImage {
+        func renderedImage(scale: CGFloat? = nil) throws -> UIImage {
             XCTAssertTrue(host.view.window === window)
             host.view.setNeedsLayout()
             host.view.layoutIfNeeded()
             let format = UIGraphicsImageRendererFormat()
-            format.scale = window.screen.scale
+            format.scale = scale ?? window.screen.scale
             format.opaque = true
             format.preferredRange = .standard
             var complete = false
@@ -2230,7 +2230,13 @@
                 XCTAssertGreaterThanOrEqual(power.minY, 0)
                 XCTAssertLessThanOrEqual(power.maxY, image.size.height)
             }
-            let storageInk = try raster.inkBounds(in: CGRect(x: storage.minX + 17, y: storage.midY - 11,
+            // The original storage oracle is in 2x pixels, independent of the guest screen.
+            // Keep the native-density capture above for count ink and all occupied geometry;
+            // draw the same unchanged hierarchy directly at the oracle's density, without
+            // resizing a captured image or changing the product's displayScale environment.
+            let storageOracleImage = try native.renderedImage(scale: 2)
+            let storageInk = try HeaderRaster(storageOracleImage).inkBounds(in: CGRect(
+                x: storage.minX + 17, y: storage.midY - 11,
                 width: storage.width - 17, height: 22))
             XCTAssertEqual(storage.width, 86, accuracy: 0.5)
             XCTAssertEqual(storageInk.width, 132)
@@ -2245,11 +2251,16 @@
                 "phone": [phone.minX, phone.minY, phone.width, phone.height],
                 "camera": [camera.minX, camera.minY, camera.width, camera.height],
                 "countInk": [ink.width, ink.height], "literalInk": [literalInk.width, literalInk.height],
+                "storageOracleScale": storageOracleImage.scale,
+                "storageInk": [storageInk.width, storageInk.height],
             ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
             facts.lifetime = .keepAlways
             let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
+            let storagePicture = XCTAttachment(image: storageOracleImage)
+            storagePicture.name = "SIMULATED original 2x storage ink oracle"
+            storagePicture.lifetime = .keepAlways
             XCTContext.runActivity(named: "SIMULATED declared gauge \(filled)/\(count) native clearance and glyphs") {
-                $0.add(facts); $0.add(picture)
+                $0.add(facts); $0.add(picture); $0.add(storagePicture)
             }
         }
 
