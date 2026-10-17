@@ -30,7 +30,8 @@ jobs:
           GIT_CONFIG_KEY_0: safe.directory
           GIT_CONFIG_VALUE_0: /github/workspace
         with:
-          args: "detect --source=. --redact --no-banner --config=.gitleaks.toml"
+          # Scan this candidate and all its ancestors; unrelated branches have separate reviews.
+          args: "detect --source=. --log-opts=HEAD --redact --no-banner --config=.gitleaks.toml"
       - name: Repository hygiene
         run: scripts/check-repository-hygiene.sh
       - name: Spell check
