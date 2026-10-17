@@ -396,12 +396,12 @@
             previousKeyWindow?.makeKeyAndVisible()
             UIDevice.current.isBatteryMonitoringEnabled = previousBatteryMonitoring
         }
-        func renderedImage(scale: CGFloat? = nil) throws -> UIImage {
+        func renderedImage() throws -> UIImage {
             XCTAssertTrue(host.view.window === window)
             host.view.setNeedsLayout()
             host.view.layoutIfNeeded()
             let format = UIGraphicsImageRendererFormat()
-            format.scale = scale ?? window.screen.scale
+            format.scale = window.screen.scale
             format.opaque = true
             format.preferredRange = .standard
             var complete = false
@@ -2094,6 +2094,12 @@
                     .frame(width: 320, height: 80, alignment: .topLeading)
                     .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
             let image = try reference.renderedImage()
+            // This original compact-tablet oracle was qualified on a native 2x iPad.
+            // A 3x hierarchy drawn into a 2x bitmap retains its 3x layout and glyph phase.
+            XCTAssertEqual(UIDevice.current.userInterfaceIdiom, .pad,
+                "The original storage pixel oracle requires a native iPad host")
+            XCTAssertEqual(image.scale, 2,
+                "The original 132x16 storage oracle requires native 2x layout and capture")
             let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
             reference.close()
             let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
@@ -2230,12 +2236,8 @@
                 XCTAssertGreaterThanOrEqual(power.minY, 0)
                 XCTAssertLessThanOrEqual(power.maxY, image.size.height)
             }
-            // The original storage oracle is in 2x pixels, independent of the guest screen.
-            // Keep the native-density capture above for count ink and all occupied geometry;
-            // draw the same unchanged hierarchy directly at the oracle's density, without
-            // resizing a captured image or changing the product's displayScale environment.
-            let storageOracleImage = try native.renderedImage(scale: 2)
-            let storageInk = try HeaderRaster(storageOracleImage).inkBounds(in: CGRect(
+            // The fixed pixel oracle requires native 2x layout as well as native 2x capture.
+            let storageInk = try raster.inkBounds(in: CGRect(
                 x: storage.minX + 17, y: storage.midY - 11,
                 width: storage.width - 17, height: 22))
             XCTAssertEqual(storage.width, 86, accuracy: 0.5)
@@ -2251,16 +2253,13 @@
                 "phone": [phone.minX, phone.minY, phone.width, phone.height],
                 "camera": [camera.minX, camera.minY, camera.width, camera.height],
                 "countInk": [ink.width, ink.height], "literalInk": [literalInk.width, literalInk.height],
-                "storageOracleScale": storageOracleImage.scale,
+                "storageOracleScale": image.scale,
                 "storageInk": [storageInk.width, storageInk.height],
             ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
             facts.lifetime = .keepAlways
             let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
-            let storagePicture = XCTAttachment(image: storageOracleImage)
-            storagePicture.name = "SIMULATED original 2x storage ink oracle"
-            storagePicture.lifetime = .keepAlways
             XCTContext.runActivity(named: "SIMULATED declared gauge \(filled)/\(count) native clearance and glyphs") {
-                $0.add(facts); $0.add(picture); $0.add(storagePicture)
+                $0.add(facts); $0.add(picture)
             }
         }
 
