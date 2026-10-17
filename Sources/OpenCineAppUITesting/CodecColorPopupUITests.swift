@@ -16,6 +16,63 @@
         /// Whether this app shows a codec readout that must open the same popup.
         open var hasCodecReadout: Bool { false }
 
+        func testSIMULATEDExpandedPortraitTargetsReceiveIndependentNativeTaps() throws {
+            #if !targetEnvironment(simulator)
+                throw XCTSkip("SIMULATED touch proof requires a private simulator")
+            #endif
+            continueAfterFailure = false
+            app = XCUIApplication()
+            app.launchEnvironment.merge(reviewLaunchEnvironment) { _, value in value }
+            XCUIDevice.shared.orientation = .portrait
+            app.launch()
+            defer { app.terminate(); XCUIDevice.shared.orientation = .portrait }
+            XCTAssertTrue(app.buttons["monitor.system.record"].waitForExistence(timeout: 20))
+            let format = app.buttons.matching(NSPredicate(format: "label IN %@",
+                ["Format", "Recording options", "Recording format"])).firstMatch
+            let color = app.buttons["monitor.capture.color"]
+            XCTAssertTrue(format.waitForExistence(timeout: 10))
+            XCTAssertTrue(color.waitForExistence(timeout: 10))
+            let clock = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Timecode ")).firstMatch
+            XCTAssertTrue(clock.waitForExistence(timeout: 10))
+            for control in [format, color] {
+                XCTAssertGreaterThanOrEqual(control.frame.width, 44 - 0.5)
+                XCTAssertGreaterThanOrEqual(control.frame.height, 44 - 0.5)
+                XCTAssertTrue(app.frame.contains(control.frame))
+            }
+            XCTAssertLessThan(format.frame.minY, clock.frame.minY,
+                "The test must tap the actual upward expansion, above the painted row")
+            XCTAssertLessThanOrEqual(format.frame.maxY, color.frame.minY + 0.5)
+            let points = [
+                CGPoint(x: format.frame.midX, y: format.frame.minY + 1),
+                CGPoint(x: format.frame.midX, y: format.frame.maxY - 1),
+            ]
+            for (index, point) in points.enumerated() {
+                tap(point)
+                let groups = app.descendants(matching: .any).matching(identifier: "monitor.capture.format.groups").firstMatch
+                XCTAssertTrue(groups.waitForExistence(timeout: 8),
+                    "A real tap in primary region \(index) must open Format")
+                let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                shot.name = "SIMULATED real Format tap \(point)"
+                shot.lifetime = .keepAlways
+                add(shot)
+                let close = app.buttons["monitor.capture.close"]
+                XCTAssertTrue(close.waitForExistence(timeout: 5))
+                close.tap()
+                XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "exists == false"), object: groups)], timeout: 8), .completed)
+            }
+            try open(color, orientation: "portrait boundary", readout: "color",
+                point: CGPoint(x: color.frame.midX, y: color.frame.minY + 1))
+            if hasCodecReadout {
+                let codec = app.buttons.matching(NSPredicate(format: "label == %@", "Codec")).firstMatch
+                XCTAssertTrue(codec.waitForExistence(timeout: 5))
+                XCTAssertGreaterThanOrEqual(codec.frame.height, 44 - 0.5)
+                XCTAssertLessThanOrEqual(format.frame.maxY, codec.frame.minY + 0.5)
+                try open(codec, orientation: "portrait boundary", readout: "codec",
+                    point: CGPoint(x: codec.frame.midX, y: codec.frame.minY + 1))
+            }
+        }
+
         func testSIMULATEDCodecAndColorReadoutsOpenOnePopupInBothOrientations() throws {
             #if !targetEnvironment(simulator)
                 throw XCTSkip("SIMULATED popup screenshots require a private simulator")
@@ -63,10 +120,16 @@
                 .map { $0.value as? String ?? "" }
         }
 
-        private func open(_ readout: XCUIElement, orientation: String, readout name: String) throws {
+        private func tap(_ point: CGPoint) {
+            app.coordinate(withNormalizedOffset: .zero).withOffset(
+                CGVector(dx: point.x - app.frame.minX, dy: point.y - app.frame.minY)).tap()
+        }
+
+        private func open(_ readout: XCUIElement, orientation: String, readout name: String,
+            point: CGPoint? = nil) throws {
             // What the header shows before the popup covers it.
             let shown = [readout.label, readout.value as? String ?? ""] + headerValues()
-            readout.tap()
+            if let point { tap(point) } else { readout.tap() }
             // The popup container (`monitor.capture.codecColor`) or, where a host draws its own
             // codec control above it, the colour section (`monitor.capture.codecColor.color`).
             // SwiftUI folds a lone section's identifier into its container, so accept either.

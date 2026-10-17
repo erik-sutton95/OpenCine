@@ -121,6 +121,8 @@ private struct MonitorOperatorPowerTelemetry<Palette: LiveChromePalette>: View {
             .accessibilityValue(reading.bars.map { "\($0) of \(reading.barCount) bars" }
                 ?? reading.percent.map { "\($0) percent" } ?? "Unavailable")
             .accessibilityIdentifier(reading.camera ? "monitor.telemetry.camera" : "monitor.telemetry.phone")
+            // The passive bitmap spans the viewport; native focus belongs to the visible pill.
+            .contentShape(.accessibility, RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 }
 #endif

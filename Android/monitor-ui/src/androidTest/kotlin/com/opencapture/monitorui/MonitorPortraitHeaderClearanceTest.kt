@@ -288,8 +288,23 @@ class MonitorPortraitHeaderClearanceTest {
         productionPrimaryCase(360f, 0f, 0f, listOf(null), useActualHostHeight = true)
     }
 
+    @Test(timeout = 90_000) fun expandedPrimaryAndDetailReceiveIndependentNativeTaps() {
+        productionPrimaryCase(360f, 24f, 20f, listOf(null), verifyNativeTaps = true)
+    }
+
+    @Test(timeout = 90_000) fun lowSafeTopPortraitTargetsStayInsideViewportWithoutMovingPictureOrTelemetry() {
+        for (top in listOf(0f, 8f, 24f)) {
+            val rails = mutableMapOf<String, Rect>()
+            productionPrimaryCase(600f, top, 0f, listOf(null), codecOnly = true, captureRails = rails)
+            productionPrimaryCase(600f, top, 0f, listOf(null), verifyNativeTaps = true,
+                verifyViewport = true, expectedRails = rails)
+        }
+    }
+
     private fun productionPrimaryCase(width: Float, top: Float, side: Float, durations: List<Int?>,
-        codecOnly: Boolean = false, compareStandbyRecording: Boolean = false, useActualHostHeight: Boolean = false) {
+        codecOnly: Boolean = false, compareStandbyRecording: Boolean = false, useActualHostHeight: Boolean = false,
+        verifyNativeTaps: Boolean = false, verifyViewport: Boolean = false,
+        captureRails: MutableMap<String, Rect>? = null, expectedRails: Map<String, Rect>? = null) {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
             val control = com.opencapture.opencine.appkit.MonitorControlModel(scope)
@@ -339,8 +354,9 @@ class MonitorPortraitHeaderClearanceTest {
                     session = model
                     activity.setContent {
                         val nativeMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
-                        fontReferences = listOf("00:48:03:23" to 10f, "00:48:03:23" to 23f,
-                            "[FX] 6K · 25p" to 10f, "[FX] 6K · 25p" to 23f, "R3D NE" to 10f, "R3D NE" to 11f,
+                        val mainMaximum = if (field.tablet) 25f else 23f
+                        fontReferences = listOf("00:48:03:23" to 10f, "00:48:03:23" to mainMaximum,
+                            "[FX] 6K · 25p" to 10f, "[FX] 6K · 25p" to mainMaximum, "R3D NE" to 10f, "R3D NE" to 11f,
                             // Codec and color share the detail line, so both use the detail size range.
                             "D-Log2" to 10f, "D-Log2" to 11f).map { (value, size) ->
                             nativeMeasurer.measure(androidx.compose.ui.text.AnnotatedString(value),
@@ -407,6 +423,25 @@ class MonitorPortraitHeaderClearanceTest {
                         val recording = labeled(if (duration == null) presentation.recordingAccessibilityLabel
                             else "${presentation.recordingAccessibilityLabel}, ${presentation.elapsedAccessibilityLabel}")
                         val clock = labeled("Timecode 00:48:03:23")
+                        if (captureRails != null || expectedRails != null) {
+                            fun powerFrame(prefix: String) = nodes.single {
+                                it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull()
+                                    ?.startsWith("$prefix battery ") == true
+                            }.boundsInRoot
+                            val rails = mapOf("picture" to actualPicture,
+                                "storage" to labeled("Storage remaining").boundsInRoot,
+                                "phone" to powerFrame("Phone"), "camera" to powerFrame("Camera"))
+                            captureRails?.putAll(rails)
+                            expectedRails?.forEach { (name, original) ->
+                                val actual = rails.getValue(name)
+                                for ((value, expected) in listOf(actual.left, actual.top, actual.width, actual.height)
+                                    .zip(listOf(original.left, original.top, original.width, original.height))) {
+                                    assertEquals("Status clearance preserves independent $name", expected, value, .5f)
+                                }
+                            }
+                            android.util.Log.i("B5LowSafeTopRails", JSONObject().put("rawSafeTop", top)
+                                .put("codecOnly", codecOnly).put("rails", rails.toString()).toString())
+                        }
                         if (codecOnly) {
                             val codec = labeled("Codec")
                             val density = activity.resources.displayMetrics.density
@@ -520,10 +555,33 @@ class MonitorPortraitHeaderClearanceTest {
                             .put("statusWidthDp", field.status.width).put("paragraphs", org.json.JSONArray(nativeParagraphs)).toString())
                         val color = requireNotNull(availableColor) { "Production Color mode must remain present with D-Log2" }
                         assertEquals(recording.boundsInRoot.top, clock.boundsInRoot.top, .5f)
-                        assertEquals(clock.boundsInRoot.top, format.boundsInRoot.top, .5f)
-                        assertEquals(canvas.top + field.status.y * density, clock.boundsInRoot.top, .5f)
+                        val primaryText = nodes.single {
+                            it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "[FX] 6K · 25p"
+                        }
+                        assertEquals("Actual primary text keeps the clock's native top anchor",
+                            clock.boundsInRoot.top, primaryText.boundsInRoot.top, .5f)
+                        val originalStatusTop = canvas.top + field.status.y * density
+                        val minimumClearance = if (verifyViewport) maxOf(0f,
+                            format.boundsInRoot.height - primaryText.boundsInRoot.height - field.status.y * density) else 0f
+                        val expectedStatusTop = originalStatusTop + minimumClearance
+                        assertEquals(expectedStatusTop, clock.boundsInRoot.top, .5f)
+                        if (verifyViewport) {
+                            assertTrue("The full tablet canvas must fit its actual host", canvas.left >= -.5f &&
+                                canvas.right <= activity.window.decorView.width + .5f)
+                            for (target in listOf(format, codec, color)) {
+                                assertTrue("The full original target stays in the viewport", target.boundsInRoot.top >= canvas.top - .5f &&
+                                    target.boundsInRoot.bottom <= canvas.bottom + .5f)
+                            }
+                            assertEquals("Only the measured obstruction moves the row",
+                                maxOf(canvas.top, originalStatusTop - format.boundsInRoot.height + primaryText.boundsInRoot.height),
+                                format.boundsInRoot.top, .5f)
+                            android.util.Log.i("B5LowSafeTopClearance", JSONObject().put("rawSafeTop", top)
+                                .put("originalStatusTop", originalStatusTop).put("minimumClearancePixels", minimumClearance)
+                                .put("format", format.boundsInRoot.toString()).put("clock", clock.boundsInRoot.toString()).toString())
+                        }
                         for (target in listOf(format, color, codec)) {
                             assertTrue("Original native target width retained", target.boundsInRoot.width >= 44f * density)
+                            assertTrue("Original native target height retained", target.boundsInRoot.height >= 48f * density)
                         }
                         // Stacked targets tile: the primary ends where the detail line begins, so no
                         // tap lands on two readouts; the detail line keeps the full target height.
@@ -534,8 +592,8 @@ class MonitorPortraitHeaderClearanceTest {
                         // STBY/REC, the clock and the primary share the status row's top edge; codec
                         // then color stack on the detail line under the primary, end aligned with it.
                         val row = listOf(recording, clock, format)
-                        row.forEach { target ->
-                            assertEquals(canvas.top + field.status.y * density, target.boundsInRoot.top, .5f)
+                        listOf(recording, clock).forEach { target ->
+                            assertEquals(expectedStatusTop, target.boundsInRoot.top, .5f)
                         }
                         (row + listOf(codec, color)).forEach { target ->
                             assertTrue("All native row frames remain inside side-safe width",
@@ -544,8 +602,8 @@ class MonitorPortraitHeaderClearanceTest {
                         }
                         assertEquals(codec.boundsInRoot.top, color.boundsInRoot.top, .5f)
                         assertTrue("The detail line sits under the primary glyphs",
-                            codec.boundsInRoot.top > format.boundsInRoot.top + 8f * density &&
-                                codec.boundsInRoot.top < format.boundsInRoot.top + 48f * density)
+                            codec.boundsInRoot.top > primaryText.boundsInRoot.top + 8f * density &&
+                                codec.boundsInRoot.top < primaryText.boundsInRoot.top + 48f * density)
                         assertEquals(format.boundsInRoot.right, color.boundsInRoot.right, .5f)
                         (row.zipWithNext() + listOf(clock to codec, codec to color)).forEach { (left, right) ->
                             assertTrue("Each complete readout owns its native target",
@@ -626,6 +684,37 @@ class MonitorPortraitHeaderClearanceTest {
                         assertEquals(beforeColor + 1, colorCalls)
                         assertEquals(beforePrimary + 1, primaryCalls); assertEquals(beforeCodec + 1, codecCalls)
                     }
+                    if (verifyNativeTaps) {
+                        for ((index, label) in listOf("Recording format", "Recording format", "Codec", "Color mode").withIndex()) {
+                            var point = android.graphics.PointF()
+                            var before = intArrayOf()
+                            scenario.onActivity { activity ->
+                                val nodes = nativeNodes(activity.window.decorView)
+                                val target = nodes.single {
+                                    it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() == label
+                                }.boundsInRoot
+                                val density = activity.resources.displayMetrics.density
+                                val origin = IntArray(2)
+                                activity.window.decorView.getLocationOnScreen(origin)
+                                val y = if (index == 1) target.bottom - density else target.top + density
+                                point = android.graphics.PointF(origin[0] + target.center.x, origin[1] + y)
+                                before = intArrayOf(primaryCalls, codecCalls, colorCalls)
+                            }
+                            val instrumentation = InstrumentationRegistry.getInstrumentation()
+                            val down = android.os.SystemClock.uptimeMillis()
+                            for ((action, time) in listOf(android.view.MotionEvent.ACTION_DOWN to down,
+                                android.view.MotionEvent.ACTION_UP to down + 50)) {
+                                val event = android.view.MotionEvent.obtain(down, time, action, point.x, point.y, 0)
+                                try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+                            }
+                            instrumentation.waitForIdleSync()
+                            scenario.onActivity {
+                                assertEquals("Real tap $index at $point reaches only $label", before[0] + if (index < 2) 1 else 0, primaryCalls)
+                                assertEquals("Real tap $index keeps codec independent", before[1] + if (index == 2) 1 else 0, codecCalls)
+                                assertEquals("Real tap $index keeps color independent", before[2] + if (index == 3) 1 else 0, colorCalls)
+                            }
+                        }
+                    }
                 }
             } finally {
                 scenario.onActivity { session?.close(); control.unbind(); storage.edit().clear().commit() }
@@ -634,10 +723,12 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
-    /** Focus and a submitted hardware frame precede the unchanged foreground screenshot oracle. */
+    /** The submitted frame must also be visible before the unchanged foreground pixel oracle. */
     private fun awaitForegroundFrame(scenario: ActivityScenario<MonitorTestActivity>) {
         val focused = CountDownLatch(1)
         var focusOwner: ViewTreeObserver? = null
+        val marker = ForegroundFrameMarker()
+        val origin = IntArray(2)
         val focusListener = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
             if (hasFocus) focused.countDown()
         }
@@ -656,22 +747,103 @@ class MonitorPortraitHeaderClearanceTest {
             scenario.onActivity { activity ->
                 val decor = activity.window.decorView
                 assertTrue("Native hardware frame required", decor.isHardwareAccelerated)
+                // This window-only identity sits outside the header and never changes its layout.
+                marker.setBounds(decor.width - 40, decor.height / 2,
+                    decor.width - 8, decor.height / 2 + 16)
+                decor.getLocationOnScreen(origin)
+                decor.overlay.add(marker)
                 frameOwner = decor.viewTreeObserver
                 decor.viewTreeObserver.registerFrameCommitCallback(frameCallback)
                 decor.invalidate()
             }
             try {
                 assertTrue("Current native frame must commit", committed.await(5, TimeUnit.SECONDS))
+                // A frame-commit callback means submitted, not necessarily displayed. Match this
+                // window's own pixels instead of waiting on the header values the oracle checks.
+                val deadline = android.os.SystemClock.uptimeMillis() + 5_000
+                var visible = false
+                var last: Bitmap? = null
+                try {
+                    while (android.os.SystemClock.uptimeMillis() < deadline) {
+                        last?.recycle()
+                        last = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                        if (last?.let { marker.matches(it, origin) } == true) {
+                            visible = true
+                            break
+                        }
+                        val next = CountDownLatch(1)
+                        scenario.onActivity { it.window.decorView.postOnAnimation { next.countDown() } }
+                        val remaining = deadline - android.os.SystemClock.uptimeMillis()
+                        if (remaining <= 0 || !next.await(remaining, TimeUnit.MILLISECONDS)) break
+                    }
+                    if (!visible) scenario.onActivity { activity ->
+                        val file = activity.cacheDir.resolve("SIMULATED-window-not-visible-${android.os.SystemClock.uptimeMillis()}.png")
+                        last?.let { image -> file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                    }
+                    assertTrue("The current native window must be fully visible after its frame commits", visible)
+                    scenario.onActivity { it.window.decorView.overlay.remove(marker) }
+                    val removalDeadline = android.os.SystemClock.uptimeMillis() + 5_000
+                    var removed = false
+                    while (android.os.SystemClock.uptimeMillis() < removalDeadline) {
+                        last?.recycle()
+                        last = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                        if (last?.let { !marker.matches(it, origin) } == true) {
+                            removed = true
+                            break
+                        }
+                        val next = CountDownLatch(1)
+                        scenario.onActivity { it.window.decorView.postOnAnimation { next.countDown() } }
+                        val remaining = removalDeadline - android.os.SystemClock.uptimeMillis()
+                        if (remaining <= 0 || !next.await(remaining, TimeUnit.MILLISECONDS)) break
+                    }
+                    if (!removed) scenario.onActivity { activity ->
+                        val file = activity.cacheDir.resolve("SIMULATED-marker-not-removed-${android.os.SystemClock.uptimeMillis()}.png")
+                        last?.let { image -> file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                    }
+                    assertTrue("The visibility marker must leave the display before the header proof", removed)
+                } finally { last?.recycle() }
             } finally {
                 scenario.onActivity {
                     frameOwner?.takeIf { it.isAlive }?.unregisterFrameCommitCallback(frameCallback)
                 }
             }
         } finally {
-            scenario.onActivity {
+            scenario.onActivity { activity ->
+                activity.window.decorView.overlay.remove(marker)
                 focusOwner?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(focusListener)
             }
         }
+    }
+
+    /** Unique test-window pixels establish visibility independently of the actual header paint. */
+    private class ForegroundFrameMarker : android.graphics.drawable.Drawable() {
+        private val token = java.util.UUID.randomUUID()
+        private val paint = android.graphics.Paint()
+        private fun white(index: Int): Boolean {
+            val value = if (index < 64) token.mostSignificantBits else token.leastSignificantBits
+            return (value ushr (index % 64)) and 1L != 0L
+        }
+        override fun draw(canvas: android.graphics.Canvas) {
+            for (index in 0 until 128) {
+                paint.color = if (white(index)) Color.WHITE else Color.BLACK
+                val x = bounds.left + index % 16 * 2
+                val y = bounds.top + index / 16 * 2
+                canvas.drawRect(x.toFloat(), y.toFloat(), x + 2f, y + 2f, paint)
+            }
+        }
+        fun matches(image: Bitmap, origin: IntArray): Boolean = (0 until 128).all { index ->
+            val x = origin[0] + bounds.left + index % 16 * 2 + 1
+            val y = origin[1] + bounds.top + index / 16 * 2 + 1
+            if (x !in 0 until image.width || y !in 0 until image.height) return@all false
+            val pixel = image.getPixel(x, y)
+            // Require an opaque window, so a dimmed or transitioning surface cannot be ready.
+            if (white(index)) minOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel)) >= 250
+            else maxOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel)) <= 5
+        }
+        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+        override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+        @Suppress("DEPRECATION")
+        override fun getOpacity(): Int = android.graphics.PixelFormat.OPAQUE
     }
 
     /** Actual foreground pixels supplement native bounds; a black/system capture cannot pass. */

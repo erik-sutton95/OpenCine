@@ -227,7 +227,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         identity.monitor, identity.picture, identity.phase)
     @Composable fun Readout(value: MonitorOperatorLiveReadout<K, S>, portrait: Boolean = false,
         caption: String? = null, opens: Boolean = true, accent: Boolean = false, storageReadout: Boolean = false, grouped: Boolean = false, detail: Boolean = false,
-        decoratesSection: Boolean = true) {
+        primaryBottom: Boolean = false, decoratesSection: Boolean = true) {
         val decoration = (value.section?.takeIf { decoratesSection }?.let { edit(it) } ?: Modifier).then(value.itemModifier)
             .onGloballyPositioned { coordinates ->
                 val r = coordinates.boundsInRoot()
@@ -236,10 +236,12 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             }
         val label: @Composable () -> Unit = {
             // Grouped portrait lines keep their target width; MonitorPortraitFormatGroup tiles their
-            // target-height slots without overlap, so glyphs stay top aligned at their own height.
+            // target-height slots without overlap. The primary label stays at the slot's bottom
+            // because only its invisible target expands above the original text position.
             val groupFrame = if (grouped) Modifier
-                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width)) else Modifier
-            Box(groupFrame, contentAlignment = if (grouped) Alignment.TopEnd else Alignment.BottomEnd) {
+                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                .fillMaxHeight() else Modifier
+            Box(groupFrame, contentAlignment = if (grouped && !primaryBottom) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
                     if (grouped) {
@@ -318,7 +320,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 format = {
                     if (inline) {
                         if (top != null) MonitorPortraitFormatGroup(below.isNotEmpty() || caption != null, primary = {
-                            Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC)
+                            Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC,
+                                primaryBottom = below.isNotEmpty() || caption != null)
                         }, detail = {
                             Row(verticalAlignment = Alignment.Top,
                                 horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {

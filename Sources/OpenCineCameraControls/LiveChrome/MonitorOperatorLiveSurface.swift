@@ -563,7 +563,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                         if let top {
                             MonitorPortraitFormatGroup(showsDetail: !below.isEmpty || caption != nil) {
                                 headerReadout(
-                                    top, portrait: true, grouped: true, detail: top.section == .codec)
+                                    top, portrait: true, grouped: true, detail: top.section == .codec,
+                                    primaryBottom: !below.isEmpty || caption != nil)
                             } detail: {
                                 HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
                                     ForEach(below) { value in
@@ -621,7 +622,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
         portrait: Bool = false, caption: String? = nil, alwaysAccent: Bool = false,
-        grouped: Bool = false, detail: Bool = false, decoratesSection: Bool = true) -> some View {
+        grouped: Bool = false, detail: Bool = false, primaryBottom: Bool = false,
+        decoratesSection: Bool = true) -> some View {
         MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, readout: value, enabled: presentationAdmitted, commandEnabled: !readOnly,
             currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
@@ -629,7 +631,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             Group {
                 if grouped {
                         MonitorPortraitInlineReadoutText(value.value, detail: detail)
-                            .frame(minWidth: 44, maxHeight: .infinity, alignment: .topTrailing)
+                            .frame(minWidth: 44, maxHeight: .infinity,
+                                alignment: primaryBottom ? .bottomTrailing : .topTrailing)
                     } else {
                         Text(value.value).font(
                             MonitorTheme.font(

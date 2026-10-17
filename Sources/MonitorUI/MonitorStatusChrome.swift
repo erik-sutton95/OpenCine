@@ -41,7 +41,7 @@
       Group {
         if layout.portrait {
           MonitorPortraitStatusLayout(
-            minimumHeight: layout.status.height, spacing: primaryFit?.spacing ?? 8,
+            minimumHeight: layout.status.height, availableTop: layout.status.y, spacing: primaryFit?.spacing ?? 8,
             allowsFallbackRows: !(primaryFit?.completeSingleRow ?? false)
           ) {
             HStack(spacing: 0) { if showsRecording { MonitorRecordingReadout(status: status) } }
@@ -140,6 +140,7 @@
   /// width, so nothing is clipped and no glyph is dropped or ellipsized.
   private struct MonitorPortraitStatusLayout: Layout {
     let minimumHeight: CGFloat
+    let availableTop: CGFloat
     let spacing: CGFloat
     let allowsFallbackRows: Bool
 
@@ -196,12 +197,19 @@
         minimumHeight, firstHeight, format.height,
         separatesClock ? clockFloor : 0,
         secondRow ? formatY + formatRowHeight : 0)
+      let formatDimensions = subviews[2].dimensions(
+        in: ProposedViewSize(width: format.width, height: format.height))
+      let targetTop = formatDimensions[explicit: .monitorPortraitCaptureTargetTop] ?? 0
+      // Read the unshifted target edge, including fallback-row placement. Only an actual
+      // viewport obstruction moves the complete status row; independent telemetry stays fixed.
+      let occupiedTop = min(0, formatY + targetTop)
+      let clearance = max(0, -(availableTop + occupiedTop))
       return (
-        CGSize(width: width, height: height),
+        CGSize(width: width, height: height + clearance),
         [
-          CGRect(x: 0, y: 0, width: recording.width, height: recording.height),
-          CGRect(x: clockX, y: clockY, width: clock.width, height: clock.height),
-          CGRect(x: formatX, y: formatY, width: format.width, height: format.height),
+          CGRect(x: 0, y: clearance, width: recording.width, height: recording.height),
+          CGRect(x: clockX, y: clockY + clearance, width: clock.width, height: clock.height),
+          CGRect(x: formatX, y: formatY + clearance, width: format.width, height: format.height),
         ]
       )
     }

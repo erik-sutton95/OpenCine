@@ -25,12 +25,182 @@
         open var expectedCameraPowerValue: String { "68 percent" }
         open var expectedCameraPercentText: String? { "68%" }
 
+        func testInkBoundsExcludeOCRPaddingButStillDetectPaintOutsideItsNativeFrame() throws {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 3
+            format.opaque = true
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 60), format: format)
+                .image { context in
+                    UIColor.black.setFill()
+                    context.fill(CGRect(x: 0, y: 0, width: 100, height: 60))
+                    UIColor.white.setFill()
+                    context.fill(CGRect(x: 25, y: 12, width: 40, height: 9))
+                }
+            let ink = try inkBounds(of: CGRect(x: 17, y: 8, width: 56, height: 30), in: image)
+            XCTAssertEqual(ink.minX, 25, accuracy: 1.0 / 3.0)
+            XCTAssertEqual(ink.minY, 12, accuracy: 1.0 / 3.0)
+            XCTAssertEqual(ink.width, 40, accuracy: 1.0 / 3.0)
+            XCTAssertEqual(ink.height, 9, accuracy: 1.0 / 3.0)
+            XCTAssertTrue(CGRect(x: 24, y: 11, width: 42, height: 11).contains(ink))
+            XCTAssertFalse(CGRect(x: 30, y: 11, width: 36, height: 11).contains(ink),
+                "Actual timecode paint outside its native frame must remain a failure")
+        }
+
+        func testRecognizedTimecodePaintStillFailsAnActuallyNarrowNativeFrame() throws {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 3
+            format.opaque = true
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 80), format: format)
+                .image { context in
+                    UIColor.black.setFill()
+                    context.fill(CGRect(x: 0, y: 0, width: 200, height: 80))
+                    ("15:39:50" as NSString).draw(at: CGPoint(x: 20, y: 12), withAttributes: [
+                        .font: UIFont.monospacedDigitSystemFont(ofSize: 23, weight: .medium),
+                        .foregroundColor: UIColor.white,
+                    ])
+                }
+            let raw = try XCTUnwrap(paintedText(image).first { $0.value == "15:39:50" })
+            let ink = try inkBounds(of: raw.frame, in: image)
+            let picture = XCTAttachment(image: image)
+            picture.name = "SIMULATED overflowing timecode negative control"
+            picture.lifetime = .keepAlways
+            add(picture)
+            let geometry = XCTAttachment(string: "raw Vision: \(raw.frame); painted ink: \(ink)")
+            geometry.name = "SIMULATED negative control raw and refined geometry"
+            geometry.lifetime = .keepAlways
+            add(geometry)
+            XCTAssertTrue(CGRect(x: 19, y: 11, width: 170, height: 50).contains(ink))
+            XCTAssertFalse(CGRect(x: 30, y: 11, width: 159, height: 50).contains(ink),
+                "OCR refinement must still reject genuine painted timecode overflow")
+        }
+
+        func testInkRefinementDistinguishesOCRPaddingFromActualPaintOverlap() throws {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 3
+            format.opaque = true
+            func image(overlap: Bool) -> UIImage {
+                UIGraphicsImageRenderer(size: CGSize(width: 110, height: 50), format: format)
+                    .image { context in
+                        UIColor.black.setFill()
+                        context.fill(CGRect(x: 0, y: 0, width: 110, height: 50))
+                        UIColor.white.setFill()
+                        context.fill(CGRect(x: 20, y: 12, width: overlap ? 47 : 40, height: 10))
+                        context.fill(CGRect(x: 65, y: 12, width: 30, height: 10))
+                    }
+            }
+            let left = CGRect(x: 15, y: 8, width: 49, height: 20)
+            let right = CGRect(x: 61, y: 8, width: 38, height: 20)
+            XCTAssertTrue(left.intersects(right), "Both raw OCR controls have overlapping padding")
+            let clear = image(overlap: false)
+            XCTAssertFalse(try inkBounds(of: left, in: clear).intersects(inkBounds(of: right, in: clear)))
+            let collision = image(overlap: true)
+            XCTAssertTrue(try inkBounds(of: left, in: collision).intersects(inkBounds(of: right, in: collision)),
+                "Refinement must preserve a genuine painted overlap")
+        }
+
+        func testDeclaredFormatOCRKeepsTheNativeMiddotAndExactConstituents() {
+            XCTAssertTrue(matchesDeclaredFormatOCR("4K . 25\u{0440}", nativeFormat: "4K · 25p"))
+            XCTAssertFalse(matchesDeclaredFormatOCR("4K . 25p", nativeFormat: "4K25p"))
+            XCTAssertFalse(matchesDeclaredFormatOCR("4K . 25p", nativeFormat: "4K . 25p"))
+            XCTAssertFalse(matchesDeclaredFormatOCR("5K . 25p", nativeFormat: "4K · 25p"))
+            XCTAssertFalse(matchesDeclaredFormatOCR("4K . 24p", nativeFormat: "4K · 25p"))
+        }
+
+        func testSplitCapacityKeepsItsExactValueNativeControlAndPaintedLine() {
+            let control = CGRect(x: 10, y: 0, width: 100, height: 44)
+            let viewport = CGRect(x: 0, y: 0, width: 200, height: 100)
+            let number = PaintedText(value: "114.89", frame: CGRect(x: 20, y: 12, width: 48, height: 11))
+            let unit = PaintedText(value: "GB", frame: CGRect(x: 72, y: 12, width: 20, height: 11))
+            func capacity(_ tokens: [PaintedText], bounds: CGRect? = nil) -> PaintedText? {
+                paintedCapacity("114.89 GB", in: bounds ?? control, viewport: viewport, tokens: tokens)
+            }
+            XCTAssertEqual(capacity([number, unit])?.value, "114.89 GB")
+            XCTAssertEqual(capacity([number, unit])?.frame, number.frame.union(unit.frame))
+            XCTAssertNil(capacity([PaintedText(value: "114.88", frame: number.frame), unit]))
+            XCTAssertNil(capacity([number, PaintedText(value: "TB", frame: unit.frame)]))
+            XCTAssertNil(capacity([number]))
+            XCTAssertNil(capacity([unit]))
+            XCTAssertNil(capacity([number, number, unit]))
+            XCTAssertNil(capacity([number, unit, unit]))
+            XCTAssertNil(capacity([number, PaintedText(value: "unexpected", frame: CGRect(x: 69, y: 12, width: 2, height: 11)), unit]))
+            XCTAssertNil(capacity([
+                PaintedText(value: "114.89", frame: unit.frame),
+                PaintedText(value: "GB", frame: number.frame),
+            ]))
+            XCTAssertNil(capacity([number, unit], bounds: CGRect(x: 10, y: 0, width: 60, height: 44)))
+            XCTAssertNil(capacity([number, PaintedText(value: "GB", frame: CGRect(x: 72, y: 25, width: 20, height: 11))]))
+            XCTAssertNil(capacity([number, PaintedText(value: "GB", frame: CGRect(x: 99, y: 12, width: 20, height: 11))]))
+        }
+
+        func testMergedCapacityOCRKeepsExactConstituentsAndNativeBounds() {
+            let control = CGRect(x: 14, y: 39, width: 70, height: 44)
+            let viewport = CGRect(x: 0, y: 0, width: 834, height: 1210)
+            let ink = CGRect(x: 32, y: 55, width: 51, height: 11)
+            func capacity(_ value: String, bounds: CGRect? = nil, extra: [PaintedText] = []) -> PaintedText? {
+                paintedCapacity("521 GB", in: bounds ?? control, viewport: viewport,
+                    tokens: [PaintedText(value: value, frame: ink)] + extra)
+            }
+            XCTAssertEqual(capacity("521GB")?.value, "521 GB")
+            XCTAssertEqual(capacity("521GB")?.frame, ink)
+            for wrong in ["520GB", "521TB", "GB521", "1521GB", "521GB1", "521-GB", "521\nGB", "521", "GB"] {
+                XCTAssertNil(capacity(wrong))
+            }
+            XCTAssertNil(capacity("521GB", extra: [PaintedText(value: "521GB", frame: ink)]))
+            XCTAssertNil(capacity("521GB", extra: [PaintedText(value: "1", frame: CGRect(x: 20, y: 55, width: 5, height: 11))]))
+            XCTAssertNil(capacity("521GB", bounds: CGRect(x: 40, y: 39, width: 44, height: 44)),
+                "Actual ink outside its native control remains a failure")
+        }
+
+        func testTabletTelemetryRejectsDisplacedBandsOverflowAndCollisions() {
+            let storage = CGRect(x: 14, y: 39, width: 92.5, height: 44)
+            let capacity = CGRect(x: 32.5, y: 55, width: 73, height: 11)
+            let signal = CGRect(x: 14, y: 80, width: 64, height: 44)
+            let phone = CGRect(x: 14, y: 118, width: 64, height: 22)
+            let camera = CGRect(x: 14, y: 145, width: 64, height: 22)
+            let cameraInk = CGRect(x: 36, y: 149, width: 25, height: 11)
+            let header = [CGRect(x: 22, y: 18, width: 26, height: 10),
+                CGRect(x: 363, y: 18, width: 107, height: 24),
+                CGRect(x: 718, y: 18, width: 100.5, height: 24)]
+            func accepts(storage proposedStorage: CGRect? = nil, capacity proposedCapacity: CGRect? = nil,
+                signal proposedSignal: CGRect? = nil, phone proposedPhone: CGRect? = nil,
+                camera proposedCamera: CGRect? = nil, power proposedPower: [CGRect]? = nil,
+                primary proposedPrimary: [CGRect]? = nil) -> Bool {
+                tabletTelemetryKeepsItsNativeRail(
+                    viewport: CGRect(x: 0, y: 0, width: 834, height: 1210),
+                    recording: CGRect(x: 14, y: 12.5, width: 77, height: 21),
+                    storage: proposedStorage ?? storage, capacity: proposedCapacity ?? capacity,
+                    signal: proposedSignal ?? signal, phone: proposedPhone ?? phone,
+                    camera: proposedCamera ?? camera, powerInk: proposedPower ?? [cameraInk],
+                    primaryInk: proposedPrimary ?? header)
+            }
+            XCTAssertTrue(accepts())
+            XCTAssertFalse(accepts(storage: storage.offsetBy(dx: 2, dy: 0),
+                capacity: capacity.offsetBy(dx: 2, dy: 0)), "A displaced native rail must fail")
+            XCTAssertFalse(accepts(capacity: capacity.offsetBy(dx: -20, dy: 0)),
+                "Capacity paint outside its own native control must fail")
+            XCTAssertFalse(accepts(power: [cameraInk.offsetBy(dx: 0, dy: -14)]),
+                "Percentage paint in another native band must fail")
+            XCTAssertFalse(accepts(phone: camera, camera: phone), "Swapped power bands must fail")
+            XCTAssertFalse(accepts(camera: camera.offsetBy(dx: 0, dy: -2),
+                power: [cameraInk.offsetBy(dx: 0, dy: -2)]), "A reduced native pill gap must fail")
+            XCTAssertFalse(accepts(storage: storage.offsetBy(dx: 0, dy: 9),
+                capacity: capacity.offsetBy(dx: 0, dy: 9)), "Storage invading the signal band must fail")
+            XCTAssertFalse(accepts(primary: header + [capacity]), "Actual header/telemetry paint overlap must fail")
+            XCTAssertFalse(accepts(power: [cameraInk, cameraInk]), "Actual telemetry paint overlap must fail")
+            XCTAssertFalse(accepts(power: [cameraInk.offsetBy(dx: 25, dy: 0)]),
+                "Power paint overflowing its native pill must fail")
+        }
+
         func testSIMULATEDMonitorHeaderHasReadableSeparateRowsInBothOrientations() throws {
             #if !targetEnvironment(simulator)
                 throw XCTSkip("SIMULATED screenshot matrix requires a private simulator")
             #endif
             continueAfterFailure = false
             let app = XCUIApplication()
+            let requiresGeneratedPicture = reviewPaintsGeneratedPicture ||
+                ["OPV_SIM_FEED_CLIP", "ZC_DEMO_FEED_DIR"].contains {
+                    ProcessInfo.processInfo.environment[$0]?.isEmpty == false
+                }
             app.launchEnvironment.merge(reviewLaunchEnvironment) { _, value in value }
             for key in ["OPV_SIM_FEED_CLIP", "ZC_DEMO_FEED_DIR"] {
                 if let value = ProcessInfo.processInfo.environment[key] {
@@ -72,7 +242,7 @@
                         pictureElement.exists && pictureElement.frame.width > 0
                             && !app.staticTexts["WAITING FOR LIVE VIEW"].exists
                     }, object: nil)
-                if reviewPaintsGeneratedPicture {
+                if requiresGeneratedPicture {
                     let pictureReadiness = XCTWaiter.wait(for: [pictureReady], timeout: 15)
                     capture(
                         app,
@@ -129,7 +299,13 @@
                 // Vision pads its text boxes by a few points (measured: a timecode box starting
                 // 8 pt left of its first painted digit, a box touching a neighbour 11 pt away), so
                 // every geometry check below uses the painted ink inside each recognized box.
-                let text = try paintedText(screenshot.image).map {
+                let rawText = try paintedText(screenshot.image)
+                let rawGeometry = XCTAttachment(
+                    string: rawText.map { "\($0.value): \($0.frame)" }.joined(separator: "\n"))
+                rawGeometry.name = "SIMULATED raw Vision boxes orientation-\(orientation.rawValue)"
+                rawGeometry.lifetime = .keepAlways
+                add(rawGeometry)
+                let text = try rawText.map {
                     PaintedText(value: $0.value, frame: try inkBounds(of: $0.frame, in: screenshot.image))
                 }
                 let recognized = XCTAttachment(
@@ -155,11 +331,8 @@
                 XCTAssertTrue(app.frame.contains(storage.frame))
                 XCTAssertEqual(storage.value as? String, expectedStorageText)
                 let capacity = try XCTUnwrap(
-                    text.first {
-                        $0.value == expectedStorageText
-                            && storage.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
-                            && app.frame.contains($0.frame)
-                    }, "The declared capacity must be readable in its own native storage control")
+                    paintedCapacity(expectedStorageText, in: storage.frame, viewport: app.frame, tokens: text),
+                    "The declared capacity must be readable in its own native storage control")
                 let cameraPower = try XCTUnwrap(
                     cameraPowerQuery.allElementsBoundByIndex.min {
                             $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
@@ -177,7 +350,7 @@
                         text.first { $0.value == percent && cameraPower.frame.contains($0.frame) },
                         "Declared camera percentage must be painted inside its own badge")
                 }
-                if reviewPaintsGeneratedPicture {
+                if requiresGeneratedPicture {
                     let pixel = try greenPixel(
                         screenshot.image,
                         at: CGPoint(x: pictureElement.frame.midX, y: pictureElement.frame.midY))
@@ -213,11 +386,30 @@
                 XCTAssertTrue(app.frame.contains(capacity.frame))
                 if orientation == .portrait {
                     XCTAssertEqual(recording.frame.minY, clock.frame.minY, accuracy: 0.5)
-                    XCTAssertEqual(format.frame.minY, clock.frame.minY, accuracy: 0.5)
-                    // Equal native component tops are the alignment contract. Different font
-                    // ascenders and the recording capsule's padding preserve their own ink bounds.
+                    XCTAssertEqual(formatInk.frame.minY, timecode.frame.minY, accuracy: 0.5,
+                        "The painted primary and clock stay aligned while the primary target expands upward")
                     XCTAssertTrue(recording.frame.insetBy(dx: -1, dy: -1).contains(standby.frame))
                     XCTAssertTrue(clock.frame.insetBy(dx: -1, dy: -1).contains(timecode.frame))
+                    if min(app.frame.width, app.frame.height) >= 600 {
+                        let phone = try XCTUnwrap(
+                            app.descendants(matching: .any).matching(identifier: "monitor.telemetry.phone")
+                                .matching(NSPredicate(format: "label == %@", "Phone battery"))
+                                .allElementsBoundByIndex.min {
+                                    $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
+                                })
+                        let signal = app.buttons["monitor.telemetry.signal"]
+                        XCTAssertTrue(phone.exists)
+                        XCTAssertTrue(signal.exists)
+                        XCTAssertTrue(tabletTelemetryKeepsItsNativeRail(
+                            viewport: app.frame, recording: recording.frame,
+                            storage: storage.frame, capacity: capacity.frame,
+                            signal: signal.frame, phone: phone.frame, camera: cameraPower.frame,
+                            powerInk: text.filter {
+                                $0.value.contains("%") && $0.frame.midY < app.frame.height / 4
+                            }.map(\.frame),
+                            primaryInk: [standby.frame, timecode.frame, formatInk.frame]),
+                            "Tablet telemetry must retain its bounded left rail, native bands and separate actual paint")
+                    } else {
                     let capacities = text.filter {
                         $0.value.range(of: #"\d+\s*GB"#, options: .regularExpression) != nil
                     }
@@ -236,15 +428,66 @@
                             percent.frame.maxY + 2, timecode.frame.minY,
                             "Power ink must clear timecode and format")
                     }
+                    }
                 }
             }
         }
 
+        /// Tablet telemetry is the original left column, independent of the top status row.
+        /// Native signal hit padding surrounds its 22 pt painted plate; power pills are unpadded.
+        private func tabletTelemetryKeepsItsNativeRail(
+            viewport: CGRect, recording: CGRect, storage: CGRect, capacity: CGRect,
+            signal: CGRect, phone: CGRect, camera: CGRect, powerInk: [CGRect], primaryInk: [CGRect]
+        ) -> Bool {
+            let rail = [storage, signal, phone, camera]
+            guard rail.allSatisfy({ viewport.contains($0) && abs($0.minX - recording.minX) <= 0.5 }),
+                [phone, camera].allSatisfy({ abs($0.width - 64) <= 0.5 && abs($0.height - 22) <= 0.5 }),
+                signal.height >= 44, abs(signal.width - 64) <= 0.5,
+                storage.contains(capacity) else { return false }
+            let signalPlate = CGRect(x: signal.minX, y: signal.midY - 11, width: signal.width, height: 22)
+            guard storage.maxY + 2 <= signalPlate.minY,
+                abs(phone.minY - signalPlate.maxY - 5) <= 0.5,
+                abs(camera.minY - phone.maxY - 5) <= 0.5,
+                powerInk.allSatisfy({ ink in [phone, camera].filter { $0.contains(ink) }.count == 1 })
+            else { return false }
+            let ink = [capacity] + powerInk
+            for (index, value) in ink.enumerated() {
+                if primaryInk.contains(where: { value.intersects($0) }) { return false }
+                if ink.dropFirst(index + 1).contains(where: { value.intersects($0) }) { return false }
+            }
+            return true
+        }
+
+        private func paintedCapacity(_ expected: String, in control: CGRect, viewport: CGRect,
+            tokens: [PaintedText]) -> PaintedText? {
+            let contained = tokens.filter {
+                control.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && viewport.contains($0.frame)
+            }
+            if let complete = contained.first(where: { $0.value == expected }) { return complete }
+            let parts = expected.split(separator: " ").map(String.init)
+            guard parts.count == 2 else { return nil }
+            if contained.count == 1, let joined = contained.first,
+                joined.value == parts.joined(), control.contains(joined.frame) {
+                return PaintedText(value: expected, frame: joined.frame)
+            }
+            let fragments = parts.compactMap { part -> PaintedText? in
+                let matches = contained.filter { $0.value == part }
+                return matches.count == 1 ? matches[0] : nil
+            }
+            guard contained.count == parts.count, fragments.count == parts.count,
+                fragments[0].frame.midX < fragments[1].frame.midX,
+                max(fragments[0].frame.minY, fragments[1].frame.minY)
+                    < min(fragments[0].frame.maxY, fragments[1].frame.maxY) else { return nil }
+            let ink = fragments[0].frame.union(fragments[1].frame)
+            guard control.contains(ink), viewport.contains(ink) else { return nil }
+            return PaintedText(value: fragments.map(\.value).joined(separator: " "), frame: ink)
+        }
+
         private func matchesDeclaredFormatOCR(_ value: String, nativeFormat: String) -> Bool {
-            // A hyphen is an OCR equivalent only for the observed literal middot source form.
+            // Hyphen and period are observed OCR equivalents only for the literal middot source form.
             // Native content has already passed the unchanged ASCII constituent assertion.
             let pattern = nativeFormat == "4K · 25p"
-                ? #"\A4K\s*[·•-]?\s*25[p\u0440]\z"#
+                ? #"\A4K\s*[·•.\-]?\s*25[p\u0440]\z"#
                 : #"\A4K\s*[·•]?\s*25[p\u0440]\z"#
             return value.range(of: pattern, options: .regularExpression) != nil
         }

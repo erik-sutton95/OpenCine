@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -69,7 +70,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
     Box(modifier.fillMaxWidth().then(if (layout.portrait) Modifier else Modifier.height(layout.status.height.dp))) {
         if (layout.portrait) {
             MonitorPortraitStatusRow(
-                maxOf(layout.status.height, LocalViewConfiguration.current.minimumTouchTargetSize.height.value),
+                maxOf(layout.status.height, LocalViewConfiguration.current.minimumTouchTargetSize.height.value), layout.status.y,
                 recording = { if (showsRecording) MonitorRecordingReadout(status, recordingModifier) },
                 clock = { if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder) },
                 format = { Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(
@@ -116,7 +117,7 @@ private fun MonitorPortraitTelemetryRow(modifier: Modifier, storage: @Composable
  *  wraps complete groups to intrinsic rows below instead of placing them beyond the
  *  width, so nothing is clipped and no glyph is dropped or ellipsized. */
 @Composable
-private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composable () -> Unit,
+private fun MonitorPortraitStatusRow(minimumHeight: Float, availableTop: Float, recording: @Composable () -> Unit,
     clock: @Composable () -> Unit, format: @Composable () -> Unit) {
     val spacing = LocalMonitorPortraitPrimaryFit.current?.spacing ?: 8f
     val allowsFallbackRows = LocalMonitorPortraitPrimaryFit.current?.completeSingleRow != true
@@ -150,10 +151,14 @@ private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composabl
         val height = maxOf(minimumPx, firstHeight, values.height,
             if (separatesClock) clockFloor else 0,
             if (secondRow) formatY + formatRowHeight else 0)
-        layout(width, height) {
-            rec.placeRelative(0, 0)
-            time.placeRelative(clockX, clockY)
-            values.placeRelative(formatX, formatY)
+        val targetTop = values[MonitorPortraitCaptureTargetTop].takeUnless { it == AlignmentLine.Unspecified } ?: 0
+        // Consume unshifted native target geometry, never an already-offset global position.
+        val occupiedTop = minOf(0, formatY + targetTop)
+        val clearance = maxOf(0, -(availableTop.dp.roundToPx() + occupiedTop))
+        layout(width, height + clearance) {
+            rec.placeRelative(0, clearance)
+            time.placeRelative(clockX, clockY + clearance)
+            values.placeRelative(formatX, formatY + clearance)
         }
     }
 }
