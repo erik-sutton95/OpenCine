@@ -199,7 +199,9 @@
         func commitNativeCaptureQuick(_ sheet: CaptureSheet, selection: String) {}
         /// A camera without codec choices: the colour modes it offers, by their shown label.
         var recordingCodecColor: CaptureCodecColorChoices {
-            let labels = colorModes.map { $0.label(for: bodyFamily, in: labelProfile) }
+            let labels = CaptureLists.colorDrumLabels(
+                offered: colorModes, current: cameraStatus.colorMode, family: bodyFamily,
+                profile: labelProfile)
             return CaptureCodecColorChoices(
                 colors: labels.map { CaptureCodecColorChoice(id: $0, label: $0) },
                 selectedColor: cameraStatus.colorMode?.label(for: bodyFamily, in: labelProfile))

@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import UIKit
 import XCTest
 
@@ -209,7 +210,8 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
         for orientation in [UIDeviceOrientation.landscapeLeft, .landscapeRight, .portrait] {
             rotate(orientation, settling: back)
             XCTAssertTrue(waitUntilReady(back, in: app))
-            XCTAssertEqual(back.frame.width, 54, accuracy: 1)
+            // One system button size on phone and tablet (48 pt since #447).
+            XCTAssertEqual(back.frame.width, MonitorSystemButtonMetrics.side(tablet: UIDevice.current.userInterfaceIdiom == .pad), accuracy: 1)
             for title in [
                 "Favorite clip", "Clip information", "Share clip", "Delete clip from camera",
             ] {

@@ -282,7 +282,8 @@
             let modes = CamCapColorMode.wheel(
                 available: status.availableColorModes,
                 order: profile.colorModes ?? cameraModel?.captureProfile?.labels.colorModes ?? [])
-            let options = modes.map { $0.label(for: family, in: profile) }
+            let options = CaptureLists.colorDrumLabels(
+                offered: modes, current: status.colorMode, family: family, profile: profile)
             guard !options.isEmpty else { return nil }
             let live = status.colorMode?.label(for: family, in: profile) ?? ""
             return Self(
@@ -412,7 +413,8 @@
                         from: origin)
                 }
             case .color:
-                if let mode = ColorMode(label: value, in: host.labelProfile) {
+                // The drum's extra entry is the current mode: selecting it sends nothing.
+                if let mode = ColorMode(label: value, in: host.labelProfile), mode != status.colorMode {
                     host.commit(.colorMode(mode), from: origin)
                 }
             case .shootingMode:

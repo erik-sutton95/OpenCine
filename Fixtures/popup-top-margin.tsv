@@ -1,0 +1,24 @@
+# Golden vectors for the one capture popup top margin, read by both shells.
+#
+# Rule: a capture popup keeps max(8, safe top + 8) from the top of the viewport, the bottom
+# drawer and the top-edge recording categories alike. Swift owns it in
+# `MonitorCapturePopupLayout.topMargin(safeTop:)` (points, `Sources/MonitorPresentation`);
+# Kotlin keeps the twin `MonitorLayoutPolicy.popupTopMargin` (dp, the same numbers, `Android/monitor-ui`).
+# `PopupTopMarginVectorTests` (Swift) and `PopupTopMarginVectorTest` (Kotlin) both read this file.
+#
+# margin	safeTop	expectedMargin
+margin	0	8
+margin	-6	8
+margin	12	20
+margin	20	28
+margin	24	32
+margin	47	55
+margin	59	67
+#
+# A landscape viewport: the bottom drawer and the top-edge popup both open at the margin.
+# landscape	width	height	safeTop	expectedTop
+landscape	667	375	0	8
+landscape	874	402	0	8
+landscape	932	430	0	8
+landscape	1133	744	24	32
+landscape	1366	1024	20	28

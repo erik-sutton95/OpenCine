@@ -26,6 +26,96 @@
             try XCTSkipUnless(active, "Unsupported native rendering fixture: the real app scene did not activate")
         }
 
+        func testStackedTargetsKeepTheirFloorWithoutMovingThePaintedLines() {
+            let frames = MonitorPortraitFormatStackLayout().frames(
+                lines: [CGSize(width: 150, height: 30), CGSize(width: 110, height: 15)])
+            XCTAssertEqual(frames.slots.count, 2)
+            let primary = frames.slots[0]
+            let detail = frames.slots[1]
+            XCTAssertGreaterThanOrEqual(primary.height, 44)
+            XCTAssertGreaterThanOrEqual(detail.height, 44)
+            XCTAssertEqual(primary.minY, -14, accuracy: 0.5,
+                "Only the touch target expands above the unchanged primary paint")
+            XCTAssertEqual(primary.maxY, 30, accuracy: 0.5)
+            XCTAssertEqual(detail.minY, 30, accuracy: 0.5)
+            XCTAssertFalse(primary.intersects(detail), "Independent targets must not overlap")
+            XCTAssertEqual(frames.size.height, 74, accuracy: 0.5)
+        }
+
+        func testProductionPowerFramesStayBoundedWithThePassiveViewportBackdrop() async throws {
+            for passiveBackdrop in [false, true] {
+                let fixture = try ProductionHeaderFixture(
+                    .init(width: 360, safeTop: 24, sideSafe: 20), passiveBackdrop: passiveBackdrop)
+                defer { fixture.close() }
+                try await fixture.assertBoundedPowerFrames(passiveBackdrop: passiveBackdrop)
+            }
+        }
+
+        func testLowSafeTopPortraitTargetsStayInsideViewportWithoutMovingPictureOrTelemetry() async throws {
+            guard UIDevice.current.userInterfaceIdiom == .pad else {
+                throw XCTSkip("SIMULATED low-safe-top tablet witness requires a private iPad")
+            }
+            let screen = UIScreen.main.bounds.size
+            let railLabels = ["SIMULATED production picture", "Storage remaining", "Phone battery", "Camera battery"]
+            let rowLabels = ["Standby", "Timecode 00:48:03:23", "Recording format", "Codec", "Color mode"]
+            let validSample = ProductionHeaderCase(width: min(screen.width, screen.height), safeTop: 24,
+                sideSafe: 0, height: max(screen.width, screen.height))
+            let validFrames: [String: CGRect]
+            do {
+                let fixture = try ProductionHeaderFixture(validSample)
+                defer { fixture.close() }
+                validFrames = try await fixture.nativeFrames(labels: rowLabels)
+            }
+            for safeTop in [CGFloat(0), 8, 24] {
+                let sample = ProductionHeaderCase(width: min(screen.width, screen.height), safeTop: safeTop,
+                    sideSafe: 0, height: max(screen.width, screen.height))
+                let reference: [String: CGRect]
+                do {
+                    let fixture = try ProductionHeaderFixture(sample, codecOnly: true)
+                    defer { fixture.close() }
+                    reference = try await fixture.nativeFrames(labels: railLabels)
+                }
+                let fixture = try ProductionHeaderFixture(sample)
+                defer { fixture.close() }
+                let frames = try await fixture.nativeFrames(labels: railLabels + rowLabels)
+                let viewport = CGRect(x: 0, y: 0, width: sample.width, height: sample.height)
+                // Derive the expected obstruction from a genuinely unobstructed native reference.
+                // Neither this oracle nor production reads an already-shifted target back as input.
+                let rawDelta = safeTop - validSample.safeTop
+                let unshiftedTop = try XCTUnwrap(validFrames["Recording format"]).minY + rawDelta
+                let minimumClearance = max(0, -unshiftedTop)
+                for label in rowLabels {
+                    let frame = try XCTUnwrap(frames[label]); let original = try XCTUnwrap(validFrames[label])
+                    XCTAssertEqual(frame.minY, original.minY + rawDelta + minimumClearance, accuracy: 0.5,
+                        "Only the minimum measured clearance moves the entire status row: \(label)")
+                    XCTAssertEqual(frame.minX, original.minX, accuracy: 0.5)
+                    XCTAssertEqual(frame.width, original.width, accuracy: 0.5)
+                    XCTAssertEqual(frame.height, original.height, accuracy: 0.5)
+                }
+                for label in ["Recording format", "Codec", "Color mode"] {
+                    let frame = try XCTUnwrap(frames[label])
+                    XCTAssertTrue(viewport.insetBy(dx: -0.5, dy: -0.5).contains(frame),
+                        "The complete original target must fit the low-safe-top viewport: \(label) \(frame)")
+                    XCTAssertGreaterThanOrEqual(frame.width, 44 - monitorFloorMeasurementTolerance)
+                    XCTAssertGreaterThanOrEqual(frame.height, 44 - monitorFloorMeasurementTolerance)
+                }
+                let format = try XCTUnwrap(frames["Recording format"])
+                for label in ["Codec", "Color mode"] {
+                    XCTAssertLessThanOrEqual(format.maxY, try XCTUnwrap(frames[label]).minY + 0.5)
+                }
+                XCTAssertEqual(try XCTUnwrap(frames["Standby"]).minY,
+                    try XCTUnwrap(frames["Timecode 00:48:03:23"]).minY, accuracy: 0.5)
+                for label in railLabels {
+                    let actual = try XCTUnwrap(frames[label]); let original = try XCTUnwrap(reference[label])
+                    for (value, expected) in zip([actual.minX, actual.minY, actual.width, actual.height],
+                        [original.minX, original.minY, original.width, original.height]) {
+                        XCTAssertEqual(value, expected, accuracy: 0.5,
+                            "Status target clearance must not move the independent \(label)")
+                    }
+                }
+            }
+        }
+
         func testPortraitPrimaryReadoutTopsShareOneNativeAnchor() async throws {
             for safeTop in Self.safeTops {
                 let layout = FieldMonitorLayout(width: 440, height: 956, safeArea: .init(top: Double(safeTop)))
@@ -42,6 +132,100 @@
                     clock.accessibilityFrame.minY, format.accessibilityFrame.minY, accuracy: 0.5)
                 XCTAssertEqual(clock.accessibilityFrame.minY, layout.status.y, accuracy: 0.5)
                 try fixture.attachRenderedProof(nodes: nodes, safeTop: safeTop)
+            }
+        }
+
+        func testExplicitTelemetryMetricsKeepNativeDimensionsAndPhoneTabletTypography() throws {
+            let samples: [(String, MonitorTelemetryMetrics?, CGFloat)] = [
+                ("Declared phone gauge", .phone, 20),
+                ("Declared tablet gauge", .tablet, 80),
+                ("Default native gauge", nil, 140),
+            ]
+            let fixture = try HeaderWindow(rootView: AnyView(
+                ZStack(alignment: .topLeading) {
+                    ForEach(samples.indices, id: \.self) { index in
+                        let sample = samples[index]
+                        MonitorOperatorTelemetry<MonitorDefaultLivePalette>.gauge(
+                            icon: .smartphone, value: "100%", bars: 0, color: .white,
+                            metrics: sample.1)
+                            .accessibilityLabel(sample.0).offset(x: 16, y: sample.2)
+                    }
+                    Text("100%").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                        .accessibilityLabel("Phone font reference").offset(x: 160, y: 20)
+                    Text("100%").font(MonitorTheme.font(11, weight: .semibold)).monospacedDigit()
+                        .accessibilityLabel("Tablet font reference").offset(x: 160, y: 80)
+                    MonitorOperatorTelemetry<MonitorDefaultLivePalette>(
+                        fps: nil, signalBars: nil,
+                        camera: .init(id: "camera", title: "Camera battery", camera: true, percent: 100),
+                        horizontal: true, showsLink: false, metrics: .phone)
+                        .accessibilityElement(children: .ignore).accessibilityLabel("Declared phone power")
+                        .offset(x: 16, y: 200)
+                    MonitorOperatorTelemetry<MonitorDefaultLivePalette>(
+                        fps: nil, signalBars: nil,
+                        camera: .init(id: "camera", title: "Camera battery", camera: true, percent: 100),
+                        horizontal: true, showsLink: false, metrics: .tablet)
+                        .accessibilityElement(children: .ignore).accessibilityLabel("Declared tablet power")
+                        .offset(x: 16, y: 260)
+                }.frame(width: 320, height: 400, alignment: .topLeading)
+                    .foregroundStyle(.white).background(.black).ignoresSafeArea()),
+                size: CGSize(width: 320, height: 400))
+            defer { fixture.close() }
+            let image = try fixture.renderedImage()
+            let picture = XCTAttachment(image: image)
+            let pictureName = "SIMULATED explicit phone and tablet telemetry metrics"
+            picture.name = pictureName
+            picture.lifetime = .keepAlways
+            XCTContext.runActivity(named: pictureName) { $0.add(picture) }
+            let raster = try HeaderRaster(image)
+            let nodes = fixture.nodes()
+            func frame(_ label: String) throws -> CGRect {
+                let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label })
+                return fixture.window.convert(node.accessibilityFrame, from: nil)
+            }
+            let phoneReference = try raster.inkBounds(in: frame("Phone font reference"))
+            let tabletReference = try raster.inkBounds(in: frame("Tablet font reference"))
+            XCTAssertGreaterThan(tabletReference.width, phoneReference.width + 1,
+                "The native 11pt reference must distinguish a tablet reduction to 10pt")
+            var measurements: [[String: Any]] = []
+            for sample in samples {
+                let tablet = sample.1 == .tablet
+                    || (sample.1 == nil && UIDevice.current.userInterfaceIdiom == .pad)
+                let native = try frame(sample.0)
+                XCTAssertEqual(native.width, tablet ? 64 : 58, accuracy: 0.5)
+                XCTAssertEqual(native.height, tablet ? 22 : 20, accuracy: 0.5)
+                let textInset: CGFloat = tablet ? 22 : 21
+                let text = try raster.inkBounds(in: CGRect(
+                    x: native.minX + textInset, y: native.minY,
+                    width: native.width - textInset - 6, height: native.height))
+                let reference = tablet ? tabletReference : phoneReference
+                XCTAssertEqual(text.width, reference.width, accuracy: 1,
+                    "Explicit metrics must retain their actual native font, not a scaled tablet")
+                XCTAssertEqual(text.height, reference.height, accuracy: 1)
+                measurements.append([
+                    "label": sample.0, "tablet": tablet,
+                    "nativeFrame": [native.minX, native.minY, native.width, native.height],
+                    "textInkPixels": [text.minX, text.minY, text.width, text.height],
+                    "referenceInkPixels": [reference.minX, reference.minY, reference.width, reference.height],
+                ])
+            }
+            for (label, width, height) in [
+                ("Declared phone power", CGFloat(122), CGFloat(20)),
+                ("Declared tablet power", 134, 22),
+            ] {
+                let native = try frame(label)
+                XCTAssertEqual(native.width, width, accuracy: 0.5)
+                XCTAssertEqual(native.height, height, accuracy: 0.5)
+                measurements.append([
+                    "label": label,
+                    "nativeFrame": [native.minX, native.minY, native.width, native.height],
+                ])
+            }
+            let metrics = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
+                "scale": image.scale, "measurements": measurements,
+            ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+            metrics.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED native telemetry dimensions and typography") {
+                $0.add(metrics)
             }
         }
 
@@ -87,6 +271,8 @@
         var window: UIWindow { native.window }
         var host: UIHostingController<AnyView> { native.host }
         init(width: CGFloat, layout: FieldMonitorLayout, storage: String) throws {
+            // These synthetic phone canvases declare phone metrics even on a native iPad host.
+            let metrics = MonitorTelemetryMetrics.phone
             let chrome = MonitorStatusChrome(
                 layout: layout, status: .init(recording: false, timecode: "01:23:45:59"),
                 storage: {
@@ -105,8 +291,8 @@
                 }, color: { EmptyView() }, mode: { EmptyView() },
                 link: {
                     MonitorOperatorTelemetry<MonitorDefaultLivePalette>.gauge(
-                        icon: .signal, value: "25 fps", bars: 4, color: .white)
-                        .frame(width: 58, height: 22).accessibilityLabel("Performance")
+                        icon: .signal, value: "25 fps", bars: 4, color: .white, metrics: metrics)
+                        .accessibilityLabel("Performance")
                 })
             native = try HeaderWindow(
                 rootView: AnyView(
@@ -117,7 +303,7 @@
                             fps: nil, signalBars: nil,
                             camera: .init(id: "camera", title: "Camera battery", camera: true,
                                 bars: 5, barCount: 5),
-                            horizontal: true, showsLink: false)
+                            horizontal: true, showsLink: false, metrics: metrics)
                             .frame(width: CGFloat(layout.telemetry.width), height: 22)
                             .accessibilityElement(children: .ignore).accessibilityLabel("Power")
                             .offset(x: CGFloat(layout.telemetry.x), y: CGFloat(layout.telemetry.y))
@@ -493,6 +679,8 @@
         var formatCalls = 0
         var codecCalls = 0
         var colorCalls = 0
+        var storageValue = "107 GB"
+        var motionCovering = false
         var usage = MonitorToolUsage()
         var note: String?
         var portraitAspect = PortraitFeedAspect.fit16x9
@@ -539,6 +727,9 @@
     private struct ProductionHeaderSurface: View {
         @Bindable var probe: ProductionHeaderProbe
         let live: LiveMonitorLayout
+        var telemetryMetrics: MonitorTelemetryMetrics? = nil
+        var testsMotionVisibility = false
+        var cameraBatteryOverride: MonitorOperatorPowerReading? = nil
         private var readouts: [MonitorOperatorLiveReadout<String, MonitorDisplayChrome.Section>] {
             if probe.codecOnly {
                 return [.init(id: "compression", title: "Codec", value: "R3D NE", section: .codec,
@@ -562,19 +753,22 @@
                         flipped: false, recovering: false) },
                     status: {
                         .init(recording: probe.status, showsTimecode: true, showsRecording: true,
-                            storage: .init(id: "storage", title: "Storage remaining", value: "107 GB"),
+                            storage: .init(id: "storage", title: "Storage remaining", value: probe.storageValue),
                             format: readouts, fps: "25 fps", signalBars: 4,
                             color: probe.codecOnly ? nil : .init(id: "color", title: "Color mode", value: "D-Log2",
                                 action: { probe.colorCalls += 1 }, quickEnabled: false))
                     }, cameraBattery: {
-                        .init(id: "camera", title: "Camera battery", camera: true, percent: 68)
+                        cameraBatteryOverride ?? .init(id: "camera", title: "Camera battery", camera: true, percent: 68)
                     }, capture: { .init(readouts: [], haptics: false, open: { _ in }, dismiss: {}) },
                     record: { .init(photo: false, confirm: false, busy: false, openMode: nil, external: nil) },
                     exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false },
                     returnToStage: nil, coverOpen: { false }, note: $probe.note, settings: {}, media: {}),
                 assists: .init(scopes: nil, tools: { [] }, rendered: { nil }, fitted: { [] },
                     signalOptions: .init(), usage: $probe.usage, usageSeed: [:], toggle: { _ in }),
-                views: .init(), portraitAspect: $probe.portraitAspect,
+                views: .init(motion: testsMotionVisibility ? .init(
+                    controls: AnyView(EmptyView()), editor: AnyView(EmptyView()),
+                    feedback: AnyView(EmptyView()), dimmed: false, covering: probe.motionCovering) : nil),
+                portraitAspect: $probe.portraitAspect, telemetryMetrics: telemetryMetrics,
                 picture: {
                     Color.green.accessibilityElement(children: .ignore)
                         .accessibilityLabel("SIMULATED production picture")
@@ -591,20 +785,89 @@
         private let native: HeaderWindow
         private let sample: ProductionHeaderCase
         private let live: LiveMonitorLayout
-        init(_ sample: ProductionHeaderCase, codecOnly: Bool = false) throws {
+        init(_ sample: ProductionHeaderCase, codecOnly: Bool = false, passiveBackdrop: Bool = false) throws {
             self.sample = sample
             probe = try ProductionHeaderProbe(codecOnly: codecOnly)
             live = LiveMonitorLayout.fieldMonitor(size: CGSize(width: sample.width, height: sample.height),
                 safeArea: EdgeInsets(top: sample.safeTop, leading: sample.sideSafe, bottom: 0,
                     trailing: sample.sideSafe), sourceAspect: 16 / 9, fill: false,
                 showsValues: false, showsBottomBars: false)
+            let size = CGSize(width: sample.width, height: sample.height)
+            let bounds = CGRect(origin: .zero, size: size)
+            let backdrop: MonitorBackdropSnapshot?
+            if passiveBackdrop {
+                let source = UIGraphicsImageRenderer(size: size).image { context in
+                    UIColor.green.setFill()
+                    context.fill(bounds)
+                }
+                let bitmap = try XCTUnwrap(source.cgImage)
+                backdrop = MonitorBackdropSnapshot(canvasSize: size,
+                    images: Dictionary(uniqueKeysWithValues: MonitorGlassDensity.allCases.map { ($0, bitmap) }))
+            } else {
+                backdrop = nil
+            }
             native = try HeaderWindow(rootView: AnyView(
-                ProductionHeaderSurface(probe: probe, live: live).background(.black).ignoresSafeArea()),
-                size: CGSize(width: sample.width, height: sample.height))
+                ProductionHeaderSurface(probe: probe, live: live).background(.black).ignoresSafeArea()
+                    .monitorBackdrop(backdrop, in: bounds)), size: size)
         }
         func close() {
             native.close(); probe.control.unbind()
             probe.storage.removePersistentDomain(forName: probe.storageName)
+        }
+        func nativeFrames(labels: [String]) async throws -> [String: CGRect] {
+            var nodes: [NSObject] = []
+            let ready = await HostedCondition.wait {
+                native.host.view.setNeedsLayout(); native.host.view.layoutIfNeeded()
+                nodes = native.nodes()
+                return labels.allSatisfy { label in nodes.contains { $0.accessibilityLabel == label } }
+            }
+            XCTAssertTrue(ready, "SIMULATED production header must publish every requested native field")
+            let frames = try Dictionary(uniqueKeysWithValues: labels.map { label in
+                let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label })
+                return (label, native.window.convert(node.accessibilityFrame, from: nil))
+            })
+            let picture = XCTAttachment(image: try native.renderedImage())
+            picture.name = "SIMULATED low-safe-top production header \(sample.safeTop) codec-only \(probe.codecOnly)"
+            picture.lifetime = .keepAlways
+            let geometry = XCTAttachment(string: frames.sorted { $0.key < $1.key }
+                .map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
+            geometry.name = "SIMULATED low-safe-top original native targets and independent rails"
+            geometry.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED low-safe-top production containment") {
+                $0.add(picture); $0.add(geometry)
+            }
+            return frames
+        }
+        func assertBoundedPowerFrames(passiveBackdrop: Bool) async throws {
+            var nodes: [NSObject] = []
+            let telemetry = try XCTUnwrap(live.presentation).telemetry
+            let bandBottom = CGFloat(telemetry.y + telemetry.height)
+            let bounded = await HostedCondition.wait {
+                native.host.view.setNeedsLayout(); native.host.view.layoutIfNeeded()
+                nodes = native.nodes()
+                return ["Camera battery", "Phone battery"].allSatisfy { label in
+                    guard let node = nodes.first(where: { $0.accessibilityLabel == label }) else { return false }
+                    let frame = native.window.convert(node.accessibilityFrame, from: nil)
+                    return frame.width > 0 && frame.height > 0 && frame.width < sample.width / 2
+                        && frame.maxY <= bandBottom + 0.5
+                        && native.window.bounds.contains(frame)
+                }
+            }
+            let picture = XCTAttachment(image: try native.renderedImage())
+            picture.name = "SIMULATED native power passive backdrop \(passiveBackdrop)"
+            picture.lifetime = .keepAlways
+            let geometry = XCTAttachment(string: nodes.map {
+                "\($0.accessibilityLabel ?? "unlabelled"): \($0.accessibilityFrame)"
+            }.joined(separator: "\n"))
+            geometry.name = "SIMULATED native power frames passive backdrop \(passiveBackdrop)"
+            geometry.lifetime = .keepAlways
+            XCTContext.runActivity(named: "Actual foreground power and decorative backdrop geometry") {
+                $0.add(picture); $0.add(geometry)
+            }
+            XCTAssertTrue(bounded,
+                "Both native power semantics must stay in their telemetry band, never the viewport")
+            let camera = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Camera battery" })
+            XCTAssertEqual(camera.accessibilityValue, "68 percent")
         }
         @discardableResult
         func assertCompleteRow() async throws -> [CGFloat] {
@@ -670,7 +933,6 @@
             metrics.lifetime = .keepAlways
             XCTContext.runActivity(named: "SIMULATED actual production long composition") { $0.add(photo); $0.add(metrics) }
             XCTAssertEqual(recording.accessibilityFrame.minY, clock.accessibilityFrame.minY, accuracy: 0.5)
-            XCTAssertEqual(clock.accessibilityFrame.minY, format.accessibilityFrame.minY, accuracy: 0.5)
             XCTAssertEqual(clock.accessibilityFrame.minY, live.presentation!.status.y, accuracy: 0.5)
             XCTAssertEqual(format.accessibilityValue, "[FX] 6K · 25p")
             XCTAssertEqual(color.accessibilityValue, "D-Log2")
@@ -695,15 +957,22 @@
                     floorPixels,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt native width target")
                 XCTAssertGreaterThanOrEqual(
+                    frame.width, 44 - monitorFloorMeasurementTolerance,
+                    "\(target.accessibilityLabel ?? "target") keeps its 44pt width target")
+                // Stacked targets tile: the primary ends where the detail line begins (no tap
+                // lands on two readouts); the detail line keeps the full 44pt height.
+                XCTAssertGreaterThanOrEqual(
                     latticePixelExtent(from: frame.minY, to: frame.maxY, scale: image.scale),
                     floorPixels,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt native height target")
                 XCTAssertGreaterThanOrEqual(
-                    frame.width, 44 - monitorFloorMeasurementTolerance,
-                    "\(target.accessibilityLabel ?? "target") keeps its 44pt width target")
-                XCTAssertGreaterThanOrEqual(
                     frame.height, 44 - monitorFloorMeasurementTolerance,
                     "\(target.accessibilityLabel ?? "target") keeps its 44pt height target")
+            }
+            for detail in [codec, color] {
+                XCTAssertLessThanOrEqual(
+                    format.accessibilityFrame.maxY, detail.accessibilityFrame.minY + 0.5,
+                    "The primary target never overlaps \(detail.accessibilityLabel ?? "the detail line")")
             }
             // STBY/REC, the clock and the primary share the status row's top edge; codec and
             // color stack on the detail line under the primary.
@@ -713,7 +982,7 @@
                 XCTAssertLessThanOrEqual(target.accessibilityFrame.maxX,
                     live.presentation!.status.x + live.presentation!.status.width + 0.5)
             }
-            for target in row {
+            for target in [recording, clock] {
                 XCTAssertEqual(target.accessibilityFrame.minY, live.presentation!.status.y, accuracy: 0.5)
             }
             XCTAssertEqual(codec.accessibilityFrame.minY, color.accessibilityFrame.minY, accuracy: 0.5)
@@ -731,14 +1000,17 @@
             for target in [recording, clock, format, color, codec] {
                 _ = try raster.inkBounds(in: native.window.convert(target.accessibilityFrame, from: nil))
             }
-            // The primary's target reaches under its glyphs into the detail line; measure its ink above it.
-            let formatGlyphs = CGRect(x: format.accessibilityFrame.minX, y: format.accessibilityFrame.minY,
-                width: format.accessibilityFrame.width,
-                height: codec.accessibilityFrame.minY - format.accessibilityFrame.minY)
+            // Locate the actual text inside the full target, including its upward expansion.
+            // The selection follows recognized paint, never an assumed clock/status y.
+            let formatGlyphs = try primaryPaintFrame(image, target: format.accessibilityFrame)
             let nativeHeights = try [clock.accessibilityFrame, formatGlyphs, codec.accessibilityFrame,
                 color.accessibilityFrame].map {
                 try raster.inkBounds(in: native.window.convert($0, from: nil)).height
             }
+            let primaryInk = try raster.inkBounds(in: native.window.convert(formatGlyphs, from: nil))
+            let clockInk = try raster.inkBounds(in: native.window.convert(clock.accessibilityFrame, from: nil))
+            XCTAssertEqual(primaryInk.minY, clockInk.minY, accuracy: 2 * image.scale,
+                "The actual primary paint keeps the original clock alignment allowance")
             let references = try await nativeFontReferences()
             for (actual, lower, upper) in [(nativeHeights[0], references[0], references[1]),
                 (nativeHeights[1], references[2], references[3]), (nativeHeights[2], references[4], references[5]),
@@ -798,17 +1070,19 @@
             // One top edge for STBY/REC, the clock and the resolution and frame rate.
             XCTAssertEqual(recording.minY, field.status.y, accuracy: 0.5, context)
             XCTAssertEqual(clock.minY, field.status.y, accuracy: 0.5, context)
-            XCTAssertEqual(format.minY, field.status.y, accuracy: 0.5, context)
             // Codec and color share the line under the primary, never beside it.
             XCTAssertEqual(codec.minY, color.minY, accuracy: 0.5, context)
-            XCTAssertGreaterThan(codec.minY, format.minY + 8, context)
-            XCTAssertLessThan(codec.minY, format.minY + 44, "The detail line sits under the primary glyphs \(context)")
+            XCTAssertGreaterThan(codec.minY, clock.minY + 8, context)
+            XCTAssertLessThan(codec.minY, clock.minY + 44, "The detail line sits under the primary glyphs \(context)")
             XCTAssertLessThanOrEqual(codec.maxX, color.minX + 0.5, "Codec then color \(context)")
             // One trailing edge for the column, inside the status row.
             XCTAssertEqual(color.maxX, format.maxX, accuracy: 0.5, context)
             XCTAssertGreaterThanOrEqual(clock.minX, recording.maxX - 0.5, context)
             XCTAssertLessThanOrEqual(clock.maxX, min(format.minX, codec.minX) + 0.5, context)
             XCTAssertLessThanOrEqual(format.maxX, field.status.x + field.status.width + 0.5, context)
+            // The targets tile: the primary ends where the detail line begins, so no tap lands on
+            // two readouts, and the detail line keeps the full 44pt target.
+            XCTAssertLessThanOrEqual(format.maxY, codec.minY + 0.5, "No overlapping targets \(context)")
             for target in [format, codec, color] {
                 XCTAssertGreaterThanOrEqual(target.width, 44 - monitorFloorMeasurementTolerance, context)
                 XCTAssertGreaterThanOrEqual(target.height, 44 - monitorFloorMeasurementTolerance, context)
@@ -822,13 +1096,14 @@
                 XCTContext.runActivity(named: "SIMULATED stacked portrait format group") { $0.add(photo) }
                 let raster = try HeaderRaster(image)
                 let primaryInk = try raster.inkBounds(in: native.window.convert(
-                    CGRect(x: format.minX, y: format.minY, width: format.width, height: codec.minY - format.minY),
-                    from: nil))
+                    primaryPaintFrame(image, target: format), from: nil))
                 let detailInk = try raster.inkBounds(in: native.window.convert(
                     CGRect(x: codec.minX, y: codec.minY, width: color.maxX - codec.minX, height: codec.height),
                     from: nil))
                 let clockInk = try raster.inkBounds(in: native.window.convert(clock, from: nil))
                 XCTAssertLessThan(primaryInk.maxY, detailInk.minY, context)
+                XCTAssertLessThanOrEqual((detailInk.minY - primaryInk.maxY) / image.scale, 8,
+                    "The actual detail glyphs stay directly below the primary \(context)")
                 XCTAssertEqual(primaryInk.minY, clockInk.minY, accuracy: 2 * image.scale,
                     "Resolution and frame rate paint from the clock's top edge \(context)")
             }
@@ -951,6 +1226,29 @@
                 try raster.inkBounds(in: CGRect(x: 16, y: CGFloat(40 + index * 60), width: 288, height: 48)).height
             }
         }
+        /// Find the primary's actual painted line anywhere inside its complete target. A moved
+        /// line is measured where it really appears; no status-row y is used to trim its paint.
+        private func primaryPaintFrame(_ image: UIImage, target: CGRect) throws -> CGRect {
+            let frame = native.window.convert(target, from: nil)
+            let pixels = CGRect(x: floor(frame.minX * image.scale), y: floor(frame.minY * image.scale),
+                width: ceil(frame.maxX * image.scale) - floor(frame.minX * image.scale),
+                height: ceil(frame.maxY * image.scale) - floor(frame.minY * image.scale))
+            let tokens = try Self.paintedTokens(image, pixels: pixels)
+            let anchor = try XCTUnwrap(tokens.first { $0.0.contains("25p") },
+                "The complete original primary must be recognized inside its full native target")
+            let line = tokens.filter { $0.1.minY < anchor.1.maxY && $0.1.maxY > anchor.1.minY }
+                .map(\.1).reduce(CGRect.null) { $0.union($1) }
+            let measured = CGRect(x: pixels.minX, y: pixels.minY + (1 - line.maxY) * pixels.height,
+                width: pixels.width, height: line.height * pixels.height)
+            let evidence = XCTAttachment(string: "full target \(target); raw Vision \(tokens); actual primary line pixels \(measured)")
+            evidence.name = "SIMULATED primary paint located independently of touch expansion"
+            evidence.lifetime = .keepAlways
+            XCTContext.runActivity(named: "Full-target primary paint measurement") { $0.add(evidence) }
+            return UIAccessibility.convertToScreenCoordinates(
+                CGRect(x: measured.minX / image.scale, y: measured.minY / image.scale,
+                    width: measured.width / image.scale, height: measured.height / image.scale),
+                in: native.host.view)
+        }
         /// The text Vision reads in one native pixel field of a rendered image.
         private static func paintedTokens(_ image: UIImage, pixels: CGRect) throws -> [(String, CGRect)] {
             let crop = try XCTUnwrap(image.cgImage?.cropping(to: pixels), "Original native field crop")
@@ -1000,6 +1298,9 @@
             }.min()
             for (target, value) in zip(nodes, expected) {
                 var frame = native.window.convert(target.accessibilityFrame, from: nil)
+                if value == "[FX] 6K · 25p" {
+                    frame = native.window.convert(try primaryPaintFrame(image, target: target.accessibilityFrame), from: nil)
+                }
                 if let detailTop, frame.minY < detailTop, frame.maxY > detailTop {
                     frame.size.height = native.window.convert(
                         CGPoint(x: 0, y: detailTop), from: nil).y - frame.minY
@@ -1488,6 +1789,618 @@
             }
         }
     }
+    extension MonitorPortraitHeaderClearanceTests {
+        /// A product discriminator, separate from the declared-phone synthetic fixture.
+        func testProductionCompactTabletTelemetryUsesOccupiedNativeBounds() async throws {
+            guard UIDevice.current.userInterfaceIdiom == .pad else {
+                throw XCTSkip("SIMULATED compact-tablet production control requires a private iPad")
+            }
+            let reference = try HeaderWindow(
+                rootView: AnyView(
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("68%").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                            .accessibilityLabel("10pt reference")
+                        Text("68%").font(MonitorTheme.font(11, weight: .semibold)).monospacedDigit()
+                            .accessibilityLabel("11pt reference")
+                    }.foregroundStyle(MonitorDefaultLivePalette.good).padding(20)
+                        .frame(width: 320, height: 140, alignment: .topLeading)
+                        .background(.black).ignoresSafeArea()),
+                size: CGSize(width: 320, height: 140))
+            let referenceImage = try reference.renderedImage()
+            let referenceRaster = try HeaderRaster(referenceImage)
+            let referenceNodes = reference.nodes()
+            func referenceInk(_ label: String) throws -> CGRect {
+                let node = try XCTUnwrap(referenceNodes.first { $0.accessibilityLabel == label })
+                return try referenceRaster.greenGlyphBounds(
+                    in: reference.window.convert(node.accessibilityFrame, from: nil))
+            }
+            let phoneInk = try referenceInk("10pt reference")
+            let tabletInk = try referenceInk("11pt reference")
+            XCTAssertGreaterThan(
+                tabletInk.width, phoneInk.width + 1,
+                "The native references must distinguish an impermissible tablet font reduction")
+            let referenceAttachment = XCTAttachment(image: referenceImage)
+            referenceAttachment.name = "SIMULATED production control literal native font references"
+            referenceAttachment.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED production control font references") {
+                $0.add(referenceAttachment)
+            }
+            reference.close()
+            for width in [CGFloat(320), 360, 440] {
+                for value in ["\u{2014}", "107 GB", "123456789 GB"] {
+                    let fixture = try CompactTabletProductFixture(width: width, storage: value)
+                    defer { fixture.close() }
+                    try await fixture.assertOccupiedBounds(tabletReference: tabletInk)
+                }
+            }
+        }
+    }
 
+    @MainActor
+    private final class CompactTabletProductFixture {
+        private let probe: ProductionHeaderProbe
+        private let native: HeaderWindow
+        private let live: LiveMonitorLayout
+        private let observedSafeArea: UIEdgeInsets
 
+        init(width: CGFloat, storage: String) throws {
+            probe = try ProductionHeaderProbe()
+            probe.storageValue = storage
+            native = try HeaderWindow(
+                rootView: AnyView(Color.black), size: CGSize(width: width, height: 956))
+            // Sample the containing native window after its first draw, before mounting the
+            // product once. No supplied synthetic safe inset or hardware-derived canvas size.
+            _ = try native.renderedImage()
+            observedSafeArea = native.window.safeAreaInsets
+            live = LiveMonitorLayout.fieldMonitor(
+                size: native.window.bounds.size,
+                safeArea: EdgeInsets(
+                    top: observedSafeArea.top, leading: observedSafeArea.left,
+                    bottom: observedSafeArea.bottom, trailing: observedSafeArea.right),
+                sourceAspect: 16 / 9, fill: false, showsValues: false, showsBottomBars: false)
+            native.host.rootView = AnyView(
+                ProductionHeaderSurface(
+                    probe: probe, live: live,
+                    telemetryMetrics: .tablet
+                ).background(.black).ignoresSafeArea())
+        }
+
+        func close() {
+            native.close()
+            probe.control.unbind()
+            probe.storage.removePersistentDomain(forName: probe.storageName)
+        }
+
+        func assertOccupiedBounds(tabletReference: CGRect) async throws {
+            var nodes: [NSObject] = []
+            let ready = await HostedCondition.wait {
+                native.host.view.setNeedsLayout()
+                native.host.view.layoutIfNeeded()
+                nodes = native.nodes()
+                return ["Storage remaining", "Phone battery", "Camera battery"].allSatisfy {
+                    label in
+                    nodes.contains {
+                        $0.accessibilityLabel == label && $0.accessibilityFrame.width > 0
+                    }
+                } && nodes.contains { HostedAccessibility.identifier($0) == "monitor.telemetry.signal" }
+            }
+            XCTAssertTrue(
+                ready, "The actual shared production body must publish its native telemetry")
+            let image = try native.renderedImage()
+            nodes = native.nodes()
+            func node(_ label: String) throws -> NSObject {
+                try XCTUnwrap(nodes.first { $0.accessibilityLabel == label })
+            }
+            func frame(_ value: NSObject) -> CGRect {
+                native.window.convert(value.accessibilityFrame, from: nil)
+            }
+            func coordinates(_ rect: CGRect) -> [CGFloat] {
+                [rect.minX, rect.minY, rect.width, rect.height]
+            }
+            let storage = try node("Storage remaining")
+            let link = try XCTUnwrap(
+                nodes.first { HostedAccessibility.identifier($0) == "monitor.telemetry.signal" })
+            let phone = try node("Phone battery")
+            let camera = try node("Camera battery")
+            let storageFrame = frame(storage)
+            let linkFrame = frame(link)
+            let phoneFrame = frame(phone)
+            let cameraFrame = frame(camera)
+            let pictureName =
+                "SIMULATED actual compact tablet \(image.size.width) storage \(probe.storageValue)"
+            let picture = XCTAttachment(image: image)
+            picture.name = pictureName
+            picture.lifetime = .keepAlways
+            let facts: [String: Any] = [
+                "storageInput": probe.storageValue, "declaredMetrics": "tablet64x22/11pt",
+                "hardwareIdiom": UIDevice.current.userInterfaceIdiom.rawValue,
+                "windowTraitIdiom": native.window.traitCollection.userInterfaceIdiom.rawValue,
+                "horizontalSizeClass": native.window.traitCollection.horizontalSizeClass.rawValue,
+                "windowBounds": coordinates(native.window.bounds), "scale": image.scale,
+                "observedSafeArea": [
+                    observedSafeArea.top, observedSafeArea.left,
+                    observedSafeArea.bottom, observedSafeArea.right,
+                ],
+                "currentSafeArea": [
+                    native.window.safeAreaInsets.top, native.window.safeAreaInsets.left,
+                    native.window.safeAreaInsets.bottom, native.window.safeAreaInsets.right,
+                ],
+                "nativeNodes": nodes.map {
+                    [
+                        "label": $0.accessibilityLabel ?? "", "value": $0.accessibilityValue ?? "",
+                        "identifier": HostedAccessibility.identifier($0) ?? "",
+                        "frame": coordinates(frame($0)),
+                    ] as [String: Any]
+                },
+                "storageLinkGap": linkFrame.minX - storageFrame.maxX,
+                "linkPowerGap": phoneFrame.minX - linkFrame.maxX,
+            ]
+            let geometry = XCTAttachment(
+                data: try JSONSerialization.data(
+                    withJSONObject: facts,
+                    options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+            geometry.name = pictureName + " original full AX and native window facts"
+            geometry.lifetime = .keepAlways
+            XCTContext.runActivity(named: pictureName) {
+                $0.add(picture)
+                $0.add(geometry)
+            }
+
+            // Preserve original native facts even when a clearance/target assertion is red.
+            XCTAssertEqual(storage.accessibilityValue, probe.storageValue)
+            XCTAssertLessThanOrEqual(storageFrame.maxX + 8, linkFrame.minX + 0.5)
+            XCTAssertLessThanOrEqual(linkFrame.maxX + 8, phoneFrame.minX + 0.5)
+            for target in [storageFrame, linkFrame] {
+                XCTAssertGreaterThanOrEqual(target.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(target.height, 44 - monitorFloorMeasurementTolerance)
+            }
+            for target in [storageFrame, linkFrame, phoneFrame, cameraFrame] {
+                XCTAssertGreaterThanOrEqual(target.minX, observedSafeArea.left - 0.5)
+                XCTAssertLessThanOrEqual(
+                    target.maxX, image.size.width - observedSafeArea.right + 0.5)
+                XCTAssertGreaterThanOrEqual(target.minY, -0.5)
+                XCTAssertLessThanOrEqual(target.maxY, image.size.height + 0.5)
+            }
+            for target in [phoneFrame, cameraFrame] {
+                XCTAssertEqual(target.width, 64, accuracy: 0.5)
+                XCTAssertEqual(target.height, 22, accuracy: 0.5)
+            }
+            XCTAssertEqual(cameraFrame.maxX - phoneFrame.minX, 134, accuracy: 0.5)
+            let raster = try HeaderRaster(image)
+            let actualInk = try raster.greenGlyphBounds(
+                in: CGRect(
+                    x: cameraFrame.minX + 22,
+                    y: cameraFrame.minY, width: cameraFrame.width - 28, height: cameraFrame.height))
+            XCTAssertEqual(
+                actualInk.width, tabletReference.width, accuracy: 1,
+                "The actual product camera value must retain native 11pt glyphs")
+            XCTAssertEqual(actualInk.height, tabletReference.height, accuracy: 1)
+            // The real storage button includes its original 12pt card icon and 5pt gap.
+            // Crop only its text line, excluding the independent status row below it.
+            let text = CGRect(
+                x: storageFrame.minX + 17, y: storageFrame.midY - 11,
+                width: max(1, storageFrame.width - 17), height: 22)
+            let pixels = CGRect(
+                x: floor(text.minX * image.scale), y: floor(text.minY * image.scale),
+                width: ceil(text.maxX * image.scale) - floor(text.minX * image.scale),
+                height: ceil(text.maxY * image.scale) - floor(text.minY * image.scale))
+            let crop = try XCTUnwrap(image.cgImage?.cropping(to: pixels))
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = false
+            request.recognitionLanguages = ["en-US"]
+            try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
+            let tokens = (request.results ?? []).sorted {
+                $0.boundingBox.minX < $1.boundingBox.minX
+            }
+            .compactMap { $0.topCandidates(1).first?.string }
+            let recognized = tokens.joined(separator: " ")
+            let paint = XCTAttachment(
+                data: try JSONSerialization.data(
+                    withJSONObject: [
+                        "storageInput": probe.storageValue, "textCropPixels": coordinates(pixels),
+                        "rawVisionTokens": tokens, "recognized": recognized,
+                        "cameraGlyphPixels": coordinates(actualInk),
+                        "literal11ptPixels": coordinates(tabletReference),
+                    ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+            paint.name = pictureName + " original glyph and raw storage OCR"
+            paint.lifetime = .keepAlways
+            XCTContext.runActivity(named: pictureName + " original paint") { $0.add(paint) }
+            if probe.storageValue != "\u{2014}",
+                image.size.width >= 360 || probe.storageValue == "107 GB"
+            {
+                XCTAssertEqual(
+                    recognized, probe.storageValue,
+                    "The original complete storage value must stay visibly complete at this width")
+            }
+        }
+    }
+
+    extension HeaderRaster {
+        /// Native green text uses channel1 in both RGBA and BGRA; white icons are excluded.
+        fileprivate func greenGlyphBounds(in rect: CGRect) throws -> CGRect {
+            XCTAssertTrue(CGRect(origin: .zero, size: image.size).contains(rect))
+            let left = max(0, Int(floor(rect.minX * image.scale)))
+            let right = min(cg.width, Int(ceil(rect.maxX * image.scale)))
+            let top = max(0, Int(floor(rect.minY * image.scale)))
+            let bottom = min(cg.height, Int(ceil(rect.maxY * image.scale)))
+            guard left < right, top < bottom else {
+                throw NSError(domain: "NativeProductGreenGlyphs", code: 2)
+            }
+            var minX = right
+            var maxX = left - 1
+            var minY = bottom
+            var maxY = top - 1
+            var count = 0
+            for y in top..<bottom {
+                for x in left..<right {
+                    let offset = y * cg.bytesPerRow + x * 4
+                    if data[offset + 1] >= 160 && data[offset] < 160 && data[offset + 2] < 160
+                        && data[offset + 3] >= 160
+                    {
+                        count += 1
+                        minX = min(minX, x)
+                        maxX = max(maxX, x)
+                        minY = min(minY, y)
+                        maxY = max(maxY, y)
+                    }
+                }
+            }
+            guard count > 0 else { throw NSError(domain: "NativeProductGreenGlyphs", code: 1) }
+            XCTAssertLessThan(
+                Double(count) / Double((right - left) * (bottom - top)), 0.8,
+                "A solid green picture cannot stand in for the native tablet value glyphs")
+            return CGRect(
+                x: CGFloat(minX), y: CGFloat(minY),
+                width: CGFloat(maxX - minX + 1), height: CGFloat(maxY - minY + 1))
+        }
+    }
+
+    extension MonitorPortraitHeaderClearanceTests {
+        /// SIMULATED: the original6.5pt counterexample must now meet the full native contract.
+        func testOriginalPaddingOnlyCounterexampleNowMeetsNativeClearance() async throws {
+            try await assertDeclaredGaugeScenarios(counts: [100])
+        }
+
+        /// SIMULATED: full native count glyphs and occupied action gaps, including the declared integer bound.
+        func testCompactDeclaredGaugesKeepFullFontAndOccupiedClearance() async throws {
+            try await assertDeclaredGaugeScenarios(counts: [Int(Int32.max), Int.max])
+        }
+
+        private func assertDeclaredGaugeScenarios(counts: [Int]) async throws {
+            guard UIDevice.current.userInterfaceIdiom == .pad else {
+                throw XCTSkip("SIMULATED declared-gauge tablet metric proof requires a private iPad")
+            }
+            for count in counts {
+                let reference = try HeaderWindow(rootView: AnyView(
+                    Text(verbatim: "\(count)/\(count)").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(.white).padding(20)
+                        .frame(width: 320, height: 80, alignment: .topLeading)
+                        .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
+                let image = try reference.renderedImage()
+                let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
+                reference.close()
+                let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
+                defer { fixture.close() }
+                try await fixture.assertDeclaredGaugeFits(filled: count, count: count, literalInk: ink)
+            }
+        }
+
+        /// SIMULATED: changing only the inset must update the measured occupied boundary.
+        func testCompactDeclaredGaugeRetainsClearanceWhenSafeTopChanges() async throws {
+            let reference = try HeaderWindow(rootView: AnyView(
+                Text(verbatim: "100/100").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(.white).padding(20)
+                    .frame(width: 320, height: 80, alignment: .topLeading)
+                    .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
+            let image = try reference.renderedImage()
+            let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
+            reference.close()
+            let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
+            defer { fixture.close() }
+            for top: CGFloat in [0, 64, 84, 0] {
+                try await fixture.assertDeclaredGaugeFits(filled: 100, count: 100, literalInk: ink, safeTop: top)
+            }
+        }
+
+        /// SIMULATED actual negative paint controls calibrate the same dense-count raster oracle.
+        func testDeclaredGaugeInkOracleRejectsSmallerFontAndShortenedValue() throws {
+            var samples: [CGRect] = []
+            for (value, size) in [("100/100", CGFloat(10)), ("100/100", 9), ("100/10", 10)] {
+                let reference = try HeaderWindow(rootView: AnyView(
+                    Text(verbatim: value).font(MonitorTheme.font(size, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(.white).padding(20)
+                        .frame(width: 320, height: 80, alignment: .topLeading)
+                        .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
+                defer { reference.close() }
+                let image = try reference.renderedImage()
+                samples.append(try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size)))
+                let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
+                XCTContext.runActivity(named: "SIMULATED count oracle \(value) at \(size)pt") { $0.add(picture) }
+            }
+            XCTAssertLessThan(samples[1].width, samples[0].width - 1, "Reject an actual9pt count at unchanged full value")
+            XCTAssertLessThan(samples[2].width, samples[0].width - 1, "Reject an actual shortened count at unchanged10pt font")
+        }
+
+        /// SIMULATED: relocated controls keep the bounded slots' transient VoiceOver exclusion.
+        func testCompactTelemetryRetainsTransientAccessibilityExclusion() async throws {
+            let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
+            defer { fixture.close() }
+            try await fixture.assertTransientAccessibilityExclusion()
+        }
+
+        /// SIMULATED real toggle: a signal-only fit must not hide an overlapping or scaled FPS state.
+        func testProductionCompactTabletTogglePreservesOriginalStorageAndFPSGlyphs() async throws {
+            guard UIDevice.current.userInterfaceIdiom == .pad else {
+                throw XCTSkip("SIMULATED compact-tablet toggle requires a private iPad")
+            }
+            let reference = try HeaderWindow(rootView: AnyView(
+                Text("25 fps").font(MonitorTheme.font(11, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(MonitorTheme.accent).padding(20)
+                    .frame(width: 320, height: 80, alignment: .topLeading)
+                    .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
+            let referenceImage = try reference.renderedImage()
+            let referenceInk = try HeaderRaster(referenceImage).accentGlyphBounds(
+                in: CGRect(origin: .zero, size: referenceImage.size))
+            let referenceProof = XCTAttachment(image: referenceImage)
+            referenceProof.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED literal unscaled tablet FPS reference") {
+                $0.add(referenceProof)
+            }
+            reference.close()
+            for width in [CGFloat(320), 360, 440] {
+                for storage in ["\u{2014}", "107 GB", "123456789 GB"] {
+                    let fixture = try CompactTabletProductFixture(width: width, storage: storage)
+                    defer { fixture.close() }
+                    try await fixture.assertTogglePreservesStorage(fpsReference: referenceInk)
+                }
+            }
+        }
+    }
+
+    extension CompactTabletProductFixture {
+        /// Compile fixture for the original initializer with trailing power content.
+        private func retainedTelemetryContentCall(layout: FieldMonitorLayout) {
+            _ = MonitorCompactTelemetryRow(layout: layout, safeArea: .init(), metrics: .phone,
+                storage: { EmptyView() }, link: { EmptyView() }) { EmptyView() }
+        }
+
+        fileprivate func assertDeclaredGaugeFits(filled: Int, count: Int, literalInk: CGRect, safeTop: CGFloat? = nil) async throws {
+            let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(.steps(filled: filled, of: count)))
+            let initialCalls = (probe.formatCalls, probe.codecCalls, probe.colorCalls)
+            let resolvedLive = safeTop.map { top in
+                LiveMonitorLayout.fieldMonitor(size: native.window.bounds.size,
+                    safeArea: EdgeInsets(top: top, leading: observedSafeArea.left,
+                        bottom: observedSafeArea.bottom, trailing: observedSafeArea.right),
+                    sourceAspect: 16 / 9, fill: false, showsValues: false, showsBottomBars: false)
+            } ?? live
+            native.host.rootView = AnyView(ProductionHeaderSurface(
+                probe: probe, live: resolvedLive, telemetryMetrics: .tablet, cameraBatteryOverride: reading)
+                .background(.black).ignoresSafeArea())
+            let visible = await HostedCondition.wait {
+                native.host.view.layoutIfNeeded()
+                return native.nodes().contains {
+                    $0.accessibilityLabel == "Camera battery" && $0.accessibilityValue == "\(filled) of \(count) bars"
+                }
+            }
+            XCTAssertTrue(visible)
+            let signal = try XCTUnwrap(native.nodes().first {
+                HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
+            })
+            if signal.accessibilityHint != "Shows signal strength" { XCTAssertTrue(signal.accessibilityActivate()) }
+            let toggled = await HostedCondition.wait {
+                native.host.view.layoutIfNeeded()
+                let nodes = native.nodes()
+                guard let camera = nodes.first(where: { $0.accessibilityLabel == "Camera battery" }),
+                    let format = nodes.first(where: { $0.accessibilityLabel == "Recording format" }) else { return false }
+                return format.accessibilityFrame.minY >= camera.accessibilityFrame.maxY + 8 - monitorFloorMeasurementTolerance && nodes.contains {
+                    HostedAccessibility.identifier($0) == "monitor.telemetry.signal" && $0.accessibilityHint == "Shows signal strength"
+                }
+            }
+            XCTAssertTrue(toggled)
+            func frame(_ node: NSObject) -> CGRect { native.window.convert(node.accessibilityFrame, from: nil) }
+            let nodes = native.nodes()
+            let storage = frame(try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Storage remaining" }))
+            let fps = frame(try XCTUnwrap(nodes.first { HostedAccessibility.identifier($0) == "monitor.telemetry.signal" }))
+            let phone = frame(try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Phone battery" }))
+            let camera = frame(try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Camera battery" }))
+            let format = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Recording format" })
+            let codec = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Codec" })
+            let color = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Color mode" })
+            for node in [format, codec, color] {
+                XCTAssertGreaterThanOrEqual(frame(node).minY, max(phone.maxY, camera.maxY) + 8 - monitorFloorMeasurementTolerance,
+                    "Wrapped power must clear the complete displaced status targets by8pt")
+                XCTAssertLessThanOrEqual(frame(node).maxY, native.window.bounds.height)
+            }
+            let image = try native.renderedImage()
+            let raster = try HeaderRaster(image)
+            let ink = try raster.inkBounds(in: CGRect(x: camera.minX + 22, y: camera.minY,
+                width: camera.width - 28, height: camera.height))
+            XCTAssertEqual(ink.width, literalInk.width, accuracy: 1, "Every original 10pt count glyph must remain visible")
+            XCTAssertEqual(ink.height, literalInk.height, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(storage.width, 44 - monitorFloorMeasurementTolerance)
+            XCTAssertGreaterThanOrEqual(fps.width, 44 - monitorFloorMeasurementTolerance)
+            XCTAssertLessThanOrEqual(storage.maxX + 8, fps.minX + monitorFloorMeasurementTolerance)
+            for power in [phone, camera] {
+                XCTAssertTrue(power.minX >= fps.maxX + 8 - monitorFloorMeasurementTolerance
+                    || power.minY >= max(storage.maxY, fps.maxY) + 8 - monitorFloorMeasurementTolerance,
+                    "Power must clear the complete occupied action targets by 8pt")
+                XCTAssertGreaterThanOrEqual(power.minX, 14 - monitorFloorMeasurementTolerance)
+                XCTAssertLessThanOrEqual(power.maxX, image.size.width - 14 + monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(power.minY, 0)
+                XCTAssertLessThanOrEqual(power.maxY, image.size.height)
+            }
+            let storageInk = try raster.inkBounds(in: CGRect(x: storage.minX + 17, y: storage.midY - 11,
+                width: storage.width - 17, height: 22))
+            XCTAssertEqual(storage.width, 86, accuracy: 0.5)
+            XCTAssertEqual(storageInk.width, 132)
+            XCTAssertEqual(storageInk.height, 16)
+            XCTAssertTrue(format.accessibilityActivate()); XCTAssertEqual(probe.formatCalls, initialCalls.0 + 1)
+            XCTAssertTrue(codec.accessibilityActivate()); XCTAssertEqual(probe.codecCalls, initialCalls.1 + 1)
+            XCTAssertTrue(color.accessibilityActivate()); XCTAssertEqual(probe.colorCalls, initialCalls.2 + 1)
+            let facts = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
+                "filled": filled, "count": count, "scale": image.scale,
+                "storage": [storage.minX, storage.minY, storage.width, storage.height],
+                "performance": [fps.minX, fps.minY, fps.width, fps.height],
+                "phone": [phone.minX, phone.minY, phone.width, phone.height],
+                "camera": [camera.minX, camera.minY, camera.width, camera.height],
+                "countInk": [ink.width, ink.height], "literalInk": [literalInk.width, literalInk.height],
+            ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+            facts.lifetime = .keepAlways
+            let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED declared gauge \(filled)/\(count) native clearance and glyphs") {
+                $0.add(facts); $0.add(picture)
+            }
+        }
+
+        fileprivate func assertTransientAccessibilityExclusion() async throws {
+            native.host.rootView = AnyView(ProductionHeaderSurface(
+                probe: probe, live: live, telemetryMetrics: .tablet,
+                testsMotionVisibility: true).background(.black).ignoresSafeArea())
+            for hidden in [false, true, false] {
+                probe.motionCovering = hidden
+                let settled = await HostedCondition.wait {
+                    native.host.view.layoutIfNeeded()
+                    let nodes = native.nodes()
+                    guard nodes.contains(where: { $0.accessibilityLabel == "SIMULATED production picture" }) else {
+                        return false
+                    }
+                    let labels = ["Storage remaining", "Phone battery", "Camera battery"]
+                    return labels.allSatisfy { label in
+                        nodes.contains { $0.accessibilityLabel == label } == !hidden
+                    } && nodes.contains {
+                        HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
+                    } == !hidden
+                }
+                XCTAssertTrue(settled, "Compact status and power retain their original transient AX policy")
+            }
+        }
+
+        fileprivate func assertTogglePreservesStorage(fpsReference: CGRect) async throws {
+            func coordinates(_ rect: CGRect) -> [CGFloat] {
+                [rect.minX, rect.minY, rect.width, rect.height]
+            }
+            var originalStorage: CGRect?
+            var originalInk: CGRect?
+            for (index, mode) in [false, true, false].enumerated() {
+                let expectedHint = mode ? "Shows signal strength" : "Shows feed frame rate"
+                let ready = await HostedCondition.wait {
+                    native.host.view.layoutIfNeeded()
+                    return native.nodes().contains {
+                        HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
+                            && $0.accessibilityHint == expectedHint
+                    }
+                }
+                XCTAssertTrue(ready, "The real button action must settle into the requested display")
+                let image = try native.renderedImage()
+                let nodes = native.nodes()
+                let storage = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Storage remaining" })
+                let link = try XCTUnwrap(nodes.first {
+                    HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
+                })
+                let phone = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Phone battery" })
+                func frame(_ value: NSObject) -> CGRect {
+                    native.window.convert(value.accessibilityFrame, from: nil)
+                }
+                let stored = frame(storage)
+                let performance = frame(link)
+                let power = frame(phone)
+                XCTAssertEqual(storage.accessibilityValue, probe.storageValue)
+                XCTAssertGreaterThanOrEqual(stored.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(performance.width, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(performance.height, 44 - monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(stored.minX, 14 - 0.5)
+                XCTAssertLessThanOrEqual(stored.maxX + 8, performance.minX + 0.5)
+                XCTAssertLessThanOrEqual(performance.maxX + 8, power.minX + 0.5)
+                let raster = try HeaderRaster(image)
+                let text = CGRect(x: stored.minX + 17, y: stored.midY - 11,
+                    width: max(1, stored.width - 17), height: 22)
+                let ink = try raster.inkBounds(in: text)
+                if let originalStorage, let originalInk {
+                    XCTAssertEqual(stored.minX, originalStorage.minX, accuracy: 0.5)
+                    XCTAssertEqual(stored.width, originalStorage.width, accuracy: 0.5,
+                        "Changing performance display must preserve the storage allocation")
+                    XCTAssertEqual(ink.width, originalInk.width)
+                    XCTAssertEqual(ink.height, originalInk.height)
+                } else {
+                    originalStorage = stored
+                    originalInk = ink
+                }
+                if probe.storageValue == "123456789 GB", image.size.width == 320 {
+                    XCTAssertEqual(stored.width, 86, accuracy: 0.5,
+                        "The original actual storage allocation must not lose width")
+                    XCTAssertEqual(ink.width, 132,
+                        "The original 66pt visible prefix must retain its complete 2x ink")
+                    XCTAssertEqual(ink.height, 16, "Storage must retain the original glyph size")
+                    let cropRect = CGRect(x: floor(text.minX * image.scale),
+                        y: floor(text.minY * image.scale), width: ceil(text.width * image.scale),
+                        height: ceil(text.height * image.scale))
+                    let crop = try XCTUnwrap(image.cgImage?.cropping(to: cropRect))
+                    let request = VNRecognizeTextRequest()
+                    request.recognitionLevel = .accurate
+                    request.usesLanguageCorrection = false
+                    request.recognitionLanguages = ["en-US"]
+                    try VNImageRequestHandler(cgImage: crop, orientation: .up).perform([request])
+                    let tokens = (request.results ?? []).sorted { $0.boundingBox.minX < $1.boundingBox.minX }
+                        .compactMap { $0.topCandidates(1).first?.string }
+                    XCTAssertEqual(tokens.joined(separator: " "), "12345678...",
+                        "The original prefix must survive the real performance toggle")
+                }
+                if mode {
+                    // The 44pt accessibility target reaches the independent timecode below.
+                    // Measure glyphs in the original 22pt painted pill, retaining the full target checks.
+                    let paint = CGRect(x: performance.minX, y: performance.midY - 11,
+                        width: performance.width, height: 22)
+                    let actual = try raster.accentGlyphBounds(in: paint)
+                    XCTAssertEqual(actual.width, fpsReference.width, accuracy: 1)
+                    XCTAssertEqual(actual.height, fpsReference.height, accuracy: 1,
+                        "Adaptive padding must not scale the actual 11pt FPS glyphs")
+                    let facts = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
+                        "storageInput": probe.storageValue, "target": coordinates(performance),
+                        "paint": coordinates(paint), "glyphPixels": coordinates(actual),
+                        "literal11ptPixels": coordinates(fpsReference),
+                    ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+                    facts.name = "SIMULATED actual compact FPS paint and occupied target"
+                    facts.lifetime = .keepAlways
+                    XCTContext.runActivity(named: "SIMULATED unscaled FPS glyph evidence") { $0.add(facts) }
+                }
+                let proof = XCTAttachment(image: image)
+                proof.lifetime = .keepAlways
+                XCTContext.runActivity(named:
+                    "SIMULATED actual compact toggle \(image.size.width) \(probe.storageValue) fps \(mode)") {
+                    $0.add(proof)
+                }
+                if index < 2 {
+                    XCTAssertTrue(link.accessibilityActivate(), "Keep the real signal/FPS action")
+                }
+            }
+        }
+    }
+
+    extension HeaderRaster {
+        /// Accent cyan is independent of RGBA/BGRA order and excludes white glyphs and green picture.
+        fileprivate func accentGlyphBounds(in rect: CGRect) throws -> CGRect {
+            let left = max(0, Int(floor(rect.minX * image.scale)))
+            let right = min(cg.width, Int(ceil(rect.maxX * image.scale)))
+            let top = max(0, Int(floor(rect.minY * image.scale)))
+            let bottom = min(cg.height, Int(ceil(rect.maxY * image.scale)))
+            var minX = right; var maxX = left - 1; var minY = bottom; var maxY = top - 1
+            for y in top..<bottom {
+                for x in left..<right {
+                    let offset = y * cg.bytesPerRow + x * 4
+                    if data[offset + 1] >= 160 && min(data[offset], data[offset + 2]) < 160
+                        && max(data[offset], data[offset + 2]) >= 160 && data[offset + 3] >= 160 {
+                        minX = min(minX, x); maxX = max(maxX, x)
+                        minY = min(minY, y); maxY = max(maxY, y)
+                    }
+                }
+            }
+            guard maxX >= minX, maxY >= minY else {
+                XCTFail("No actual accent glyphs in the native frame")
+                throw NSError(domain: "NativeAccentGlyphs", code: 1)
+            }
+            return CGRect(x: CGFloat(minX), y: CGFloat(minY),
+                width: CGFloat(maxX - minX + 1), height: CGFloat(maxY - minY + 1))
+        }
+    }
 #endif

@@ -27,8 +27,7 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
 
     func testLivePresetsCustomFactorAndDirectionSurviveRotation() throws {
         app.launch()
-        XCUIDevice.shared.orientation = .landscapeLeft
-        waitForOrientation(.landscapeLeft)
+        rotate(.landscapeLeft)
         let chip = try revealDesqueeze()
         let initial = try XCTUnwrap(chip.value as? String)
         chip.tap()
@@ -86,8 +85,7 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
             waitForSelection(direction)
         }
         for orientation in [UIDeviceOrientation.portrait, .landscapeRight, .landscapeLeft] {
-            XCUIDevice.shared.orientation = orientation
-            waitForOrientation(orientation)
+            rotate(orientation)
             XCTAssertTrue(close.isHittable)
             let vertical = app.buttons["Vertical"].firstMatch
             revealOption(vertical)
@@ -111,8 +109,7 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
         else { throw XCTSkip("Pass OPV_SIM_FEED_CLIP pointing to a generated review video") }
         app.launchEnvironment["OPV_UI_REVIEW_SCREEN"] = "playback"
         app.launch()
-        XCUIDevice.shared.orientation = .landscapeLeft
-        waitForOrientation(.landscapeLeft)
+        rotate(.landscapeLeft)
         XCTAssertTrue(app.buttons["Back to media"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.staticTexts["monitor.review.cacheError"].exists)
         let chip = try revealDesqueeze()
@@ -168,16 +165,6 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
         let expected = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", value), object: element)
         XCTAssertEqual(XCTWaiter.wait(for: [expected], timeout: 3), .completed)
-    }
-
-    private func waitForOrientation(_ orientation: UIDeviceOrientation) {
-        let expected = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in
-                orientation == .portrait
-                    ? self.app.frame.height > self.app.frame.width
-                    : self.app.frame.width > self.app.frame.height
-            }, object: app)
-        XCTAssertEqual(XCTWaiter.wait(for: [expected], timeout: 5), .completed)
     }
 }
 #endif

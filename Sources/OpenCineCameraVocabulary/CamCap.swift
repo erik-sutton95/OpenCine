@@ -147,6 +147,15 @@ public enum CamCapColorMode {
         let ranked = order.filter { have.contains($0) }
         return ranked.isEmpty ? order : ranked
     }
+
+    /// The colour drum: the `offered` modes, plus the camera's reported `current` mode when the
+    /// offered list lacks it, so the popup opens centred on the value the header shows. That
+    /// extra entry is shown, never sent: a SET goes only to an offered mode.
+    /// Kotlin twin: `CaptureWheels.colorDrum`.
+    public static func drum(offered: [ColorMode], current: ColorMode?) -> [ColorMode] {
+        guard let current, !offered.contains(current) else { return offered }
+        return offered + [current]
+    }
 }
 
 /// `camcap_video_format` — legal `[res][fps]` pairs for the current shooting mode.

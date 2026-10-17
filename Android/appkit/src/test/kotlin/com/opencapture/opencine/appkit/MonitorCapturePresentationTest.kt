@@ -2,6 +2,7 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.CommandStage
+import com.opencapture.opencine.core.ISOValue
 import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
@@ -51,6 +52,24 @@ class MonitorCapturePresentationTest {
         assertEquals("I", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.ISO_PRIORITY))
         assertEquals("S", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.SHUTTER_PRIORITY))
         assertEquals("P", MonitorCapturePresentation.exposureProgram(com.opencapture.opencine.core.CameraExposureProgram.PROGRAM))
+    }
+
+    /** An unreported value with nothing to edit is inert; a report, an editor or a host action keeps it live. */
+    @Test fun unreportedUneditableReadoutsAreInert() {
+        val p = MonitorCapturePresentation
+        assertTrue(p.readoutIsInert(reported = false, editable = false, quickEnabled = true, hasAction = false))
+        assertTrue(p.readoutIsInert(reported = false, editable = true, quickEnabled = false, hasAction = false))
+        assertTrue(p.readoutIsInert(reported = false, editable = null, quickEnabled = false, hasAction = false))
+        assertFalse(p.readoutIsInert(reported = false, editable = true, quickEnabled = true, hasAction = false))
+        assertFalse(p.readoutIsInert(reported = true, editable = false, quickEnabled = false, hasAction = false))
+        assertFalse(p.readoutIsInert(reported = false, editable = false, quickEnabled = false, hasAction = true))
+        assertFalse(p.readoutIsInert(reported = false, editable = null, quickEnabled = true, hasAction = false))
+        val unreported = MonitorCaptureField(SettingKey.ISO, "ISO", null, emptyList(), null)
+        assertTrue(p.readoutIsInert(null, unreported, null, quickEnabled = true, hasAction = false))
+        val reported = MonitorCaptureField(SettingKey.ISO, "ISO", SettingValue.Iso(ISOValue.Auto), emptyList(), null)
+        assertFalse(p.readoutIsInert("Auto", reported, null, quickEnabled = true, hasAction = false))
+        assertTrue(p.readoutIsInert("--", null, nativeEnabled = false, quickEnabled = true, hasAction = false))
+        assertFalse(p.readoutIsInert("1600", null, nativeEnabled = false, quickEnabled = true, hasAction = false))
     }
 
     /** A5-09: one frame-rate label for every integration; the NTSC family keeps its decimals. */
