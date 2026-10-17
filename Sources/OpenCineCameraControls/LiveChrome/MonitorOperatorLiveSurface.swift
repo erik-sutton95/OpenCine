@@ -468,14 +468,14 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         MonitorScreen(control: control, layout: layout, sourceAspect: facts.picture.aspect,
             presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
                 dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
-                pictureWaiting: facts.picture.waiting,
+                pictureWaiting: facts.picture.waiting && !command,
                 statusMounted: mounts(.statusBar), powerMounted: mounts(.batteries),
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
                 panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
             picture: { picture().opacity(facts.picture.waiting || command ? 0 : 1).transaction { $0.animation = nil } },
             assists: { feedMarks.opacity(facts.picture.waiting ? 0 : 1) },
-            signal: { if facts.picture.waiting { MonitorOperatorWaitingPicture<Host.Palette>(waiting: true, camera: identity.camera) } },
+            signal: { if facts.picture.waiting && !command { MonitorOperatorWaitingPicture<Host.Palette>(waiting: true, camera: identity.camera) } },
             status: { statusChrome }, power: { powerChrome }, capture: { captureChrome },
             system: { systemChrome }, tools: { toolsChrome }, panels: { panelsChrome },
             cover: { EmptyView() }, recovery: { EmptyView() })
@@ -742,7 +742,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 drive.frame(height: min(280, layout.viewport.height * 0.55))
                     .position(x: max(layout.picture.x + 30, layout.record.x - 34), y: layout.picture.midY).allowsHitTesting(admitted)
             }
-            if facts.picture.waiting, let detail = cameraViews.waiting {
+            if !command, facts.picture.waiting, let detail = cameraViews.waiting {
                 detail.frame(maxWidth: min(400, layout.picture.width - 32))
                     .position(x: layout.picture.midX, y: layout.picture.midY + 64).allowsHitTesting(presentationAdmitted)
             }
