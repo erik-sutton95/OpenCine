@@ -2094,6 +2094,12 @@
                     .frame(width: 320, height: 80, alignment: .topLeading)
                     .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
             let image = try reference.renderedImage()
+            // This original compact-tablet oracle was qualified on a native 2x iPad.
+            // A 3x hierarchy drawn into a 2x bitmap retains its 3x layout and glyph phase.
+            XCTAssertEqual(UIDevice.current.userInterfaceIdiom, .pad,
+                "The original storage pixel oracle requires a native iPad host")
+            XCTAssertEqual(image.scale, 2,
+                "The original 132x16 storage oracle requires native 2x layout and capture")
             let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
             reference.close()
             let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
@@ -2230,7 +2236,9 @@
                 XCTAssertGreaterThanOrEqual(power.minY, 0)
                 XCTAssertLessThanOrEqual(power.maxY, image.size.height)
             }
-            let storageInk = try raster.inkBounds(in: CGRect(x: storage.minX + 17, y: storage.midY - 11,
+            // The fixed pixel oracle requires native 2x layout as well as native 2x capture.
+            let storageInk = try raster.inkBounds(in: CGRect(
+                x: storage.minX + 17, y: storage.midY - 11,
                 width: storage.width - 17, height: 22))
             XCTAssertEqual(storage.width, 86, accuracy: 0.5)
             XCTAssertEqual(storageInk.width, 132)
@@ -2245,6 +2253,8 @@
                 "phone": [phone.minX, phone.minY, phone.width, phone.height],
                 "camera": [camera.minX, camera.minY, camera.width, camera.height],
                 "countInk": [ink.width, ink.height], "literalInk": [literalInk.width, literalInk.height],
+                "storageOracleScale": image.scale,
+                "storageInk": [storageInk.width, storageInk.height],
             ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
             facts.lifetime = .keepAlways
             let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
