@@ -5,10 +5,6 @@ import com.opencapture.monitorui.MonitorLabelWheel
 import com.opencapture.monitorui.MonitorTab
 import com.opencapture.monitorui.monitorTabStrip
 import com.opencapture.monitorui.monitorScrollFade
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,11 +33,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,8 +64,11 @@ import com.opencapture.opencine.vocabulary.LutCatalog
 import com.opencapture.opencine.vocabulary.LutCategory
 import com.opencapture.opencine.vocabulary.LutEntry
 import com.opencapture.opencine.vocabulary.LutLookResolver
-import java.io.File
 import com.opencapture.opencine.media.MonitorLUTExposureCompensation
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * What one app's LUT picker says about its camera tab; the catalog, captions logic and layout are
@@ -224,27 +225,43 @@ fun LUTPicker(
             else if (isPhoto) listOf(LutCatalog.auto) else LutCatalog.cameraEntries(names, looks = profile?.cameraLooks.orEmpty())
         }
     val creativeEntries = remember { LutCatalog.creative }
-    var customRevision by remember { mutableIntStateOf(0) }
     var deletionError by remember { mutableStateOf<String?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
-    val customDir = remember(context) { LutCatalog.customDirectory(context.filesDir) }
-    val customEntries = remember(customRevision, customDir) { listCustom(customDir) }
+    val storedEntries by library.entries.collectAsState()
+    val customEntries = remember(storedEntries) {
+        LutCatalog.storedCustom(storedEntries.filter { it.selection.category == MonitorLutCategory.CUSTOM }
+            .map { it.selection.fileName })
+    }
+    val scope = rememberCoroutineScope()
+    // Keep this picker's import/delete requests ordered while document IO and packing suspend.
+    val mutations = remember(library) { Mutex() }
+    val currentSelection by rememberUpdatedState(selection)
+    val selectCurrent by rememberUpdatedState(onSelect)
+    val armCurrent by rememberUpdatedState(onArmLut)
     val importer =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri == null) return@rememberLauncherForActivityResult
-            runCatching { importCube(context, uri, customDir) }
-                .onSuccess { entry ->
-                    importError = null
-                    customRevision += 1
-                    val current = selection
-                    if (current != LutCatalog.AUTO && current != LutCatalog.OFFICIAL_AUTO) {
-                        onSelect(entry.id)
+            scope.launch {
+                mutations.withLock {
+                    val result = try {
+                        library.importDocument(context.contentResolver, uri)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        MonitorLutImportResult.Rejected(error.message ?: "The .cube file could not be read.")
                     }
-                    onArmLut()
+                    when (result) {
+                        is MonitorLutImportResult.Imported -> {
+                            importError = null
+                            if (currentSelection != LutCatalog.AUTO && currentSelection != LutCatalog.OFFICIAL_AUTO) {
+                                selectCurrent(LutCatalog.customId(result.entry.selection.fileName))
+                            }
+                            armCurrent()
+                        }
+                        is MonitorLutImportResult.Rejected -> importError = result.message
+                    }
                 }
-                .onFailure { error ->
-                    importError = error.message ?: "The .cube file could not be read."
-                }
+            }
         }
     val libraries =
         lutPickerLibraries(
@@ -256,15 +273,25 @@ fun LUTPicker(
             onImport = { importer.launch(arrayOf("*/*")) },
             onClear = { look ->
                 val fileName = look.fileName ?: return@lutPickerLibraries
-                runCatching { deleteCustom(fileName, customDir) }
-                    .onSuccess {
-                        customRevision += 1
-                        if (selection == LutCatalog.customId(fileName)) {
-                            onSelect(LutCatalog.AUTO)
-                            onArmLut()
+                val target = MonitorLutSelection.of(MonitorLutCategory.CUSTOM, fileName) ?: return@lutPickerLibraries
+                scope.launch {
+                    mutations.withLock {
+                        try {
+                            if (library.delete(target)) {
+                                if (currentSelection == LutCatalog.customId(fileName)) {
+                                    selectCurrent(LutCatalog.AUTO)
+                                    armCurrent()
+                                }
+                            } else {
+                                deletionError = "The LUT \u201c${LutCatalog.displayName(fileName)}\u201d could not be deleted."
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            deletionError = error.message ?: "The LUT could not be deleted."
                         }
                     }
-                    .onFailure { error -> deletionError = error.message ?: "The LUT could not be deleted." }
+                }
             },
         )
     val footer: (@Composable () -> Unit)? =
@@ -726,53 +753,3 @@ internal fun cameraCaption(
         LutCatalog.categoryOf(selection) == LutCategory.CAMERA -> copy.officialCubeCaption
         else -> copy.cameraLooksCaption
     }
-
-/** Stores an imported cube in the custom library (the catalog validates the name). */
-internal fun LutCatalog.importCube(sourceName: String, bytes: ByteArray, directory: File): LutEntry {
-    val fileName =
-        normalizedCubeFileName(sourceName)
-            ?: throw IllegalArgumentException("The LUT file name is not valid.")
-    if (bytes.isEmpty()) throw IllegalArgumentException("The .cube file could not be read.")
-    directory.mkdirs()
-    File(directory, fileName).writeBytes(bytes)
-    return LutEntry(customId(fileName), displayName(fileName), LutCategory.CUSTOM, fileName)
-}
-
-private fun importCube(context: Context, uri: Uri, directory: File): LutEntry {
-    runCatching {
-        context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    val rawName = queryDisplayName(context, uri) ?: uri.lastPathSegment ?: "Imported.cube"
-    val bytes =
-        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw IllegalStateException("The .cube file could not be read.")
-    return LutCatalog.importCube(rawName, bytes, directory)
-}
-
-/** Lists the stored custom cubes in one directory (held `LutCatalog.listCustom`, current API). */
-private fun listCustom(directory: File): List<LutEntry> {
-    if (!directory.isDirectory) return emptyList()
-    return LutCatalog.storedCustom(directory.list()?.toList().orEmpty())
-}
-
-/** Deletes one stored custom cube (held `LutCatalog.deleteCustom`, current API). */
-private fun deleteCustom(fileName: String, directory: File) {
-    if (!LutCatalog.isSafeFileName(fileName)) {
-        throw IllegalArgumentException("The LUT file name is not valid.")
-    }
-    val target = File(directory, fileName)
-    if (target.exists() && !target.delete()) {
-        throw IllegalStateException("The LUT \u201c${LutCatalog.displayName(fileName)}\u201d could not be deleted.")
-    }
-}
-
-private fun queryDisplayName(context: Context, uri: Uri): String? {
-    val cursor = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-    cursor?.use {
-        if (it.moveToFirst()) {
-            val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (index >= 0) return it.getString(index)
-        }
-    }
-    return null
-}
