@@ -701,8 +701,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 recovering: facts.picture.recovering, note: source.note, showsStatus: mounts(.statusBar))
             if let motion = cameraViews.motion { motion.controls.allowsHitTesting(admitted && !transient) }
             if command, let dashboard = cameraViews.dashboard {
-                dashboard.frame(width: max(1, layout.picture.width - 32), height: max(44, layout.picture.height - 100))
-                    .position(x: layout.picture.midX, y: layout.picture.midY + 12).allowsHitTesting(admitted)
+                let frame = MonitorCommandDashboardLayout.frame(layout: layout)
+                dashboard.frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY).allowsHitTesting(admitted)
             }
             if !command, let drive = cameraViews.focusDrive {
                 drive.frame(height: min(280, layout.viewport.height * 0.55))
@@ -715,13 +716,13 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             if !locked, editing == nil, let accessory = cameraViews.connection {
                 accessory.position(x: layout.picture.midX, y: layout.values.y - 28)
             }
-            if !locked, editing == nil, let focusReset = cameraViews.resetFocus {
+            if !command, !locked, editing == nil, let focusReset = cameraViews.resetFocus {
                 MonitorFocusResetButton(foreground: Host.Palette.text, outline: Host.Palette.hairline) {
                     if admitted { focusReset() }
                 }
                 .position(x: layout.focusReset.midX, y: layout.focusReset.midY)
             }
-            if !locked, editing == nil, let comparison = cameraViews.comparison {
+            if !command, !locked, editing == nil, let comparison = cameraViews.comparison {
                 comparison.position(x: layout.focusReset.midX, y: layout.focusReset.midY - 50)
             }
         }

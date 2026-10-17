@@ -361,7 +361,7 @@
     private struct CommandSideColumn<Kind: Hashable, Request>: View {
         let sections: [MonitorCommandSection<Kind, Request>]
         let controls: CommandControls<Kind, Request>
-        @State private var atBottom = false
+        @State private var contentBottom: CGFloat = .infinity
 
         var body: some View {
             GeometryReader { outer in
@@ -373,19 +373,19 @@
         }
 
         private func scroller(viewportHeight: CGFloat) -> some View {
-            ScrollView(.vertical, showsIndicators: false) {
+            let atBottom = contentBottom <= viewportHeight + 2
+            return ScrollView(.vertical, showsIndicators: false) {
                 CommandSections(sections: sections, controls: controls, compact: true)
                     .padding(.bottom, 20)
-                    .background(
-                        // The content's bottom edge in the viewport's space: at the viewport
-                        // bottom the column is scrolled to the end (or it all fits).
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: SideColumnBottomKey.self, value: geo.frame(in: .named("cmdSideScroll")).maxY)
-                        })
+                    // Read the mounted content directly. A preference crossing this masked
+                    // ScrollView can resolve to its default, which falsely reports the end.
+                    .onGeometryChange(for: CGFloat.self) {
+                        $0.frame(in: .named("cmdSideScroll")).maxY
+                    } action: {
+                        contentBottom = $0
+                    }
             }
             .coordinateSpace(.named("cmdSideScroll"))
-            .onPreferenceChange(SideColumnBottomKey.self) { maxY in atBottom = maxY <= viewportHeight + 2 }
             .mask {
                 if atBottom {
                     Rectangle()
@@ -402,23 +402,17 @@
                     Text("MORE ⌄")
                         .font(.system(size: 9, weight: .semibold, design: .default))
                         .foregroundStyle(MonitorTheme.muted)
-                        .textCase(.uppercase)
                         .tracking(0.8)
                         .frame(maxWidth: .infinity)
                         .padding(.bottom, 2)
                         .allowsHitTesting(false)
                         .transition(.opacity)
                         .accessibilityLabel("More command controls below. Swipe up to reveal them.")
+                        .accessibilityIdentifier("monitor.command.more")
                 }
             }
             .animation(.easeInOut(duration: 0.15), value: atBottom)
         }
-    }
-
-    /// The side column content's bottom edge in its scroll viewport's space.
-    private struct SideColumnBottomKey: PreferenceKey {
-        static let defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
     }
 
     /// The section stack, shared by the side column (`compact`) and portrait.

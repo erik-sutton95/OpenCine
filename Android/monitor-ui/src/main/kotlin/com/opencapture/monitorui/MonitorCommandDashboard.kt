@@ -463,6 +463,7 @@ private fun <K : Any, R : Any> CommandTile(
                 add(CustomAccessibilityAction("Move ${tile.title} later") { onMoveTo(index + 1); true })
             }
         }
+    val reorderHint = if (canMove) " Long press and drag to reorder." else ""
     val description =
         buildString {
             append("${tile.title}: ${tile.value}")
@@ -470,9 +471,12 @@ private fun <K : Any, R : Any> CommandTile(
                 applyingThisControl -> append(". Applying change.")
                 pending -> append(". Another control is being applied.")
                 request == null ->
-                    append(". ${tile.unavailableReason ?: "Read-only."} Long press and drag to reorder.")
-                !controlsEnabled -> append(". Controls are locked. Long press and drag to reorder.")
-                else -> append(". Double tap to change; long press and drag to reorder.")
+                    append(". ${tile.unavailableReason ?: "Read-only."}$reorderHint")
+                !controlsEnabled -> append(". Controls are locked.$reorderHint")
+                else -> append(
+                    if (canMove) ". Double tap to change; long press and drag to reorder."
+                    else ". Double tap to change.",
+                )
             }
         }
     // iOS CommandTile: pad h12/v8, title 10 bold, value 24 medium mono, corner radius 12.

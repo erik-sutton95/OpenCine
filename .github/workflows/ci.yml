@@ -175,6 +175,8 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
+      - name: Install the SIMULATED application host generator
+        run: brew install xcodegen
       - name: Create a private simulator with accessibility enabled
         run: |
           mkdir -p "$RUNNER_TEMP/kit-ios"
@@ -185,7 +187,15 @@ jobs:
         run: |
           xcodebuild -scheme OpenCine-Package -destination "platform=iOS Simulator,id=$KIT_IOS_DEVICE_ID" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/kit-ios/kit.xcresult" \
-            -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests test
+            -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests \
+            -skip-testing:MonitorUITests/MonitorCommandDashboardTests test
+      # Scroll accessibility needs an application scene. This runner executes every dashboard
+      # contract, including the original activation/read-only assertions, without skipping one.
+      - name: Command dashboard contracts in a SIMULATED application host
+        timeout-minutes: 20
+        run: |
+          python3 scripts/ios-command-dashboard-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
+            --derived-data "$RUNNER_TEMP/kit-ios-dashboard-dd" --output "$RUNNER_TEMP/kit-ios/dashboard"
       - name: Delete the private simulator
         if: always()
         run: if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi

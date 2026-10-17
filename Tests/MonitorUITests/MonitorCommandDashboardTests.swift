@@ -56,7 +56,8 @@ final class MonitorCommandDashboardTests: XCTestCase {
         defer { fixture.close() }
         let temp = try await fixture.labelled("Temp")
         XCTAssertEqual(temp.accessibilityValue, "OK")
-        XCTAssertEqual(try await fixture.labelled("Storage").accessibilityValue, "521 GB")
+        let storage = try await fixture.labelled("Storage")
+        XCTAssertEqual(storage.accessibilityValue, "521 GB")
         let side = try await fixture.element("monitor.command.side")
         XCTAssertEqual(
             side.accessibilityLabel,
@@ -78,6 +79,63 @@ final class MonitorCommandDashboardTests: XCTestCase {
         _ = try await fixture.labelled("Mode")
         XCTAssertNil(fixture.elements().first { $0.accessibilityLabel == "Temp" })
         XCTAssertNil(fixture.elements().first { $0.accessibilityLabel == "SIMULATED chip" })
+    }
+
+    func testOverflowingSideColumnShowsItsCueAndClearsItAtTheRealBottom() async throws {
+        let fixture = DashboardFixture(portrait: false, overflowing: true)
+        defer { fixture.close() }
+        _ = try await fixture.labelled("Mode")
+        let scroller = try XCTUnwrap(
+            fixture.elements().compactMap { $0 as? UIScrollView }.first)
+        XCTAssertGreaterThan(scroller.contentSize.height, scroller.bounds.height)
+        print(
+            "SIMULATED command scroll: content=\(scroller.contentSize), viewport=\(scroller.bounds), "
+                + "offset=\(scroller.contentOffset), inset=\(scroller.adjustedContentInset)")
+        let cue = try await fixture.element("monitor.command.more")
+        XCTAssertEqual(cue.accessibilityLabel, "More command controls below. Swipe up to reveal them.")
+        capture(fixture, name: "SIMULATED-overflow-initial")
+        scroller.setContentOffset(
+            CGPoint(
+                x: 0,
+                y: max(
+                    -scroller.adjustedContentInset.top,
+                    scroller.contentSize.height + scroller.adjustedContentInset.bottom
+                        - scroller.bounds.height)),
+            animated: false)
+        try await fixture.until {
+            !fixture.elements().contains {
+                HostedAccessibility.identifier($0) == "monitor.command.more"
+            }
+        }
+        capture(fixture, name: "SIMULATED-overflow-at-bottom")
+    }
+
+    func testSideColumnWithoutOverflowHasNoCue() async throws {
+        let fixture = DashboardFixture(portrait: false)
+        defer { fixture.close() }
+        _ = try await fixture.labelled("Mode")
+        let scroller = try XCTUnwrap(
+            fixture.elements().compactMap { $0 as? UIScrollView }.first)
+        XCTAssertLessThanOrEqual(
+            scroller.contentSize.height + scroller.adjustedContentInset.top
+                + scroller.adjustedContentInset.bottom,
+            scroller.bounds.height)
+        try await fixture.until {
+            !fixture.elements().contains {
+                HostedAccessibility.identifier($0) == "monitor.command.more"
+            }
+        }
+    }
+
+    private func capture(_ fixture: DashboardFixture, name: String) {
+        let image = UIGraphicsImageRenderer(size: fixture.window.bounds.size).image { _ in
+            _ = fixture.window.drawHierarchy(
+                in: fixture.window.bounds, afterScreenUpdates: true)
+        }
+        let attachment = XCTAttachment(image: image)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
 
@@ -102,20 +160,30 @@ private final class DashboardProbe {
 private struct DashboardCanvas: View {
     @Bindable var probe: DashboardProbe
     let portrait: Bool
+    let overflowing: Bool
 
     var body: some View {
         MonitorCommandDashboard(
             tiles: [
                 Tile(kind: .iso, title: "ISO", value: "800", request: "iso"),
-                Tile(kind: .codec, title: "Codec", value: "N-RAW", unavailableReason: "Wait for the camera."),
+                Tile(
+                    kind: .codec, title: "Codec", value: "N-RAW",
+                    unavailableReason: "Wait for the camera."),
                 Tile(title: "Grid", value: "OFF"),
             ],
             sections: [
-                MonitorCommandSection(title: "Image", cells: [Tile(title: "Tone", value: "SDR")]),
-                MonitorCommandSection(title: "Focus", cells: [Tile(title: "Mode", value: "AF-C", request: "focus")]),
+                MonitorCommandSection(
+                    title: "Image", cells: [Tile(title: "Tone", value: "SDR")]),
+                MonitorCommandSection(
+                    title: "Focus",
+                    cells: [Tile(title: "Mode", value: "AF-C", request: "focus")]
+                        + (0..<(overflowing ? 12 : 0)).map {
+                            Tile(title: "SIMULATED extra \($0)", value: "Read-only")
+                        }),
             ],
             health: MonitorCommandHealth(
-                temperature: "OK", temperatureOk: true, storage: "521 GB", camera: "SIMULATED Z",
+                temperature: "OK", temperatureOk: true, storage: "521 GB",
+                camera: "SIMULATED Z",
                 lens: "SIMULATED 24-70"),
             portrait: portrait,
             controlsEnabled: probe.controlsEnabled,
@@ -134,9 +202,23 @@ private final class DashboardFixture {
     let host: UIHostingController<DashboardCanvas>
     let window: UIWindow
 
-    init(portrait: Bool) {
-        host = UIHostingController(rootView: DashboardCanvas(probe: probe, portrait: portrait))
-        window = UIWindow(frame: CGRect(x: 0, y: 0, width: portrait ? 390 : 844, height: portrait ? 844 : 390))
+    init(portrait: Bool, overflowing: Bool = false) {
+        host = UIHostingController(
+            rootView: DashboardCanvas(
+                probe: probe, portrait: portrait, overflowing: overflowing))
+        // Scroll accessibility needs the foreground application scene. The package-only runner
+        // has no scene; scripts/ios-command-dashboard-hosted-test.py runs the contracts in one.
+        if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+            .first
+        {
+            window = UIWindow(windowScene: scene)
+            window.frame = CGRect(
+                x: 0, y: 0, width: portrait ? 390 : 844, height: portrait ? 844 : 390)
+        } else {
+            window = UIWindow(
+                frame: CGRect(
+                    x: 0, y: 0, width: portrait ? 390 : 844, height: portrait ? 844 : 390))
+        }
         window.rootViewController = host
         window.makeKeyAndVisible()
         host.view.frame = window.bounds
@@ -155,16 +237,20 @@ private final class DashboardFixture {
 
     func element(_ identifier: String, hint: String? = nil) async throws -> NSObject {
         try await first("identifier \(identifier)") {
-            HostedAccessibility.identifier($0) == identifier && (hint == nil || $0.accessibilityHint == hint)
+            HostedAccessibility.identifier($0) == identifier
+                && (hint == nil || $0.accessibilityHint == hint)
         }
     }
 
     func labelled(_ label: String) async throws -> NSObject {
-        try await first("label \(label)") { $0.isAccessibilityElement && $0.accessibilityLabel == label }
+        try await first("label \(label)") {
+            $0.isAccessibilityElement && $0.accessibilityLabel == label
+        }
     }
 
     func perform(_ name: String, on element: NSObject) throws {
-        let action = try XCTUnwrap(element.accessibilityCustomActions?.first { $0.name == name })
+        let action = try XCTUnwrap(
+            element.accessibilityCustomActions?.first { $0.name == name })
         if let handler = action.actionHandler {
             XCTAssertTrue(handler(action))
         } else {
@@ -173,18 +259,33 @@ private final class DashboardFixture {
         }
     }
 
-    func until(_ condition: () -> Bool) async throws {
-        for _ in 0..<200 where !condition() { await Task.yield() }
+    func until(_ condition: @escaping @MainActor () -> Bool) async throws {
+        let ready = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                MainActor.assumeIsolated { condition() }
+            }, object: nil)
+        let result = await XCTWaiter.fulfillment(of: [ready], timeout: 5)
+        XCTAssertEqual(result, .completed)
         XCTAssertTrue(condition())
     }
 
-    private func first(_ what: String, _ match: (NSObject) -> Bool) async throws -> NSObject {
-        for _ in 0..<200 {
-            if let found = elements().first(where: match) { return found }
-            await Task.yield()
+    private func first(
+        _ what: String, _ match: @escaping @MainActor (NSObject) -> Bool
+    ) async throws -> NSObject {
+        var found: NSObject?
+        let mounted = XCTNSPredicateExpectation(
+            predicate: NSPredicate { [self] _, _ in
+                MainActor.assumeIsolated {
+                    found = elements().first(where: match)
+                    return found != nil
+                }
+            }, object: nil)
+        let result = await XCTWaiter.fulfillment(of: [mounted], timeout: 5)
+        let seen = elements().compactMap {
+            HostedAccessibility.identifier($0) ?? $0.accessibilityLabel
         }
-        let seen = elements().compactMap { HostedAccessibility.identifier($0) ?? $0.accessibilityLabel }
-        return try XCTUnwrap(nil as NSObject?, "No element with \(what). Seen: \(seen)")
+        XCTAssertEqual(result, .completed, "No element with \(what). Seen: \(seen)")
+        return try XCTUnwrap(found, "No element with \(what). Seen: \(seen)")
     }
 }
 #endif

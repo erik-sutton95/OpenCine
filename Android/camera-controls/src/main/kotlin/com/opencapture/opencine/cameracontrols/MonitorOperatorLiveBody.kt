@@ -360,8 +360,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             cameraViews.feedGestures?.invoke(this, accepts && interactive)
             if (command) cameraViews.dashboard?.let { dashboard ->
                 // A hardware slot cannot outlive its admission: input is refused here, whatever the slot does.
-                Box(Modifier.descriptorFrame(MonitorRect(layout.picture.x + 16f, layout.picture.y + 12f,
-                    max(1f, layout.picture.width - 32f), max(44f, layout.picture.height - 24f)))
+                Box(Modifier.descriptorFrame(com.opencapture.monitorui.MonitorCommandDashboardLayout.frame(layout))
                     .refusingInput(!(accepts && admitted))) { dashboard(accepts && admitted) }
             } else {
                 val bundle = assists?.scopes?.collectAsState(initial = ScopeAssistBundle.EMPTY)?.value ?: assist.scopeBundle
