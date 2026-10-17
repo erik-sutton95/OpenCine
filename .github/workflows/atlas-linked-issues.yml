@@ -1,0 +1,97 @@
+name: Atlas linked app issues
+
+on:
+  schedule:
+    - cron: "3-58/5 * * * *"
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled, assigned, unassigned, deleted]
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "Write both paired repositories (requires publication approval)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-linked-issues
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    # Scheduled writes remain dormant until an explicitly authorized activation.
+    if: >-
+      (github.event_name == 'workflow_dispatch' || vars.ATLAS_LINKED_ISSUES_ENABLED == 'true') &&
+      !github.event.issue.pull_request &&
+      github.actor != (vars.ATLAS_SYNC_BOT_LOGIN || 'opencine-atlas-sync[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Read registered installation scope
+        id: registry
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "atlas/tools")
+          import atlas, linked_issues
+          registry, errors = atlas.load_registry(atlas.atlas_root())
+          if errors:
+              raise SystemExit("Invalid registry")
+          _, central, apps = linked_issues.identities(registry)
+          repositories = [central, *apps.values()]
+          owner = central.split("/")[0]
+          if any(repo.split("/")[0].lower() != owner.lower() for repo in repositories):
+              raise SystemExit("Registered owners require separately reviewed App installations")
+          if central.lower() != os.environ["GITHUB_REPOSITORY"].lower():
+              raise SystemExit("Workflow repository does not match central registry identity")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("owner=" + owner + "\n")
+              out.write("repositories=" + ",".join(repo.split("/")[1] for repo in repositories) + "\n")
+          PY
+      - name: Mint least-permission installation token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.ATLAS_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ATLAS_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ steps.registry.outputs.owner }}
+          repositories: ${{ steps.registry.outputs.repositories }}
+          permission-issues: write
+      - name: Plan or reconcile registered app issues
+        if: github.actor != format('{0}[bot]', steps.app-token.outputs.app-slug)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ATLAS_SYNC_BOT_LOGIN: ${{ format('{0}[bot]', steps.app-token.outputs.app-slug) }}
+          EVENT_NAME: ${{ github.event_name }}
+          EXECUTE: ${{ inputs.execute }}
+        run: |
+          args=()
+          if [[ "$EVENT_NAME" != workflow_dispatch || "$EXECUTE" == true ]]; then
+            args+=(--execute)
+          fi
+          python3 atlas/tools/linked_issues.py "${args[@]}" | tee linked-issues-report.json
+      - name: Report actual reconciliation outcome
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path("linked-issues-report.json")
+          if not path.exists():
+              raise SystemExit("No reconciliation receipt was produced")
+          report = json.loads(path.read_text())
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+              out.write("Atlas linked issues: " + json.dumps({key: report.get(key) for key in
+                  ("mode", "complete", "counts", "errors", "conflicts", "tombstones", "applied", "uncertain")}, sort_keys=True) + "\n")
+          PY

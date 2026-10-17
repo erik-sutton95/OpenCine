@@ -791,6 +791,7 @@ def main(argv=None):
                    help="also give this repository a worktree on the task branch (opencine for a shared fix); repeatable")
     p.add_argument("--base", help="base ref for the issue's repository (default: the ref it consumes OpenCine on)")
     p.add_argument("--from-file", metavar="FILE", help="issue text the user gave you (first line: title) when GitHub has none")
+    p.add_argument("--orca", action="store_true", help="discover registered sources and adopt the physical sibling task in Orca; no agent launch")
     p = sub.add_parser("stale", help="pinned refs and snapshots versus current sources")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("check", help="registry, direction, cycles, snapshots, private paths")

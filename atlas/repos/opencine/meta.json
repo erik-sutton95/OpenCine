@@ -5,7 +5,7 @@
   "status": "candidate",
   "layer": "platform",
   "repository": {
-    "url": null,
+    "url": "https://github.com/erik-sutton95/OpenCine",
     "default_branch": "main"
   },
   "local_dir": "OpenCine",
