@@ -25,6 +25,20 @@ class MonitorSettingsCompositionTest {
     }
 
     @Test
+    fun `published primary positional tail still binds explicit tabs assist cards and source`() {
+        val requestedTabs = listOf(MonitorSettingsTab.LINK, MonitorSettingsTab.CONTROLS)
+        val configured = MonitorOperatorSettingsConfiguration("App", false, "SIMULATED", {}, null, {},
+            MonitorSettingsLinkSource("SIMULATED", "", "", "", "", "", null), null, null, null,
+            MonitorSettingsControlsSource(false, {}, false, {}, false, {}, keepAwakeHelp = ""),
+            null, null, null, MonitorSettingsSupportSource(report = {}), null, null, null,
+            requestedTabs, emptyList(), null)
+        assertSame(requestedTabs, configured.tabs)
+        assertNull(configured.gyro)
+        assertTrue(configured.assistSections.isEmpty())
+        assertNull(configured.assist)
+    }
+
+    @Test
     fun `optional gyro keeps saved logs reachable even when capture is unavailable`() {
         val gyro = MonitorSettingsGyroSource(false, {}, "SIMULATED", available = false, openLogs = {})
         val configuration = MonitorOperatorSettingsConfiguration("App", false, "SIMULATED", {}, null, {},

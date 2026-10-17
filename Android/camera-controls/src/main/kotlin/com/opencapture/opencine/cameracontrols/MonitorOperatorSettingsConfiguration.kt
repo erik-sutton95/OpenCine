@@ -264,13 +264,15 @@ public class MonitorOperatorSettingsConfiguration(
     public val diagnostics: MonitorSettingsDiagnosticsSource? = null,
     public val legal: MonitorLegalDocuments? = null,
     public val information: MonitorSettingsInformationSource? = null,
-    public val gyro: MonitorSettingsGyroSource? = null,
     /** By default a tab with nothing in it is left out (iOS hides an empty Sharing tab too). */
-    public val tabs: List<MonitorSettingsTab> = monitorSettingsTabs(sharing, cache, account, unconfiguredAccount, gyro),
+    tabs: List<MonitorSettingsTab>? = null,
     /** Legacy captured cards remain available beside typed assist composition. */
     public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
     public val assist: MonitorOperatorAssistSettingsSource? = null,
+    public val gyro: MonitorSettingsGyroSource? = null,
 ) {
+    /** Explicit tab lists keep their order; the default includes each supplied optional domain. */
+    public val tabs: List<MonitorSettingsTab> = tabs ?: monitorSettingsTabs(sharing, cache, account, unconfiguredAccount, gyro)
     /** Published positional list constructor; every current capability field keeps its default. */
     @Deprecated("Compose an explicit typed assist source when migrating the shared settings.")
     public constructor(
