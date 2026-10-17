@@ -455,7 +455,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     } }
                 }
             }
-            cameraViews.waitingPicture?.invoke()
+            if (!command) cameraViews.waitingPicture?.invoke()
         }, panels = { accepts ->
             com.opencapture.opencine.appkit.MonitorOperatorCapturePopup(captureInputs, control, state, layout,
                 enabled = accepts && interactive, commandEnabled = !readOnly, currentSource = ::currentSource,

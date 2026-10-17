@@ -21,6 +21,7 @@ args = parser.parse_args()
 UUID(args.simulator_id)
 sdk = Path(__file__).resolve().parents[1]
 source = sdk / "Tests/MonitorUITests/MonitorCommandDashboardTests.swift"
+waiting_source = sdk / "Tests/OpenCineCameraControlsHostedTests/MonitorCommandWaitingPictureTests.swift"
 names = [
     "testGridTilesOpenTheirRequestAndReorderThroughTheirKind",
     "testLockedControlsKeepTheGridReorderableButOpenNothing",
@@ -30,7 +31,14 @@ names = [
     "testSideColumnWithoutOverflowHasNoCue",
 ]
 assert re.findall(r"\bfunc (test\w+)\(", source.read_text()) == names
-inputs = [source, Path(__file__).resolve(), sdk / "Package.swift"]
+waiting_names = [
+    "testPortraitCommandPaintExcludesWaitingPicture",
+    "testLandscapeCommandPaintExcludesWaitingPicture",
+    "testLiveAndCleanKeepWaitingPresentationVisible",
+    "testModeChangesRetainTheNativePictureOwnerAndReturnItsPaint",
+]
+assert re.findall(r"\bfunc (test\w+)\(", waiting_source.read_text()) == waiting_names
+inputs = [source, waiting_source, Path(__file__).resolve(), sdk / "Package.swift"]
 before = {str(path): sha256(path.read_bytes()).hexdigest() for path in inputs}
 out = args.output.resolve()
 assert not out.exists(), "Use a fresh owned output directory; keep previous failures"
@@ -63,10 +71,11 @@ spec = {
             }},
         },
         target: {
-            "type": "bundle.unit-test", "platform": "iOS", "sources": [str(source)],
+            "type": "bundle.unit-test", "platform": "iOS", "sources": [str(source), str(waiting_source)],
             "dependencies": [{"target": host}] + [
                 {"package": "OpenCine", "product": product}
-                for product in ["MonitorPresentation", "MonitorUI", "OpenCineHostedAccessibility"]
+                for product in ["MonitorPresentation", "MonitorUI", "OpenCineHostedAccessibility",
+                                "OpenCineAppKit", "OpenCineCameraControls", "OpenCineCore", "OpenCineMedia"]
             ],
             "settings": {"base": {
                 "PRODUCT_BUNDLE_IDENTIFIER": "com.opencapture.opencine.commanddashboard.hostedtests",
@@ -102,11 +111,11 @@ with (out / "xcodebuild.log").open("w") as log:
 after = {str(path): sha256(path.read_bytes()).hexdigest() for path in inputs}
 log = (out / "xcodebuild.log").read_text(errors="replace")
 outcomes = {name: re.findall(
-    r"Test Case '[^\n]*\b" + re.escape(name) + r"\]' (passed|failed|skipped)", log) for name in names}
+    r"Test Case '[^\n]*\b" + re.escape(name) + r"\]' (passed|failed|skipped)", log) for name in names + waiting_names}
 report = {"exit": code, "namedOutcomes": outcomes, "inputsUnchanged": before == after,
     "allFourPassed": all(outcomes[name] == ["passed"] for name in names[:4]),
-    "allNamedPassed": all(outcomes[name] == ["passed"] for name in names),
-    "scope": "SIMULATED shared dashboard activation, reorder, disabled/read-only and portrait/landscape accessibility"}
+    "allNamedPassed": all(outcomes[name] == ["passed"] for name in names + waiting_names),
+    "scope": "SIMULATED shared dashboard activation, reorder, disabled/read-only, viewport and full-window waiting paint with native owner retention"}
 (out / "outcomes.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report), flush=True)
 if code:
