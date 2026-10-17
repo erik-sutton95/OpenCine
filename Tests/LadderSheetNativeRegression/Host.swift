@@ -20,8 +20,8 @@ struct SIMULATEDLadderHost: App {
                 if let editor = fixture.control.edit(.iso) {
                     LadderSheet(
                         presentation: fixture.presentation, enabled: true,
-                        onWrite: { fixture.write($0, editor: editor) }, onClose: {},
-                        chromeless: true, onHold: { fixture.holds += 1 })
+                        onWrite: { fixture.write($0, editor: editor) },
+                        onHold: { fixture.holds += 1 })
                         .environment(\.ladderOperatorHaptics, false)
                 }
                 HStack {
