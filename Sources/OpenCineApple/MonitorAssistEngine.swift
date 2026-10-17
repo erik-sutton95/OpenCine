@@ -28,7 +28,8 @@ public final class MonitorAssistEngine: @unchecked Sendable {
 
     private struct Frame: @unchecked Sendable { let buffer: CVPixelBuffer }
     private struct Still: @unchecked Sendable { let image: CGImage }
-    private let queue = DispatchQueue(label: "opencine.monitor-assist", qos: .userInitiated)
+    private let queue: DispatchQueue
+    private let scopeNow: @Sendable () -> CFAbsoluteTime
     private let configuration: MonitorAssistConfiguration
     private let log: Logger
     private let raster = MonitorWorkingRaster()
@@ -54,7 +55,17 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     /// Shared tap: 25 Hz, 10 Hz with three or more scopes, shed further by
     /// thermal tier (×3 serious, ×5 critical). Deadline cannot catch up.
 
-    public init(configuration: MonitorAssistConfiguration = .init()) {
+    public convenience init(configuration: MonitorAssistConfiguration = .init()) {
+        self.init(configuration: configuration, scopeNow: { CFAbsoluteTimeGetCurrent() })
+    }
+
+    /// Keep cadence time and queue readiness controllable without changing the public host API.
+    init(configuration: MonitorAssistConfiguration = .init(),
+        scopeNow: @escaping @Sendable () -> CFAbsoluteTime,
+        queue: DispatchQueue = DispatchQueue(label: "opencine.monitor-assist", qos: .userInitiated)
+    ) {
+        self.queue = queue
+        self.scopeNow = scopeNow
         self.configuration = configuration
         self.log = Logger(subsystem: configuration.logSubsystem, category: "scope-tap")
         self.exposureCeiling = ScopeExposureCeiling(profile: configuration.clipProfile)
@@ -109,7 +120,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
     ) {
         let still = Still(image: image)
         queue.async { [self] in
-            guard effects.needsScopes, CFAbsoluteTimeGetCurrent() >= nextScopeAt,
+            guard effects.needsScopes, scopeNow() >= nextScopeAt,
                 let buffer = raster.prepared(still.image)
             else { return }
             pendingBuffer = buffer
@@ -190,7 +201,7 @@ public final class MonitorAssistEngine: @unchecked Sendable {
         // The histogram walk still runs after present so it cannot hold 25 fps.
         var packed: (bytes: [UInt8], width: Int, height: Int, bytesPerRow: Int)?
         if fx.needsScopes {
-            let now = CFAbsoluteTimeGetCurrent()
+            let now = scopeNow()
             let interval = Self.minInterval(activeScopeCount: fx.activeScopeCount)
             if now >= nextScopeAt {
                 nextScopeAt = now + interval
