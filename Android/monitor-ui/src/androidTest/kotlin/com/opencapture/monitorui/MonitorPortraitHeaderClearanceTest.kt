@@ -7,6 +7,10 @@ import android.graphics.Color
 import android.view.ViewGroup
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
@@ -17,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.opencapture.opencine.appkit.chromeEditable
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -43,6 +48,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.cancel
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -364,10 +370,19 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
+    /** SIMULATED actual Live/Clean editor: the real Status eye dims its relocated children together. */
+    @Test(timeout = 180_000) fun compactStatusEditorKeepsStorageGroupDimmingAndIndependentPower() {
+        for (mode in listOf(com.opencapture.opencine.appkit.MonitorDisplayMode.LIVE,
+            com.opencapture.opencine.appkit.MonitorDisplayMode.CLEAN)) {
+            productionPrimaryCase(320f, 24f, 0f, listOf(null), compactEditorMode = mode)
+        }
+    }
+
     private fun productionPrimaryCase(width: Float, top: Float, side: Float, durations: List<Int?>,
         codecOnly: Boolean = false, compareStandbyRecording: Boolean = false, useActualHostHeight: Boolean = false,
         verifyNativeTaps: Boolean = false, verifyViewport: Boolean = false,
-        captureRails: MutableMap<String, Rect>? = null, expectedRails: Map<String, Rect>? = null) {
+        captureRails: MutableMap<String, Rect>? = null, expectedRails: Map<String, Rect>? = null,
+        compactEditorMode: com.opencapture.opencine.appkit.MonitorDisplayMode? = null) {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
             val control = com.opencapture.opencine.appkit.MonitorControlModel(scope)
@@ -415,6 +430,11 @@ class MonitorPortraitHeaderClearanceTest {
                         com.opencapture.opencine.appkit.MonitorDisplayPreferences(storage,
                             com.opencapture.opencine.appkit.MonitorDisplayPreferences.Keys("live", "clean")), scope)
                     session = model
+                    if (compactEditorMode != null) {
+                        model.live = com.opencapture.opencine.appkit.MonitorDisplayChrome.liveDefaults
+                        model.clean = com.opencapture.opencine.appkit.MonitorDisplayChrome.liveDefaults
+                        model.beginEditing(compactEditorMode)
+                    }
                     activity.setContent {
                         val nativeMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                         val mainMaximum = if (field.tablet) 25f else 23f
@@ -438,9 +458,11 @@ class MonitorPortraitHeaderClearanceTest {
                         val status = com.opencapture.opencine.cameracontrols.MonitorOperatorLiveStatus(
                             recording = { MonitorStatusPresentation(elapsed != null, elapsed ?: 0, "00:48:03:23") },
                             showsTimecode = true, showsRecording = true,
-                            storage = com.opencapture.opencine.appkit.MonitorOperatorLiveReadout("storage", "Storage remaining", "107 GB"),
+                            storage = com.opencapture.opencine.appkit.MonitorOperatorLiveReadout("storage", "Storage remaining", "107 GB",
+                                section = if (compactEditorMode != null) com.opencapture.opencine.appkit.MonitorDisplaySection.STORAGE else null),
                             format = if (codecOnly) listOf(codec) else listOf(format, codec), fps = "25 fps", signalBars = 4,
-                            fpsSection = null, color = if (codecOnly) null else color)
+                            fpsSection = if (compactEditorMode != null) com.opencapture.opencine.appkit.MonitorDisplaySection.FPS else null,
+                            color = if (codecOnly) null else color)
                         val source = com.opencapture.opencine.cameracontrols.MonitorOperatorLiveSource(
                             identity = { identity }, available = if (codecOnly) setOf(
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.STATUS_BAR,
@@ -448,7 +470,9 @@ class MonitorPortraitHeaderClearanceTest {
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.CODEC) else setOf(
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.STATUS_BAR,
                                 com.opencapture.opencine.appkit.MonitorDisplaySection.BATTERIES,
-                                com.opencapture.opencine.appkit.MonitorDisplaySection.COLOR),
+                                com.opencapture.opencine.appkit.MonitorDisplaySection.COLOR) +
+                                if (compactEditorMode != null) setOf(com.opencapture.opencine.appkit.MonitorDisplaySection.STORAGE,
+                                    com.opencapture.opencine.appkit.MonitorDisplaySection.FPS) else emptySet(),
                             picture = com.opencapture.opencine.cameracontrols.MonitorOperatorLivePicture(16f / 9f, false, false, false, false),
                             status = status, cameraBattery = com.opencapture.opencine.cameracontrols.MonitorOperatorPowerReading(true, 68),
                             capture = inputs, record = com.opencapture.opencine.cameracontrols.MonitorOperatorRecordSource(false, false, false, null),
@@ -467,12 +491,21 @@ class MonitorPortraitHeaderClearanceTest {
                                             .background(androidx.compose.ui.graphics.Color.Green)
                                             .semantics { contentDescription = "SIMULATED production picture" }
                                             .onGloballyPositioned { actualPicture = it.boundsInRoot() })
+                                        if (compactEditorMode != null) {
+                                            MonitorBoundedReadoutText("107 GB", Modifier.offset(20.dp, 250.dp).width(92.dp)
+                                                .then(legacyStatusEditReference(model, compactEditorMode))
+                                                .semantics { contentDescription = "SIMULATED original Status edit reference" })
+                                        }
                                     }, cameraPanel = { _, _, _, _ -> }, photoRelease = null)
                             }
                         }
                     }
                 }
                 assertTrue("Actual production composition must lay out", placed.await(5, TimeUnit.SECONDS))
+                if (compactEditorMode != null) {
+                    assertCompactEditorDimming(scenario, requireNotNull(session), compactEditorMode)
+                    return
+                }
                 for (duration in durations) {
                     scenario.onActivity { elapsed = duration }
                     awaitForegroundFrame(scenario)
@@ -784,6 +817,365 @@ class MonitorPortraitHeaderClearanceTest {
                 scope.cancel()
             }
         }
+    }
+
+    /** SIMULATED real signal/FPS action, same storage paragraph, actual native occupied targets. */
+    @Test(timeout = 180_000) fun compactTabletTogglePreservesStorageAndNativeFPSGlyphs() {
+        compactTogglePreservesStorageAndNativeFPSGlyphs(MonitorTelemetryMetrics.TABLET, 134f, 11f)
+    }
+
+    @Test(timeout = 180_000) fun compactPhoneTogglePreservesStorageAndNativeFPSGlyphs() {
+        compactTogglePreservesStorageAndNativeFPSGlyphs(MonitorTelemetryMetrics.PHONE, 122f, 10f)
+    }
+
+    private fun compactTogglePreservesStorageAndNativeFPSGlyphs(metrics: MonitorTelemetryMetrics,
+        expectedPowerWidth: Float, literalFpsFont: Float) {
+        for (width in listOf(320f, 360f, 440f)) for (value in listOf("\u2014", "107 GB", "123456789 GB")) {
+            ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+                var candidate by androidx.compose.runtime.mutableStateOf(false)
+                var storageFrame = Rect.Zero
+                var powerFrame = Rect.Zero
+                var canvas = Rect.Zero
+                var density = 1f
+                val field = MonitorLayoutPolicy.fieldMonitor(width, 956f)
+                scenario.onActivity { activity ->
+                    density = activity.resources.displayMetrics.density
+                    activity.setContent {
+                        val storage: @androidx.compose.runtime.Composable () -> Unit = {
+                            Row(Modifier.clickable { }.semantics { contentDescription = "Storage remaining" }
+                                .onGloballyPositioned { storageFrame = it.boundsInRoot() },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                MonitorIcon(MonitorIcon.CARD_SIM, null, Modifier.size(14.dp))
+                                MonitorBoundedReadoutText(value)
+                            }
+                        }
+                        val link: @androidx.compose.runtime.Composable () -> Unit = {
+                            MonitorTelemetry(4, "25", emptyList(), true, metrics = metrics,
+                                showsPower = false)
+                        }
+                        val power: @androidx.compose.runtime.Composable () -> Unit = {
+                            MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100), MonitorTelemetryPower(true, 68)),
+                                true, metrics = metrics, showsLink = false,
+                                modifier = Modifier.onGloballyPositioned { powerFrame = it.boundsInRoot() })
+                        }
+                        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+                            Box(Modifier.requiredSize(width.dp, 956.dp).onGloballyPositioned { canvas = it.boundsInRoot() }) {
+                                if (candidate) MonitorCompactTelemetryRow(field, 0f, 0f, metrics,
+                                    storage = storage, link = link, power = power)
+                                else {
+                                    MonitorStatusChrome(field, MonitorStatusPresentation(false),
+                                        modifier = Modifier.offset(field.status.x.dp, field.status.y.dp).width(field.status.width.dp),
+                                        storage = storage, format = {}, link = link)
+                                    Box(Modifier.offset(field.telemetry.x.dp, field.telemetry.y.dp)) { power() }
+                                }
+                                Text("25 fps", style = MonitorTypography.readout(literalFpsFont, FontWeight.Bold),
+                                    color = MonitorPalette.accent, modifier = Modifier.offset(20.dp, 100.dp))
+                            }
+                        }
+                    }
+                }
+                awaitForegroundFrame(scenario)
+                var originalPaint: NativeStoragePaint? = null
+                var originalStorageWidth = 0f
+                scenario.onActivity { activity ->
+                    val node = nativeNodes(activity.window.decorView).single {
+                        it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value
+                    }
+                    val results = mutableListOf<TextLayoutResult>()
+                    assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
+                    originalPaint = nativeStoragePaint(results.single())
+                    originalStorageWidth = storageFrame.width
+                }
+                val originalOccupiedWidth = nativeClickableTarget("Storage remaining").width().toFloat()
+                scenario.onActivity { candidate = true }
+                for ((index, fps) in listOf(false, true, false).withIndex()) {
+                    awaitForegroundFrame(scenario)
+                    val instrumentation = InstrumentationRegistry.getInstrumentation()
+                    val storageTarget = nativeClickableTarget("Storage remaining")
+                    val performanceTarget = nativeClickableTarget("Live link ")
+                    android.util.Log.i("CompactTelemetryTargets", JSONObject().put("width", width).put("storage", value)
+                        .put("fps", fps).put("density", density).put("originalOccupiedWidth", originalOccupiedWidth)
+                        .put("storageTarget", storageTarget.toShortString()).put("performanceTarget", performanceTarget.toShortString()).toString())
+                    scenario.onActivity { activity ->
+                        val shot = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+                        try {
+                            val file = activity.cacheDir.resolve("SIMULATED-compact-$literalFpsFont-$width-$value-$index-${android.os.SystemClock.uptimeMillis()}.png")
+                            file.outputStream().use { assertTrue(shot.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                        } finally { shot.recycle() }
+                    }
+                    for (target in listOf(storageTarget, performanceTarget)) {
+                        assertTrue("Actual native target width retains48dp", target.width() >= 48f * density - 1f)
+                        assertTrue("Actual native target height retains48dp", target.height() >= 48f * density - 1f)
+                    }
+                    // Preserve valid original allocation; a clipped legacy target cannot lower the native floor.
+                    assertEquals("Keep complete original occupied storage allocation",
+                        maxOf(originalOccupiedWidth, 48f * density), storageTarget.width().toFloat(), .5f)
+                    assertTrue("Actual occupied targets retain8dp", storageTarget.right + 8f * density <= performanceTarget.left + 1f)
+                    var button: SemanticsNode? = null
+                    scenario.onActivity { activity ->
+                        val nodes = nativeNodes(activity.window.decorView)
+                        button = nodes.single {
+                            it.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull()?.startsWith("Live link ") == true
+                                && it.config.getOrNull(SemanticsActions.OnClick) != null
+                        }
+                        val storageNode = nodes.single { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value }
+                        val layouts = mutableListOf<TextLayoutResult>()
+                        assertTrue(storageNode.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts))
+                        val actual = layouts.single()
+                        val paint = nativeStoragePaint(actual)
+                        assertTrue("Keep actual visible prefix and native glyph metrics",
+                            sameStoragePaint(requireNotNull(originalPaint), paint))
+                        assertEquals("Keep original native storage allocation", originalStorageWidth, storageFrame.width, .05f)
+                        val linkFrame = button!!.boundsInRoot
+                        assertTrue("Full native horizontal target floor", linkFrame.width >= 48f * density - 1f)
+                        assertTrue("Actual link target clears real power", linkFrame.right + 8f * density <= powerFrame.left + 1f)
+                        assertEquals("Power uses the actual declared metrics", expectedPowerWidth * density, powerFrame.width, .5f)
+                        assertTrue("Safe leading target", storageFrame.center.x - maxOf(storageFrame.width, 48f * density) / 2 >= canvas.left + 14f * density - 1f)
+                        assertTrue("Safe trailing power", powerFrame.right <= canvas.left + (width - 14f) * density + 1f)
+                        if (fps) {
+                            val text = nodes.filter { it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "25 fps" }
+                            assertEquals("The real toggle must expose full FPS and its literal reference", 2, text.size)
+                            val measured = text.sortedBy { it.boundsInRoot.top }.map { node ->
+                                val result = mutableListOf<TextLayoutResult>()
+                                assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(result))
+                                result.single()
+                            }
+                            assertTrue("FPS must not ellipsize", !measured[0].isLineEllipsized(0))
+                            for (glyph in "25 fps".indices) {
+                                assertEquals(measured[1].getBoundingBox(glyph).width, measured[0].getBoundingBox(glyph).width, .05f)
+                                assertEquals(measured[1].getBoundingBox(glyph).height, measured[0].getBoundingBox(glyph).height, .05f)
+                            }
+                        }
+                        android.util.Log.i("CompactTelemetryNative", JSONObject().put("width", width).put("storage", value)
+                            .put("fps", fps).put("storageFrame", storageFrame.toString()).put("linkFrame", linkFrame.toString())
+                            .put("powerFrame", powerFrame.toString()).put("literalFpsFont", literalFpsFont)
+                            .put("originalOccupiedWidth", originalOccupiedWidth).put("visiblePrefix", paint.visiblePrefix)
+                            .put("nativeGlyphs", paint.glyphs.toString()).toString())
+                        if (index < 2) assertTrue(button!!.config[SemanticsActions.OnClick].action!!.invoke())
+                    }
+                    instrumentation.waitForIdleSync()
+                }
+            }
+        }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun legacyStatusEditReference(model: com.opencapture.opencine.appkit.MonitorOperatorSessionModel,
+        mode: com.opencapture.opencine.appkit.MonitorDisplayMode): Modifier {
+        val host = androidx.compose.runtime.remember(model) {
+            object : com.opencapture.opencine.appkit.ChromeEditHost<com.opencapture.opencine.appkit.MonitorDisplaySection,
+                com.opencapture.opencine.appkit.MonitorDisplayMode> {
+                override val chromeEditSections = com.opencapture.opencine.appkit.MonitorDisplaySection.entries
+                override fun chromeSectionTitle(section: com.opencapture.opencine.appkit.MonitorDisplaySection) = section.title
+                override fun chromeSectionID(section: com.opencapture.opencine.appkit.MonitorDisplaySection) = section.key
+                override fun chromeModeTitle(mode: com.opencapture.opencine.appkit.MonitorDisplayMode) = mode.title
+                override fun isChromeConfigurable(section: com.opencapture.opencine.appkit.MonitorDisplaySection,
+                    mode: com.opencapture.opencine.appkit.MonitorDisplayMode) =
+                    com.opencapture.opencine.appkit.MonitorDisplayChrome.isConfigurable(section, mode)
+                override fun isChromeVisible(section: com.opencapture.opencine.appkit.MonitorDisplaySection,
+                    mode: com.opencapture.opencine.appkit.MonitorDisplayMode) = model.chrome(mode).isVisible(section)
+                override fun toggleChrome(section: com.opencapture.opencine.appkit.MonitorDisplaySection,
+                    mode: com.opencapture.opencine.appkit.MonitorDisplayMode) = model.toggle(section, mode)
+                override fun endChromeEditing() = model.finishEditing()
+            }
+        }
+        return Modifier.chromeEditable(host, com.opencapture.opencine.appkit.MonitorDisplaySection.STATUS_BAR, mode) { _, _ -> }
+    }
+
+    private fun assertCompactEditorDimming(scenario: ActivityScenario<MonitorTestActivity>,
+        model: com.opencapture.opencine.appkit.MonitorOperatorSessionModel,
+        mode: com.opencapture.opencine.appkit.MonitorDisplayMode) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        var original: Bitmap? = null
+        var originalFrames = emptyMap<String, Rect>()
+        try {
+            for ((index, hidden) in listOf(false, true, false).withIndex()) {
+                awaitForegroundFrame(scenario)
+                instrumentation.waitForIdleSync()
+                scenario.onActivity { activity ->
+                    assertEquals(!hidden, model.chrome(mode).statusBar)
+                    assertTrue("Storage remains individually enabled while Status Bar is hidden", model.chrome(mode).storage)
+                    assertEquals(mode, model.editingMode)
+                    val nodes = nativeNodes(activity.window.decorView)
+                    val badge = nodes.single {
+                        it.config.getOrNull(SemanticsProperties.TestTag) == "monitor.chromeEdit.statusBar"
+                    }
+                    assertEquals(if (hidden) "Hidden" else "Shown", badge.config[SemanticsProperties.StateDescription])
+                    fun description(node: SemanticsNode) = node.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull()
+                    val reference = nodes.single { description(it) == "SIMULATED original Status edit reference" }
+                    val storage = nodes.single {
+                        it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "107 GB" &&
+                            description(it) != "SIMULATED original Status edit reference"
+                    }
+                    val link = nodes.single { description(it)?.startsWith("Live link ") == true }
+                    val power = nodes.single { description(it)?.startsWith("Camera battery ") == true }
+                    val location = IntArray(2)
+                    activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0).getLocationOnScreen(location)
+                    fun pixels(node: SemanticsNode) = node.boundsInRoot.translate(location[0].toFloat(), location[1].toFloat())
+                    val frames = mapOf("reference" to pixels(reference), "storage" to pixels(storage),
+                        "link" to pixels(link), "power" to pixels(power))
+                    val raw = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+                    val shot = requireNotNull(raw.copy(Bitmap.Config.ARGB_8888, false))
+                    raw.recycle()
+                    try {
+                        val file = activity.cacheDir.resolve("SIMULATED-status-editor-$mode-$index-${android.os.SystemClock.uptimeMillis()}.png")
+                        file.outputStream().use { assertTrue(shot.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                        if (original == null) {
+                            original = requireNotNull(shot.copy(Bitmap.Config.ARGB_8888, false))
+                            originalFrames = frames
+                        } else {
+                            for ((name, frame) in frames) {
+                                val before = originalFrames.getValue(name)
+                                for ((actual, expected) in listOf(frame.left, frame.top, frame.width, frame.height)
+                                    .zip(listOf(before.left, before.top, before.width, before.height))) {
+                                    assertEquals("Edit visibility preserves $name geometry", expected, actual, .5f)
+                                }
+                            }
+                            val before = requireNotNull(original)
+                            val referenceRatio = nativeBrightnessRatio(before, shot, frames.getValue("reference"), false)
+                            val storageRatio = nativeBrightnessRatio(before, shot, frames.getValue("storage"), false)
+                            val linkRatio = nativeBrightnessRatio(before, shot, frames.getValue("link"), false)
+                            val powerRatio = nativeBrightnessRatio(before, shot, frames.getValue("power"), true)
+                            assertEquals("Storage keeps original Status group dimming", referenceRatio, storageRatio, .05f)
+                            assertEquals("Link keeps original Status group dimming", referenceRatio, linkRatio, .05f)
+                            assertEquals("Power keeps its separate visible owner", 1f, powerRatio, .05f)
+                            if (hidden) assertTrue("The original path actually dims", referenceRatio < .8f)
+                            else assertEquals("The real eye restores its children", 1f, referenceRatio, .05f)
+                            android.util.Log.i("CompactStatusEditor", JSONObject().put("mode", mode.toString())
+                                .put("hidden", hidden).put("frames", frames.toString()).put("referenceRatio", referenceRatio)
+                                .put("storageRatio", storageRatio).put("linkRatio", linkRatio).put("powerRatio", powerRatio).toString())
+                        }
+                    } finally { shot.recycle() }
+                    if (index < 2) assertTrue("Use the actual Status Bar eye callback", badge.config[SemanticsActions.OnClick].action!!.invoke())
+                }
+            }
+        } finally { original?.recycle() }
+    }
+
+    private fun nativeBrightnessRatio(original: Bitmap, actual: Bitmap, frame: Rect, green: Boolean): Float {
+        val ratios = mutableListOf<Float>()
+        for (y in kotlin.math.floor(frame.top).toInt().coerceAtLeast(0) until kotlin.math.ceil(frame.bottom).toInt().coerceAtMost(original.height)) {
+            for (x in kotlin.math.floor(frame.left).toInt().coerceAtLeast(0) until kotlin.math.ceil(frame.right).toInt().coerceAtMost(original.width)) {
+                val old = original.getPixel(x, y)
+                val accepted = if (green) Color.green(old) >= 160 && Color.red(old) < 140 && Color.blue(old) < 140
+                    else minOf(Color.red(old), Color.green(old), Color.blue(old)) >= 200
+                if (accepted) {
+                    val now = actual.getPixel(x, y)
+                    val oldValue = if (green) Color.green(old) else minOf(Color.red(old), Color.green(old), Color.blue(old))
+                    val newValue = if (green) Color.green(now) else minOf(Color.red(now), Color.green(now), Color.blue(now))
+                    ratios += newValue.toFloat() / oldValue
+                }
+            }
+        }
+        assertTrue("Actual native glyph/icon pixels are required", ratios.size >= 8)
+        return ratios.sorted()[ratios.size / 2]
+    }
+
+    private data class NativeStoragePaint(val value: String, val visiblePrefix: String,
+        val ellipsized: Boolean, val glyphs: List<Pair<Float, Float>>)
+
+    private fun nativeStoragePaint(result: TextLayoutResult): NativeStoragePaint {
+        assertEquals("One native storage line", 1, result.lineCount)
+        val value = result.layoutInput.text.text
+        val end = result.getLineEnd(0, visibleEnd = true)
+        return NativeStoragePaint(value, value.substring(0, end), result.isLineEllipsized(0),
+            (0 until end).map { index -> result.getBoundingBox(index).let { it.width to it.height } })
+    }
+
+    private fun sameStoragePaint(original: NativeStoragePaint, actual: NativeStoragePaint): Boolean =
+        original.value == actual.value && original.visiblePrefix == actual.visiblePrefix &&
+            original.ellipsized == actual.ellipsized && original.glyphs.size == actual.glyphs.size &&
+            original.glyphs.zip(actual.glyphs).all { (left, right) ->
+                kotlin.math.abs(left.first - right.first) <= .05f && kotlin.math.abs(left.second - right.second) <= .05f
+            }
+
+    @Test(timeout = 90_000) fun compactStorageOracleRejectsShorterPrefixAndSmallerNativeGlyphs() {
+        val value = "123456789 GB"
+        ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.setContent {
+                    Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+                        MonitorBoundedReadoutText(value, Modifier.width(69.dp))
+                        MonitorBoundedReadoutText(value, Modifier.width(69.dp))
+                        MonitorBoundedReadoutText(value, Modifier.width(40.dp))
+                        MonitorBoundedReadoutText(value, Modifier.width(69.dp), minimumSize = 10f)
+                    }
+                }
+            }
+            awaitForegroundFrame(scenario)
+            scenario.onActivity { activity ->
+                val nodes = nativeNodes(activity.window.decorView).filter {
+                    it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == value
+                }.sortedBy { it.boundsInRoot.top }
+                assertEquals(4, nodes.size)
+                val samples = nodes.map { node ->
+                    val results = mutableListOf<TextLayoutResult>()
+                    assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
+                    nativeStoragePaint(results.single())
+                }
+                assertTrue("Identical native controls must match", sameStoragePaint(samples[0], samples[1]))
+                assertTrue("The narrower control actually paints fewer original characters",
+                    samples[2].visiblePrefix.length < samples[0].visiblePrefix.length)
+                assertFalse("Reject an additionally truncated prefix with unchanged full semantics",
+                    sameStoragePaint(samples[0], samples[2]))
+                assertTrue("The lower-floor control actually uses smaller native glyphs",
+                    samples[3].glyphs.first().first < samples[0].glyphs.first().first - .05f)
+                assertFalse("Reject a native font reduction despite unchanged requested maximum/full semantics",
+                    sameStoragePaint(samples[0], samples[3]))
+                android.util.Log.i("CompactStorageOracle", samples.toString())
+            }
+        }
+    }
+
+    private fun nativeClickableTarget(prefix: String): android.graphics.Rect {
+        fun find(root: android.view.accessibility.AccessibilityNodeInfo): android.graphics.Rect? {
+            fun search(node: android.view.accessibility.AccessibilityNodeInfo,
+                parentOwner: android.view.accessibility.AccessibilityNodeInfo?): android.graphics.Rect? {
+                val owner = if (node.isClickable) node else parentOwner
+                if (node.contentDescription?.toString()?.startsWith(prefix) == true && owner != null) {
+                    // Compose may put the label on a child of the native click owner.
+                    // Return that real nearest owner's platform bounds without changing them.
+                    return android.graphics.Rect().also(owner::getBoundsInScreen)
+                }
+                for (child in 0 until node.childCount) {
+                    val found = node.getChild(child)?.let { search(it, owner) }
+                    if (found != null) return found
+                }
+                return null
+            }
+            return search(root, null)
+        }
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // A displayed frame and Compose semantics do not establish the platform AX tree.
+        // Wait only for the actual named clickable to exist; all geometry is judged unchanged below.
+        val deadline = android.os.SystemClock.uptimeMillis() + 5_000
+        do {
+            automation.rootInActiveWindow?.let(::find)?.let { return it }
+            val remaining = deadline - android.os.SystemClock.uptimeMillis()
+            if (remaining <= 0) break
+            try { automation.waitForIdle(50, remaining) }
+            catch (_: java.util.concurrent.TimeoutException) { break }
+        } while (android.os.SystemClock.uptimeMillis() < deadline)
+        val tree = org.json.JSONArray()
+        fun describe(node: android.view.accessibility.AccessibilityNodeInfo, depth: Int) {
+            val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
+            tree.put(JSONObject().put("depth", depth).put("class", node.className?.toString())
+                .put("description", node.contentDescription?.toString()).put("text", node.text?.toString())
+                .put("clickable", node.isClickable).put("visible", node.isVisibleToUser)
+                .put("bounds", bounds.toShortString()).put("window", node.windowId))
+            for (child in 0 until node.childCount) node.getChild(child)?.let { describe(it, depth + 1) }
+        }
+        automation.rootInActiveWindow?.let { describe(it, 0) }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val stem = "SIMULATED-missing-native-target-${android.os.SystemClock.uptimeMillis()}"
+        context.cacheDir.resolve("$stem.json").writeText(JSONObject().put("prefix", prefix)
+            .put("deadlineMillis", 5_000).put("nativeTree", tree).toString())
+        automation.takeScreenshot()?.let { image ->
+            try { context.cacheDir.resolve("$stem.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+            finally { image.recycle() }
+        }
+        throw IllegalArgumentException("The actual accessibility target is missing after native AX readiness: $prefix; $tree")
     }
 
     /** The submitted frame must also be visible before the unchanged foreground pixel oracle. */

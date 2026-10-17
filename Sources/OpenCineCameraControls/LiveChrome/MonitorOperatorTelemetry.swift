@@ -17,7 +17,7 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     var metrics: MonitorTelemetryMetrics? = nil
     @State private var showsFPS = false
     @State private var phone = MonitorOperatorPowerReading(id: "phone", title: "Phone battery", camera: false)
-    private static var nativeMetrics: MonitorTelemetryMetrics {
+    static var nativeMetrics: MonitorTelemetryMetrics {
         UIDevice.current.userInterfaceIdiom == .pad ? .tablet : .phone
     }
     private var resolvedMetrics: MonitorTelemetryMetrics { metrics ?? Self.nativeMetrics }
@@ -81,24 +81,25 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     static func gauge(icon: MonitorIcon?, value: String?, bars: Int, color: Color,
         barCount: Int = 4, metrics: MonitorTelemetryMetrics? = nil) -> some View {
         let metrics = metrics ?? nativeMetrics
-        return HStack(spacing: 4) {
-            if let icon {
-                icon.frame(width: metrics.iconSize, height: metrics.iconSize)
-                    .foregroundStyle(Palette.text)
-            }
-            if let value {
-                Text(value).font(MonitorTheme.font(metrics.fontSize, weight: .semibold))
-                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
-            } else {
-                MonitorGaugeBars(
-                    filled: bars, count: barCount, tint: color,
-                    barHeight: metrics.barHeight)
+        let width = value == nil ? MonitorGaugeBars.readoutWidth(filled: bars, count: barCount,
+            minimum: icon == nil ? metrics.iconlessWidth : metrics.pillWidth, inset: icon == nil ? 12 : 28)
+            : icon == nil ? metrics.iconlessWidth : metrics.pillWidth
+        return MonitorTelemetryPill(width: width, height: metrics.pillHeight) {
+            HStack(spacing: 4) {
+                if let icon {
+                    icon.frame(width: metrics.iconSize, height: metrics.iconSize)
+                        .foregroundStyle(Palette.text)
+                }
+                if let value {
+                    Text(value).font(MonitorTheme.font(metrics.fontSize, weight: .semibold))
+                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
+                } else {
+                    MonitorGaugeBars(
+                        filled: bars, count: barCount, tint: color,
+                        barHeight: metrics.barHeight)
+                }
             }
         }
-        .padding(.horizontal, 6)
-        .frame(width: value == nil ? MonitorGaugeBars.readoutWidth(filled: bars, count: barCount,
-            minimum: icon == nil ? metrics.iconlessWidth : metrics.pillWidth, inset: icon == nil ? 12 : 28)
-            : icon == nil ? metrics.iconlessWidth : metrics.pillWidth, height: metrics.pillHeight, alignment: .leading)
         .monitorGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .accessibilityElement(children: .ignore)
     }

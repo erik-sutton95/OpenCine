@@ -67,6 +67,17 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
     recordingModifier: Modifier = Modifier, clockModifier: Modifier = Modifier,
     storage: @Composable () -> Unit = {}, format: @Composable () -> Unit,
     color: @Composable () -> Unit = {}, mode: @Composable () -> Unit = {}, link: @Composable () -> Unit = {}) {
+    MonitorStatusChrome(layout, status, showsTimecode, showsRecording, true, modifier,
+        recordingModifier, clockModifier, storage, format, color, mode, link)
+}
+
+/** A composed occupied row may own compact telemetry while the status content keeps its original slot. */
+@Composable
+fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresentation,
+    showsTimecode: Boolean, showsRecording: Boolean, showsCompactTelemetry: Boolean,
+    modifier: Modifier = Modifier, recordingModifier: Modifier = Modifier, clockModifier: Modifier = Modifier,
+    storage: @Composable () -> Unit = {}, format: @Composable () -> Unit,
+    color: @Composable () -> Unit = {}, mode: @Composable () -> Unit = {}, link: @Composable () -> Unit = {}) {
     Box(modifier.fillMaxWidth().then(if (layout.portrait) Modifier else Modifier.height(layout.status.height.dp))) {
         if (layout.portrait) {
             MonitorPortraitStatusRow(
@@ -87,7 +98,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
                 }
             }
         }
-        if (layout.portrait) {
+        if (layout.portrait && showsCompactTelemetry) {
             if (layout.tablet) Row(Modifier.offset(y = (52f - layout.status.y).dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { storage() }
             else MonitorPortraitTelemetryRow(Modifier.offset(y = (layout.telemetry.y - 13f - layout.status.y).dp)

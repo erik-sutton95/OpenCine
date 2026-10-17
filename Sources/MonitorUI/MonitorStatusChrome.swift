@@ -11,6 +11,7 @@
     private let status: MonitorStatusPresentation
     private let showsTimecode: Bool
     private let showsRecording: Bool
+    private let showsCompactTelemetry: Bool
     private let storage: () -> Storage
     private let format: () -> Format
     private let color: () -> ColorProfile
@@ -19,7 +20,7 @@
 
     public init(
       layout: FieldMonitorLayout, status: MonitorStatusPresentation,
-      showsTimecode: Bool = true, showsRecording: Bool = true,
+      showsTimecode: Bool = true, showsRecording: Bool = true, showsCompactTelemetry: Bool = true,
       @ViewBuilder storage: @escaping () -> Storage,
       @ViewBuilder format: @escaping () -> Format,
       @ViewBuilder color: @escaping () -> ColorProfile,
@@ -30,6 +31,7 @@
       self.status = status
       self.showsTimecode = showsTimecode
       self.showsRecording = showsRecording
+      self.showsCompactTelemetry = showsCompactTelemetry
       self.storage = storage
       self.format = format
       self.color = color
@@ -81,7 +83,7 @@
       .frame(height: layout.portrait ? nil : layout.status.height)
       .monitorReadoutShadow()
       .overlay(alignment: .topLeading) {
-        if layout.portrait {
+        if layout.portrait, showsCompactTelemetry {
           if layout.tablet {
             HStack(spacing: 10) { storage().monitorReadoutShadow() }
               .offset(y: 52 - layout.status.y)

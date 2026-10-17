@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,11 +26,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.ceil
 
 /** Draw-only readouts. The adapter supplies its existing delivery-health mapping. */
 @Composable
@@ -125,20 +130,16 @@ private fun TelemetryGauge(
     stacked: Boolean, value: String? = null, onClick: (() -> Unit)? = null, barCount: Int = 4,
     filled: Int? = null, opacity: Float = 1f, metrics: MonitorTelemetryMetrics = MonitorTelemetryMetrics.PHONE,
 ) {
-    Row(
-        Modifier
-            // Without the glyph the pill still fits "100%" so values never jitter.
-            .size((if (filled != null && value == null) monitorGaugeReadoutWidth(filled, barCount,
+    val preferredWidth = if (filled != null && value == null) monitorGaugeReadoutWidth(filled, barCount,
                 if (icon != null) metrics.pillWidth else metrics.iconlessWidth, if (icon != null) 28f else 12f)
-                else if (icon != null) metrics.pillWidth else metrics.iconlessWidth).dp, metrics.pillHeight.dp)
+                else if (icon != null) metrics.pillWidth else metrics.iconlessWidth
+    val appearance = Modifier
             .alpha(opacity)
             .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(7.dp))
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(horizontal = 6.dp)
-            .semantics { contentDescription = label },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+            .semantics { contentDescription = label }
+    val content: @Composable () -> Unit = {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (icon != null) MonitorIcon(icon, contentDescription = null, tint = MonitorPalette.text, modifier = Modifier.size(metrics.iconSize.dp))
         if (value != null) {
             Text(value, color = tint, style = MonitorTypography.readout(metrics.fontSize, FontWeight.Bold), maxLines = 1)
@@ -146,6 +147,23 @@ private fun TelemetryGauge(
             if (filled != null) MonitorGaugeBars(filled, barCount, tint, metrics.barHeight)
             else MonitorGaugeBars(fraction, barCount, tint, metrics.barHeight)
         }
+      }
+    }
+    if (LocalMonitorAdaptiveTelemetryPadding.current) {
+        val minimumTarget = maxOf(48f, LocalViewConfiguration.current.minimumTouchTargetSize.width.value)
+        Layout(content = content, modifier = appearance.height(metrics.pillHeight.dp)) { children, constraints ->
+            val child = children.single().measure(constraints.copy(minWidth = 0, minHeight = 0,
+                maxWidth = Constraints.Infinity))
+            val fit = MonitorTelemetryPadding.pixels(child.width, constraints.maxWidth,
+                preferredWidth.dp.roundToPx(), ceil(minimumTarget.dp.toPx()).toInt(), 6.dp.roundToPx())
+            val height = metrics.pillHeight.dp.roundToPx().coerceIn(constraints.minHeight, constraints.maxHeight)
+            layout(fit.width, height) {
+                child.place(fit.padding, (height - child.height) / 2)
+            }
+        }
+    } else {
+        Box(Modifier.size(preferredWidth.dp, metrics.pillHeight.dp).then(appearance)
+            .padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) { content() }
     }
 }
 
