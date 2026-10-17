@@ -155,8 +155,7 @@ private fun MonitorOperatorSettingsRows(
         }
         MonitorSettingsTab.CONTROLS -> SettingsControls(configuration.controls, configuration.feedback)
         MonitorSettingsTab.DISPLAY -> when (picture) {
-            is MonitorOperatorPictureSettings.Deployed -> OperatorDisplayRows(picture.model, picture.state, picture.app,
-                configuration.isLive)
+            is MonitorOperatorPictureSettings.Deployed -> OperatorDisplayRows(picture.model, picture.state, picture.app)
             is MonitorOperatorPictureSettings.Configured -> {
                 val display = picture.display
                 if (display != null) OperatorDisplaySections(display.session,

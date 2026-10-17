@@ -14,12 +14,11 @@ public struct DiagnosticCamera: Equatable, Sendable {
 }
 
 #if os(iOS)
-    import MetricKit
     import OpenCineAppKit
+    import OpenCineApple
     import OpenCineMedia
     import UIKit
     import os
-    import enum OpenCineCore.LocalVPNProbe
 
     /// On-device diagnostics the camera apps share: unified log, capped journal, exceptions,
     /// MetricKit, and a shareable report. Optional uploads belong to ReliabilityReporting. Personal
@@ -29,7 +28,7 @@ public struct DiagnosticCamera: Equatable, Sendable {
     /// Each app keeps one `DiagnosticCenter` subclass with its `Host` and how it reads its session's
     /// camera. Kotlin twin: `DiagnosticCenterRuntime` in appkit. Observers and MetricKit call in from
     /// any thread; operator-facing work hops to the main actor.
-    open class DiagnosticCenterRuntime: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
+    open class DiagnosticCenterRuntime: NSObject, @unchecked Sendable {
         /// What one app supplies: its name and log subsystem, its journal and redaction policy, its
         /// incident runtime and Local Network status, and the camera of the session it shows now.
         public struct Host {
@@ -103,8 +102,10 @@ public struct DiagnosticCamera: Equatable, Sendable {
         public func install() {
             guard !installed else { return }
             installed = true
-            MXMetricManager.shared.add(self)
-            Self.installUncaughtExceptionHandler(self)
+            metricSubscriber.start()
+            DiagnosticExceptionHandler.install { [self] exception in
+                recordUncaught(exception)
+            }
             screenshotObserver = NotificationCenter.default.addObserver(
                 forName: UIApplication.userDidTakeScreenshotNotification,
                 object: nil,
@@ -198,7 +199,7 @@ public struct DiagnosticCamera: Equatable, Sendable {
                 cameraFamily: camera.family,
                 cameraModel: camera.model,
                 phase: camera.phase,
-                vpnActive: LocalVPNProbe.isActive(),
+                vpnActive: DiagnosticNetworkFacts.vpnActive(),
                 localNetwork: host.localNetwork())
         }
 
@@ -287,12 +288,14 @@ public struct DiagnosticCamera: Equatable, Sendable {
             onCopiedForTestFlight?()
         }
 
-        public func didReceive(_ payloads: [MXMetricPayload]) {
-            persistMetricKit(kind: "metric", payloads: payloads.map { $0.jsonRepresentation() })
+        /// MetricKit payloads, delivered on any thread by the platform subscriber.
+        private lazy var metricSubscriber = DiagnosticMetricSubscriber { [weak self] kind, payloads in
+            self?.receiveMetricKit(kind: kind, payloads: payloads)
         }
 
-        public func didReceive(_ payloads: [MXDiagnosticPayload]) {
-            persistMetricKit(kind: "diagnostic", payloads: payloads.map { $0.jsonRepresentation() })
+        private func receiveMetricKit(kind: String, payloads: [Data]) {
+            persistMetricKit(kind: kind, payloads: payloads)
+            guard kind == "diagnostic" else { return }
             // Receipt time is not crash time; a collector stack would misidentify
             // this callback as the fault. Original stacks remain in the payload.
             event(
@@ -383,14 +386,13 @@ public struct DiagnosticCamera: Equatable, Sendable {
             host.redact(Thread.callStackSymbols.prefix(24).joined(separator: " | "))
         }
 
-        nonisolated static func recordUncaught(_ exception: NSException) {
-            guard let center = uncaughtCenter else { return }
-            let reason = center.host.redact(exception.reason ?? "")
-            let stack = center.host.redact(exception.callStackSymbols.joined(separator: " | "))
+        private nonisolated func recordUncaught(_ exception: NSException) {
+            let reason = host.redact(exception.reason ?? "")
+            let stack = host.redact(exception.callStackSymbols.joined(separator: " | "))
             let line =
                 "fault diagnostics ns-exception name=\(exception.name.rawValue) reason=\(reason) stack=\(stack)"
-            center.host.journal.appendRedacted(line, logNow: true)
-            if let url = exceptionsURL {
+            host.journal.appendRedacted(line, logNow: true)
+            if let url = Self.exceptionsURL {
                 let row = Data("\(ISO8601DateFormatter().string(from: Date())) \(line)\n".utf8)
                 if FileManager.default.fileExists(atPath: url.path),
                     let handle = try? FileHandle(forWritingTo: url)
@@ -425,18 +427,6 @@ public struct DiagnosticCamera: Equatable, Sendable {
             }
         }
 
-        /// The installed center an uncaught exception is written through, and the handler before it.
-        private nonisolated(unsafe) static var uncaughtCenter: DiagnosticCenterRuntime?
-        private nonisolated(unsafe) static var previousUncaught: NSUncaughtExceptionHandler?
-
-        private static func installUncaughtExceptionHandler(_ center: DiagnosticCenterRuntime) {
-            uncaughtCenter = center
-            previousUncaught = NSGetUncaughtExceptionHandler()
-            NSSetUncaughtExceptionHandler { exception in
-                DiagnosticCenterRuntime.recordUncaught(exception)
-                DiagnosticCenterRuntime.previousUncaught?(exception)
-            }
-        }
     }
 
 #endif

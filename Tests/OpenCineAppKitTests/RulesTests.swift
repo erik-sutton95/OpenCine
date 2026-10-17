@@ -52,6 +52,8 @@ struct AppKitRules {
             "Metal", "MetalKit", "QuartzCore", "AVFoundation", "Photos",
             // The delivery share sheet's typed file items.
             "LinkPresentation", "UniformTypeIdentifiers",
+            // The remote shutter's volume view, which hides the system volume overlay (A2-32).
+            "MediaPlayer",
         ]
         let directory = root.appending(path: "Sources/OpenCineAppKitApple")
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)

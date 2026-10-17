@@ -38,10 +38,11 @@ public abstract class ConfirmationCancel(subject: ConformanceApp) : ConformanceT
         val gallery = MediaGalleryProbe(this)
         awaitTag(MediaGalleryProbe.GALLERY)
         if (gallery.settledAnchor() == null) fail("The staged camera clips must show")
-        val visible = gallery.visibleClips()
-        if (visible.size < 2) fail("Two visible clips are required")
-        pressAndDrag(visible[0].bounds, visible[1].bounds)
+        val (first, second) = gallery.sweepPair() ?: fail("Two neighbouring clips wholly in view are required")
+        pressAndDrag(first.bounds, second.bounds)
         awaitLabel("2 selected", 5_000)
+        // The clips listed once selected (a sweep near an edge may scroll the gallery): cancelling keeps them.
+        val listed = gallery.visibleClips().map { it.id }
         for (cancel in listOf(true, false)) {
             val delete = awaitLabel(DELETE_SELECTED, 5_000)
             assertTrue(delete.enabled, "Connected camera clips can be deleted")
@@ -50,7 +51,7 @@ public abstract class ConfirmationCancel(subject: ConformanceApp) : ConformanceT
             checkpoint("gallery-delete-confirmation")
             dismiss(cancel) { it.label == DELETE && it.info.isClickable }
             assertTrue(snapshot().nodes.any { it.visible && it.label == "2 selected" }, "Cancelling keeps the selection")
-            assertEquals(visible.map { it.id }, gallery.visibleClips().map { it.id }, "Cancelling keeps every clip listed")
+            assertEquals(listed, gallery.visibleClips().map { it.id }, "Cancelling keeps every clip listed")
         }
     }
 

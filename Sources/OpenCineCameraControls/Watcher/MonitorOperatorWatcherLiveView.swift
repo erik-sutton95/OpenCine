@@ -7,7 +7,6 @@
     import OpenCineApple
     import OpenCineCameraVocabulary
     import OpenCineMedia
-    import OpenCineRelay
     import SwiftUI
 
     /// The live decoder facts the operator screens read besides the shared picture.
@@ -73,16 +72,12 @@
 
     /// What differs between apps on the watcher screen, as typed values.
     public struct MonitorWatcherLiveBrand: Sendable {
-        /// The LUT profile for the watched camera, from the relayed state.
-        public var lookProfile: @Sendable (WatcherRelayState) -> CameraLUTProfile?
         /// The zoom label's ceiling for the relayed zoom choices; `nil` keeps the vocabulary default.
         public var zoomLabelCeiling: @Sendable (_ zoomHundredths: [Int]) -> Double?
 
         public init(
-            lookProfile: @escaping @Sendable (WatcherRelayState) -> CameraLUTProfile?,
             zoomLabelCeiling: @escaping @Sendable (_ zoomHundredths: [Int]) -> Double? = { _ in nil }
         ) {
-            self.lookProfile = lookProfile
             self.zoomLabelCeiling = zoomLabelCeiling
         }
     }
@@ -91,6 +86,8 @@
     public protocol MonitorWatcherLiveHost: MonitorLiveOperatorHost, WatcherRelayViewer
     where WatcherDecoder == Picture.Decoder {
         static var watcherBrand: MonitorWatcherLiveBrand { get }
+        var watcherCameraFamily: CameraBodyFamily { get }
+        var watcherLookProfile: CameraLUTProfile? { get }
     }
 
     /// Monitor tools around a remote source. Never opens a camera session.
@@ -159,14 +156,10 @@
             return { location in
                 guard captured.admits(client.tapSource) else { return nil }
                 let mirror = mirrored(), flip = flippedVertically()
-                guard captured.admits(client.tapSource),
-                    let point = WatcherFocusPoint.map(x: Double(location.x), y: Double(location.y),
-                        width: Double(feed.width), height: Double(feed.height),
-                        mirrored: mirror, flippedVertically: flip),
-                    client.sendCommand(.tapFocus(cameraX: point.x, cameraY: point.y,
-                        coordinateWidth: 1000, coordinateHeight: 1000), captured: captured)
-                else { return nil }
-                return .init(source: captured, x: Double(point.x) / 1000, y: Double(point.y) / 1000)
+                guard captured.admits(client.tapSource) else { return nil }
+                return client.sendTapFocus(x: Double(location.x), y: Double(location.y),
+                    width: Double(feed.width), height: Double(feed.height),
+                    mirrored: mirror, flippedVertically: flip, captured: captured)
             }
         }
 
@@ -183,8 +176,8 @@
         private func syncColor() {
             client.decoder.incomingColorMode = client.colorMode
             model.assist.syncLUT(
-                to: client.colorMode, family: client.state.isNano == true ? .nano : .pocket,
-                cameraName: client.state.cameraModel, lookProfile: Host.watcherBrand.lookProfile(client.state),
+                to: client.colorMode, family: model.watcherCameraFamily,
+                cameraName: client.state.cameraModel, lookProfile: model.watcherLookProfile,
                 persistLast: false)
         }
 
@@ -209,8 +202,8 @@
                 }
             }
             let notice: MonitorWatcherNotice?
-            switch client.status {
-            case .reconnecting(let attempt): notice = MonitorWatcherNotices.reconnecting(attempt: attempt, maximum: WatcherRelayRecovery.maximumRetries)
+            switch model.watcherJoinStatus {
+            case .reconnecting(let attempt, let maximum): notice = MonitorWatcherNotices.reconnecting(attempt: attempt, maximum: maximum)
             case .failed(let message): notice = MonitorWatcherNotices.failed(message)
             case .live: notice = client.waitingForPicture ? MonitorWatcherNotices.waitingForPicture : nil
             default: notice = MonitorWatcherNotices.joining
@@ -221,7 +214,7 @@
                     .init("ZOOM", value: client.state.zoom),
                     .init("BATTERY", value: MonitorOperatorPowerReading.readoutLabel(client.state.batteryReading))],
                 settings: settings, holderName: client.token.holderName,
-                canRequestControl: client.status == .live && client.state.allowsControlRequests,
+                canRequestControl: model.watcherJoinStatus == .live && client.state.allowsControlRequests,
                 controlRequested: client.controlRequested, notice: notice)
         }
 
@@ -232,12 +225,12 @@
             case .chooseFeed: model.stopWatching(); model.openWatcherBrowse()
             case .requestControl: client.requestControl()
             case .releaseControl: client.releaseControl()
-            case .record: client.sendCommand(.toggleRecording)
+            case .record: client.toggleRecording()
             case .set(_, let setting, let choice):
                 switch setting {
-                case .iso: client.sendCommand(.setISO(choice))
-                case .shutter: client.sendCommand(.setShutterDenom(choice))
-                case .zoom: client.sendCommand(.setZoom(choice))
+                case .iso: client.setISO(choice)
+                case .shutter: client.setShutterDenominator(choice)
+                case .zoom: client.setZoom(choice)
                 }
             }
         }

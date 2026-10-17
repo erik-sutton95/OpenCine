@@ -195,6 +195,19 @@ integer millisecond conversion remains at the consuming boundary.
   zoom, focus and iris from writable settings (unknown is no section), timecode and audio from
   observation support (unknown keeps the app's `base`), gimbal and head tracking from
   OpenCineMotion's overload.
+- **One control capability model** (`ControlCapabilities` in `OpenCineCameraVocabulary`, Kotlin
+  `camera-vocabulary`) is what the shared capture UI reads per user-facing control family (ISO,
+  shutter, white balance, tint, iris, ND, focus, tap focus, face metering, EV, codec/colour,
+  recording format, audio, live audio levels, zoom, gimbal, head tracking, timecode, recording,
+  photo, media, media delete, multiview): support (unknown is never false), access (read-only is a
+  readout) and the typed values it offers. Each integration provides it from its body's
+  `CameraCaptureProfile` (flags plus `controls` declarations) merged with the live
+  `CapabilitySnapshot` and `MotionCapabilities`; apps set no capability literals.
+  `MonitorLayoutCapabilities(controls:base:)` and `CaptureSheetCapabilities(controls:)` are
+  computed views of it. `Fixtures/control-capabilities-{dji,luna,nikon}.tsv` is its per-body
+  export (written by `ControlCapabilityFixtureTests`, checked by Swift and Kotlin), which
+  `parity-metrics` reads to compute n/a cells. Host features (assists, relay, watch, settings
+  tabs, local stars, the internet hop) are not camera capabilities.
 
 ## Integration contract (SHELL-02)
 

@@ -98,14 +98,15 @@ final class MonitorSettingsCompositionTests: XCTestCase {
             lookLabel: "SIMULATED look")
     }
 
-    private func typed(support: MonitorSettingsSupportSource?, information: MonitorSettingsAppInformation?) -> Configuration {
+    private func typed(support: MonitorSettingsSupportSource?, information: MonitorSettingsAppInformation?,
+        input: MonitorSettingsInputSource? = nil) -> Configuration {
         .init(safeArea: EdgeInsets(), phase: "SIMULATED phase", isLive: false, sharingSubtitle: "SIMULATED",
             close: {}, disconnect: {}, feedback: {}, link: link,
             assist: .init(state: assist, stores: stores, falseColorLooks: .signal, palette: MonitorDefaultLivePalette.self,
                 haptics: OperatorHaptics(isEnabled: { false }), transfer: .rec709, clipByte: 255,
                 exposureHelp: "SIMULATED exposure", lookLabel: "SIMULATED look"),
             controls: .init(recordConfirmation: binding, haptics: .init(value: binding, help: "SIMULATED haptics"),
-                keepAwake: .init(value: binding, help: "SIMULATED awake")),
+                keepAwake: .init(value: binding, help: "SIMULATED awake"), input: input),
             display: .init(hdr: .init(value: binding, help: "SIMULATED hdr")),
             support: support, information: information)
     }
@@ -140,6 +141,19 @@ final class MonitorSettingsCompositionTests: XCTestCase {
         XCTAssertEqual(published(borrowed: true, information: information).rows(.system, library: false), [.information])
         XCTAssertEqual(published(borrowed: false).tabs(library: true), [.link, .assist, .controls, .display, .storage],
             "The published originals-caching form keeps Storage over the screen's media library")
+    }
+
+    /// A2-32: Input & orientation is a row only when the host declares a capability, and the
+    /// remote shutter and auto-rotate are each declared on their own.
+    func testTheInputRowFollowsTheDeclaredCapabilities() {
+        func rows(_ input: MonitorSettingsInputSource?) -> [MonitorSettingsRow] {
+            typed(support: nil, information: nil, input: input).rows(.controls, library: false)
+        }
+        XCTAssertEqual(rows(nil), [.safety])
+        XCTAssertEqual(rows(.init()), [.safety], "An input source with no capability is no row")
+        XCTAssertEqual(rows(.init(remoteShutter: .init(enabled: binding, title: "SIMULATED", help: "SIMULATED"))),
+            [.safety, .input])
+        XCTAssertEqual(rows(.init(autoRotate: .init(enabled: binding, help: "SIMULATED"))), [.safety, .input])
     }
 
     func testAnAbsentHDRChoiceLeavesItsRowOutInsteadOfAnEmptyHelpFlag() {

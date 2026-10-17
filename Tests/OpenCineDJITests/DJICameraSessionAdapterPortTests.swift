@@ -398,7 +398,7 @@ import Testing
 
 /// A linked, idle Pocket in video mode reporting Auto white balance. Records every wire call.
 @MainActor
-private final class FakePort: DJIControlPort {
+final class FakePort: DJIControlPort {
     var status: CameraStatus = {
         var status = CameraStatus()
         status.shootingMode = 1

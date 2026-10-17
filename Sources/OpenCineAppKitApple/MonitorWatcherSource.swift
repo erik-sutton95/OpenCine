@@ -234,6 +234,25 @@ private struct WatcherJoinDestination {
         client?.requestControl()
     }
     public func releaseControl() { guard canControl else { return }; client?.releaseControl() }
+    public func toggleRecording() { sendCommand(.toggleRecording) }
+    public func setISO(_ index: Int) { sendCommand(.setISO(index)) }
+    public func setShutterDenominator(_ denominator: Int) { sendCommand(.setShutterDenom(denominator)) }
+    public func setZoom(_ hundredths: Int) { sendCommand(.setZoom(hundredths)) }
+
+    /// Map the admitted displayed tap and submit its relay command in the native source owner.
+    /// A replaced source cannot publish the focus mark after an entered wire callback.
+    public func sendTapFocus(x: Double, y: Double, width: Double, height: Double,
+        mirrored: Bool, flippedVertically: Bool, captured: MonitorWatcherTapSource
+    ) -> MonitorWatcherFocus? {
+        guard captured.admits(tapSource),
+            let point = WatcherFocusPoint.map(x: x, y: y, width: width, height: height,
+                mirrored: mirrored, flippedVertically: flippedVertically),
+            sendCommand(.tapFocus(cameraX: point.x, cameraY: point.y,
+                coordinateWidth: 1000, coordinateHeight: 1000), captured: captured)
+        else { return nil }
+        return .init(source: captured, x: Double(point.x) / 1000, y: Double(point.y) / 1000)
+    }
+
     public func sendCommand(_ command: WatcherRelayCommand) { _ = sendCommand(command, captured: tapSource) }
     @discardableResult public func sendCommand(_ command: WatcherRelayCommand, captured: MonitorWatcherTapSource) -> Bool {
         guard captured.admits(tapSource) else { return false }

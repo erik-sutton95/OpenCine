@@ -74,7 +74,7 @@
     /// refreshes this representable and pushes the current stack and bus into the decoder; the
     /// live screen body otherwise never observes those flags.
     ///
-    /// Mirror is OpenZCine `LiveFrameRaster.feedScale`: a negative-X transform on a host view
+    /// Mirror is a negative-X transform on a host view
     /// that wraps both renderers. Applied at present time (not SwiftUI `scaleEffect`) so
     /// MIRROR assist lands with the presented picture. MIRROR Vertical is a negative Y on the
     /// same host; it has no pose latch, so it applies on the toggle.

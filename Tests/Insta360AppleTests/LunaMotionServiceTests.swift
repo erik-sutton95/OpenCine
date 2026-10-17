@@ -62,6 +62,18 @@ final class LunaMotionServiceTests: XCTestCase {
         XCTAssertLessThanOrEqual(wire.sent.count, count + 1, "at most the MOVE already in flight")
     }
 
+    /// OPENINSTACINE-IOS-3: a slow gamepad deflection past the deadzone rounded to MOVE 0, 0,
+    /// which Luna reads as the release request, so the head stopped mid-move.
+    func testAKeptSlowDeflectionNeverRoundsToTheReleaseSpeed() async throws {
+        let wire = Wire()
+        let (motion, _) = service(wire)
+        motion.hold(pan: 0.004, tilt: -0.004)
+        let slow = try LunaProtocol.gimbalMove(upDown: -1, leftRight: 1)
+        await settle { !wire.sent.isEmpty }
+        XCTAssertEqual(wire.sent.first?.request, slow)
+        motion.endHold()
+    }
+
     func testSingleRequestsUseTheirTimeouts() async throws {
         let wire = Wire()
         let (motion, _) = service(wire)

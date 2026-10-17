@@ -150,6 +150,11 @@ fun MonitorMediaSelectionHost(
                 if (controller.consuming && viewportW > 0f && abs(width - viewportW) >= 1f) {
                     abort()
                 }
+                // Nor may it scroll the gallery under a finger that did not move.
+                if (controller.consuming && viewportH > 0f && abs(height - viewportH) >= 1f) {
+                    controller.viewportResized()
+                    inBand = false
+                }
                 viewportW = width
                 viewportH = height
             }

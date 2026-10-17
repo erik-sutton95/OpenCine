@@ -3,10 +3,8 @@ import MonitorPresentation
 import OpenCineCameraVocabulary
 
 #if os(iOS)
-    import CoreFoundation
-    import Darwin
+    import OpenCineApple
     import UIKit
-    import os
 #endif
 
 /// Debug-only live-feed stress seam the camera apps share. Release is a no-op. No operator chrome.
@@ -243,11 +241,16 @@ struct FeedStressBaseline: Equatable {
         "faultAutomaticRecovery",
     ]
 
-    private let feedStressDarwinCallback: CFNotificationCallback = { _, observer, name, _, _ in
-        guard let observer else { return }
-        let key = name.map { $0.rawValue as String } ?? ""
-        Unmanaged<FeedStressRuntime>.fromOpaque(observer).takeUnretainedValue()
-            .handleDarwin(key)
+    /// The runtime's counters behind one lock (Foundation, so the module needs no `os`).
+    private final class FeedStressLock<State>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var state: State
+        init(initialState: State) { state = initialState }
+        func withLock<R>(_ body: (inout State) throws -> R) rethrows -> R {
+            lock.lock()
+            defer { lock.unlock() }
+            return try body(&state)
+        }
     }
 
     private struct FeedStressCounters {
@@ -302,9 +305,10 @@ struct FeedStressBaseline: Equatable {
     final class FeedStressRuntime: @unchecked Sendable {
         static let shared = FeedStressRuntime()
 
-        private let lock = OSAllocatedUnfairLock(initialState: FeedStressCounters())
+        private let lock = FeedStressLock(initialState: FeedStressCounters())
         private let io = DispatchQueue(label: "opc.feed-stress", qos: .utility)
         private var installed = false
+        private var notifications: DarwinNotificationObserver?
         private var seed: UInt64 = 20_260_914
         private var limitS: TimeInterval = 300
         private var configurationToken = ""
@@ -678,18 +682,14 @@ struct FeedStressBaseline: Equatable {
         }
 
         private func registerNotifications() {
-            let center = CFNotificationCenterGetDarwinNotifyCenter()
-            let observer = Unmanaged.passUnretained(self).toOpaque()
             var names = feedStressScenarios.flatMap {
                 [feedStressBeginPrefix + $0, feedStressPassPrefix + $0, feedStressFailPrefix + $0]
             }
             names.append(contentsOf: [
                 feedStressArmInject, feedStressDisarmInject, feedStressTeardown, feedStressAttached,
             ])
-            for name in names {
-                CFNotificationCenterAddObserver(
-                    center, observer, feedStressDarwinCallback, name as CFString, nil,
-                    .deliverImmediately)
+            notifications = DarwinNotificationObserver(names: names) { [weak self] name in
+                self?.handleDarwin(name)
             }
         }
 

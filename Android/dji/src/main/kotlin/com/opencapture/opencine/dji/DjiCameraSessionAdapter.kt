@@ -48,6 +48,8 @@ import com.opencapture.opencine.vocabulary.CamFov
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraModel
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.CaptureCodecColorChoices
+import com.opencapture.opencine.vocabulary.ControlCapabilities
 import com.opencapture.opencine.vocabulary.ConnectionPhase as PocketPhase
 import com.opencapture.opencine.vocabulary.EvComp
 import kotlinx.coroutines.CompletableDeferred
@@ -299,6 +301,16 @@ class DjiCameraSessionAdapter(
     }
 
     override fun receipt(operation: OperationID): CommandReceipt? = receipts[operation]
+
+    /**
+     * The one control model for the connected body (Swift `controlCapabilities(codecColor:)`): its
+     * declared profile and motion merged with the live capabilities. [codecColor] is what the codec
+     * and colour popup lists now, when the host has it.
+     */
+    fun controlCapabilities(codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
+        val model = port.controlState().model
+        return ControlCapabilities.derive(current.capabilities, model?.captureProfile, model?.motion, codecColor)
+    }
 
     /**
      * What a monitor lays out for the connected body (Swift `layout(base:)`): the Core projection

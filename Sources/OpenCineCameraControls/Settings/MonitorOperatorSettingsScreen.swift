@@ -227,9 +227,10 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
                 keepScreenAwakeHelp: controls.keepAwake.help, feedback: source.feedback)
         case .input:
             if let input = controls.input {
-                MonitorInputOrientationSettings(remoteShutter: input.remoteShutter,
-                    remoteTitle: input.remoteTitle, remoteHelp: input.remoteHelp,
-                    autoRotateFeed: input.autoRotateFeed, rotationHelp: input.rotationHelp, feedback: source.feedback)
+                MonitorInputOrientationSettings(remoteShutter: input.remoteShutter?.enabled,
+                    remoteTitle: input.remoteShutter?.title ?? "Remote shutter", remoteHelp: input.remoteShutter?.help,
+                    autoRotateFeed: input.autoRotate?.enabled, rotationHelp: input.autoRotate?.help ?? "",
+                    feedback: source.feedback)
             }
         case .gimbal:
             if let motion = controls.motion, let sensitivity = motion.sensitivity {

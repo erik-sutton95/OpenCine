@@ -131,7 +131,10 @@ public struct FrameioDestinationStore {
     private func present(_ url: URL, redirect: URL) async throws -> URL {
         guard #available(iOS 17.4, *) else { throw FrameioError.unsupportedOS }
         return try await withCheckedThrowingContinuation { continuation in
-            let completion: (URL?, Error?) -> Void = { callbackURL, error in
+            // @Sendable: AuthenticationServices calls this on main today, but a closure formed
+            // in this @MainActor type would trap (Swift 6 isolation check, as in
+            // OPENPOCKETCINE-IOS-3P/3N) if it were ever called from another queue.
+            let completion: @Sendable (URL?, Error?) -> Void = { callbackURL, error in
                 if let callbackURL {
                     continuation.resume(returning: callbackURL)
                 } else {

@@ -3,6 +3,7 @@ import MonitorPresentation
 import Observation
 import OpenCineCore
 import OpenCineCoreTestSupport
+import OpenCineHostedAccessibility
 import SwiftUI
 import UIKit
 import XCTest
@@ -66,29 +67,13 @@ final class MonitorCaptureReadoutInspectionTests: XCTestCase {
         for _ in 0..<200 {
             view.setNeedsLayout()
             view.layoutIfNeeded()
-            if let node = Self.leaves(view).first(where: { Self.identifier($0) == "contract.capture.iso" }) {
+            if let node = HostedAccessibility.leaves(in: view).first(where: { HostedAccessibility.identifier($0) == "contract.capture.iso" }) {
                 return node
             }
             await Task.yield()
         }
-        return try XCTUnwrap(Self.leaves(view).first { Self.identifier($0) == "contract.capture.iso" },
+        return try XCTUnwrap(HostedAccessibility.leaves(in: view).first { HostedAccessibility.identifier($0) == "contract.capture.iso" },
             "The real readout accessibility element must be mounted")
-    }
-
-    private static func leaves(_ object: NSObject) -> [NSObject] {
-        if object.accessibilityElementsHidden { return [] }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return [] }
-        if object.isAccessibilityElement { return [object] }
-        if let elements = object.accessibilityElements as? [NSObject], !elements.isEmpty {
-            return elements.flatMap(leaves)
-        }
-        return ((object as? UIView)?.subviews ?? []).flatMap(leaves)
-    }
-
-    private static func identifier(_ object: NSObject) -> String? {
-        let getter = NSSelectorFromString("accessibilityIdentifier")
-        guard object.responds(to: getter) else { return nil }
-        return object.perform(getter)?.takeUnretainedValue() as? String
     }
 }
 
