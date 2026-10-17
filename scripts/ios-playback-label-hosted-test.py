@@ -133,7 +133,7 @@ def system_source_binding(root: Path) -> dict[str, str]:
     paths += [SYSTEM_DIRECTORY / name for name in
               ["NativeCancelReceipt.swift", "SimulatedNativeCancelHost.swift", "NativeCancelUITests.swift"]]
     result = {str(path): sha256(path.read_bytes()).hexdigest() for path in paths}
-    assert result[str(paths[1])] == "1eb8332036567e5de3896831183b18c8893c7700731f6cb06b41de0979d771db"
+    assert result[str(paths[1])] == "abeeeb264869a977f1e1fef7c28347a6269bf47422347131bd481396323ca3ae"
     return result
 
 
@@ -735,6 +735,14 @@ def main() -> int:
     if args.qualify_native_system_popover_dismissal:
         assert args.prepared_system_dismissal and args.reviewed_packet_sha256 and args.jobs is None
         return qualify_system_dismissal(args, root, args.output.resolve())
+    if not any([args.prepare_native_ui, args.qualify_native_ui,
+                args.diagnose_typed_cancel, args.qualify_typed_native_scene]):
+        import importlib.util
+        loader = importlib.util.spec_from_file_location(
+            "legacy_hosted_input", root / "scripts/ios-playback-label-legacy-input.py")
+        module = importlib.util.module_from_spec(loader)
+        loader.loader.exec_module(module)
+        return module.run(args, root)
     args.jobs = args.jobs if args.jobs is not None else 4
     if args.prepare_native_ui:
         return prepare_native_ui(root, args.output.resolve())
@@ -809,6 +817,14 @@ def main() -> int:
     }
     spec_path = out / "project.json"
     if nonce:
+        import importlib.util
+        loader = importlib.util.spec_from_file_location(
+            "legacy_hosted_input", root / "scripts/ios-playback-label-legacy-input.py")
+        module = importlib.util.module_from_spec(loader)
+        loader.loader.exec_module(module)
+        module.generated_sources(root, out)
+        spec["targets"][target]["sources"] += [
+            str(out / "LegacyHostedNativeInput.swift"), str(out / "NativeCancelReceipt.swift")]
         key = "OPENCINE_TYPED_CANCEL_QUALIFIER" if args.qualify_typed_native_scene else "OPENCINE_TYPED_CANCEL_DIAGNOSTIC"
         spec["schemes"][scheme]["test"]["environmentVariables"] = {key: nonce}
     spec_path.write_text(json.dumps(spec, indent=2) + "\n")
