@@ -375,7 +375,10 @@ class CaptureSheetTest {
     @Test
     fun wbSheetTabsModeKelvinTint() {
         assertEquals(listOf("Mode", "Kelvin", "Tint"), CaptureLists.wbTabs)
-        assertEquals("Kelvin / auto / tint", LiveSheet.WB.subtitle)
+        assertEquals("WHITE BALANCE", LiveSheet.WB.headerLabel)
+        assertEquals("Kelvin · auto · tint", LiveSheet.WB.subtitle)
+        assertEquals("SHUTTER", LiveSheet.SHUTTER.headerLabel)
+        assertEquals("Angle · speed", LiveSheet.SHUTTER.subtitle)
         assertEquals(listOf("Auto", "Custom"), CaptureLists.wbModeRows)
         assertEquals(
             CaptureLists.WB_TAB_MODE,
@@ -718,8 +721,10 @@ class CaptureSheetTest {
     @Test
     fun manualExpoRestoresShutterSpeedOrAngle() {
         assertEquals("SHUTTER", CaptureLists.headerTitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL))
-        assertEquals("Speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 0, false))
-        assertEquals("Angle", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 1, false))
+        assertEquals("Angle · speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 0, false))
+        assertEquals("Angle · speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 1, false))
+        assertEquals("Speed", CaptureLists.headerSubtitle(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, 0, false,
+            CameraCommands.SHOOT_PHOTO))
         assertEquals(
             listOf("Speed", "Angle"),
             CaptureLists.modeTabs(LiveSheet.SHUTTER, CameraCommands.EXPO_MANUAL, true),

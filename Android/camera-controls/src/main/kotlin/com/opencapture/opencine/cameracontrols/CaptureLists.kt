@@ -90,6 +90,8 @@ object CaptureLists {
         shootingMode: Int = CameraCommands.SHOOT_VIDEO,
     ): String =
         when {
+            sheet == LiveSheet.SHUTTER && !isEvSheet(sheet, expoMode) ->
+                if (CameraCommands.isPhotoMode(shootingMode)) "Speed" else sheet.subtitle
             sheet == LiveSheet.SHUTTER ->
                 shutterHeaderSubtitle(
                     isEvSheet(sheet, expoMode),

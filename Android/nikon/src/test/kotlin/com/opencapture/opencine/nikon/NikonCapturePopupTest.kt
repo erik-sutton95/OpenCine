@@ -52,9 +52,15 @@ class NikonCapturePopupTest {
     @Test
     fun shutterCircuitTabsWriteOnlyTheCircuitAndTheCameraLockFreezesTheSheet() {
         var popup = state(NikonCapturePopupKind.SHUTTER, listOf(mode(0, "Angle"), mode(1, "Speed"))).copy(circuitIndex = 1)
-        assertEquals(1, popup.presentation.initialTab)
-        assertEquals(LadderWrite<NikonLadderControl>(NikonLadderControl.ShutterMode, "Speed"), popup.presentation.tabs[1].activate)
-        assertFalse(popup.presentation.tabs[1].applyOnActivate)
+        // Display order is Speed, Angle. The Speed tab keeps the body's mode index 1.
+        assertEquals(listOf("Speed", "Angle"), popup.presentation.tabs.map { it.label })
+        assertEquals(listOf(NikonLadderControl.Value(1), NikonLadderControl.Value(0)), popup.presentation.tabs.map { it.key })
+        assertEquals(0, popup.presentation.initialTab)
+        assertEquals(LadderWrite<NikonLadderControl>(NikonLadderControl.ShutterMode, "Speed"), popup.presentation.tabs[0].activate)
+        assertFalse(popup.presentation.tabs[0].applyOnActivate)
+        assertEquals(1, popup.copy(circuitIndex = 0).presentation.initialTab)
+        assertEquals(1, popup.copy(circuitIndex = null).presentation.initialTab)
+        assertEquals(LadderWrite<NikonLadderControl>(NikonLadderControl.ShutterMode, "Angle"), popup.presentation.tabs[1].activate)
         popup = popup.copy(shutterLockedOnCamera = true)
         assertEquals(CaptureLock.CAMERA_CONTROL, popup.presentation.lock)
         assertEquals("Shutter locked on camera. Hold anywhere to unlock.", popup.presentation.lockBanner)
@@ -83,19 +89,29 @@ class NikonCapturePopupTest {
             typed = NikonControlSetting.WHITE_BALANCE,
         )
         val sheet = popup.presentation
-        assertEquals(1, sheet.initialTab)
-        assertEquals(WbPickerPolicy.kelvinOptions, sheet.tabs[0].ladder.values)
-        assertNull(sheet.tabs[0].setting)
-        val steps = sheet.tabs[0].steps?.invoke("5600K")
+        // Display order is Mode (the body's presets), Kelvin, Tint; keys stay mode indices.
+        assertEquals(listOf("Mode", "Kelvin", "Tint"), sheet.tabs.map { it.label })
+        assertEquals(
+            listOf(NikonLadderControl.Value(1), NikonLadderControl.Value(0), NikonLadderControl.Value(2)),
+            sheet.tabs.map { it.key },
+        )
+        assertEquals(0, sheet.initialTab)
+        assertEquals(WbPickerPolicy.kelvinOptions, sheet.tabs[1].ladder.values)
+        assertNull(sheet.tabs[1].setting)
+        val steps = sheet.tabs[1].steps?.invoke("5600K")
         assertEquals("−10", steps?.first?.label)
         assertEquals(true, steps?.second?.lands)
-        assertTrue(sheet.tabs[0].values?.invoke("5610K")?.contains("5610K") == true)
+        assertTrue(sheet.tabs[1].values?.invoke("5610K")?.contains("5610K") == true)
         assertEquals(
             WbPickerPolicy.whiteBalanceOptions(listOf("Auto", "Daylight"), "H.265"),
-            sheet.tabs[1].ladder.values,
+            sheet.tabs[0].ladder.values,
         )
         assertEquals(CaptureTint(greenMagenta = -1, amberBlue = 2, range = WhiteBalanceTint.cellRange), sheet.tabs[2].tint)
         assertNull(sheet.tabs[2].activate)
+        assertEquals(1, popup.copy(whiteBalanceMode = "Color temp").presentation.initialTab)
+        assertEquals(1, popup.copy(whiteBalanceMode = null).presentation.initialTab)
+        assertEquals(listOf("Daylight"), popup.copy(codec = "R3D NE").presentation.tabs[0].ladder.values)
+        assertEquals(listOf("Auto", "Daylight"), popup.copy(codec = "R3D NE", photography = true).presentation.tabs[0].ladder.values)
 
         popup = popup.copy(tintAvailable = false)
         assertEquals(CaptureLock.AUTO, popup.presentation.tabs[2].ladder.lock)

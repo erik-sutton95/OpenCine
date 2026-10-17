@@ -121,20 +121,48 @@ data class NikonCapturePopupState(
     /** The popup as the shared ladder sheet draws it. */
     val presentation: LadderSheetPresentation<NikonLadderControl>
         get() = LadderSheetPresentation(
-            title = title, subtitle = subtitle, tabs = modes.map(::tab), initialTab = initialTab,
+            title = title, subtitle = subtitle, tabs = displayModes.map(::tab), initialTab = initialTab,
             lock = sheetLock, lockBanner = banner,
         )
 
+    /**
+     * The tabs in canonical display order: white balance Mode, Kelvin, Tint and
+     * shutter Speed, Angle. Each tab keeps the body's mode index as its key, so only the display
+     * order differs from the camera's mode numbering, and nothing stores a display position.
+     */
+    internal val displayModes: List<NikonLadderMode>
+        get() {
+            val order = when (kind) {
+                NikonCapturePopupKind.WHITE_BALANCE -> listOf(PRESET_TAB, KELVIN_TAB, TINT_TAB)
+                NikonCapturePopupKind.SHUTTER -> listOf("Speed", "Angle")
+                else -> return modes
+            }
+            fun rank(mode: NikonLadderMode) = order.indexOf(mode.title).takeIf { it >= 0 } ?: order.size
+            return modes.withIndex().sortedWith(compareBy({ rank(it.value) }, { it.index })).map { it.value }
+        }
+
+    /** The canonical tab label: the white balance presets tab is "Mode". */
+    internal fun label(mode: NikonLadderMode): String =
+        if (kind == NikonCapturePopupKind.WHITE_BALANCE && mode.title == PRESET_TAB) "Mode" else mode.title
+
+    /**
+     * The opening tab as a display position: chosen in the camera's mode order, then found in
+     * [displayModes] by mode index.
+     */
     internal val initialTab: Int
         get() {
             val raw = when (kind) {
                 NikonCapturePopupKind.ISO, NikonCapturePopupKind.SHUTTER, NikonCapturePopupKind.STILL_ISO ->
                     circuitIndex ?: 0
-                NikonCapturePopupKind.WHITE_BALANCE ->
-                    if (whiteBalanceMode == null || whiteBalanceMode == "Color temp") 0 else 1
+                NikonCapturePopupKind.WHITE_BALANCE -> {
+                    val wanted = if (whiteBalanceMode == null || whiteBalanceMode == "Color temp") KELVIN_TAB else PRESET_TAB
+                    modes.indexOfFirst { it.title == wanted }.takeIf { it >= 0 } ?: 0
+                }
                 else -> seededTab ?: modes.indexOfFirst { cameraValue in optionsOf(it) }.takeIf { it >= 0 } ?: 0
             }
-            return raw.coerceIn(0, maxOf(modes.size - 1, 0))
+            if (modes.isEmpty()) return 0
+            val chosen = modes[raw.coerceIn(0, modes.size - 1)].index
+            return displayModes.indexOfFirst { it.index == chosen }.takeIf { it >= 0 } ?: 0
         }
 
     /**
@@ -176,7 +204,7 @@ data class NikonCapturePopupState(
         val kelvin = kind == NikonCapturePopupKind.WHITE_BALANCE && mode.title == KELVIN_TAB
         val (activate, apply) = activation(mode)
         return LadderTab(
-            label = mode.title, key = NikonLadderControl.Value(mode.index),
+            label = label(mode), key = NikonLadderControl.Value(mode.index),
             ladder = CaptureLadder(
                 current = mode.current.ifEmpty { null }, values = options, marked = marked(mode), lock = lock,
             ),
