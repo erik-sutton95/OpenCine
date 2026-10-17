@@ -26,6 +26,11 @@
         /// The popup whose mode tabs every camera offers.
         open var popupWithTabs: String { "wb" }
 
+        /// The tab labels, in order, that every app shows when the popup has tabs (Pocket's).
+        public static let canonicalTabs: [String: [String]] = [
+            "wb": ["Mode", "Kelvin", "Tint"], "shutter": ["Speed", "Angle"],
+        ]
+
         func testSIMULATEDControlPopupsAreTheSharedDrawerInBothOrientations() throws {
             #if !targetEnvironment(simulator)
                 throw XCTSkip("SIMULATED popup screenshots require a private simulator")
@@ -68,6 +73,18 @@
             XCTAssertTrue(
                 close.waitForExistence(timeout: 8),
                 "The \(popup) readout must open the common drawer")
+            let headers = [
+                "wb": ("WHITE BALANCE", "Kelvin · auto · tint"),
+                "shutter": ("SHUTTER", "Angle · speed"),
+            ]
+            if let (title, subtitle) = headers[popup] {
+                XCTAssertTrue(
+                    app.staticTexts[title].exists,
+                    "The \(popup) drawer must use the common title")
+                XCTAssertTrue(
+                    app.staticTexts[subtitle].exists,
+                    "The \(popup) drawer must use the common subtitle")
+            }
             let tabs = app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH %@", "monitor.capture.tab."))
             if popup == popupWithTabs {
@@ -76,6 +93,14 @@
                     "The \(popup) popup must draw the shared mode strip")
             }
             if tabs.count > 0 {
+                if let canonical = Self.canonicalTabs[popup] {
+                    let labels = (0..<tabs.count).map {
+                        app.buttons["monitor.capture.tab.\($0)"].label.lowercased()
+                    }
+                    XCTAssertEqual(
+                        labels, canonical.map { $0.lowercased() },
+                        "The \(popup) tabs read as on every app")
+                }
                 let selected = tabs.allElementsBoundByIndex.filter(\.isSelected)
                 XCTAssertEqual(selected.count, 1, "Exactly one \(popup) mode tab is selected")
                 for tab in tabs.allElementsBoundByIndex {

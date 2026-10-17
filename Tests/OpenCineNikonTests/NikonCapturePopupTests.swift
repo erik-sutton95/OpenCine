@@ -57,10 +57,15 @@ import Testing
     @Test func shutterCircuitTabsWriteOnlyTheCircuitAndTheCameraLockFreezesTheSheet() {
         var popup = state(.shutter, [mode(0, "Angle"), mode(1, "Speed")])
         popup.circuitIndex = 1
-        #expect(popup.presentation.initialTab == 1)
+        // Pocket's order: Speed, Angle. The Speed tab keeps the body's mode index 1.
+        #expect(popup.presentation.tabs.map(\.label) == ["Speed", "Angle"])
+        #expect(popup.presentation.tabs.map(\.key) == [.value(1), .value(0)])
+        #expect(popup.presentation.initialTab == 0)
         #expect(
-            popup.presentation.tabs[1].activate == LadderWrite(key: .shutterMode, value: "Speed"))
-        #expect(popup.presentation.tabs[1].applyOnActivate == false)
+            popup.presentation.tabs[0].activate == LadderWrite(key: .shutterMode, value: "Speed"))
+        #expect(popup.presentation.tabs[0].applyOnActivate == false)
+        popup.circuitIndex = 0
+        #expect(popup.presentation.initialTab == 1)
         popup.shutterLockedOnCamera = true
         #expect(popup.presentation.lock == .cameraControl)
         #expect(
@@ -88,21 +93,26 @@ import Testing
         popup.tintAvailable = true
         popup.typed = .whiteBalance
         let sheet = popup.presentation
-        #expect(sheet.initialTab == 1)
-        #expect(sheet.tabs[0].ladder.values == WhiteBalanceKelvinPolicy.kelvinOptions)
-        #expect(sheet.tabs[0].setting == nil)
-        let steps = sheet.tabs[0].steps?("5600K")
+        // Pocket's order and labels: Mode (the body's presets), Kelvin, Tint; keys stay mode indices.
+        #expect(sheet.tabs.map(\.label) == ["Mode", "Kelvin", "Tint"])
+        #expect(sheet.tabs.map(\.key) == [.value(1), .value(0), .value(2)])
+        #expect(sheet.initialTab == 0)
+        #expect(sheet.tabs[1].ladder.values == WhiteBalanceKelvinPolicy.kelvinOptions)
+        #expect(sheet.tabs[1].setting == nil)
+        let steps = sheet.tabs[1].steps?("5600K")
         #expect(steps?.0.label == "\u{2212}10")
         #expect(steps?.1.lands == true)
-        #expect(sheet.tabs[0].values?("5610K").contains("5610K") == true)
+        #expect(sheet.tabs[1].values?("5610K").contains("5610K") == true)
         #expect(
-            sheet.tabs[1].ladder.values
+            sheet.tabs[0].ladder.values
                 == PTPCameraPropertyDecoders.whiteBalanceOptions(
                     advertised: ["Auto", "Daylight"], codec: "H.265"))
         #expect(
             sheet.tabs[2].tint
                 == CaptureTint(greenMagenta: -1, amberBlue: 2, range: WhiteBalanceTint.cellRange))
         #expect(sheet.tabs[2].activate == nil)
+        popup.whiteBalanceMode = "Color temp"
+        #expect(popup.presentation.initialTab == 1)
 
         popup.tintAvailable = false
         #expect(popup.presentation.tabs[2].ladder.lock == .auto)
