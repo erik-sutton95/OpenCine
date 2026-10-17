@@ -108,6 +108,10 @@ public data class LiveCameraLevel(
     public val yawDegrees: Double,
     /** True only when this level comes from the debug synthetic feed. */
     public val isDebugFixture: Boolean = false,
+    /** False when pitch is the legacy zero fallback instead of a camera measurement. */
+    public val hasPitch: Boolean = true,
+    /** Whether the grip-axis angle was measured; it is not a compass heading. */
+    public val hasYaw: Boolean = true,
 )
 
 /**

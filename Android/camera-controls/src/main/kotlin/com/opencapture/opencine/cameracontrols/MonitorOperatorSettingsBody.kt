@@ -153,7 +153,10 @@ private fun MonitorOperatorSettingsRows(
             }
             is MonitorOperatorPictureSettings.Session -> SessionAssistSettings(picture)
         }
-        MonitorSettingsTab.CONTROLS -> SettingsControls(configuration.controls, configuration.feedback)
+        MonitorSettingsTab.CONTROLS -> {
+            SettingsGyro(configuration.gyro, configuration.feedback)
+            SettingsControls(configuration.controls, configuration.feedback)
+        }
         MonitorSettingsTab.DISPLAY -> when (picture) {
             is MonitorOperatorPictureSettings.Deployed -> OperatorDisplayRows(picture.model, picture.state, picture.app)
             is MonitorOperatorPictureSettings.Configured -> {

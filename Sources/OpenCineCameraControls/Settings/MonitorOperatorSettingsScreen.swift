@@ -173,8 +173,8 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
         case .sharingUnavailable, .sharing, .watchers, .watchFeed:
             if let sharing = source.sharing { sharingRow(row, sharing, feedback: source.feedback) }
         case .assistTools, .assistPanels, .exposureMeter, .look: assistRow(row, source)
-        case .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
-        case .hdrPanel, .displaySections, .account, .cache: displayStorageRow(row, source)
+        case .gyro, .safety, .input, .gimbal, .joystick, .controller: controlsRow(row, source)
+        case .hdrPanel, .displaySections, .gyroLogs, .account, .cache: displayStorageRow(row, source)
         case .support, .diagnosticOptions, .projectLegal, .information: systemRow(row, source)
         }
     }
@@ -221,6 +221,28 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
     @ViewBuilder private func controlsRow(_ row: MonitorSettingsRow, _ source: MonitorOperatorSettingsConfiguration<Looks>) -> some View {
         let controls = source.controls
         switch row {
+        case .gyro:
+            if let gyro = source.gyro {
+                MonitorSettingsRowCard(title: "Gyro logging") {
+                    MonitorSettingsSwitchInlineRow(title: "Log gyro with camera recordings",
+                        help: "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                        showTopDivider: false, isOn: gyro.enabled.wrappedValue,
+                        feedback: source.feedback) { gyro.enabled.wrappedValue.toggle() }
+                        .disabled(!gyro.available)
+                    MonitorSettingsInlineRow(title: "Status", help: nil) {
+                        MonitorSettingsValueText(value: gyro.status)
+                    }
+                    if let configureMount = gyro.configureMount {
+                        MonitorSettingsInlineRow(title: "Phone mount",
+                            help: "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                            HStack(spacing: 8) {
+                                if let name = gyro.mountName { MonitorSettingsValueText(value: name) }
+                                MonitorSettingsActionPill(title: "Configure", action: configureMount)
+                            }
+                        }
+                    }
+                }
+            }
         case .safety:
             MonitorOperatorSafetySettings(recordConfirmation: controls.recordConfirmation, haptics: controls.haptics.value,
                 keepScreenAwake: controls.keepAwake.value, hapticsHelp: controls.haptics.help,
@@ -259,6 +281,18 @@ public struct MonitorOperatorSettingsScreen<Payload: Sendable, Looks: MonitorLoo
             MonitorOperatorDisplaySections(modes: operatorSession.modes, chrome: displayValue, assist: assist,
                 available: source.display.sections, edit: editChrome(source), feedback: source.feedback)
                 .onAppear { operatorSession.returnedMode = nil }
+        case .gyroLogs:
+            if let gyro = source.gyro {
+                MonitorSettingsRowCard(title: "Gyro logs") {
+                    MonitorSettingsInlineRow(title: "Saved motion logs",
+                        help: gyro.configureMount == nil
+                            ? "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                            : "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
+                        showTopDivider: false) {
+                        MonitorSettingsActionPill(title: "Open", action: gyro.openLogs)
+                    }
+                }
+            }
         case .account:
             if let account = source.account { MonitorSettingsConfiguredAccount(source: account) }
         default:
