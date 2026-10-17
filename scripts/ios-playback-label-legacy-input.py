@@ -309,7 +309,9 @@ def run(args, root):
         (cache / name).mkdir(parents=True, exist_ok=True)
     # Resolve all real storage roots, including private simulator userdata, before any build/boot.
     device = (Path.home() / 'Library/Developer/CoreSimulator/Devices' / args.simulator_id).resolve()
-    for path in [out, cache, device, Path('/Volumes/SuttonCap')]:
+    # CI uses its own filesystem; local qualification still requires the external backing mount.
+    backing = Path('/') if os.environ.get('GITHUB_ACTIONS') == 'true' else Path('/Volumes/SuttonCap')
+    for path in [out, cache, device, backing]:
         assert shutil.disk_usage(path).free >= 20 * 2**30, str(path)
     os.environ.update(TMPDIR=str(cache / 'tmp') + '/', CLANG_MODULE_CACHE_PATH=str(cache / 'modules'),
                       SWIFTPM_MODULECACHE_OVERRIDE=str(cache / 'modules'))
