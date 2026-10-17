@@ -971,13 +971,15 @@ class MonitorPortraitHeaderClearanceTest {
                     originalPaint = nativeStoragePaint(results.single())
                     originalStorageWidth = storageFrame.width
                 }
-                val originalOccupiedWidth = nativeClickableTarget("Storage remaining").width().toFloat()
+                val originalOccupiedWidth = nativeClickableTarget("Storage remaining", refreshOwner = true).width().toFloat()
                 scenario.onActivity { candidate = true }
                 for ((index, fps) in listOf(false, true, false).withIndex()) {
                     awaitForegroundFrame(scenario)
                     val instrumentation = InstrumentationRegistry.getInstrumentation()
-                    val storageTarget = nativeClickableTarget("Storage remaining")
-                    val performanceTarget = nativeClickableTarget("Live link ")
+                    // A toggle may move both owners. Refresh each platform node so the gap
+                    // compares current occupied bounds rather than a mix of cached frames.
+                    val storageTarget = nativeClickableTarget("Storage remaining", refreshOwner = true)
+                    val performanceTarget = nativeClickableTarget("Live link ", refreshOwner = true)
                     android.util.Log.i("CompactTelemetryTargets", JSONObject().put("width", width).put("storage", value)
                         .put("fps", fps).put("density", density).put("originalOccupiedWidth", originalOccupiedWidth)
                         .put("storageTarget", storageTarget.toShortString()).put("performanceTarget", performanceTarget.toShortString()).toString())
