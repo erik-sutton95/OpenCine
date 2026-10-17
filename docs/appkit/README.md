@@ -619,3 +619,20 @@ technical details, photos or screenshots, reply email, and the pending report's 
 removal) and `ReliabilityConsentSheet` the first-launch ask for automatic reports. The app supplies
 its product name, support email, accent, technical details and privacy page; a missing `onAccent`
 keeps the system's text on the accent button.
+
+## Watcher browse composition
+
+Camera controls supplies `WatcherBrowse` and `WatcherBrowseHost` on SwiftUI and
+Compose. The host projects its current discovery identities, optional camera
+names, join phase, browse and passcode errors, and its existing find, join,
+passcode and leave actions. The view owns only presentation and the draft code.
+Network guidance and the empty-state message are caller values with the existing
+Swift defaults retained. A host without a separate passcode error uses the
+original prompt. No relay transport, credential store or renderer is created by
+the screen.
+
+Pocket and Insta already compose this shared Swift view over
+`WatcherRelayViewer`. The deployed monitor relay can supply the same typed host
+while keeping its own wire and storage adapters. An unknown camera name stays
+optional. Shell `watchFeed` and extra-nearby actions can open this page without
+replacing an integration's first-pair or connecting funnel.
