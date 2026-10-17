@@ -15,7 +15,7 @@
             ]
         }
 
-        /// The control readouts by popup name, with the accessibility identifier each app gives them.
+        /// The control readouts by popup name, with each app's accessibility identifier.
         open var readouts: [(popup: String, identifier: String)] {
             [
                 ("iso", "monitor.capture.iso"), ("shutter", "monitor.capture.shutter"),
@@ -25,6 +25,11 @@
 
         /// The popup whose mode tabs every camera offers.
         open var popupWithTabs: String { "wb" }
+
+        /// The tab labels, in order, that every app shows when the popup has tabs (Pocket's).
+        public static let canonicalTabs: [String: [String]] = [
+            "wb": ["Mode", "Kelvin", "Tint"], "shutter": ["Speed", "Angle"],
+        ]
 
         func testSIMULATEDControlPopupsAreTheSharedDrawerInBothOrientations() throws {
             #if !targetEnvironment(simulator)
@@ -45,24 +50,41 @@
                     predicate: NSPredicate { [app] _, _ in
                         guard let app else { return false }
                         return orientation == .portrait
-                            ? app.frame.height > app.frame.width : app.frame.width > app.frame.height
+                            ? app.frame.height > app.frame.width
+                            : app.frame.width > app.frame.height
                     }, object: nil)
                 XCTAssertEqual(XCTWaiter.wait(for: [shaped], timeout: 10), .completed)
                 let name = orientation == .portrait ? "portrait" : "landscape"
                 for readout in readouts {
                     let button = app.buttons[readout.identifier]
                     XCTAssertTrue(
-                        button.waitForExistence(timeout: 10), "The \(readout.popup) readout must be shown")
+                        button.waitForExistence(timeout: 10),
+                        "The \(readout.popup) readout must be shown")
                     try open(button, popup: readout.popup, orientation: name)
                 }
             }
         }
 
         private func open(_ readout: XCUIElement, popup: String, orientation: String) throws {
-            readout.tap()
+            // One tap once the readout is on screen and still: the launch splash has left and
+            // a rotation has settled. A dropped tap fails here rather than being retried.
+            tapWhenReady(readout, in: app, "The \(popup) readout")
             let close = app.buttons["monitor.capture.close"]
             XCTAssertTrue(
-                close.waitForExistence(timeout: 8), "The \(popup) readout must open the common drawer")
+                close.waitForExistence(timeout: 8),
+                "The \(popup) readout must open the common drawer")
+            let headers = [
+                "wb": ("WHITE BALANCE", "Kelvin · auto · tint"),
+                "shutter": ("SHUTTER", "Angle · speed"),
+            ]
+            if let (title, subtitle) = headers[popup] {
+                XCTAssertTrue(
+                    app.staticTexts[title].exists,
+                    "The \(popup) drawer must use the common title")
+                XCTAssertTrue(
+                    app.staticTexts[subtitle].exists,
+                    "The \(popup) drawer must use the common subtitle")
+            }
             let tabs = app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH %@", "monitor.capture.tab."))
             if popup == popupWithTabs {
@@ -71,10 +93,19 @@
                     "The \(popup) popup must draw the shared mode strip")
             }
             if tabs.count > 0 {
+                if let canonical = Self.canonicalTabs[popup] {
+                    let labels = (0..<tabs.count).map {
+                        app.buttons["monitor.capture.tab.\($0)"].label.lowercased()
+                    }
+                    XCTAssertEqual(
+                        labels, canonical.map { $0.lowercased() },
+                        "The \(popup) tabs read as on every app")
+                }
                 let selected = tabs.allElementsBoundByIndex.filter(\.isSelected)
                 XCTAssertEqual(selected.count, 1, "Exactly one \(popup) mode tab is selected")
                 for tab in tabs.allElementsBoundByIndex {
-                    XCTAssertTrue(app.frame.contains(tab.frame), "The \(popup) tabs must be on screen")
+                    XCTAssertTrue(
+                        app.frame.contains(tab.frame), "The \(popup) tabs must be on screen")
                 }
             }
             let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

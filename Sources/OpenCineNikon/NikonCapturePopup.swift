@@ -118,10 +118,34 @@ extension NikonCapturePopupState {
     /// The popup as the shared ladder sheet draws it.
     public var presentation: LadderSheetPresentation<NikonLadderControl> {
         LadderSheetPresentation(
-            title: title, subtitle: subtitle, tabs: modes.map(tab), initialTab: initialTab,
+            title: title, subtitle: subtitle, tabs: displayModes.map(tab), initialTab: initialTab,
             lock: sheetLock, lockBanner: banner)
     }
 
+    /// The tabs in the order every app shows them (Pocket's): white balance Mode, Kelvin, Tint and
+    /// shutter Speed, Angle. Each tab keeps the body's mode index as its key, so only the display
+    /// order differs from the camera's mode numbering, and nothing stores a display position.
+    var displayModes: [NikonLadderMode] {
+        let order: [String]
+        switch kind {
+        case .whiteBalance: order = [Self.presetTab, Self.kelvinTab, Self.tintTab]
+        case .shutter: order = ["Speed", "Angle"]
+        default: return modes
+        }
+        let rank = { (mode: NikonLadderMode) in order.firstIndex(of: mode.title) ?? order.count }
+        return modes.enumerated().sorted {
+            (rank($0.element), $0.offset) < (rank($1.element), $1.offset)
+        }
+        .map(\.element)
+    }
+
+    /// The tab label every app shows: the white balance presets tab is "Mode", as on Pocket.
+    func label(_ mode: NikonLadderMode) -> String {
+        kind == .whiteBalance && mode.title == Self.presetTab ? "Mode" : mode.title
+    }
+
+    /// The opening tab as a display position: chosen in the camera's mode order, then found in
+    /// `displayModes` by mode index.
     var initialTab: Int {
         let raw: Int
         switch kind {
@@ -129,11 +153,17 @@ extension NikonCapturePopupState {
             raw = circuitIndex ?? 0
         case .whiteBalance:
             let mode = whiteBalanceMode
-            raw = mode == nil || mode == "Color temp" ? 0 : 1
+            raw =
+                modes.firstIndex {
+                    $0.title
+                        == (mode == nil || mode == "Color temp" ? Self.kelvinTab : Self.presetTab)
+                } ?? 0
         default:
             raw = seededTab ?? modes.firstIndex { optionsOf($0).contains(cameraValue) } ?? 0
         }
-        return min(max(raw, 0), max(modes.count - 1, 0))
+        guard !modes.isEmpty else { return 0 }
+        let chosen = modes[min(max(raw, 0), modes.count - 1)].index
+        return displayModes.firstIndex { $0.index == chosen } ?? 0
     }
 
     /// Recording and a camera shutter lock freeze the whole sheet. Auto ISO locks each drum
@@ -168,7 +198,7 @@ extension NikonCapturePopupState {
         let (activate, apply) = activation(mode)
         let grown: (@Sendable (String) -> [String])? = kelvin ? Self.kelvinValues : nil
         return LadderTab(
-            label: mode.title, key: .value(mode.index),
+            label: label(mode), key: .value(mode.index),
             ladder: CaptureLadder(
                 current: mode.current.isEmpty ? nil : mode.current, values: options,
                 marked: marked(mode), lock: lock),
