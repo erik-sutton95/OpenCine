@@ -330,6 +330,29 @@ class Hub(AtlasCase):
         self.assertTrue((task / "OpenCine").is_dir())
         self.assertFalse((task / "App").exists())
 
+    def test_native_core_marker_quotes_remain_data_before_authority(self):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")
+        write_registry(self.root, self.metas)
+        reg = {m["id"]: m for m in self.metas}
+        quoted = linked_issues.managed_block("app", {"number": 12, "title": "Example", "body": "Quoted source", "state": "open"}, reg)
+        for number, body in ((4, "Quoted <!-- atlas-linked-issue:bad -->"), (5, quoted)):
+            with self.subTest(number=number):
+                code, out = self.start(f"opencine#{number}", issue={"number": number, "title": "Native parser report", "body": body,
+                    "url": f"https://github.com/o/OpenCine/issues/{number}", "labels": [], "state": "OPEN", "author": {"login": "maintainer"}})
+                self.assertEqual(code, 0, out)
+                task = self.ws / "OpenCine-tasks" / f"opencine-{number}"
+                self.assertTrue((task / "OpenCine").is_dir())
+                self.assertFalse((task / "App").exists())
+
+    def test_authenticated_duplicate_marker_fails_before_task_creation(self):
+        self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
+        reg = {m["id"]: m for m in self.metas}
+        body = linked_issues.managed_block("app", {"number": 12, "title": "Example", "body": "", "state": "open"}, reg)
+        code, out = self.linked_start(body=body + body)
+        self.assertNotEqual(code, 0, out)
+        self.assertFalse((self.ws / "OpenCine-tasks").exists())
+
     def test_fresh_orca_clicked_tracker_bootstraps_sources_and_reuses_physical_siblings(self):
         self.metas[0]["repository"]["url"] = "https://github.com/o/OpenCine"
         sh(self.ws / "OpenCine", "remote", "add", "origin", "https://github.com/o/OpenCine")

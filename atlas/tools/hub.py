@@ -424,17 +424,18 @@ def cmd_task_start(args, reg, root):
     issue, why = fetch_issue(reg[rid], number)
     tracking = None
     if rid == pid and issue:
-        try:
-            link = linked_issues.parse_link(issue.get("body"), reg)
-        except linked_issues.SyncError as exc:
-            print(f"cannot route linked issue: {exc}", file=sys.stderr)
-            return FAIL
-        if link:
-            config_path = Path(root) / "issue-sync.json"
-            bot = json.loads(config_path.read_text())["bot_login"] if config_path.exists() else "opencine-atlas-sync[bot]"
-            if (issue.get("author") or {}).get("login") != bot:
-                print("linked tracker was not created by the configured sync App; refusing routing authority", file=sys.stderr)
+        config_path = Path(root) / "issue-sync.json"
+        bot = json.loads(config_path.read_text())["bot_login"] if config_path.exists() else "opencine-atlas-sync[bot]"
+        link = None
+        # Ordinary Core reports can quote any marker syntax. Creator authority
+        # precedes parsing; only sync-owned trackers can redirect to an app.
+        if (issue.get("author") or {}).get("login") == bot:
+            try:
+                link = linked_issues.parse_link(issue.get("body"), reg)
+            except linked_issues.SyncError as exc:
+                print(f"cannot route linked issue: {exc}", file=sys.stderr)
                 return FAIL
+        if link:
             if args.from_file:
                 print("linked trackers require the original issue; --from-file cannot override their identity", file=sys.stderr)
                 return USAGE

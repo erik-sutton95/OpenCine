@@ -89,6 +89,13 @@ class OrcaTasks:
 
     def _plan(self, rows, rid, number, pid, tracking):
         source = f"{rid}#{number}"
+        receipt_path = Path(rows[0]["path"]).parent / ".atlas-orca.json"
+        saved = json.loads(receipt_path.read_text()) if receipt_path.exists() else {}
+        if saved and saved.get("source") != source:
+            raise OrcaError("task custody receipt belongs to another original issue")
+        prior = {}
+        for record in saved.get("adopted", []) + saved.get("prior_adopted", []):
+            prior.setdefault(record["id"], record)
         core = next((r for r in rows if r["repo"] == pid), None)
         expected_core_issue = tracking["number"] if tracking else number if rid == pid else None
         caller = self.caller
@@ -105,6 +112,8 @@ class OrcaTasks:
             if len(matches) > 1:
                 raise OrcaError(f"{row['repo']}: ambiguous physical task worktree in Orca")
             located[row["repo"]] = matches[0] if matches else None
+        if launcher and located.get(pid) and launcher["id"] == located[pid]["id"]:
+            launcher = None  # The adopted task is never its own launcher parent.
         plan = []
         for row in rows:
             repo_id = row["repo"]
@@ -113,9 +122,15 @@ class OrcaTasks:
             # Public Orca lineage is within one repository. Cross-repository parent
             # requests return LINEAGE_PARENT_CONTEXT_CONFLICT; use companion IDs.
             parent = launcher["id"] if repo_id == pid and launcher else None
+            if repo_id == pid and wt and wt.get("comment", "").startswith(f"atlas-task:{source}\n"):
+                record = prior.get(wt["id"])
+                if record and record.get("parent") == wt.get("parentWorktreeId") \
+                        and record.get("identity") == (wt.get("identity") or {}).get("key") \
+                        and record.get("issue") == issue and Path(record["path"]).resolve() == Path(wt["path"]).resolve():
+                    parent = record["parent"]
             for other in catalogs[repo_id]:
                 if issue is not None and _number(other) == issue and (not wt or other["id"] != wt["id"]) \
-                        and (not launcher or other["id"] != launcher["id"]):
+                        and (not launcher or other["id"] != launcher["id"]) and other["id"] != parent:
                     raise OrcaError(f"{repo_id}#{issue}: another Orca worktree already owns the issue ({other['id']})")
             if wt:
                 if wt.get("isMainWorktree") or _number(wt) not in (None, issue):
@@ -134,10 +149,14 @@ class OrcaTasks:
         folder = Path(folder)
         state_path = folder / ".atlas-orca.json"
         source = f"{rid}#{number}"
-        if state_path.exists() and json.loads(state_path.read_text()).get("source") != source:
+        previous = json.loads(state_path.read_text()) if state_path.exists() else {}
+        if previous and previous.get("source") != source:
             raise OrcaError("task custody receipt belongs to another original issue")
+        prior = {}
+        for record in previous.get("adopted", []) + previous.get("prior_adopted", []):
+            prior.setdefault(record["id"], record)
         state = {"version": 1, "source": source, "tracking": tracking, "mode": "adopted/discovered",
-                 "complete": False, "adopted": [], "attempting": None, "error": None}
+                 "complete": False, "adopted": [], "prior_adopted": list(prior.values()), "attempting": None, "error": None}
 
         def save():
             temp = state_path.with_suffix(".tmp")
@@ -174,6 +193,7 @@ class OrcaTasks:
                 state["attempting"] = None
                 save()
             state["complete"] = True
+            state.pop("prior_adopted", None)
         except (OrcaError, OSError, ValueError, KeyError) as exc:
             state["error"] = str(exc)
         save()

@@ -130,3 +130,36 @@ class OrcaTasks(AtlasCase):
         session = self.session()
         with self.assertRaises(orca_tasks.OrcaError): self.adopt(session)
         self.assertEqual(self.api.writes, [])
+
+    def test_owned_core_and_app_callers_reuse_receipt_parent_without_metadata_writes(self):
+        self.assertTrue(self.adopt()["complete"])
+        original_parent = self.api.worktrees["opencine"][0]["parentWorktreeId"]
+        count = len(self.api.writes)
+        for rid in ("opencine", "app"):
+            with self.subTest(caller=rid):
+                self.api.caller = copy.deepcopy(self.api.worktrees[rid][0])
+                self.assertTrue(self.adopt()["complete"])
+                self.assertEqual(self.api.worktrees["opencine"][0]["parentWorktreeId"], original_parent)
+        self.assertEqual(len(self.api.writes), count)
+
+    def test_owned_core_caller_can_add_app_and_foreign_parent_still_fails(self):
+        self.assertTrue(self.adopt()["complete"])
+        self.api.caller = copy.deepcopy(self.api.worktrees["opencine"][0])
+        future = self.ws / "Future"
+        make_repo(future, {"Package.swift": '.package(path: "../OpenCine")\n'}, url="https://github.com/o/future")
+        path = self.folder / "Future"
+        sh(future, "worktree", "add", "-q", "-b", "issue/app-12", str(path))
+        self.reg["future"] = meta("future", "app", "Future", url="https://github.com/o/future")
+        self.rows.append({"repo": "future", "path": path, "checkout": str(future), "branch": "issue/app-12"})
+        self.api.repos.append({"id": "future", "path": str(future), "gitRemoteIdentity": {"remoteUrl": "https://github.com/o/future"}})
+        self.api.worktrees["future"] = [{"id": "future::" + str(path), "repoId": "future", "path": str(path), "identity": {"key": "wt2:test:future"},
+                                          "linkedIssue": None, "parentWorktreeId": None, "comment": "", "isMainWorktree": False}]
+        receipt = self.adopt()
+        self.assertTrue(receipt["complete"], receipt)
+        self.assertEqual(len(receipt["adopted"]), 3)
+        self.assertIsNone(self.api.worktrees["future"][0]["parentWorktreeId"])
+        self.assertIn("future::", self.api.worktrees["opencine"][0]["comment"])
+        count = len(self.api.writes)
+        self.api.worktrees["opencine"][0]["parentWorktreeId"] = "unrelated::parent"
+        with self.assertRaises(orca_tasks.OrcaError): self.adopt()
+        self.assertEqual(len(self.api.writes), count)
