@@ -1,5 +1,7 @@
 package com.opencapture.opencine.insta360.luna
 
+import com.opencapture.opencine.insta360.shell.CameraCapability
+
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
 import com.opencapture.opencine.core.CameraSnapshot
@@ -81,19 +83,21 @@ internal class FakeLuna(
     private var lastApply: Job? = null
     lateinit var session: LunaCameraSession
 
-    fun makeSession(settle: Duration = 5.seconds): LunaCameraSession {
+    fun makeSession(settle: Duration = 5.seconds,
+        backendCapabilities: () -> Set<CameraCapability>? = { null }): LunaCameraSession {
         session = LunaCameraSession(
             send = ::receive, functionMode = { LunaControl.FUNCTION_MODE_VIDEO },
             readSettings = { reportSettings() }, readCapture = { reportCapture() }, scope = scope,
             timing = LunaCameraSession.Timing(SettingKey.entries.associateWith { settle }, 40.milliseconds),
-            now = now,
+            now = now, backendCapabilities = backendCapabilities,
         )
         return session
     }
 
     /** A live session that has heard every report once. */
-    fun connectedSession(settle: Duration = 5.seconds, serial: String = "LUNA-TEST"): LunaCameraSession {
-        makeSession(settle)
+    fun connectedSession(settle: Duration = 5.seconds, serial: String = "LUNA-TEST",
+        backendCapabilities: () -> Set<CameraCapability>? = { null }): LunaCameraSession {
+        makeSession(settle, backendCapabilities)
         session.linkChanged(LinkPhase.LIVE, serial)
         reportDevice(); reportSettings(); reportCapture()
         return session

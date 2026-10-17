@@ -80,6 +80,9 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
+import com.opencapture.opencine.insta360.shell.CameraCapability
+import com.opencapture.opencine.vocabulary.ControlStatus
+import com.opencapture.opencine.vocabulary.ControlCapability
 
 /** The camera answered 500: it refused the request. */
 internal class LunaRefused(code: Int) : IllegalStateException("Camera rejected command $code")
@@ -105,6 +108,7 @@ class LunaCameraSession internal constructor(
     private val scope: CoroutineScope,
     private val timing: Timing = Timing.LUNA,
     private val now: () -> MonotonicInstant = { MonotonicInstant(System.nanoTime().nanoseconds) },
+    private val backendCapabilities: () -> Set<CameraCapability>? = { null },
     private val noteGimbalCommand: () -> Unit = {},
 ) : CameraSession {
     /**
@@ -415,7 +419,7 @@ class LunaCameraSession internal constructor(
      */
     fun controlCapabilities(codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
         val capabilities = synchronized(lock) { current.capabilities }
-        return ControlCapabilities.derive(capabilities, CAPTURE_PROFILE, MOTION, codecColor)
+        return Companion.controlCapabilities(capabilities, backendCapabilities(), codecColor)
     }
 
     // CameraSession.
@@ -734,6 +738,37 @@ class LunaCameraSession internal constructor(
     }
 
     companion object {
+        /**
+         * Derives controls from camera facts and the backend's current verified operation domains.
+         * Null means no backend declaration. Video/audio transport and the host clock are not controls.
+         * Swift: `controlCapabilities(snapshot:backendCapabilities:codecColor:)`.
+         */
+        fun controlCapabilities(snapshot: CapabilitySnapshot, backendCapabilities: Set<CameraCapability>?,
+            codecColor: CaptureCodecColorChoices? = null): ControlCapabilities {
+            val controls = ControlCapabilities.derive(snapshot, CAPTURE_PROFILE, MOTION, codecColor)
+            if (backendCapabilities == null) return controls
+            val domains = listOf(
+                CameraCapability.CAMERA_SETTINGS to listOf(ControlFamily.ISO, ControlFamily.SHUTTER,
+                    ControlFamily.WHITE_BALANCE, ControlFamily.TINT, ControlFamily.FOCUS,
+                    ControlFamily.EXPOSURE_COMPENSATION, ControlFamily.FACE_METERING,
+                    ControlFamily.RECORDING_FORMAT, ControlFamily.CODEC_COLOR),
+                CameraCapability.FOCUS to listOf(ControlFamily.TAP_FOCUS),
+                CameraCapability.ZOOM to listOf(ControlFamily.ZOOM),
+                CameraCapability.GIMBAL to listOf(ControlFamily.GIMBAL, ControlFamily.HEAD_TRACKING),
+                CameraCapability.RECORD to listOf(ControlFamily.RECORDING),
+                CameraCapability.CAMERA_MEDIA to listOf(ControlFamily.MEDIA, ControlFamily.MEDIA_DELETE),
+            )
+            val inputs = domains.flatMap { (domain, families) ->
+                val status = ControlStatus(if (domain in backendCapabilities) SupportStatus.SUPPORTED else SupportStatus.UNSUPPORTED)
+                families.map { it to status }
+            }.toMap()
+            val restricted = controls.restricting(inputs)
+            // Preserve the existing shell declaration for this native extension, in its typed offer.
+            return restricted.copy(iso = ControlCapability(restricted.iso.support, restricted.iso.access,
+                restricted.iso.offer?.copy(nativeISO = restricted.nativeISO.copy(
+                    hop = CameraCapability.NATIVE_ISO_HOP in backendCapabilities))))
+        }
+
         /**
          * What Luna Ultra (fw 1.1.15) declares to shared motion (Swift `LunaCameraSession.motion`):
          * handle-frame pan and tilt (cmd 226 SET_ANGLE), pitch -57...90, yaw one arc from about

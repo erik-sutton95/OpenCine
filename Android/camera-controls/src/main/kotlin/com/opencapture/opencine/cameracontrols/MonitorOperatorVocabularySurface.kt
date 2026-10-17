@@ -43,7 +43,6 @@ import com.opencapture.opencine.motion.LevelReading
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.ControlCapabilities
-import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.media.storageReadout
 import com.opencapture.opencine.media.recordingTimeLabel
 import com.opencapture.opencine.media.StorageReadout
@@ -109,7 +108,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
 ): MonitorOperatorLiveSource<String, MonitorOperatorLegacyCaptureIdentity> where Host : CaptureSheetHost, Host : GimbalChromeHost {
     val status = chrome.status
     val capabilities = chrome.capabilities
-    val controls = chrome.capture.host.captureSessionState(status).controls(capabilities)
+    val controls = chrome.capture.host.captureSessionState(status).controlCapabilities
     val shell by chrome.shell.state.collectAsState()
     val control by chrome.capture.control.state.collectAsState()
     return MonitorOperatorLiveSource(
@@ -132,7 +131,7 @@ public fun <Host> cameraStatusLiveSource(chrome: MonitorOperatorLiveChromeSource
         status = operatorStatusProjection(chrome, geometry.layout, status, fps, bars,
             state.showStorageDuration) { state.showStorageDuration = !state.showStorageDuration },
         cameraBattery = control.snapshot?.power?.let(::cameraPowerReading),
-        capture = captureSheetHostInputs(chrome.capture, status, capabilities, state.sheet, { state.sheet = it },
+        capture = captureSheetHostInputs(chrome.capture, status, state.sheet, { state.sheet = it },
             section = MonitorDisplaySection.CAMERA_VALUES, metering = metering, quickEnabled = !busy,
             quickActiveChanged = { state.stripQuickActive = it; if (it) state.sheet = null }),
         record = MonitorOperatorRecordSource(status.isPhoto, chrome.capture.confirmRecording(), busy,
@@ -161,7 +160,7 @@ public fun <Host> MonitorOperatorLiveSurface(chrome: MonitorOperatorLiveChromeSo
     val zones = geometry.zones
     val status = chrome.status
     val capabilities = chrome.capabilities
-    val controls = chrome.capture.host.captureSessionState(status).controls(capabilities)
+    val controls = chrome.capture.host.captureSessionState(status).controlCapabilities
     val session = chrome.session
     val assist = session.assist
     val locked = session.locked

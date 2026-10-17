@@ -131,6 +131,49 @@ public data class ControlCapabilities(
     /** The body can join a multi-camera stage. */
     public val multiview: ControlCapability<NoOffer> = ControlCapability.unknown(),
 ) {
+    /**
+     * Applies typed backend restrictions without inventing support or values. Missing inputs retain
+     * the camera's facts; unknown inputs withhold controls; read-only never becomes writable.
+     */
+    public fun restricting(inputs: Map<ControlFamily, ControlStatus>): ControlCapabilities {
+        fun <T> restrict(value: ControlCapability<T>, family: ControlFamily): ControlCapability<T> {
+            val input = inputs[family] ?: return value
+            val support = when {
+                value.support == SupportStatus.UNSUPPORTED || input.support == SupportStatus.UNSUPPORTED -> SupportStatus.UNSUPPORTED
+                input.support == SupportStatus.UNKNOWN -> SupportStatus.UNKNOWN
+                else -> value.support
+            }
+            val access = if (value.access == SettingAccess.READ_ONLY || input.access == SettingAccess.READ_ONLY)
+                SettingAccess.READ_ONLY else SettingAccess.READ_WRITE
+            return ControlCapability(support, access, value.offer)
+        }
+        return copy(
+            iso = restrict(iso, ControlFamily.ISO),
+            shutter = restrict(shutter, ControlFamily.SHUTTER),
+            whiteBalance = restrict(whiteBalance, ControlFamily.WHITE_BALANCE),
+            tint = restrict(tint, ControlFamily.TINT),
+            iris = restrict(iris, ControlFamily.IRIS),
+            ndFilter = restrict(ndFilter, ControlFamily.ND_FILTER),
+            focus = restrict(focus, ControlFamily.FOCUS),
+            tapFocus = restrict(tapFocus, ControlFamily.TAP_FOCUS),
+            faceMetering = restrict(faceMetering, ControlFamily.FACE_METERING),
+            exposureCompensation = restrict(exposureCompensation, ControlFamily.EXPOSURE_COMPENSATION),
+            codecColor = restrict(codecColor, ControlFamily.CODEC_COLOR),
+            recordingFormat = restrict(recordingFormat, ControlFamily.RECORDING_FORMAT),
+            audio = restrict(audio, ControlFamily.AUDIO),
+            liveAudioLevels = restrict(liveAudioLevels, ControlFamily.LIVE_AUDIO_LEVELS),
+            zoom = restrict(zoom, ControlFamily.ZOOM),
+            gimbal = restrict(gimbal, ControlFamily.GIMBAL),
+            headTracking = restrict(headTracking, ControlFamily.HEAD_TRACKING),
+            timecode = restrict(timecode, ControlFamily.TIMECODE),
+            recording = restrict(recording, ControlFamily.RECORDING),
+            photo = restrict(photo, ControlFamily.PHOTO),
+            media = restrict(media, ControlFamily.MEDIA),
+            mediaDelete = restrict(mediaDelete, ControlFamily.MEDIA_DELETE),
+            multiview = restrict(multiview, ControlFamily.MULTIVIEW),
+        )
+    }
+
     /** Support and access of [family]. */
     public fun status(family: ControlFamily): ControlStatus = when (family) {
         ControlFamily.ISO -> iso.status

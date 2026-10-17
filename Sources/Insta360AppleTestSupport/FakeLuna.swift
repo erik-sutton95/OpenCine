@@ -30,6 +30,7 @@ public final class FakeLuna {
     /// Confirmations return as soon as a readback matches, so only failure tests pass a short
     /// settle; the long default absorbs main-thread stalls while the host app launches.
     public func makeSession(settle: Duration = .seconds(5),
+        backendCapabilities: @escaping @MainActor () -> CameraCapabilities? = { nil },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
         let session = LunaCameraSession(
             send: { [unowned self] in try await self.receive($0) },
@@ -41,15 +42,16 @@ public final class FakeLuna {
                     .iso: settle, .shutter: settle, .whiteBalance: settle, .recording: settle,
                     .zoom: settle, .focusMode: settle,
                 ],
-                readbackInterval: .milliseconds(40)), now: now)
+                readbackInterval: .milliseconds(40)), backendCapabilities: backendCapabilities, now: now)
         self.session = session
         return session
     }
 
     /// A live session that has heard every report once.
     public func connectedSession(settle: Duration = .seconds(5),
+        backendCapabilities: @escaping @MainActor () -> CameraCapabilities? = { nil },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now) -> LunaCameraSession {
-        let session = makeSession(settle: settle, now: now)
+        let session = makeSession(settle: settle, backendCapabilities: backendCapabilities, now: now)
         session.linkChanged(.streaming, serial: "LUNA-TEST")
         reportDevice()
         reportSettings()

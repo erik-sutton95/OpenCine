@@ -97,6 +97,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
     private var targets: [SettingKey: (operation: OperationID, value: SettingValue)] = [:]
     private var subscribers: [UUID: AsyncStream<CameraSnapshot>.Continuation] = [:]
     private var waiters: [OperationID: [UUID: CheckedContinuation<CommandReceipt?, Never>]] = [:]
+    let backendCapabilities: @MainActor () -> CameraCapabilities?
     private var pump: Task<Void, Never>?
     private var closed = false
 
@@ -113,6 +114,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         sendAdmitted: LunaAdmittedCommandSend? = nil,
         sendAdmittedWithin: LunaAdmittedCommandSendWithin? = nil,
         timing: Timing = .luna,
+        backendCapabilities: @escaping @MainActor () -> CameraCapabilities? = { nil },
         now: @escaping @Sendable () -> MonotonicInstant = MonotonicInstant.now
     ) {
         let id = CameraSessionID()
@@ -126,6 +128,7 @@ public final class LunaCameraSession: OpenCineCore.CameraSession {
         self.readCapture = readCapture
         self.timing = timing
         self.now = now
+        self.backendCapabilities = backendCapabilities
         current = CameraSnapshot(session: id, connection: .connecting(ConnectionAttemptID(), .link))
         refreshCapabilities()
     }

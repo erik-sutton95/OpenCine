@@ -144,6 +144,51 @@ public struct ControlCapabilities: Equatable, Sendable {
         photo = .unknown; media = .unknown; mediaDelete = .unknown; multiview = .unknown
     }
 
+    /// Applies typed backend restrictions without inventing support or values. Missing inputs
+    /// retain the camera's facts; unknown inputs withhold controls; read-only never becomes writable.
+    public func restricting(_ inputs: [ControlFamily: ControlStatus]) -> Self {
+        func restrict<Offer: Equatable & Sendable>(_ value: ControlCapability<Offer>,
+            _ family: ControlFamily) -> ControlCapability<Offer> {
+            guard let input = inputs[family] else { return value }
+            let support: SupportStatus
+            if value.support == .unsupported || input.support == .unsupported {
+                support = .unsupported
+            } else if input.support == .unknown {
+                support = .unknown
+            } else {
+                support = value.support
+            }
+            let access: SettingAccess = value.access == .readOnly || input.access == .readOnly
+                ? .readOnly : .readWrite
+            return .init(support: support, access: access, offer: value.offer)
+        }
+        var result = self
+        result.iso = restrict(iso, .iso)
+        result.shutter = restrict(shutter, .shutter)
+        result.whiteBalance = restrict(whiteBalance, .whiteBalance)
+        result.tint = restrict(tint, .tint)
+        result.iris = restrict(iris, .iris)
+        result.ndFilter = restrict(ndFilter, .ndFilter)
+        result.focus = restrict(focus, .focus)
+        result.tapFocus = restrict(tapFocus, .tapFocus)
+        result.faceMetering = restrict(faceMetering, .faceMetering)
+        result.exposureCompensation = restrict(exposureCompensation, .exposureCompensation)
+        result.codecColor = restrict(codecColor, .codecColor)
+        result.recordingFormat = restrict(recordingFormat, .recordingFormat)
+        result.audio = restrict(audio, .audio)
+        result.liveAudioLevels = restrict(liveAudioLevels, .liveAudioLevels)
+        result.zoom = restrict(zoom, .zoom)
+        result.gimbal = restrict(gimbal, .gimbal)
+        result.headTracking = restrict(headTracking, .headTracking)
+        result.timecode = restrict(timecode, .timecode)
+        result.recording = restrict(recording, .recording)
+        result.photo = restrict(photo, .photo)
+        result.media = restrict(media, .media)
+        result.mediaDelete = restrict(mediaDelete, .mediaDelete)
+        result.multiview = restrict(multiview, .multiview)
+        return result
+    }
+
     /// Support and access of `family`.
     public func status(_ family: ControlFamily) -> ControlStatus {
         switch family {
