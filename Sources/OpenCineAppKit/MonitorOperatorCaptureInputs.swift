@@ -299,6 +299,7 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
     private let commandEnabled: Bool
     private let currentSource: () -> Bool
     private let coordinateSpace: String
+    private let expandsHeight: Bool
     private let content: () -> Content
     @State private var measuredSize: CGSize = .zero
 
@@ -306,15 +307,18 @@ public struct MonitorOperatorCaptureHeaderReadout<Key: Hashable, Section: Hashab
         state: MonitorOperatorCaptureState<Key, NativeIdentity>, source: MonitorCaptureSourceIdentity,
         readout: MonitorOperatorLiveReadout<Key, Section>, enabled: Bool, commandEnabled: Bool = true,
         currentSource: @escaping () -> Bool, coordinateSpace: String = "monitor.canvas",
-        @ViewBuilder content: @escaping () -> Content) {
+        expandsHeight: Bool = true, @ViewBuilder content: @escaping () -> Content) {
         self.inputs = inputs; self.control = control; self.state = state; self.source = source
         self.readout = readout; self.enabled = enabled; self.commandEnabled = commandEnabled
-        self.currentSource = currentSource; self.coordinateSpace = coordinateSpace; self.content = content
+        self.currentSource = currentSource; self.coordinateSpace = coordinateSpace
+        self.expandsHeight = expandsHeight; self.content = content
     }
 
     public var body: some View {
         let horizontal = measuredSize == .zero ? 0 : max(0, (44 - measuredSize.width) / 2)
-        let vertical = measuredSize == .zero ? 0 : max(0, (44 - measuredSize.height) / 2)
+        // A line of a stacked column already owns its slot's height: growing it would reach
+        // into the neighbouring line's target (`expandsHeight: false`).
+        let vertical = measuredSize == .zero || !expandsHeight ? 0 : max(0, (44 - measuredSize.height) / 2)
         content().background {
             GeometryReader { geometry in
                 Color.clear.preference(key: CaptureHeaderReadoutSizeKey.self,
@@ -355,8 +359,14 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
         .init(context: source, field: readout.field,
             native: readout.field == nil ? inputs.nativeQuick(readout.id) : nil)
     }
+    /// An unreported value with nothing to edit stays inert rather than opening an empty panel.
+    private var inert: Bool {
+        MonitorCapturePresentation.readoutIsInert(value: readout.value, field: readout.field,
+            nativeEnabled: capturedSource.native?.enabled, quickEnabled: readout.quickEnabled,
+            hasAction: readout.action != nil)
+    }
     private var canInspect: Bool {
-        enabled && currentSource() && scenePhase == .active
+        !inert && enabled && currentSource() && scenePhase == .active
             && (state.preview == nil || state.preview?.key == readout.id)
     }
     private var presentationOwner: UUID? {
@@ -380,7 +390,8 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
     func body(content: Content) -> some View {
         content.modifier(MonitorReadoutGesture(snapshot: quickSnapshot, sourceIdentity: capturedSource,
             isEnabled: canInspect, ownership: $state.ownership, presentationOwner: { presentationOwner }, onEvent: handle))
-            .accessibilityLabel(readout.title).accessibilityValue(readout.value)
+            .accessibilityLabel(readout.title)
+            .accessibilityValue(MonitorCapturePresentation.spokenValue(readout.value))
             .accessibilityIdentifier(readout.accessibilityIdentifier)
             .disabled(!canInspect)
             .onChange(of: inputs.panel?.key) { _, key in
@@ -473,6 +484,10 @@ public struct MonitorOperatorCapturePopup<Key: Hashable, Section: Hashable,
                                 content(panel.key, place).disabled(!commandEnabled || !currentSource())
                             }
                         }.id(panel.key)
+                        // One container per open camera panel, as the operator reaches it: UI tests
+                        // and assistive technology find the panel itself, not only its rows.
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("monitor.capture.panel")
                     }
                 }
             } else if let preview = state.preview {

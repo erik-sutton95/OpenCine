@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -193,8 +194,16 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     photoRelease: (@Composable (Boolean, Modifier) -> Unit)? = null,
 ): Unit {
     val density = LocalDensity.current
+    val usesCompactTelemetry = layout.portrait && !layout.tablet
+    // Keep the renderer's existing default; shared measurement and rendering use the same value.
+    val telemetryMetrics = MonitorTelemetryMetrics.PHONE
     val origin = LocalLiveCanvasOrigin.current
     val boxes = chromeBoxes ?: remember { mutableStateMapOf<S, MonitorRect>() }
+    val statusBounds = remember(boxes, sections.status, editing) {
+        MonitorOperatorChromeBounds { frame ->
+            if (frame == null) boxes.remove(sections.status) else boxes[sections.status] = frame
+        }
+    }
     val state = captureState ?: remember(identity) { MonitorOperatorCaptureState<K, N>() }
     val panel = captureInputs.panel
     val dismiss = captureInputs.dismiss
@@ -222,12 +231,17 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     fun currentSource(): Boolean = current(identity) && control.state.value.snapshot?.let { it.session to it.epoch } ==
         identity.camera?.let { it to identity.epoch }
     fun admits(): Boolean = admitted && currentSource()
-    @Composable fun edit(section: S): Modifier = Modifier.chromeEditable(host, section, editing) { key, frame -> boxes[key] = frame }
+    @Composable fun edit(section: S): Modifier {
+        if (section != sections.status) return Modifier.chromeEditable(host, section, editing) { key, frame -> boxes[key] = frame }
+        val part = remember { Any() }
+        DisposableEffect(statusBounds, part) { onDispose { statusBounds.remove(part) } }
+        return Modifier.chromeEditable(host, section, editing) { _, frame -> statusBounds.update(part, frame) }
+    }
     val source = MonitorCaptureSourceIdentity(identity.camera, identity.epoch, identity.pictureOwner,
         identity.monitor, identity.picture, identity.phase)
     @Composable fun Readout(value: MonitorOperatorLiveReadout<K, S>, portrait: Boolean = false,
         caption: String? = null, opens: Boolean = true, accent: Boolean = false, storageReadout: Boolean = false, grouped: Boolean = false, detail: Boolean = false,
-        decoratesSection: Boolean = true) {
+        primaryBottom: Boolean = false, decoratesSection: Boolean = true) {
         val decoration = (value.section?.takeIf { decoratesSection }?.let { edit(it) } ?: Modifier).then(value.itemModifier)
             .onGloballyPositioned { coordinates ->
                 val r = coordinates.boundsInRoot()
@@ -235,11 +249,13 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     r.top.toDp().value, r.width.toDp().value, r.height.toDp().value) }
             }
         val label: @Composable () -> Unit = {
-            // Grouped portrait lines keep their target width; MonitorPortraitFormatGroup grants
-            // each line its target-height slot, so glyphs stay top aligned at their own height.
+            // Grouped portrait lines keep their target width; MonitorPortraitFormatGroup tiles their
+            // target-height slots without overlap. The primary label stays at the slot's bottom
+            // because only its invisible target expands above the original text position.
             val groupFrame = if (grouped) Modifier
-                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width)) else Modifier
-            Box(groupFrame, contentAlignment = if (grouped) Alignment.TopEnd else Alignment.BottomEnd) {
+                .widthIn(min = maxOf(44.dp, LocalViewConfiguration.current.minimumTouchTargetSize.width))
+                .fillMaxHeight() else Modifier
+            Box(groupFrame, contentAlignment = if (grouped && !primaryBottom) Alignment.TopEnd else Alignment.BottomEnd) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     value.icon?.let { MonitorIcon(it, null, Modifier.size(14.dp), MonitorPalette.muted) }
                     if (grouped) {
@@ -280,9 +296,15 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
     // A quick preview hides its readouts in place inside the strip, preserving the held pointer.
     // A full bottom sheet still removes the capture slot from input and accessibility.
     val captureHidden = panel?.top == false
+    @Composable fun TelemetryPower() {
+        MonitorTelemetry(status.signalBars, status.fps, power.map {
+            MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted)
+        }, horizontal = layout.portrait && !layout.tablet, metrics = telemetryMetrics,
+            modifier = edit(sections.power), showsLink = linkMounted && (!layout.portrait || layout.tablet))
+    }
     MonitorScreen(control, layout, MonitorScreenPresentation(visible = !covered || editing != null,
         interactive = editing == null && interactionEnabled, statusMounted = sections.status in mounted,
-        powerMounted = sections.power in mounted, captureMounted = sections.capture in mounted && !command,
+        powerMounted = sections.power in mounted && !usesCompactTelemetry, captureMounted = sections.capture in mounted && !command,
         captureHidden = captureHidden, captureInteractive = panel == null || panel.top, locked = locked,
         popupInteractive = editing == null && interactionEnabled,
         capturePresented = panel != null || state.preview != null || inspecting, recovering = recovering,
@@ -312,7 +334,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                     primaryIsDetail = top.section == MonitorDisplaySection.CODEC)
             } else null
             CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
-            MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording,
+            MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording, !usesCompactTelemetry,
                 edit(sections.status),
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
@@ -320,7 +342,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 format = {
                     if (inline) {
                         if (top != null) MonitorPortraitFormatGroup(below.isNotEmpty() || caption != null, primary = {
-                            Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC)
+                            Readout(top, portrait = true, grouped = true, detail = top.section == MonitorDisplaySection.CODEC,
+                                primaryBottom = below.isNotEmpty() || caption != null)
                         }, detail = {
                             Row(verticalAlignment = Alignment.Top,
                                 horizontalArrangement = Arrangement.spacedBy((fit?.spacing ?: 8f).dp)) {
@@ -347,13 +370,10 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 }, color = { if (!inline) shownColor?.let { Readout(it) } },
                 mode = { status.mode?.let { Readout(it, accent = true) } },
                 link = { MonitorTelemetry(status.signalBars, status.fps, emptyList(), horizontal = true,
-                    showsLink = linkMounted, showsPower = false) })
+                    showsLink = linkMounted, showsPower = false, metrics = telemetryMetrics) })
             }
         }, power = {
-            MonitorTelemetry(status.signalBars, status.fps, power.map {
-                MonitorTelemetryPower(it.camera, it.percent, it.charging, it.bars, it.barCount, it.warning, it.exhausted)
-            }, horizontal = layout.portrait && !layout.tablet,
-                modifier = edit(sections.power), showsLink = linkMounted && (!layout.portrait || layout.tablet))
+            TelemetryPower()
         }, capture = { accepts ->
             com.opencapture.opencine.appkit.MonitorOperatorCaptureStrip(captureInputs, control, state, source,
                 enabled = accepts && interactive, commandEnabled = !readOnly,
@@ -482,6 +502,22 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                 }
             }
             if (!command) cameraViews.waitingPicture?.invoke()
+            if (usesCompactTelemetry) {
+                MonitorCompactTelemetryRow(layout, safeLeading, safeTrailing, telemetryMetrics,
+                    storage = {
+                        if (sections.status in mounted) Box(edit(sections.status)
+                            .then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier)) {
+                            status.storage?.let {
+                                if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true)
+                            }
+                        }
+                    }, link = {
+                        if (sections.status in mounted) MonitorTelemetry(status.signalBars, status.fps, emptyList(), true,
+                            showsLink = linkMounted, showsPower = false, metrics = telemetryMetrics,
+                            modifier = edit(sections.status).refusingInput(!(accepts && interactive && !assistInspectorPresented))
+                                .then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier))
+                    }, power = { if (sections.power in mounted) TelemetryPower() })
+            }
         }, panels = { accepts ->
             com.opencapture.opencine.appkit.MonitorOperatorCapturePopup(captureInputs, control, state, layout,
                 enabled = accepts && interactive, commandEnabled = !readOnly, currentSource = ::currentSource,

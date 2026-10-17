@@ -66,18 +66,29 @@ struct MonitorCapturePopupLayoutTests {
         #expect(layout.bottom == hud.system.y - 12)
     }
 
-    @Test func topRecordingCategoriesAttachToTheLandscapeScreenTop() {
+    /// Landscape recording categories float like every other popup: inside the safe area, under
+    /// the same top margin the bottom drawer keeps, with every corner rounded.
+    @Test func topRecordingCategoriesFloatInsideTheLandscapeSafeTop() {
         let layout = MonitorCapturePopupLayout(
             viewportWidth: 874, viewportHeight: 402, tablet: false,
             safeArea: .init(leading: 62, bottom: 21), edge: .top, topBoundary: 0)
-        #expect(layout.top == 0)
+        let drawer = MonitorCapturePopupLayout(
+            viewportWidth: 874, viewportHeight: 402, tablet: false,
+            safeArea: .init(leading: 62, bottom: 21))
+        #expect(layout.top == 8)
+        #expect(layout.top == drawer.top)
         #expect(layout.width == 480)
         #expect(layout.centerX == 437)
         #expect(layout.topPadding == 16)
         #expect(layout.bottomPadding == 14)
-        #expect(layout.topCornerRadius == 0)
+        #expect(layout.topCornerRadius == 16)
         #expect(layout.bottomCornerRadius == 16)
         #expect(layout.bottom == 402)
+        let tablet = MonitorCapturePopupLayout(
+            viewportWidth: 1133, viewportHeight: 744, tablet: true,
+            safeArea: .init(top: 24, bottom: 20), edge: .top, topBoundary: 0)
+        #expect(tablet.top == 32)
+        #expect(tablet.maximumHeight == 744 - 32)
     }
 
     @Test func compactHoldHugsHeaderAndDrumAt128() {

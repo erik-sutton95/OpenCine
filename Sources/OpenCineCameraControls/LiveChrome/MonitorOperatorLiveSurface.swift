@@ -302,6 +302,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let assists: MonitorOperatorLiveAssists
     private let views: MonitorOperatorBodyViews
     private let portraitAspect: Binding<PortraitFeedAspect>
+    private let telemetryMetrics: MonitorTelemetryMetrics?
     private let picture: () -> Picture
     private let cameraPanel: (Key, MonitorCapturePopupLayout) -> CameraPanel
     private let photoRelease: (CGFloat) -> PhotoRelease
@@ -311,7 +312,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     public init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
         layout: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
         assists: MonitorOperatorLiveAssists, views: MonitorOperatorBodyViews,
-        portraitAspect: Binding<PortraitFeedAspect>,
+        portraitAspect: Binding<PortraitFeedAspect>, telemetryMetrics: MonitorTelemetryMetrics? = nil,
         @ViewBuilder picture: @escaping () -> Picture,
         @ViewBuilder cameraPanel: @escaping (Key, MonitorCapturePopupLayout) -> CameraPanel,
         @ViewBuilder photoRelease: @escaping (CGFloat) -> PhotoRelease,
@@ -319,6 +320,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         @ViewBuilder lookMenu: @escaping () -> LookMenu) {
         self.host = host; self.control = control; self.session = session; self.layout = layout
         self.source = source; self.assists = assists; self.views = views; self.portraitAspect = portraitAspect
+        self.telemetryMetrics = telemetryMetrics
         self.picture = picture; self.cameraPanel = cameraPanel; self.photoRelease = photoRelease
         self.preview = preview; self.lookMenu = lookMenu
     }
@@ -333,7 +335,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 audio: source.audio(), readOnly: source.readOnly(), borrowed: source.borrowed(),
                 covered: source.coverOpen(), tools: tools, rendered: (assists.rendered() ?? Set(tools)).filter(assist.offers),
                 fitted: assists.fitted().filter(assist.offers)),
-            assists: assists, views: views, portraitAspect: portraitAspect, picture: picture,
+            assists: assists, views: views, portraitAspect: portraitAspect, telemetryMetrics: telemetryMetrics, picture: picture,
             nativePanel: cameraPanel, photoRelease: photoRelease, preview: preview, lookMenu: lookMenu)
     }
 }
@@ -371,6 +373,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private let assists: MonitorOperatorLiveAssists
     private let cameraViews: MonitorOperatorBodyViews
     @Binding private var portraitAspect: PortraitFeedAspect
+    private let telemetryMetrics: MonitorTelemetryMetrics?
     private let picture: () -> Picture
     private let nativePanel: (Key, MonitorCapturePopupLayout) -> CameraPanel
     private let photoRelease: (CGFloat) -> PhotoRelease
@@ -388,12 +391,14 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
         live: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
         facts: MonitorOperatorLiveFacts<Key, NativeIdentity>, assists: MonitorOperatorLiveAssists,
         views: MonitorOperatorBodyViews, portraitAspect: Binding<PortraitFeedAspect>,
+        telemetryMetrics: MonitorTelemetryMetrics? = nil,
         picture: @escaping () -> Picture, nativePanel: @escaping (Key, MonitorCapturePopupLayout) -> CameraPanel,
         photoRelease: @escaping (CGFloat) -> PhotoRelease, preview: @escaping (MonitorAssistSelection) -> Preview,
         lookMenu: @escaping () -> LookMenu) {
         self.host = host; self.control = control; self.session = session; self.live = live
         self.source = source; self.facts = facts; self.assists = assists; self.cameraViews = views
         _portraitAspect = portraitAspect; self.picture = picture; self.nativePanel = nativePanel
+        self.telemetryMetrics = telemetryMetrics
         self.photoRelease = photoRelease; self.preview = preview; self.lookMenu = lookMenu
     }
 
@@ -403,6 +408,10 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     private var safeArea: MonitorSafeArea {
         .init(top: live.safeArea.top, leading: live.safeArea.leading,
             bottom: live.safeArea.bottom, trailing: live.safeArea.trailing)
+    }
+    private var usesCompactTelemetry: Bool { layout.portrait && !layout.tablet }
+    private var resolvedTelemetryMetrics: MonitorTelemetryMetrics {
+        telemetryMetrics ?? MonitorOperatorTelemetry<Host.Palette>.nativeMetrics
     }
     private var identity: MonitorOperatorLiveIdentity { facts.identity }
     private func current(_ value: MonitorOperatorLiveIdentity) -> Bool { source.identity() == value }
@@ -455,7 +464,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             presentation: .init(visible: !covered || editing != nil, interactive: editing == nil && session.interactive,
                 dimmed: cameraViews.motion?.dimmed == true, transientControlsHidden: motionCovering,
                 pictureWaiting: facts.picture.waiting && !command,
-                statusMounted: mounts(.statusBar), powerMounted: mounts(.batteries),
+                statusMounted: mounts(.statusBar), powerMounted: mounts(.batteries) && !usesCompactTelemetry,
                 captureMounted: mounts(.cameraValues) && !command, captureHidden: captureHidden, captureInteractive: panel == nil || panel?.top == true,
                 locked: locked, popupInteractive: editing == nil && session.interactive, capturePresented: transient,
                 panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
@@ -474,7 +483,12 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 }
             },
             status: { statusChrome }, power: { powerChrome }, capture: { captureChrome },
-            system: { systemChrome }, tools: { toolsChrome }, panels: { panelsChrome },
+            system: { systemChrome }, tools: {
+                ZStack(alignment: .topLeading) {
+                    toolsChrome
+                    if usesCompactTelemetry { compactTelemetry }
+                }
+            }, panels: { panelsChrome },
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)
             .coordinateSpace(name: ChromeEditSpace.name).coordinateSpace(name: LiveCanvasSpace.name)
@@ -560,13 +574,15 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             return MonitorStatusChrome(
                 layout: layout, status: status.recording,
                 showsTimecode: status.showsTimecode, showsRecording: status.showsRecording,
+                showsCompactTelemetry: !usesCompactTelemetry,
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
                     if inline {
                         if let top {
                             MonitorPortraitFormatGroup(showsDetail: !below.isEmpty || caption != nil) {
                                 headerReadout(
-                                    top, portrait: true, grouped: true, detail: top.section == .codec)
+                                    top, portrait: true, grouped: true, detail: top.section == .codec,
+                                    primaryBottom: !below.isEmpty || caption != nil)
                             } detail: {
                                 HStack(alignment: .top, spacing: fit?.spacing ?? 8) {
                                     ForEach(below) { value in
@@ -624,14 +640,17 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private func headerReadout(_ value: MonitorOperatorLiveReadout<Key, Section>,
         portrait: Bool = false, caption: String? = nil, alwaysAccent: Bool = false,
-        grouped: Bool = false, detail: Bool = false, decoratesSection: Bool = true) -> some View {
+        grouped: Bool = false, detail: Bool = false, primaryBottom: Bool = false,
+        decoratesSection: Bool = true) -> some View {
         MonitorOperatorCaptureHeaderReadout(inputs: captureInputs, control: control, state: captureState,
             source: captureSource, readout: value, enabled: presentationAdmitted, commandEnabled: !readOnly,
-            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name) {
+            currentSource: { current(identity) }, coordinateSpace: ChromeEditSpace.name,
+            expandsHeight: !grouped) {
             Group {
                 if grouped {
                         MonitorPortraitInlineReadoutText(value.value, detail: detail)
-                            .frame(minWidth: 44, maxHeight: .infinity, alignment: .topTrailing)
+                            .frame(minWidth: 44, maxHeight: .infinity,
+                                alignment: primaryBottom ? .bottomTrailing : .topTrailing)
                     } else {
                         Text(value.value).font(
                             MonitorTheme.font(
@@ -640,6 +659,9 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                                     : (layout.tablet ? 18 : 16), weight: .medium)
                         )
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                        // The status row lays each readout out at its 44 pt target width, so two
+                        // neighbours (a "--" format beside a "--" color) never share a target.
+                        .frame(minWidth: portrait ? nil : 44)
                 }
             }.overlay(alignment: .bottomTrailing) {
                     if let caption { Text(caption).font(MonitorTheme.font(11, weight: .semibold))
@@ -651,8 +673,31 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     }
     private func telemetry(horizontal: Bool, showsLink: Bool, showsPower: Bool) -> some View {
         MonitorOperatorTelemetry<Host.Palette>(fps: status.fps, signalBars: status.signalBars,
-            camera: facts.cameraBattery, horizontal: horizontal, showsLink: showsLink, showsPower: showsPower)
+            camera: facts.cameraBattery, horizontal: horizontal, showsLink: showsLink, showsPower: showsPower,
+            metrics: resolvedTelemetryMetrics)
             .modifier(DescriptorEditable<Host>(section: status.fpsSection, mode: editing))
+    }
+    private var compactTelemetry: some View {
+        MonitorCompactTelemetryRow(layout: layout, safeArea: safeArea, metrics: resolvedTelemetryMetrics) {
+            if mounts(.statusBar), let storage = status.storage {
+                storageReadout(storage).monitorReadoutShadow()
+                    .allowsHitTesting(!assistInspectorPresented)
+                    .accessibilityHidden(assistInspectorPresented || instrumentsHidden)
+                    .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
+            }
+        } link: {
+            if mounts(.statusBar) {
+                telemetry(horizontal: true, showsLink: true, showsPower: false)
+                    .allowsHitTesting(!assistInspectorPresented)
+                    .accessibilityHidden(assistInspectorPresented || instrumentsHidden)
+                    .modifier(ChromeEditableModifier<Host>(section: .statusBar, mode: editing))
+            }
+        } power: {
+            if mounts(.batteries) {
+                if instrumentsHidden { powerChrome.accessibilityHidden(true) }
+                else { powerChrome }
+            }
+        }
     }
     private var powerChrome: some View {
         telemetry(horizontal: layout.portrait && !layout.tablet,

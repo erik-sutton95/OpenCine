@@ -498,6 +498,28 @@ class CaptureSheetTest {
         assertTrue(!CaptureLists.shouldRefreshFocusTrack(afc, supportsFocus = false))
     }
 
+    /** The colour drum opens on the value the header shows, even when the body list lacks it. */
+    @Test
+    fun colorDrumKeepsTheReportedCurrentModeAndNeverSendsIt() {
+        val status = CameraStatus(colorMode = CameraCommands.COLOR_DLOG2)
+        val labels = CaptureLists.colorWheelLabels(status, profile = CaptureTestProfiles.base)
+        assertEquals(listOf("Normal", "HDR", "D-Log", "D-Log2"), labels)
+        val quick = requireNotNull(
+            recordingCategoryQuickControl(LiveSheet.COLOR, status, family = "pocket", profile = CaptureTestProfiles.base),
+        )
+        assertEquals("D-Log2", quick.selection)
+        // Shown, never sent: the body does not offer it.
+        assertNull(CaptureLists.applyColorDrum("D-Log2", "pocket", status, hopEnabled = false, profile = CaptureTestProfiles.base))
+        assertEquals(
+            listOf("Normal", "HDR", "D-Log"),
+            CaptureLists.colorWheelLabels(CameraStatus(colorMode = CameraCommands.COLOR_HDR), profile = CaptureTestProfiles.base),
+        )
+        assertEquals(
+            listOf("Normal", "HDR", "D-Log"),
+            CaptureLists.colorWheelLabels(CameraStatus(), profile = CaptureTestProfiles.base),
+        )
+    }
+
     @Test
     fun fpsDrumParsesAndColorWheelFiltersByBody() {
         assertEquals(VideoFrameRate.FPS48, VideoFrameRate.fromDrumLabel("48p"))

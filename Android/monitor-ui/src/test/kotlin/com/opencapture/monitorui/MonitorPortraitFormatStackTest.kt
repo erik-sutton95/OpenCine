@@ -12,9 +12,12 @@ class MonitorPortraitFormatStackTest {
         // A 23sp primary ("[FX] 6K · 25p") above an 11sp detail line ("R3D NE  D-Log2").
         val frames = monitorPortraitFormatStackFrames(listOf(150 to 30, 110 to 15), target)
         val (primary, detail) = frames.slots
-        assertEquals(0, primary.y, "The primary shares the status row's top edge")
+        assertEquals(-18, primary.y, "Only the invisible target expands above the primary paint")
+        assertEquals(30, primary.y + primary.height, "The primary target ends at its glyph boundary")
         assertEquals(30, detail.y, "The detail line starts where the primary glyphs end")
-        assertTrue(primary.height >= target && detail.height >= target, "Every line keeps its touch target")
+        assertTrue(primary.height >= target, "The primary keeps its original touch target")
+        assertTrue(primary.y + primary.height <= detail.y, "No tap lands on two readouts")
+        assertTrue(detail.height >= target, "The last line keeps its touch target")
         assertEquals(frames.width, primary.x + primary.width, "End aligned primary")
         assertEquals(frames.width, detail.x + detail.width, "End aligned detail line")
         assertEquals(150, frames.width)

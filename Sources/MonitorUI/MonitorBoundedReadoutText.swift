@@ -19,12 +19,20 @@
         }
     }
 
+    /// The first full target publishes its occupied top through native layout, before row clearance.
+    enum MonitorPortraitCaptureTargetTop: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat { 0 }
+    }
+    extension VerticalAlignment {
+        static let monitorPortraitCaptureTargetTop = VerticalAlignment(MonitorPortraitCaptureTargetTop.self)
+    }
+
     /// Portrait capture readouts stack in one trailing column: resolution and frame rate on top,
     /// codec and color directly below. The column's top is the primary's top, so the primary
-    /// shares the status row's top edge with the timecode and the STBY/REC chip. Each line keeps
-    /// its own native target: a line reports its glyph height as its ideal size and accepts the
-    /// 44-point target height it is placed with, so the detail line sits right under the
-    /// primary glyphs and its target, laid out later, owns the overlap below them.
+    /// shares the status row's top edge with the timecode and the STBY/REC chip. Each line is its
+    /// own full-height target. The primary target expands upward, ending where the detail glyphs
+    /// begin, while its label stays at the original top. The detail keeps its target below that
+    /// boundary, so the painted lines stay together and no tap lands on two readouts.
     public struct MonitorPortraitFormatGroup<Primary: View, Detail: View>: View {
         private let showsDetail: Bool
         private let primary: () -> Primary
@@ -39,7 +47,8 @@
         }
         public var body: some View {
             MonitorPortraitFormatStackLayout {
-                primary().frame(maxHeight: .infinity, alignment: .topTrailing)
+                primary().frame(maxHeight: .infinity, alignment: showsDetail ? .bottomTrailing : .topTrailing)
+                    .alignmentGuide(.monitorPortraitCaptureTargetTop) { _ in 0 }
                 if showsDetail { detail().frame(maxHeight: .infinity, alignment: .topTrailing) }
             }
         }
@@ -69,9 +78,9 @@
             }
         }
 
-        /// Line frames in column coordinates: each line is as wide as its content and as tall
-        /// as the larger of its glyph height and the target floor; line two begins where the
-        /// primary glyphs end.
+        /// Line frames in column coordinates: each line is as wide as its content; line two
+        /// begins where the primary glyphs end. The first full-height target expands upward;
+        /// subsequent full-height targets begin at the previous target's lower boundary.
         public func frames(subviews: Subviews) -> (size: CGSize, slots: [CGRect]) {
             frames(lines: subviews.map { $0.sizeThatFits(.unspecified) })
         }
@@ -80,11 +89,14 @@
             var slots: [CGRect] = []
             var y: CGFloat = 0
             var bottom: CGFloat = 0
-            for line in lines {
-                let slot = CGRect(x: 0, y: y, width: line.width, height: max(target, line.height))
+            for (index, line) in lines.enumerated() {
+                let height = max(target, line.height)
+                let top = index == 0 && lines.count > 1 ? min(0, line.height - height) : y
+                let slot = CGRect(
+                    x: 0, y: top, width: line.width, height: height)
                 slots.append(slot)
                 bottom = max(bottom, slot.maxY)
-                y += line.height
+                y = slot.maxY
             }
             let width = lines.map(\.width).max() ?? 0
             return (CGSize(width: width, height: bottom), slots)

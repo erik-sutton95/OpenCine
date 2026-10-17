@@ -632,7 +632,10 @@ object CaptureLists {
         family: String = "pocket",
         name: String = "",
         profile: CameraLabelProfile = CameraLabelProfile.standard,
-    ): List<String> = colorWheel(family, status.availableColorModes, name, profile).map { it.second }
+    ): List<String> =
+        // The drum keeps the reported current mode the body list lacks; [applyColorDrum] never sends it.
+        CaptureWheels.colorDrum(colorWheel(family, status.availableColorModes, name, profile), status.colorMode, family, profile)
+            .map { it.second }
 
     fun colorModeFromLabel(label: String, family: String = "pocket", name: String = "", profile: CameraLabelProfile = CameraLabelProfile.standard): Int? {
         val codes = profile.colorModes ?: listOf(CameraCommands.COLOR_NORMAL, CameraCommands.COLOR_HDR,

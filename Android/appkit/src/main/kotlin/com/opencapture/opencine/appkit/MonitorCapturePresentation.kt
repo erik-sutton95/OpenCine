@@ -40,6 +40,30 @@ public data class MonitorCaptureField(
 
 /** Common setting copy and bounded drum sampling. Integrations own the accepted domain. */
 public object MonitorCapturePresentation {
+    /** The dashes a readout draws for a value the camera has not reported. */
+    public val unreportedMarks: Set<String> = setOf("", "--", "\u2014")
+
+    /** Whether a readout's value stands for a value the camera has not reported. */
+    public fun isUnreported(drawn: String?): Boolean = drawn == null || drawn in unreportedMarks || drawn == "Not set"
+
+    /**
+     * An unreported readout whose owner offers nothing to edit is inert: it is disabled and opens
+     * no panel. [editable] is null when the readout declares no field or native owner; such a
+     * readout keeps the host's panel unless it disabled its quick control. A host action or a
+     * reported value always keeps the readout live.
+     */
+    public fun readoutIsInert(reported: Boolean, editable: Boolean?, quickEnabled: Boolean, hasAction: Boolean): Boolean {
+        if (hasAction || reported) return false
+        if (editable == null) return !quickEnabled
+        return !(quickEnabled && editable)
+    }
+
+    /** The same rule for a readout drawn from a common field or a native quick control. */
+    public fun readoutIsInert(value: String?, field: MonitorCaptureField?, nativeEnabled: Boolean?,
+        quickEnabled: Boolean, hasAction: Boolean): Boolean = if (field != null) {
+        readoutIsInert(field.selection != null, field.isEditable, quickEnabled, hasAction)
+    } else readoutIsInert(!isUnreported(value), nativeEnabled, quickEnabled, hasAction)
+
     public fun title(key: SettingKey): String? = when (key) {
         SettingKey.ISO -> "ISO"
         SettingKey.SHUTTER -> "SHUTTER"
