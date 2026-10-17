@@ -119,11 +119,13 @@ class MonitorFramePacingStats(
 
 /** A native newest-wins loop preserves the source event next to its decoded native value.
  * Native decode/present work remains outside publication locks. A retired/canceled worker cannot
- * enter presentation after a blocked synchronous decode returns. */
+ * enter presentation after a blocked synchronous decode returns. [publish] may suspend to hand
+ * the decoded frame to its owner thread; [present] then observes it on the decode worker. */
 suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
     frames: Flow<F>, stats: MonitorFramePacingStats,
     timestampNanos: (F) -> Long?, decode: (F) -> T?, present: (F, T) -> Unit,
     isCurrent: () -> Boolean = { true }, nowNanos: () -> Long = System::nanoTime,
+    publish: suspend (F, T) -> Unit = { _, _ -> },
 ) {
     frames.onEach { stats.frameReceived() }.conflate().collect { frame ->
         currentCoroutineContext().ensureActive()
@@ -131,6 +133,9 @@ suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
         val start = nowNanos()
         val decoded = decode(frame) ?: return@collect
         val decodedAt = nowNanos()
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent()) return@collect
+        publish(frame, decoded)
         currentCoroutineContext().ensureActive()
         if (!isCurrent()) return@collect
         present(frame, decoded)
