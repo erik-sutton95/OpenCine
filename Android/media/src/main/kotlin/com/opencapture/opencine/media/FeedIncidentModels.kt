@@ -840,7 +840,17 @@ object FeedIncidentExport {
             decoderCall = decoderCall(from),
             keyframeWait = opening?.let { if (it.decoder.awaitingIrap) "awaiting" else "none" } ?: "unknown",
             irapAge = opening?.let { irapAgeBucket(it.decoder.lastIrapAge) } ?: "unknown",
-            decodeFlow = opening?.let { decodeFlow(it.rates.decodeSubmitHz, it.rates.decodeAcceptHz) } ?: "unknown",
+            decodeFlow = opening?.let {
+                // Absent observations stay unknown; numeric rates support legacy producers.
+                val observed = it.rates.observed
+                if (observed != null) {
+                    val submitHz = observed.decodeSubmitHz ?: return@let "unknown"
+                    val acceptHz = observed.decodeAcceptHz ?: return@let "unknown"
+                    decodeFlow(submitHz, acceptHz)
+                } else {
+                    decodeFlow(it.rates.decodeSubmitHz, it.rates.decodeAcceptHz)
+                }
+            } ?: "unknown",
         )
     }
 }

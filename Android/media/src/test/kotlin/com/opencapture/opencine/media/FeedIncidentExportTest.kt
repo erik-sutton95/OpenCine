@@ -6,6 +6,62 @@ import kotlin.test.assertEquals
 /** Kotlin twin of the Swift `envelopeNamesTriggerAndTheRepairThatRecovered` (FeedIncidentTests). */
 class FeedIncidentExportTest {
     @Test
+    fun decodeFlowKeepsFirstRateSampleUnknown() {
+        val sampler = FeedIncidentRateSampler()
+        val rates = sampler.sample(1.0, FeedIncidentStageCounts(decodeSubmit = 25, decodeAccept = 25))
+        assertEquals("unknown", decodeFlowTag(rates))
+    }
+
+    @Test
+    fun decodeFlowKeepsJPEGAcceptanceUnknown() {
+        val sampler = FeedIncidentRateSampler()
+        sampler.sample(1.0, FeedIncidentStageCounts(decodeSubmit = 0, decodedOutput = 0))
+        val rates = sampler.sample(2.0, FeedIncidentStageCounts(decodeSubmit = 25, decodedOutput = 25))
+        assertEquals(25.0, rates.observed?.decodedOutputHz)
+        assertEquals(null, rates.observed?.decodeAcceptHz)
+        assertEquals("unknown", decodeFlowTag(rates))
+    }
+
+    @Test
+    fun decodeFlowUsesExplicitObservationsAndKeepsLegacyRates() {
+        val cases = listOf(
+            Triple(null, 25.0, "unknown"),
+            Triple(0.0, 0.0, "idle"),
+            Triple(25.0, 0.0, "rejecting"),
+            Triple(25.0, 12.0, "partial"),
+            Triple(25.0, 25.0, "flowing"),
+        )
+        for ((submit, accept, expected) in cases) {
+            // Compatibility fields cannot override an explicit measurement or its absence.
+            val rates = FeedIncidentRates(
+                decodeSubmitHz = 25.0, decodeAcceptHz = 0.0,
+                observed = FeedIncidentRateObservation(decodeSubmitHz = submit, decodeAcceptHz = accept),
+            )
+            assertEquals(expected, decodeFlowTag(rates))
+        }
+        assertEquals("flowing", decodeFlowTag(FeedIncidentRates(decodeSubmitHz = 25.0, decodeAcceptHz = 25.0)))
+    }
+
+    private fun decodeFlowTag(rates: FeedIncidentRates): String {
+        val recorder = FeedIncidentRecorder { "inc-observed-decode" }
+        recorder.beginSession(
+            FeedIncidentSessionContext(
+                sessionId = "session-1", appVersion = "0.1.5", appBuild = "120", sourceRevision = "abc",
+                osName = "Android", osVersion = "16", hardwareClass = "SIMULATED", cameraFamily = "camera",
+            ),
+        )
+        recorder.recordSnapshot(
+            FeedIncidentSnapshot(
+                monotonicNow = 3.0, wallClockMs = 3_000L, rates = rates,
+                ages = FeedIncidentAges(accessUnitAge = 0.04, decodedOutputAge = 0.04, presentAge = 0.04),
+                lifecycle = FeedIncidentLifecycle(connected = true, liveEstablished = true),
+            ),
+        )
+        val bundle = recorder.noteUnexpectedDisconnect(4.0)?.bundle ?: error("expected an incident")
+        return FeedIncidentExport.envelope(bundle).decodeFlow
+    }
+
+    @Test
     fun envelopeNamesTriggerAndTheRepairThatRecovered() {
         val recorder = FeedIncidentRecorder { "inc-ladder" }
         recorder.beginSession(

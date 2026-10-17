@@ -159,7 +159,16 @@ public enum FeedIncidentExport: Sendable {
             keyframeWait: opening.map { $0.decoder.awaitingIrap ? "awaiting" : "none" } ?? "unknown",
             irapAge: opening.map { irapAgeBucket($0.decoder.lastIrapAge) } ?? "unknown",
             decodeFlow: opening.map {
-                decodeFlow(submitHz: $0.rates.decodeSubmitHz, acceptHz: $0.rates.decodeAcceptHz)
+                // Absent observations stay unknown; numeric rates support legacy producers.
+                if let observed = $0.rates.observed {
+                    guard
+                        let submitHz = observed.decodeSubmitHz,
+                        let acceptHz = observed.decodeAcceptHz
+                    else { return "unknown" }
+                    return decodeFlow(submitHz: submitHz, acceptHz: acceptHz)
+                }
+                return decodeFlow(
+                    submitHz: $0.rates.decodeSubmitHz, acceptHz: $0.rates.decodeAcceptHz)
             } ?? "unknown")
     }
 }

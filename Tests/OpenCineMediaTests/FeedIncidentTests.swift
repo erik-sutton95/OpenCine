@@ -349,6 +349,49 @@ import Testing
             ]))
     }
 
+    @Test func decodeFlowKeepsFirstRateSampleUnknown() throws {
+        var sampler = FeedIncidentRateSampler()
+        let rates = sampler.sample(now: 1, counts: .init(decodeSubmit: 25, decodeAccept: 25))
+        #expect(try decodeFlowTag(rates) == "unknown")
+    }
+
+    @Test func decodeFlowKeepsJPEGAcceptanceUnknown() throws {
+        var sampler = FeedIncidentRateSampler()
+        _ = sampler.sample(now: 1, counts: .init(decodeSubmit: 0, decodedOutput: 0))
+        let rates = sampler.sample(now: 2, counts: .init(decodeSubmit: 25, decodedOutput: 25))
+        #expect(rates.observed?.decodedOutputHz == 25)
+        #expect(rates.observed?.decodeAcceptHz == nil)
+        #expect(try decodeFlowTag(rates) == "unknown")
+    }
+
+    @Test func decodeFlowUsesExplicitObservationsAndKeepsLegacyRates() throws {
+        let cases: [(Double?, Double?, String)] = [
+            (nil, 25, "unknown"),
+            (0, 0, "idle"),
+            (25, 0, "rejecting"),
+            (25, 12, "partial"),
+            (25, 25, "flowing"),
+        ]
+        for (submit, accept, expected) in cases {
+            // Compatibility fields cannot override an explicit measurement or its absence.
+            let rates = FeedIncidentRates(
+                decodeSubmitHz: 25, decodeAcceptHz: 0,
+                observed: .init(decodeSubmitHz: submit, decodeAcceptHz: accept))
+            #expect(try decodeFlowTag(rates) == expected)
+        }
+        #expect(try decodeFlowTag(.init(decodeSubmitHz: 25, decodeAcceptHz: 25)) == "flowing")
+    }
+
+    private func decodeFlowTag(_ rates: FeedIncidentRates) throws -> String {
+        var recorder = FeedIncidentRecorder(makeIncidentID: { "inc-observed-decode" })
+        _ = recorder.beginSession(Fixture.context())
+        var sample = Fixture.healthy(now: 3)
+        sample.rates = rates
+        _ = recorder.recordSnapshot(sample)
+        let bundle = try #require(recorder.noteUnexpectedDisconnect(now: 4)?.bundle)
+        return FeedIncidentExport.envelope(from: bundle).decodeFlow
+    }
+
     @Test func coveredUnobservableFeedCannotClaimRecoveryOrHealthyExposure() {
         var recorder = FeedIncidentRecorder()
         _ = recorder.beginSession(Fixture.context())
