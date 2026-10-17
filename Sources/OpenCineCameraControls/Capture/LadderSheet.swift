@@ -9,6 +9,13 @@ struct LadderGates: Equatable, Sendable {
     let showBanner: Bool
 }
 
+/// A format pick's write: only a value on the tab's ladder, and only while the drum is open.
+func ladderFormatWrite<Key: Equatable & Sendable>(
+    _ tab: LadderTab<Key>, value: String, enabled: Bool
+) -> LadderWrite<Key>? {
+    enabled && tab.ladder.values.contains(value) ? LadderWrite(key: tab.key, value: value) : nil
+}
+
 /// Recording and camera control freeze the whole sheet. Auto and exposure program freeze the drum.
 func ladderGates(sheetLock: CaptureLock?, tabLock: CaptureLock?, enabled: Bool) -> LadderGates {
     let sheetFrozen = sheetLock?.freezesSheet == true || tabLock?.freezesSheet == true
@@ -153,6 +160,7 @@ private extension String {
         private let tintLabel: (CaptureTint) -> String
         private let tintHelp: String?
         private let footer: (LadderTab<Key>) -> Footer
+        private let formats: [CaptureFormatChoice<String>]?
         @State private var selected: Int
         @State private var landed: [String]
         @State private var applied: [String]
@@ -165,8 +173,10 @@ private extension String {
             control: MonitorControlModel? = nil, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
+            formats: [CaptureFormatChoice<String>]? = nil,
             @ViewBuilder footer: @escaping (LadderTab<Key>) -> Footer
         ) {
+            self.formats = formats
             self.presentation = presentation
             self.enabled = enabled
             self.onWrite = onWrite
@@ -270,8 +280,40 @@ private extension String {
             .background(MonitorTheme.edrAccent(gain: hdrGain).opacity(0.16), in: RoundedRectangle(cornerRadius: 12))
         }
 
+        /// What a format pick belongs to: the session and control epoch, else this sheet's tabs.
+        private struct FormatSource: Hashable {
+            let session: CameraSessionID?
+            let epoch: ControlEpoch?
+            let title: String
+            let tabs: [String]
+            let initialTab: Int
+        }
+
+        private var formatSource: FormatSource {
+            let snapshot = control?.snapshot
+            return FormatSource(
+                session: snapshot?.session, epoch: snapshot?.epoch,
+                title: presentation.title, tabs: presentation.tabs.map(\.label),
+                initialTab: presentation.initialTab)
+        }
+
         @ViewBuilder private var drum: some View {
-            if let tint = tab.tint {
+            if let formats {
+                // A recording-format sheet: the shared format picker (area, size, rate) over these
+                // exact choices, each value a label from the tab's ladder. Twin of the Compose sheet.
+                let source = formatSource
+                CaptureFormatPicker(
+                    choices: formats, current: tab.ladder.current, enabled: gates.drumEnabled,
+                    haptics: hapticsEnabled, sourceIdentity: AnyHashable(source),
+                    isCurrent: { formatSource == source },
+                    onSelect: { choice in
+                        if let write = ladderFormatWrite(
+                            tab, value: choice.value, enabled: gates.drumEnabled)
+                        {
+                            onWrite(write)
+                        }
+                    })
+            } else if let tint = tab.tint {
                 TintPad(tint: tint, enabled: gates.drumEnabled, labelOf: tintLabel, help: tintHelp) { next in
                     let text = tintLabel(next)
                     if gates.drumEnabled, !text.isBlank {

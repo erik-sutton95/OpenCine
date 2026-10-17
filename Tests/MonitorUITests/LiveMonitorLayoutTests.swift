@@ -5,8 +5,7 @@
 
     /// Live chrome geometry helpers. Zone frames are `FieldMonitorLayout` (presentation tests).
     final class LiveMonitorLayoutTests: XCTestCase {
-        /// A camera that declares its focus area draws that area; any other draws the standard
-        /// square of the short side, as before.
+        /// Existing consumers keep the published size-based mark while camera adapters adopt areas.
         func testFocusMarkUsesTheDeclaredAreaOrTheStandardSquare() {
             let feed = CGRect(x: 10, y: 20, width: 400, height: 200)
             func expect(_ declared: CGSize?, _ side: CGFloat, line: UInt = #line) {
@@ -17,6 +16,17 @@
             expect(nil, 28)
             expect(CGSize(width: 0.25, height: 0.5), 100)
             expect(CGSize(width: 0, height: 0.5), 28)
+            let legacy = MonitorFocusMark(
+                point: CGPoint(x: 0.25, y: 0.5), size: CGSize(width: 0.25, height: 0.5),
+                color: .white)
+            XCTAssertEqual(legacy.size, CGSize(width: 0.25, height: 0.5))
+            XCTAssertEqual(
+                MonitorTrackingGeometry.focusBoxFrame(legacy, in: feed),
+                CGRect(x: 60, y: 70, width: 100, height: 100))
+        }
+
+        /// Hold-to-lock progress is clamped to 0 to 1.
+        func testFocusMarkClampsLockProgress() {
             XCTAssertEqual(MonitorFocusMark(point: .zero, color: .white, lockProgress: 2).lockProgress, 1)
             XCTAssertEqual(MonitorFocusMark(point: .zero, color: .white, lockProgress: -1).lockProgress, 0)
         }

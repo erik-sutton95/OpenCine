@@ -11,21 +11,46 @@ public struct MonitorTrackingBracketValue {
     }
 }
 
-/// The focus area: its centre in normalized picture coordinates, and its normalized size when the
-/// camera declares one (nil draws the standard square, `focusBoxSideFraction` of the short side).
-public struct MonitorFocusMark {
+    /// The focus mark, twin of the Compose `MonitorFocusMark`: its centre in normalized picture
+    /// coordinates, or the camera-reported AF `area` (normalized like `point`; the mark takes its size
+    /// and centre). Without an area the standard square is drawn, `focusBoxSideFraction` of the short
+    /// side.
+    public struct MonitorFocusMark {
     public let point: CGPoint
-    public let size: CGSize?
+        /// Published size-based clients remain valid while camera adapters adopt `area`.
+        public let size: CGSize?
     public let color: Color
     public let aeLocked: Bool
     public let focusLocked: Bool
-    /// How much of the outline the hold to lock has drawn in, 0 to 1, until the lock engages.
-    public let lockProgress: Double
-    public init(point: CGPoint, size: CGSize? = nil, color: Color, aeLocked: Bool = false,
-        focusLocked: Bool = false, lockProgress: Double = 0) {
-        self.point = point; self.size = size; self.color = color; self.aeLocked = aeLocked
-        self.focusLocked = focusLocked; self.lockProgress = min(1, max(0, lockProgress))
-    }
+        /// The camera-reported AF area, normalized; nil draws the standard tap box at `point`.
+        public let area: CGRect?
+        /// Hold-to-lock feedback, 0 to 1: the box outline fills in the accent until the lock engages.
+        public let lockProgress: Double
+        public init(
+            point: CGPoint, color: Color, aeLocked: Bool = false, focusLocked: Bool = false,
+            area: CGRect? = nil, lockProgress: Double = 0
+        ) {
+            self.point = point
+            self.color = color
+            self.aeLocked = aeLocked
+            self.focusLocked = focusLocked
+            self.area = area
+            self.size = area?.size
+            self.lockProgress = min(1, max(0, lockProgress))
+        }
+        /// The existing normalized-size API, centered on `point`, retains its original geometry.
+        public init(
+            point: CGPoint, size: CGSize?, color: Color, aeLocked: Bool = false,
+            focusLocked: Bool = false, lockProgress: Double = 0
+        ) {
+            self.point = point
+            self.size = size
+            self.color = color
+            self.aeLocked = aeLocked
+            self.focusLocked = focusLocked
+            self.area = nil
+            self.lockProgress = min(1, max(0, lockProgress))
+        }
 }
 
 /// Native drawing receives resolved marks; it chooses no camera tracking or focus policy.
@@ -33,21 +58,29 @@ public struct MonitorTrackingLayer: View {
     private let brackets: [MonitorTrackingBracketValue]
     private let focus: MonitorFocusMark?
     private let feed: CGRect
-    public init(brackets: [MonitorTrackingBracketValue], focus: MonitorFocusMark? = nil, feed: CGRect) {
-        self.brackets = brackets; self.focus = focus; self.feed = feed
-    }
+        private let areas: [MonitorFocusMark]
+        /// `areas`: further camera-reported AF areas (a body that reports several), drawn as boxes
+        /// without tags.
+        public init(
+            brackets: [MonitorTrackingBracketValue], focus: MonitorFocusMark? = nil, feed: CGRect,
+            areas: [MonitorFocusMark] = []
+        ) {
+            self.brackets = brackets
+            self.focus = focus
+            self.feed = feed
+            self.areas = areas
+        }
     public var body: some View {
         ZStack {
             MonitorSnapshotRows(Array(brackets.enumerated()), id: \.offset) { _, mark in
                 MonitorTrackingBracketView(rect: MonitorTrackingGeometry.feedRect(normalized: mark.normalizedRect, in: feed),
                     color: mark.color, lineWidth: mark.lineWidth)
             }
-            if let focus {
-                MonitorFocusBoxView(feed: feed, normalized: focus.point, size: focus.size,
-                    aeLocked: focus.aeLocked, focusLocked: focus.focusLocked,
-                    lockProgress: focus.lockProgress, color: focus.color)
-            }
-        }.allowsHitTesting(false).accessibilityHidden(true)
+                MonitorSnapshotRows(Array(areas.enumerated()), id: \.offset) { _, area in
+                    MonitorFocusBoxView(feed: feed, mark: area)
+                }
+                if let focus { MonitorFocusBoxView(feed: feed, mark: focus) }
+            }.allowsHitTesting(false).accessibilityHidden(true)
     }
 }
 
@@ -70,15 +103,34 @@ public struct MonitorTrackingCancelButton: View {
 
 public enum MonitorTrackingGeometry {
     public static let focusBoxSideFraction: CGFloat = 0.14
-    /// The focus area in feed points: the declared normalized size, else the standard square.
-    public static func focusBoxSize(_ size: CGSize?, in feed: CGRect) -> CGSize {
+        /// The published normalized-size helper. Invalid sizes keep the standard tap square.
+        public static func focusBoxSize(_ size: CGSize?, in feed: CGRect) -> CGSize {
         guard let size, size.width > 0, size.height > 0 else {
             let side = min(feed.width, feed.height) * focusBoxSideFraction
             return CGSize(width: side, height: side)
         }
         return CGSize(width: size.width * feed.width, height: size.height * feed.height)
     }
-    public static func feedRect(normalized: CGRect, in feed: CGRect) -> CGRect {
+        /// The focus box in feed points (twin of the Compose `focusBoxFrame`): the camera-reported area
+        /// at its own size and centre, else the standard square of the short side around `point`.
+        public static func focusBoxFrame(_ mark: MonitorFocusMark, in feed: CGRect) -> CGRect {
+            if let area = mark.area, area.width > 0, area.height > 0 {
+                return CGRect(
+                    x: feed.minX + area.minX * feed.width, y: feed.minY + area.minY * feed.height,
+                    width: area.width * feed.width, height: area.height * feed.height)
+            }
+            let size = focusBoxSize(mark.size, in: feed)
+            return CGRect(
+                x: feed.minX + mark.point.x * feed.width - size.width / 2,
+                y: feed.minY + mark.point.y * feed.height - size.height / 2, width: size.width,
+                height: size.height)
+        }
+        /// A camera-reported area keeps its own corner (at most 7 points); the standard tap box keeps
+        /// the tracking corner.
+        public static func focusCornerRadius(for rect: CGRect, reportedArea: Bool) -> CGFloat {
+            reportedArea ? min(min(rect.width, rect.height) * 0.12, 7) : cornerRadius(for: rect)
+        }
+        public static func feedRect(normalized: CGRect, in feed: CGRect) -> CGRect {
         CGRect(x: feed.minX + normalized.minX * feed.width, y: feed.minY + normalized.minY * feed.height,
             width: max(1, normalized.width * feed.width), height: max(1, normalized.height * feed.height))
     }
@@ -174,22 +226,22 @@ private struct MonitorTrackingBracketView: View {
 
 private struct MonitorFocusBoxView: View {
     let feed: CGRect
-    let normalized: CGPoint
-    let size: CGSize?
-    let aeLocked: Bool
-    let focusLocked: Bool
-    let lockProgress: Double
-    let color: Color
+        let mark: MonitorFocusMark
 
-    var body: some View {
-        let box = MonitorTrackingGeometry.focusBoxSize(size, in: feed)
-        let rect = CGRect(origin: .zero, size: box)
-        let x = feed.minX + normalized.x * feed.width
-        let y = feed.minY + normalized.y * feed.height
-        let halfWidth = box.width / 2
+        var body: some View {
+            let frame = MonitorTrackingGeometry.focusBoxFrame(mark, in: feed)
+            let box = frame.size
+            let x = frame.midX
+            let y = frame.midY
+            let halfWidth = box.width / 2
         let halfHeight = box.height / 2
-        let radius = MonitorTrackingGeometry.cornerRadius(for: rect)
-        // The tag sits right of the box, or left when the box is near the right edge.
+            let radius = MonitorTrackingGeometry.focusCornerRadius(
+                for: frame, reportedArea: mark.area != nil)
+            let color = mark.color
+            let aeLocked = mark.aeLocked
+            let focusLocked = mark.focusLocked
+            let lockProgress = mark.lockProgress
+            // The tag sits right of the box, or left when the box is near the right edge.
         let tagLeading = x + halfWidth + 26 > feed.maxX
         ZStack {
             RoundedRectangle(cornerRadius: radius, style: .continuous)

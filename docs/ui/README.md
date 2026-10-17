@@ -352,10 +352,24 @@ does not imply relay or account availability where the host supplies none.
   calculation and Canvas tag layout. These inherited native differences remain
   explicit pending physical qualification. Compose `monitorChromeClickable`
   owns press/tap/hold input and animation, with feedback supplied by the host.
-- `MonitorFocusMark` draws the focus area at the normalized size a camera declares
-  (nil keeps the standard square) and traces the hold-to-lock progress in the accent
-  until the lock engages. Swift only for now: Z Android's focus overlay adopts the
-  Compose layer in its own lane, so the Compose mark keeps the square without progress.
+- `MonitorFocusMark` takes the camera-reported AF `area` (normalized; the mark takes
+  its size and centre, with a corner of at most 7 points/dp) or draws the standard
+  square, and traces the hold-to-lock progress in the accent until the lock engages
+  (`MonitorTrackingGeometry.focusBoxFrame` and `focusCornerRadius`, same cases on both
+  platforms). `MonitorTrackingLayer` also draws further reported areas without tags.
+  `MonitorOperatorFocusLayer` (OpenCineCameraControls, both platforms) resolves the
+  mark's ink with `MonitorOperatorFocusInk` (AE lock, camera-confirmed, unconfirmed,
+  accent) and draws group-AF areas in the confirmed green; Z feeds it on both shells.
+- `MonitorOperatorLivePicture.notice` (`MonitorOperatorPictureNotice`) puts a source's
+  own words on the waiting plate's look (`plate`: notice, else waiting), on both
+  platforms. `LadderSheet` takes `formats`, drawing the shared `CaptureFormatPicker`
+  for a recording-format tab (`ladderFormatWrite` admits only ladder values), on both
+  platforms.
+- Compose quick previews keep the capture strip placed while hiding its readouts
+  and accessibility. The existing gesture owner admits the held pointer and
+  refuses sibling input; full bottom sheets still hide and disable the slot.
+  SwiftUI already retains its capture slot through opacity changes. Physical
+  pointer qualification remains separate from source and simulated checks.
 - Assist menus now own the actual audio, ND notation, peaking, false-color, zebra,
   desqueeze, guide, grid, mirror and help assemblies. They reuse the shared settings
   controls and receive current values/bindings, action closures and host feedback.

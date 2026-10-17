@@ -125,20 +125,6 @@ public struct MonitorOperatorLiveStatus<Key: Hashable, Section: Hashable> {
     }
 }
 
-/// The picture the source delivers: its aspect, whether the first frame is still awaited,
-/// whether the camera shows it vertically or upside down, and whether the link is recovering.
-public struct MonitorOperatorLivePicture: Equatable {
-    public let aspect: Double
-    public let waiting: Bool
-    public let vertical: Bool
-    public let flipped: Bool
-    public let recovering: Bool
-    public init(aspect: Double, waiting: Bool, vertical: Bool, flipped: Bool, recovering: Bool) {
-        self.aspect = aspect; self.waiting = waiting; self.vertical = vertical
-        self.flipped = flipped; self.recovering = recovering
-    }
-}
-
 /// How this source records. Photo mode releases through the native shutter view; a source
 /// without a local control binding forwards record to `external`.
 @MainActor public struct MonitorOperatorRecordSource {
@@ -473,8 +459,17 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 panelsRaised: motionCovering, recovering: facts.picture.recovering, statusInteractive: !assistInspectorPresented),
             picture: { picture().opacity(facts.picture.waiting || command ? 0 : 1).transaction { $0.animation = nil } },
             assists: { feedMarks.opacity(facts.picture.waiting ? 0 : 1) },
-            signal: { if facts.picture.waiting { MonitorOperatorWaitingPicture<Host.Palette>(waiting: true, camera: identity.camera) } },
-            status: { statusChrome }, power: { powerChrome }, capture: { captureChrome },
+                signal: {
+                    switch facts.picture.plate {
+                    case .notice(let notice):
+                        MonitorOperatorPictureNoticePlate<Host.Palette>(notice: notice)
+                    case .waiting:
+                        MonitorOperatorWaitingPicture<Host.Palette>(
+                            waiting: true, camera: identity.camera)
+                    case nil: EmptyView()
+                    }
+                },
+                status: { statusChrome }, power: { powerChrome }, capture: { captureChrome },
             system: { systemChrome }, tools: { toolsChrome }, panels: { panelsChrome },
             cover: { EmptyView() }, recovery: { EmptyView() })
             .environment(host).environment(\.interfaceLocked, locked)
@@ -924,7 +919,30 @@ private struct MonitorOperatorLiveBanners<Palette: LiveChromePalette>: View {
     }
 }
 
-private struct MonitorOperatorWaitingPicture<Palette: LiveChromePalette>: View {
+    /// The waiting plate's look with the source's own words.
+    private struct MonitorOperatorPictureNoticePlate<Palette: LiveChromePalette>: View {
+        let notice: MonitorOperatorPictureNotice
+        var body: some View {
+            ZStack {
+                Color.black
+                VStack(spacing: 12) {
+                    if notice.progress {
+                        ProgressView().controlSize(.large).tint(Palette.text.opacity(0.72))
+                    }
+                    Text(notice.title).font(
+                        .system(size: 15, weight: .semibold, design: .monospaced)
+                    )
+                    .foregroundStyle(Palette.text.opacity(0.72)).multilineTextAlignment(.center)
+                    if let detail = notice.detail {
+                        Text(detail).font(MonitorTheme.font(12)).foregroundStyle(Palette.muted)
+                            .multilineTextAlignment(.center)
+                    }
+                }.padding(.horizontal, 28)
+            }.allowsHitTesting(false).accessibilityElement(children: .combine)
+        }
+    }
+
+    private struct MonitorOperatorWaitingPicture<Palette: LiveChromePalette>: View {
     let waiting: Bool
     let camera: CameraSessionID?
     @State private var showVPNHint = false
