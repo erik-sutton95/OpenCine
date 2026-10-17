@@ -209,7 +209,7 @@ class Runner:
             return value
         return dict(snapshot, **payload)
 
-    def _index(self, tracker, state, pair):
+    def _index(self, tracker, state, pair, endpoints):
         thread = self.threads[self.central, tracker["number"]]
         owned, entries = {}, {}
         for comment in thread:
@@ -227,7 +227,7 @@ class Runner:
             raise linked.SyncError("comment index shards are incomplete")
         for _, value in owned.values():
             for entry in value["entries"]:
-                key = self._entry_key(entry)
+                key = self._validate_entry(entry, endpoints)
                 if key in entries: raise linked.SyncError("duplicate durable comment pair")
                 entries[key] = entry
         return owned, entries
@@ -244,6 +244,20 @@ class Runner:
         if origin["url"] != f"https://github.com/{origin['repo']}/issues/{origin['number']}#issuecomment-{origin['id']}":
             raise linked.SyncError("invalid canonical comment origin URL")
         return origin["repo"], origin["number"], origin["id"]
+
+    def _validate_entry(self, entry, endpoints):
+        key = self._entry_key(entry)
+        pending, peer_id, deleted = entry.get("pending"), entry.get("peer_id"), entry.get("deleted")
+        base = entry.get("base")
+        if key[0] not in endpoints or key[1] != endpoints[key[0]] or entry.get("peer_repo") not in endpoints \
+                or entry["peer_repo"] == key[0] or pending not in (None, "prepared", "attempted") \
+                or deleted not in (None, "origin_deleted", "peer_deleted") or (pending and deleted is not None) \
+                or (peer_id is None and not pending and deleted != "origin_deleted") \
+                or (peer_id is not None and (type(peer_id) is not int or peer_id < 1 or pending)) \
+                or not isinstance(entry.get("last_body"), str) or not isinstance(base, str) \
+                or not re.fullmatch(r"[0-9a-f]{64}", base):
+            raise linked.SyncError("comment index crosses this authenticated issue pair or has invalid record state")
+        return key
 
     def _carrier(self, entry, body, deleted=None):
         marker = {"version": 1, "origin": entry["origin"], "base": entry["base"]}
@@ -318,7 +332,7 @@ class Runner:
     def comment_sync(self, app, number, tracker, state, pair):
         source_repo = self.apps[app]
         endpoints = {source_repo: number, self.central: tracker["number"]}
-        owned, entries = self._index(tracker, state, pair)
+        owned, entries = self._index(tracker, state, pair, endpoints)
         originals, carriers = {}, {}
         for repo, n in endpoints.items():
             for comment in self.threads.get((repo, n), []):
@@ -383,13 +397,9 @@ class Runner:
             entry.pop("pending")
             carriers[key] = target, peer, {"origin": entry["origin"], "base": entry["base"], "version": 1}
         for key, entry in entries.items():
-            pending, peer_id = entry.get("pending"), entry.get("peer_id")
-            if key[0] not in endpoints or key[1] != endpoints[key[0]] or entry.get("peer_repo") not in endpoints \
-                    or entry["peer_repo"] == key[0] or pending not in (None, "prepared", "attempted") \
-                    or (peer_id is None and not pending and not entry.get("deleted")) \
-                    or (peer_id is not None and (type(peer_id) is not int or peer_id < 1 or pending)) \
-                    or not isinstance(entry.get("last_body"), str) or not re.fullmatch(r"[0-9a-f]{64}", entry.get("base", "")):
-                raise linked.SyncError("comment index crosses this authenticated issue pair")
+            if self._validate_entry(entry, endpoints) != key:
+                raise linked.SyncError("comment origin changed during reconciliation")
+            pending = entry.get("pending")
             if pending:
                 if self.execute or pending == "attempted":
                     _conflict(self.result, pair, "comment:" + str(key[2]), "unconfirmed copy attempt; retained text and no carrier recreation")
@@ -447,7 +457,9 @@ class Runner:
                 raise linked.SyncError("created tracker authority/identity not confirmed; fresh inventory required")
             self.threads[self.central, tracker["number"]] = []
         state = _validate_base(_one_json(tracker["body"], ROOT_PREFIX))
-        self._index(tracker, state, pair)
+        # Validate every persisted record before field, label, index or carrier
+        # writes. A prepared record is never permission to repair its binding.
+        self._index(tracker, state, pair, {source_repo: source["number"], self.central: tracker["number"]})
         current = _values(tracker, True, app, self.reg)
         desired_src, desired_core, next_base = copy.deepcopy(src), copy.deepcopy(current), copy.deepcopy(state["base"])
         for field in FIELDS:

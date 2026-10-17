@@ -438,6 +438,48 @@ class TwoWay(unittest.TestCase):
         self.assertTrue(result["conflicts"], result)
         self.assertEqual(len(self.api.writes), count)
 
+    def test_invalid_prepared_record_refuses_before_any_pair_write(self):
+        for origin_repo in ("o/App", "o/OpenCine"):
+            for defect in ("same_endpoint", "origin_number", "peer_type", "base", "body_type", "pending", "deleted_pending"):
+                with self.subTest(origin=origin_repo, defect=defect):
+                    self.api = API()
+                    tracker = self.created()
+                    number = 12 if origin_repo == "o/App" else tracker["number"]
+                    original = self.api.comment(origin_repo, number, "Prepared record must be validated")
+                    request = self.api.request
+                    def stop_before_attempt(method, path, payload=None):
+                        if method == "PATCH" and payload and '"pending":"attempted"' in payload.get("body", ""):
+                            raise linked.SyncError("SIMULATED prepared-only checkpoint")
+                        return request(method, path, payload)
+                    self.api.request = stop_before_attempt
+                    self.assertFalse(self.run_sync()["complete"])
+                    self.api.request = request
+                    index = next(c for c in self.api.comments["o/OpenCine", tracker["number"]] if c["body"].startswith(sync.STATE_PREFIX))
+                    data = sync._one_json(index["body"], sync.STATE_PREFIX)
+                    entry = next(e for e in data["entries"] if e["origin"]["url"] == original["html_url"])
+                    self.assertEqual(entry["pending"], "prepared")
+                    if defect == "same_endpoint": entry["peer_repo"] = origin_repo
+                    elif defect == "origin_number":
+                        entry["origin"]["number"] += 1
+                        entry["origin"]["url"] = f"https://github.com/{origin_repo}/issues/{number + 1}#issuecomment-{original['id']}"
+                    elif defect == "peer_type": entry["peer_id"] = True
+                    elif defect == "base": entry["base"] = "invalid fingerprint"
+                    elif defect == "body_type": entry["last_body"] = 1
+                    elif defect == "pending": entry["pending"] = "unsupported"
+                    else: entry["deleted"] = "peer_deleted"
+                    index["body"] = sync.STATE_PREFIX + sync._json(data) + " -->"
+                    damaged = index["body"]
+                    self.api.source["title"] = "Independent title must wait for valid pair state"
+                    tracker["state"] = "closed"
+                    count = len(self.api.writes)
+                    result = self.run_sync()
+                    self.assertFalse(result["complete"], result)
+                    self.assertTrue(result["errors"], result)
+                    self.assertEqual(len(self.api.writes), count, "invalid durable binding refuses before fields, indexes or carriers")
+                    self.assertEqual(index["body"], damaged)
+                    self.assertEqual(self.api.source["state"], "open")
+                    self.assertNotIn("Independent title", tracker["title"])
+
     def test_silently_ignored_assignment_does_not_remove_original(self):
         self.api.source["assignees"] = [{"login": "alice"}]
         request = self.api.request

@@ -42,6 +42,8 @@ retains the last indexed content. No DELETE API is used. Post a new comment to s
 pair after a logical deletion. Missing/altered index shards require review and block that
 pair before field writes; they never mean an empty history. Index comments are internal
 state, not operator comments to mirror or manually remove.
+Every durable record's origin, peer binding, fingerprint, content type and pending/deletion
+state are validated before any field, index or carrier write; invalid records require review.
 
 Existing records retain their shard membership, including tombstones whose two endpoints
 are gone. New records append without moving existing history; all prospective shard sizes
