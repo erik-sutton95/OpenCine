@@ -63,6 +63,85 @@ struct NikonCameraSessionTests {
         #expect(stamped.map { MonotonicInstant.now() - $0 < .seconds(1) } == true)
     }
 
+    @Test func storageEstimateRequiresKnownFormatAndRetainsZeroAndOrigin() throws {
+        let at = MonotonicInstant(.seconds(42))
+        var facts = Self.movieFacts(codec: "R3D NE 12-bit R3D")
+        facts.reported = PTPCameraPropertySnapshot(
+            resolution: "6048x3402", fps: 25, fileType: "R3D NE 12-bit R3D", captureSelector: .video)
+        facts.storage = PTPStorageInfo(totalCapacityBytes: 1_000_000_000_000, freeSpaceBytes: 470_000_000_000)
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123", now: { at })
+        let volume = try #require(session.refresh().storage.value?.first)
+        #expect(volume.remainingRecordingTime.value == .seconds(40 * 60))
+        #expect(volume.remainingRecordingTime.origin == .estimated)
+        #expect(volume.remainingRecordingTime.observedAt == at)
+        for (codec, resolution, fps) in [
+            ("Mystery Codec", "6048x3402", 25), ("R3D NE 12-bit R3D", "-1x-1", 25),
+            ("R3D NE 12-bit R3D", "6048x3402", 0), ("R3D NE 12-bit R3D", "6048xgarbage", 25)
+        ] {
+            driver.nikonControlFacts.reported = PTPCameraPropertySnapshot(
+                resolution: resolution, fps: fps, fileType: codec, captureSelector: .video)
+            #expect(session.refresh().storage.value?.first?.remainingRecordingTime.value == nil)
+        }
+        driver.nikonControlFacts.reported = facts.reported
+        driver.nikonControlFacts.storage = PTPStorageInfo(totalCapacityBytes: 0, freeSpaceBytes: 470_000_000_000)
+        #expect(session.refresh().storage.value?.first?.remainingRecordingTime.value == .seconds(40 * 60))
+        driver.nikonControlFacts.storage = PTPStorageInfo(totalCapacityBytes: 1_000_000_000_000, freeSpaceBytes: 0)
+        #expect(session.refresh().storage.value?.first?.remainingRecordingTime.value == .zero)
+        driver.nikonControlFacts.storage = nil
+        #expect(session.refresh().storage.value == nil)
+    }
+
+    /// A5-04: the header timecode reaches the common snapshot with its frame field, declared at
+    /// the body's movie rate; an off header is unknown, never a frozen 00:00:00:00.
+    @Test("Header timecode publishes with frames at the reported movie rate")
+    func headerTimecodePublishesFrames() {
+        var facts = Self.movieFacts()
+        facts.reported = PTPCameraPropertySnapshot(
+            iso: 800, isoAuto: false, exposureMode: "M", fps: 25, fileType: "H.265 10-bit MOV",
+            captureSelector: .video)
+        facts.timecode = Timecode(on: true, hour: 1, minute: 2, second: 3, frame: 17).running
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let snapshot = session.refresh()
+        #expect(snapshot.timecode.value == CameraTimecode(hours: 1, minutes: 2, seconds: 3, frames: 17))
+        #expect(snapshot.capabilities.timecodeCapability == .supported(.frames(rate: Rational(25), dropFrame: nil)))
+        driver.nikonControlFacts.timecode = Timecode(on: false, hour: 1, minute: 2, second: 3, frame: 18).running
+        #expect(session.refresh().timecode == .unknown)
+    }
+
+    /// A5-09: the movie rate is a typed read-only Rational, the same one the timecode counts at.
+    @Test("The movie rate publishes as a read-only Rational")
+    func movieRatePublishesAsAReadOnlyRational() {
+        var facts = Self.movieFacts()
+        facts.reported = PTPCameraPropertySnapshot(
+            iso: 800, isoAuto: false, exposureMode: "M", fps: 25, fileType: "H.265 10-bit MOV",
+            captureSelector: .video)
+        let driver = Driver(facts)
+        let session = NikonCameraSession(driver: driver, serialNumber: "3000123")
+        let snapshot = session.refresh()
+        #expect(snapshot.value(of: .frameRate).value == .frameRate(Rational(25)))
+        #expect(snapshot.capabilities[.frameRate]?.access == .readOnly)
+        #expect(session.request(.set(.frameRate(Rational(24)))).stage == .rejected(.readOnly))
+        #expect(driver.queued.isEmpty)
+        driver.nikonControlFacts.reported = PTPCameraPropertySnapshot(
+            iso: 800, isoAuto: false, exposureMode: "M", fps: 0, fileType: "H.265 10-bit MOV",
+            captureSelector: .video)
+        #expect(session.refresh().value(of: .frameRate).value == nil, "no rate is unknown")
+    }
+
+    /// A5-01: BatteryLevel is a five-step gauge, so the common reading declares fifths, not percent.
+    @Test("The camera battery is declared at the body's five-step precision")
+    func batteryDeclaresFiveSteps() {
+        let session = NikonCameraSession(driver: Driver(Self.movieFacts()), serialNumber: "3000123")
+        let battery = session.refresh().power.battery
+        #expect(battery.value == 0.8)
+        #expect(battery.precision == .quantized(step: 0.2))
+        #expect(NikonCameraSession.batteryFraction(58) == 0.6)
+        #expect(NikonCameraSession.batteryFraction(1) == 0.2)
+        #expect(NikonCameraSession.batteryFraction(0) == nil)
+    }
+
     @Test("Every advertised writable value reaches the write queue; none is silently unsupported")
     func advertisedValuesAreImplemented() {
         var photo = Self.movieFacts()

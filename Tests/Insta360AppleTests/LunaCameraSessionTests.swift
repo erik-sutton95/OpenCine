@@ -2,11 +2,79 @@ import Insta360Apple
 import Insta360AppleTestSupport
 import Insta360Protocol
 import OpenCineCore
+import OpenCineMedia
 import OpenCineMotion
 import XCTest
 
 @MainActor
 final class LunaCameraSessionTests: XCTestCase {
+    private func reportCadence(_ raw: UInt64?, to session: LunaCameraSession) throws {
+        let nested = try raw.map { try ProtoMessage.integer(field: 31, value: $0) } ?? Data()
+        let body = try ProtoMessage.blob(field: 1, value: ProtoMessage.varint(31))
+            + ProtoMessage.blob(field: 2, value: nested)
+            + ProtoMessage.integer(field: 3, value: UInt64(LunaFunctionMode.normalVideo.rawValue))
+        session.ingest(settings: try LunaPhotographySettings(response: body))
+    }
+
+    func testEmulatedAngleConfirmsTheQuantizedNativeReadback() async throws {
+        let camera = FakeLuna()
+        camera.program = LunaExposureProgram.manual.rawValue
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        try reportCadence(48, to: session)
+        session.configureShutter(presentation: .emulatedAngle)
+        XCTAssertEqual(session.current.capabilities[.shutter]?.semantics.implementation, .emulated)
+        XCTAssertEqual(session.current.value(of: .shutter).value, .shutter(.angle(180)))
+        let (_, outcome) = await submit(.set(.shutter(.angle(144))), to: session)
+        XCTAssertEqual(outcome.stage, .confirmed)
+        let request = try XCTUnwrap(camera.sent.last)
+        let exposure = try XCTUnwrap(LunaPhotographySettings(response: request.body).videoExposure)
+        XCTAssertEqual(exposure.shutterSeconds, 1.0 / 60, accuracy: 1e-9)
+        XCTAssertEqual(session.current.value(of: .shutter).value, .shutter(.angle(150)))
+        XCTAssertEqual(session.current.value(of: .shutter).origin, .protocolDerived)
+    }
+
+    func testAngleEmulationNeedsReportedCadenceAndPreservesNativeIsoComposition() async throws {
+        let camera = FakeLuna()
+        camera.program = LunaExposureProgram.manual.rawValue
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        session.configureShutter(presentation: .emulatedAngle)
+        XCTAssertNil(session.current.value(of: .shutter).value)
+        let rejected = await session.submit(CameraCommand(.set(.shutter(.angle(180))),
+            preconditions: CommandPreconditions(session.current)))
+        guard case .rejected = rejected.stage else { return XCTFail("unknown cadence admitted an angle write") }
+        XCTAssertTrue(camera.sent.isEmpty)
+        let (_, outcome) = await submit(.set(.iso(.manual(800))), to: session)
+        XCTAssertEqual(outcome.stage, .confirmed)
+        let request = try XCTUnwrap(camera.sent.last)
+        let exposure = try XCTUnwrap(LunaPhotographySettings(response: request.body).videoExposure)
+        XCTAssertEqual(exposure.iso, 800)
+        XCTAssertEqual(exposure.shutterSeconds, 1.0 / 50, accuracy: 1e-9)
+        session.configureShutter(presentation: .cameraValue)
+        XCTAssertEqual(session.current.value(of: .shutter).value, .shutter(.duration(Rational(1, 50))))
+        XCTAssertEqual(session.current.value(of: .shutter).origin, .cameraReported)
+    }
+
+    func testCadenceChangeRetiresPreparedAngleCommands() async throws {
+        let camera = FakeLuna()
+        camera.program = LunaExposureProgram.manual.rawValue
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        let session = camera.connectedSession(now: { MonotonicInstant(.zero) })
+        try reportCadence(48, to: session)
+        session.configureShutter(presentation: .emulatedAngle)
+        let command = CameraCommand(.set(.shutter(.angle(180))), preconditions: CommandPreconditions(session.current))
+        try reportCadence(24, to: session)
+        let receipt = await session.submit(command)
+        XCTAssertEqual(receipt.stage, .rejected(.staleCapabilities))
+        XCTAssertTrue(camera.sent.isEmpty)
+        try reportCadence(nil, to: session)
+        XCTAssertNil(session.current.value(of: .shutter).value)
+    }
+
     private func submit(
         _ intent: CameraCommandIntent, to session: LunaCameraSession
     ) async -> (submitted: CommandReceipt, outcome: CommandReceipt) {
@@ -195,7 +263,7 @@ final class LunaCameraSessionTests: XCTestCase {
     func testPublishesMotionTimecodeAndNoAudio() {
         let session = FakeLuna().connectedSession()
         let capabilities = session.current.capabilities
-        XCTAssertEqual(capabilities.timecode, .supported)
+        XCTAssertEqual(capabilities.timecodeCapability, .supported(.seconds), "host clock: whole seconds")
         XCTAssertEqual(capabilities.audioLevels, .unsupported)
         XCTAssertEqual(LunaCameraSession.motion.pose, .supported)
         XCTAssertFalse(LunaCameraSession.motion.axes.contains(.zoom), "moves keep one zoom")
@@ -211,8 +279,8 @@ final class LunaCameraSessionTests: XCTestCase {
         XCTAssertEqual(session.layout(base: base), layout)
 
         XCTAssertNil(session.current.timecode.value, "nothing derived yet: unknown")
-        session.ingest(timecode: CameraTimecode(hours: 15, minutes: 39, seconds: 50, frames: 12))
-        XCTAssertEqual(session.current.timecode.value?.seconds, 50)
+        session.ingest(timecode: CameraTimecodeReading(hours: 15, minutes: 39, seconds: 50))
+        XCTAssertEqual(session.current.timecodeReading.value?.seconds, 50)
         XCTAssertEqual(session.current.timecode.origin, .clockDerived, "never a camera counter")
     }
 

@@ -2,7 +2,8 @@ package com.opencapture.opencine.insta360.luna
 
 import com.opencapture.opencine.core.CameraCommand
 import com.opencapture.opencine.core.CameraCommandIntent
-import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraSnapshot
+import com.opencapture.opencine.core.CameraTimecodeReading
 import com.opencapture.opencine.core.CommandFailure
 import com.opencapture.opencine.core.CommandPreconditions
 import com.opencapture.opencine.core.CommandReceipt
@@ -21,9 +22,12 @@ import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.SupportStatus
+import com.opencapture.opencine.core.TimecodeCapability
+import com.opencapture.opencine.core.TimecodePrecision
 import com.opencapture.opencine.core.WhiteBalanceValue
 import com.opencapture.opencine.insta360.shell.ConnectionPhase as LinkPhase
 import com.opencapture.opencine.motion.MotionAxis
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -160,6 +164,69 @@ private class FakeLuna(
 }
 
 class LunaCameraSessionTest {
+    private fun reportCadence(raw: Long?, session: LunaCameraSession) {
+        session.ingest(LunaPhotographySettings(types = listOf(31),
+            functionMode = LunaControl.FUNCTION_MODE_VIDEO, recordResolution = raw))
+    }
+
+    @Test fun emulatedAngleConfirmsTheQuantizedNativeReadback() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        reportCadence(48, session)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertEquals(com.opencapture.opencine.core.SettingSemantics.Implementation.EMULATED,
+            session.snapshots.value.capabilities[SettingKey.SHUTTER]?.semantics?.implementation)
+        assertEquals(SettingValue.Shutter(ShutterValue.Angle(180.0)), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(144.0))))
+        assertEquals(CommandStage.Confirmed, outcome.stage)
+        val exposure = requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure)
+        assertEquals(1.0 / 60, exposure.shutterSeconds, 1e-9)
+        assertEquals(SettingValue.Shutter(ShutterValue.Angle(150.0)), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        assertEquals(ObservationOrigin.PROTOCOL_DERIVED, session.snapshots.value.value(SettingKey.SHUTTER).origin)
+    }
+
+    @Test fun angleEmulationNeedsReportedCadenceAndPreservesNativeIsoComposition() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        assertNull(session.snapshots.value.value(SettingKey.SHUTTER).value)
+        val rejected = session.submit(CameraCommand(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0))),
+            CommandPreconditions(session.snapshots.value)))
+        assertTrue(rejected.stage is CommandStage.Rejected)
+        assertTrue(camera.sent.isEmpty())
+        val (_, outcome) = session.run(CameraCommandIntent.Set(SettingValue.Iso(ISOValue.Manual(800))))
+        assertEquals(CommandStage.Confirmed, outcome.stage)
+        val exposure = requireNotNull(LunaPhotographySettings.parse(camera.sent.last().body).videoExposure)
+        assertEquals(800L, exposure.iso)
+        assertEquals(1.0 / 50, exposure.shutterSeconds, 1e-9)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.CAMERA_VALUE)
+        assertEquals(SettingValue.Shutter(ShutterValue.Duration(Rational(1, 50))), session.snapshots.value.value(SettingKey.SHUTTER).value)
+        assertEquals(ObservationOrigin.CAMERA_REPORTED, session.snapshots.value.value(SettingKey.SHUTTER).origin)
+    }
+
+    @Test fun cadenceChangeRetiresPreparedAngleCommands() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        camera.program = 3
+        camera.iso = 400
+        camera.shutterSeconds = 1.0 / 50
+        val session = camera.connectedSession()
+        reportCadence(48, session)
+        session.configureShutter(com.opencapture.opencine.media.HostShutterPresentation.EMULATED_ANGLE)
+        val command = CameraCommand(CameraCommandIntent.Set(SettingValue.Shutter(ShutterValue.Angle(180.0))),
+            CommandPreconditions(session.snapshots.value))
+        reportCadence(24, session)
+        assertEquals(CommandStage.Rejected(CommandRejection.StaleCapabilities), session.submit(command).stage)
+        assertTrue(camera.sent.isEmpty())
+        reportCadence(null, session)
+        assertNull(session.snapshots.value.value(SettingKey.SHUTTER).value)
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @AfterTest fun tearDown() = scope.cancel()
@@ -332,7 +399,7 @@ class LunaCameraSessionTest {
     @Test fun publishesMotionTimecodeAndNoAudio() {
         val session = FakeLuna(scope).connectedSession()
         val capabilities = session.snapshots.value.capabilities
-        assertEquals(SupportStatus.SUPPORTED, capabilities.timecode)
+        assertEquals(TimecodeCapability.supported(TimecodePrecision.Seconds), capabilities.timecodeCapability, "host clock: whole seconds")
         assertEquals(SupportStatus.UNSUPPORTED, capabilities.audioLevels)
         assertEquals(SupportStatus.SUPPORTED, LunaCameraSession.MOTION.pose)
         assertFalse(MotionAxis.ZOOM in LunaCameraSession.MOTION.axes, "moves keep one zoom")
@@ -342,8 +409,8 @@ class LunaCameraSessionTest {
             session.layout(MonitorLayoutCapabilities(audio = true, clipDelete = true)),
         )
         assertNull(session.snapshots.value.timecode.value, "nothing derived yet: unknown")
-        session.ingest(CameraTimecode(15, 39, 50, 12))
-        assertEquals(50, session.snapshots.value.timecode.value?.seconds)
+        session.ingest(CameraTimecodeReading(15, 39, 50))
+        assertEquals(50, session.snapshots.value.timecodeReading.value?.seconds)
         assertEquals(ObservationOrigin.CLOCK_DERIVED, session.snapshots.value.timecode.origin, "never a camera counter")
     }
 
@@ -431,6 +498,122 @@ class LunaCameraSessionTest {
         assertEquals(RecordingState.IDLE, sa.snapshots.value.recording.value)
         assertEquals(sentA, a.sentCount(), "closing A sent nothing, and B's record went to B")
         assertEquals(CommandStage.Rejected(CommandRejection.SessionClosed), sa.run(CameraCommandIntent.StartRecording).second.stage)
+    }
+
+    /**
+     * An eager `outcome` awaiter (an Unconfined coroutine resumes the moment the settle
+     * completes its waiter, inside the reporting ingest) must observe the feed snapshot the
+     * settle confirmed, never the one before it. Manual clock: the settle decision comes from
+     * the report, never from elapsed time.
+     */
+    private suspend fun eagerOutcome(
+        scope: CoroutineScope,
+        camera: FakeLuna,
+        session: LunaCameraSession,
+        command: CameraCommand,
+        report: () -> Unit,
+    ): Pair<CommandReceipt, CameraSnapshot> {
+        var observed: CameraSnapshot? = null
+        val observer = scope.async(Dispatchers.Unconfined) {
+            val receipt = requireNotNull(session.outcome(command.operation))
+            observed = session.snapshots.value
+            receipt
+        }
+        report()
+        val receipt = observer.await()
+        return receipt to requireNotNull(observed) { "the eager observer never ran" }
+    }
+
+    @Test fun eagerOutcomeObserverSeesTheIsoTheSettleConfirmed() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        val session = camera.connectedSession()
+        val command = CameraCommand(
+            CameraCommandIntent.Set(SettingValue.Iso(ISOValue.Manual(800))),
+            CommandPreconditions(session.snapshots.value),
+        )
+        assertEquals(CommandStage.AwaitingObservation, session.submit(command).stage)
+        val (receipt, observed) = eagerOutcome(this, camera, session, command) {
+            camera.iso = 800
+            camera.reportSettings()
+        }
+        assertEquals(CommandStage.Confirmed, receipt.stage)
+        assertEquals(SettingValue.Iso(ISOValue.Manual(800)), observed.value(SettingKey.ISO).value,
+            "an eager awaiter must see the reported value the settle confirmed")
+    }
+
+    @Test fun eagerOutcomeObserverSeesTheWhiteBalanceTheSettleConfirmed() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        val session = camera.connectedSession()
+        val command = CameraCommand(
+            CameraCommandIntent.Set(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(3200))),
+            CommandPreconditions(session.snapshots.value),
+        )
+        assertEquals(CommandStage.AwaitingObservation, session.submit(command).stage)
+        val (receipt, observed) = eagerOutcome(this, camera, session, command) {
+            camera.kelvin = 3200
+            camera.reportSettings()
+        }
+        assertEquals(CommandStage.Confirmed, receipt.stage)
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(3200)), observed.value(SettingKey.WHITE_BALANCE).value,
+            "an eager awaiter must see the reported value the settle confirmed")
+    }
+
+    @Test fun eagerOutcomeObserverSeesTheRecordingTheCaptureSettled() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        val session = camera.connectedSession()
+        val command = CameraCommand(CameraCommandIntent.StartRecording, CommandPreconditions(session.snapshots.value))
+        assertEquals(CommandStage.AwaitingObservation, session.submit(command).stage)
+        val (receipt, observed) = eagerOutcome(this, camera, session, command) {
+            camera.captureState = 1
+            camera.reportCapture()
+        }
+        assertEquals(CommandStage.Confirmed, receipt.stage)
+        assertEquals(RecordingState.RECORDING, observed.recording.value,
+            "an eager awaiter must see the recording state the settle confirmed")
+    }
+
+    /**
+     * Settle before publish is load-bearing: when the readback that satisfies a write is
+     * published, the write is already finished, so an eager feed observer that answers the
+     * reported value with a newer write of the same key must supersede nothing. A publish
+     * before settle would hand the observer a write whose command is still in `targets` and
+     * turn a camera-matched Confirmed into Failed(SUPERSEDED).
+     */
+    @Test fun eagerFeedObserverResubmittingTheSameKeyNeverSupersedesAMatchedCommand() = runTest {
+        val camera = FakeLuna(this) { MonotonicInstant(Duration.ZERO) }
+        val session = camera.connectedSession()
+        val first = CameraCommand(
+            CameraCommandIntent.Set(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(3200))),
+            CommandPreconditions(session.snapshots.value),
+        )
+        assertEquals(CommandStage.AwaitingObservation, session.submit(first).stage)
+        var observed: CameraSnapshot? = null
+        val resubmitted = CompletableDeferred<CommandReceipt>()
+        backgroundScope.launch(Dispatchers.Unconfined) {
+            session.snapshots.collect { snapshot ->
+                if (resubmitted.isCompleted) return@collect
+                if (snapshot.value(SettingKey.WHITE_BALANCE).value ==
+                    SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(3200))) {
+                    observed = snapshot
+                    val second = CameraCommand(
+                        CameraCommandIntent.Set(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(6400))),
+                        CommandPreconditions(snapshot),
+                    )
+                    resubmitted.complete(session.submit(second))
+                }
+            }
+        }
+        camera.kelvin = 3200
+        camera.reportSettings()
+        assertEquals(CommandStage.Confirmed, session.outcome(first.operation)?.stage,
+            "a camera-matched command stays Confirmed when the same key is written again")
+        assertEquals(CommandStage.AwaitingObservation, resubmitted.await().stage)
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(3200)), requireNotNull(observed).value(SettingKey.WHITE_BALANCE).value)
+        // The newer write still settles on its own readback.
+        camera.kelvin = 6400
+        camera.reportSettings()
+        assertEquals(CommandStage.Confirmed, session.outcome(resubmitted.await().operation)?.stage)
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(6400)), session.snapshots.value.value(SettingKey.WHITE_BALANCE).value)
     }
 
     /**

@@ -81,6 +81,22 @@ struct NikonMonitorRuntimeTests {
         #expect(runtime.session.submit(old).stage == .rejected(.staleEpoch))
     }
 
+    /// A5-04: the header timecode is the runtime's own observation. An app fact refresh keeps
+    /// it; recovery makes it unknown rather than freezing the last counter.
+    @Test("Header timecode survives app fact refreshes and clears on recovery")
+    func headerTimecodeOwnership() async {
+        let runtime = NikonMonitorRuntime(link: Link(), facts: NikonCameraSessionTests.movieFacts())
+        runtime.observeHeader(timecode: Timecode(on: true, hour: 0, minute: 0, second: 9, frame: 4))
+        #expect(runtime.session.refresh().timecode.value?.frames == 4)
+        runtime.updateFacts(NikonCameraSessionTests.movieFacts())
+        #expect(runtime.session.refresh().timecode.value?.seconds == 9)
+        runtime.observeHeader(timecode: Timecode(on: false, hour: 0, minute: 0, second: 9, frame: 5))
+        #expect(runtime.session.refresh().timecode == .unknown)
+        runtime.observeHeader(timecode: Timecode(on: true, hour: 0, minute: 0, second: 10, frame: 0))
+        runtime.recovering()
+        #expect(runtime.session.refresh().timecode == .unknown)
+    }
+
     @Test("Authority loss drops admitted commands before they reach the body")
     func authorityLossRetiresQueue() async {
         let link = Link()

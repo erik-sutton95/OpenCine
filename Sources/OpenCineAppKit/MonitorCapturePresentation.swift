@@ -1,5 +1,6 @@
 import Foundation
 import OpenCineCore
+import OpenCineMedia
 
 /// A drum detent keeps its typed command value. Display copy never becomes a wire mapping.
 public struct MonitorCaptureChoice: Hashable, Sendable {
@@ -36,6 +37,7 @@ public enum MonitorCapturePresentation {
         case .whiteBalance: "WB"
         case .exposureCompensation: "EV"
         case .focusMode: "FOCUS"
+        case .frameRate: "FPS"
         default: nil
         }
     }
@@ -53,12 +55,11 @@ public enum MonitorCapturePresentation {
         case .whiteBalance(.auto): "Auto"
         case .whiteBalance(.preset(let name)): name
         case .whiteBalance(.kelvin(let kelvin)): "\(kelvin)K"
-        case .exposureCompensation(let stops):
-            stops.numerator == 0 ? "0.0" : (stops.numerator < 0 ? "−" : "+")
-                + String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), abs(stops.doubleValue))
+        case .exposureCompensation(let stops): ExposureCompensation.label(stops: stops.doubleValue)
         case .focusMode(.manual): "MF"
         case .focusMode(.single): "AF-S"
         case .focusMode(.continuous): "AF-C"
+        case .frameRate(let rate): frameRate(rate)
         default: ""
         }
     }
@@ -75,11 +76,13 @@ public enum MonitorCapturePresentation {
                 (range.upperBound - range.lowerBound) / step <= 1_000
             {
                 let count = Int(((range.upperBound - range.lowerBound) / step).rounded(.down))
+                // Every detent lies on the domain's own grid; a set keeps the merge linear (R-03).
+                var listed = Set(values)
                 for index in 0...count {
                     let kelvin = range.lowerBound + Double(index) * step
                     if kelvin.rounded() == kelvin {
                         let value = SettingValue.whiteBalance(.kelvin(Int(kelvin)))
-                        if domain.contains(value), !values.contains(value) { values.append(value) }
+                        if listed.insert(value).inserted { values.append(value) }
                     }
                 }
             }
@@ -87,8 +90,18 @@ public enum MonitorCapturePresentation {
         return values.map { MonitorCaptureChoice(value: $0, label: label($0)) }
     }
 
+    /// Whole rates print whole (24); the rest print two decimals (24000/1001 shows 23.98).
+    /// Kotlin twin: `MonitorCapturePresentation.frameRate`.
+    public static func frameRate(_ rate: Rational) -> String {
+        rate.denominator == 1
+            ? String(rate.numerator)
+            : String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), rate.doubleValue)
+    }
+
+    /// C `%g` (no locale: a locale switches Foundation to `1.5E-05` and `1000000`). The Kotlin
+    /// twin mirrors it; both read `Fixtures/capture-label-vectors.tsv`.
     private static func number(_ value: Double) -> String {
-        String(format: "%g", locale: Locale(identifier: "en_US_POSIX"), value)
+        String(format: "%g", value)
     }
 }
 
@@ -109,9 +122,17 @@ extension MonitorControlModel {
             authorized && snapshot.connection == .ready
             && descriptor.access == .readWrite && descriptor.availability == .available
         return MonitorCaptureField(
-            key: key, title: title, selection: shown(key),
-            choices: MonitorCapturePresentation.choices(key, domain: descriptor.domain),
+            key: key, title: title, selection: shown(key), choices: drum(key, domain: descriptor.domain),
             editor: writable ? edit(key) : nil)
+    }
+
+    /// The drum for a domain, built once per domain rather than on every read.
+    private func drum(_ key: SettingKey, domain: SettingDomain?) -> [MonitorCaptureChoice] {
+        guard let domain else { return [] }
+        if let cached = captureChoices[key], cached.domain == domain { return cached.choices }
+        let choices = MonitorCapturePresentation.choices(key, domain: domain)
+        captureChoices[key] = (domain, choices)
+        return choices
     }
 
     /// Both held gestures and persistent drums commit the editor they opened, never a new one.

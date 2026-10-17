@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appkit.diagnostics
 
+import com.opencapture.monitorui.ReviewLaunch
 import com.opencapture.opencine.media.FeedIncidentBuildIdentity
 import com.opencapture.opencine.media.FeedIncidentTestSource
 
@@ -38,7 +39,8 @@ public class FeedIncidentOrigin(
     public fun isAutomationLaunch(environment: Map<String, String>): Boolean {
         if (environment["OPV_FEED_STRESS"] == "1") return true
         if (environment["OPV_PHYSICAL_UI_REVIEW"] == "1") return true
-        if (!environment["OPV_UI_REVIEW_SCREEN"].isNullOrEmpty()) return true
+        // Any staged screen, the shared review contract's or an app-only one.
+        if (!environment[ReviewLaunch.Key.SCREEN].isNullOrEmpty()) return true
         return false
     }
 

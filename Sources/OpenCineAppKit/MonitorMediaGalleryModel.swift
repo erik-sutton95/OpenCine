@@ -149,6 +149,12 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
     }
 
     public func activate() { active = true }
+    /// A cover hides the catalog: transient prompts close, while presentation lifetime,
+    /// resolved durations and accepted work stay with the gallery the operator returns to.
+    public func suspend() {
+        dismissNotice(); filterPopupPresented = false; pickingDate = nil; cancelDelete()
+    }
+    /// Back or a source change ends this presentation. Bulk cache belongs to the library.
     public func retire() {
         active = false; lifetime = UUID(); dismissNotice()
         acceptedDeletions.values.forEach { $0.retire() }; acceptedDeletions.removeAll()
@@ -269,9 +275,9 @@ public final class MonitorMediaGalleryModel<Payload: Sendable> {
     }
     public func cacheSelection(admitted snapshot: MonitorMediaGallerySnapshot<Payload>,
         operations: MonitorMediaGalleryOperations<Payload>) {
-        guard let download = operations.download else { return }
+        guard let download = operations.download, isCurrent(snapshot) else { return }
         let records = selected(snapshot).filter { canDownload($0, operations: operations) }
-        perform(records, snapshot: snapshot, operation: download)
+        library.cacheBatch(records, admitted: snapshot.token, download: download)
     }
     public func requestDelete(admitted snapshot: MonitorMediaGallerySnapshot<Payload>,
         operations: MonitorMediaGalleryOperations<Payload>, supportedSubset: Bool = false) {

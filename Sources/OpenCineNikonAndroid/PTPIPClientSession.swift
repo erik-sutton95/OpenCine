@@ -75,6 +75,8 @@ public enum PTPIPClientSessionError: Error, LocalizedError, Equatable {
     case pairingChallengeUnavailable
     /// A saved camera-side profile did not accept this initiator for app control.
     case savedProfileRequired
+    /// The dial target is not a numeric IPv4 address (the socket layer opens no host names).
+    case nonNumericHost
     case appControlUnavailable
     case unsupportedProperty(UInt32)
     case unsupportedControl(PTPCameraControl, String)
@@ -110,6 +112,8 @@ public enum PTPIPClientSessionError: Error, LocalizedError, Equatable {
         case .pairingChallengeUnavailable:
             return
                 "The camera did not provide a pairing code. Restart Connect to Smart Device on the camera, then pair again."
+        case .nonNumericHost:
+            return "Enter a numeric IPv4 camera address. Host names are not supported yet."
         case .savedProfileRequired:
             return "The camera requires first-time pairing before app control can start."
         case .appControlUnavailable:
@@ -1380,80 +1384,22 @@ public final class PTPIPClientSession: @unchecked Sendable {
         property: PTPPropertyCode,
         valueByteCount: Int
     ) throws -> AndroidWritableDescriptorForm {
-        let bytes = [UInt8](descriptor)
-        let expectedDataType: UInt16 =
-            switch valueByteCount {
-            case 1: 0x0002  // UINT8
-            case 2: 0x0004  // UINT16
-            case 4: 0x0006  // UINT32
-            case 8: 0x0008  // UINT64
-            default: 0
-            }
-        guard expectedDataType != 0, bytes.count >= 7 else {
+        guard
+            let observed = NikonScalarPropertyDescriptor.parse(
+                descriptor, property: property.rawValue, valueByteCount: valueByteCount)
+        else {
             throw PTPIPClientSessionError.invalidPropertyDescriptor(property.rawValue)
         }
-
-        // Layout A: UINT32 property code (Ex datasets / FakeZR).
-        let exProperty = ByteCoding.readUInt32LE(bytes, at: 0)
-        let exType = ByteCoding.readUInt16LE(bytes, at: 4)
-        let exGetSet = bytes[6]
-        let exFormIndex = 7 + valueByteCount * 2
-
-        // Layout B: UINT16 property code (standard DevicePropDesc).
-        let stdProperty = UInt32(ByteCoding.readUInt16LE(bytes, at: 0))
-        let stdType = ByteCoding.readUInt16LE(bytes, at: 2)
-        let stdGetSet = bytes[4]
-        let stdFormIndex = 5 + valueByteCount * 2
-
-        let formIndex: Int
-        let getSet: UInt8
-        if exProperty == property.rawValue, exType == expectedDataType,
-            exGetSet == 0 || exGetSet == 1, bytes.count > exFormIndex
-        {
-            formIndex = exFormIndex
-            getSet = exGetSet
-        } else if stdProperty == property.rawValue, stdType == expectedDataType,
-            stdGetSet == 0 || stdGetSet == 1, bytes.count > stdFormIndex
-        {
-            formIndex = stdFormIndex
-            getSet = stdGetSet
-        } else {
-            throw PTPIPClientSessionError.invalidPropertyDescriptor(property.rawValue)
-        }
-        guard getSet == 1 else {
+        guard observed.writable else {
             throw PTPIPClientSessionError.unwritablePropertyDescriptor(property.rawValue)
         }
-
-        switch bytes[formIndex] {
-        case 0:
+        switch observed.form {
+        case .none:
             throw PTPIPClientSessionError.unwritablePropertyDescriptor(property.rawValue)
-        case 1:
-            let valuesStart = formIndex + 1
-            guard valuesStart + valueByteCount * 3 == bytes.count else {
-                throw PTPIPClientSessionError.invalidPropertyDescriptor(property.rawValue)
-            }
-            return .range(
-                minimum: Array(bytes[valuesStart..<(valuesStart + valueByteCount)]),
-                maximum: Array(
-                    bytes[(valuesStart + valueByteCount)..<(valuesStart + valueByteCount * 2)]),
-                step: Array(
-                    bytes[(valuesStart + valueByteCount * 2)..<(valuesStart + valueByteCount * 3)]))
-        case 2:
-            guard formIndex + 3 <= bytes.count else {
-                throw PTPIPClientSessionError.invalidPropertyDescriptor(property.rawValue)
-            }
-            let count = Int(ByteCoding.readUInt16LE(bytes, at: formIndex + 1))
-            let valuesStart = formIndex + 3
-            guard valuesStart + count * valueByteCount == bytes.count else {
-                throw PTPIPClientSessionError.invalidPropertyDescriptor(property.rawValue)
-            }
-            return .enumeration(
-                (0..<count).map { item in
-                    let start = valuesStart + item * valueByteCount
-                    return Array(bytes[start..<(start + valueByteCount)])
-                })
-        default:
-            throw PTPIPClientSessionError.invalidPropertyDescriptor(property.rawValue)
+        case .range(let minimum, let maximum, let step):
+            return .range(minimum: minimum, maximum: maximum, step: step)
+        case .enumeration(let values):
+            return .enumeration(values)
         }
     }
 
@@ -4733,8 +4679,7 @@ final class PosixTCPSocket: @unchecked Sendable {
         address.sin_family = sa_family_t(AF_INET)
         address.sin_port = in_port_t(port).bigEndian
         guard inet_pton(AF_INET, host, &address.sin_addr) == 1 else {
-            throw PTPIPClientSessionError.connectionFailed(
-                "Enter a numeric IPv4 camera address. Host names are not supported yet.")
+            throw PTPIPClientSessionError.nonNumericHost
         }
 
         let newDescriptor = socket(AF_INET, SOCK_STREAM, Int32(IPPROTO_TCP))

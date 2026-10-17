@@ -9,6 +9,12 @@ import com.opencapture.opencine.vocabulary.CameraStatus
 import com.opencapture.opencine.vocabulary.CaptureSessionState
 import com.opencapture.opencine.vocabulary.CaptureSetting
 
+/** App routing is independent of source support declarations. */
+data class CaptureSheetRouting(
+    val commonExposureCompensation: Boolean = false,
+    val commonFocusMode: Boolean = false,
+)
+
 /**
  * What the capture sheets need from an app: mostly values, one commit entry and one refresh entry,
  * plus the drum an app draws for settings it edits through Core. App differences arrive here as
@@ -19,6 +25,8 @@ interface CaptureSheetHost {
     val camera: CameraModel?
     val labelProfile: CameraLabelProfile
     val audioService: CaptureAudioService? get() = null
+    /** Compatibility route for original hosts; migrated composition supplies it explicitly. */
+    val captureRouting: CaptureSheetRouting get() = CaptureSheetRouting(commonExposureCompensation = true, commonFocusMode = true)
 
     /** The common Core field a sheet edits, opened (and its editor captured) when the sheet opens. */
     fun captureField(sheet: LiveSheet, expoMode: Int): MonitorCaptureField?

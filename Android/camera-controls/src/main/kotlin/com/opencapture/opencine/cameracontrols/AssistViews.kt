@@ -46,6 +46,7 @@ import com.opencapture.monitorui.MonitorFalseColorReferenceValues
 import com.opencapture.monitorui.MonitorFalseColorSelection
 import com.opencapture.monitorui.MonitorGuideMaskPolicy
 import com.opencapture.monitorui.MonitorInspector
+import com.opencapture.monitorui.MonitorPalette
 import com.opencapture.monitorui.MonitorParadeMode
 import com.opencapture.monitorui.MonitorRect
 import com.opencapture.monitorui.MonitorScopePanelSize
@@ -87,6 +88,8 @@ class AssistLutPicker(
     val copy: LutPickerCopy,
     val selection: String,
     val onSelect: (String) -> Unit,
+    /** The app's custom LUT library behind the Custom tab. */
+    val library: MonitorLutLibrary,
     val profile: com.opencapture.opencine.vocabulary.CameraLUTProfile? = null,
     /** The camera's raw colour mode for the picker's automatic camera look (LutLookResolver). */
     val colorMode: Int = CameraCommands.COLOR_NORMAL,
@@ -178,6 +181,7 @@ fun AssistOptionsPanel(
                     LUTPicker(
                         copy = lut.copy,
                         selection = lut.selection,
+                        library = lut.library,
                         onSelect = { id ->
                             lut.onSelect(id)
                             state.armLut()
@@ -233,9 +237,9 @@ private fun AssistOptionsBody(tool: MonitorAssistTool, state: MonitorAssistState
             else if (transfer != null) FalseColorOptions(state, transfer, host)
         MonitorAssistTool.ZEBRA -> if (signalOptions.zebra != null) signalOptions.zebra.invoke()
             else if (transfer != null) ZebraOptions(state, transfer, host)
-        MonitorAssistTool.WAVE -> WaveformOptions(state)
-        MonitorAssistTool.PARADE -> ParadeOptions(state)
-        MonitorAssistTool.HISTO -> HistogramOptions(state)
+        MonitorAssistTool.WAVE -> WaveformOptions(state, transfer != null)
+        MonitorAssistTool.PARADE -> ParadeOptions(state, transfer != null)
+        MonitorAssistTool.HISTO -> HistogramOptions(state, transfer != null)
         MonitorAssistTool.VECTOR -> VectorscopeOptions(state)
         MonitorAssistTool.LIGHTS -> LightsOptions(state)
         MonitorAssistTool.ND -> NdOptions(state, host)
@@ -312,25 +316,29 @@ private fun ZebraOptions(state: MonitorAssistState, transfer: MonitorTransfer, h
 }
 
 @Composable
-private fun WaveformOptions(state: MonitorAssistState) {
+private fun WaveformOptions(state: MonitorAssistState, supportsCalibratedReferences: Boolean) {
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorScopeTraceMenu(MonitorWaveformMode.entries, state.waveMode,
         { haptics.selection(); state.setWaveform(mode = it) }, { it.label },
         state.waveBrightness, { state.setWaveform(brightness = it) }, state.waveGuides,
-        { haptics.selection(); state.setWaveform(guides = it) })
+        { haptics.selection(); state.setWaveform(guides = it) }, supportsCalibratedReferences)
 }
 
 @Composable
-private fun ParadeOptions(state: MonitorAssistState) {
+private fun ParadeOptions(state: MonitorAssistState, supportsCalibratedReferences: Boolean) {
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorScopeTraceMenu(MonitorParadeMode.entries, state.paradeMode,
         { haptics.selection(); state.setParade(mode = it) }, { it.label },
         state.paradeBrightness, { state.setParade(brightness = it) }, state.paradeGuides,
-        { haptics.selection(); state.setParade(guides = it) })
+        { haptics.selection(); state.setParade(guides = it) }, supportsCalibratedReferences)
 }
 
 @Composable
-private fun HistogramOptions(state: MonitorAssistState) {
+private fun HistogramOptions(state: MonitorAssistState, supportsCalibratedReferences: Boolean) {
+    if (!supportsCalibratedReferences) {
+        Text("Encoded code percentage. Source calibration unavailable.", color = MonitorPalette.muted, fontSize = 11.sp)
+        return
+    }
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorHistogramMenu(state.histoTrafficLights,
         { haptics.selection(); state.setHistogram(traffic = !state.histoTrafficLights) },
@@ -401,11 +409,12 @@ fun DesqueezeOptions(state: MonitorAssistState) {
 
 /**
  * Assist options on the shared inspector frame: the [tabs] strip and [options] (the app's options panel,
- * given the height it may fill). Preview work stays in the options panel.
+ * given the height it may fill). Preview work stays in the options panel. A [review] item (the source's
+ * toolless palette item) follows the tabs; a null [tool] selects it, and its options scroll here.
  */
 @Composable
 fun AssistInspectorFrame(
-    tool: MonitorAssistTool, state: MonitorAssistState,
+    tool: MonitorAssistTool?, state: MonitorAssistState,
     viewportWidth: Float, viewportHeight: Float, safeLeading: Float,
     safeTop: Float, safeBottom: Float,
     onDismiss: () -> Unit,
@@ -413,17 +422,23 @@ fun AssistInspectorFrame(
     safeTrailing: Float = 0f,
     tabs: List<MonitorAssistTool> = MonitorAssistTool.settingsCases,
     trailing: Boolean = false,
+    review: MonitorOperatorPaletteItem? = null,
+    onSelect: (MonitorAssistTool?) -> Unit = { state.configureTool = it },
     options: @Composable (maxHeightDp: Float) -> Unit,
 ) {
     val haptics = LocalOperatorHaptics.current
-    fun descriptor(item: MonitorAssistTool) = com.opencapture.monitorui.MonitorInspectorTool(
-        value = item, title = item.chipLabel, label = item.chipLabel)
-    com.opencapture.monitorui.MonitorToolInspector(selection = descriptor(tool), tools = tabs.map(::descriptor),
+    fun descriptor(item: MonitorAssistTool?) = (item?.chipLabel ?: review?.label.orEmpty()).let {
+        com.opencapture.monitorui.MonitorInspectorTool(value = item, title = it, label = it)
+    }
+    val entries: List<MonitorAssistTool?> = if (review != null) tabs + null else tabs
+    com.opencapture.monitorui.MonitorToolInspector(selection = descriptor(tool), tools = entries.map(::descriptor),
         viewportWidth = viewportWidth, viewportHeight = viewportHeight,
         safeLeading = safeLeading, safeTop = safeTop, safeBottom = safeBottom, safeTrailing = safeTrailing,
-        trailing = trailing,
-        onSelect = { haptics.selection(); state.configureTool = it }, onDismiss = onDismiss,
-        glyph = { item, tint, modifier -> AssistToolGlyph(item, tint, modifier) }) { height ->
+        trailing = trailing, scrollContents = tool == null,
+        onSelect = { haptics.selection(); onSelect(it) }, onDismiss = onDismiss,
+        glyph = { item, tint, modifier ->
+            if (item != null) AssistToolGlyph(item, tint, modifier) else review?.glyph?.invoke(tint, modifier)
+        }) { height ->
         key(tool, playback) { options(height) }
     }
 }

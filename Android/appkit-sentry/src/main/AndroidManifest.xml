@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- OpenCine starts the SDK only after consent (ReliabilityReporting.install). -->
+        <meta-data
+            android:name="io.sentry.auto-init"
+            android:value="false" />
+        <!-- The release build's R8 mapping UUID; the app sets manifestPlaceholders["sentryProguardUuid"]
+            from SENTRY_PROGUARD_UUID (empty outside release CI). -->
+        <meta-data
+            android:name="io.sentry.proguard-uuid"
+            android:value="${sentryProguardUuid}" />
+    </application>
+</manifest>

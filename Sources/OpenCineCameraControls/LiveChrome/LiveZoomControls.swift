@@ -216,9 +216,9 @@
         func body(content: Content) -> some View {
             content
                 .gesture(zoomGestures, including: enabled ? .gesture : .none)
-                .sensoryFeedback(.impact(weight: .medium), trigger: detentTick)
-                .sensoryFeedback(.impact(weight: .light), trigger: focusTick)
-                .onChange(of: aeLockHeld) { _, held in if held { Self.playAELockHaptic() } }
+                .sensoryFeedback(trigger: detentTick) { _, _ in host.hapticsEnabled ? .impact(weight: .medium) : nil }
+                .sensoryFeedback(trigger: focusTick) { _, _ in host.hapticsEnabled ? .impact(weight: .light) : nil }
+                .onChange(of: aeLockHeld) { _, held in if held, host.hapticsEnabled { Self.playAELockHaptic() } }
         }
 
         /// Two full-strength heavy taps: a single heavy impact read too soft for a lock.
@@ -489,7 +489,7 @@
                     : "Tap cycles 1 and 3 times. Double tap cycles 6 and 12 times. Hold opens the continuous zoom dial."
             )
             .accessibilityIdentifier("monitor.system.zoom")
-            .sensoryFeedback(.impact(weight: .medium), trigger: snapTick)
+            .sensoryFeedback(trigger: snapTick) { _, _ in host.hapticsEnabled ? .impact(weight: .medium) : nil }
             .onAppear { heldFactor = factor }
             .onChange(of: factor) { _, next in
                 let pinching = host.zoomPinchPreview != nil

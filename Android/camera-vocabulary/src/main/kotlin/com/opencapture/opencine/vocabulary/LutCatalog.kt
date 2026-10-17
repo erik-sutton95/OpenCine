@@ -167,21 +167,6 @@ object LutCatalog {
             .sortedBy { it.lowercase() }
             .map { LutEntry(customId(it), displayName(it), LutCategory.CUSTOM, it) }
 
-    fun listCustom(directory: File): List<LutEntry> {
-        if (!directory.isDirectory) return emptyList()
-        return storedCustom(directory.list()?.toList().orEmpty())
-    }
-
-    fun deleteCustom(fileName: String, directory: File) {
-        if (!isSafeFileName(fileName)) {
-            throw IllegalArgumentException("The LUT file name is not valid.")
-        }
-        val target = File(directory, fileName)
-        if (target.exists() && !target.delete()) {
-            throw IllegalStateException("The LUT “${displayName(fileName)}” could not be deleted.")
-        }
-    }
-
     fun titleFor(id: String): String {
         cameraLooks.firstOrNull { it.id == id }?.let { return it.title }
         val canonical = migratedToOfficialCatalog(id)

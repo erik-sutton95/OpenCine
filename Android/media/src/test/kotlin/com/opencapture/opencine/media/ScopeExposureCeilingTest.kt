@@ -28,4 +28,22 @@ class ScopeExposureCeilingTest {
         assertEquals(247, source.clipByte(MonitorTransfer.DLOG2))
         assertEquals(247, held.ceiling.byte)
     }
+    @Test fun aDeclaredClipReplacesCalibrationUntilWithdrawn() {
+        val source = ScopeExposureCeiling(ScopeClipProfile(mapOf(
+            MonitorTransfer.DLOG2 to ScopeClipCalibration(1600, 247, 248),
+        ), defaultIso = 1600))
+        // A camera that publishes its warning code states it; no tap may ratchet past it.
+        source.declare(180, MonitorTransfer.LOG3G10)
+        assertEquals(180, source.clipByte(MonitorTransfer.LOG3G10))
+        assertEquals(180, source.observeTapMax(200, MonitorTransfer.LOG3G10).first)
+        source.declare(230, MonitorTransfer.DLOG2)
+        assertEquals(230 to false, source.observeTapMax(248, MonitorTransfer.DLOG2))
+        assertEquals(230, source.clipByte(MonitorTransfer.DLOG2, 800))
+        source.declare(null, MonitorTransfer.DLOG2)
+        assertEquals(247, source.clipByte(MonitorTransfer.DLOG2))
+        source.declare(900, MonitorTransfer.NLOG)
+        assertEquals(255, source.clipByte(MonitorTransfer.NLOG))
+        source.reset()
+        assertEquals(255, source.clipByte(MonitorTransfer.LOG3G10))
+    }
 }

@@ -115,18 +115,11 @@ object LiveViewLink {
             else -> CameraLinkPhase.CONNECTING
         }
     }
+    @Deprecated("Use MonitorLinkMeter.chipLabel")
+    fun fpsChipLabel(connection: ConnectionPhase, recovering: Boolean, formattedFPS: String,
+        measuredFPS: Double, sessionRecovering: Boolean = false): String =
+        MonitorLinkMeter.chipLabel(connection, recovering, sessionRecovering, formattedFPS, measuredFPS)
 
-    fun fpsChipLabel(
-        connection: ConnectionPhase,
-        recovering: Boolean,
-        formattedFPS: String,
-        measuredFPS: Double,
-    ): String {
-        if (connection == ConnectionPhase.FAILED) return "FAIL"
-        if (recovering) return "RECOV"
-        if (measuredFPS > 0) return formattedFPS
-        return if (connection == ConnectionPhase.IDLE) "\u2014" else "LINK"
-    }
 }
 
 /** The native Lock tile surface also hosts Multiview's Exit action. */

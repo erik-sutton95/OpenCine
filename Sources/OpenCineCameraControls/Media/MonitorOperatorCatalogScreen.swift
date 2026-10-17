@@ -31,7 +31,38 @@ public struct MonitorMediaGalleryFileFacts {
 }
 
 /// Complete catalog/filter/calendar/selection owner; native routing receives admitted records.
+/// Gallery state belongs to one library owner: a replaced owner gets a fresh gallery, so the
+/// grid, counts and actions can never read two owners at once.
 public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: View {
+    private let content: MonitorOperatorCatalogContent<Payload, Thumbnail>
+
+    public init(library: MonitorMediaLibraryModel<Payload>, brand: String, safeArea: EdgeInsets = .init(),
+        sourceAvailable: Bool, operations: MonitorMediaGalleryOperations<Payload>,
+        presentation: MonitorMediaGalleryPresentation? = nil,
+        navigation: (@MainActor (MonitorMediaGalleryNavigation) -> Void)? = nil,
+        sourceFilter: (@MainActor (MonitorMediaGalleryFilterAction) -> Void)? = nil,
+        managesVisibility: Bool = true,
+        deletionDetail: (@MainActor (MonitorMediaDeletionProgress) -> String?)? = nil,
+        colorChoices: [MonitorMediaFilterChoice] = [],
+        resolutionLevels: [MonitorMediaResolutionLevel] = MonitorMediaResolutionLevel.standard,
+        facts: @escaping @MainActor (MonitorMediaRecord<Payload>) -> MonitorMediaGalleryFileFacts,
+        cell: (@MainActor (MonitorMediaRecord<Payload>, MonitorMediaGalleryCellContext) -> MonitorMediaItem)? = nil,
+        begin: (@MainActor () -> Void)? = nil, refresh: (@MainActor () -> Void)? = nil,
+        close: @escaping @MainActor () -> Void,
+        open: @escaping @MainActor (MonitorMediaGalleryOpen<Payload>) -> Void,
+        share: (@MainActor ([MonitorMediaRecord<Payload>], MonitorMediaLibraryActionToken) -> Void)? = nil,
+        @ViewBuilder thumbnail: @escaping @MainActor (MonitorMediaGalleryThumbnail<Payload>) -> Thumbnail) {
+        content = .init(library: library, brand: brand, safeArea: safeArea, sourceAvailable: sourceAvailable,
+            operations: operations, presentation: presentation, navigation: navigation,
+            sourceFilter: sourceFilter, managesVisibility: managesVisibility, deletionDetail: deletionDetail,
+            colorChoices: colorChoices, resolutionLevels: resolutionLevels, facts: facts, cell: cell,
+            begin: begin, refresh: refresh, close: close, open: open, share: share, thumbnail: thumbnail)
+    }
+
+    public var body: some View { content.id(content.source) }
+}
+
+private struct MonitorOperatorCatalogContent<Payload: Sendable, Thumbnail: View>: View {
     private let library: MonitorMediaLibraryModel<Payload>
     private let brand: String
     private let safeArea: EdgeInsets
@@ -55,7 +86,9 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
     @State private var gallery: MonitorMediaGalleryModel<Payload>
     @Environment(\.monitorWindowGeometry) private var windowGeometry
 
-    public init(library: MonitorMediaLibraryModel<Payload>, brand: String, safeArea: EdgeInsets = .init(),
+    var source: ObjectIdentifier { ObjectIdentifier(library) }
+
+    init(library: MonitorMediaLibraryModel<Payload>, brand: String, safeArea: EdgeInsets = .init(),
         sourceAvailable: Bool, operations: MonitorMediaGalleryOperations<Payload>,
         presentation: MonitorMediaGalleryPresentation? = nil,
         navigation: (@MainActor (MonitorMediaGalleryNavigation) -> Void)? = nil,
@@ -121,6 +154,7 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
                             }
                         }
                     }, accessory: { cachingHeader(snapshot) })
+                    .id(catalogIdentity)
                 if gallery.filterPopupPresented { filterPopup(snapshot: snapshot, size: proxy.size) }
                 if let progress = library.deletionProgress { deletionOverlay(progress) }
                 if let notice = gallery.notice {
@@ -135,7 +169,8 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
         .animation(.easeInOut(duration: 0.2), value: presentation?.thumbnailSize ?? library.thumbnailSize)
         .animation(.easeInOut(duration: 0.2), value: presentation?.layout ?? library.layout)
         .onAppear { gallery.activate(); begin() }
-        .onDisappear { gallery.retire() }
+        // A playback or photo cover hides the catalog without ending it; Back retires it.
+        .onDisappear { gallery.suspend() }
         .onChange(of: library.lifetimeToken) { _, _ in gallery.sourceChanged() }
         .onChange(of: presentation?.projection.displayIDs, initial: true) { _, _ in
             if presentation?.retainsVisibleSelection == true { gallery.retainSelection(admitted: snapshot) }
@@ -152,6 +187,21 @@ public struct MonitorOperatorCatalogScreen<Payload: Sendable, Thumbnail: View>: 
                 key: request.bound == .start ? library.dateStart : library.dateEnd,
                 commit: { gallery.date($0, admitted: request) })
         }
+    }
+
+    /// A cover returns to one source and presentation, never to a replacement's old position.
+    private var catalogIdentity: MonitorOperatorCatalogIdentity {
+        .init(source: ObjectIdentifier(library), lifetime: library.lifetimeToken,
+            navigation: [presentation?.category ?? library.category.rawValue,
+                (presentation?.layout ?? library.layout).rawValue,
+                (presentation?.thumbnailSize ?? library.thumbnailSize).rawValue,
+                presentation?.sortTitle ?? library.sort.rawValue],
+            filters: [library.formats, library.resolutions, library.colors,
+                presentation?.filters.formatSelection ?? [],
+                presentation?.filters.resolutionSelection ?? [],
+                presentation?.filters.photoSizeSelection ?? []],
+            dates: [library.dateStart, library.dateEnd,
+                presentation?.filters.dateWindow, presentation?.filters.storageID])
     }
 
     private func item(_ record: MonitorMediaRecord<Payload>) -> MonitorMediaItem {
@@ -390,5 +440,13 @@ extension MonitorMediaFilterForm {
                 selectedId: filters.storageID, onToggle: { onAction(.storage($0)) }),
             hasActiveFilters: presentation.activeFilterCount > 0)
     }
+}
+
+private struct MonitorOperatorCatalogIdentity: Hashable {
+    let source: ObjectIdentifier
+    let lifetime: UUID
+    let navigation: [String]
+    let filters: [Set<String>]
+    let dates: [String?]
 }
 #endif

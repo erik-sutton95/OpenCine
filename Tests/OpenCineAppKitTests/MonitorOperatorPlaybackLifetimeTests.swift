@@ -97,6 +97,191 @@ import Testing
         return predicate()
     }
 
+    @Test func legacyDeletionOperationsKeepNamedAndFirstTrailingCallbackForms() {
+        guard #available(macOS 14, *) else { return }
+        let named = MonitorOperatorPlaybackOperations<String, String>(cacheOriginal: nil,
+            delete: { _ in false }, favorite: { _ in }, adoptLook: nil, access: { _ in .init(delete: true) }, rating: nil)
+        let firstTrailing = MonitorOperatorPlaybackOperations<String, String> { (_: MonitorMediaRecord<String>) async in }
+        #expect(named.delete != nil && named.captureDeletion == nil)
+        #expect(firstTrailing.cacheOriginal != nil && firstTrailing.captureDeletion == nil)
+    }
+
+    @Test func capturedDeletionAdmissionReentryCannotPublishTheOutgoingConfirmation() throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        var replace = false
+        let authority = f.library.captureDeletion(key: .init("reentrant-delete"), ifCurrent: {
+            if replace { replace = false; _ = f.open(2) }
+            return true
+        })
+        replace = true
+        let copy = f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
+            .init(confirmation: .init(title: "Remove A"), authority: authority, perform: {})
+        }))
+        #expect(copy == nil && f.model.playback?.active?.payload == "C" && !authority.isCurrent)
+    }
+
+    @Test func capturedDeletionWaitsForCleanupAndCannotDeleteAfterReplacement() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let authority = f.library.captureDeletion(key: .init("cleanup-delete"), ifCurrent: { true })
+        let gate = OperatorPlaybackPending(); var deletes = 0
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { record in
+            .init(confirmation: .init(title: "Remove A"), authority: authority, perform: {
+                owner.close(); _ = await gate.wait()
+                _ = await f.library.deleteHostBatch(authority,
+                    targets: [MonitorMediaDeletionTarget(value: record, locations: [1])], selectedCount: 1,
+                    port: .init(remove: { _ in deletes += 1; return .removed }, commit: { _, _ in true }))
+            })
+        })))
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(await settled { gate.started }); #expect(deletes == 0)
+        #expect(f.open(2)); gate.finish(true)
+        for _ in 0..<50 { await Task.yield() }
+        #expect(deletes == 0 && f.model.playback?.active?.payload == "C")
+        #expect(f.library.record(.init("A")) != nil)
+    }
+
+    @Test func capturedDeletionCompanionOnlyRemovalReopensTheRetainedRequestedItem() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let authority = f.library.captureDeletion(key: .init("partial-delete"), ifCurrent: { true })
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
+            .init(confirmation: .init(title: "Remove A and companion"), authority: authority, perform: {
+                owner.close()
+                _ = await f.library.deleteHostBatch(authority,
+                    targets: [MonitorMediaDeletionTarget(value: f.records[1], locations: [1])], selectedCount: 1,
+                    preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
+                        try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
+                    }, finish: { await f.library.relist(after: authority) }))
+            })
+        })))
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(await settled { f.model.playback !== owner && f.model.playback?.active?.payload == "A" })
+        #expect(f.library.record(.init("A")) != nil && f.library.record(.init("B")) == nil)
+        #expect(f.model.playback?.playlist.map { $0.payload } == ["A", "C"])
+    }
+
+    /// R-01: a retire-gallery deletion returns to playback even when the port's finish does not
+    /// relist; Core relists once after finish unless the caller already did.
+    @Test func capturedRetireGalleryDeletionRelistsWithoutACallerRelist() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let authority = f.library.captureDeletion(key: .init("default-relist"), ifCurrent: { true })
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
+            .init(confirmation: .init(title: "Remove A's companion"), authority: authority, perform: {
+                owner.close()
+                _ = await f.library.deleteHostBatch(authority,
+                    targets: [MonitorMediaDeletionTarget(value: f.records[1], locations: [1])], selectedCount: 1,
+                    preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
+                        try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
+                    }))
+            })
+        })))
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(await settled { f.model.playback !== owner && f.model.playback?.active?.payload == "A" })
+        #expect(f.library.browsing)
+        #expect(f.model.playback?.playlist.map { $0.payload } == ["A", "C"])
+    }
+
+    @Test func capturedDeletionSkipsRemovedCompanionsAndClosesWhenNoPlaylistSurvives() async throws {
+        guard #available(macOS 14, *) else { return }
+        for allRemoved in [false, true] {
+            let f = try Fixture(); defer { f.close() }
+            #expect(f.open(0)); let owner = try #require(f.model.playback)
+            let authority = f.library.captureDeletion(key: .init("related-delete"), ifCurrent: { true })
+            let removed = allRemoved ? f.records : Array(f.records.prefix(2))
+            let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
+                .init(confirmation: .init(title: "Remove A and companions"), authority: authority, perform: {
+                    owner.close()
+                    _ = await f.library.deleteHostBatch(authority,
+                        targets: removed.map { MonitorMediaDeletionTarget(value: $0, locations: [1]) }, selectedCount: 1,
+                        preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
+                            try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken); return true
+                        }, finish: { await f.library.relist(after: authority) }))
+                })
+            })))
+            f.model.confirmDeletion(admitted: copy.id)
+            if allRemoved { #expect(await settled { f.model.playback == nil }) }
+            else {
+                #expect(await settled { f.model.playback?.active?.payload == "C" })
+                #expect(f.model.playback?.playlist.map { $0.payload } == ["C"])
+            }
+        }
+    }
+
+    @Test func capturedDeletionDeclinedAfterNativeCloseRestoresOnlyTheOriginalAdmittedItem() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let authority = f.library.captureDeletion(key: .init("declined-delete"), ifCurrent: { true })
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: .init(captureDeletion: { _ in
+            .init(confirmation: .init(title: "Remove A"), authority: authority, perform: { owner.close() })
+        })))
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(await settled { f.model.playback !== owner && f.model.playback?.active?.payload == "A" })
+        #expect(f.library.record(.init("A")) != nil)
+    }
+
+    @Test func capturedDeletionKeepsItsCopyAndCancelPerformsNoIO() throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        var calls = 0
+        let authority = f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true })
+        let operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion: { _ in
+            .init(confirmation: .init(title: "Remove A", message: "Its related copies too"),
+                authority: authority, perform: { calls += 1 })
+        })
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: operations))
+        #expect(copy.title == "Remove A" && copy.message == "Its related copies too")
+        f.model.cancelDeletion(admitted: copy.id)
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(calls == 0 && !authority.isCurrent && f.model.playback === owner)
+    }
+
+    @Test func capturedDeletionCarriesOnlyItsOwnRetiredGalleryCompletionToSuccessor() async throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let original = f.library.actionToken
+        let authority = f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true })
+        let operations = MonitorOperatorPlaybackOperations<String, String>(captureDeletion: { record in
+            .init(confirmation: .init(title: "Remove A"), authority: authority, perform: {
+                owner.close()
+                _ = await f.library.deleteHostBatch(authority,
+                    targets: [MonitorMediaDeletionTarget(value: record, locations: [1])], selectedCount: 1,
+                    preparation: .retireGallery, port: .init(remove: { _ in .removed }, commit: { row, _ in
+                        try? f.library.applyLocalRemoval([row.asset.id], token: authority.actionToken)
+                        return true
+                    }, finish: { await f.library.relist(after: authority) }))
+            })
+        })
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token, operations: operations))
+        f.model.confirmDeletion(admitted: copy.id)
+        #expect(await settled { f.model.playback?.active?.payload == "B" })
+        #expect(!f.library.isCurrent(original) && f.model.playback !== owner)
+        #expect(f.library.record(.init("A")) == nil)
+    }
+
+    @Test func capturedDeletionBeforeReplacementCannotDeleteTheNewItem() throws {
+        guard #available(macOS 14, *) else { return }
+        let f = try Fixture(); defer { f.close() }
+        #expect(f.open(0)); let owner = try #require(f.model.playback)
+        let authority = f.library.captureDeletion(key: .init("captured-delete"), ifCurrent: { true })
+        var calls = 0
+        let copy = try #require(f.model.captureDeletion(admitted: owner.token,
+            operations: .init(captureDeletion: { _ in
+                .init(confirmation: .init(title: "Remove A"), authority: authority, perform: { calls += 1 })
+            })))
+        #expect(f.open(2)); f.model.confirmDeletion(admitted: copy.id)
+        #expect(calls == 0 && f.model.playback?.active?.payload == "C" && !authority.isCurrent)
+    }
+
     @Test func borrowedPlayerCloseDoesNotCloseItsGallery() throws {
         guard #available(macOS 14, *) else { return }
         let f = try Fixture(); defer { f.close() }

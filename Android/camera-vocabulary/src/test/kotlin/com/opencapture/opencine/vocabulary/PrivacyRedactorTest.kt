@@ -21,12 +21,16 @@ class PrivacyRedactorTest {
         assertTrue(out.contains("password=<redacted>"))
     }
 
+    /** A6-10: no camera family list here; the neutral redactor keeps no SSID readable. */
     @Test
-    fun keepsCameraSSIDAndSoftAPAddress() {
-        val out = PrivacyRedactor.redact("ssid=OsmoPocket3-A1B2 path=192.168.2.15 seq=42054")
-        assertTrue(out.contains("OsmoPocket3-A1B2"))
-        assertTrue(out.contains("192.168.2.15"))
-        assertTrue(out.contains("seq=42054"))
+    fun keepsNoSSIDButKeepsLocalAddress() {
+        for (ssid in listOf("EdgeRouter-5G", "Pocket WiFi", "OsmoPocket3-A1B2", "NIKON_Z_8_12345678")) {
+            val out = PrivacyRedactor.redact("ssid=$ssid path=192.168.2.15 seq=42054")
+            assertTrue(out.startsWith("ssid=<redacted>"), out)
+            assertFalse(out.contains(ssid.substringBefore(' ')), out)
+            assertTrue(out.contains("192.168.2.15"))
+            assertTrue(out.contains("seq=42054"))
+        }
     }
 
     @Test

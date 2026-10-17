@@ -24,6 +24,7 @@ public struct MonitorOperatorPhotoScreen<Payload: Sendable, Looks: MonitorLookPr
     private let deleted: @MainActor () -> Void
     private let deletedReturning: (@MainActor (MonitorMediaLibraryActionToken) -> Void)?
     private let share: (@MainActor (MonitorMediaPictureRequest<Payload>) -> Void)?
+    @State private var activated = false
     @State private var model: MonitorMediaPictureModel<Payload, UIImage>
     @Environment(\.monitorWindowGeometry) private var windowGeometry
 
@@ -54,6 +55,40 @@ public struct MonitorOperatorPhotoScreen<Payload: Sendable, Looks: MonitorLookPr
     }
     public var body: some View {
         let deleteID = model.deleteRequestID
+        Group {
+            if activated && !model.isCurrent {
+                MonitorOperatorMediaUnavailable(closeEnabled: !model.closing) { model.close(completed: close) }
+            } else { photoContent }
+        }
+        .statusBarHidden().preferredColorScheme(.dark)
+        .onAppear { model.activate(); activated = true; model.load(loaders, policy: policy); model.readRating(rating) }
+        .onDisappear { model.retire() }
+        .onChange(of: model.isCurrent) { _, current in if !current && !model.closing { model.sourceChanged() } }
+        .onChange(of: model.library.lifetimeToken) { _, _ in model.sourceChanged() }
+        .confirmationDialog(model.deletionMessage ?? "Delete this photo from the camera?",
+            isPresented: Binding(get: { model.deleteRequestID != nil }, set: { if !$0 { model.cancelDelete(admitted: deleteID) } }),
+            titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { model.confirmDelete(deleteID, operations: operations, completed: finishDeletion) }
+                Button("Cancel", role: .cancel) { model.cancelDelete(admitted: deleteID) }
+            }
+        .overlay { if model.isCurrent, model.optionsPresented { options } }
+        .overlay(alignment: .bottom) {
+            if model.isCurrent, let selectRecord, collection.count > 1 {
+                MonitorPhotoFilmstrip(items: collection, selected: model.baseRecord.asset.id, keyOf: { $0.asset.id },
+                    enabled: model.isCurrent && !model.closing, label: { $0.asset.filename },
+                    select: { model.navigate(to: $0, selected: selectRecord) }) { record in
+                        if let request = model.request(for: record.asset.id), let collectionThumbnail {
+                            collectionThumbnail(request)
+                        } else { Rectangle().fill(MonitorTheme.surface) }
+                    }.padding(.bottom, 10)
+            }
+        }
+        .alert("Couldn't share this photo", isPresented: Binding(get: { model.failure != nil },
+            set: { if !$0 { model.dismissFailure() } })) {
+                Button("OK") { model.dismissFailure() }
+            } message: { Text(model.failure ?? "") }
+    }
+    private var photoContent: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             if let picture = model.picture { image(picture) }
@@ -102,7 +137,8 @@ public struct MonitorOperatorPhotoScreen<Payload: Sendable, Looks: MonitorLookPr
                         MonitorStarRating(stars: stars, levels: rating.levels, enabled: model.isCurrent) {
                             haptics.selection(); model.setRating($0, service: rating)
                         }
-                    } else if rating == nil {
+                    } else if rating == nil || !model.ratingReading {
+                    // Favorite is the fallback whenever stars are unavailable (A2-44).
                     Button { model.toggleFavorite(operations) } label: {
                         MonitorIcon.star.view(filled: model.favorite).frame(width: 17, height: 17)
                             .foregroundStyle(model.favorite ? MonitorTheme.accent : MonitorTheme.text)
@@ -114,32 +150,6 @@ public struct MonitorOperatorPhotoScreen<Payload: Sendable, Looks: MonitorLookPr
                 }.padding(.bottom, 18 + bottomAccessoryInset + (selectRecord != nil && collection.count > 1 ? 64 : 0))
             }
         }
-        .statusBarHidden().preferredColorScheme(.dark)
-        .onAppear { model.activate(); model.load(loaders, policy: policy); model.readRating(rating) }
-        .onDisappear { model.retire() }
-        .onChange(of: model.library.lifetimeToken) { _, _ in model.sourceChanged() }
-        .confirmationDialog(model.deletionMessage ?? "Delete this photo from the camera?",
-            isPresented: Binding(get: { model.deleteRequestID != nil }, set: { if !$0 { model.cancelDelete(admitted: deleteID) } }),
-            titleVisibility: .visible) {
-                Button("Delete", role: .destructive) { model.confirmDelete(deleteID, operations: operations, completed: finishDeletion) }
-                Button("Cancel", role: .cancel) { model.cancelDelete(admitted: deleteID) }
-            }
-        .overlay { if model.optionsPresented { options } }
-        .overlay(alignment: .bottom) {
-            if let selectRecord, collection.count > 1 {
-                MonitorPhotoFilmstrip(items: collection, selected: model.baseRecord.asset.id, keyOf: { $0.asset.id },
-                    enabled: model.isCurrent && !model.closing, label: { $0.asset.filename },
-                    select: { model.navigate(to: $0, selected: selectRecord) }) { record in
-                        if let request = model.request(for: record.asset.id), let collectionThumbnail {
-                            collectionThumbnail(request)
-                        } else { Rectangle().fill(MonitorTheme.surface) }
-                    }.padding(.bottom, 10)
-            }
-        }
-        .alert("Couldn't share this photo", isPresented: Binding(get: { model.failure != nil },
-            set: { if !$0 { model.dismissFailure() } })) {
-                Button("OK") { model.dismissFailure() }
-            } message: { Text(model.failure ?? "") }
     }
     private func finishDeletion() {
         if let deletedReturning, let proof = model.deletionCompletion, proof.removedCount > 0, proof.isCurrent {

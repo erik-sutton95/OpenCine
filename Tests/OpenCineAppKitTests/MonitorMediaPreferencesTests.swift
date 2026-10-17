@@ -43,4 +43,24 @@ import Testing
         writer.abort()
         #expect(try replacement.read("files/take.mov") == Data([2]))
     }
+    @Test func aliasSpellingsAndCreationOrdersShareOneDirectoryObject() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "opencine-media-storage-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Physical hosts hand the same container root to different consumers under
+        // both `/var` and `/private/var` spellings; one directory object per root
+        // must survive every spelling and creation order.
+        let path = root.path
+        let aliasedPath: String
+        if path.hasPrefix("/private/var/") { aliasedPath = String(path.dropFirst("/private".count)) }
+        else if path.hasPrefix("/var/") { aliasedPath = "/private" + path }
+        else { aliasedPath = path }
+        let storage = MonitorMediaCacheStorage()
+        let before = storage.directory(root: URL(fileURLWithPath: aliasedPath))
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let after = storage.directory(root: root)
+        #expect(before === after)
+        try before.write(Data([1]), at: "files/take.mov")
+        #expect(try after.read("files/take.mov") == Data([1]))
+    }
 }

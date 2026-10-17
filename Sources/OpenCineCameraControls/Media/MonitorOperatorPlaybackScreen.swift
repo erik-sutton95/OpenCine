@@ -26,6 +26,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
     private let nativeAssists: (MonitorMediaPlaybackModel<Payload, Look>) -> (any MonitorPlaybackAssistService)?
     private let readScopes: (() -> ScopeAssistBundle)?
     private let configureDisplay: @MainActor (MTKView) -> MonitorScopeDisplayOptions
+    private let sourceCurrent: @MainActor () -> Bool
     private let close: () -> Void
     private let share: ((MonitorMediaRecord<Payload>) -> Void)?
     private let picture: (MonitorMediaPlaybackModel<Payload, Look>, MonitorFrameEffects) -> Picture
@@ -55,6 +56,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         nativeAssists: @escaping (MonitorMediaPlaybackModel<Payload, Look>) -> (any MonitorPlaybackAssistService)?,
         readScopes: (() -> ScopeAssistBundle)? = nil,
         configureDisplay: @escaping @MainActor (MTKView) -> MonitorScopeDisplayOptions = { _ in .sdr },
+        sourceCurrent: @escaping @MainActor () -> Bool = { true },
         close: @escaping () -> Void, share: ((MonitorMediaRecord<Payload>) -> Void)? = nil,
         onGeometry: @escaping (MonitorPlaybackPictureGeometry) -> Void = { _ in },
         onShareButtonFrame: @escaping (CGRect) -> Void = { _ in }, initialRatingShadeOpen: Bool = false,
@@ -69,7 +71,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         self.cacheOriginal = cacheOriginal; self.deliveryPresented = deliveryPresented
         self.operations = operations; self.source = source; self.nativeAssists = nativeAssists
         self.readScopes = readScopes; self.configureDisplay = configureDisplay
-        self.close = close; self.share = share; self.onGeometry = onGeometry
+        self.sourceCurrent = sourceCurrent; self.close = close; self.share = share; self.onGeometry = onGeometry
         self.onShareButtonFrame = onShareButtonFrame; self.initialRatingShadeOpen = initialRatingShadeOpen
         self.signalOptions = signalOptions; self.availableAssistTools = availableAssistTools
         self.initialChromeVisible = initialChromeVisible; self.loopAvailable = loopAvailable
@@ -102,7 +104,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             assist?.gradesClip = true
             if !opened { model.ratingShadeOpen = initialRatingShadeOpen }
             model.setPlayerVisible(true); model.setSceneActive(scenePhase == .active)
-            opened = model.open(initial.record, playlist: initial.playlist, admitted: initial.admission)
+            opened = sourceCurrent() && model.open(initial.record, playlist: initial.playlist, admitted: initial.admission)
             model.setDeliveryPresented(deliveryPresented)
             if let player { nativeAssists(player)?.activate() }
             synchronize()
@@ -116,24 +118,35 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         .onChange(of: scenePhase) { _, phase in model.setSceneActive(phase == .active) }
         .onChange(of: deliveryPresented) { _, value in model.setDeliveryPresented(value) }
         .onChange(of: player?.token) { _, _ in synchronize() }
+        .onChange(of: sourceCurrent()) { _, current in
+            if !current { retirePlayer() }
+        }
         .onChange(of: player == nil) { _, missing in
-            if missing, opened, model.playback == nil { close() }
+            if missing, opened, model.playback == nil, sourceCurrent() { close() }
         }
     }
 
     private var playbackContent: some View {
         Group {
-            if let player {
+            if sourceCurrent(), let player, model.isCurrent(player.token) {
                 playbackCanvas(player)
-            } else { Color.black }
+            } else { MonitorOperatorMediaUnavailable(close: back) }
         }
+    }
+
+    private func retirePlayer() {
+        let previous = player.flatMap(nativeAssists)
+        model.closePlayback()
+        previous?.close()
     }
 
     private func playbackCanvas(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
         MonitorPlaybackScreen(value: presentation(player), actions: actions(player),
             coverPresented: deliveryPresented, onGeometry: onGeometry,
             onBarFrame: { barFrame = $0 },
-            slots: .init(headerAccessory: { AnyView(ratingShade(player)) }, onShareButtonFrame: onShareButtonFrame),
+            slots: .init(headerAccessory: { AnyView(ratingDetails(player)) },
+                onShareButtonFrame: onShareButtonFrame,
+                headerActionAccessory: { AnyView(ratingAnchor(player)) }),
             picture: { picture(player, effects) },
             feedAssists: { rect in feedMarks(rect) },
             canvasAssists: { size, rect in canvasAssists(size, rect, player: player) },
@@ -141,22 +154,29 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             .overlay { playbackInspector(player) }
     }
 
-    @ViewBuilder private func ratingShade(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
+    @ViewBuilder private func ratingAnchor(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
+        if operations.rating != nil {
+            MonitorPlaybackRatingAnchor(stars: model.ratingStars,
+                expanded: Binding(get: { model.ratingShadeOpen }, set: { model.ratingShadeOpen = $0 }))
+        }
+    }
+    @ViewBuilder private func ratingDetails(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
         if let rating = operations.rating {
-            MonitorPlaybackRatingShade(stars: model.ratingStars, levels: rating.levels,
+            MonitorPlaybackRatingDetails(stars: model.ratingStars, levels: rating.levels,
                 enabled: model.isCurrent(player.token), notice: model.ratingNotice,
-                expanded: Binding(get: { model.ratingShadeOpen }, set: { model.ratingShadeOpen = $0 }),
+                expanded: model.ratingShadeOpen,
                 select: { model.setRating($0, service: rating) })
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
     @ViewBuilder private func playbackInspector(_ player: MonitorMediaPlaybackModel<Payload, Look>) -> some View {
-        if let assist, let tool = assist.configureTool, hasOptions(tool) {
+        if let assist, let tool = assist.configureTool, availableTools.contains(tool), hasOptions(tool) {
             GeometryReader { proxy in
                 let values = sourceValues
                 MonitorOperatorAssistInspector(tool: tool, assist: assist, stores: stores,
                         looks: looks, palette: Palette.self, haptics: haptics,
-                        transfer: values.transfer ?? player.transfer ?? effects.transfer,
+                        sourceTransfer: values.resolvedTransfer(fallback: player.transfer ?? effects.transfer),
                         clipByte: values.clipByte ?? effects.resolvedClipByte, viewport: proxy.size,
                         safeArea: OperatorPanelMetrics.resolvedDeviceSafeArea(
                             proxy.safeAreaInsets, window: windowGeometry.safeArea),
@@ -181,7 +201,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         guard model.isCurrent(token), let player else { return }; action(player)
     }
     private func actions(_ owner: MonitorMediaPlaybackModel<Payload, Look>) -> MonitorPlaybackActions {
-        .init(back: back,
+        var result = MonitorPlaybackActions(back: back,
             play: { token, value in current(token) { $0.setPlaying(value) } },
             restart: { current($0) { $0.restart() } }, seekBy: { token, delta in current(token) { $0.seek(by: delta) } },
             mute: { token, value in current(token) { $0.setMuted(value) } },
@@ -206,6 +226,14 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             updateFrameScrub: { owner.updateFrameScrub(delta: $1, width: $2, admitted: $0) },
             commitScrub: { owner.commitScrub(admitted: $0) },
             cancelScrub: { owner.cancelScrub(interrupted: $1 == .interrupted, admitted: $0) })
+        if operations.captureDeletion != nil, mayDelete(owner.active) {
+            result.deletionConfirmation = .init(
+                capture: { model.captureDeletion(admitted: $0, operations: operations) },
+                isCurrent: { model.isDeletionCurrent(admitted: $0) },
+                confirm: { model.confirmDeletion(admitted: $0) },
+                cancel: { model.cancelDeletion(admitted: $0) })
+        }
+        return result
     }
 
     private func mayDelete(_ record: MonitorMediaRecord<Payload>?) -> Bool {
@@ -231,6 +259,14 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         let rect = DesqueezeAssist.presentationRect(sourceSize: size,
             in: CGRect(x: 0, y: 0, width: 1000, height: 1000), effects: effects)
         let duration = player.duration ?? asset.durationSeconds ?? 0
+        let buffered: Double
+        if let through = values.bufferedThroughSeconds {
+            if player.ready, through.isFinite, through >= 0,
+                let nativeDuration = player.metadata.duration,
+                nativeDuration.isFinite, nativeDuration > 0
+            { buffered = min(through, nativeDuration) }
+            else { buffered = 0 }
+        } else { buffered = values.buffered ?? 0 }
         let position = player.scrubbing ? player.scrubPosition : player.position
         let bytes = asset.representations.first { $0.role == .original }?.byteCount
         let byteLabel = bytes.map(MediaClipFormatting.byteLabel)
@@ -251,7 +287,7 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             metadata: metadata, aspect: Double(rect.width / max(1, rect.height)),
             mirrorHorizontal: effects.mirror, mirrorVertical: effects.mirrorVertical,
             ready: player.ready, error: player.error ?? (player.closed ? "This clip is not cached on the phone." : nil), progress: values.progress,
-            position: position, duration: duration, buffered: values.buffered ?? 0,
+            position: position, duration: duration, buffered: buffered,
             positionLabel: time(position, player: player), durationLabel: time(duration, player: player),
             playing: player.canPause && !player.scrubbing,
             reachedEnd: player.reachedEnd, scrubbing: player.scrubbing, muted: player.muted,
@@ -297,15 +333,16 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
             if let readScopes {
                 MonitorScopeOverlays(assist: assist, stores: stores, haptics: haptics, canvas: canvas,
                     feed: rect, chromeClearance: clearance, readBundle: readScopes,
-                    configureDisplay: configureDisplay, playback: true, paradeIntensityScale: paradeIntensityScale)
+                    configureDisplay: configureDisplay, playback: true, available: Set(availableTools), paradeIntensityScale: paradeIntensityScale)
             }
             if assist.isPlaybackVisible(.audioMeters), let levels = nativeAssists(player)?.audioLevels {
                 AudioMeterOverlay(stores: stores, levels: levels, sensitivity: nil, bounds: canvas,
                     chromeClearance: clearance, hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.audioMeters) })
             }
-            if assist.isPlaybackVisible(.falseColor), assist.falseColorReference, signalOptions.referenceAvailable != false {
+            if assist.isPlaybackVisible(.falseColor), availableTools.contains(.falseColor), assist.falseColorReference, signalOptions.referenceAvailable != false,
+                let transfer = sourceValues.resolvedTransfer(fallback: player.transfer ?? effects.transfer) {
                 FalseColorReferenceOverlay(stores: stores, looks: looks, scale: assist.falseColorScale,
-                    transfer: sourceValues.transfer ?? player.transfer ?? effects.transfer,
+                    transfer: transfer,
                     rec709: assist.falseColorRec709, clipByte: sourceValues.clipByte ?? effects.resolvedClipByte, bounds: canvas,
                     chromeClearance: clearance, hapticsEnabled: haptics.isEnabled(), onConfigure: { options(.falseColor) },
                     referenceValues: signalOptions.reference)
@@ -316,7 +353,8 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
         guard assist != nil else { return [] }
         let scopes: Set<MonitorAssistSelection> = [.waveform, .parade, .histogram, .vectorscope, .trafficLights, .ndMeter]
         return MonitorAssistSelection.playbackToolbarCases.filter {
-            (availableAssistTools?.contains($0) ?? true) && ($0 != .audioMeters || (stores != nil && player.flatMap(nativeAssists) != nil))
+            (availableAssistTools?.contains($0) ?? true)
+                && (sourceValues.allowsSignalFallback || sourceValues.transfer != nil || ![MonitorAssistSelection.falseColor, .zebra, .trafficLights, .ndMeter].contains($0)) && ($0 != .audioMeters || (stores != nil && player.flatMap(nativeAssists) != nil))
                 && ((stores != nil && readScopes != nil) || !scopes.contains($0))
         }
     }
@@ -346,6 +384,28 @@ public struct MonitorOperatorPlaybackScreen<Payload: Sendable, Look: Sendable,
                 .frame(width: context.presentation.viewport.width, height: context.presentation.viewport.height, alignment: .topLeading)
                 .onAppear { toolbarFrame = frame.cgRect }
         }
+    }
+}
+/// Shared return surface for a refused or retired media source. Close remains independent
+/// of source admission, so an unavailable item cannot trap the operator in its cover.
+public struct MonitorOperatorMediaUnavailable: View {
+    private let closeEnabled: Bool
+    private let close: @MainActor () -> Void
+    public init(closeEnabled: Bool = true, close: @escaping @MainActor () -> Void) {
+        self.closeEnabled = closeEnabled; self.close = close
+    }
+    public var body: some View {
+        VStack(spacing: 16) {
+            Text("Media unavailable").font(MonitorTheme.font(20, weight: .semibold))
+                .foregroundStyle(MonitorTheme.text).accessibilityIdentifier("monitor.media.unavailable")
+            Text("This media is no longer available.").font(MonitorTheme.font(14, weight: .medium))
+                .foregroundStyle(MonitorTheme.muted).multilineTextAlignment(.center)
+            Button("Close", action: close).font(MonitorTheme.font(14, weight: .semibold))
+                .foregroundStyle(MonitorTheme.text).padding(.horizontal, 24).padding(.vertical, 14)
+                .background(MonitorTheme.surface, in: Capsule()).buttonStyle(.monitorTapTarget)
+                .disabled(!closeEnabled).accessibilityIdentifier("monitor.media.unavailable.close")
+        }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.black).ignoresSafeArea().statusBarHidden().preferredColorScheme(.dark)
     }
 }
 #endif

@@ -83,6 +83,10 @@ public final class LunaCameraBackend: CameraBackend {
         let timeout: Task<Void, Never>
     }
     private var pending: [UInt32: Pending] = [:]
+    #if DEBUG
+        /// Debug review harnesses only: the SIMULATED camera behind the control link.
+        private var reviewCamera: LunaReviewCamera?
+    #endif
 
     /// Existing-network mode serves a Mac/Simulator already on the camera AP.
     public init(
@@ -381,7 +385,22 @@ public final class LunaCameraBackend: CameraBackend {
         await refreshStatus()
     }
 
+    #if DEBUG
+        /// Debug review harnesses only: `camera` stands behind the control link as a connected,
+        /// approved camera (`isControlReady`) and answers every request, so the session and media
+        /// service this backend opens run for real without a network. `disconnect()` drops it.
+        public func connect(review camera: LunaReviewCamera) {
+            disconnect()
+            reviewCamera = camera
+            isTCP = true
+            handshakeComplete = true
+        }
+    #endif
+
     public func disconnect() {
+        #if DEBUG
+            reviewCamera = nil
+        #endif
         session?.retireCommandSource()
         connectedMedia?.retire()
         generation += 1
@@ -621,6 +640,13 @@ public final class LunaCameraBackend: CameraBackend {
         didDispatch: LunaCommandDidDispatch?
     ) async throws -> Data {
         if let admission { try admission.require(owner: session?.commandOwner) }
+        #if DEBUG
+            if let reviewCamera {
+                let current = try build?() ?? request
+                didDispatch?()
+                return try reviewCamera.answer(current)
+            }
+        #endif
         guard isTCP || !request.requiresEncryption || sessionKey != nil else {
             throw ConnectionFailure.lunaLinkClosed
         }

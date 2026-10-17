@@ -12,26 +12,21 @@
   "refs": [
     {
       "name": "main",
-      "commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
+      "commit": "5e57d277cb301a846de9f0a2c0e97b217f6acffc",
       "role": "baseline"
     },
     {
       "name": "opencine/integration",
       "commit": "de40e9291fe433012f8f535cb3e91d0217822256",
       "role": "candidate"
+    },
+    {
+      "name": "pre-migration",
+      "commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
+      "role": "candidate"
     }
   ],
   "products": [
-    {
-      "name": "MonitorPresentation",
-      "kind": "swift-library",
-      "manifest": "Package.swift"
-    },
-    {
-      "name": "MonitorUI",
-      "kind": "swift-library",
-      "manifest": "Package.swift"
-    },
     {
       "name": "OpenPocketViewCore",
       "kind": "swift-library",
@@ -56,16 +51,6 @@
       "name": ":app",
       "kind": "gradle-module",
       "manifest": "Apps/Android/settings.gradle.kts"
-    },
-    {
-      "name": ":core-api",
-      "kind": "gradle-module",
-      "manifest": "Apps/Android/settings.gradle.kts"
-    },
-    {
-      "name": ":monitor-ui",
-      "kind": "gradle-module",
-      "manifest": "Apps/Android/settings.gradle.kts"
     }
   ],
   "instructions": [
@@ -77,7 +62,7 @@
     {
       "to": "openzcine",
       "kind": "source-copy",
-      "status": "live",
+      "status": "candidate",
       "confidence": "confirmed",
       "platforms": [
         "apple",
@@ -92,48 +77,61 @@
         "path": "THIRD-PARTY-NOTICES.md",
         "source_commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7"
       },
-      "note": "Cube parser adapted from OpenZCine; donor revision not recorded"
+      "note": "Cube parser adapted from OpenZCine; donor revision not recorded. Historical pre-migration provenance; shared implementations now come from the OpenCine library edge. Residual host similarity must be measured at main, not resynced from this archived scope.",
+      "ref": "pre-migration"
     },
     {
       "to": "opencine",
       "kind": "library",
-      "status": "candidate",
+      "status": "live",
       "confidence": "confirmed",
-      "ref": "opencine/integration",
+      "ref": "main",
       "platforms": [
         "apple",
         "android"
       ],
       "products": [
-        "OpenCineCore",
-        "OpenCineMedia",
-        "OpenCineFrameIO",
-        "OpenCineMotion",
-        "OpenCineRelay",
-        "OpenCineRelayApple",
-        "OpenCineApple",
-        "MonitorPresentation",
-        "MonitorUI",
-        "OpenCineMulticam",
-        "OpenCineDJI",
-        "OpenCineDJIAndroid",
+        ":appkit",
+        ":camera-controls",
         ":core",
         ":decoder",
         ":dji",
         ":media",
         ":monitor-ui",
         ":multicam",
-        ":vulkan"
+        ":native-runtime",
+        ":platform",
+        ":vulkan",
+        "MonitorPresentation",
+        "MonitorUI",
+        "OpenCineAppKit",
+        "OpenCineAppKitApple",
+        "OpenCineAppUITesting",
+        "OpenCineApple",
+        "OpenCineCameraControls",
+        "OpenCineCameraVocabulary",
+        "OpenCineCore",
+        "OpenCineDJI",
+        "OpenCineDJIAndroid",
+        "OpenCineDJIApple",
+        "OpenCineFrameIO",
+        "OpenCineJNISupport",
+        "OpenCineMedia",
+        "OpenCineMotion",
+        "OpenCineMulticam",
+        "OpenCineRelay",
+        "OpenCineRelayApple",
+        "OpenCineWatch"
       ],
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "de40e9291fe433012f8f535cb3e91d0217822256"
+        "source_commit": "5e57d277cb301a846de9f0a2c0e97b217f6acffc"
       },
-      "note": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt"
+      "note": "Public main consumes the one sibling OpenCine package and included Android build; exact shared revision is in opencine-pins.txt. Formal package distribution is tracked separately."
     }
   ],
   "summary_review": {
-    "source_commit": "27b15028e86d93798c802ddb56c7c474a30bb4c7",
-    "reviewed_at": "2026-10-01T17:39:17Z"
+    "source_commit": "5e57d277cb301a846de9f0a2c0e97b217f6acffc",
+    "reviewed_at": "2026-10-11T20:13:31Z"
   }
 }

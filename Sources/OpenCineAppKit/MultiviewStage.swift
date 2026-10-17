@@ -1,4 +1,5 @@
 import Foundation
+import MonitorPresentation
 import OpenCineCore
 import OpenCineMulticam
 
@@ -78,9 +79,12 @@ public struct MultiviewTile: Hashable, Sendable {
     public var model: String
     /// Resolution, rate and look, on roomy tiles and in the options.
     public var format: String
-    /// 0...100, `nil` when unknown.
+    /// 0...100, `nil` when unknown or when the source reports bars instead.
     public var battery: Int?
     public var charging: Bool
+    /// Filled steps of the source's coarse gauge, never an inferred percentage.
+    public var batteryBars: Int?
+    public var batteryBarCount: Int
     public var storage: String
     public var timecode: String?
     /// `MultiviewTally` copy, or the app's own.
@@ -108,7 +112,8 @@ public struct MultiviewTile: Hashable, Sendable {
 
     public init(
         name: String, model: String = "", format: String = "", battery: Int? = nil,
-        charging: Bool = false, storage: String = MultiviewTally.unavailable,
+        charging: Bool = false, batteryBars: Int? = nil, batteryBarCount: Int = 5,
+        storage: String = MultiviewTally.unavailable,
         timecode: String? = nil, tally: String = MultiviewTally.unavailable,
         recordingSince: Date? = nil, recording: Bool = false, lut: Bool = false,
         note: String? = nil, tileNote: String? = nil, readouts: [MultiviewReadout] = [], status: MultiviewTileStatus? = nil,
@@ -120,6 +125,8 @@ public struct MultiviewTile: Hashable, Sendable {
         self.format = format
         self.battery = battery
         self.charging = charging
+        self.batteryBars = batteryBars
+        self.batteryBarCount = batteryBarCount
         self.storage = storage
         self.timecode = timecode
         self.tally = tally
@@ -276,13 +283,20 @@ extension MultiviewTile {
                 (MultiviewTileStatus(text: "Waiting for the camera", inProgress: true),
                  "Waiting for the camera")
             }
+        let battery = snapshot?.power.batteryReading
+        let percent: Int?, bars: Int?, barCount: Int
+        switch battery {
+        case .fraction(let value)?: (percent, bars, barCount) = (Int((value * 100).rounded()), nil, 5)
+        case .steps(let filled, let count)?: (percent, bars, barCount) = (nil, filled, count)
+        case nil: (percent, bars, barCount) = (nil, nil, 5)
+        }
         self.init(
             name: entry.name,
-            battery: snapshot?.power.battery.value.map { Int(($0 * 100).rounded()) },
+            battery: percent,
             charging: snapshot?.power.charging.value ?? false,
-            timecode: snapshot?.timecode.value.map {
-                String(format: "%02d:%02d:%02d", $0.hours, $0.minutes, $0.seconds)
-            },
+            batteryBars: bars,
+            batteryBarCount: barCount,
+            timecode: MonitorTimecodeFormat.label(snapshot),
             tally: MultiviewTally.text(
                 recording: recording, waiting: waiting,
                 failed: control.map { if case .disconnected = $0 { true } else { false } } ?? false),

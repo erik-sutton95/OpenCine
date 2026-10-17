@@ -210,6 +210,7 @@ public struct FeedIncidentRates: Equatable, Sendable, Codable {
     public var assistOutputHz: Double
     public var presentHz: Double
     public var ackHz: Double
+    public var observed: FeedIncidentRateObservation?
 
     public init(
         packetHz: Double = 0,
@@ -229,6 +230,20 @@ public struct FeedIncidentRates: Equatable, Sendable, Codable {
         self.assistOutputHz = FeedIncidentPrivacy.rate(assistOutputHz)
         self.presentHz = FeedIncidentPrivacy.rate(presentHz)
         self.ackHz = FeedIncidentPrivacy.rate(ackHz)
+        self.observed = nil
+    }
+
+    public init(
+        packetHz: Double = 0, accessUnitHz: Double = 0, decodeSubmitHz: Double = 0,
+        decodeAcceptHz: Double = 0, decodedOutputHz: Double = 0, assistOutputHz: Double = 0,
+        presentHz: Double = 0, ackHz: Double = 0, observed: FeedIncidentRateObservation
+    ) {
+        self.init(
+            packetHz: packetHz, accessUnitHz: accessUnitHz, decodeSubmitHz: decodeSubmitHz,
+            decodeAcceptHz: decodeAcceptHz, decodedOutputHz: decodedOutputHz,
+            assistOutputHz: assistOutputHz,
+            presentHz: presentHz, ackHz: ackHz)
+        self.observed = observed
     }
 }
 
@@ -315,6 +330,8 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
     public var lastIrapAge: TimeInterval?
     public var lastSuccessfulOutputAge: TimeInterval?
     public var rebuildReason: String?
+    /// Bitstream facts behind the first decoder error of the current error episode.
+    public var firstError: FeedIncidentDecodeErrorContext?
 
     public init(
         generation: Int = 0,
@@ -334,7 +351,8 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         hasDecodableReferences: Bool = true,
         lastIrapAge: TimeInterval? = nil,
         lastSuccessfulOutputAge: TimeInterval? = nil,
-        rebuildReason: String? = nil
+        rebuildReason: String? = nil,
+        firstError: FeedIncidentDecodeErrorContext? = nil
     ) {
         self.generation = max(0, generation)
         self.formatGeneration = max(0, formatGeneration)
@@ -354,7 +372,42 @@ public struct FeedIncidentDecoder: Equatable, Sendable, Codable {
         self.lastIrapAge = FeedIncidentPrivacy.age(lastIrapAge)
         self.lastSuccessfulOutputAge = FeedIncidentPrivacy.age(lastSuccessfulOutputAge)
         self.rebuildReason = rebuildReason.map { FeedIncidentPrivacy.token($0) }
+        self.firstError = firstError
     }
+}
+
+/// The access unit behind the first decoder error of an episode: NAL types in unit order, its
+/// size, how long since the last accepted IRAP and the last parameter-set change, and the
+/// access-unit rate over the second before it. Types, sizes, ages and rates only: no payload
+/// bytes and no user data. Apple fills it from VideoToolbox callbacks; MediaCodec reports
+/// failures per codec rather than per access unit, so Android producers leave it nil.
+public struct FeedIncidentDecodeErrorContext: Equatable, Sendable, Codable {
+    public var status: Int32
+    public var nalTypes: [Int]
+    public var accessUnitBytes: Int
+    public var irapAge: TimeInterval?
+    public var parameterSetChangeAge: TimeInterval?
+    public var inputHz: Double
+
+    public init(
+        status: Int32,
+        nalTypes: [Int],
+        accessUnitBytes: Int,
+        irapAge: TimeInterval? = nil,
+        parameterSetChangeAge: TimeInterval? = nil,
+        inputHz: Double = 0
+    ) {
+        self.status = status
+        self.nalTypes = nalTypes.prefix(FeedIncidentDecodeErrorContext.maxNalTypes).map {
+            min(max($0, 0), 63)
+        }
+        self.accessUnitBytes = max(0, accessUnitBytes)
+        self.irapAge = FeedIncidentPrivacy.age(irapAge)
+        self.parameterSetChangeAge = FeedIncidentPrivacy.age(parameterSetChangeAge)
+        self.inputHz = FeedIncidentPrivacy.rate(inputHz)
+    }
+
+    public static let maxNalTypes = 16
 }
 
 public struct FeedIncidentLifecycle: Equatable, Sendable, Codable {
@@ -453,10 +506,11 @@ public struct FeedIncidentSnapshot: Equatable, Sendable, Codable {
         diagnoserRepair: String = "none",
         ingress: FeedIncidentIngress?
     ) {
-        self.init(monotonicNow: monotonicNow, wallClock: wallClock, rates: rates,
-                  ages: ages, queue: queue, decoder: decoder, lifecycle: lifecycle,
-                  watchdogAction: watchdogAction, diagnoserFailure: diagnoserFailure,
-                  diagnoserRepair: diagnoserRepair)
+        self.init(
+            monotonicNow: monotonicNow, wallClock: wallClock, rates: rates,
+            ages: ages, queue: queue, decoder: decoder, lifecycle: lifecycle,
+            watchdogAction: watchdogAction, diagnoserFailure: diagnoserFailure,
+            diagnoserRepair: diagnoserRepair)
         self.ingress = ingress
     }
 }
@@ -487,7 +541,23 @@ public enum FeedIncidentNativeBreadcrumb: Sendable {
             "requested", "blocked", "locallySent", "peerResponse", "pictureRestored",
         ],
         "repairAction": ["decoder", "enable", "session", "endpoint", "rejoin"],
+        // Producers' reasons: RecoveryReason wires (Kotlin media), SessionRecoveryTrigger cases and
+        // the DJI shells' decoder and enable gates. Kotlin twin: the same set.
+        "repairReason": [
+            "bleDropped", "softAPLost", "datalinkLost", "operatorRetry", "feedWatchdogStall",
+            "commandTimeout", "firstPicture", "outputSilence", "referenceLoss", "notReady",
+            "overlap",
+            "playback", "path", "serialGate", "media", "watchdog", "pictureDeadline",
+            "outputResumed",
+            "udpAlive", "keyframeUnanswered", "videoLive", "presentationOnly", "decoderNotReady",
+            "pathNotReady", "cooldown", "enableGate",
+        ],
     ]
+
+    /// `value` when the `key` vocabulary holds it, else `other`: free text never leaves the phone.
+    public static func closed(_ key: String, _ value: String) -> String {
+        allowedValues[key]?.contains(value) == true ? value : "other"
+    }
 
     public static func isAllowedMessage(_ message: String) -> Bool {
         FeedIncidentBreadcrumbKind(rawValue: message) != nil || message == "repair"
@@ -542,9 +612,30 @@ public struct FeedRepairRecord: Equatable, Sendable, Codable {
         reason: String? = nil
     ) {
         self.monotonicAt = FeedIncidentPrivacy.stamp(monotonicAt)
-        self.action = FeedIncidentPrivacy.token(action, max: 32)
+        // Producers pass free text (a blocked enable's detail, a trigger's description), and the
+        // record reaches reports as trigger and recoveredBy: only the closed vocabulary is kept.
+        self.action = FeedIncidentNativeBreadcrumb.closed(
+            "repairAction", FeedIncidentPrivacy.token(action, max: 32))
         self.phase = phase
-        self.reason = reason.map { FeedIncidentPrivacy.token($0, max: 32) }
+        self.reason = reason.map {
+            FeedIncidentNativeBreadcrumb.closed(
+                "repairReason", FeedIncidentPrivacy.token($0, max: 32))
+        }
+    }
+
+    /// A caller can mutate public fields after construction; close again at reporting boundaries.
+    public func closed() -> FeedRepairRecord {
+        FeedRepairRecord(monotonicAt: monotonicAt, action: action, phase: phase, reason: reason)
+    }
+
+    /// A stored record (an older build's spool included) is closed like a new one.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            monotonicAt: try container.decode(TimeInterval.self, forKey: .monotonicAt),
+            action: try container.decode(String.self, forKey: .action),
+            phase: try container.decode(FeedRepairPhase.self, forKey: .phase),
+            reason: try container.decodeIfPresent(String.self, forKey: .reason))
     }
 }
 

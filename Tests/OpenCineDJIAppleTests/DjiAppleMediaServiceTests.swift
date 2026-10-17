@@ -264,7 +264,8 @@ import Testing
         #expect(capture.file.filename == "DJI_20260814125250_0034_D.MP4")
         #expect(capture.file.fps == 25 && capture.file.resolution == "3840x2160")
         #expect(asset.frameRate == 25 && asset.pixelSize == .init(width: 3840, height: 2160))
-        #expect(asset.colorLabel == nil && page.volumes == nil && asset.deletable == nil)
+        #expect(asset.colorLabel == nil && page.volumes == nil)
+        #expect(asset.deletable == capture.file.isDeletable)
         #expect(try await cursor.next() == nil)
         service.retire()
     }
@@ -448,6 +449,14 @@ import Testing
         #expect(MediaListCommand.pageKey(recycled) == MediaListCommand.pageKey(captured.file))
         #expect(DjiAppleMediaAssets.asset(for: recycled).id != asset.id)
         service.retire()
+    }
+    @Test func assetIsDeletableExactlyWhenItsFileHasAnOwnHandle() {
+        let file = MediaFile(path: "DCIM/DJI_001/DJI_20260912120000_0001_D.MP4", thumbPath: "", handle: 7)
+        #expect(DjiAppleMediaAssets.asset(for: file).deletable == true)
+        var shared = file; shared.handleShared = true
+        #expect(DjiAppleMediaAssets.asset(for: shared).deletable == false)
+        var unknown = file; unknown.handle = 0
+        #expect(DjiAppleMediaAssets.asset(for: unknown).deletable == false)
     }
     @Test func newestPageRemovesOnlyOldContentProvenAtTheSamePageKey() async throws {
         let peer = MediaPeer(), clock = MediaClock(), service = owner(peer, clock)

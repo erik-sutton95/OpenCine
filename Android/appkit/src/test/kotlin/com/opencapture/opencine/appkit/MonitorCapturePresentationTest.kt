@@ -2,6 +2,8 @@ package com.opencapture.opencine.appkit
 
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.CommandStage
+import com.opencapture.opencine.core.Rational
+import com.opencapture.opencine.core.SettingDescriptor
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
@@ -20,12 +22,24 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /** SIMULATED descriptor and confirmation scenarios; Swift mirrors the same names. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorCapturePresentationTest {
+    /** A5-09: one frame-rate label for every integration; the NTSC family keeps its decimals. */
+    @Test fun frameRateLabelsKeepTheExactRate() {
+        val table = listOf(
+            Rational(24000, 1001) to "23.98", Rational(24) to "24", Rational(25) to "25",
+            Rational(30000, 1001) to "29.97", Rational(60000, 1001) to "59.94",
+            Rational(120000, 1001) to "119.88", Rational(50) to "50",
+        )
+        for ((rate, label) in table) assertEquals(label, MonitorCapturePresentation.label(SettingValue.FrameRate(rate)), "$rate")
+        assertEquals("FPS", MonitorCapturePresentation.title(SettingKey.FRAME_RATE))
+    }
+
     @Test fun commonExposureAndFocusLabelsPreserveTypedDomainValues() {
         val values = listOf(
             SettingValue.ExposureCompensation(com.opencapture.opencine.core.Rational(-1, 3)),
@@ -120,6 +134,69 @@ class MonitorCapturePresentationTest {
         assertTrue(camera.wire.isEmpty())
     }
 
+    /**
+     * R-03: a recomposition reads the same drum, built once per domain. The base rebuilt every Kelvin
+     * detent (up to a thousand, with a quadratic membership scan) on each read.
+     */
+    @Test fun aFieldsDrumIsBuiltOncePerDomain() = runTest {
+        val camera = FakeCameraSession.lunaLike()
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        runCurrent()
+        val first = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE)).choices
+        assertEquals(40, first.size, "Auto plus 39 detents")
+        assertSame(first, assertNotNull(control.captureField(SettingKey.WHITE_BALANCE)).choices)
+    }
+
+    /** R-03: a thousand-step Kelvin domain keeps the explicit choices first and adds each detent once. */
+    @Test fun aThousandStepKelvinDomainKeepsOrderWithoutDuplicates() {
+        val explicit = listOf(
+            SettingValue.WhiteBalance(WhiteBalanceValue.Auto), SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(5600)),
+            SettingValue.WhiteBalance(WhiteBalanceValue.Preset("Sunny")),
+        )
+        val values = MonitorCapturePresentation.choices(SettingKey.WHITE_BALANCE,
+            SettingDomain(explicit, 1000.0..101_000.0, 100.0)).map { it.value }
+        assertEquals(3 + 1000, values.size, "1001 detents, 5600 K already listed")
+        assertEquals(values.size, values.toSet().size)
+        assertEquals(explicit, values.take(3))
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(1000)), values[3])
+        assertEquals(SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(101_000)), values.last())
+    }
+
+    /**
+     * R-03: the cache keys on everything a drum is built from, the key and the advertised domain (its
+     * listed values, range and step). A camera that re-advertises its list over the same range
+     * rebuilds the drum, and the shown value is read fresh on every pass, never cached.
+     */
+    @Test fun aReadvertisedListRebuildsTheDrumAndTheShownValueStaysLive() = runTest {
+        val luna = FakeCameraSession.lunaLike()
+        val video = assertNotNull(luna.behavior.modes[0x01])
+        val presets = video.copy(descriptors = video.descriptors.map {
+            if (it.key != SettingKey.WHITE_BALANCE) it
+            else SettingDescriptor(SettingKey.WHITE_BALANCE, domain = SettingDomain(
+                listOf(SettingValue.WhiteBalance(WhiteBalanceValue.Auto), SettingValue.WhiteBalance(WhiteBalanceValue.Preset("Sunny"))),
+                2700.0..6500.0, 100.0))
+        })
+        val camera = FakeCameraSession(luna.behavior.copy(modes = luna.behavior.modes + (0x02 to presets)), luna.device)
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        runCurrent()
+        val field = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE))
+        assertEquals(40, field.choices.size)
+        assertEquals("4000K", field.label)
+        val kelvin = SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(5600))
+        assertTrue(control.commit(field.choices.first { it.value == kelvin }, field))
+        val shown = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE))
+        assertEquals("5600K", shown.label)
+        assertSame(field.choices, shown.choices)
+        camera.cameraSwitchesMode(0x02); runCurrent()
+        val readvertised = assertNotNull(control.captureField(SettingKey.WHITE_BALANCE)).choices
+        assertEquals(41, readvertised.size)
+        assertEquals(listOf("Auto", "Sunny"), readvertised.take(2).map { it.label })
+    }
+
     @Test fun kelvinDetentsHonorAnExplicitCameraStepAndBoundAllocation() {
         val values = MonitorCapturePresentation.choices(SettingKey.WHITE_BALANCE,
             SettingDomain(listOf(SettingValue.WhiteBalance(WhiteBalanceValue.Auto)), 2000.0..2200.0, 50.0))
@@ -172,31 +249,12 @@ class MonitorCapturePresentationTest {
         assertEquals(listOf("record-start"), camera.wire)
     }
 
-    @Test fun explicitTargetApprovalNeverInvertsWhenTheCameraStartsMeanwhile() = runTest {
+    @Test fun approvalRetiresWithUnknownModeAndReplacement() = runTest {
         val camera = FakeCameraSession.lunaLike()
         camera.cameraReportsStatus()
         val control = MonitorControlModel(backgroundScope)
         control.bind(camera)
-        val approval = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
-        control.record(true); runCurrent()
-        camera.advance(3.seconds); runCurrent()
-        assertTrue(control.canCommitRecord(approval))
-        assertTrue(control.commitRecord(approval)); runCurrent()
-        assertFalse(control.state.value.recordPending)
-        assertEquals(listOf("record-start"), camera.wire)
-        val stop = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
-        camera.setAuthority(ControlAuthority.ReadOnly); runCurrent()
-        assertFalse(control.canCommitRecord(stop))
-        assertFalse(control.commitRecord(stop))
-        assertEquals(listOf("record-start"), camera.wire)
-    }
-
-    @Test fun explicitApprovalRetiresWithUnknownModeAndReplacement() = runTest {
-        val camera = FakeCameraSession.lunaLike()
-        camera.cameraReportsStatus()
-        val control = MonitorControlModel(backgroundScope)
-        control.bind(camera)
-        val approval = assertNotNull(control.recordEditor(MonitorControlModel.RecordConfirmationPolicy.EXPLICIT_TARGET))
+        val approval = assertNotNull(control.recordEditor())
         camera.cameraSwitchesMode(0xff); runCurrent()
         assertFalse(control.canCommitRecord(approval))
         assertFalse(control.commitRecord(approval))

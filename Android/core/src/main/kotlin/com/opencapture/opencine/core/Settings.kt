@@ -31,6 +31,23 @@ public class Rational(numerator: Int, denominator: Int = 1) {
     override fun hashCode(): Int = 31 * numerator + denominator
 
     override fun toString(): String = "$numerator/$denominator"
+
+    public companion object {
+        /**
+         * The exact rate for a source that reports frames per second as a decimal: whole rates stay
+         * whole, the NTSC family (23.976, 29.97, 59.94, ...) is N*1000/1001, anything else keeps
+         * thousandths. `null` when not a positive finite rate. Swift twin: `Rational.frameRate`.
+         */
+        public fun frameRate(framesPerSecond: Double): Rational? {
+            if (!framesPerSecond.isFinite() || framesPerSecond <= 0 || framesPerSecond >= 100_000) return null
+            // Half up, as Swift's rounded() for positive values.
+            val whole = Math.round(framesPerSecond)
+            if (abs(framesPerSecond - whole) < 0.005) return Rational(whole.toInt())
+            val ntsc = Math.round(framesPerSecond * 1.001)
+            if (abs(framesPerSecond - ntsc / 1.001) < 0.005) return Rational(ntsc.toInt() * 1000, 1001)
+            return Rational(Math.round(framesPerSecond * 1000).toInt(), 1000)
+        }
+    }
 }
 
 /**
@@ -178,6 +195,43 @@ public enum class SupportStatus {
     UNKNOWN,
 }
 
+/**
+ * How precisely a source counts its timecode. Shared formatting follows it, so a seconds-only
+ * source never shows a frame field and a frame-counting source never loses one.
+ */
+public sealed interface TimecodePrecision {
+    /** Whole seconds only (a host clock, or a counter whose frame field is not proven per frame). */
+    public data object Seconds : TimecodePrecision
+
+    /** Frames at [rate]. [dropFrame] is `null` when the camera does not say. */
+    public data class Frames(public val rate: Rational, public val dropFrame: Boolean? = null) : TimecodePrecision
+}
+
+/**
+ * Support for [CameraSnapshot.timecode] plus its declared precision. [precision] is `null` while
+ * support is not [SupportStatus.SUPPORTED] or the source has not said how it counts.
+ */
+public class TimecodeCapability(
+    public val support: SupportStatus = SupportStatus.UNKNOWN,
+    precision: TimecodePrecision? = null,
+) {
+    public val precision: TimecodePrecision? = precision.takeIf { support == SupportStatus.SUPPORTED }
+
+    override fun equals(other: Any?): Boolean =
+        other is TimecodeCapability && support == other.support && precision == other.precision
+
+    override fun hashCode(): Int = 31 * support.hashCode() + precision.hashCode()
+
+    override fun toString(): String = "TimecodeCapability(support=$support, precision=$precision)"
+
+    public companion object {
+        public val unknown: TimecodeCapability = TimecodeCapability()
+        public val unsupported: TimecodeCapability = TimecodeCapability(SupportStatus.UNSUPPORTED)
+        public fun supported(precision: TimecodePrecision?): TimecodeCapability =
+            TimecodeCapability(SupportStatus.SUPPORTED, precision)
+    }
+}
+
 public enum class SettingAccess { READ_ONLY, READ_WRITE }
 
 public sealed interface UnavailableReason {
@@ -246,15 +300,50 @@ public data class SettingDescriptor(
  * settings. A key that is neither described nor listed as unsupported has unknown support.
  * Missing groups (no aperture, say) never block the rest.
  */
-public data class CapabilitySnapshot(
-    public val revision: CapabilityRevision = CapabilityRevision(),
-    public val descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
-    public val unsupported: Set<SettingKey> = emptySet(),
-    /** Whether the camera reports [CameraSnapshot.timecode]. */
-    public val timecode: SupportStatus = SupportStatus.UNKNOWN,
-    /** Whether the camera reports live [CameraSnapshot.audioLevels]. */
-    public val audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+@ConsistentCopyVisibility
+public data class CapabilitySnapshot private constructor(
+    public val revision: CapabilityRevision,
+    public val descriptors: Map<SettingKey, SettingDescriptor>,
+    public val unsupported: Set<SettingKey>,
+    public val timecode: SupportStatus,
+    public val audioLevels: SupportStatus,
+    public val timecodeCapability: TimecodeCapability,
 ) {
+    /** Retain the published JVM zero-argument constructor as well as Kotlin default calls. */
+    public constructor() : this(CapabilityRevision(), emptyMap(), emptySet(), SupportStatus.UNKNOWN, SupportStatus.UNKNOWN)
+
+    /** The published constructor retains its parameter order and value types. */
+    public constructor(
+        revision: CapabilityRevision = CapabilityRevision(),
+        descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
+        unsupported: Set<SettingKey> = emptySet(),
+        timecode: SupportStatus = SupportStatus.UNKNOWN,
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(revision, descriptors, unsupported, timecode, audioLevels, TimecodeCapability(timecode))
+
+    /** Copy the published fields without losing an unchanged precision-rich reading. */
+    public fun copy(
+        revision: CapabilityRevision = this.revision,
+        descriptors: Map<SettingKey, SettingDescriptor> = this.descriptors,
+        unsupported: Set<SettingKey> = this.unsupported,
+        timecode: SupportStatus = this.timecode,
+        audioLevels: SupportStatus = this.audioLevels,
+    ): CapabilitySnapshot = CapabilitySnapshot(revision, descriptors, unsupported, timecode, audioLevels,
+        if (timecode == this.timecode) timecodeCapability else TimecodeCapability(timecode))
+
+    /** Replace the precise value, projecting the legacy field only when representable. */
+    public fun withTimecodeCapability(value: TimecodeCapability): CapabilitySnapshot =
+        CapabilitySnapshot(revision, descriptors, unsupported, value.support, audioLevels, value)
+
+    /** Support and precision use a distinct, required label beside the support-only constructor. */
+    public constructor(
+        timecodeCapability: TimecodeCapability,
+        revision: CapabilityRevision = CapabilityRevision(),
+        descriptors: Map<SettingKey, SettingDescriptor> = emptyMap(),
+        unsupported: Set<SettingKey> = emptySet(),
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(revision, descriptors, unsupported, timecodeCapability.support, audioLevels, timecodeCapability)
+
     /** Later descriptors for the same key replace earlier ones. */
     public constructor(
         revision: CapabilityRevision = CapabilityRevision(),
@@ -263,6 +352,14 @@ public data class CapabilitySnapshot(
         timecode: SupportStatus = SupportStatus.UNKNOWN,
         audioLevels: SupportStatus = SupportStatus.UNKNOWN,
     ) : this(revision, descriptors.associateBy { it.key }, unsupported, timecode, audioLevels)
+
+    public constructor(
+        timecodeCapability: TimecodeCapability,
+        revision: CapabilityRevision = CapabilityRevision(),
+        descriptors: List<SettingDescriptor>,
+        unsupported: Set<SettingKey> = emptySet(),
+        audioLevels: SupportStatus = SupportStatus.UNKNOWN,
+    ) : this(timecodeCapability, revision, descriptors.associateBy { it.key }, unsupported, audioLevels)
 
     public operator fun get(key: SettingKey): SettingDescriptor? = descriptors[key]
 

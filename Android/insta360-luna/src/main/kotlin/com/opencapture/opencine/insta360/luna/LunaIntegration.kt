@@ -16,6 +16,7 @@ import com.opencapture.opencine.core.ConnectionProgress
 import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionStep
 import com.opencapture.opencine.core.DiscoveryMode
+import com.opencapture.opencine.core.IntegrationPresentation
 import com.opencapture.opencine.core.IntegrationID
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
@@ -54,8 +55,8 @@ interface LunaConnectPort : CameraMediaServiceSource {
     fun disconnect()
     /** A new core session for the next connection; the previous one closes as replaced. */
     fun openSession(): CameraSession
-    /** Drops the camera's saved Wi-Fi. The approval identity stays. */
-    fun forget(id: String)
+    /** Drops the camera's saved Wi-Fi off Main. The approval identity stays. */
+    suspend fun forget(id: String)
 }
 
 /** The Luna failures with the copy the backend has always shown (Swift `ConnectionFailure.luna`). */
@@ -126,6 +127,10 @@ class LunaIntegration(private val port: LunaConnectPort, private val now: () -> 
     override val profiles: List<CameraProfile> =
         listOf(CameraProfile("${id.rawValue}.luna-ultra", "Luna Ultra", setOf(RouteKind.CAMERA_ACCESS_POINT)))
     override val discoveryModes: Set<DiscoveryMode> = setOf(DiscoveryMode.PASSIVE)
+
+    /** A nearby card pairs at once (the camera approves it); setups keep their kind's name. */
+    override val presentation: IntegrationPresentation =
+        IntegrationPresentation(nearbyTap = IntegrationPresentation.NearbyTap.CONNECT, namesSetups = false)
 
     private var listening = 0
 

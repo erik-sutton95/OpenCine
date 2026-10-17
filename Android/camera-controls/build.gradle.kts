@@ -33,3 +33,11 @@ dependencies {
     testImplementation(testFixtures(project(":core")))
     testImplementation(libs.kotlinx.coroutines.test)
 }
+
+// The link chip vectors are shared with the Swift OpenCineCameraVocabularyTests (Fixtures/ at the
+// repository root).
+tasks.withType<Test>().configureEach {
+    val fixtures = rootDir.resolve("../Fixtures")
+    inputs.dir(fixtures)
+    systemProperty("opencine.fixtures", fixtures.absolutePath)
+}

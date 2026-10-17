@@ -1,10 +1,10 @@
-# opencine (candidate)
+# opencine
 
 The one platform repository: every shared Swift product and Android module of the three apps,
 plus this atlas (`atlas/`). Formerly seven repositories (OpenCineCore, OpenCineUI,
 OpenCineMulticam, OpenCineDJI, OpenCineNikon, OpenCineInsta360, OpenCineHarness) and
-opencapture-atlas, merged with their history (ADR 0010). One version for everything. Status
-`candidate`: local only, consumed by the apps' candidate branches through one sibling path
+opencapture-atlas, merged with their history (ADR 0010). One version for everything. Public
+repository, consumed by the three apps on main through one sibling path
 (`../OpenCine`) and one Gradle included build named `opencine`.
 
 ## Layers (meta.json `layers`; `atlas check` enforces plan 3.4 per target and module)
@@ -12,7 +12,7 @@ opencapture-atlas, merged with their history (ADR 0010). One version for everyth
 | Layer | Swift products (targets) | Gradle modules | Area docs |
 |---|---|---|---|
 | core | OpenCineCore, OpenCineMedia, OpenCineFrameIO, OpenCineMotion, OpenCineRelay, OpenCineRelayApple, OpenCineApple, OpenCineCoreTestSupport | `:core`, `:media`, `:vulkan` | `docs/core/` |
-| ui | MonitorPresentation, MonitorUI, OpenCineAppKit (app shell), OpenCineAppKitApple (its Apple layer), OpenCineCameraControls (app composition) | `:monitor-ui`, `:appkit`, `:camera-controls` (app composition) | `docs/ui/`, `docs/appkit/` |
+| ui | MonitorPresentation, MonitorUI, OpenCineAppKit (app shell), OpenCineAppKitApple (its Apple layer), OpenCineFrameIOApple (Frame.io's Apple host), OpenCineCameraControls (app composition) | `:monitor-ui`, `:appkit`, `:camera-controls` (app composition) | `docs/ui/`, `docs/appkit/` |
 | multicam | OpenCineMulticam | `:multicam` | `docs/multicam/` |
 | vendor | OpenCineCameraVocabulary, OpenCineDJI, OpenCineNikon, Insta360Protocol, Insta360Apple, Insta360AppleTestSupport (CKcp target) | `:camera-vocabulary`, `:insta360-shell`, `:insta360-luna` | `docs/dji/`, `docs/nikon/`, `docs/insta360/` |
 | harness | none (HarnessEngine, HarnessComposition, HarnessTests: dev-only, SIMULATED) | none | `docs/harness/` |

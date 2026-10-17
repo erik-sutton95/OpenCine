@@ -3,18 +3,18 @@ import MonitorUI
 import SwiftUI
 import UIKit
 
-/// Reported power and delivery facts share one renderer. Coarse camera gauges retain their
-/// declared scale; a missing measurement never becomes a zero-percent battery.
+/// Reported power and delivery facts share one renderer: the phone's own battery, then the
+/// camera's when the source reports one. Coarse camera gauges retain their declared scale;
+/// a missing measurement never becomes a zero-percent battery.
 struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     let fps: String?
     let signalBars: Int?
-    let power: [MonitorOperatorPowerReading]
+    let camera: MonitorOperatorPowerReading?
     var horizontal = false
     var showsLink = true
     var showsPower = true
-    var automaticPhoneBattery = false
     @State private var showsFPS = false
-    @State private var phonePercent = -1
+    @State private var phone = MonitorOperatorPowerReading(id: "phone", title: "Phone battery", camera: false)
     private static var tablet: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
     var body: some View {
@@ -34,22 +34,16 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                 .accessibilityIdentifier("monitor.telemetry.signal")
             }
             if showsPower {
-                if automaticPhoneBattery {
-                    powerGauge(.init(id: "phone", title: "Phone battery", camera: false,
-                        percent: phonePercent >= 0 ? phonePercent : nil))
-                }
-                ForEach(power) { reading in powerGauge(reading) }
+                powerGauge(phone)
+                if let camera { powerGauge(camera) }
             }
         }
         .onAppear {
-            if automaticPhoneBattery {
-                UIDevice.current.isBatteryMonitoringEnabled = true
-                updatePhone()
-            }
+            UIDevice.current.isBatteryMonitoringEnabled = true
+            updatePhone()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
-            if automaticPhoneBattery { updatePhone() }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in updatePhone() }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in updatePhone() }
     }
 
     private var fpsValue: String {
@@ -61,9 +55,13 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
         let rate = fps.map { "\($0) frames per second" } ?? "unavailable"
         return "Live link \(signal), feed \(rate)"
     }
+    /// The phone's own battery. An unknown level or state stays unknown, never 0% or "not charging".
     private func updatePhone() {
-        let value = UIDevice.current.batteryLevel
-        phonePercent = value < 0 ? -1 : Int((value * 100).rounded())
+        let level = UIDevice.current.batteryLevel
+        let state = UIDevice.current.batteryState
+        phone = .init(id: "phone", title: "Phone battery", camera: false,
+            percent: level < 0 ? nil : Int((level * 100).rounded()),
+            charging: state == .unknown ? nil : state == .charging || state == .full)
     }
     private func powerGauge(_ reading: MonitorOperatorPowerReading) -> some View {
         MonitorOperatorPowerTelemetry<Palette>(reading: reading)
@@ -87,13 +85,9 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
                 Text(value).font(MonitorTheme.font(tablet ? 11 : 10, weight: .semibold))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).foregroundStyle(color)
             } else {
-                HStack(spacing: 1.5) {
-                    ForEach(0..<max(1, barCount), id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 0.75)
-                            .fill(index < bars ? color : color.opacity(0.2))
-                            .frame(width: 3.5, height: tablet ? 10 : 9)
-                    }
-                }
+                MonitorGaugeBars(
+                    fraction: Double(bars) / Double(max(1, barCount)), count: barCount, tint: color,
+                    barHeight: tablet ? 10 : 9)
             }
         }
         .padding(.horizontal, 6)

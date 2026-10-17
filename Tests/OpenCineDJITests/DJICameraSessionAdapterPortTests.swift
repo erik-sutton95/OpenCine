@@ -9,6 +9,16 @@ import Testing
 /// adapter through the real app session and loopback datalink.
 @MainActor
 @Suite struct DJICameraSessionAdapterPortTests {
+    @Test func legacyTimecodeHelpersRetainSupportAndCompleteFrames() throws {
+        let support: SupportStatus = DJICameraSessionAdapter.timecodeSupport(nil)
+        #expect(support == .unknown)
+        #expect(DJICameraSessionAdapter.timecodeCapability(nil) == .unknown)
+        let value = try #require(DJICameraSessionAdapter.timecode("05:22:47:18"))
+        let frames: Int = value.frames
+        #expect(frames == 18)
+        #expect(DJICameraSessionAdapter.timecode("05:22:47") == nil)
+    }
+
     @Test func everyDeclaredCapabilityReachesThePort() throws {
         let probe = FakePort()  // the adapter holds its port unowned, as the app session owns it
         let keys = DJICameraSessionAdapter(session: probe).current.capabilities.descriptors.keys
@@ -52,10 +62,10 @@ import Testing
             (layout.timecode, layout.audio) = (timecode, audio)
             return layout
         }
-        let bodies: [(Int, String, MonitorLayoutCapabilities, SupportStatus)] = [
-            (0x0022, "Osmo Pocket 4 Pro", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported),
-            (0x0020, "Osmo Pocket 3", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported),
-            (0x0018, "Osmo Action 6", expected(gimbal: false, zoom: false, focus: false, iris: true, timecode: true, audio: true), .supported),
+        let bodies: [(Int, String, MonitorLayoutCapabilities, TimecodeCapability)] = [
+            (0x0022, "Osmo Pocket 4 Pro", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported(.seconds)),
+            (0x0020, "Osmo Pocket 3", expected(gimbal: true, zoom: true, focus: true, iris: false, timecode: true, audio: true), .supported(.seconds)),
+            (0x0018, "Osmo Action 6", expected(gimbal: false, zoom: false, focus: false, iris: true, timecode: true, audio: true), .supported(.seconds)),
             (0x0019, "Osmo Nano", expected(gimbal: false, zoom: false, focus: false, iris: false, timecode: false, audio: true), .unsupported),
         ]
         for (id, name, layout, timecode) in bodies {
@@ -63,7 +73,7 @@ import Testing
             port.connectedModel = CameraModel.resolve(modelId: id, name: name)
             let seam = DJICameraSessionAdapter(session: port)
             #expect(seam.layout(base: base) == layout, "\(name)")
-            #expect(seam.current.capabilities.timecode == timecode, "\(name)")
+            #expect(seam.current.capabilities.timecodeCapability == timecode, "\(name)")
             #expect(seam.current.capabilities.audioLevels == .supported, "\(name)")
             #expect((port.connectedModel?.motion != nil) == layout.gimbal, "\(name)")
         }
@@ -72,7 +82,7 @@ import Testing
         port.connectedModel = nil
         let seam = DJICameraSessionAdapter(session: port)
         #expect(seam.layout(base: base) == base)
-        #expect(seam.current.capabilities.timecode == .unknown)
+        #expect(seam.current.capabilities.timecodeCapability == .unknown)
         #expect(seam.current.capabilities.audioLevels == .unknown)
     }
 
@@ -89,7 +99,7 @@ import Testing
         let seam = DJICameraSessionAdapter(session: port)
         #expect(seam.current.timecode == .unknown)
         #expect(seam.current.audioLevels == .unknown, "no report is unknown, never silence")
-        port.status.timecode = "05:22:47:18"
+        port.status.timecodeValue = CameraTimecode(hours: 5, minutes: 22, seconds: 47, frames: 18)
         port.status.audioMeters = AudioMeterLevels(
             left: AudioMeterChannel(levelDB: -18, peakDB: -12, peakAge: 0.4),
             right: AudioMeterChannel(levelDB: -20, peakDB: -14))
@@ -100,7 +110,7 @@ import Testing
             snapshot.audioLevels.value
                 == AudioLevels(left: .init(level: -18, peak: -12), right: .init(level: -20, peak: -14)))
         #expect(snapshot.audioLevels.origin == .cameraReported)
-        port.status.timecode = "--:--"
+        port.status.timecodeValue = nil
         #expect(seam.current.timecode == .unknown)
     }
 
@@ -180,6 +190,18 @@ import Testing
         port.captureControlState?.reported.irisHundredths = 280
         #expect(seam.current.value(of: .aperture).value == .aperture(2.8))
         #expect(seam.request(.set(.aperture(2))).stage == .rejected(.readOnly))
+        #expect(port.fired.isEmpty)
+    }
+
+    /// A5-09: the recording rate is a typed read-only Rational from the wire index, never written.
+    @Test func recordingFrameRateIsAReadOnlyRational() {
+        let port = Self.capturePort()
+        let seam = DJICameraSessionAdapter(session: port)
+        #expect(seam.current.capabilities[.frameRate]?.access == .readOnly)
+        #expect(seam.current.value(of: .frameRate).value == nil, "no report is unknown")
+        port.captureControlState?.reported.fps = 25
+        #expect(seam.current.value(of: .frameRate).value == .frameRate(Rational(25)))
+        #expect(seam.request(.set(.frameRate(Rational(24)))).stage == .rejected(.readOnly))
         #expect(port.fired.isEmpty)
     }
 

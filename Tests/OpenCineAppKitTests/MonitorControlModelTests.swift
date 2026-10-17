@@ -11,6 +11,160 @@ import Testing
     let clock = ManualClock()
 
     @available(macOS 14, *)
+    @Test func confirmedRecordingDurationReachesTheActualStatusProjection() async {
+        let (model, _) = model()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        #expect(await eventually { model.isRecording == false })
+        model.record(start: true)
+        #expect(await eventuallyAsync { await camera.wire == ["record-start"] })
+        await camera.advance(by: .seconds(3))
+        #expect(await eventually { model.isRecording == true && !model.recordPending })
+        #expect(model.statusPresentation(elapsedSeconds: 17).elapsedSeconds == 17)
+        #expect(model.statusPresentation().elapsedSeconds == 0)
+        model.unbind()
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+    }
+
+
+    @available(macOS 14, *)
+    func elapsedModel() -> MonitorControlModel {
+        MonitorControlModel(now: { [clock] in MonotonicInstant(clock.now) },
+            recordingSleep: { [clock] in await clock.sleep($0) },
+            sleep: { [clock] in await clock.sleep($0) })
+    }
+
+    @available(macOS 14, *)
+    @Test func idleRecordingReportsKeepElapsedObservationStable() async throws {
+        let model = elapsedModel()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.recordingElapsed.value == 0 })
+        let original = model.recordingElapsed
+        for index in 1...10 {
+            clock.advance(by: .seconds(1))
+            await camera.cameraReportsTimecodeReading(CameraTimecodeReading(hours: 0, minutes: 1, seconds: index))
+            try #require(await eventually { model.timecodeReading.value?.seconds == index })
+            #expect(model.recordingElapsed == original)
+        }
+        #expect(clock.pendingSleeps == 0)
+        model.unbind()
+    }
+
+    @available(macOS 14, *)
+    @Test func bodyRecordingTicksWithoutCommandsAndKeepsClockOrigin() async throws {
+        let model = elapsedModel()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.isRecording == false })
+        await camera.cameraReportsRecording(true)
+        try #require(await eventually { model.isRecording == true })
+        #expect(model.statusPresentation().elapsedSeconds == 0)
+        let changes = Notes()
+        model.onChange = { changes.list.append("change") }
+        await clock.tick(.seconds(1))
+        try #require(await eventually { model.statusPresentation().elapsedSeconds == 1 })
+        #expect(model.recordingElapsed.origin == .clockDerived)
+        #expect(model.recordingElapsed.precision == .quantized(step: 1))
+        await clock.tick(.seconds(60))
+        try #require(await eventually { model.statusPresentation().elapsedSeconds == 61 })
+        #expect(model.statusPresentation(elapsedSeconds: 17).elapsedSeconds == 17)
+        #expect(model.statusPresentation(elapsedSeconds: 0).elapsedSeconds == 0)
+        #expect(changes.list.isEmpty)
+        #expect(await camera.wire.isEmpty)
+        await camera.cameraReportsRecording(false)
+        try #require(await eventually { model.isRecording == false && model.recordingElapsed.value == 0 })
+        clock.advance(by: .seconds(60))
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.statusPresentation().elapsedSeconds == 0)
+        model.unbind()
+    }
+
+    @available(macOS 14, *)
+    @Test func unknownRecordingStartStaysUnknownUntilFreshTransition() async throws {
+        let model = elapsedModel()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsRecording(true)
+        model.bind(camera)
+        try #require(await eventually { model.isRecording == true })
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+        #expect(model.statusPresentation(elapsedSeconds: 17).elapsedSeconds == 17)
+        clock.advance(by: .seconds(20))
+        #expect(model.recordingElapsed == .unknown)
+        await camera.cameraReportsRecording(nil)
+        try #require(await eventually { model.isRecording == nil })
+        await camera.cameraReportsRecording(true)
+        try #require(await eventually { model.isRecording == true })
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+        await camera.cameraReportsRecording(false)
+        try #require(await eventually { model.isRecording == false })
+        await camera.cameraReportsRecording(true)
+        try #require(await eventually { model.recordingElapsed.value == 0 })
+        await clock.tick(.seconds(2))
+        try #require(await eventually { model.recordingElapsed.value == 2 })
+        model.unbind()
+        clock.advance(by: .seconds(20))
+    }
+
+    @available(macOS 14, *)
+    @Test func rebindRetiresElapsedAndOldTicksCannotReachSuccessor() async throws {
+        let model = elapsedModel()
+        let first = FakeCameraSession.lunaLike()
+        await first.cameraReportsStatus()
+        model.bind(first)
+        try #require(await eventually { model.isRecording == false })
+        await first.cameraReportsRecording(true)
+        try #require(await eventually { model.isRecording == true })
+        await clock.tick(.seconds(3))
+        try #require(await eventually { model.recordingElapsed.value == 3 })
+        let next = FakeCameraSession.lunaLike()
+        await next.cameraReportsRecording(true)
+        model.bind(next)
+        try #require(await eventually { model.snapshot?.session == next.id })
+        clock.advance(by: .seconds(20))
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+        await next.cameraReportsRecording(false)
+        try #require(await eventually { model.isRecording == false })
+        await next.cameraReportsRecording(true)
+        try #require(await eventually { model.recordingElapsed.value == 0 })
+        await clock.tick(.seconds(1))
+        try #require(await eventually { model.recordingElapsed.value == 1 })
+        await first.close(.requested)
+        #expect(model.snapshot?.session == next.id)
+        #expect(model.recordingElapsed.value == 1)
+        model.unbind()
+        clock.advance(by: .seconds(20))
+        for _ in 0..<20 { await Task.yield() }
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+    }
+
+    @available(macOS 14, *)
+    @Test func recoveryRetiresElapsedAndUnknownContinuousRecordingStart() async throws {
+        let model = elapsedModel()
+        let camera = FakeCameraSession.lunaLike()
+        await camera.cameraReportsStatus()
+        model.bind(camera)
+        try #require(await eventually { model.isRecording == false })
+        await camera.cameraReportsRecording(true)
+        try #require(await eventually { model.isRecording == true })
+        await clock.tick(.seconds(2))
+        try #require(await eventually { model.recordingElapsed.value == 2 })
+        let attempt = await camera.loseLink()
+        try #require(await eventually { if case .recovering? = model.snapshot?.connection { true } else { false } })
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+        await camera.completeAttempt(attempt)
+        try #require(await eventually { model.snapshot?.connection == .ready })
+        #expect(model.isRecording == true)
+        #expect(model.statusPresentation().elapsedSeconds == nil)
+        model.unbind()
+        clock.advance(by: .seconds(20))
+    }
+
+    @available(macOS 14, *)
     func model() -> (MonitorControlModel, Notes) {
         let notes = Notes()
         let model = MonitorControlModel(sleep: { [clock] in await clock.sleep($0) })

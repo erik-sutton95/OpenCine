@@ -30,7 +30,7 @@ fun interface SessionRetryScheduleBridge {
      * Records one drop of an established session in the shared drop-storm
      * ledger; `true` = pause automatic recovery for the operator. Success is
      * exactly what a storm fakes well, so the per-run failure budget cannot
-     * catch it — only this cross-run count can.
+     * catch it : only this cross-run count can.
      */
     fun noteSessionDrop(): Boolean = false
 
@@ -44,7 +44,7 @@ fun interface SessionRetryScheduleBridge {
         /**
          * Shown only when the core is unavailable, in which case no camera work
          * is possible anyway and [ProductionSessionRetryScheduleBridge] stops
-         * immediately — this exists so the label never renders as "of 0".
+         * immediately : this exists so the label never renders as "of 0".
          */
         const val DEFAULT_MAX_AUTOMATIC_ATTEMPTS: Int = 1
     }
@@ -123,7 +123,7 @@ class MonitorSessionRecoveryCoordinator(
                     mutableRecoveryState.value = SessionRecoveryUi.Idle
                     session.state.first { it !is CameraSessionState.Connected }
                     // An established session just dropped. If drops keep clustering while every
-                    // reconnect succeeds (the storm signature — `consecutiveFailures` above
+                    // reconnect succeeds (the storm signature : `consecutiveFailures` above
                     // resets on success and can never catch it), pause instead of churning the
                     // body's PTP stack toward its battery-pull wedge.
                     if (schedule.noteSessionDrop()) {

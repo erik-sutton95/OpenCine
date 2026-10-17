@@ -35,6 +35,8 @@ open class ScopeExposureCeiling: @unchecked Sendable {
         var iso: Int?
         var refined: [MonitorTransfer: UInt8] = [:]
         var observed: [Key: UInt8] = [:]
+        /// Clips the source states outright, per transfer (``declare(clipByte:for:)``).
+        var declared: [MonitorTransfer: Int] = [:]
         var lastLoggedMax: UInt8 = 0
     }
     private let profile: ScopeClipProfile
@@ -54,6 +56,13 @@ open class ScopeExposureCeiling: @unchecked Sendable {
     }
     public func syncISO(_ iso: Int) { if iso > 0 { setISO(iso) } }
     public func resolvedISO() -> Int? { withLock { $0.iso } }
+    /// A clip the source states for `transfer` at its current settings (a camera's published
+    /// overexposure warning code for its ISO), in place of measured calibration and tap
+    /// history for that transfer. `nil` withdraws it. The source restates it when a setting
+    /// that moves it changes; ``reset()`` clears it with the rest of the source's state.
+    public func declare(clipByte: Int?, for transfer: MonitorTransfer) {
+        withLock { $0.declared[transfer] = clipByte.map { min(255, max(1, $0)) } }
+    }
     public func reset() { withLock { $0 = State(iso: profile.defaultISO) } }
     public func clipShelfByte(transfer: MonitorTransfer, iso: Int? = nil) -> Int {
         ScopeAnchors.clipShelfByte(clipByte: clipByte(transfer: transfer, iso: iso))
@@ -63,6 +72,7 @@ open class ScopeExposureCeiling: @unchecked Sendable {
     }
     public func clipByte(transfer: MonitorTransfer, iso: Int? = nil) -> Int {
         withLock { s in
+            if let declared = s.declared[transfer] { return declared }
             let ei = iso.flatMap { $0 > 0 ? $0 : nil } ?? s.iso
             return max(tableByte(transfer: transfer, iso: ei, state: s),
                 Int(s.observed[Key(transfer: transfer, iso: ei)] ?? 0))
@@ -74,7 +84,9 @@ open class ScopeExposureCeiling: @unchecked Sendable {
     @discardableResult public func observeTapMax(
         _ byte: UInt8, transfer: MonitorTransfer
     ) -> (clip: UInt8, maxRose: Bool) {
-        guard let calibration = profile.calibrations[transfer], byte > 0 && byte < 255 else {
+        guard let calibration = profile.calibrations[transfer], byte > 0 && byte < 255,
+            withLock({ $0.declared[transfer] }) == nil
+        else {
             return (UInt8(clipByte(transfer: transfer)), false)
         }
         return withLock { s in

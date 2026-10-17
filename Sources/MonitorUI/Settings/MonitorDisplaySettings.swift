@@ -2,16 +2,6 @@
     import SwiftUI
     import UIKit
 
-    /// Stable capture-layout identity; storage and camera-mode eligibility belong to the host.
-    public struct MonitorDisplayChoice: Identifiable {
-        public let id: String
-        public let title: String
-        public init(id: String, title: String) {
-            self.id = id
-            self.title = title
-        }
-    }
-
     /// A known visibility value and its admitted host action.
     public struct MonitorDisplayToggle: Identifiable {
         public let id: String
@@ -127,53 +117,6 @@
         }
     }
 
-    /// Common Display assembly, driven by actual values and actions instead of a whole-page slot.
-    public struct MonitorDisplaySettings: View {
-        private let layoutTitle: String
-        private let layoutHelp: String
-        private let choices: [MonitorDisplayChoice]
-        @Binding private var selection: String
-        @Binding private var expandedSection: String?
-        private let sections: [MonitorDisplaySection]
-        private let order: MonitorDisplayOrderGroup
-        public init(
-            layoutTitle: String = "Layout For", layoutHelp: String,
-            choices: [MonitorDisplayChoice], selection: Binding<String>,
-            expandedSection: Binding<String?>,
-            sections: [MonitorDisplaySection], order: MonitorDisplayOrderGroup
-        ) {
-            self.layoutTitle = layoutTitle
-            self.layoutHelp = layoutHelp
-            self.choices = choices
-            self._selection = selection
-            self._expandedSection = expandedSection
-            self.sections = sections
-            self.order = order
-        }
-        public var body: some View {
-            MonitorSettingsRowCard {
-                MonitorSettingsInlineRow(
-                    title: layoutTitle, help: layoutHelp, showTopDivider: false
-                ) {
-                    captureChoices
-                }
-            }
-            MonitorDisplaySections(sections: sections, expandedSection: $expandedSection)
-            MonitorSettingsGroupCard(
-                title: order.title, caption: order.caption, onReset: order.reset
-            ) {
-                MonitorDisplayOrderList(items: order.items, move: order.move)
-            }
-        }
-        private var captureChoices: some View {
-            MonitorSegmentedControl(
-                options: choices.map(\.id), selection: $selection,
-                title: { id in choices.first(where: { $0.id == id })?.title ?? id }
-            )
-            .accessibilityIdentifier("monitor.settings.display.capture")
-        }
-    }
-
     /// Typed display sections also serve hosts with no separate capture-layout picker or ordering.
     public struct MonitorDisplaySections: View {
         private let sections: [MonitorDisplaySection]
@@ -188,7 +131,10 @@
                     // A card identifier propagates over IDs assigned inside native inline rows.
                     controlsCard(section)
                 } else {
+                    // A container, as the Compose column is: the identifier names the card and
+                    // leaves its header's and Edit view's own.
                     sectionCard(section)
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("monitor.settings.display.section.\(section.id)")
                 }
             }.rows

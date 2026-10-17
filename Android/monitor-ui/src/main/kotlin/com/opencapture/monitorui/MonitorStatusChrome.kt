@@ -33,7 +33,13 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 /** Reported status only. Absence remains unknown; presentation never invents a clock or timer. */
-data class MonitorStatusPresentation(val recording: Boolean?, val elapsedSeconds: Int? = null, val timecode: String? = null) {
+data class MonitorStatusPresentation(
+    val recording: Boolean?, val elapsedSeconds: Int? = null, val timecode: String? = null,
+    /** What the clock shows without a value, at the source's declared precision. */
+    val timecodePlaceholder: String = MonitorTimecodeFormat.placeholder(frames = false),
+) {
+    /** The clock as shown: the reported label, or the placeholder at the declared precision. */
+    val clock: String get() = timecode ?: timecodePlaceholder
     val recordingLabel: String get() = when (recording) { true -> "REC"; false -> "STBY"; null -> "--" }
     val recordingAccessibilityLabel: String get() = when (recording) {
         true -> "Recording"; false -> "Standby"; null -> "Recording state unknown"
@@ -62,7 +68,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
             MonitorPortraitStatusRow(
                 maxOf(layout.status.height, LocalViewConfiguration.current.minimumTouchTargetSize.height.value),
                 recording = { if (showsRecording) MonitorRecordingReadout(status, recordingModifier) },
-                clock = { if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier) },
+                clock = { if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder) },
                 format = format)
         } else {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
@@ -72,7 +78,7 @@ fun MonitorStatusChrome(layout: MonitorFieldLayout, status: MonitorStatusPresent
                 Row(Modifier.padding(end = MonitorLayoutPolicy.recordingReadoutTrailingInset(layout.status.maxX, layout.picture.maxX).dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (showsRecording) MonitorRecordingReadout(status, recordingModifier)
-                    if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier)
+                    if (showsTimecode) MonitorClock(status.timecode, layout.tablet, clockModifier, placeholder = status.timecodePlaceholder)
                 }
             }
         }
@@ -119,13 +125,16 @@ private fun MonitorPortraitStatusRow(minimumHeight: Float, recording: @Composabl
 }
 
 @Composable
-fun MonitorClock(timecode: String?, tablet: Boolean = false, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val displayed = timecode ?: "--:--:--"
+fun MonitorClock(
+    timecode: String?, tablet: Boolean = false, modifier: Modifier = Modifier, compact: Boolean = false,
+    placeholder: String = MonitorTimecodeFormat.placeholder(frames = false),
+) {
+    val displayed = timecode ?: placeholder
     val (base, accent) = MonitorTimecodeFormat.accentComponents(displayed)
     Text(buildAnnotatedString {
         withStyle(SpanStyle(color = MonitorPalette.text)) { append(base) }
         withStyle(SpanStyle(color = MonitorPalette.accent)) { append(accent) }
-    }, style = MonitorTypography.text(if (compact) 15f else if (tablet) 25f else 23f, FontWeight.Medium),
+    }, style = MonitorTypography.readout(if (compact) 15f else if (tablet) 25f else 23f, FontWeight.Medium),
         maxLines = 1, softWrap = false,
         modifier = modifier.clearAndSetSemantics { contentDescription = timecode?.let { "Timecode $it" } ?: "Timecode not available" })
 }

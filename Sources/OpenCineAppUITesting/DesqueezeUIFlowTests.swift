@@ -5,7 +5,6 @@ import XCTest
 /// Exercises the production assist controls with simulator presentation fixtures.
 /// Screenshots remain in the local xcresult; this does not qualify camera performance.
 open class DesqueezeUIFlowTests: SharedAppUITestCase {
-    private var app: XCUIApplication!
     private let presets = ["1.1×", "1.2×", "1.33×", "1.5×", "1.6×", "1.8×", "2.0×"]
 
     override open func setUpWithError() throws {
@@ -179,13 +178,6 @@ open class DesqueezeUIFlowTests: SharedAppUITestCase {
                     : self.app.frame.width > self.app.frame.height
             }, object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [expected], timeout: 5), .completed)
-    }
-
-    private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 }
 #endif

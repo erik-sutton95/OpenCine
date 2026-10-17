@@ -7,6 +7,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CameraPropertySnapshotWireTest {
+    @Test fun stillToneSemanticReadbackPreservesUnknown() {
+        for (label in listOf("SDR", "HLG", "unknown", "1", "255", "")) {
+            val decoded = CameraPropertySnapshotWire.decode(validPayload().replace("stillToneMode\tHLG", "stillToneMode\t$label"))
+            assertTrue(decoded.isValid)
+            assertEquals(label.takeIf { it == "SDR" || it == "HLG" }, decoded.snapshot.stillToneMode)
+        }
+    }
+
     @Test
     fun decodesOrderedStorageSlotsAndPreservesLegacyFirstCard() {
         val decoded = CameraPropertySnapshotWire.decode(validPayload())

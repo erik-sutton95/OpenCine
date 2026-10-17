@@ -91,7 +91,7 @@ fun HistogramPanel(state: MonitorAssistState, modifier: Modifier = Modifier,
     previewBundle: ScopeAssistBundle? = null) {
     val bundle = previewBundle ?: state.scopeBundle
     com.opencapture.monitorui.MonitorHistogramScopePlot(bundle.histogramDisplay, bundle.traffic,
-        state.histoTrafficLights, modifier)
+        state.histoTrafficLights && bundle.levelAxis?.supportsCalibratedReferences != false, modifier)
 }
 
 @Composable
@@ -103,7 +103,10 @@ fun VectorscopePanel(state: MonitorAssistState, modifier: Modifier = Modifier,
 @Composable
 fun TrafficLightsPanel(state: MonitorAssistState, modifier: Modifier = Modifier,
     previewBundle: ScopeAssistBundle? = null) {
-    com.opencapture.monitorui.MonitorTrafficLightsMeter((previewBundle ?: state.scopeBundle).traffic, modifier)
+    val bundle = previewBundle ?: state.scopeBundle
+    if (bundle.levelAxis?.supportsCalibratedReferences != false) {
+        com.opencapture.monitorui.MonitorTrafficLightsMeter(bundle.traffic, modifier)
+    }
 }
 
 object NDAssist {
@@ -118,7 +121,7 @@ object NDAssist {
 @Composable
 fun NDMeterPanel(state: MonitorAssistState, modifier: Modifier = Modifier) {
     val transfer = state.scopeBundle.transfer
-    val reading =
+    val reading = if (state.scopeBundle.levelAxis?.supportsCalibratedReferences == false) null else
         MonitorNDFilterRecommendation.reading(state.scopeBundle.samples.histogramLuma, transfer, "\u2014")
     com.opencapture.monitorui.MonitorNDFilterChip(reading, state.ndNotation, modifier,
         emptyLabel = "\u2014")

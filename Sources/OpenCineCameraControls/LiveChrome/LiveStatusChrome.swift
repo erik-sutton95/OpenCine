@@ -3,6 +3,7 @@
     import MonitorUI
     import OpenCineAppKit
     import OpenCineCameraVocabulary
+    import OpenCineMedia
     import SwiftUI
     import UIKit
 
@@ -94,9 +95,10 @@
             }
         }
 
+        /// One rule for every app: the single-camera clock slot follows the operator's DISP section
+        /// in video; a body without timecode shows the placeholder at its declared precision.
         private var showsTimecode: Bool {
             host.chromeSectionMounts(.timecode) && !host.cameraStatus.isPhoto
-                && host.timecodeAvailable
         }
 
         private var storageButton: some View {
@@ -119,13 +121,8 @@
         }
 
         private var storage: String {
-            let s = host.cameraStatus
-            let free = s.storageFreeMb > 0 ? s.storageFreeMb : s.sdFreeMb
-            let total = s.storageTotalMb > 0 ? s.storageTotalMb : s.sdTotalMb
-            if storagePercent && total > 0 {
-                return "\(Int((Double(max(0, free)) / Double(total) * 100).rounded()))%"
-            }
-            return free > 0 ? "\(free / 1024) GB" : "\u{2014}"
+            guard let readout = host.control.snapshot?.storage.storageReadout else { return StorageReadout.unavailable }
+            return storagePercent ? readout.percent ?? readout.free : readout.free
         }
 
         private func topButton(_ item: LiveTopMenu, value: String) -> some View {
@@ -402,9 +399,9 @@
         public var body: some View {
             let percent = host.cameraStatus.batteryPercent
             MonitorOperatorTelemetry<Host.Palette>(fps: host.liveFPS, signalBars: host.liveSignalBars,
-                power: [.init(id: "camera", title: "Camera battery", camera: true,
-                    percent: (0...100).contains(percent) ? percent : nil)],
-                horizontal: horizontal, showsLink: showsLink, showsPower: showsPower, automaticPhoneBattery: true)
+                camera: .init(id: "camera", title: "Camera battery", camera: true,
+                    percent: (0...100).contains(percent) ? percent : nil, charging: host.cameraStatus.charging),
+                horizontal: horizontal, showsLink: showsLink, showsPower: showsPower)
         }
         public static func batteryColor(_ percent: Int) -> Color {
             MonitorOperatorTelemetry<Host.Palette>.batteryColor(percent)

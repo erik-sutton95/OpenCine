@@ -1,5 +1,8 @@
 package com.opencapture.opencine.vocabulary
 
+import com.opencapture.opencine.core.CameraTimecode
+import com.opencapture.opencine.core.CameraTimecodeReading
+
 data class CameraModel(
     val name: String,
     val datalinkPort: Int = 9004,
@@ -60,6 +63,8 @@ data class CameraStatus(
     val shootingMode: Int = -1,
     val recordElapsedSec: Int = 0,
     val recordRemainingSec: Int = 0,
+    /** `timecode_info` (`@3-6` = HH MM SS FF) as the Swift decoder read it from the bytes. */
+    @Deprecated("Use timecodeValue")
     val timecode: String? = null,
     val iso: Int = -1,
     val shutterDenom: Int = -1,
@@ -146,7 +151,32 @@ data class CameraStatus(
     val apertureStrategy: Int = -1,
     /** Action 6 `camcap_aperture_ctrl_strategy`. Empty until pushed. */
     val availableApertureStrategies: List<Int> = emptyList(),
+    private val decodedTimecode: CameraStatusTimecode? = null,
 ) {
+
+    /** Typed wire components. Only a legacy caller changing text enters the parsing boundary. */
+    @Suppress("DEPRECATION")
+    val timecodeValue: CameraTimecode?
+        get() = timecodeReading?.frameTimecode
+
+    /** Components including seconds-only text, without inventing a frame. */
+    @Suppress("DEPRECATION")
+    val timecodeReading: CameraTimecodeReading?
+        get() = decodedTimecode?.takeIf { it.text == timecode }?.value ?: parseLegacyTimecode(timecode)
+
+    /** Decode once, refreshing the original text API without disturbing generated field order. */
+    fun withTimecodeValue(value: CameraTimecode?): CameraStatus {
+        return withTimecodeReading(value?.let { CameraTimecodeReading(it) })
+    }
+
+    fun withTimecodeReading(value: CameraTimecodeReading?): CameraStatus {
+        val decoded = value?.let(::CameraStatusTimecode)
+        return copy(timecode = decoded?.text, decodedTimecode = decoded)
+    }
+
+    @Suppress("DEPRECATION")
+    @Deprecated("Use timecodeValue and declared precision")
+    val timecodeClock: String? get() = legacyTimecodeClock(timecode)
     val shootingModeLabel: String
         get() =
             CameraCommands.shootingModeLabel(shootingMode)
@@ -194,9 +224,6 @@ data class CameraStatus(
     val videoFormat: VideoFormat?
         get() = VideoFormat.parse(resolutionCode, fpsIndex)
 
-    /** Display-only clock; the raw timecode retains its frame field for protocol/state. */
-    val timecodeClock: String? get() = timecodeClock(timecode)
-
     val wbLabel: String
         get() =
             when {
@@ -234,15 +261,8 @@ data class CameraStatus(
                 glamourEnabled != null ||
                 selfieFlip != null
 
-    val storageLabel: String
-        get() {
-            val total = if (sdTotalMb > 0) sdTotalMb else storageTotalMb
-            val free = if (sdTotalMb > 0) sdFreeMb else storageFreeMb
-            if (total <= 0) return "—"
-            val gb = free / 1024
-            val pct = ((free.toLong() * 100L) / total).toInt().coerceIn(0, 100)
-            return "$gb GB · $pct%"
-        }
+    @Deprecated("Use common storage observations and StorageReadout")
+    val storageLabel: String get() = storageReadout?.label ?: StorageReadout.UNAVAILABLE
 
     fun clearedModeDependentCapabilities(): CameraStatus =
         copy(
@@ -359,8 +379,26 @@ data class CameraStatus(
     }
 }
 
-/** Shared by the single-camera and Multiview readouts; never rewrites decoded status. */
-fun timecodeClock(value: String?): String? = value?.takeIf { it.isNotBlank() }?.let {
+
+/** The typed decode and its compatibility text, computed together once at the wire boundary. */
+data class CameraStatusTimecode(val value: CameraTimecodeReading) {
+    internal val text: String? = com.opencapture.opencine.media.MonitorTimecodeFormat.label(
+        value.hours, value.minutes, value.seconds, value.frames, value.dropFrame)
+}
+
+@Deprecated("Use the shared component formatter")
+fun timecodeClock(value: String?): String? = legacyTimecodeClock(value)
+
+private fun legacyTimecodeClock(value: String?): String? = value?.takeIf { it.isNotBlank() }?.let {
     val parts = it.split(':')
     if (parts.size >= 4) parts.take(3).joinToString(":") else it
+}
+
+private fun parseLegacyTimecode(value: String?): CameraTimecodeReading? {
+    if (value == null) return null
+    val parts = value.split(':', ';')
+    if (parts.size !in 3..4) return null
+    val numbers = parts.map { it.toIntOrNull() ?: return null }
+    if (com.opencapture.opencine.media.MonitorTimecodeFormat.label(numbers[0], numbers[1], numbers[2], numbers.getOrNull(3)) == null) return null
+    return CameraTimecodeReading(numbers[0], numbers[1], numbers[2], numbers.getOrNull(3), if (';' in value) true else null)
 }

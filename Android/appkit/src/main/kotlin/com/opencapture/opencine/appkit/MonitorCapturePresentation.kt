@@ -4,14 +4,20 @@ import com.opencapture.opencine.core.Availability
 import com.opencapture.opencine.core.ConnectionState
 import com.opencapture.opencine.core.ControlAuthority
 import com.opencapture.opencine.core.ISOValue
+import com.opencapture.opencine.core.Rational
 import com.opencapture.opencine.core.SettingAccess
 import com.opencapture.opencine.core.SettingDomain
 import com.opencapture.opencine.core.SettingKey
 import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.core.ShutterValue
 import com.opencapture.opencine.core.WhiteBalanceValue
-import kotlin.math.round
+import com.opencapture.opencine.media.ExposureCompensation
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
+import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.round
 
 /** A drum detent keeps its typed command value. Display copy never becomes a wire mapping. */
 public data class MonitorCaptureChoice(public val value: SettingValue, public val label: String)
@@ -38,6 +44,7 @@ public object MonitorCapturePresentation {
         SettingKey.WHITE_BALANCE -> "WB"
         SettingKey.EXPOSURE_COMPENSATION -> "EV"
         SettingKey.FOCUS_MODE -> "FOCUS"
+        SettingKey.FRAME_RATE -> "FPS"
         else -> null
     }
 
@@ -59,14 +66,13 @@ public object MonitorCapturePresentation {
             is WhiteBalanceValue.Preset -> wb.id
             is WhiteBalanceValue.Kelvin -> "${wb.kelvin}K"
         }
-        is SettingValue.ExposureCompensation -> if (value.stops.numerator == 0) "0.0"
-            else (if (value.stops.numerator < 0) "−" else "+") +
-                String.format(java.util.Locale.ROOT, "%.1f", kotlin.math.abs(value.stops.doubleValue))
+        is SettingValue.ExposureCompensation -> ExposureCompensation.label(value.stops.doubleValue)
         is SettingValue.FocusMode -> when (value.mode) {
             com.opencapture.opencine.core.FocusMode.MANUAL -> "MF"
             com.opencapture.opencine.core.FocusMode.SINGLE -> "AF-S"
             com.opencapture.opencine.core.FocusMode.CONTINUOUS -> "AF-C"
         }
+        is SettingValue.FrameRate -> frameRate(value.fps)
         else -> ""
     }
 
@@ -82,11 +88,13 @@ public object MonitorCapturePresentation {
                 range.start >= 0 && range.endInclusive <= Int.MAX_VALUE.toDouble() &&
                 (range.endInclusive - range.start) / step <= 1_000) {
                 val count = floor((range.endInclusive - range.start) / step).toInt()
+                // Every detent lies on the domain's own grid; a set keeps the merge linear (R-03).
+                val listed = values.toHashSet()
                 for (index in 0..count) {
                     val kelvin = range.start + index * step
                     if (round(kelvin) == kelvin) {
                         val value = SettingValue.WhiteBalance(WhiteBalanceValue.Kelvin(kelvin.toInt()))
-                        if (value in domain && value !in values) values += value
+                        if (listed.add(value)) values += value
                     }
                 }
             }
@@ -94,7 +102,26 @@ public object MonitorCapturePresentation {
         return values.map { MonitorCaptureChoice(it, label(it)) }
     }
 
-    private fun number(value: Double): String = if (value == round(value)) value.toLong().toString() else value.toString()
+    /** Whole rates print whole (24); the rest print two decimals (24000/1001 shows 23.98). Swift twin. */
+    public fun frameRate(rate: Rational): String =
+        if (rate.denominator == 1) rate.numerator.toString()
+        else String.format(java.util.Locale.ROOT, "%.2f", rate.doubleValue)
+
+    /**
+     * C `%g`, what Swift `String(format: "%g")` prints: six significant digits from the exact binary
+     * value (ties to even), trailing zeros and a bare point dropped, `1.5e-05` below 1e-4 and from
+     * 1e6 up. Java's own `%g` keeps the zeros and rounds the shortest decimal half up.
+     */
+    private fun number(value: Double): String {
+        if (!value.isFinite()) return if (value.isNaN()) "nan" else if (value > 0) "inf" else "-inf"
+        if (value == 0.0) return if (1.0 / value < 0) "-0" else "0"
+        val rounded = BigDecimal(value).round(MathContext(6, RoundingMode.HALF_EVEN))
+        val exponent = rounded.precision() - rounded.scale() - 1
+        if (exponent in -4..5) return rounded.stripTrailingZeros().toPlainString()
+        val mantissa = rounded.movePointLeft(exponent).stripTrailingZeros().toPlainString()
+        val power = abs(exponent).toString().padStart(2, '0')
+        return mantissa + (if (exponent < 0) "e-" else "e+") + power
+    }
 }
 
 /** A described common field stays readable while unavailable; only a writable ready field gets an editor. */
@@ -105,8 +132,14 @@ public fun MonitorControlModel.captureField(key: SettingKey): MonitorCaptureFiel
     val authorized = snapshot.authority == ControlAuthority.Owner || snapshot.authority is ControlAuthority.Lease
     val writable = authorized && snapshot.connection == ConnectionState.Ready &&
         descriptor.access == SettingAccess.READ_WRITE && descriptor.availability == Availability.Available
-    return MonitorCaptureField(key, title, shown(key), MonitorCapturePresentation.choices(key, descriptor.domain),
-        if (writable) edit(key) else null)
+    return MonitorCaptureField(key, title, shown(key), drum(key, descriptor.domain), if (writable) edit(key) else null)
+}
+
+/** The drum for a domain, built once per domain rather than on every read. */
+private fun MonitorControlModel.drum(key: SettingKey, domain: SettingDomain?): List<MonitorCaptureChoice> {
+    if (domain == null) return emptyList()
+    captureChoices[key]?.takeIf { it.first == domain }?.let { return it.second }
+    return MonitorCapturePresentation.choices(key, domain).also { captureChoices[key] = domain to it }
 }
 
 /** Both held gestures and persistent drums commit the editor they opened, never a new one. */

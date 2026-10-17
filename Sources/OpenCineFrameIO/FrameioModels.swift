@@ -170,3 +170,43 @@ public enum FrameioJSON {
         }
     }
 }
+
+/// The projects of one workspace, as the delivery popup lists them.
+public struct FrameioProjectListing: Equatable, Sendable {
+    public var accountID: String
+    public var workspaceID: String
+    public var workspaceName: String
+    public var projects: [FrameioProject]
+    public init(accountID: String, workspaceID: String, workspaceName: String, projects: [FrameioProject]) {
+        self.accountID = accountID
+        self.workspaceID = workspaceID
+        self.workspaceName = workspaceName
+        self.projects = projects
+    }
+}
+
+/// The upload target: one project's root folder. Each app persists it in its own namespace.
+public struct FrameioDestination: Codable, Equatable, Sendable {
+    public var accountID: String
+    public var workspaceID: String?
+    public var projectID: String
+    public var projectName: String
+    public var folderID: String
+    public init(
+        accountID: String, workspaceID: String?, projectID: String, projectName: String,
+        folderID: String
+    ) {
+        self.accountID = accountID
+        self.workspaceID = workspaceID
+        self.projectID = projectID
+        self.projectName = projectName
+        self.folderID = folderID
+    }
+    /// The project's root folder in a listing, or nil when the project has none.
+    public init?(project: FrameioProject, in listing: FrameioProjectListing) {
+        guard let folder = project.rootFolderID else { return nil }
+        self.init(
+            accountID: listing.accountID, workspaceID: listing.workspaceID, projectID: project.id,
+            projectName: project.name, folderID: folder)
+    }
+}

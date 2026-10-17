@@ -106,12 +106,5 @@ open class ShareUIFlowTests: SharedAppUITestCase {
             loop.value as? String, "On", "Closing options must preserve the same player state")
         XCTAssertTrue(share.isHittable)
     }
-
-    private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
 }
 #endif

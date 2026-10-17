@@ -6,15 +6,16 @@ import zlib
 // and the retry backoff. The app keeps the SDK; `ReliabilityReportingURLProtocol` applies this
 // policy to the SDK's own URLSession. Kotlin mirror: `appkit/diagnostics/ReliabilityReportingNetwork.kt`.
 
-/// Upload gate: no report leaves while a camera session is live or the camera's IPv4 path is up,
+/// Upload gate: no report leaves while a camera path is held or the camera's IPv4 path is up,
 /// including when cellular internet is also available. `cameraIPv4Prefix` is the camera
 /// network's address prefix, supplied by the app; nil when the camera's network shares its
-/// prefix with ordinary home networks, so only the live camera session holds reports back.
+/// prefix with ordinary home networks, so only a held camera path holds reports back.
 public final class ReliabilityReportingGate: @unchecked Sendable {
     public let cameraIPv4Prefix: String?
 
     private let lock = NSLock()
-    private var cameraSessionActive = false
+    private var cameraPathHolders = Set<UInt64>()
+    private var nextCameraPathHolder: UInt64 = 0
     private var ipv4Override: Bool?
     private var validInternet = true
     private var pending: [ReliabilityReportingCancellable] = []
@@ -23,17 +24,18 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
         self.cameraIPv4Prefix = cameraIPv4Prefix
     }
 
+    /// A connection owner holds the camera path (``beginCameraPath(onClear:)``).
     public var isCameraSessionActive: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return cameraSessionActive
+        return !cameraPathHolders.isEmpty
     }
 
-    /// Blocks SDK upload while a camera session is live or the camera IPv4 path is up,
+    /// Blocks SDK upload while a camera path is held or the camera IPv4 path is up,
     /// including when cellular internet is also available.
     public var shouldBlockUpload: Bool {
         lock.lock()
-        let session = cameraSessionActive
+        let session = !cameraPathHolders.isEmpty
         let override = ipv4Override
         lock.unlock()
         let ipv4 = override ?? cameraIPv4Prefix.map { Self.cameraIPv4PathReady(prefix: $0) } ?? false
@@ -46,14 +48,25 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
         return validInternet
     }
 
-    public func setCameraSessionActive(_ active: Bool) {
+    /// Holds the camera path until the lease ends and cancels uploads in flight. Every connection
+    /// owner takes its own lease at its connect attempt and ends it when it retires, so a stale
+    /// owner ending late never reopens a successor's hold. `onClear` runs when the last lease ends.
+    public func beginCameraPath(onClear: @escaping @Sendable () -> Void = {})
+        -> ReliabilityCameraPathLease
+    {
         lock.lock()
-        cameraSessionActive = active
-        let toCancel = active ? pending : []
-        if active { pending.removeAll(keepingCapacity: true) }
+        nextCameraPathHolder += 1
+        let holder = nextCameraPathHolder
+        cameraPathHolders.insert(holder)
+        let toCancel = pending
+        pending.removeAll(keepingCapacity: true)
         lock.unlock()
-        if active {
-            for task in toCancel { task.cancel() }
+        for task in toCancel { task.cancel() }
+        return ReliabilityCameraPathLease { [self] in
+            lock.lock()
+            let cleared = cameraPathHolders.remove(holder) != nil && cameraPathHolders.isEmpty
+            lock.unlock()
+            if cleared { onClear() }
         }
     }
 
@@ -75,7 +88,7 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
     public func register(_ task: ReliabilityReportingCancellable) {
         lock.lock()
         pending.append(task)
-        let blockNow = cameraSessionActive || (ipv4Override ?? false)
+        let blockNow = !cameraPathHolders.isEmpty || (ipv4Override ?? false)
         lock.unlock()
         if blockNow || shouldBlockUpload { task.cancel() }
     }
@@ -96,7 +109,7 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
 
     public func resetForTests() {
         lock.lock()
-        cameraSessionActive = false
+        cameraPathHolders.removeAll()
         ipv4Override = false
         validInternet = true
         let toCancel = pending
@@ -126,6 +139,27 @@ public final class ReliabilityReportingGate: @unchecked Sendable {
             cursor = iface.pointee.ifa_next
         }
         return false
+    }
+}
+
+/// One connection owner's hold on the camera path, from its connect attempt (recovery included)
+/// until it retires. Ending it again does nothing.
+public final class ReliabilityCameraPathLease: @unchecked Sendable {
+    private let lock = NSLock()
+    private var release: (@Sendable () -> Void)?
+
+    init(release: @escaping @Sendable () -> Void) {
+        self.release = release
+    }
+
+    public var isEnded: Bool { lock.withLock { release == nil } }
+
+    public func end() {
+        let release = lock.withLock { () -> (@Sendable () -> Void)? in
+            defer { self.release = nil }
+            return self.release
+        }
+        release?()
     }
 }
 

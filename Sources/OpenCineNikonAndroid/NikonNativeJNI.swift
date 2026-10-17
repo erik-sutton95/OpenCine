@@ -252,7 +252,7 @@
                 env, cls, "onConnected",
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
             let onFailed = optionalInstanceMethod(
-                env, cls, "onFailed", "(Ljava/lang/String;)V")
+                env, cls, "onFailed", "(ILjava/lang/String;)V")
         else {
             // Clear any pending NoSuchMethodError so a listener-resolution miss
             // cannot abort the Kotlin caller of sessionConnect.
@@ -269,7 +269,7 @@
             let guidBytes = swiftBytes(env, guid, maximumCount: 16), guidBytes.count == 16
         else {
             let message = javaString(env, "Android provided an invalid camera connection identity.")
-            var arguments = [jvalue(l: message)]
+            var arguments = [jvalue(i: AndroidConnectFailure.other.rawValue), jvalue(l: message)]
             fns.CallVoidMethodA!(env, global, onFailed, &arguments)
             if let message { fns.DeleteLocalRef!(env, message) }
             fns.DeleteGlobalRef!(env, global)
@@ -314,7 +314,7 @@
                 env, cls, "onConnected",
                 "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
             let onFailed = optionalInstanceMethod(
-                env, cls, "onFailed", "(Ljava/lang/String;)V")
+                env, cls, "onFailed", "(ILjava/lang/String;)V")
         else {
             // Clear any pending NoSuchMethodError so a listener-resolution miss
             // cannot abort the Kotlin caller of sessionConnectUsb.
@@ -329,7 +329,7 @@
         guard let connectionStrategy = sessionConnectionStrategy(strategy) else {
             closeKotlinUSBTransport(env, transport)
             let message = javaString(env, "Android provided an invalid camera connection strategy.")
-            var arguments = [jvalue(l: message)]
+            var arguments = [jvalue(i: AndroidConnectFailure.other.rawValue), jvalue(l: message)]
             fns.CallVoidMethodA!(env, global, onFailed, &arguments)
             if let message { fns.DeleteLocalRef!(env, message) }
             fns.DeleteGlobalRef!(env, global)
@@ -341,7 +341,7 @@
             fns.ExceptionClear!(env)
             closeKotlinUSBTransport(env, transport)
             let message = javaString(env, "Android could not initialize the USB camera transport.")
-            var arguments = [jvalue(l: message)]
+            var arguments = [jvalue(i: AndroidConnectFailure.other.rawValue), jvalue(l: message)]
             fns.CallVoidMethodA!(env, global, onFailed, &arguments)
             if let message { fns.DeleteLocalRef!(env, message) }
             fns.DeleteGlobalRef!(env, global)
@@ -398,6 +398,14 @@
             }
         }
 
+        /// Terminal failure: the typed `AndroidConnectFailure` code, then the message.
+        func callFailed(_ error: Error, message: String) {
+            let jMessage = javaString(env, message)
+            var args = [jvalue(i: AndroidConnectFailure(error).rawValue), jvalue(l: jMessage)]
+            fns.CallVoidMethodA!(env, handle.listener, handle.onFailed, &args)
+            if let jMessage { fns.DeleteLocalRef!(env, jMessage) }
+        }
+
         do {
             let session = try PTPIPClientSession.connect(
                 host: host,
@@ -432,7 +440,7 @@
                 ])
         } catch {
             facadeSessions.clearPendingConnection(owner: owner)?.close()
-            callStrings(handle.onFailed, [error.localizedDescription])
+            callFailed(error, message: error.localizedDescription)
         }
     }
 
@@ -468,6 +476,14 @@
             for value in jValues where value != nil {
                 fns.DeleteLocalRef!(env, value)
             }
+        }
+
+        /// Terminal failure: the typed `AndroidConnectFailure` code, then the message.
+        func callFailed(_ error: Error, message: String) {
+            let jMessage = javaString(env, message)
+            var args = [jvalue(i: AndroidConnectFailure(error).rawValue), jvalue(l: jMessage)]
+            fns.CallVoidMethodA!(env, handle.listener, handle.onFailed, &args)
+            if let jMessage { fns.DeleteLocalRef!(env, jMessage) }
         }
 
         do {
@@ -507,11 +523,11 @@
             facadeSessions.clearPendingConnection(owner: owner)?.close()
             transport.close()
             callStrings(handle.onPhase, [error.diagnosticPhase, ""])
-            callStrings(handle.onFailed, [error.localizedDescription ?? "USB handshake failed."])
+            callFailed(error, message: error.localizedDescription)
         } catch {
             facadeSessions.clearPendingConnection(owner: owner)?.close()
             transport.close()
-            callStrings(handle.onFailed, [error.localizedDescription])
+            callFailed(error, message: error.localizedDescription)
         }
     }
 

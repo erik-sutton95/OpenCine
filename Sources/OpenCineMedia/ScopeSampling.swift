@@ -180,8 +180,22 @@ public enum ScopeSampler {
         trafficThreshold: Double = ScopeTrafficLights.defaultThreshold,
         previous: ScopeAssistBundle
     ) -> ScopeAssistBundle {
-        let raw = sampleRaw(bytes: bytes, width: width, height: height, bytesPerRow: bytesPerRow,
-            transfer: transfer, includePoints: includePoints || includeVectorPoints)
+        bundle(
+            samples: sampleRaw(bytes: bytes, width: width, height: height, bytesPerRow: bytesPerRow,
+                transfer: transfer, includePoints: includePoints || includeVectorPoints),
+            transfer: transfer, clipByte: clipByte, includePoints: includePoints,
+            includeVectorPoints: includeVectorPoints, look: look,
+            trafficThreshold: trafficThreshold, previous: previous)
+    }
+
+    /// One bundle from samples a source already walked with `sampleRaw`: the shared lamps,
+    /// histogram axis and VECTOR look for its transfer and ceiling.
+    public static func bundle(
+        samples raw: ScopeSamples, transfer: MonitorTransfer, clipByte: Int,
+        includePoints: Bool, includeVectorPoints: Bool = false, look: CubeLUT?,
+        trafficThreshold: Double = ScopeTrafficLights.defaultThreshold,
+        previous: ScopeAssistBundle
+    ) -> ScopeAssistBundle {
         let histY = raw.histogramLuma, histR = raw.histogramRed
         let histG = raw.histogramGreen, histB = raw.histogramBlue
         let points = raw.points

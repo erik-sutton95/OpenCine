@@ -1,9 +1,12 @@
 import Foundation
 
-/// DISP 1 Live / DISP 2 Clean. Command (DISP 3) is not in this build.
+/// DISP 1 Live, DISP 2 Clean and DISP 3 Command. A source declares which it offers
+/// (`MonitorOperatorSessionModel.declare(modes:)`): Command only where the source supplies a
+/// camera dashboard in place of the picture.
 public enum MonitorDisplayMode: String, CaseIterable, Codable, Equatable, Identifiable, Sendable {
     case live
     case clean
+    case command
 
     public var id: String { rawValue }
 
@@ -11,6 +14,7 @@ public enum MonitorDisplayMode: String, CaseIterable, Codable, Equatable, Identi
         switch self {
         case .live: "Live"
         case .clean: "Clean"
+        case .command: "Command"
         }
     }
 
@@ -18,6 +22,7 @@ public enum MonitorDisplayMode: String, CaseIterable, Codable, Equatable, Identi
         switch self {
         case .live: "DISP 1 · Live"
         case .clean: "DISP 2 · Clean"
+        case .command: "DISP 3 · Command"
         }
     }
 
@@ -27,6 +32,8 @@ public enum MonitorDisplayMode: String, CaseIterable, Codable, Equatable, Identi
             "The full monitor. Set what it shows in Edit view."
         case .clean:
             "A stripped-back image. Same elements as DISP 1 \u{2014} status, tool and capture bars start off. Pin which view assists stay on."
+        case .command:
+            "The camera dashboard in place of the picture. Only the rail is yours to arrange."
         }
     }
 }
@@ -50,6 +57,7 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
         case recReadout
         case timecode
         case format
+        case codec
         case color
         case storage
         case fps
@@ -72,6 +80,7 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
             case .recReadout: "REC"
             case .timecode: "Timecode"
             case .format: "Format"
+            case .codec: "Codec"
             case .color: "Color"
             case .storage: "Storage"
             case .fps: "FPS"
@@ -87,6 +96,8 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
     public var recReadout = true
     public var timecode = true
     public var format = true
+    /// The recording codec chip, for sources that report one apart from the format.
+    public var codec = true
     public var color = true
     public var storage = true
     public var fps = true
@@ -106,6 +117,7 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
         recReadout: Bool = true,
         timecode: Bool = true,
         format: Bool = true,
+        codec: Bool = true,
         color: Bool = true,
         storage: Bool = true,
         fps: Bool = true,
@@ -124,6 +136,7 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
         self.recReadout = recReadout
         self.timecode = timecode
         self.format = format
+        self.codec = codec
         self.color = color
         self.storage = storage
         self.fps = fps
@@ -133,6 +146,36 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
         self.zoomChip = zoomChip
         self.gimbalStick = gimbalStick
         self.focusBox = focusBox
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case statusBar, toolBar, cameraValues, lockButton, batteries, recReadout, timecode, format,
+            codec, color, storage, fps, railRecord, railMedia, railSettings, zoomChip, gimbalStick,
+            focusBox
+    }
+
+    /// Every pre-codec key is required (an incomplete blob keeps the whole-value fallback);
+    /// `codec` arrived later, so a layout saved before it shows the codec chip.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        statusBar = try c.decode(Bool.self, forKey: .statusBar)
+        toolBar = try c.decode(Bool.self, forKey: .toolBar)
+        cameraValues = try c.decode(Bool.self, forKey: .cameraValues)
+        lockButton = try c.decode(Bool.self, forKey: .lockButton)
+        batteries = try c.decode(Bool.self, forKey: .batteries)
+        recReadout = try c.decode(Bool.self, forKey: .recReadout)
+        timecode = try c.decode(Bool.self, forKey: .timecode)
+        format = try c.decode(Bool.self, forKey: .format)
+        codec = try c.decodeIfPresent(Bool.self, forKey: .codec) ?? true
+        color = try c.decode(Bool.self, forKey: .color)
+        storage = try c.decode(Bool.self, forKey: .storage)
+        fps = try c.decode(Bool.self, forKey: .fps)
+        railRecord = try c.decode(Bool.self, forKey: .railRecord)
+        railMedia = try c.decode(Bool.self, forKey: .railMedia)
+        railSettings = try c.decode(Bool.self, forKey: .railSettings)
+        zoomChip = try c.decode(Bool.self, forKey: .zoomChip)
+        gimbalStick = try c.decode(Bool.self, forKey: .gimbalStick)
+        focusBox = try c.decode(Bool.self, forKey: .focusBox)
     }
 
     public static let liveDefaults = MonitorDisplayChrome()
@@ -173,6 +216,7 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
         case .recReadout: recReadout
         case .timecode: timecode
         case .format: format
+        case .codec: codec
         case .color: color
         case .storage: storage
         case .fps: fps
@@ -195,17 +239,26 @@ public struct MonitorDisplayChrome: Equatable, Codable, Sendable {
         case .recReadout: recReadout.toggle()
         case .timecode: timecode.toggle()
         case .format: format.toggle()
+        case .codec: codec.toggle()
         case .color: color.toggle()
         case .storage: storage.toggle()
         case .fps: fps.toggle()
         }
     }
 
-    /// Live and clean offer the same list with different defaults.
+    /// Live and clean offer the same list with different defaults. Command has no picture, so
+    /// only the rail cluster is the operator's to arrange there; the rest keeps its stock value.
     public static func isConfigurable(_ section: Section, in mode: MonitorDisplayMode) -> Bool {
-        _ = section
-        _ = mode
-        return true
+        switch mode {
+        case .live, .clean: true
+        case .command:
+            [.lockButton, .batteries, .railRecord, .railMedia, .railSettings].contains(section)
+        }
+    }
+
+    /// The stock layout of `mode`.
+    public static func defaults(for mode: MonitorDisplayMode) -> MonitorDisplayChrome {
+        mode == .clean ? cleanDefaults : liveDefaults
     }
 
     public static func configurableSections(in mode: MonitorDisplayMode) -> [Section] {
@@ -219,11 +272,15 @@ public final class MonitorDisplayPreferences: @unchecked Sendable {
     public struct Keys: Sendable {
         public let live: String
         public let clean: String
+        /// Present only for an app whose sources offer DISP 3.
+        public let command: String?
 
-        public init(live: String, clean: String) {
+        public init(live: String, clean: String, command: String? = nil) {
             precondition(!live.isEmpty && !clean.isEmpty && live != clean)
+            precondition(command.map { !$0.isEmpty && $0 != live && $0 != clean } ?? true)
             self.live = live
             self.clean = clean
+            self.command = command
         }
     }
 
@@ -243,6 +300,23 @@ public final class MonitorDisplayPreferences: @unchecked Sendable {
     public var clean: MonitorDisplayChrome {
         get { read(keys.clean) ?? .cleanDefaults }
         set { write(newValue, key: keys.clean) }
+    }
+
+    /// DISP 3's rail layout; stock (and not stored) when the app has no command key.
+    public var command: MonitorDisplayChrome {
+        get { keys.command.flatMap(read) ?? .liveDefaults }
+        set { if let key = keys.command { write(newValue, key: key) } }
+    }
+
+    /// Whether `mode` has a stored layout, for an app that seeds one from an older store once.
+    public func hasStoredLayout(for mode: MonitorDisplayMode) -> Bool {
+        let key: String? =
+            switch mode {
+            case .live: keys.live
+            case .clean: keys.clean
+            case .command: keys.command
+            }
+        return key.map { storage.data(forKey: $0) != nil } ?? false
     }
 
     private func read(_ key: String) -> MonitorDisplayChrome? {

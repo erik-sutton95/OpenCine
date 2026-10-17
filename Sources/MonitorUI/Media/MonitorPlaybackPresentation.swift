@@ -109,6 +109,18 @@
         }
     }
 
+    @MainActor public struct MonitorPlaybackDeletionActions {
+        public let capture: (MonitorPlaybackItemToken) -> MonitorPlaybackDeletionConfirmation?
+        public let isCurrent: (UUID) -> Bool
+        public let confirm: (UUID) -> Void
+        public let cancel: (UUID) -> Void
+        public init(capture: @escaping (MonitorPlaybackItemToken) -> MonitorPlaybackDeletionConfirmation?,
+            isCurrent: @escaping (UUID) -> Bool, confirm: @escaping (UUID) -> Void,
+            cancel: @escaping (UUID) -> Void) {
+            self.capture = capture; self.isCurrent = isCurrent; self.confirm = confirm; self.cancel = cancel
+        }
+    }
+
     @MainActor public struct MonitorPlaybackActions {
         public var back: () -> Void
         public var play: (MonitorPlaybackItemToken, Bool) -> Void
@@ -121,6 +133,7 @@
         public var favorite: (MonitorPlaybackItemToken) -> Void
         public var share: (MonitorPlaybackItemToken) -> Void
         public var delete: ((MonitorPlaybackItemToken) -> Void)?
+        public var deletionConfirmation: MonitorPlaybackDeletionActions? = nil
         public var beginScrub: (MonitorPlaybackItemToken) -> MonitorPlaybackScrubToken?
         public var updateScrub: (MonitorPlaybackScrubToken, Double) -> Void
         public var updateFrameScrub: (MonitorPlaybackScrubToken, Double, Double) -> Void
@@ -177,6 +190,8 @@
     /// Native/source content fills finite accessory slots; page state remains in MonitorPlaybackScreen.
     @MainActor public struct MonitorPlaybackPageSlots {
         public var headerAccessory: () -> AnyView
+        /// Compact content alongside the header actions; expanded content uses headerAccessory.
+        public var headerActionAccessory: () -> AnyView
         public var canvasDetails: (MonitorPlaybackCanvasContext) -> AnyView
         /// UIKit window coordinates of the actual share button, distinct from the assist bar frame.
         public var onShareButtonFrame: (CGRect) -> Void
@@ -189,9 +204,11 @@
             },
             onShareButtonFrame: @escaping (CGRect) -> Void = { _ in },
             onChromeVisibilityChanged: @escaping (Bool) -> Void = { _ in },
+            headerActionAccessory: @escaping () -> AnyView = { AnyView(EmptyView()) },
             onAssistExpansionChanged: @escaping (Bool) -> Void = { _ in }
         ) {
             self.headerAccessory = headerAccessory
+            self.headerActionAccessory = headerActionAccessory
             self.canvasDetails = canvasDetails
             self.onShareButtonFrame = onShareButtonFrame
             self.onChromeVisibilityChanged = onChromeVisibilityChanged

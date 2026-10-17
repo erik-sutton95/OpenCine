@@ -120,7 +120,8 @@ public fun MonitorOperatorScreen(
     val shellState by shell.state.collectAsState()
     LaunchedEffect(shellState.monitor?.id, session) { session.synchronize(shellState.monitor?.id) }
     val control by shell.control.state.collectAsState()
-    var locked by remember { mutableStateOf(false) }
+    val phone = rememberPhoneBatteryReadout()
+    val locked = session.locked
     var field by remember { mutableStateOf<MonitorCaptureField?>(null) }
     var usage by remember { mutableStateOf(MonitorToolUsageState()) }
     val host = remember(session) { operatorChromeHost(session) }
@@ -165,7 +166,9 @@ public fun MonitorOperatorScreen(
             tool, assist.isOn(tool), { assist.toggle(tool) },
             tool !in setOf(MonitorAssistTool.EV, MonitorAssistTool.LEVEL) && (tool != MonitorAssistTool.LUT || lookOptions != null),
             accessibilityIdentifier = "monitor.assist.${tool.name}") }
-        MonitorOperatorLiveBody(shell.control, identity, { value ->
+        val modes = session.modes
+        val index = modes.indexOf(session.mode).takeIf { it >= 0 }
+        MonitorOperatorLiveComposition(shell.control, identity, { value ->
             shell.state.value.monitor?.id == value.monitor && shell.control.state.value.snapshot?.session == value.camera &&
                 shell.control.state.value.snapshot?.epoch == value.epoch
         }, layout, MonitorRect(safeLeading, safeTop, maxOf(0f, layout.viewport.width - safeLeading - safeTrailing),
@@ -173,16 +176,18 @@ public fun MonitorOperatorScreen(
             MonitorOperatorLiveSections(MonitorDisplaySection.STATUS_BAR, MonitorDisplaySection.BATTERIES,
                 MonitorDisplaySection.CAMERA_VALUES, MonitorDisplaySection.TOOL_BAR, MonitorDisplaySection.LOCK_BUTTON,
                 MonitorDisplaySection.RAIL_SETTINGS, MonitorDisplaySection.RAIL_MEDIA, MonitorDisplaySection.RAIL_RECORD, null),
-            mounts, host, session.editingMode, locked, { locked = it }, covered, assist.clean, false, false,
+            mounts, host, session.editingMode, locked, { session.locked = it }, covered,
+            session.mode == MonitorDisplayMode.CLEAN, session.mode == MonitorDisplayMode.COMMAND, false,
             control.snapshot?.connection is com.opencapture.opencine.core.ConnectionState.Recovering,
-            MonitorOperatorLiveStatus(shell.control.statusPresentation(), session.mounts(MonitorDisplaySection.TIMECODE),
+            MonitorOperatorLiveStatus({ shell.control.statusPresentation() }, session.mounts(MonitorDisplaySection.TIMECODE),
                 session.mounts(MonitorDisplaySection.REC_READOUT), null, format?.let { listOf(it) } ?: emptyList(), null, null, null),
-            emptyList(), inputs, { field = null; captureKeys.forEach(shell.control::cancelEdit) },
-            { shell.open(ShellModel.Cover.SETTINGS) }, { shell.open(ShellModel.Cover.MEDIA) }, { assist.clean = !assist.clean },
-            if (assist.clean) 1 else 0, 2, false, operatorPreferences.recordConfirmation, true,
+            listOfNotNull(MonitorOperatorPowerReading(false, phone.percent, phone.externalPower),
+                control.snapshot?.power?.let(::cameraPowerReading)), inputs, { field = null; captureKeys.forEach(shell.control::cancelEdit) },
+            { shell.open(ShellModel.Cover.SETTINGS) }, { shell.open(ShellModel.Cover.MEDIA) }, { session.cycle() },
+            index, modes.size, false, operatorPreferences.recordConfirmation, true,
+            displayTitle = index?.let { "DISP ${it + 1} ${session.mode.title.lowercase()}" },
             assist = assist, assists = null, palette = tools, usage = usage, setUsage = { usage = it }, usageSeed = emptyMap(),
             renderedTools = availableAssistTools, fittedScopes = emptyList(), scopeZone = null,
-            recordConfirmationPolicy = MonitorControlModel.RecordConfirmationPolicy.UNCHANGED_RECORDING,
             interactionEnabled = session.interactive, borrowed = shellState.monitor?.isBorrowed == true,
             safeLeading = safeLeading, safeTrailing = safeTrailing, safeTop = safeTop, safeBottom = safeBottom,
             scopeFloating = true, assistHost = assistHost, lookOptions = lookOptions,
@@ -235,19 +240,40 @@ public fun <P> MonitorOperatorSettingsScreen(shell: ShellModel, brand: String, a
     preferences: MonitorOperatorPreferences, display: MonitorDisplayPreferences, assist: MonitorAssistState,
     library: MonitorMediaLibraryModel<P>?, availableAssistTools: Set<MonitorAssistTool> = MonitorOperatorDefaultAssistTools,
     operatorSession: MonitorOperatorSessionModel? = null, assistHost: AssistHost = MonitorDefaultAssistHost,
-    lookOptions: AssistLutPicker? = null) {
+    lookOptions: AssistLutPicker? = null, legal: MonitorLegalDocuments? = null) {
     val state by shell.state.collectAsState()
     val scope = rememberCoroutineScope()
     val session = operatorSession ?: remember(shell, assist, display) { MonitorOperatorSessionModel(shell, assist, display, scope) }
     val live = state.monitor != null
     val cameraName = state.monitor?.camera?.saved?.displayName
-    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
-        brand = brand, selection = session.settingsTab, onSelect = { session.settingsTab = it },
-        isLive = live, phase = cameraName ?: "No camera connected", close = shell::dismissCover,
-        disconnect = if (live) shell::close else null,
-        source = MonitorOperatorSettingsSource.Session(preferences, session, assist, library,
-            cameraName, availableAssistTools, assistHost, lookOptions, actions.diagnostics, actions.reportProblem),
+    val phase = cameraName ?: "No camera connected"
+    val revision = remember { mutableIntStateOf(0) }
+    @Suppress("UNUSED_VARIABLE") val observedRevision = revision.intValue
+    fun write(apply: () -> Unit) { apply(); revision.intValue++ }
+    val configuration = MonitorOperatorSettingsConfiguration(
+        brand = brand, isLive = live, phase = phase, close = shell::dismissCover,
+        disconnect = if (live) shell::close else null, feedback = {},
+        link = MonitorSettingsLinkSource(transport = if (live) "Connected" else "Not connected",
+            transportHelp = "How this phone reaches the camera.", phase = phase,
+            phaseHelp = "The camera this monitor shows.", healthTitle = "Link Health",
+            healthCaption = if (live) "Live" else "No live path.", score = null),
+        sharing = null, sharingSubtitle = null, sharingRail = null,
+        controls = MonitorSettingsControlsSource(preferences.recordConfirmation, { write { preferences.recordConfirmation = it } },
+            preferences.haptics, { write { preferences.haptics = it } },
+            preferences.keepScreenAwake, { write { preferences.keepScreenAwake = it } },
+            keepAwakeHelp = "Prevents auto-lock while this app is open. A monitor should stay lit."),
+        cache = library?.let {
+            MonitorSettingsCachePresentation(monitorSettingsCacheSource(it), cacheOriginals = preferences.cacheOriginals,
+                setCacheOriginals = { value -> write { preferences.cacheOriginals = value } })
+        },
+        support = MonitorSettingsSupportSource(report = actions.reportProblem, actions = listOf(
+            MonitorSupportAction("support.diagnostics", "Diagnostics", actionTitle = "Share",
+                accessibilityLabel = "Share Diagnostics", action = actions.diagnostics))),
+        legal = legal,
         tabs = listOf(MonitorSettingsTab.LINK, MonitorSettingsTab.ASSIST, MonitorSettingsTab.CONTROLS, MonitorSettingsTab.DISPLAY) +
             (if (library != null) listOf(MonitorSettingsTab.STORAGE) else emptyList()) + listOf(MonitorSettingsTab.SYSTEM),
-    ))
+    )
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, session.settingsTab,
+        { session.settingsTab = it }, MonitorOperatorPictureSettings.Session(preferences, session, assist,
+            availableAssistTools, assistHost, lookOptions)))
 }

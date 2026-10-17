@@ -45,11 +45,8 @@
         }
 
         public var body: some View {
-            if let description = clip.accessibilityDescription {
-                cell.accessibilityLabel(description)
-            } else {
-                cell
-            }
+            // Named like the Compose cell: the app's description, else the clip's title.
+            cell.accessibilityLabel(clip.accessibilityDescription ?? clip.title)
         }
 
         private var cell: some View {
@@ -57,6 +54,9 @@
                 if layout == .grid { gridCard } else { listRow }
             }
             .accessibilityElement(children: .contain)
+            .accessibilityAction(.default) {
+                selecting ? onSelect() : onOpen()
+            }
             .accessibilityAction(
                 named: selecting ? "Toggle selection" : (clip.selectionEntryLabel ?? "Select clip")
             ) {

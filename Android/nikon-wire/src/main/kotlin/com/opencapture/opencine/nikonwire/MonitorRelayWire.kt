@@ -249,6 +249,8 @@ object MonitorRelayWire {
         val gigabytesFree: Int,
         val percentFree: Int,
         val minutesRemaining: Int,
+        val estimatedMinutesRemaining: Int? = minutesRemaining,
+        val freeBytes: Long? = null,
     )
 
     /** Host → viewer camera readouts; field-for-field the core's `MonitorRelayState`. */
@@ -296,7 +298,9 @@ object MonitorRelayWire {
                         JSONObject()
                             .put("gigabytesFree", it.gigabytesFree)
                             .put("percentFree", it.percentFree)
-                            .put("minutesRemaining", it.minutesRemaining),
+                            .put("minutesRemaining", it.minutesRemaining)
+                            .put("estimatedMinutesRemaining", it.estimatedMinutesRemaining ?: JSONObject.NULL)
+                            .put("freeBytes", it.freeBytes ?: JSONObject.NULL),
                     )
                 }
                 put("isRecording", isRecording)
@@ -338,6 +342,10 @@ object MonitorRelayWire {
                                 gigabytesFree = it.getInt("gigabytesFree"),
                                 percentFree = it.getInt("percentFree"),
                                 minutesRemaining = it.getInt("minutesRemaining"),
+                                estimatedMinutesRemaining = if (it.has("estimatedMinutesRemaining")) {
+                                    if (it.isNull("estimatedMinutesRemaining")) null else it.getInt("estimatedMinutesRemaining")
+                                } else it.getInt("minutesRemaining"),
+                                freeBytes = if (!it.has("freeBytes") || it.isNull("freeBytes")) null else it.getLong("freeBytes").takeIf { bytes -> bytes >= 0 },
                             )
                         },
                     isRecording = json.getBoolean("isRecording"),

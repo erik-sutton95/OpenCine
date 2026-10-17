@@ -77,6 +77,10 @@ public fun <P> MonitorOperatorPhotoScreen(library: MonitorMediaLibraryModel<P>, 
     LaunchedEffect(libraryState.lifetimeToken) { if (!library.isCurrent(admission)) model.sourceChanged() }
     LaunchedEffect(model, rating) { model.readRating(rating) }
     BackHandler(enabled = !coverPresented && !state.closing) { if (!model.back()) model.close(close) }
+    if (libraryState.lifetimeToken != model.admission.lifetime || !model.isCurrent) {
+        MonitorOperatorMediaUnavailable(closeEnabled = !state.closing) { model.close(close) }
+        return
+    }
     CompositionLocalProvider(LocalMediaBackdropGlass provides true, LocalMonitorBackdrops provides listOf(backdrop),
         LocalMonitorBackdropSurround provides Color.Black) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {

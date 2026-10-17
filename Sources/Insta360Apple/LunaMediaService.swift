@@ -370,6 +370,18 @@ extension LunaMediaSourcePort {
     }
 }
 
+extension LunaColorMode {
+    /// The color mode a clip's gamma metadata names, or nil when it names none.
+    public init?(gammaLabel: String?) {
+        guard let gamma = gammaLabel?.lowercased() else { return nil }
+        if gamma.contains("log") { self = .iLog }
+        else if gamma.contains("dolby") || gamma.contains("hdr") { self = .dolbyVision }
+        else if gamma.contains("standard") { self = .standard }
+        else if gamma.contains("vivid") { self = .vivid }
+        else { return nil }
+    }
+}
+
 private struct LunaMediaOwnedSink: MediaByteSink {
     let sink: any MediaByteSink
     let check: @MainActor @Sendable () throws -> Void

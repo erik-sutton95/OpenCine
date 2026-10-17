@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -195,10 +196,10 @@ fun MonitorCatalogDisplayControls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            CatalogLayoutCell(
-                MonitorIcon.LAYOUT_GRID, "Grid view", selected = !list, onClick = { onList(false) })
-            CatalogLayoutCell(
-                MonitorIcon.MENU, "List view", selected = list, onClick = { onList(true) })
+            CatalogLayoutCell(MonitorIcon.LAYOUT_GRID, "Grid view", "monitor.media.layout.grid",
+                selected = !list, onClick = { onList(false) })
+            CatalogLayoutCell(MonitorIcon.MENU, "List view", "monitor.media.layout.list",
+                selected = list, onClick = { onList(true) })
         }
         Row(
             Modifier.clip(RoundedCornerShape(9.dp)).background(Color.Black.copy(alpha = .35f)).padding(3.dp),
@@ -224,12 +225,13 @@ fun MonitorCatalogDisplayControls(
 }
 
 @Composable
-private fun CatalogLayoutCell(icon: MonitorIcon, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun CatalogLayoutCell(icon: MonitorIcon, label: String, tag: String, selected: Boolean, onClick: () -> Unit) {
     Box(Modifier.size(32.dp, 28.dp).clip(RoundedCornerShape(7.dp))
         .background(if (selected) Color.White.copy(alpha = .14f) else Color.Transparent)
         .combinedClickable(role = Role.Button, onClick = onClick)
         .semantics {
             contentDescription = label
+            testTag = tag
             this.selected = selected
         },
         contentAlignment = Alignment.Center) {

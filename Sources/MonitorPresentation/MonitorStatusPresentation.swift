@@ -5,12 +5,19 @@ public struct MonitorStatusPresentation: Equatable, Sendable {
     public var recording: Bool?
     public var elapsedSeconds: Int?
     public var timecode: String?
+    /// What the clock shows without a value, at the source's declared precision.
+    public var timecodePlaceholder: String
 
-    public init(recording: Bool?, elapsedSeconds: Int? = nil, timecode: String? = nil) {
+    public init(recording: Bool?, elapsedSeconds: Int? = nil, timecode: String? = nil,
+        timecodePlaceholder: String = MonitorTimecodeFormat.placeholder(frames: false)) {
         self.recording = recording
         self.elapsedSeconds = elapsedSeconds.map { max(0, $0) }
         self.timecode = timecode
+        self.timecodePlaceholder = timecodePlaceholder
     }
+
+    /// The clock as shown: the reported label, or the placeholder at the declared precision.
+    public var clock: String { timecode ?? timecodePlaceholder }
 
     public var recordingLabel: String {
         switch recording { case true?: "REC"; case false?: "STBY"; case nil: "--" }

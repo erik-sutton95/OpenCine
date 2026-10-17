@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.opencapture.opencine.cameracontrols
 
 import com.opencapture.opencine.vocabulary.CameraCommands
@@ -1121,6 +1122,13 @@ class CaptureSheetTest {
     }
 
     @Test
+    fun sharedStorageCaseReadsSixtyGigabytes() {
+        // A5-11: 60e9 free of 128e9 bytes, as the DJI-wire status carries them (MiB, truncated).
+        val status = CameraStatus(storageFreeMb = 57_220, storageTotalMb = 122_070)
+        assertEquals("60 GB · 47%", CaptureLists.storageLabel(status, showDuration = false))
+    }
+
+    @Test
     fun storagePrefersStorageThenSdLikeIos() {
         val mixed =
             CameraStatus(
@@ -1129,9 +1137,9 @@ class CaptureSheetTest {
                 sdFreeMb = 512,
                 sdTotalMb = 1024,
             )
-        assertEquals("2 GB · 50%", CaptureLists.storageLabel(mixed, showDuration = false))
+        assertEquals("2.15 GB · 50%", CaptureLists.storageLabel(mixed, showDuration = false))
         val sdOnly = CameraStatus(sdFreeMb = 1024, sdTotalMb = 2048)
-        assertEquals("1 GB · 50%", CaptureLists.storageLabel(sdOnly, showDuration = false))
+        assertEquals("1.07 GB · 50%", CaptureLists.storageLabel(sdOnly, showDuration = false))
         val duration = CameraStatus(recordRemainingSec = 180)
         assertEquals("3 Min", CaptureLists.storageLabel(duration, showDuration = true))
         assertEquals("— Min", CaptureLists.storageLabel(CameraStatus(), showDuration = true))

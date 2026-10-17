@@ -43,6 +43,13 @@ import com.opencapture.monitorui.settings.*
 import com.opencapture.opencine.appkit.MonitorSettingsCacheSource
 import com.opencapture.opencine.appkit.MonitorSettingsAccountActions
 import com.opencapture.opencine.appkit.MonitorSettingsAccountModel
+import com.opencapture.opencine.core.SavedCamera
+import com.opencapture.opencine.appkit.diagnostics.FeedIncidentRuntime
+import com.opencapture.opencine.core.RouteKind
+import android.widget.Toast
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 
 /** Captured account actions use the existing native authorization and route service. */
 public class MonitorSettingsAccountSource(
@@ -57,6 +64,7 @@ public class MonitorSettingsAccountSource(
 )
 
 /** The deployed display store supplies values and actions; the common page owns its form. */
+@Deprecated("Compose an explicit typed display source when migrating the shared settings.")
 public class MonitorOperatorBorrowedDisplay(
     public val layoutTitle: String,
     public val layoutHelp: String,
@@ -70,6 +78,14 @@ public class MonitorOperatorBorrowedDisplay(
     public val returnedFromEditor: () -> Unit = {},
 )
 
+/** Display rows over the one display owner: the modes the source declares, each mode's chrome, the clean-view
+ * pins and, when a live monitor can host it, the Edit view. [available] is what the source can fill. */
+public class MonitorOperatorDisplaySource(
+    public val session: com.opencapture.opencine.appkit.MonitorOperatorSessionModel,
+    public val available: Set<com.opencapture.opencine.appkit.MonitorDisplaySection>,
+    public val edit: ((com.opencapture.opencine.appkit.MonitorDisplayMode) -> Unit)?,
+)
+
 /** An actual setting descriptor, including its observed selection and admitted write. */
 public class MonitorSettingsChoiceSource(
     public val title: String, public val help: String?,
@@ -80,10 +96,17 @@ public data class MonitorSettingsReadoutSource(public val title: String, public 
 public class MonitorSettingsLinkSource(
     public val transport: String, public val transportHelp: String, public val phase: String,
     public val phaseHelp: String, public val healthTitle: String, public val healthCaption: String,
+    /** Unknown (no live path) draws the empty scale, as before any picture arrives. */
     public val score: Int?, public val choices: List<MonitorSettingsChoiceSource> = emptyList(),
     public val controlHolder: MonitorSettingsReadoutSource? = null,
     public val processingTitle: String? = null,
     public val processing: List<MonitorSettingsReadoutSource> = emptyList(),
+    /** Processing the app offers on this phone (the feed upscaler), shown above [processing] readouts. */
+    public val processingChoices: List<MonitorSettingsChoiceSource> = emptyList(),
+    public val network: String? = null, public val networkHelp: String = "",
+    /** The saved setups, or null where the app keeps none. */
+    public val savedCameras: List<MonitorSavedCameraSummary>? = null,
+    public val savedCamerasHelp: String = "",
 )
 public class MonitorSettingsSharingSource(
     public val watching: MonitorSettingsReadoutSource? = null,
@@ -102,6 +125,19 @@ public class MonitorSettingsSharingSource(
     public val holder: MonitorSettingsReadoutSource? = null,
     public val takeBackTitle: String, public val takeBack: (() -> Unit)? = null,
 )
+/** The on-screen joystick of a camera with a gimbal (Swift `MonitorSettingsJoystickSource`). */
+public class MonitorSettingsJoystickSource(
+    public val size: MonitorMotionChoiceSetting, public val invertPan: MonitorMotionToggleSetting,
+    public val invertTilt: MonitorMotionToggleSetting, public val deadZone: MonitorMotionIntegerSetting,
+    public val response: MonitorMotionChoiceSetting, public val identifier: String = "monitor.joystick",
+)
+/** Motion control rows, present only where the camera reports motion (Swift `MonitorSettingsMotionSource`). */
+public class MonitorSettingsMotionSource(
+    public val sensitivity: MonitorMotionIntegerSetting? = null,
+    public val joystick: MonitorSettingsJoystickSource? = null,
+    public val controller: MonitorMotionChoiceSetting? = null,
+    public val controllerStatus: String = "Not connected", public val controllerHelp: String = "",
+)
 public class MonitorSettingsControlsSource(
     public val recordConfirmation: Boolean, public val setRecordConfirmation: (Boolean) -> Unit,
     public val haptics: Boolean, public val setHaptics: (Boolean) -> Unit,
@@ -110,45 +146,133 @@ public class MonitorSettingsControlsSource(
     public val remoteShutter: Boolean? = null, public val setRemoteShutter: ((Boolean) -> Unit)? = null,
     public val remoteTitle: String = "Remote shutter", public val remoteCaption: String? = null,
     public val autoRotateFeed: Boolean? = null, public val setAutoRotateFeed: ((Boolean) -> Unit)? = null,
-    public val rotationTitle: String = "Auto-Rotate Feed", public val rotationHelp: String,
+    public val rotationTitle: String = "Auto-Rotate Feed", public val rotationHelp: String = "",
+    public val hapticsHelp: String? = null,
+    public val motion: MonitorSettingsMotionSource? = null,
 )
+/** Cache IO and copy. Clearing always asks first: one confirmation policy for every app. */
 public class MonitorSettingsCachePresentation(
     public val source: MonitorSettingsCacheSource,
-    public val formatBytes: (Long) -> String,
-    public val checking: String, public val readFailure: String, public val clearFailure: String,
-    public val scopeHelp: String, public val clearHelp: String,
+    public val formatBytes: ((Long) -> String)? = null,
+    public val checking: String = "Checking…", public val readFailure: String = "Could not read the cache.",
+    public val clearFailure: String = "Could not clear the cache. Try again.",
+    public val scopeHelp: String = "Originals and playback proxies downloaded from the camera.",
+    public val clearHelp: String = "Remove downloaded picture files while keeping the clip list.",
     public val summaryColor: Color = MonitorPalette.accent,
-    public val confirmClear: Boolean = true,
+    public val cacheOriginals: Boolean? = null, public val setCacheOriginals: ((Boolean) -> Unit)? = null,
+    public val cacheHelp: String = "Keep originals downloaded for playback.",
 )
+/** Help & Feedback. Privacy and terms come from [MonitorOperatorSettingsConfiguration.legal]. */
 public class MonitorSettingsSupportSource(
-    public val automaticReports: Boolean?, public val available: Boolean,
-    public val automaticHelp: String, public val unavailableHelp: String,
-    public val setAutomaticReports: ((Boolean) -> Unit)?,
-    public val reportTitle: String, public val reportHelp: String, public val reportActionTitle: String,
-    public val report: () -> Unit, public val privacy: () -> Unit,
-    public val status: MonitorReportStatus?, public val discard: (() -> Unit)?,
-    public val actions: List<MonitorSupportAction>,
-    public val sourceHelp: String, public val termsHelp: String,
-    public val source: () -> Unit, public val terms: () -> Unit,
+    public val report: () -> Unit,
+    public val automaticReports: Boolean? = null, public val available: Boolean = false,
+    public val automaticHelp: String = "", public val unavailableHelp: String = "",
+    public val setAutomaticReports: ((Boolean) -> Unit)? = null,
+    public val reportTitle: String = "Report a problem",
+    public val reportHelp: String = "Tell us what happened in the app. Choose whether to include technical details and an email for a reply.",
+    public val reportActionTitle: String = "Open",
+    public val status: MonitorReportStatus? = null, public val discard: (() -> Unit)? = null,
+    public val actions: List<MonitorSupportAction> = emptyList(),
+    public val sourceUrl: String? = null,
+    public val sourceHelp: String = "", public val termsHelp: String = "",
+    internal val legacyPrivacy: (() -> Unit)? = null,
+    internal val legacySource: (() -> Unit)? = null,
+    internal val legacyTerms: (() -> Unit)? = null,
+) {
+    /** Published callback values, retained for legacy readers. Current actions remain owned by legal/source URLs. */
+    public val privacy: () -> Unit get() = legacyPrivacy ?: {}
+    public val source: () -> Unit get() = legacySource ?: {}
+    public val terms: () -> Unit get() = legacyTerms ?: {}
+
+    public constructor(
+        automaticReports: Boolean?, available: Boolean, automaticHelp: String, unavailableHelp: String,
+        setAutomaticReports: ((Boolean) -> Unit)?, reportTitle: String, reportHelp: String,
+        reportActionTitle: String, report: () -> Unit, privacy: () -> Unit,
+        status: MonitorReportStatus?, discard: (() -> Unit)?, actions: List<MonitorSupportAction>,
+        sourceHelp: String, termsHelp: String, source: () -> Unit, terms: () -> Unit,
+    ) : this(report, automaticReports, available, automaticHelp, unavailableHelp,
+        setAutomaticReports, reportTitle, reportHelp, reportActionTitle, status, discard,
+        actions, sourceHelp = sourceHelp, termsHelp = termsHelp,
+        legacyPrivacy = privacy, legacySource = source, legacyTerms = terms)
+}
+/** Saved feed reports on this phone: share a diagnostic report, delete the stored feed reports. */
+public class MonitorSettingsDiagnosticsSource(
+    public val save: () -> Unit,
+    public val incidents: FeedIncidentRuntime,
+    public val deleteHelp: String = "Remove saved feed reports from this phone. Connection logs remain. Turn off automatic reporting to clear pending uploads. Reports already sent cannot be removed here.",
 )
 public data class MonitorSettingsInformationSource(
     public val theme: String, public val protocolName: String, public val version: String,
     public val themeHelp: String, public val protocolHelp: String, public val versionHelp: String,
 )
+/**
+ * Every app's settings: one value per tab, built by the app from its model. Absent capability
+ * sections (motion, sharing, account, cache) are null; the recipe for each tab is the same.
+ */
 public class MonitorOperatorSettingsConfiguration(
     public val brand: String, public val isLive: Boolean, public val phase: String,
     public val close: () -> Unit, public val disconnect: (() -> Unit)?, public val feedback: () -> Unit,
     public val link: MonitorSettingsLinkSource, public val sharing: MonitorSettingsSharingSource?,
     public val sharingSubtitle: String?, public val sharingRail: String?,
-    public val assistSections: List<MonitorAssistSettingsSection>,
     public val controls: MonitorSettingsControlsSource,
     public val cache: MonitorSettingsCachePresentation?,
     public val account: MonitorSettingsAccountSource? = null,
+    /** An account the app names but cannot configure yet; shown as not configured. */
+    public val unconfiguredAccount: MonitorSettingsReadoutSource? = null,
     public val support: MonitorSettingsSupportSource,
-    public val information: MonitorSettingsInformationSource,
-)
+    public val diagnostics: MonitorSettingsDiagnosticsSource? = null,
+    public val legal: MonitorLegalDocuments? = null,
+    public val information: MonitorSettingsInformationSource? = null,
+    public val tabs: List<MonitorSettingsTab> = MonitorSettingsTab.entries,
+    /** Legacy captured cards remain available beside typed assist composition. */
+    public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
+    public val assist: MonitorOperatorAssistSettingsSource? = null,
+) {
+    /** Published positional list constructor; every current capability field keeps its default. */
+    @Deprecated("Compose an explicit typed assist source when migrating the shared settings.")
+    public constructor(
+        brand: String, isLive: Boolean, phase: String,
+        close: () -> Unit, disconnect: (() -> Unit)?, feedback: () -> Unit,
+        link: MonitorSettingsLinkSource, sharing: MonitorSettingsSharingSource?,
+        sharingSubtitle: String?, sharingRail: String?,
+        assistSections: List<MonitorAssistSettingsSection>, controls: MonitorSettingsControlsSource,
+        cache: MonitorSettingsCachePresentation?, account: MonitorSettingsAccountSource? = null,
+        support: MonitorSettingsSupportSource, information: MonitorSettingsInformationSource?,
+    ) : this(brand, isLive, phase, close, disconnect, feedback, link, sharing, sharingSubtitle,
+        sharingRail, controls, cache, account, support = support, information = information,
+        assistSections = assistSections)
+}
 
 /** Complete settings ownership using actual stores, optional services and bounded native leaves. */
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    assistSections: List<MonitorAssistSettingsSection>,
+    display: MonitorOperatorDisplaySource,
+    initialTab: MonitorSettingsTab = MonitorSettingsTab.LINK,
+    sourceIdentity: Any? = null,
+): Unit {
+    var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
+        MonitorOperatorPictureSettings.Configured(assistSections, display), sourceIdentity))
+}
+
+/** Shared typed composition through the current settings and legal owners. */
+@Composable
+public fun MonitorOperatorSettingsScreen(
+    configuration: MonitorOperatorSettingsConfiguration,
+    display: MonitorOperatorDisplaySource,
+    initialTab: MonitorSettingsTab = MonitorSettingsTab.LINK,
+    sourceIdentity: Any? = null,
+): Unit {
+    var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
+        MonitorOperatorPictureSettings.Configured(configuration.assistSections, display, assist = configuration.assist),
+        sourceIdentity))
+}
+
+/** Published borrowed values and callbacks rendered by the current settings owner. */
+@Deprecated("Compose an explicit typed display source when migrating the shared settings.")
 @Composable
 public fun MonitorOperatorSettingsScreen(
     configuration: MonitorOperatorSettingsConfiguration,
@@ -157,15 +281,17 @@ public fun MonitorOperatorSettingsScreen(
     sourceIdentity: Any? = null,
 ): Unit {
     var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
-    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(
-        brand = configuration.brand, selection = selectedTab, onSelect = { selectedTab = it },
-        isLive = configuration.isLive, phase = configuration.phase, close = configuration.close,
-        disconnect = configuration.disconnect, feedback = configuration.feedback,
-        source = MonitorOperatorSettingsSource.Configured(configuration, borrowedDisplay),
-        sourceIdentity = sourceIdentity,
-        sharingSubtitle = configuration.sharingSubtitle, sharingRail = configuration.sharingRail,
-    ))
+    MonitorOperatorSettingsBody(MonitorOperatorSettingsInputs(configuration, selectedTab, { selectedTab = it },
+        MonitorOperatorPictureSettings.Configured(configuration.assistSections, null, borrowedDisplay, configuration.assist),
+        sourceIdentity))
 }
+
+/** Settings summaries of the saved setups: name, model and the camera's own network where it has one. */
+public fun monitorSavedCameraSummaries(saved: List<SavedCamera>): List<MonitorSavedCameraSummary> =
+    saved.map { camera ->
+        val network = camera.routes.firstOrNull { it.kind == RouteKind.CAMERA_ACCESS_POINT }?.network
+        MonitorSavedCameraSummary(camera.id, camera.displayName, camera.model + (network?.let { " · $it" } ?: ""), network)
+    }
 
 @Composable
 internal fun SettingsAccount(source: MonitorSettingsAccountSource) {
@@ -199,18 +325,40 @@ private fun SettingsReadout(source: MonitorSettingsReadoutSource, first: Boolean
 }
 @Composable
 internal fun SettingsLink(source: MonitorSettingsLinkSource) {
-    source.score?.let { MonitorLinkHealthScale(source.healthTitle, source.healthCaption, it) }
-    MonitorConnectionSettings(source.transport, source.transportHelp, source.phase, source.phaseHelp)
+    MonitorLinkHealthScale(source.healthTitle, source.healthCaption, source.score ?: 0)
+    MonitorConnectionSettings(source.transport, source.transportHelp, source.phase, source.phaseHelp,
+        source.network?.takeIf { it.isNotEmpty() }, source.networkHelp)
     if (source.choices.isNotEmpty() || source.controlHolder != null) MonitorSettingsRowCard("Picture") {
         source.controlHolder?.let { SettingsReadout(it) }
         source.choices.forEach { SettingsChoice(it) }
     }
-    if (source.processing.isNotEmpty()) MonitorSettingsRowCard(source.processingTitle) {
-        source.processing.forEachIndexed { index, value -> SettingsReadout(value, index == 0) }
+    if (source.processingChoices.isNotEmpty() || source.processing.isNotEmpty()) {
+        MonitorSettingsRowCard(source.processingTitle ?: "Processing") {
+            source.processingChoices.forEachIndexed { index, choice ->
+                MonitorSettingsInlineRow(choice.title, choice.help, showTopDivider = index > 0) {
+                    MonitorSettingsSegmented(choice.choices.map { it.title },
+                        choice.choices.firstOrNull { it.id == choice.selection }?.title ?: "--",
+                        compact = true, fillWidth = false) { title ->
+                        choice.choices.firstOrNull { it.title == title }?.let { choice.select(it.id) }
+                    }
+                }
+            }
+            source.processing.forEachIndexed { index, value ->
+                SettingsReadout(value, first = index == 0 && source.processingChoices.isEmpty())
+            }
+        }
     }
+    source.savedCameras?.let { MonitorSavedCameraSettings(it, source.savedCamerasHelp) }
 }
 @Composable
-internal fun SettingsSharing(source: MonitorSettingsSharingSource, feedback: () -> Unit) {
+internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: () -> Unit) {
+    if (source == null) {
+        MonitorSettingsRowCard {
+            Text("Coming soon...", style = LiveType.ui(15f, FontWeight.Medium), color = LiveDesign.muted,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 2.dp))
+        }
+        return
+    }
     val watching = source.watching
     if (watching != null) { MonitorSettingsRowCard { SettingsReadout(watching, true) }; return }
     var draft by remember { mutableStateOf(source.passcode) }
@@ -248,12 +396,82 @@ internal fun SettingsSharing(source: MonitorSettingsSharingSource, feedback: () 
     }
 }
 @Composable
-internal fun SettingsSystem(source: MonitorSettingsSupportSource, information: MonitorSettingsInformationSource,
-    feedback: () -> Unit) {
-    MonitorSupportSettings(source.automaticReports, source.available, source.automaticHelp, source.unavailableHelp,
-        source.setAutomaticReports, source.report, source.privacy, source.status, source.discard, feedback,
-        source.reportTitle, source.reportHelp, source.reportActionTitle, source.actions)
-    MonitorProjectLegalSettings(source.sourceHelp, source.termsHelp, source.source, source.privacy, source.terms)
-    MonitorAppInformationSettings(information.theme, information.protocolName, information.version,
-        information.themeHelp, information.protocolHelp, information.versionHelp)
+internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: () -> Unit) {
+    if (source.hapticsHelp != null) {
+        MonitorOperatorSafetySettings(source.recordConfirmation, source.haptics, source.keepAwake,
+            source.setRecordConfirmation, source.setHaptics, source.setKeepAwake, hapticsHelp = source.hapticsHelp,
+            keepScreenAwakeHelp = source.keepAwakeHelp, feedback = feedback)
+    } else {
+        MonitorOperatorSafetySettings(source.recordConfirmation, source.haptics, source.keepAwake,
+            source.setRecordConfirmation, source.setHaptics, source.setKeepAwake,
+            keepScreenAwakeHelp = source.keepAwakeHelp, feedback = feedback)
+    }
+    MonitorInputOrientationSettings(source.remoteShutter, source.setRemoteShutter,
+        remoteTitle = source.remoteTitle, remoteCaption = source.remoteCaption,
+        autoRotateFeed = source.autoRotateFeed, onAutoRotateFeed = source.setAutoRotateFeed,
+        rotationTitle = source.rotationTitle, rotationHelp = source.rotationHelp, feedback = feedback)
+    val motion = source.motion ?: return
+    motion.sensitivity?.let { MonitorGimbalSettings(it) }
+    motion.joystick?.let { joystick ->
+        MonitorJoystickSettings(joystick.size, joystick.invertPan, joystick.invertTilt, joystick.deadZone,
+            joystick.response, identifierPrefix = joystick.identifier)
+    }
+    motion.controller?.let { MonitorControllerSettings(it, motion.controllerStatus, motion.controllerHelp) }
+}
+
+@Composable
+internal fun SettingsStorage(configuration: MonitorOperatorSettingsConfiguration) {
+    configuration.account?.let { SettingsAccount(it) }
+    configuration.unconfiguredAccount?.let { account ->
+        MonitorAccountSettings(account.title, account.help.orEmpty(), MonitorAccountState.NOT_CONFIGURED,
+            statusLabel = account.value)
+    }
+    configuration.cache?.let { cache ->
+        MonitorOperatorCacheSettings(cache.source, cache.cacheOriginals, cache.setCacheOriginals,
+            cacheHelp = cache.cacheHelp, scopeHelp = cache.scopeHelp, clearHelp = cache.clearHelp,
+            formatBytes = cache.formatBytes, feedback = configuration.feedback, checkingLabel = cache.checking,
+            readFailureLabel = cache.readFailure, clearFailureLabel = cache.clearFailure,
+            summaryColor = cache.summaryColor)
+    }
+}
+
+@Composable
+internal fun SettingsSystem(configuration: MonitorOperatorSettingsConfiguration, openLegal: (MonitorLegalPage) -> Unit) {
+    val context = LocalContext.current
+    val support = configuration.support
+    val legal = configuration.legal
+    MonitorSupportSettings(support.automaticReports, support.available, support.automaticHelp, support.unavailableHelp,
+        support.setAutomaticReports, support.report, legal?.let { { openLegal(MonitorLegalPage.PRIVACY) } } ?: support.legacyPrivacy,
+        support.status, support.discard, configuration.feedback, support.reportTitle, support.reportHelp,
+        support.reportActionTitle, support.actions)
+    configuration.diagnostics?.let { diagnostics ->
+        var expanded by remember { mutableStateOf(false) }
+        MonitorDiagnosticSettings(expanded, { expanded = it }, diagnostics.deleteHelp, diagnostics.save,
+            delete = {
+                diagnostics.incidents.deleteStoredReports { deleted ->
+                    Toast.makeText(context,
+                        if (deleted) "Saved feed reports deleted" else "Couldn't delete saved feed reports. Please try again.",
+                        Toast.LENGTH_LONG).show()
+                }
+            })
+    }
+    if (legal != null) {
+        MonitorProjectLegalSettings(support.sourceHelp, support.termsHelp,
+            source = {
+                val url = support.sourceUrl
+                if (url != null && !openMonitorLink(context, url)) {
+                    Toast.makeText(context, MONITOR_LINK_UNAVAILABLE, Toast.LENGTH_SHORT).show()
+                }
+            },
+            privacy = { openLegal(MonitorLegalPage.PRIVACY) }, terms = { openLegal(MonitorLegalPage.TERMS) },
+            licenses = { openLegal(MonitorLegalPage.LICENSES) }, notice = { openLegal(MonitorLegalPage.NOTICE) })
+    }
+    if (legal == null && support.legacySource != null && support.legacyPrivacy != null && support.legacyTerms != null) {
+        MonitorProjectLegalSettings(support.sourceHelp, support.termsHelp,
+            source = support.legacySource, privacy = support.legacyPrivacy, terms = support.legacyTerms)
+    }
+    configuration.information?.let { information ->
+        MonitorAppInformationSettings(information.theme, information.protocolName, information.version,
+            information.themeHelp, information.protocolHelp, information.versionHelp)
+    }
 }

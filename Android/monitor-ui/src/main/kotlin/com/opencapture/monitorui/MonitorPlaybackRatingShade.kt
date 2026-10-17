@@ -19,15 +19,34 @@ public fun MonitorPlaybackRatingShade(stars: Int?, levels: List<Int>, enabled: B
     expanded: Boolean, expand: (Boolean) -> Unit, select: (Int) -> Unit, modifier: Modifier = Modifier): Unit {
     if (stars == null) return
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.testTag("monitor.playback.rating")
-            .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(percent = 50))
-            .monitorChromeClickable { expand(!expanded) }.padding(horizontal = 12.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-            MonitorIcon(MonitorIcon.STAR, if (expanded) "Hide star rating" else "Show star rating",
-                Modifier.size(10.dp), MonitorPalette.muted, filled = true)
-            MonitorIcon(if (expanded) MonitorIcon.CHEVRON_UP else MonitorIcon.CHEVRON_DOWN,
-                null, Modifier.size(9.dp), MonitorPalette.muted)
-        }
+        MonitorPlaybackRatingAnchor(stars, expanded, expand)
+        MonitorPlaybackRatingDetails(stars, levels, enabled, notice, expanded, select)
+    }
+}
+
+/** Compact rating control with stable native touch bounds in the playback action row. */
+@Composable
+public fun MonitorPlaybackRatingAnchor(stars: Int?, expanded: Boolean, expand: (Boolean) -> Unit,
+    modifier: Modifier = Modifier): Unit {
+    if (stars == null) return
+    Row(modifier.testTag("monitor.playback.rating")
+        .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(percent = 50))
+        .monitorChromeClickable { expand(!expanded) }.size(width = 52.dp, height = 44.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically) {
+        MonitorIcon(MonitorIcon.STAR, if (expanded) "Hide star rating" else "Show star rating",
+            Modifier.size(10.dp), MonitorPalette.muted, filled = true)
+        MonitorIcon(if (expanded) MonitorIcon.CHEVRON_UP else MonitorIcon.CHEVRON_DOWN,
+            null, Modifier.size(9.dp), MonitorPalette.muted)
+    }
+}
+
+/** Expanded choices remain below the measured header, within its viewport and touch bounds. */
+@Composable
+public fun MonitorPlaybackRatingDetails(stars: Int?, levels: List<Int>, enabled: Boolean, notice: String?,
+    expanded: Boolean, select: (Int) -> Unit, modifier: Modifier = Modifier): Unit {
+    if (stars == null) return
+    Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (expanded) MonitorStarRating(stars, select, levels, enabled,
             identifierPrefix = "monitor.playback.rating")
         if (notice != null) Text(notice, style = MonitorTypography.text(12f), color = MonitorPalette.text,

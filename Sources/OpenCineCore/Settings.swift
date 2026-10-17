@@ -27,6 +27,18 @@ public struct Rational: Hashable, Codable, Sendable, CustomStringConvertible {
 
     public var doubleValue: Double { Double(numerator) / Double(denominator) }
     public var description: String { "\(numerator)/\(denominator)" }
+
+    /// The exact rate for a source that reports frames per second as a decimal: whole rates stay
+    /// whole, the NTSC family (23.976, 29.97, 59.94, ...) is N*1000/1001, anything else keeps
+    /// thousandths. `nil` when not a positive finite rate. Kotlin twin: `Rational.frameRate`.
+    public static func frameRate(_ framesPerSecond: Double) -> Rational? {
+        guard framesPerSecond.isFinite, framesPerSecond > 0, framesPerSecond < 100_000 else { return nil }
+        let whole = framesPerSecond.rounded()
+        if abs(framesPerSecond - whole) < 0.005 { return Rational(Int(whole)) }
+        let ntsc = (framesPerSecond * 1.001).rounded()
+        if abs(framesPerSecond - ntsc / 1.001) < 0.005 { return Rational(Int(ntsc) * 1000, 1001) }
+        return Rational(Int((framesPerSecond * 1000).rounded()), 1000)
+    }
 }
 
 /// The small common setting vocabulary. Expand only for a real use case.
@@ -244,6 +256,39 @@ public struct SettingDescriptor: Hashable, Codable, Sendable {
     }
 }
 
+/// How precisely a source counts its timecode. Shared formatting follows it, so a seconds-only
+/// source never shows a frame field and a frame-counting source never loses one.
+public enum TimecodePrecision: Hashable, Codable, Sendable {
+    /// Whole seconds only (a host clock, or a counter whose frame field is not proven per frame).
+    case seconds
+    /// Frames at `rate`. `dropFrame` is `nil` when the camera does not say.
+    case frames(rate: Rational, dropFrame: Bool?)
+}
+
+/// Support for `CameraSnapshot.timecode` plus its declared precision. `precision` is `nil` while
+/// support is not `.supported` or the source has not said how it counts.
+public struct TimecodeCapability: Hashable, Codable, Sendable {
+    public var support: SupportStatus
+    public var precision: TimecodePrecision?
+
+    public init(support: SupportStatus = .unknown, precision: TimecodePrecision? = nil) {
+        self.support = support
+        self.precision = support == .supported ? precision : nil
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(support: try values.decode(SupportStatus.self, forKey: .support),
+            precision: try values.decodeIfPresent(TimecodePrecision.self, forKey: .precision))
+    }
+
+    public static let unknown = TimecodeCapability()
+    public static let unsupported = TimecodeCapability(support: .unsupported)
+    public static func supported(_ precision: TimecodePrecision?) -> TimecodeCapability {
+        TimecodeCapability(support: .supported, precision: precision)
+    }
+}
+
 /// The revisioned set of setting descriptors, plus support for the observations that are not
 /// settings. A key that is neither described nor listed as unsupported has unknown support.
 /// Missing groups (no aperture, say) never block the rest.
@@ -251,8 +296,17 @@ public struct CapabilitySnapshot: Hashable, Codable, Sendable {
     public var revision: CapabilityRevision
     public var descriptors: [SettingKey: SettingDescriptor]
     public var unsupported: Set<SettingKey>
-    /// Whether the camera reports `CameraSnapshot.timecode`.
-    public var timecode: SupportStatus
+    /// Whether the camera reports timecode. The published support-only contract is retained.
+    public var timecode: SupportStatus {
+        get { timecodeCapability.support }
+        set {
+            if newValue != timecodeCapability.support {
+                timecodeCapability = TimecodeCapability(support: newValue)
+            }
+        }
+    }
+    /// Support and declared precision for the additive `CameraSnapshot.timecodeReading`.
+    public var timecodeCapability: TimecodeCapability
     /// Whether the camera reports live `CameraSnapshot.audioLevels`.
     public var audioLevels: SupportStatus
 
@@ -261,11 +315,70 @@ public struct CapabilitySnapshot: Hashable, Codable, Sendable {
         unsupported: Set<SettingKey> = [], timecode: SupportStatus = .unknown,
         audioLevels: SupportStatus = .unknown
     ) {
+        self.init(revision: revision, descriptors: descriptors, unsupported: unsupported,
+            timecodeCapability: TimecodeCapability(support: timecode), audioLevels: audioLevels)
+    }
+
+    public init(
+        revision: CapabilityRevision = .init(), descriptors: [SettingDescriptor] = [],
+        unsupported: Set<SettingKey> = [], timecodeCapability: TimecodeCapability,
+        audioLevels: SupportStatus = .unknown
+    ) {
         self.revision = revision
         self.descriptors = Dictionary(descriptors.map { ($0.key, $0) }) { _, last in last }
         self.unsupported = unsupported
-        self.timecode = timecode
+        self.timecodeCapability = timecodeCapability
         self.audioLevels = audioLevels
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case revision, descriptors, unsupported, timecode, timecodeCapability, audioLevels
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        revision = try values.decode(CapabilityRevision.self, forKey: .revision)
+        descriptors = try values.decode([SettingKey: SettingDescriptor].self, forKey: .descriptors)
+        unsupported = try values.decode(Set<SettingKey>.self, forKey: .unsupported)
+        audioLevels = try values.decode(SupportStatus.self, forKey: .audioLevels)
+        let compatibility: TimecodeCapability
+        if let support = try? values.decode(SupportStatus.self, forKey: .timecode) {
+            // The published enum uses its synthesized case tag, for example {"supported":{}}.
+            compatibility = TimecodeCapability(support: support)
+        } else if let text = try? values.decode(String.self, forKey: .timecode) {
+            let support: SupportStatus
+            switch text {
+            case "supported": support = .supported
+            case "unsupported": support = .unsupported
+            case "unknown": support = .unknown
+            default:
+                throw DecodingError.dataCorruptedError(forKey: .timecode, in: values,
+                    debugDescription: "Unknown timecode support string")
+            }
+            compatibility = TimecodeCapability(support: support)
+        } else {
+            // The parity checkpoint wrote the rich object under the legacy key before migration.
+            compatibility = try values.decode(TimecodeCapability.self, forKey: .timecode)
+        }
+        if let precise = try values.decodeIfPresent(TimecodeCapability.self, forKey: .timecodeCapability) {
+            guard precise.support == compatibility.support else {
+                throw DecodingError.dataCorruptedError(forKey: .timecodeCapability, in: values,
+                    debugDescription: "Timecode support disagrees with the legacy field")
+            }
+            timecodeCapability = precise
+        } else {
+            timecodeCapability = compatibility
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(revision, forKey: .revision)
+        try values.encode(descriptors, forKey: .descriptors)
+        try values.encode(unsupported, forKey: .unsupported)
+        try values.encode(timecode, forKey: .timecode)
+        try values.encode(timecodeCapability, forKey: .timecodeCapability)
+        try values.encode(audioLevels, forKey: .audioLevels)
     }
 
     public subscript(key: SettingKey) -> SettingDescriptor? { descriptors[key] }

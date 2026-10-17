@@ -11,17 +11,17 @@
     /// `SessionRecoveryHost` and the chrome editor's `ChromeEditHost` over the shared DISP
     /// sections. App differences arrive as values.
     @MainActor
-    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost, ChromeEditHost
+    public protocol LiveChromeHost: CaptureSheetHost, SessionRecoveryHost, ChromeEditHost, LegacyLiveClockAvailability
     where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
         /// The status row's recording state and clock, as this app projects it.
         var liveStatus: MonitorStatusPresentation { get }
-        /// Whether the body reports a timecode the status row can show.
-        var timecodeAvailable: Bool { get }
         /// Live link health, 0 to 4 bars (frame delivery, not radio RSSI).
         var liveSignalBars: Int { get }
         /// The feed rate label ("25.00", or LINK / RECOV / FAIL).
         var liveFPS: String { get }
 
+        /// The one display owner: modes, chrome, editor, lock and connect arming.
+        var operatorSession: MonitorOperatorSessionModel<MonitorLUTLooks> { get }
         var assist: MonitorAssistState<MonitorLUTLooks> { get }
         var assistToolUsage: MonitorToolUsage { get set }
         var gimbalPanelOpen: Bool { get }
@@ -75,7 +75,9 @@
 
     }
 
-    extension LiveChromeHost {
+    /// Every editor over the shared DISP sections names and offers them the same way.
+    extension ChromeEditHost
+    where ChromeSection == MonitorDisplayChrome.Section, ChromeMode == MonitorDisplayMode {
         public var chromeEditSections: [MonitorDisplayChrome.Section] {
             MonitorDisplayChrome.Section.allCases
         }
@@ -95,7 +97,9 @@
         ) -> Bool {
             MonitorDisplayChrome.isConfigurable(section, in: mode)
         }
+    }
 
+    extension LiveChromeHost {
         public func isChromeVisible(
             _ section: MonitorDisplayChrome.Section, in mode: MonitorDisplayMode
         ) -> Bool {

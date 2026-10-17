@@ -6,6 +6,17 @@ import kotlin.test.assertNull
 
 /** Session names and the values only non-DJI cameras report, named by what they are. */
 class CameraLabelProfileTest {
+    @Test fun nativeIsoDeclarationsPreserveUnknownAndKnownUnsupported() {
+        val legacy = CameraCaptureProfile(supportsFocusMode = true)
+        assertNull(legacy.nativeISO.hop)
+        assertNull(legacy.nativeISO.ceiling)
+        val declared = legacy.copy(nativeISO = CaptureNativeISOCapabilities(hop = false, ceiling = true))
+        assertEquals(legacy.supportsFocusMode, declared.supportsFocusMode)
+        assertEquals(false, declared.nativeISO.hop)
+        assertEquals(true, declared.nativeISO.ceiling)
+        assertEquals(legacy.component10(), declared.component10())
+    }
+
     private val profile = CameraLabelProfile(
         shootingModeLabels = mapOf(CameraCommands.SHOOT_HYPERLAPSE to "TimeShift"),
         colorModeLabels = mapOf(CameraCommands.COLOR_NORMAL to "Standard"),

@@ -74,6 +74,35 @@ class LadderSheetTest {
         assertEquals("5550K", kelvin.value)
     }
 
+    @Test
+    fun theSheetStartsFreshForANewPickerTabSetOrCircuit() {
+        // A3-19: positional state must not survive a different presentation.
+        fun sheet(vararg keys: String, initial: Int = 0) = LadderSheetPresentation(
+            title = "SHUTTER",
+            subtitle = "",
+            tabs = keys.map { tab().copy(key = it) },
+            initialTab = initial,
+        )
+        val angle = sheet("angle", "speed")
+        val echoed = angle.copy(tabs = angle.tabs.map { it.copy(ladder = it.ladder.copy(current = "400")) })
+
+        assertEquals(ladderIdentity(angle), ladderIdentity(echoed))
+        assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("angle", "speed", initial = 1)))
+        assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("kelvin", "preset")))
+        assertTrue(ladderIdentity(angle) != ladderIdentity(sheet("angle")))
+    }
+
+    @Test
+    fun anUnknownCurrentStillWritesTheFirstPick() {
+        // A3-29: nothing is applied while the camera has not reported a value.
+        val unknown = tab().copy(ladder = CaptureLadder(current = null, values = listOf("400", "800")))
+        val applied = unknown.ladder.current.orEmpty()
+
+        assertEquals(LadderWrite("iso", "400"), ladderPickWrite(unknown, applied, "400"))
+        assertNull(ladderPickWrite(unknown, "400", "400"))
+        assertNull(ladderPickWrite(tab(), "800", "800"))
+    }
+
     private fun tab(activate: LadderWrite<String>? = null, apply: Boolean = true) = LadderTab(
         label = "ISO",
         key = "iso",

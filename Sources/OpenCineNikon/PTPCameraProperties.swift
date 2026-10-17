@@ -1,4 +1,5 @@
 import Foundation
+import OpenCineMedia
 
 /// Camera controls currently backed by known Nikon movie property writes.
 ///
@@ -1423,8 +1424,7 @@ public enum PTPCameraPropertyDecoders {
         if abs(ev) > 5 {
             return hex(UInt32(UInt16(bitPattern: raw)))
         }
-        if ev == 0 { return "±0.0" }
-        return String(format: "%+.1f", ev)
+        return ExposureCompensation.label(stops: ev)
     }
 
     /// Best-effort decode of a PTP string property (ImageSize and similar).
@@ -1566,14 +1566,19 @@ extension PTPCameraPropertyDecoders {
         }
     }
 
-    /// Infers the automatic tone/gamma label used by exposure assists from the reported codec.
+    /// Returns a positively identified log label, never a tone inferred from a container.
+    /// ProRes, N-RAW and H.265 can record more than one tone mode; their codec is insufficient.
     public static func toneLabel(fromCodec codec: String) -> String? {
-        guard !codec.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return isRedLog3G10Codec(codec) ? "Log3G10" : "N-Log"
+        if isRedLog3G10Codec(codec) { return "Log3G10" }
+        let upper = codec.uppercased()
+        if upper.contains("N-LOG") || upper.contains("N LOG") || upper.contains("NLOG") {
+            return "N-Log"
+        }
+        return nil
     }
 
-    /// R3D (or a codec label naming Log3G10) records REDWideGamutRGB/Log3G10; every other codec
-    /// monitors as N-Log on the log path. `ExposureToneCurve.forCameraCodec` reads this.
+    /// Identifies the fixed R3D recording tone or an explicit Log3G10 label.
+    /// A recording tone does not establish the transfer of live-view or decoded proxy pixels.
     public static func isRedLog3G10Codec(_ codec: String) -> Bool {
         let upper = codec.uppercased()
         return upper.contains("R3D") || upper.contains("LOG3G10")
@@ -2152,8 +2157,11 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             return replacing(
                 pictureControl: PTPCameraPropertyDecoders.pictureControl(
                     ByteCoding.readUInt16LE(bytes, at: 0)))
-        case .stillToneMode where bytes.count >= 1:
-            return replacing(stillToneMode: bytes[0] == 2 ? "HLG" : "SDR")
+        case .stillToneMode:
+            // Only the existing integration's named enum values are observed facts.
+            // Unknown/malformed readback retires an older tone rather than becoming SDR.
+            let tone: String? = bytes.count == 1 ? [UInt8(0): "SDR", 2: "HLG"][bytes[0]] : nil
+            return replacing(stillToneMode: tone, clearsStillToneMode: tone == nil)
         case .wbColorTemp where bytes.count >= 2:
             // Stills colour temperature shares the movie Kelvin field — the active selector
             // decides which property the poll fills it from.
@@ -2270,7 +2278,8 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
         pictureControl: String? = nil,
         stillToneMode: String? = nil,
         evIndicatorSixths: Int? = nil,
-        evIndicatorLit: Bool? = nil
+        evIndicatorLit: Bool? = nil,
+        clearsStillToneMode: Bool = false
     ) -> PTPCameraPropertySnapshot {
         PTPCameraPropertySnapshot(
             iso: iso ?? self.iso,
@@ -2322,7 +2331,7 @@ public struct PTPCameraPropertySnapshot: Equatable, Sendable {
             rawCompression: rawCompression ?? self.rawCompression,
             userModeProgram: userModeProgram ?? self.userModeProgram,
             pictureControl: pictureControl ?? self.pictureControl,
-            stillToneMode: stillToneMode ?? self.stillToneMode,
+            stillToneMode: clearsStillToneMode ? nil : stillToneMode ?? self.stillToneMode,
             evIndicatorSixths: evIndicatorSixths ?? self.evIndicatorSixths,
             evIndicatorLit: evIndicatorLit ?? self.evIndicatorLit
         )
@@ -2359,7 +2368,6 @@ extension CameraDisplayState {
             media: media,
             liveFPS: liveFPS,
             cameraBatteryPercent: properties.batteryPercent ?? cameraBatteryPercent,
-            phoneBatteryPercent: phoneBatteryPercent,
             cameraName: cameraName,
             lens: properties.lens ?? lens,
             // Real warning state (OK / CHECK / HOT) once 0xD102 is polled — never a fabricated

@@ -18,7 +18,7 @@ public struct DiagnosticsHost: Sendable {
     public var releasePackage: String
     public var version: String
     public var build: String
-    /// development, verification, testflight or production.
+    /// A `ReliabilityEnvironment` raw value.
     public var environment: String
     public var sourceRevision: String
     public var supportEmail: String
@@ -49,15 +49,68 @@ public struct DiagnosticsHost: Sendable {
     /// 86 WatchdogTermination events came from developer installs). TestFlight and
     /// App Store keep it.
     public var tracksWatchdogTerminations: Bool {
-        !["development", "verification"].contains(environment)
+        ReliabilityEnvironment(rawValue: environment)?.tracksWatchdogTerminations ?? false
+    }
+}
+
+/// Where a build came from, as every report names it. Only store builds are `production`.
+/// Kotlin twin: `reportingEnvironment` in the build-logic reporting plugin.
+public enum ReliabilityEnvironment: String, Sendable, CaseIterable {
+    /// A debug build.
+    case development
+    /// A debug build under the verification harness.
+    case verification
+    /// A release build installed outside a store: Xcode, ad hoc, a simulator, a local Gradle run.
+    case local
+    /// An iOS TestFlight build.
+    case testflight
+    /// An Android build from the Play testing pipeline.
+    case `internal`
+    /// A store build.
+    case production
+
+    /// Builds that are reinstalled at will, where a reinstall reads as a watchdog kill.
+    public var tracksWatchdogTerminations: Bool {
+        switch self {
+        case .development, .verification, .local: false
+        case .testflight, .internal, .production: true
+        }
+    }
+
+    /// An Apple build: a release build that carries a provisioning profile (Xcode, ad hoc) or runs
+    /// on a simulator is local; App Store and TestFlight builds carry none and tell themselves
+    /// apart by their receipt.
+    public static func apple(
+        debug: Bool, verification: Bool, simulator: Bool, embeddedProfile: Bool,
+        receiptName: String?
+    ) -> Self {
+        if debug { return verification ? .verification : .development }
+        if simulator || embeddedProfile { return .local }
+        return receiptName == "sandboxReceipt" ? .testflight : .production
+    }
+
+    /// `apple(...)` for this process and `bundle`. `debug` and `verification` are the app's own
+    /// compile-time facts.
+    public static func apple(debug: Bool, verification: Bool, bundle: Bundle = .main) -> Self {
+        #if targetEnvironment(simulator)
+            let simulator = true
+        #else
+            let simulator = false
+        #endif
+        return apple(
+            debug: debug, verification: verification, simulator: simulator,
+            embeddedProfile: bundle.path(forResource: "embedded", ofType: "mobileprovision") != nil,
+            receiptName: bundle.appStoreReceiptURL?.lastPathComponent)
     }
 }
 
 /// The operator's automatic-report choice. Absent is undecided; a stored false is a decline.
 public final class ReliabilityReportingConsent: @unchecked Sendable {
     public static let defaultsKey = "opc.reliabilityReporting.optIn"
+    public static let installIDKey = "opc.reliabilityReporting.installID"
     /// Swapped only by isolated review and verification launches and by tests.
     public var defaults: UserDefaults
+    private let lock = NSLock()
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -69,12 +122,34 @@ public final class ReliabilityReportingConsent: @unchecked Sendable {
         defaults.bool(forKey: Self.defaultsKey)
     }
 
+    /// The anonymous install id reports count users by: a random UUID made on first use while
+    /// the operator has opted in, never derived from the device or personal data. nil without
+    /// consent; withdrawing consent deletes it, so a later opt-in starts a new one.
+    public var installID: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isOptedIn else { return nil }
+        // Only a value this store made is sent: anything else in the slot is replaced.
+        if let stored = defaults.string(forKey: Self.installIDKey),
+            UUID(uuidString: stored)?.uuidString.lowercased() == stored
+        {
+            return stored
+        }
+        let created = UUID().uuidString.lowercased()
+        defaults.set(created, forKey: Self.installIDKey)
+        return created
+    }
+
     public func setOptedIn(_ on: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
         defaults.set(on, forKey: Self.defaultsKey)
+        if !on { defaults.removeObject(forKey: Self.installIDKey) }
     }
 
     public func resetForTests() {
         defaults.removeObject(forKey: Self.defaultsKey)
+        defaults.removeObject(forKey: Self.installIDKey)
     }
 }
 
@@ -142,6 +217,24 @@ public struct ReliabilityEvent: @unchecked Sendable {
     }
 }
 
+/// One measurement for the host SDK's metrics, never an issue event. `unit` is a Sentry unit
+/// name (`second`) or nil; attributes are low-cardinality strings.
+public struct ReliabilityMetric: Equatable, Sendable {
+    public var name: String
+    public var value: Double
+    public var unit: String?
+    public var attributes: [String: String]
+
+    public init(
+        name: String, value: Double, unit: String? = nil, attributes: [String: String] = [:]
+    ) {
+        self.name = name
+        self.value = value
+        self.unit = unit
+        self.attributes = attributes
+    }
+}
+
 /// The calls reporting makes into the host's SDK. The host applies `ReliabilityReporting.privacy`
 /// to every event and breadcrumb it sends (crashes included) and uploads only through the gate.
 public protocol ReliabilityReportingSink: AnyObject, Sendable {
@@ -157,9 +250,16 @@ public protocol ReliabilityReportingSink: AnyObject, Sendable {
     /// Captures `event` with `attachment` (JSON) named `attachmentName` as its only attachment,
     /// keeping the event's own tags over the scope's. Main thread.
     func capture(_ event: ReliabilityEvent, attachment: Data, attachmentName: String)
+    /// Records one distribution sample. Main thread.
+    func record(_ metric: ReliabilityMetric)
 }
 
-/// Opt-in automatic reporting, installed by the app and gated by camera-session activity.
+extension ReliabilityReportingSink {
+    /// Metrics are optional for existing host sinks. Supporting sinks override this method.
+    public func record(_ metric: ReliabilityMetric) {}
+}
+
+/// Opt-in automatic reporting, installed by the app and gated by the camera path.
 /// Does not start without persisted consent and a valid https DSN. Does not mark
 /// an incident delivered when it is only queued.
 public final class ReliabilityReporting: @unchecked Sendable {
@@ -191,6 +291,8 @@ public final class ReliabilityReporting: @unchecked Sendable {
     private var resumeAttempt = 0
     private var epoch: UInt64 = 0
     private var captureHandler: ((ReliabilityEvent, Data) -> Void)?
+    private var metricHandler: ((ReliabilityMetric) -> Void)?
+    private var feedUpscaler: String?
     private var pendingCaptureIDs: Set<String> = []
     private var pendingEventIDs: [String: String] = [:]
     private var finalizedSpoolLoader: @Sendable () -> [FeedIncidentBundle] = { [] }
@@ -230,7 +332,29 @@ public final class ReliabilityReporting: @unchecked Sendable {
     public func noteRepair(_ repair: FeedRepairRecord) {
         guard isOptedIn, sink.isEnabled else { return }
         let details = FeedIncidentNativeBreadcrumb.details(repair: repair)
-        sink.addBreadcrumb(category: "feed", message: "repair", data: details.isEmpty ? nil : details)
+        sink.addBreadcrumb(
+            category: "feed", message: "repair", data: details.isEmpty ? nil : details)
+    }
+
+    /// The feed upscaler in effect (`MonitorUpscaler` raw value), a scope tag on every later event
+    /// and crash: a super-resolution crash (PI-3M) said nothing about the mode. Main thread.
+    public func noteFeedUpscaler(_ upscaler: String) {
+        let value = ReliabilityReportingPrivacy.value("feedUpscaler", upscaler)
+        feedUpscaler = value
+        guard isOptedIn, sdkStarted, sink.isEnabled else { return }
+        sink.setTags(["feedUpscaler": value])
+    }
+
+    /// The current run's scope tags, set when the SDK starts, bounded by the same rules as event
+    /// tags (crash events carry them). Main thread.
+    public var scopeTags: [String: String] {
+        var tags = [
+            "sourceRevision": host.sourceRevision,
+            "testSource": origin.currentTestSource().rawValue,
+            "buildIdentity": origin.currentBuildIdentity(),
+        ]
+        if let feedUpscaler { tags["feedUpscaler"] = feedUpscaler }
+        return privacy.tags(tags) ?? [:]
     }
 
     /// Once-only current-run scope upgrade. Does not rewrite queued/fatal tags.
@@ -249,17 +373,25 @@ public final class ReliabilityReporting: @unchecked Sendable {
         applySDKState()
     }
 
-    public func setCameraSessionActive(_ active: Bool) {
-        gate.setCameraSessionActive(active)
-        if active {
-            gate.cancelPending()
-        } else {
-            if !sdkStarted, consent.isOptedIn {
-                applySDKState()
+    /// Holds reports back from this connect attempt (recovery included) until the returned lease
+    /// ends, when its owner retires. Each owner keeps its own lease; uploads resume after the last
+    /// one ends. Main thread.
+    public func beginCameraPath() -> ReliabilityCameraPathLease {
+        gate.beginCameraPath { [weak self] in
+            if Thread.isMainThread {
+                self?.cameraPathCleared()
+            } else {
+                DispatchQueue.main.async { self?.cameraPathCleared() }
             }
-            enqueueFinalizedFromSpool()
-            scheduleResumeIfIdle()
         }
+    }
+
+    private func cameraPathCleared() {
+        if !sdkStarted, consent.isOptedIn {
+            applySDKState()
+        }
+        enqueueFinalizedFromSpool()
+        scheduleResumeIfIdle()
     }
 
     public func setConsent(_ on: Bool) {
@@ -326,6 +458,10 @@ public final class ReliabilityReporting: @unchecked Sendable {
         captureHandler = handler
     }
 
+    public func setMetricHandlerForTests(_ handler: ((ReliabilityMetric) -> Void)?) {
+        metricHandler = handler
+    }
+
     private func applySDKState() {
         if consent.isOptedIn, let dsn = dsn.configured() {
             scheduleIdlePoll()
@@ -374,11 +510,7 @@ public final class ReliabilityReporting: @unchecked Sendable {
                 guard capturedEpoch == currentEpoch(), consent.isOptedIn else { return }
                 if !sdkStarted {
                     sink.start(dsn: dsn, cacheRoot: sdkCacheRoot)
-                    sink.setTags([
-                        "sourceRevision": host.sourceRevision,
-                        "testSource": origin.currentTestSource().rawValue,
-                        "buildIdentity": origin.currentBuildIdentity(),
-                    ])
+                    sink.setTags(scopeTags)
                     sdkStarted = true
                 }
                 enqueueFinalizedFromSpool()
@@ -426,38 +558,62 @@ public final class ReliabilityReporting: @unchecked Sendable {
         event.tags?["hardwareClass"] = bundle.header.hardwareClass
         event.tags?["testSource"] = bundle.header.resolvedTestSource.rawValue
         event.tags?["buildIdentity"] = bundle.header.resolvedBuildIdentity
-        capturePayload(event: event, json: json, id: envelope.incidentID, epoch: capturedEpoch)
+        // Header provenance is assigned after makeEvent, so scrub the completed payload too.
+        capturePayload(
+            event: privacy.scrub(event), json: json, id: envelope.incidentID, epoch: capturedEpoch)
     }
 
-    private func captureSessionSummary(_ summary: FeedIncidentSessionSummary, epoch: UInt64) {
+    /// The feed's denominator as metrics, never an issue event (it was the largest issue by
+    /// volume, PA-2/II-1/PI-W): healthy exposure seconds and incident count per ended session.
+    /// Recorded once per session; a confirmed receipt outlives the summary on disk.
+    private func captureSessionSummary(
+        _ summary: FeedIncidentSessionSummary, epoch capturedEpoch: UInt64
+    ) {
         guard summary.outcome != "live", UUID(uuidString: summary.sessionID) != nil,
             summary.healthyExposureSeconds.isFinite, summary.healthyExposureSeconds >= 0,
-            let json = try? FeedIncidentCoding.encoder().encode(summary), json.count <= 4_096
+            capturedEpoch == currentEpoch(), consent.isOptedIn, !gate.shouldBlockUpload
         else { return }
-        var event = ReliabilityEvent(
-            eventID: ReliabilityReportingPrivacy.eventID(fromIncidentID: summary.sessionID),
-            level: .info, message: "Feed session summary")
-        event.timestamp = summary.recordedAt
-        if let version = summary.appVersion, let build = summary.appBuild {
-            event.release = host.release(version: version, build: build)
-            event.dist = build
-        } else {
-            event.release = "legacy-session-unknown-release"
+        let id = "session-" + summary.sessionID
+        ReliabilityReportingReceipts.applyTTL(root: sdkCacheRoot)
+        guard ReliabilityReportingReceipts.load(incidentID: id, root: sdkCacheRoot) == nil,
+            pendingCaptureIDs.insert(id).inserted
+        else { return }
+        let metrics = Self.sessionMetrics(summary).compactMap(privacy.metric)
+        DispatchQueue.main.async { [self] in
+            defer { queue.async { [self] in pendingCaptureIDs.remove(id) } }
+            guard capturedEpoch == currentEpoch(), consent.isOptedIn,
+                sdkStarted || metricHandler != nil
+            else { return }
+            for metric in metrics {
+                if let metricHandler { metricHandler(metric) } else { sink.record(metric) }
+            }
+            queue.async { [self] in
+                guard capturedEpoch == currentEpoch(), consent.isOptedIn else { return }
+                ReliabilityReportingReceipts.store(
+                    ReliabilityReportingReceipt(
+                        incidentID: id, eventID: "", state: .confirmed, updatedAt: Date()),
+                    root: sdkCacheRoot)
+            }
         }
-        event.fingerprint = ["feed-session", "schema:1"]
-        event.tags = [
-            "kind": "sessionSummary", "outcome": summary.outcome,
+    }
+
+    public static func sessionMetrics(_ summary: FeedIncidentSessionSummary) -> [ReliabilityMetric]
+    {
+        var attributes = [
+            "outcome": summary.outcome,
+            "testSource": (summary.testSource ?? .unknown).rawValue,
+            "buildIdentity": FeedIncidentBuildIdentity.parse(summary.buildIdentity),
             "sourceRevision": summary.sourceRevision,
-            "testSource": (summary.testSource ?? .unknown).rawValue,
-            "buildIdentity": FeedIncidentBuildIdentity.parse(summary.buildIdentity),
         ]
-        event.extra = [
-            "healthyExposureSeconds": summary.healthyExposureSeconds,
-            "incidentCount": summary.incidentCount, "sourceRevision": summary.sourceRevision,
-            "testSource": (summary.testSource ?? .unknown).rawValue,
-            "buildIdentity": FeedIncidentBuildIdentity.parse(summary.buildIdentity),
+        if let build = summary.appBuild { attributes["appBuild"] = build }
+        return [
+            ReliabilityMetric(
+                name: "feed.session.healthy_exposure", value: summary.healthyExposureSeconds,
+                unit: "second", attributes: attributes),
+            ReliabilityMetric(
+                name: "feed.session.incidents", value: Double(summary.incidentCount),
+                attributes: attributes),
         ]
-        capturePayload(event: event, json: json, id: "session-" + summary.sessionID, epoch: epoch)
     }
 
     /// Disk runs on the reporting queue; SDK state/capture is checked on main.
@@ -551,7 +707,9 @@ public final class ReliabilityReporting: @unchecked Sendable {
         }
     }
 
-    private func makeEvent(envelope: FeedIncidentVendorEnvelope, eventID: String) -> ReliabilityEvent {
+    private func makeEvent(envelope: FeedIncidentVendorEnvelope, eventID: String)
+        -> ReliabilityEvent
+    {
         // Kind is in the fingerprint, so the issue title stays stable per group.
         var event = ReliabilityEvent(
             eventID: eventID, level: Self.level(forOutcome: envelope.grouping.outcome),

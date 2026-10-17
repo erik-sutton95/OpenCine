@@ -145,6 +145,18 @@ public struct FrameioClient: Sendable {
         ).data
     }
 
+    /// The projects of the first account's first workspace: the one listing every app's
+    /// delivery popup offers.
+    public func firstWorkspaceProjects() async throws -> FrameioProjectListing {
+        guard let account = try await accounts().first else { throw FrameioError.noProject }
+        guard let workspace = try await workspaces(accountID: account.id).first else {
+            throw FrameioError.noProject
+        }
+        return FrameioProjectListing(
+            accountID: account.id, workspaceID: workspace.id, workspaceName: workspace.name,
+            projects: try await projects(accountID: account.id, workspaceID: workspace.id))
+    }
+
     /// Creates a blank project in the given workspace and returns it (including its root folder).
     public func createProject(accountID: String, workspaceID: String, name: String) async throws
         -> FrameioProject

@@ -54,7 +54,8 @@ import kotlinx.coroutines.launch
 /**
  * The shared cameras page over [CamerasModel] (Swift `CamerasScreen`): saved cards with setup chips,
  * progress and failures, nearby sightings, rename and remove, and the integrations' add-route and
- * prompt slots. Navigation stays the app's: [onPair] opens the pair screen.
+ * prompt slots. Navigation stays the app's: [onPair] opens the pair screen for a new camera, and
+ * [onPairNearby] opens it for a nearby camera the card tap chose ([CamerasModel.openNearby]).
  */
 @Composable
 public fun CamerasScreen(
@@ -73,8 +74,9 @@ public fun CamerasScreen(
     onExtraNearby: (String) -> Unit = {},
     onPrivacy: (() -> Unit)? = null,
     onTerms: (() -> Unit)? = null,
-    /** A setup chip's menu offers Rename setup. */
+    /** Superseded by the integration's [com.opencapture.opencine.core.IntegrationPresentation.namesSetups]; `false` still hides Rename setup. */
     renamesSetups: Boolean = true,
+    onPairNearby: () -> Unit = onPair,
 ) {
     val state by model.state.collectAsState()
     val context = LocalContext.current
@@ -129,8 +131,8 @@ public fun CamerasScreen(
                     } else if (extraNearby.any { it.id == item.id }) {
                         onExtraNearby(item.id)
                     } else {
-                        model.select(item.id)
-                        onPair()
+                        model.openNearby(item.id)
+                        onPairNearby()
                     }
                 },
                 badge = item.badge,
@@ -155,8 +157,8 @@ public fun CamerasScreen(
                 onForgetSetup = { chip ->
                     camera?.routes?.firstOrNull { it.id.text == chip.id }?.let { model.forgetRoute(it.id, camera.id) }
                 },
-                onRenameSetup = if (renamesSetups) { chip ->
-                    camera?.routes?.firstOrNull { it.id.text == chip.id }?.let { renamingSetup = camera.id to it }
+                onRenameSetup = if (renamesSetups && camera != null && model.namesSetups(camera)) { chip ->
+                    camera.routes.firstOrNull { it.id.text == chip.id }?.let { renamingSetup = camera.id to it }
                 } else {
                     null
                 },

@@ -29,6 +29,7 @@ class MonitorDeliveryLeaseAdoptionTest {
                     if (owned == token) { owned = null; calls += "restore $token" }
                 }),
             transfer = { token -> if (owned == token) { owned = token + 1; calls += "transfer $token"; token + 1 } else null },
+            skipsUploaded = false,
         )
     }
     private fun make(scope: CoroutineScope, facts: Facts) = MonitorDeliveryPreparationModel<Int, Int, String, Int, Int>(

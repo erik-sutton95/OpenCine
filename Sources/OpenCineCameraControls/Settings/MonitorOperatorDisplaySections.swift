@@ -4,33 +4,34 @@ import MonitorUI
 import OpenCineAppKit
 import SwiftUI
 
-/// Owns the common display rows, resets and clean pins over existing namespaced values.
+/// Owns the common display rows, resets and clean pins over existing namespaced values, one
+/// section per DISP mode the source offers.
 public struct MonitorOperatorDisplaySections<Looks: MonitorLookProvider>: View {
-    @Binding private var live: MonitorDisplayChrome
-    @Binding private var clean: MonitorDisplayChrome
+    private let modes: [MonitorDisplayMode]
+    private let chrome: (MonitorDisplayMode) -> Binding<MonitorDisplayChrome>
     private let assist: MonitorAssistState<Looks>
     private let available: Set<MonitorDisplayChrome.Section>
     private let edit: ((MonitorDisplayMode) -> Void)?
     private let feedback: () -> Void
 
-    public init(live: Binding<MonitorDisplayChrome>, clean: Binding<MonitorDisplayChrome>,
-        assist: MonitorAssistState<Looks>,
-        available: Set<MonitorDisplayChrome.Section> = Set(MonitorDisplayChrome.Section.allCases),
-        edit: ((MonitorDisplayMode) -> Void)? = nil, feedback: @escaping () -> Void = {}) {
-        _live = live; _clean = clean; self.assist = assist
+    public init(modes: [MonitorDisplayMode], chrome: @escaping (MonitorDisplayMode) -> Binding<MonitorDisplayChrome>,
+        assist: MonitorAssistState<Looks>, available: Set<MonitorDisplayChrome.Section>,
+        edit: ((MonitorDisplayMode) -> Void)?, feedback: @escaping () -> Void) {
+        self.modes = modes; self.chrome = chrome; self.assist = assist
         self.available = available; self.edit = edit; self.feedback = feedback
     }
 
     public var body: some View {
-        MonitorDisplaySections(sections: MonitorDisplayMode.allCases.map { mode in
-            let chrome = mode == .clean ? $clean : $live
+        MonitorDisplaySections(sections: modes.map { mode in
+            let chrome = chrome(mode)
             return MonitorDisplaySection(id: mode.rawValue, title: mode.settingsTitle,
                 caption: mode.settingsCaption,
-                reset: { feedback(); chrome.wrappedValue = mode == .clean ? .cleanDefaults : .liveDefaults },
+                reset: { feedback(); chrome.wrappedValue = MonitorDisplayChrome.defaults(for: mode) },
                 editHint: "Opens the monitor with an eye on each element you can show or hide.",
                 edit: edit.map { action in { action(mode) } },
                 unavailableEditHelp: "Connect to arrange this on the monitor.",
-                visibility: Self.order.filter(available.contains).map { section in
+                visibility: Self.order.filter { available.contains($0) && MonitorDisplayChrome.isConfigurable($0, in: mode) }
+                    .map { section in
                     MonitorDisplayToggle(id: mode.rawValue + "." + Self.title(section),
                         title: Self.title(section), isOn: chrome.wrappedValue.isVisible(section),
                         help: Self.help(section)) {
@@ -49,7 +50,7 @@ public struct MonitorOperatorDisplaySections<Looks: MonitorLookProvider>: View {
 
     private static var order: [MonitorDisplayChrome.Section] {
         [.statusBar, .toolBar, .cameraValues, .lockButton, .batteries, .recReadout, .timecode,
-         .format, .color, .storage, .fps, .railRecord, .railMedia, .railSettings, .zoomChip,
+         .format, .codec, .color, .storage, .fps, .railRecord, .railMedia, .railSettings, .zoomChip,
          .gimbalStick, .focusBox]
     }
     private static func title(_ section: MonitorDisplayChrome.Section) -> String {
@@ -65,6 +66,7 @@ public struct MonitorOperatorDisplaySections<Looks: MonitorLookProvider>: View {
         case .recReadout: "Standby / recording chip on the status bar."
         case .timecode: "Running timecode on the status bar."
         case .format: "Recording resolution and frame rate."
+        case .codec: "Recording codec chip on the status bar."
         case .color: "Color mode chip on the status bar."
         case .storage: "Remaining media time on the status bar."
         case .fps: "Live-view rate and link bars."

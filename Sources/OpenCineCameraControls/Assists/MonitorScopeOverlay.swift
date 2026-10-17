@@ -85,7 +85,7 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
         let plot = MonitorScopePanelPlate(title: HistogramAssist.panelTitle, chip: HistogramAssist.chip, size: size) {
             MonitorScopeBundleContent(read: readBundle) { bundle in
                 MonitorHistogramScopePlot(display: bundle.histogramDisplay, traffic: bundle.traffic,
-                    showTrafficLights: options.trafficLights)
+                    showTrafficLights: options.trafficLights && bundle.levelAxis?.supportsCalibratedReferences != false)
             }
         }.accessibilityLabel("RGB histogram, scale 0 to 100")
         if hasCanvas { HistogramAssist.overlay(stores: stores, canvas: canvas, feed: feed, chromeClearance: clearance) { plot } }
@@ -111,7 +111,9 @@ public struct MonitorScopeOverlay<Looks: MonitorLookProvider>: View {
         return TrafficLightsMovablePanel(store: store, size: size,
             defaultCenter: MonitorScopePanelCentering.defaultCenter(size: size, bounds: canvas), bounds: canvas,
             placementBounds: MonitorScopePanelPlacement.bounds(in: canvas, clearance: clearance)) {
-            MonitorScopeBundleContent(read: readBundle) { MonitorTrafficLightsMeter(reading: $0.traffic) }
+            MonitorScopeBundleContent(read: readBundle) { bundle in
+                if bundle.levelAxis?.supportsCalibratedReferences != false { MonitorTrafficLightsMeter(reading: bundle.traffic) }
+            }
         }
     }
 }
@@ -141,7 +143,9 @@ public struct MonitorScopeFitStack<Looks: MonitorLookProvider>: View {
                 GeometryReader { geometry in
                     if tool == .trafficLights {
                         MonitorScopeBundleContent(read: readBundle) {
-                            MonitorTrafficLightsMeter(reading: $0.traffic, fillsWidth: true)
+                            if $0.levelAxis?.supportsCalibratedReferences != false {
+                                MonitorTrafficLightsMeter(reading: $0.traffic, fillsWidth: true)
+                            }
                         }
                     } else {
                         MonitorScopeOverlay(tool: tool, assist: assist, stores: stores, haptics: haptics,

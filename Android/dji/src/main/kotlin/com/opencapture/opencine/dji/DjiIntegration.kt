@@ -15,6 +15,7 @@ import com.opencapture.opencine.core.ConnectionPrompt
 import com.opencapture.opencine.core.ConnectionStep
 import com.opencapture.opencine.core.ControlEpoch
 import com.opencapture.opencine.core.DiscoveryMode
+import com.opencapture.opencine.core.IntegrationPresentation
 import com.opencapture.opencine.core.NearbyCamera
 import com.opencapture.opencine.core.RecoveryAction
 import com.opencapture.opencine.core.RouteKind
@@ -162,6 +163,10 @@ class DjiIntegration(
     ).map { CameraProfile("${id.rawValue}.model.${it.lowercase().replace(' ', '-')}", it, ALL_ROUTES, MOVING_ROUTES) }
 
     override val discoveryModes: Set<DiscoveryMode> = setOf(DiscoveryMode.PASSIVE)
+
+    /** A nearby card pairs at once (the camera approves it); setups keep their kind's name. */
+    override val presentation: IntegrationPresentation =
+        IntegrationPresentation(nearbyTap = IntegrationPresentation.NearbyTap.CONNECT, namesSetups = false)
 
     /**
      * The app's saved cameras. A camera network another saved camera owns (its access point or

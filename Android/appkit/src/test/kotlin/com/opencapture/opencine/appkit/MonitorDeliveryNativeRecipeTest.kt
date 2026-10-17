@@ -24,7 +24,7 @@ class MonitorDeliveryNativeRecipeTest {
     @Test fun photosAuthorizationPrecedesCacheAndEnteredSave() = runTest {
         val facts = NativeDeliveryFacts()
         val outcome = batch(facts, action = MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS,
-            photos = MonitorDeliveryPhotosService.PerItem { facts.calls += "save"; true },
+            photos = MonitorDeliveryPhotosService { facts.calls += "save"; true },
             authorization = MonitorDeliveryPhotosAuthorizationService({ true }, { facts.calls += "authorize" }))
         assertEquals(1, (outcome as MonitorDeliveryBatchOutcome.SavedToPhotos<*>).count)
         assertEquals(listOf("authorize", "cache 1", "prepare 1", "save", "release 1"), facts.calls)
@@ -36,7 +36,7 @@ class MonitorDeliveryNativeRecipeTest {
     @Test fun authorizationRefusalDoesNotAcquirePrepareOrSave() = runTest {
         val facts = NativeDeliveryFacts()
         val outcome = batch(facts, action = MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS,
-            photos = MonitorDeliveryPhotosService.PerItem { facts.calls += "save"; true },
+            photos = MonitorDeliveryPhotosService { facts.calls += "save"; true },
             authorization = MonitorDeliveryPhotosAuthorizationService({ false }, {
                 facts.calls += "authorize"; error("access denied")
             }))
@@ -46,27 +46,36 @@ class MonitorDeliveryNativeRecipeTest {
 
     @Test fun nativeContinuationKeepsOrderPartialMetadataAndResourceRelease() = runTest {
         val facts = NativeDeliveryFacts(); facts.cached += listOf(1, 2, 3)
-        val policy = MonitorDeliveryBatchPolicy(
-            behavior = MonitorDeliveryBatchBehavior(nativeFailures = MonitorDeliveryItemFailurePolicy.CONTINUE_ITEMS),
-            nativeSummary = { if (it.failed > 0) "Prepared ${it.prepared}; ${it.failed} failed." else null })
         val outcome = batch(facts, records = listOf(1, 2, 3), exporter = MonitorDeliveryExportService(
             release = { facts.calls += "release $it" }, prepare = { record, _ ->
                 facts.calls += "prepare $record"; if (record == 2) error("second failed"); "$record"
-            }), policy = policy, metadata = { "metadata" }) as MonitorDeliveryBatchOutcome.Share<*>
+            }), metadata = { "metadata" }) as MonitorDeliveryBatchOutcome.Share<*>
         assertEquals(listOf("1", "3"), outcome.urls)
         assertEquals("Prepared 2; 1 failed.\nmetadata", outcome.metadataText)
         assertEquals(listOf("prepare 1", "prepare 2", "prepare 3", "release 1", "release 3"), facts.calls)
     }
 
+    @Test fun nativeSummaryJoinsFailedAndUncachedNotes() = runTest {
+        val facts = NativeDeliveryFacts(); facts.cached += listOf(1, 2)
+        val outcome = MonitorDeliveryModel.runBatch<Int, String, Int>(
+            records = listOf(1, 2, 3), destination = MonitorDeliveryDestination.NATIVE_SHARE,
+            action = MonitorDeliveryPostExportAction.SYSTEM_SHARE, admission = MonitorDeliveryAdmission { true },
+            originals = MonitorDeliveryOriginalService(available = { it in facts.cached }, acquire = { facts.calls += "cache $it" },
+                progress = { null }),
+            exporter = MonitorDeliveryExportService { record, _ -> if (record == 2) error("second failed"); "$record" },
+            share = { MonitorDeliveryShareFiles(it) }, photos = null, filename = { "$it" },
+            sleep = { throw CancellationException("manual mirror retired") }, progress = {}) as MonitorDeliveryBatchOutcome.Share<*>
+        assertEquals(listOf("1"), outcome.urls)
+        assertEquals("Prepared 1; 1 failed. 1 clip(s) couldn't be cached from the camera.", outcome.metadataText)
+    }
+
     @Test fun emptyUploadSuccessKeepsSkippedCountAndCountFailure() = runTest {
         for (failed in listOf(false, true)) {
             val facts = NativeDeliveryFacts(); facts.cached += 1
-            val policy = MonitorDeliveryBatchPolicy(
-                behavior = MonitorDeliveryBatchBehavior(emptyUploadSucceeds = true, singleUploadFailureUsesDetail = false))
             val outcome = batch(facts, destination = MonitorDeliveryDestination.REMOTE_UPLOAD,
                 exporter = MonitorDeliveryExportService { _, _ -> if (failed) error("detail"); null },
-                upload = MonitorDeliveryUploadService { _, _ -> facts.calls += "upload" }, policy = policy)
-            if (failed) assertEquals("1 failed", (outcome as MonitorDeliveryBatchOutcome.Failed<*>).message)
+                upload = MonitorDeliveryUploadService { _, _ -> facts.calls += "upload" })
+            if (failed) assertEquals("detail", (outcome as MonitorDeliveryBatchOutcome.Failed<*>).message)
             else assertEquals("1 skipped", (outcome as MonitorDeliveryBatchOutcome.Uploaded<*>).summary)
             assertTrue(facts.calls.isEmpty())
         }
@@ -74,13 +83,10 @@ class MonitorDeliveryNativeRecipeTest {
 
     @Test fun photosPerItemContinuesAndReportsExactPartialCounts() = runTest {
         val facts = NativeDeliveryFacts(); facts.cached += listOf(1, 2, 3)
-        val policy = MonitorDeliveryBatchPolicy(
-            behavior = MonitorDeliveryBatchBehavior(photosFailures = MonitorDeliveryItemFailurePolicy.CONTINUE_ITEMS),
-            photosFailure = { saved, failed -> if (failed > 0) "Saved $saved; $failed couldn't be saved to Photos." else null })
         val outcome = batch(facts, records = listOf(1, 2, 3), action = MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS,
-            photos = MonitorDeliveryPhotosService.PerItem { artifact ->
+            photos = MonitorDeliveryPhotosService { artifact ->
                 facts.calls += "save $artifact"; if (artifact == "2") error("insert failed"); artifact == "1"
-            }, policy = policy)
+            })
         assertEquals("Saved 1; 2 couldn't be saved to Photos.", (outcome as MonitorDeliveryBatchOutcome.Failed<*>).message)
         assertEquals(listOf("prepare 1", "prepare 2", "prepare 3", "save 1", "save 2", "save 3", "release 1", "release 2", "release 3"), facts.calls)
     }
@@ -140,7 +146,7 @@ class MonitorDeliveryNativeRecipeTest {
         for (reply in listOf(false, true)) {
             val facts = NativeDeliveryFacts()
             val outcome = batch(facts, action = MonitorDeliveryPostExportAction.SAVE_TO_PHOTOS,
-                photos = MonitorDeliveryPhotosService.PerItem { true },
+                photos = MonitorDeliveryPhotosService { true },
                 authorization = MonitorDeliveryPhotosAuthorizationService({ facts.current = false; reply }, { facts.calls += "authorize" }))
             assertEquals("Cancelled.", (outcome as MonitorDeliveryBatchOutcome.Failed<*>).message)
             assertTrue(facts.calls.isEmpty())
@@ -152,7 +158,7 @@ class MonitorDeliveryNativeRecipeTest {
         action: MonitorDeliveryPostExportAction = MonitorDeliveryPostExportAction.SYSTEM_SHARE,
         exporter: MonitorDeliveryExportService<Int, String>? = null, photos: MonitorDeliveryPhotosService<String>? = null,
         authorization: MonitorDeliveryPhotosAuthorizationService? = null, upload: MonitorDeliveryUploadService<String>? = null,
-        internet: MonitorDeliveryInternetService<Int>? = null, policy: MonitorDeliveryBatchPolicy = MonitorDeliveryBatchPolicy(),
+        internet: MonitorDeliveryInternetService<Int>? = null,
         metadata: (List<Int>) -> String? = { null }, admission: MonitorDeliveryAdmission? = null,
         progress: (MonitorDeliveryBatchProgress) -> Unit = {},
     ): NativeDeliveryOutcome = MonitorDeliveryModel.runBatch(
@@ -162,6 +168,6 @@ class MonitorDeliveryNativeRecipeTest {
         }, progress = { null }), exporter = exporter ?: MonitorDeliveryExportService(release = { facts.calls += "release $it" },
             prepare = { record, _ -> facts.calls += "prepare $record"; "$record" }),
         share = { MonitorDeliveryShareFiles(it) }, photos = photos, photosAuthorization = authorization, upload = upload, internet = internet,
-        filename = { "$it" }, metadata = metadata, policy = policy, sleep = { throw CancellationException("manual mirror retired") },
+        filename = { "$it" }, metadata = metadata, sleep = { throw CancellationException("manual mirror retired") },
         progress = { facts.progress += it; progress(it) })
 }

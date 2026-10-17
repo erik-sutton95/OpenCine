@@ -120,9 +120,11 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
     private let picture: @MainActor @Sendable () -> Picture
     @State private var operatorSession: MonitorOperatorSessionModel<Looks>
     @State private var editorHost: MonitorOperatorEditorHost<Looks>
-    @State private var locked = false
     @State private var opened: MonitorCaptureField?
     @State private var usage = MonitorToolUsage()
+    @State private var note: String?
+    // ponytail: per-launch portrait framing; persist it in MonitorOperatorPreferences when a template app asks.
+    @State private var portraitAspect = PortraitFeedAspect.fit16x9
     @Environment(\.monitorWindowGeometry) private var windowGeometry
 
     public init(shell: ShellModel, operatorPreferences: MonitorOperatorPreferences,
@@ -153,29 +155,16 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
             let aspect = MonitorAnamorphicDesqueeze.aspect(sourceAspect: sourceAspect,
                 enabled: assist.isVisible(.desqueeze), factor: assist.desqueezeFactor,
                 direction: assist.desqueezeHorizontal ? .horizontal : .vertical) ?? sourceAspect
-            let insets = MonitorSafeArea(top: safe.top, leading: safe.leading, bottom: safe.bottom, trailing: safe.trailing)
-            let layout = FieldMonitorLayout(width: proxy.size.width, height: proxy.size.height,
-                safeArea: insets, sourceAspect: aspect, showsValues: operatorSession.mounts(.cameraValues))
-            let identity = MonitorOperatorLiveIdentity(monitor: shell.monitor?.id,
-                camera: shell.control.snapshot?.session, epoch: shell.control.snapshot?.epoch, picture: "live")
-            let inputs = captureInputs(layout)
-            MonitorOperatorLiveBody(host: editorHost, control: shell.control, identity: identity,
-                current: { value in shell.monitor?.id == value.monitor && shell.control.snapshot?.session == value.camera
-                    && shell.control.snapshot?.epoch == value.epoch },
-                layout: layout, safeArea: insets, sourceAspect: aspect,
-                sections: .init(status: .statusBar, power: .batteries, capture: .cameraValues,
-                    assists: .toolBar, lock: .lockButton, settings: .railSettings, media: .railMedia, record: .railRecord),
-                mounted: mounted, editing: operatorSession.editingMode, locked: $locked,
-                covered: shell.cover != nil, clean: assist.clean, command: false,
-                readOnly: false, recovering: recovering, status: statusProjection, power: [], captureInputs: inputs,
-                settings: { shell.open(.settings) }, media: { shell.open(.media) }, cycleDisplay: { assist.clean.toggle() },
-                displayTitle: assist.clean ? "DISP 2 clean" : "DISP 1 live", displayIndex: assist.clean ? 1 : 0, displayCount: 2,
-                photo: false, confirmRecord: preferences.recordConfirmation,
-                assist: assist, tools: tools, usage: $usage, toggleTool: assist.toggle, assistSource: assistSource,
-                renderedTools: availableAssistTools, retireEditor: {
-                    captureKeys.forEach(shell.control.cancelEdit)
-                    editorHost.endChromeEditing()
-                }, recordConfirmationPolicy: .unchangedRecording, commonFraming: true, interactionEnabled: operatorSession.interactive,
+            let layout = LiveMonitorLayout.fieldMonitor(size: proxy.size, safeArea: safe, sourceAspect: aspect,
+                fill: portraitAspect == .fill && !assist.isVisible(.desqueeze),
+                showsValues: operatorSession.mounts(.cameraValues),
+                showsBottomBars: operatorSession.mounts(.toolBar) || operatorSession.mounts(.cameraValues))
+            let identity = liveIdentity
+            MonitorOperatorLiveSurface(host: editorHost, control: shell.control, session: operatorSession,
+                layout: layout, source: source(layout, aspect: aspect),
+                assists: .init(scopes: assistSource, tools: { tools }, rendered: { availableAssistTools }, fitted: { [] },
+                    signalOptions: .init(), usage: $usage, usageSeed: MonitorToolUsage.fieldMonitorSeed, toggle: assist.toggle),
+                views: .init(), portraitAspect: $portraitAspect,
                 picture: picture, cameraPanel: { _, _ in EmptyView() }, photoRelease: { _ in EmptyView() },
                 preview: { assistPreview?($0) ?? AnyView(EmptyView()) }, lookMenu: { lookMenu?() ?? AnyView(EmptyView()) })
             .overlay(alignment: .topLeading) {
@@ -186,15 +175,35 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
                 }
             }
             .onChange(of: shell.monitor?.id, initial: true) { _, source in operatorSession.synchronize(source: source) }
+            .onChange(of: identity) { _, _ in captureKeys.forEach(shell.control.cancelEdit) }
             .onChange(of: openFieldIsCurrent) { _, current in if !current { opened = nil } }
+            .onAppear { let sink = $note; shell.control.onNote = { sink.wrappedValue = $0 } }
         }.ignoresSafeArea().preferredColorScheme(.dark).statusBarHidden(true)
     }
 
-    private var mounted: Set<MonitorDisplayChrome.Section> {
-        var value = Set(MonitorDisplayChrome.Section.allCases.filter(operatorSession.mounts))
-        value.remove(.batteries)
+    private var liveIdentity: MonitorOperatorLiveIdentity {
+        .init(monitor: shell.monitor?.id, camera: shell.control.snapshot?.session,
+            epoch: shell.control.snapshot?.epoch, picture: "live")
+    }
+    private func source(_ layout: LiveMonitorLayout, aspect: Double)
+        -> MonitorOperatorLiveSource<MonitorOperatorSceneCaptureKey, Never> {
+        .init(identity: { liveIdentity }, available: { available },
+            picture: { .init(aspect: aspect, waiting: false, vertical: false, flipped: false, recovering: recovering) },
+            status: { statusProjection }, cameraBattery: { cameraBattery }, capture: { captureInputs(layout) },
+            record: { .init(photo: false, confirm: preferences.recordConfirmation, busy: false, openMode: nil, external: nil) },
+            exposure: nil, level: nil, audio: { nil }, readOnly: { false }, borrowed: { false }, returnToStage: nil,
+            coverOpen: { shell.cover != nil }, note: $note,
+            settings: { shell.open(.settings) }, media: { shell.open(.media) })
+    }
+    /// Record mounts only for a camera that reports recording support.
+    private var available: Set<MonitorDisplayChrome.Section> {
+        var value = Set(MonitorDisplayChrome.Section.allCases)
         if shell.control.snapshot?.capabilities.support(of: .recording) != .supported { value.remove(.railRecord) }
         return value
+    }
+    /// The reported battery at its declared precision (bars or percent); unknown is absent.
+    private var cameraBattery: MonitorOperatorPowerReading? {
+        shell.control.snapshot.flatMap { MonitorOperatorPowerReading.camera($0.power) }
     }
     private var recovering: Bool {
         if case .some(.recovering) = shell.control.snapshot?.connection { return true }
@@ -208,7 +217,7 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
         return .init(recording: shell.control.statusPresentation(), showsTimecode: operatorSession.mounts(.timecode),
             showsRecording: operatorSession.mounts(.recReadout), format: format.map { [$0] } ?? [])
     }
-    private func captureInputs(_ layout: FieldMonitorLayout) -> MonitorOperatorCaptureInputs<MonitorOperatorSceneCaptureKey,
+    private func captureInputs(_ layout: LiveMonitorLayout) -> MonitorOperatorCaptureInputs<MonitorOperatorSceneCaptureKey,
         MonitorDisplayChrome.Section, Never> {
         let fields = captureKeys.compactMap(shell.control.captureField)
         let values = fields.map { field in
@@ -218,13 +227,13 @@ public struct MonitorOperatorScreen<Looks: MonitorLookProvider, Picture: View>: 
         }
         return .init(readouts: values, panel: opened.map {
             .init(key: .setting($0.key), title: $0.title, subtitle: $0.label ?? "Not set", field: $0)
-        }, columns: layout.portrait && !layout.tablet ? 3 : max(1, fields.count), haptics: preferences.haptics,
+        }, columns: layout.presentation?.portrait == true && layout.presentation?.tablet == false ? 3 : max(1, fields.count), haptics: preferences.haptics,
             open: { key in
-                guard !locked, shell.cover == nil, operatorSession.interactive, !operatorSession.isEditing,
+                guard !operatorSession.locked, shell.cover == nil, operatorSession.interactive, !operatorSession.isEditing,
                     case .setting(let setting) = key else { return }
                 opened = shell.control.captureField(setting)
             }, dismiss: { opened = nil }, commitAdmission: {
-                !locked && shell.cover == nil && operatorSession.interactive && !operatorSession.isEditing
+                !operatorSession.locked && shell.cover == nil && operatorSession.interactive && !operatorSession.isEditing
             })
     }
     private var openFieldIsCurrent: Bool {

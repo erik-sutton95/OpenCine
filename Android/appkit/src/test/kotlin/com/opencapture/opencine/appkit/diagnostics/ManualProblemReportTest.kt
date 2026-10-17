@@ -23,7 +23,7 @@ class ManualProblemReportTest {
             releasePackage = "com.opencapture.host",
             versionName = "1.0",
             versionCode = 1,
-            debug = true,
+            environment = "development",
             sourceRevision = "test",
             reportingDsn = null,
             reportingClient = "host-android",
@@ -53,7 +53,6 @@ class ManualProblemReportTest {
         report.envelopeUrlOverride = "http://localhost:8080/api/1/envelope/"
         report.sentryKeyOverride = "publickey"
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         gate.setValidInternetForTests(true)
     }
 
@@ -238,7 +237,7 @@ class ManualProblemReportTest {
     @Test
     fun cameraPathQueuesThenSendsOnceAndRejectsDuplicateSubmit() {
         server.enqueue(200)
-        gate.setCameraSessionActive(true)
+        val lease = gate.beginCameraPath()
         val first =
             report.submit("Queued on camera Wi-Fi", "", "phase=live email=hidden@example.com")
         assertEquals(ManualSubmitResult.QUEUED, first)
@@ -248,7 +247,7 @@ class ManualProblemReportTest {
         val duplicate = report.submit("second", "", null)
         assertEquals(ManualSubmitResult.PENDING_EXISTS, duplicate)
         assertEquals(queuedId, report.current().eventId)
-        gate.setCameraSessionActive(false)
+        lease.end()
         report.noteCameraPathClear()
         assertEquals(ManualProblemReportDelivery.SENT, report.current().delivery)
         assertNotNull(server.takeRequest())
@@ -327,8 +326,7 @@ class ManualProblemReportTest {
         val after429 = File(root, "pending.json").readText()
         val nextAttempt = JSONObject(after429).getLong("nextAttemptAtMs")
         assertTrue(nextAttempt > report.nowMs())
-        gate.setCameraSessionActive(true)
-        gate.setCameraSessionActive(false)
+        gate.beginCameraPath().end()
         report.noteCameraPathClear()
         assertEquals(1, server.requestCount)
         val afterClear = JSONObject(File(root, "pending.json").readText())

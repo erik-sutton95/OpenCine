@@ -60,6 +60,7 @@ import com.opencapture.monitorui.MonitorAssistIcon
 import com.opencapture.monitorui.MonitorAssistPalette
 import com.opencapture.monitorui.MonitorAuxCircleButton
 import com.opencapture.monitorui.MonitorBatteryOutlineRow
+import com.opencapture.monitorui.MonitorGaugeBars
 import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorLayoutPolicy
 import com.opencapture.monitorui.MonitorMaterial
@@ -630,7 +631,7 @@ private fun CameraMenuHeader(tile: MultiviewTile) {
         Text(tile.model, style = MonitorTypography.text(12f))
         Text("TC ${tile.timecode ?: MultiviewTally.UNAVAILABLE}", style = MonitorTypography.readout(12f))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            MonitorBatteryOutlineRow(tile.battery ?: -1, tile.charging, camera = true)
+            MonitorBatteryOutlineRow(tile.battery ?: -1, tile.charging, camera = true, tile.batteryBars, tile.batteryBarCount)
             Text(tile.storage, style = MonitorTypography.text(12f))
         }
         Text("${tile.format} · ${tile.tally}", style = MonitorTypography.text(12f))
@@ -807,7 +808,7 @@ private fun TileChrome(
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                BatteryPill(tile.battery)
+                BatteryPill(tile.battery, tile.batteryBars, tile.batteryBarCount)
                 Text(tile.storage, color = Color.White, style = MonitorTypography.readout(small), maxLines = 1,
                     modifier = (if (values == null) Modifier.weight(1f) else Modifier)
                         .semantics { contentDescription = "Storage ${tile.storage}" })
@@ -847,23 +848,29 @@ private fun Tally(tile: MultiviewTile, size: Float) {
     )
 }
 
-/** The camera battery pill without its glyph; one width fits "100%" so values never jitter. */
+/**
+ * The camera battery pill without its glyph; one width fits "100%" so values never jitter.
+ * A camera that reports a coarse gauge shows its [bars], never a percent it did not report.
+ */
 @Composable
-private fun BatteryPill(percent: Int?) {
+private fun BatteryPill(percent: Int?, bars: Int?, barCount: Int) {
+    val level = bars?.let { it * 100 / barCount.coerceAtLeast(1) } ?: percent
     val tint = when {
-        percent == null -> MonitorPalette.text
-        percent <= 20 -> MonitorPalette.recording
-        percent <= 40 -> Amber
+        level == null -> MonitorPalette.text
+        level <= 20 -> MonitorPalette.recording
+        level <= 40 -> Amber
         else -> Good
     }
     Row(
         Modifier.size(40.dp, 20.dp).glass(RoundedCornerShape(7.dp)).padding(horizontal = 6.dp)
             .semantics {
-                contentDescription = percent?.let { "Camera battery $it percent" } ?: "Camera battery unavailable"
+                contentDescription = bars?.let { "Camera battery $it of $barCount bars" }
+                    ?: percent?.let { "Camera battery $it percent" } ?: "Camera battery unavailable"
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(percent?.let { "$it%" } ?: MultiviewTally.UNAVAILABLE, color = tint,
+        if (bars != null) MonitorGaugeBars(bars.toFloat() / barCount.coerceAtLeast(1), barCount, tint)
+        else Text(percent?.let { "$it%" } ?: MultiviewTally.UNAVAILABLE, color = tint,
             style = MonitorTypography.readout(10f, FontWeight.Bold), maxLines = 1)
     }
 }

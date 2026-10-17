@@ -4,6 +4,7 @@ import com.opencapture.opencine.core.CameraSessionID
 import com.opencapture.opencine.core.ConnectedCamera
 import com.opencapture.opencine.media.CameraMediaService
 import com.opencapture.opencine.media.MediaAssetID
+import com.opencapture.opencine.media.MonitorPlaybackDeletionConfirmation
 import com.opencapture.opencine.media.MonitorPlaybackItemToken
 import com.opencapture.opencine.media.MonitorPlaybackStartTiming
 import java.util.UUID
@@ -24,7 +25,21 @@ public class MonitorOperatorPlaybackOperations<P, L>(
     public val adoptLook: ((MonitorMediaRecord<P>, MonitorPlaybackLook<L>) -> Unit)? = null,
     public val access: ((MonitorMediaRecord<P>) -> MonitorMediaGalleryAccess)? = null,
     public val rating: MonitorMediaPlaybackRatingService<P>? = null,
-)
+) {
+    /** The legacy six-parameter/default constructor remains unchanged. */
+    public var captureDeletion: ((MonitorMediaRecord<P>) -> MonitorOperatorPlaybackDeletionRequest?)? = null
+        private set
+    public constructor(captureDeletion: (MonitorMediaRecord<P>) -> MonitorOperatorPlaybackDeletionRequest?,
+        cacheOriginal: (suspend (MonitorMediaRecord<P>) -> Unit)? = null,
+        delete: (suspend (MonitorMediaRecord<P>) -> Boolean)? = null,
+        favorite: ((MonitorMediaRecord<P>) -> Unit)? = null,
+        adoptLook: ((MonitorMediaRecord<P>, MonitorPlaybackLook<L>) -> Unit)? = null,
+        access: ((MonitorMediaRecord<P>) -> MonitorMediaGalleryAccess)? = null,
+        rating: MonitorMediaPlaybackRatingService<P>? = null,
+    ) : this(cacheOriginal, delete, favorite, adoptLook, access, rating) {
+        this.captureDeletion = captureDeletion
+    }
+}
 
 /** A genuine removal may retire exactly the outgoing item once, never its successor. */
 public object MonitorPlaybackRemovalAdmission {
@@ -71,6 +86,14 @@ public class MonitorOperatorMediaModel<P, L>(
     private var sceneActive = true
     private var cacheRequest: MonitorPlaybackItemToken? = null
     private var cacheTask: Job? = null
+    private class CapturedDeletion<P, L>(val request: MonitorOperatorPlaybackDeletionRequest,
+        val record: MonitorMediaRecord<P>, val owner: MonitorMediaPlaybackModel<P, L>,
+        val token: MonitorPlaybackItemToken, val page: UUID, val generation: Long,
+        val source: MonitorMediaLibraryActionToken,
+        val survivors: List<MonitorMediaRecord<P>>, val successor: MediaAssetID?)
+    private var deletionRevision = UUID.randomUUID()
+    private var pendingDeletion: CapturedDeletion<P, L>? = null
+    private var enteredDeletion: MonitorOperatorPlaybackDeletionRequest? = null
     private var deleteTask: Job? = null
     private var adoptedLook: UUID? = null
     private var ratingRead: MonitorPlaybackItemToken? = null
@@ -166,6 +189,18 @@ public class MonitorOperatorMediaModel<P, L>(
         if (page == capturedPage && state.value.playback === owner) owner?.setPresentationActive(value && !state.value.deliveryPresented)
     }
     public fun sceneActive(value: Boolean): Unit { sceneActive = value; state.value.playback?.setSceneActive(value) }
+    /**
+     * The shared share entry for the playing item (A4-11): the transport pauses before the
+     * delivery sheet covers it, and dismissing the sheet leaves it paused.
+     */
+    public fun beginShare(token: MonitorPlaybackItemToken): Boolean {
+        val owner = state.value.playback
+        if (owner == null || !isCurrent(token)) return false
+        owner.setPlaying(false)
+        if (!isCurrent(token)) return false
+        deliveryPresented(true)
+        return true
+    }
     public fun deliveryPresented(value: Boolean): Unit {
         val capturedPage = page; val owner = state.value.playback
         mutable.value = state.value.copy(deliveryPresented = value)
@@ -333,6 +368,111 @@ public class MonitorOperatorMediaModel<P, L>(
         val current = request.isCurrent
         return current && ratingRevision == revision
     }
+    /** Captures displayed consequences/admission without entering source IO. */
+    public fun captureDeletion(admitted: MonitorPlaybackItemToken,
+        operations: MonitorOperatorPlaybackOperations<P, L>): MonitorPlaybackDeletionConfirmation? {
+        if (enteredDeletion != null || !isCurrent(admitted)) return null
+        val owner = state.value.playback ?: return null
+        val record = owner.state.value.active ?: return null
+        val capture = operations.captureDeletion ?: return null
+        val capturedPage = page; val generation = library.cache.directory.generation; val source = library.actionToken
+        if (operations.access != null) {
+            if (operations.access.invoke(record).delete != true) return null
+        } else if (record.asset.deletable != true) return null
+        if (page != capturedPage || state.value.playback !== owner || !isCurrent(admitted)) return null
+        cancelPendingDeletion()
+        val revision = deletionRevision
+        val request = capture(record) ?: return null
+        if (deletionRevision != revision || page != capturedPage || state.value.playback !== owner || !isCurrent(admitted) ||
+            !library.isCurrent(source) || library.cache.directory.generation != generation || !request.authority.isCurrent ||
+            request.authority.directory !== library.cache.directory || deletionRevision != revision || !library.isCurrent(source) || page != capturedPage ||
+            state.value.playback !== owner || !isCurrent(admitted) || library.cache.directory.generation != generation) {
+            request.authority.retire(); return null
+        }
+        val index = owner.state.value.playlist.indexOfFirst { it.asset.id == record.asset.id }.coerceAtLeast(0)
+        val survivors = owner.state.value.playlist.filter { it.asset.id != record.asset.id }
+        pendingDeletion = CapturedDeletion(request, record, owner, admitted, capturedPage, generation, source,
+            survivors, survivors.getOrNull(index.coerceAtMost(survivors.size - 1))?.asset?.id)
+        return request.confirmation
+    }
+    public fun isDeletionCurrent(admitted: UUID): Boolean {
+        val captured = pendingDeletion?.takeIf { it.request.confirmation.id == admitted } ?: return false
+        if (page != captured.page || state.value.playback !== captured.owner || !isCurrent(captured.token) ||
+            library.cache.directory.generation != captured.generation || !captured.request.authority.isCurrent) return false
+        return pendingDeletion?.request?.confirmation?.id == admitted && page == captured.page &&
+            state.value.playback === captured.owner && isCurrent(captured.token) &&
+            library.cache.directory.generation == captured.generation
+    }
+    /** Cancel revokes only the displayed request and performs no native IO. */
+    public fun cancelDeletion(admitted: UUID): Unit {
+        if (pendingDeletion?.request?.confirmation?.id == admitted) cancelPendingDeletion()
+    }
+    private fun cancelPendingDeletion(): Unit {
+        deletionRevision = UUID.randomUUID()
+        val outgoing = pendingDeletion; pendingDeletion = null; outgoing?.request?.authority?.retire()
+    }
+    /** Only this consumed authority's completion may return through its planned relist. */
+    public fun confirmDeletion(admitted: UUID): Unit {
+        val captured = pendingDeletion?.takeIf { it.request.confirmation.id == admitted } ?: return
+        pendingDeletion = null
+        if (page != captured.page || state.value.playback !== captured.owner || !isCurrent(captured.token) ||
+            !captured.request.authority.isCurrent || library.cache.directory.generation != captured.generation ||
+            page != captured.page || state.value.playback !== captured.owner || !isCurrent(captured.token)) {
+            captured.request.authority.retire(); return
+        }
+        val scheduler = requireNotNull(scope) { "Playback IO requires its presentation scope" }
+        val previous = deleteTask; deleteTask = null; previous?.cancel()
+        enteredDeletion?.authority?.retire(); enteredDeletion = captured.request
+        val job = scheduler.launch(start = CoroutineStart.LAZY) {
+            try {
+                if (!isActive || page != captured.page || state.value.playback !== captured.owner ||
+                    !isCurrent(captured.token) || !captured.request.authority.isCurrent ||
+                    page != captured.page || state.value.playback !== captured.owner || !isCurrent(captured.token)) return@launch
+                captured.request.perform()
+                if (!isActive || page != captured.page || state.value.playback !== captured.owner ||
+                    library.cache.directory.generation != captured.generation) return@launch
+                val completion = captured.request.authority.completion
+                if (completion == null || completion.claim != captured.request.authority.id || !completion.isCurrent ||
+                    !library.isCurrent(completion.admission) || page != captured.page ||
+                    state.value.playback !== captured.owner || library.cache.directory.generation != captured.generation) {
+                    val current = captured.owner.state.value
+                    if (isActive && page == captured.page && state.value.playback === captured.owner &&
+                        library.cache.directory.generation == captured.generation && library.isCurrent(captured.source) &&
+                        captured.request.authority.isCurrent && current.closed && current.active?.asset?.id == captured.record.asset.id &&
+                        current.token == captured.token.copy(revision = captured.token.revision + 1) &&
+                        page == captured.page && state.value.playback === captured.owner) {
+                        val retained = library.record(captured.record.asset.id)
+                        if (retained != null) {
+                            enteredDeletion = null
+                            open(retained, current.playlist.mapNotNull { library.record(it.asset.id) }, captured.source)
+                        }
+                    }
+                    return@launch
+                }
+                val removed = library.record(captured.record.asset.id) == null
+                val current = captured.owner.state.value
+                val removedReturn = MonitorPlaybackRemovalAdmission.accepts(if (removed) captured.record.asset.id else null,
+                    captured.record.asset.id, captured.token, current.token, current.active?.asset?.id, current.closed,
+                    true, true, true)
+                val retainedReturn = !removed && current.closed && current.active?.asset?.id == captured.record.asset.id &&
+                    current.token == captured.token.copy(revision = captured.token.revision + 1)
+                if (!removedReturn && !retainedReturn) return@launch
+                enteredDeletion = null
+                val retained = if (!removed) library.record(captured.record.asset.id) else null
+                val preferred = captured.survivors.indexOfFirst { it.asset.id == captured.successor }.coerceAtLeast(0)
+                val successor = captured.survivors.drop(preferred).firstNotNullOfOrNull { library.record(it.asset.id) }
+                    ?: captured.survivors.take(preferred).asReversed().firstNotNullOfOrNull { library.record(it.asset.id) }
+                if (retained != null) open(retained, current.playlist.mapNotNull { library.record(it.asset.id) }, completion.admission)
+                else if (successor != null) open(successor, captured.survivors.mapNotNull { library.record(it.asset.id) }, completion.admission)
+                else closePlayback()
+            } finally {
+                if (enteredDeletion?.confirmation?.id == admitted) {
+                    enteredDeletion = null; deleteTask = null; captured.request.authority.retire()
+                }
+            }
+        }
+        deleteTask = job; job.start()
+    }
     public fun deleteCurrent(admitted: MonitorPlaybackItemToken, operations: MonitorOperatorPlaybackOperations<P, L>): Unit {
         if (!isCurrent(admitted)) return
         val owner = state.value.playback ?: return
@@ -363,6 +503,8 @@ public class MonitorOperatorMediaModel<P, L>(
         deleteTask = job; job.start()
     }
     private fun retireWork(): Unit {
+        cancelPendingDeletion()
+        enteredDeletion?.authority?.retire(); enteredDeletion = null
         val previousCache = cacheTask; val previousDelete = deleteTask
         val previousRating = ratingTasks.values.toList()
         ratingTasks.clear(); ratingRevision = UUID.randomUUID(); ratingRead = null; ratingNoticeID = null

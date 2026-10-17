@@ -124,10 +124,11 @@ final class ReliabilityReportingNetworkTests: XCTestCase {
         XCTAssertEqual(
             ReliabilityReportingNetwork.decision(for: url, dsnHost: url.host, gate: gate),
             .forward)
-        gate.setCameraSessionActive(true)
+        let lease = gate.beginCameraPath()
         XCTAssertEqual(
             ReliabilityReportingNetwork.decision(for: url, dsnHost: url.host, gate: gate),
             .blockCameraPath)
+        lease.end()
         gate.resetForTests()
     }
 
@@ -135,13 +136,12 @@ final class ReliabilityReportingNetworkTests: XCTestCase {
         let fake = FakeTask()
         gate.setValidInternetForTests(true)
         gate.setCameraIPv4PathReadyForTests(false)
-        gate.setCameraSessionActive(false)
         gate.register(fake)
         XCTAssertFalse(gate.shouldBlockUpload)
-        gate.setCameraSessionActive(true)
+        let lease = gate.beginCameraPath()
         XCTAssertTrue(gate.shouldBlockUpload)
         XCTAssertTrue(fake.cancelled)
-        gate.setCameraSessionActive(false)
+        lease.end()
         gate.setCameraIPv4PathReadyForTests(true)
         XCTAssertTrue(gate.shouldBlockUpload)
     }
@@ -155,7 +155,8 @@ final class ReliabilityReportingNetworkTests: XCTestCase {
         XCTAssertEqual(
             ReliabilityReportingNetwork.decision(for: other, dsnHost: dsnHost, gate: gate),
             .rejectHost)
-        gate.setCameraSessionActive(true)
+        let lease = gate.beginCameraPath()
+        defer { lease.end() }
         XCTAssertEqual(
             ReliabilityReportingNetwork.decision(for: allowed, dsnHost: dsnHost, gate: gate),
             .blockCameraPath)
@@ -178,19 +179,54 @@ final class ReliabilityReportingNetworkTests: XCTestCase {
         gate.register(manual)
         gate.cancelPending(includeIndependent: false)
         XCTAssertFalse(manual.cancelled)
-        gate.setCameraSessionActive(true)
+        _ = gate.beginCameraPath()
         XCTAssertTrue(manual.cancelled)
     }
 
     /// An app whose camera network shares its prefix with home networks reads no address path:
-    /// only the live camera session holds reports back.
+    /// only a held camera path holds reports back.
     func testGateWithoutCameraPrefixBlocksOnlyOnTheSession() {
         let gate = ReliabilityReportingGate(cameraIPv4Prefix: nil)
         XCTAssertNil(gate.cameraIPv4Prefix)
         XCTAssertFalse(gate.shouldBlockUpload)
-        gate.setCameraSessionActive(true)
+        let lease = gate.beginCameraPath()
         XCTAssertTrue(gate.shouldBlockUpload)
-        gate.setCameraSessionActive(false)
+        lease.end()
+        XCTAssertFalse(gate.shouldBlockUpload)
+    }
+
+    /// A6-08: each connection owner holds its own lease from the connect attempt through
+    /// recovery and failure until it retires. A superseded owner ending late, or ending twice,
+    /// never reopens its successor's hold; uploads resume (and `onClear` runs) after the last.
+    func testCameraPathLeaseIsFencedPerOwner() {
+        let gate = ReliabilityReportingGate(cameraIPv4Prefix: nil)
+        let queued = FakeTask()
+        gate.register(queued)
+        nonisolated(unsafe) var clears = 0
+        let stale = gate.beginCameraPath(onClear: { clears += 1 })
+        XCTAssertTrue(queued.cancelled, "a connect attempt cancels a report in flight")
+        let successor = gate.beginCameraPath(onClear: { clears += 1 })
+        stale.end()
+        stale.end()
+        XCTAssertTrue(stale.isEnded)
+        XCTAssertTrue(gate.isCameraSessionActive)
+        XCTAssertTrue(gate.shouldBlockUpload, "the stale owner cannot reopen the successor's gate")
+        XCTAssertEqual(clears, 0)
+        let late = FakeTask()
+        gate.register(late)
+        XCTAssertTrue(late.cancelled, "uploads registered while held are refused")
+        successor.end()
+        XCTAssertFalse(gate.shouldBlockUpload)
+        XCTAssertEqual(clears, 1)
+        successor.end()
+        XCTAssertEqual(clears, 1)
+
+        let outlived = gate.beginCameraPath()
+        gate.resetForTests()
+        let next = gate.beginCameraPath()
+        outlived.end()
+        XCTAssertTrue(gate.shouldBlockUpload, "a lease that outlived a reset cannot release a new holder")
+        next.end()
         XCTAssertFalse(gate.shouldBlockUpload)
     }
 

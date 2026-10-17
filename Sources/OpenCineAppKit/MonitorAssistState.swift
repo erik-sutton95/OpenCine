@@ -12,6 +12,14 @@ public protocol MonitorLookProvider: AnyObject {
     var transfer: MonitorTransfer { get }
     var referenceClipByte: Int { get }
     func lutExposureTransfer(for transfer: MonitorTransfer) -> MonitorTransfer
+    /// Whether the picture this provider's host draws honours `lutExposureStops` before its cube.
+    /// The look comparison offers its Exposure control only when it does (A1-37).
+    var appliesLUTExposure: Bool { get }
+}
+
+extension MonitorLookProvider {
+    /// Existing providers retain the input-exposure control until they declare otherwise.
+    public var appliesLUTExposure: Bool { true }
 }
 
 public struct MonitorAssistPreferenceKeys: Sendable {

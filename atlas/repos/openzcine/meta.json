@@ -12,7 +12,7 @@
   "refs": [
     {
       "name": "main",
-      "commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3",
+      "commit": "f4b8c734cfc0b7d814fdd10015c6825fb602e8a8",
       "role": "baseline"
     },
     {
@@ -23,6 +23,11 @@
     {
       "name": "opencine/integration",
       "commit": "b7a25cca0867b17bfa20330bf059f5a04165e48c",
+      "role": "candidate"
+    },
+    {
+      "name": "pre-migration",
+      "commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3",
       "role": "candidate"
     }
   ],
@@ -101,33 +106,54 @@
     {
       "to": "opencine",
       "kind": "library",
-      "status": "candidate",
+      "status": "live",
       "confidence": "confirmed",
-      "ref": "opencine/integration",
+      "ref": "main",
       "platforms": [
         "apple",
         "android"
       ],
       "products": [
-        "OpenCineCore",
-        "OpenCineMedia",
-        "OpenCineFrameIO",
+        ":appkit",
+        ":camera-controls",
+        ":core",
+        ":monitor-ui",
+        ":multicam",
+        ":native-runtime",
+        ":nikon",
+        ":nikon-wire",
+        ":platform",
+        ":relay",
+        ":relay-runtime",
+        ":vulkan",
+        ":watch-runtime",
+        "MonitorPresentation",
+        "MonitorUI",
+        "OpenCineAppKit",
+        "OpenCineAppUITesting",
         "OpenCineApple",
+        "OpenCineCameraControls",
+        "OpenCineCameraVocabulary",
+        "OpenCineCore",
+        "OpenCineFrameIO",
+        "OpenCineJNISupport",
+        "OpenCineMedia",
+        "OpenCineMulticam",
         "OpenCineNikon",
         "OpenCineNikonAndroid",
-        "OpenCineJNISupport",
-        ":core",
-        ":nikon"
+        "OpenCineRelay",
+        "OpenCineRelayApple",
+        "OpenCineWatch"
       ],
       "evidence": {
         "path": "Package.swift",
-        "source_commit": "b7a25cca0867b17bfa20330bf059f5a04165e48c"
+        "source_commit": "f4b8c734cfc0b7d814fdd10015c6825fb602e8a8"
       },
-      "note": "one local package ../OpenCine (Xcode/SwiftPM) and one included build ../../../OpenCine/Android named opencine, pinned in opencine-pins.txt"
+      "note": "Public main consumes the one sibling OpenCine package and included Android build; exact shared revision is in opencine-pins.txt. Formal package distribution is tracked separately."
     }
   ],
   "summary_review": {
-    "source_commit": "9ac413876ddc663e95edb6cf7913f2aa73ea03b3",
-    "reviewed_at": "2026-10-01T17:39:17Z"
+    "source_commit": "f4b8c734cfc0b7d814fdd10015c6825fb602e8a8",
+    "reviewed_at": "2026-10-11T20:13:31Z"
   }
 }
