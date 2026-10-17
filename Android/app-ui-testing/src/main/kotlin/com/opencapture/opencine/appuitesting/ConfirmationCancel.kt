@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appuitesting
 
+import com.opencapture.monitorui.MonitorPlaybackCopy
 import com.opencapture.monitorui.ReviewLaunch
 import com.opencapture.monitorui.settings.MonitorSettingsTab
 import kotlin.test.assertEquals
@@ -81,7 +82,7 @@ public abstract class ConfirmationCancel(subject: ConformanceApp) : ConformanceT
         const val TITLE = "monitor.playback.title"
         const val STORAGE = "monitor.settings.tab.Storage"
         const val DELETE = "Delete"
-        const val DELETE_CLIP = "Delete clip"
+        const val DELETE_CLIP = MonitorPlaybackCopy.DELETE
         const val DELETE_SELECTED = "Delete selected clips"
     }
 }

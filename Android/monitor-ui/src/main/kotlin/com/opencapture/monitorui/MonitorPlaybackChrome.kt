@@ -206,7 +206,7 @@ fun MonitorMetadataDrawer(rows: List<MonitorMetadataRow>, modifier: Modifier = M
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "CLIP INFO",
+                MonitorPlaybackCopy.CLIP_INFORMATION_TITLE,
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                 style = MonitorTypography.text(9f, FontWeight.Bold).copy(letterSpacing = 1.8.sp),
             )

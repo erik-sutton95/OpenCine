@@ -22,6 +22,8 @@ private struct WatcherJoinDestination {
     @ObservationIgnored private let journal: @Sendable (String) -> Void
     @ObservationIgnored public var preparePicture: (@MainActor () -> Void)?
     @ObservationIgnored private let commandWire: (@MainActor (Data) -> Void)?
+    /// The relay's poll and recovery clock; `nil` keeps the relay client's own (uptime) clock.
+    @ObservationIgnored private let clock: MonitorHostClock?
     @ObservationIgnored private var client: RelayAppleClient<SharedMonitorRelayCodec>?
     @ObservationIgnored private var nativeEpisode = UUID()
     @ObservationIgnored private var destination: WatcherJoinDestination?
@@ -101,9 +103,10 @@ private struct WatcherJoinDestination {
     }
     public init(decoder: Decoder, samples: LiveFrameSampleBus, versionMismatchReason: String,
         journal: @escaping @Sendable (String) -> Void = { _ in },
-        commandWire: (@MainActor (Data) -> Void)? = nil) {
+        commandWire: (@MainActor (Data) -> Void)? = nil, clock: MonitorHostClock? = nil) {
         self.decoder = decoder; self.samples = samples
         self.versionMismatchReason = versionMismatchReason; self.journal = journal; self.commandWire = commandWire
+        self.clock = clock
     }
 
     public func join(endpoint: NWEndpoint, hostName: String, passcode: String, watcherID: String, deviceName: String) {
@@ -131,12 +134,20 @@ private struct WatcherJoinDestination {
         guard nativeEpisode == episode, client == nil else { return }
         preparePicture?()
         guard nativeEpisode == episode, client == nil else { return }
-        let transport = RelayAppleClient(codec: SharedMonitorRelayCodec(), watcherID: watcherID,
-            versionMismatchReason: versionMismatchReason,
-            journal: journal, watcher: .init(deviceName: deviceName,
+        let watcher = RelayAppleWatcherConfiguration<SharedMonitorRelayCodec.FrameMetadata,
+            SharedMonitorRelayCodec.ControlToken, SharedMonitorRelayCodec.JoinDenied>(deviceName: deviceName,
                 passcode: passcode.isEmpty ? nil : passcode, encodedAt: { $0.encodedAt },
                 holderIsRecipient: { $0.holderIsRecipient },
-                refusal: { .init(reason: $0.reason, passcodeRequired: $0.passcodeRequired) }))
+                refusal: { .init(reason: $0.reason, passcodeRequired: $0.passcodeRequired) })
+        let transport = if let clock {
+            RelayAppleClient(codec: SharedMonitorRelayCodec(), watcherID: watcherID,
+                versionMismatchReason: versionMismatchReason, journal: journal,
+                sleep: { seconds in try? await clock.sleep(.seconds(seconds)) },
+                now: { clock.now().sinceReference / .seconds(1) }, watcher: watcher)
+        } else {
+            RelayAppleClient(codec: SharedMonitorRelayCodec(), watcherID: watcherID,
+                versionMismatchReason: versionMismatchReason, journal: journal, watcher: watcher)
+        }
         client = transport
         transport.onWatcherChanged = { [weak self, weak transport] next in
             guard let self, let transport, self.client === transport else { return }

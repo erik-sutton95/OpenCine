@@ -426,6 +426,31 @@ xcodebuild test -scheme OpenCine-Package -destination <private simulator> -only-
 python3 scripts/vendor-lucide-icons.py          # refresh pinned Lucide SVGs (iOS + Android)
 ```
 
+Playback labels and values come from the Swift and Kotlin `MonitorPlaybackCopy` twins,
+bound to the same `Fixtures/playback-copy.tsv` vectors. The picture gesture well has a test tag
+and no screen-reader action. The hide-controls hint is iOS-only; TalkBack supplies its own action hint.
+
+The native confirmation-label contracts require a foreground application scene and mounted UIKit
+controls. `scripts/ios-playback-label-hosted-test.py --simulator-id <private simulator> --derived-data
+<scratch directory> --output <new evidence directory>` generates a developer-only SIMULATED host and
+runs all three named contracts. It requires XcodeGen and an accessibility-enabled private simulator;
+the caller owns simulator setup and cleanup. The iOS conformance-kit CI job runs this beside the
+package-hosted walk tests. The generated host is never a package product or a camera app.
+
+The three original methods keep the 900x420 transport fixture and both deletion contracts.
+An attaching native UI reader supplies one guarded outside-popover event for each deletion;
+the original fixture publishes observations and checks its actual callbacks and native disappearance
+before teardown. Both readers must exit before simulator shutdown. Local admission requires the
+external backing mount; GitHub CI checks its own filesystem, with the same 20 GiB storage floor.
+
+`scripts/ios-playback-label-ci.py --output <new directory>` prepares the standard native UI
+target from the same shared-screen host and guarded system-dismissal driver. Its explicit
+`--run` mode belongs to a caller-owned GitHub CI simulator, records the actual app-authored
+callback bytes and all twenty native predicates, and retains its private data and Products.
+The `playback-native-ios` job follows the original three-case `kit-ios` gate. Both gates must
+pass; the typed native counterpart cannot waive an original fixture failure. Local qualification
+continues to use the separately reviewed lifecycle runner and retained evidence packets.
+
 ## License
 
 Apache 2.0 ([LICENSE](../../LICENSE), [NOTICE](../../NOTICE)). Bundled fonts and icons:

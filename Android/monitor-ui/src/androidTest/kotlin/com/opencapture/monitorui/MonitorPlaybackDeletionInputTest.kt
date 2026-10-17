@@ -1,15 +1,9 @@
 package com.opencapture.monitorui
 
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.app.UiAutomation
-import android.os.Build
-import android.os.SystemClock
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.opencapture.opencine.media.MonitorConformPreview
 import com.opencapture.opencine.media.MonitorPlaybackDeletionConfirmation
 import com.opencapture.opencine.media.MonitorPlaybackItemToken
@@ -52,57 +46,16 @@ class MonitorPlaybackDeletionInputTest {
                         feedAssists = {}, canvasAssists = {}, tools = {}, assistInspector = {})
                 }
             }
-            click("Delete clip")
-            assertTrue(awaitNode(copy.message!!) != null)
+            LiveAccessibilityTree.click(MonitorPlaybackCopy.DELETE)
+            assertTrue(LiveAccessibilityTree.await(copy.message!!) != null)
             assertEquals(1, captures.get()); assertEquals(0, confirmations.get())
-            click("Cancel")
+            LiveAccessibilityTree.click(MonitorPlaybackCopy.DELETE_CANCEL)
             assertEquals(1, cancellations.get()); assertEquals(0, confirmations.get())
-            click("Delete clip")
-            assertTrue(awaitNode(copy.message!!) != null)
-            click("Delete")
+            LiveAccessibilityTree.click(MonitorPlaybackCopy.DELETE)
+            assertTrue(LiveAccessibilityTree.await(copy.message!!) != null)
+            LiveAccessibilityTree.click(MonitorPlaybackCopy.DELETE_CONFIRM)
             assertEquals(2, captures.get()); assertEquals(1, confirmations.get())
             assertEquals(1, cancellations.get())
         }
-    }
-
-    private fun click(label: String) {
-        val found = requireNotNull(awaitNode(label)) { "Actual shared playback action did not mount: $label" }
-        // A text label sits inside its merged clickable control; act on that control, as a screen reader does.
-        val node = generateSequence(found) { it.parent }.firstOrNull { it.isClickable }
-            ?: error("Actual shared playback action has no clickable control: $label")
-        assertTrue(node.performAction(AccessibilityNodeInfo.ACTION_CLICK), "Actual accessibility input refused: $label")
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-    }
-    private fun awaitNode(label: String): AccessibilityNodeInfo? {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val automation = windowsAutomation()
-        val deadline = SystemClock.uptimeMillis() + 5_000
-        do {
-            instrumentation.waitForIdleSync()
-            // Compose reports no change events to UiAutomation alone, so cached nodes go stale; read the live tree.
-            if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
-            for (window in automation.windows) {
-                window.root?.let { root -> find(root, label)?.let { return it } }
-            }
-            Thread.yield()
-        } while (SystemClock.uptimeMillis() < deadline)
-        return null
-    }
-    /** UiAutomation lists no windows until it opts in to interactive windows; the playback chrome is its own popup window. */
-    private fun windowsAutomation(): UiAutomation {
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        val info = automation.serviceInfo
-        if ((info.flags and AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS) == 0) {
-            info.flags = info.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-            automation.serviceInfo = info
-        }
-        return automation
-    }
-    private fun find(node: AccessibilityNodeInfo, label: String): AccessibilityNodeInfo? {
-        if (node.text?.toString() == label || node.contentDescription?.toString() == label) return node
-        for (index in 0 until node.childCount) node.getChild(index)?.let { child ->
-            find(child, label)?.let { return it }
-        }
-        return null
     }
 }

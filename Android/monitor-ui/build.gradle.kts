@@ -40,12 +40,9 @@ dependencies {
     androidTestImplementation(project(":system-hints-testing"))
 }
 
-// SharedUIRulesTest also scans the app shell sources.
-tasks.withType<Test>().configureEach { inputs.dir(rootDir.resolve("appkit/src/main")) }
-
-// The popup margin and review vectors are shared with the Swift MonitorPresentationTests
-// (Fixtures/ at the repository root).
+// SharedUIRulesTest scans the app shell; all fixture vectors share the Swift test inputs.
 tasks.withType<Test>().configureEach {
+    inputs.dir(rootDir.resolve("appkit/src/main"))
     val fixtures = rootDir.resolve("../Fixtures")
     inputs.dir(fixtures)
     systemProperty("opencine.fixtures", fixtures.absolutePath)

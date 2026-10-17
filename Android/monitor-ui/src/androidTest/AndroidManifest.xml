@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- assetsPaths: right after an emulator's first boot Android swaps runtime resource overlays
+             (device and theme overlays) for every process; the activity must keep the content a test
+             set on it instead of being relaunched mid-test (configuration change 0x80000000). -->
         <activity android:name="com.opencapture.monitorui.MonitorTestActivity" android:exported="false"
-            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
+            android:configChanges="assetsPaths"
+            android:theme="@style/MonitorTestHost" />
         <activity android:name="com.opencapture.monitorui.MonitorBackdropRenderActivity" android:exported="false"
+            android:configChanges="assetsPaths"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
     </application>
 </manifest>

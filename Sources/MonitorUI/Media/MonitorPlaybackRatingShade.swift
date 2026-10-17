@@ -41,7 +41,7 @@ public struct MonitorPlaybackRatingAnchor: View {
                 }.foregroundStyle(MonitorTheme.muted).frame(width: 52, height: 44)
                     .liquidGlass(in: Capsule(), interactive: true).opacity(0.9)
             }.buttonStyle(.monitorTapTarget)
-                .accessibilityLabel(expanded ? "Hide star rating" : "Show star rating")
+                .accessibilityLabel(MonitorPlaybackCopy.rating(expanded: expanded))
                 .accessibilityIdentifier("monitor.playback.rating")
         }
     }

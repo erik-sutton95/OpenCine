@@ -112,7 +112,8 @@ fun MonitorPlaybackScrubber(progressSeconds: Float, durationSeconds: Float,
     }
     Canvas(modifier.fillMaxWidth().height(22.dp)
         .semantics {
-            contentDescription = "Playback position"
+            contentDescription = MonitorPlaybackCopy.POSITION
+            stateDescription = MonitorPlaybackCopy.positionValue(display.toDouble())
             progressBarRangeInfo = ProgressBarRangeInfo(display.coerceIn(0f, duration), 0f..duration)
             setProgress { requested -> seek(requested.coerceIn(0f, duration)); true }
         }

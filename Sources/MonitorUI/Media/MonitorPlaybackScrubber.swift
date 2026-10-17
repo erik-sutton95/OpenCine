@@ -122,8 +122,8 @@
             }
             .onDisappear { cancelEditing(.disappeared) }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Playback position")
-            .accessibilityValue("\(Int(progress.isFinite ? max(0, progress) : 0)) seconds")
+            .accessibilityLabel(MonitorPlaybackCopy.position)
+            .accessibilityValue(MonitorPlaybackCopy.positionValue(seconds: progress))
             .accessibilityAdjustableAction { direction in
                 let target = min(duration, max(0, progress + (direction == .increment ? 1 : -1)))
                 if target.isFinite {
