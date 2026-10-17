@@ -204,7 +204,7 @@ public fun <P> MonitorOperatorCatalogScreen(
     }
     key(value.lifetimeToken) {
         MediaLibraryPage(page, filters, actions, gallery = {
-            MonitorOperatorCatalogGallery(gallery, snapshot, facts, operations, sourceAvailable, refresh,
+            MonitorOperatorCatalogGallery(gallery, snapshot, state.presentationRevision, facts, operations, sourceAvailable, refresh,
                 open = open, select = ::select, thumbnail = thumbnail, presentation = presentation,
                 cell = cell, selectionConfiguration = selectionConfiguration, selectionChanged = selectionChanged)
         }, overlays = {
@@ -231,7 +231,7 @@ public fun <P> MonitorOperatorCatalogScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun <P> MonitorOperatorCatalogGallery(
-    owner: MonitorMediaGalleryModel<P>, snapshot: MonitorMediaGallerySnapshot<P>,
+    owner: MonitorMediaGalleryModel<P>, snapshot: MonitorMediaGallerySnapshot<P>, presentationRevision: Long,
     facts: (MonitorMediaRecord<P>) -> MonitorMediaGalleryFileFacts,
     operations: MonitorMediaGalleryOperations<P>, connected: Boolean, refresh: () -> Unit,
     open: (MonitorMediaGalleryOpen<P>) -> Unit, select: (Set<MediaAssetID>, Boolean) -> Unit,
@@ -273,7 +273,11 @@ private fun <P> MonitorOperatorCatalogGallery(
                         modifier = Modifier.testTag("monitor.media.clip.${id.rawValue}"),
                         onOpen = { owner.open(id, snapshot, operations, sourceAvailable = connected)?.let(open) },
                         onSelect = { select(if (value.selecting) value.selectedIDs.toggled(id) else setOf(id), true) },
-                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false) { thumbnail(context) }
+                        onFavorite = { owner.favorite(id, snapshot, operations) }, clicks = false) {
+                        // A cover can retire this presentation while the library admission stays
+                        // unchanged. Its new thumbnails must retry reads refused by the old context.
+                        key(presentationRevision) { thumbnail(context) }
+                    }
                 }
             }
             Box(Modifier.fillMaxSize()) {
