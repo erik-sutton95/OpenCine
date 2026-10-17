@@ -107,6 +107,13 @@ class LadderSheetTest {
         assertNull(ladderPickWrite(tab(), "800", "800"))
     }
 
+    @Test
+    fun aFormatPickWritesOnlyALadderValueWhileTheDrumIsOpen() {
+        assertEquals(LadderWrite("iso", "400"), ladderFormatWrite(tab(), "400", enabled = true))
+        assertNull(ladderFormatWrite(tab(), "1600", enabled = true))
+        assertNull(ladderFormatWrite(tab(), "400", enabled = false))
+    }
+
     private fun tab(activate: LadderWrite<String>? = null, apply: Boolean = true) = LadderTab(
         label = "ISO",
         key = "iso",

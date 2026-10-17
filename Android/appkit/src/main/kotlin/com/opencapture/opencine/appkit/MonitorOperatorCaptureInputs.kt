@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -257,6 +258,9 @@ private class CaptureReadoutActions(
 ): Unit {
     val owner = state.gestureOwner
     key(owner) {
+        val hideReadouts = state.preview?.let { !inputs.isTop(it.key) } == true
+        val stripModifier = modifier.alpha(if (hideReadouts) 0f else 1f)
+            .then(if (hideReadouts) Modifier.clearAndSetSemantics { } else Modifier)
         val density = LocalDensity.current
         val admitted by rememberUpdatedState(enabled && currentSource())
         val currentInputs by rememberUpdatedState(inputs)
@@ -280,7 +284,7 @@ private class CaptureReadoutActions(
         MonitorCameraValues(inputs.readouts.map { MonitorValue(it.id.toString(), it.title, it.value ?: "--",
             selected = inputs.panel?.key == it.id || state.preview?.key == it.id,
             annotation = it.annotation, valueIcon = it.icon, badgeIcon = it.badgeIcon) },
-            admitted, layout.portrait, modifier.onGloballyPositioned { coordinates ->
+            admitted, layout.portrait, stripModifier.onGloballyPositioned { coordinates ->
                 if (currentSource()) {
                     val r = coordinates.boundsInRoot()
                     onCaptureFrame(with(density) { MonitorRect(r.left.toDp().value, r.top.toDp().value,

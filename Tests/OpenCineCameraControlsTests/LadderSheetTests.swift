@@ -75,6 +75,15 @@ import OpenCineCameraVocabulary
     }
 
     @available(macOS 14, *)
+    @Test func aFormatPickWritesOnlyALadderValueWhileTheDrumIsOpen() {
+        #expect(
+            ladderFormatWrite(sampleTab(), value: "400", enabled: true)
+                == LadderWrite(key: "iso", value: "400"))
+        #expect(ladderFormatWrite(sampleTab(), value: "1600", enabled: true) == nil)
+        #expect(ladderFormatWrite(sampleTab(), value: "400", enabled: false) == nil)
+    }
+
+    @available(macOS 14, *)
     private func sampleTab(
         activate: LadderWrite<String>? = nil, apply: Bool = true
     ) -> LadderTab<String> {

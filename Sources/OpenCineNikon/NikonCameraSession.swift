@@ -611,7 +611,9 @@ public final class NikonCameraSession: CameraSession {
     }
 
     /// The common value for a selection of `setting`, or `nil` when `label` does not parse.
-    public static func setting(_ setting: NikonControlSetting, label: String) -> SettingValue? {
+    public nonisolated static func setting(
+        _ setting: NikonControlSetting, label: String
+    ) -> SettingValue? {
         switch setting {
         case .iso:
             Int(label.trimmingCharacters(in: .whitespaces)).map { .iso(.manual($0)) }
@@ -633,7 +635,7 @@ public final class NikonCameraSession: CameraSession {
         return blank.applying(property: write.property, data: readback) == requested
     }
 
-    private static func whiteBalance(preset label: String) -> SettingValue {
+    private nonisolated static func whiteBalance(preset label: String) -> SettingValue {
         .whiteBalance(label == "Auto" ? .auto : .preset(label))
     }
 

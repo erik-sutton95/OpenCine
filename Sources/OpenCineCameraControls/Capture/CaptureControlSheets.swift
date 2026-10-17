@@ -691,15 +691,14 @@
                 title: { $0.label }, select: handleAspectChange)
         }
 
+        /// The one capture mode strip every camera's popup draws (`LadderSheet` uses it too).
         private var modeBar: some View {
-            MonitorCaptureTabs(
-                options: Array(modeTabs.indices), selection: selectedMode,
-                title: { modeTabs[$0] },
-                select: { index in
-                    guard canApplyDrum else { return }
-                    selectedMode = index
-                    handleModeChange(index)
-                })
+            ModeBar(tabs: modeTabs, selected: selectedMode, enabled: true) { index in
+                guard canApplyDrum else { return }
+                selectedMode = index
+                handleModeChange(index)
+            }
+            .environment(\.ladderOperatorHaptics, host.hapticsEnabled)
         }
 
         private func choiceDrum(

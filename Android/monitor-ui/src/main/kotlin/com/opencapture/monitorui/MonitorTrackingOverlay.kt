@@ -43,7 +43,7 @@ data class MonitorFocusMark(val point: Offset, val color: Color, val aeLocked: B
     val focusLocked: Boolean = false,
     /** The camera-reported AF area, normalized like [point] (its centre); null draws the standard tap box. */
     val area: MonitorTrackingRect? = null,
-    /** Hold-to-lock feedback in 0..1: the box outline fills while the operator holds. */
+    /** Hold-to-lock feedback in 0..1: the box outline fills in the accent until the lock engages. */
     val lockProgress: Float = 0f)
 
 object MonitorTrackingGeometry {
@@ -54,6 +54,28 @@ object MonitorTrackingGeometry {
         val proposed = along * 0.26f
         val minGap = max(8f, along * 0.28f)
         return min(max(10f, proposed), max(10f, (along - minGap) / 2f))
+    }
+
+    /**
+     * The focus box in feed pixels (twin of the SwiftUI `focusBoxFrame`): the camera-reported area at
+     * its own size and centre, else the standard square of the short side around the mark's point.
+     */
+    fun focusBoxFrame(mark: MonitorFocusMark, width: Float, height: Float): Rect {
+        val area = mark.area
+        if (area != null && area.width > 0 && area.height > 0) {
+            return Rect((area.x * width).toFloat(), (area.y * height).toFloat(),
+                ((area.x + area.width) * width).toFloat(), ((area.y + area.height) * height).toFloat())
+        }
+        val side = min(width, height) * FOCUS_BOX_SIDE_FRACTION
+        val cx = mark.point.x * width
+        val cy = mark.point.y * height
+        return Rect(cx - side / 2f, cy - side / 2f, cx + side / 2f, cy + side / 2f)
+    }
+
+    /** A camera-reported area keeps its own corner (at most [areaCornerCap]); the standard tap box keeps 6 px. */
+    fun focusCornerRadius(frame: Rect, reportedArea: Boolean, areaCornerCap: Float): Float {
+        val side = min(frame.width, frame.height)
+        return if (reportedArea) min(side * 0.12f, areaCornerCap) else max(6f, side * 0.12f)
     }
 }
 
@@ -102,12 +124,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusBox(
     aeTag: TextLayoutResult?,
     lockIcon: Painter?,
 ) {
-    val standard = min(size.width, size.height) * MonitorTrackingGeometry.FOCUS_BOX_SIDE_FRACTION
-    val boxWidth = focus.area?.let { (it.width * size.width).toFloat() } ?: standard
-    val boxHeight = focus.area?.let { (it.height * size.height).toFloat() } ?: standard
-    val side = min(boxWidth, boxHeight)
-    val cx = focus.area?.let { ((it.x + it.width / 2) * size.width).toFloat() } ?: (focus.point.x * size.width)
-    val cy = focus.area?.let { ((it.y + it.height / 2) * size.height).toFloat() } ?: (focus.point.y * size.height)
+    val frame = MonitorTrackingGeometry.focusBoxFrame(focus, size.width, size.height)
+    val boxWidth = frame.width
+    val boxHeight = frame.height
+    val cx = frame.center.x
+    val cy = frame.center.y
     val halfWidth = boxWidth / 2f
     val halfHeight = boxHeight / 2f
     val tint = focus.color
@@ -127,8 +148,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusBox(
             with(lockIcon) { draw(Size(icon, icon), colorFilter = ColorFilter.tint(tint)) }
         }
     }
-    // A camera-reported area keeps its own corner (at most 7 dp); the standard tap box keeps 6 px.
-    val radius = if (focus.area == null) max(6f, side * 0.12f) else min(side * 0.12f, 7.dp.toPx())
+    val radius = MonitorTrackingGeometry.focusCornerRadius(frame, focus.area != null, 7.dp.toPx())
     drawRoundRect(
         tint,
         topLeft = Offset(cx - halfWidth, cy - halfHeight),
@@ -145,7 +165,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusBox(
         val measure = androidx.compose.ui.graphics.PathMeasure().apply { setPath(outline, false) }
         val segment = Path()
         measure.getSegment(0f, measure.length * progress, segment, true)
-        drawPath(segment, tint, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        // The hold to lock traces the outline in the accent until the lock engages, as on iOS.
+        drawPath(segment, MonitorPalette.accent,
+            style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 

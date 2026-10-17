@@ -365,7 +365,7 @@ public struct CustomLUTArchiveEntry {
     public let path: String
     public let uncompressedSize: UInt64?
     public let isSymbolicLink: Bool
-    fileprivate let extract: (_ consume: (Data) throws -> Void) throws -> Void
+    let extract: (_ consume: (Data) throws -> Void) throws -> Void
 
     public init(
         path: String, uncompressedSize: UInt64? = nil, isSymbolicLink: Bool = false,

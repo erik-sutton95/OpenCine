@@ -112,6 +112,10 @@ internal fun <K> ladderIdentity(presentation: LadderSheetPresentation<K>): Any =
 internal fun <K> ladderPickWrite(tab: LadderTab<K>, applied: String, value: String): LadderWrite<K>? =
     if (value.isBlank() || value == applied) null else LadderWrite(tab.key, value)
 
+/** A format pick's write: only a value on the tab's ladder, and only while the drum is open. */
+internal fun <K> ladderFormatWrite(tab: LadderTab<K>, value: String, enabled: Boolean): LadderWrite<K>? =
+    if (enabled && value in tab.ladder.values) LadderWrite(tab.key, value) else null
+
 /** Labels on the drum: a host-grown ladder when the tab has one, otherwise the camera's list. */
 internal fun <K> ladderOptions(tab: LadderTab<K>, landed: String): List<String> =
     tab.values?.invoke(landed) ?: tab.ladder.values
@@ -138,7 +142,7 @@ fun <K> LadderSheet(
     tintHelp: String? = null,
     footer: @Composable (LadderTab<K>) -> Unit = {},
     /** A recording-format sheet: the shared format picker (area, size, rate) over these exact choices,
-     * each value a label from the tab's ladder. Kotlin only: the Swift sheet has no format tab. */
+     * each value a label from the tab's ladder. Twin of the SwiftUI sheet's `formats`. */
     formats: List<CaptureFormatChoice<String>>? = null,
 ) {
     if (presentation.tabs.isEmpty()) return
@@ -225,7 +229,7 @@ fun <K> LadderSheet(
                         sourceIdentity = source ?: identity,
                         isCurrent = { control?.state?.value?.snapshot?.let { it.session to it.epoch } == source },
                     ) { choice ->
-                        if (gates.drumEnabled && choice.value in tab.ladder.values) onWrite(LadderWrite(tab.key, choice.value))
+                        ladderFormatWrite(tab, choice.value, gates.drumEnabled)?.let(onWrite)
                     }
                 }
                 tint != null -> TintPad(
