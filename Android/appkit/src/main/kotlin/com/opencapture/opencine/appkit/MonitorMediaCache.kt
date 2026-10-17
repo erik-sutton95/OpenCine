@@ -261,9 +261,11 @@ public class MonitorMediaCacheDirectory(public val root: File,
         }
     }
     private fun retiredRoots(includeUnprepared: Boolean): List<File> = root.parentFile?.listFiles().orEmpty().filter {
-        MonitorMediaCacheNamespaces.isDirectory(it) && (isRetirementName(it.name, ".clearing-${root.name}-") ||
+        // Reject unrelated siblings before asking the filesystem for metadata.
+        (isRetirementName(it.name, ".clearing-${root.name}-") ||
             (includeUnprepared && (isRetirementName(it.name, ".retiring-${root.name}-") ||
-                (accountLegacyUnpreparedRoots && it.name.startsWith(".retiring-${root.name}-")))))
+                (accountLegacyUnpreparedRoots && it.name.startsWith(".retiring-${root.name}-"))))) &&
+            MonitorMediaCacheNamespaces.isDirectory(it)
     }
     private fun isRetirementName(name: String, prefix: String): Boolean {
         if (!name.startsWith(prefix)) return false
