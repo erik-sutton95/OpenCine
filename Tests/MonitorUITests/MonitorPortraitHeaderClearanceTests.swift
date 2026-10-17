@@ -127,6 +127,100 @@
             }
         }
 
+        func testExplicitTelemetryMetricsKeepNativeDimensionsAndPhoneTabletTypography() throws {
+            let samples: [(String, MonitorTelemetryMetrics?, CGFloat)] = [
+                ("Declared phone gauge", .phone, 20),
+                ("Declared tablet gauge", .tablet, 80),
+                ("Default native gauge", nil, 140),
+            ]
+            let fixture = try HeaderWindow(rootView: AnyView(
+                ZStack(alignment: .topLeading) {
+                    ForEach(samples.indices, id: \.self) { index in
+                        let sample = samples[index]
+                        MonitorOperatorTelemetry<MonitorDefaultLivePalette>.gauge(
+                            icon: .smartphone, value: "100%", bars: 0, color: .white,
+                            metrics: sample.1)
+                            .accessibilityLabel(sample.0).offset(x: 16, y: sample.2)
+                    }
+                    Text("100%").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                        .accessibilityLabel("Phone font reference").offset(x: 160, y: 20)
+                    Text("100%").font(MonitorTheme.font(11, weight: .semibold)).monospacedDigit()
+                        .accessibilityLabel("Tablet font reference").offset(x: 160, y: 80)
+                    MonitorOperatorTelemetry<MonitorDefaultLivePalette>(
+                        fps: nil, signalBars: nil,
+                        camera: .init(id: "camera", title: "Camera battery", camera: true, percent: 100),
+                        horizontal: true, showsLink: false, metrics: .phone)
+                        .accessibilityElement(children: .ignore).accessibilityLabel("Declared phone power")
+                        .offset(x: 16, y: 200)
+                    MonitorOperatorTelemetry<MonitorDefaultLivePalette>(
+                        fps: nil, signalBars: nil,
+                        camera: .init(id: "camera", title: "Camera battery", camera: true, percent: 100),
+                        horizontal: true, showsLink: false, metrics: .tablet)
+                        .accessibilityElement(children: .ignore).accessibilityLabel("Declared tablet power")
+                        .offset(x: 16, y: 260)
+                }.frame(width: 320, height: 400, alignment: .topLeading)
+                    .foregroundStyle(.white).background(.black).ignoresSafeArea()),
+                size: CGSize(width: 320, height: 400))
+            defer { fixture.close() }
+            let image = try fixture.renderedImage()
+            let picture = XCTAttachment(image: image)
+            let pictureName = "SIMULATED explicit phone and tablet telemetry metrics"
+            picture.name = pictureName
+            picture.lifetime = .keepAlways
+            XCTContext.runActivity(named: pictureName) { $0.add(picture) }
+            let raster = try HeaderRaster(image)
+            let nodes = fixture.nodes()
+            func frame(_ label: String) throws -> CGRect {
+                let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label })
+                return fixture.window.convert(node.accessibilityFrame, from: nil)
+            }
+            let phoneReference = try raster.inkBounds(in: frame("Phone font reference"))
+            let tabletReference = try raster.inkBounds(in: frame("Tablet font reference"))
+            XCTAssertGreaterThan(tabletReference.width, phoneReference.width + 1,
+                "The native 11pt reference must distinguish a tablet reduction to 10pt")
+            var measurements: [[String: Any]] = []
+            for sample in samples {
+                let tablet = sample.1 == .tablet
+                    || (sample.1 == nil && UIDevice.current.userInterfaceIdiom == .pad)
+                let native = try frame(sample.0)
+                XCTAssertEqual(native.width, tablet ? 64 : 58, accuracy: 0.5)
+                XCTAssertEqual(native.height, tablet ? 22 : 20, accuracy: 0.5)
+                let textInset: CGFloat = tablet ? 22 : 21
+                let text = try raster.inkBounds(in: CGRect(
+                    x: native.minX + textInset, y: native.minY,
+                    width: native.width - textInset - 6, height: native.height))
+                let reference = tablet ? tabletReference : phoneReference
+                XCTAssertEqual(text.width, reference.width, accuracy: 1,
+                    "Explicit metrics must retain their actual native font, not a scaled tablet")
+                XCTAssertEqual(text.height, reference.height, accuracy: 1)
+                measurements.append([
+                    "label": sample.0, "tablet": tablet,
+                    "nativeFrame": [native.minX, native.minY, native.width, native.height],
+                    "textInkPixels": [text.minX, text.minY, text.width, text.height],
+                    "referenceInkPixels": [reference.minX, reference.minY, reference.width, reference.height],
+                ])
+            }
+            for (label, width, height) in [
+                ("Declared phone power", CGFloat(122), CGFloat(20)),
+                ("Declared tablet power", 134, 22),
+            ] {
+                let native = try frame(label)
+                XCTAssertEqual(native.width, width, accuracy: 0.5)
+                XCTAssertEqual(native.height, height, accuracy: 0.5)
+                measurements.append([
+                    "label": label,
+                    "nativeFrame": [native.minX, native.minY, native.width, native.height],
+                ])
+            }
+            let metrics = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
+                "scale": image.scale, "measurements": measurements,
+            ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+            metrics.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED native telemetry dimensions and typography") {
+                $0.add(metrics)
+            }
+        }
+
         func testCompactPortraitStorageAndPerformanceRemainAdjacentBeforePower() async throws {
             for safeTop in Self.safeTops {
                 for width in [CGFloat(320), 360, 440] {
@@ -169,6 +263,8 @@
         var window: UIWindow { native.window }
         var host: UIHostingController<AnyView> { native.host }
         init(width: CGFloat, layout: FieldMonitorLayout, storage: String) throws {
+            // These synthetic phone canvases declare phone metrics even on a native iPad host.
+            let metrics = MonitorTelemetryMetrics.phone
             let chrome = MonitorStatusChrome(
                 layout: layout, status: .init(recording: false, timecode: "01:23:45:59"),
                 storage: {
@@ -187,8 +283,8 @@
                 }, color: { EmptyView() }, mode: { EmptyView() },
                 link: {
                     MonitorOperatorTelemetry<MonitorDefaultLivePalette>.gauge(
-                        icon: .signal, value: "25 fps", bars: 4, color: .white)
-                        .frame(width: 58, height: 22).accessibilityLabel("Performance")
+                        icon: .signal, value: "25 fps", bars: 4, color: .white, metrics: metrics)
+                        .accessibilityLabel("Performance")
                 })
             native = try HeaderWindow(
                 rootView: AnyView(
@@ -199,7 +295,7 @@
                             fps: nil, signalBars: nil,
                             camera: .init(id: "camera", title: "Camera battery", camera: true,
                                 bars: 5, barCount: 5),
-                            horizontal: true, showsLink: false)
+                            horizontal: true, showsLink: false, metrics: metrics)
                             .frame(width: CGFloat(layout.telemetry.width), height: 22)
                             .accessibilityElement(children: .ignore).accessibilityLabel("Power")
                             .offset(x: CGFloat(layout.telemetry.x), y: CGFloat(layout.telemetry.y))

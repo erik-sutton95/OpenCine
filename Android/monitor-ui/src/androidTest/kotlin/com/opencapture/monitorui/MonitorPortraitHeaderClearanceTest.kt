@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -190,6 +191,66 @@ class MonitorPortraitHeaderClearanceTest {
         }
     }
 
+    @Test(timeout = 90_000) fun explicitTelemetryMetricsKeepNativeDimensionsAndPhoneTabletTypography() {
+        ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+            val placed = CountDownLatch(5)
+            var phone = Rect.Zero; var tablet = Rect.Zero; var nativeDefault = Rect.Zero
+            var phoneReference = Rect.Zero; var tabletReference = Rect.Zero
+            var density = 1f
+            scenario.onActivity { activity ->
+                density = activity.resources.displayMetrics.density
+                activity.setContent {
+                    Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+                        MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100)), true,
+                            modifier = Modifier.onGloballyPositioned { phone = it.boundsInRoot(); placed.countDown() },
+                            showsLink = false, metrics = MonitorTelemetryMetrics.PHONE)
+                        MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100)), true,
+                            modifier = Modifier.onGloballyPositioned { tablet = it.boundsInRoot(); placed.countDown() },
+                            showsLink = false, metrics = MonitorTelemetryMetrics.TABLET)
+                        MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100)), true,
+                            modifier = Modifier.onGloballyPositioned { nativeDefault = it.boundsInRoot(); placed.countDown() },
+                            showsLink = false)
+                        Text("100%", color = androidx.compose.ui.graphics.Color.White,
+                            style = MonitorTypography.readout(10f, FontWeight.Bold),
+                            modifier = Modifier.onGloballyPositioned { phoneReference = it.boundsInRoot(); placed.countDown() })
+                        Text("100%", color = androidx.compose.ui.graphics.Color.White,
+                            style = MonitorTypography.readout(11f, FontWeight.Bold),
+                            modifier = Modifier.onGloballyPositioned { tabletReference = it.boundsInRoot(); placed.countDown() })
+                    }
+                }
+            }
+            assertTrue("Actual native metric cases and font references must lay out", placed.await(5, TimeUnit.SECONDS))
+            awaitForegroundFrame(scenario)
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            scenario.onActivity { activity ->
+                val nodes = nativeNodes(activity.window.decorView).filter {
+                    it.config.getOrNull(SemanticsProperties.Text)?.singleOrNull()?.text == "100%"
+                        && it.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action != null
+                }.sortedBy { it.boundsInRoot.top }
+                assertEquals(5, nodes.size)
+                val glyphWidths = nodes.map { node ->
+                    val results = mutableListOf<TextLayoutResult>()
+                    assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results))
+                    results.single().getBoundingBox(0).width
+                }
+                assertTrue("The native 11sp reference must reject reduction to 10sp", glyphWidths[4] > glyphWidths[3] + .05f)
+                assertEquals(glyphWidths[3], glyphWidths[0], .05f)
+                assertEquals(glyphWidths[4], glyphWidths[1], .05f)
+                assertEquals(glyphWidths[3], glyphWidths[2], .05f)
+                for ((actual, width, height) in listOf(
+                    Triple(phone, 58f, 20f), Triple(tablet, 64f, 22f), Triple(nativeDefault, 58f, 20f))) {
+                    assertEquals(width * density, actual.width, .5f)
+                    assertEquals(height * density, actual.height, .5f)
+                }
+                android.util.Log.i("B5NativeTelemetryMetrics",
+                    "phone=$phone tablet=$tablet default=$nativeDefault glyphWidths=$glyphWidths density=$density")
+                assertRenderedBands(activity.window.decorView, 320f, 0f,
+                    listOf("phone" to phone, "tablet" to tablet, "default" to nativeDefault),
+                    listOf("phone reference" to phoneReference, "tablet reference" to tabletReference))
+            }
+        }
+    }
+
     @Test(timeout = 90_000) fun compactPortraitStorageAndPerformanceRemainAdjacentBeforePower() {
         for (safeTop in safeTops) {
             for (width in listOf(320f, 360f, 440f)) {
@@ -219,9 +280,11 @@ class MonitorPortraitHeaderClearanceTest {
                                         }, detail = { Text("I-Log") })
                                     },
                                     link = { MonitorTelemetry(4, "25", emptyList(), true, showsPower = false,
+                                        metrics = MonitorTelemetryMetrics.PHONE,
                                         modifier = Modifier.onGloballyPositioned { performance = it.boundsInRoot(); placed.countDown() }) })
                                 MonitorTelemetry(null, null, listOf(MonitorTelemetryPower(false, 100), MonitorTelemetryPower(true, null, bars = 5)),
                                     true, showsLink = false,
+                                    metrics = MonitorTelemetryMetrics.PHONE,
                                     modifier = Modifier.offset(field.telemetry.x.dp, field.telemetry.y.dp)
                                         .onGloballyPositioned { power = it.boundsInRoot(); placed.countDown() })
                             }

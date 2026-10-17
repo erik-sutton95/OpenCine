@@ -57,6 +57,14 @@ public class MonitorTelemetryPower(public val camera: Boolean, public val percen
 @Composable
 public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorTelemetryPower>,
     horizontal: Boolean, modifier: Modifier = Modifier, showsLink: Boolean = true, showsPower: Boolean = true) {
+    MonitorTelemetry(signalBars, fps, power, horizontal, MonitorTelemetryMetrics.PHONE, modifier, showsLink, showsPower)
+}
+
+/** Explicit metrics for a declared geometry; existing entry points retain their phone defaults. */
+@Composable
+public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorTelemetryPower>,
+    horizontal: Boolean, metrics: MonitorTelemetryMetrics, modifier: Modifier = Modifier,
+    showsLink: Boolean = true, showsPower: Boolean = true) {
     var showsFps by rememberSaveable { mutableStateOf(false) }
     val gauges: @Composable () -> Unit = {
         if (showsLink && (signalBars != null || fps != null)) {
@@ -65,7 +73,7 @@ public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorT
             TelemetryGauge(if (showsFps) MonitorIcon.GAUGE else MonitorIcon.SIGNAL, MonitorPalette.accent,
                 signalBars?.coerceIn(0, 4)?.div(4f) ?: 0f,
                 "Live link ${signalBars?.let { "$it of 4 delivery bars" } ?: "unavailable"}, feed ${fps ?: "unavailable"} frames per second",
-                horizontal, value, onClick = { showsFps = !showsFps })
+                horizontal, value, onClick = { showsFps = !showsFps }, metrics = metrics)
         }
         if (showsPower) power.forEach { reading ->
             val percent = reading.percent?.takeIf { it in 0..100 }
@@ -83,11 +91,12 @@ public fun MonitorTelemetry(signalBars: Int?, fps: String?, power: List<MonitorT
             TelemetryGauge(if (reading.charging == true) MonitorIcon.ZAP else if (reading.camera) MonitorIcon.CAMERA else MonitorIcon.SMARTPHONE,
                 tint, reading.bars?.let { it.toFloat() / reading.barCount.coerceAtLeast(1) } ?: percent?.div(100f) ?: 0f,
                 label, horizontal, if (reading.bars != null) null else percent?.let { "$it%" } ?: "\u2014",
-                barCount = if (reading.bars != null) reading.barCount else 4, filled = reading.bars, opacity = opacity)
+                barCount = if (reading.bars != null) reading.barCount else 4, filled = reading.bars,
+                opacity = opacity, metrics = metrics)
         }
     }
     if (horizontal) Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) { gauges() }
-    else Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) { gauges() }
+    else Column(modifier, verticalArrangement = Arrangement.spacedBy(metrics.stackSpacing.dp)) { gauges() }
 }
 
 /** Phone and camera batteries share one scale (matches iOS). */
@@ -114,14 +123,14 @@ private fun MonitorCameraBatteryGauge(percent: Int, stacked: Boolean = false, sh
 private fun TelemetryGauge(
     icon: MonitorIcon?, tint: Color, fraction: Float, label: String,
     stacked: Boolean, value: String? = null, onClick: (() -> Unit)? = null, barCount: Int = 4,
-    filled: Int? = null, opacity: Float = 1f,
+    filled: Int? = null, opacity: Float = 1f, metrics: MonitorTelemetryMetrics = MonitorTelemetryMetrics.PHONE,
 ) {
     Row(
         Modifier
             // Without the glyph the pill still fits "100%" so values never jitter.
             .size((if (filled != null && value == null) monitorGaugeReadoutWidth(filled, barCount,
-                if (icon != null) 58f else 40f, if (icon != null) 28f else 12f)
-                else if (icon != null) 58f else 40f).dp, 20.dp)
+                if (icon != null) metrics.pillWidth else metrics.iconlessWidth, if (icon != null) 28f else 12f)
+                else if (icon != null) metrics.pillWidth else metrics.iconlessWidth).dp, metrics.pillHeight.dp)
             .alpha(opacity)
             .monitorMaterial(MonitorMaterial.Compact, RoundedCornerShape(7.dp))
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
@@ -130,12 +139,12 @@ private fun TelemetryGauge(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (icon != null) MonitorIcon(icon, contentDescription = null, tint = MonitorPalette.text, modifier = Modifier.size(11.dp))
+        if (icon != null) MonitorIcon(icon, contentDescription = null, tint = MonitorPalette.text, modifier = Modifier.size(metrics.iconSize.dp))
         if (value != null) {
-            Text(value, color = tint, style = MonitorTypography.readout(10f, FontWeight.Bold), maxLines = 1)
+            Text(value, color = tint, style = MonitorTypography.readout(metrics.fontSize, FontWeight.Bold), maxLines = 1)
         } else {
-            if (filled != null) MonitorGaugeBars(filled, barCount, tint)
-            else MonitorGaugeBars(fraction, barCount, tint)
+            if (filled != null) MonitorGaugeBars(filled, barCount, tint, metrics.barHeight)
+            else MonitorGaugeBars(fraction, barCount, tint, metrics.barHeight)
         }
     }
 }
@@ -143,18 +152,28 @@ private fun TelemetryGauge(
 /** Keep the original fraction entry point for link delivery and existing callers. */
 @Composable
 fun MonitorGaugeBars(fraction: Float, count: Int, tint: Color) {
+    MonitorGaugeBars(fraction, count, tint, 9f)
+}
+
+@Composable
+private fun MonitorGaugeBars(fraction: Float, count: Int, tint: Color, barHeight: Float) {
     if (count > 10) {
         val filled = if (!fraction.isFinite() || fraction <= 0f) 0 else if (fraction >= 1f) count
             else Math.round(fraction.toDouble() * count).toInt()
         MonitorGaugeStepText(filled, count, tint)
-    } else MonitorGaugeBarCells(count, tint) { index -> fraction >= (index + 1).toFloat() / count.coerceAtLeast(1) }
+    } else MonitorGaugeBarCells(count, tint, barHeight) { index -> fraction >= (index + 1).toFloat() / count.coerceAtLeast(1) }
 }
 
 /** Batteries retain exact integer steps; large counts never allocate a cell per step. */
 @Composable
 fun MonitorGaugeBars(filled: Int, count: Int, tint: Color) {
+    MonitorGaugeBars(filled, count, tint, 9f)
+}
+
+@Composable
+private fun MonitorGaugeBars(filled: Int, count: Int, tint: Color, barHeight: Float) {
     if (count > 10) MonitorGaugeStepText(filled, count, tint)
-    else MonitorGaugeBarCells(count, tint) { index -> index < filled }
+    else MonitorGaugeBarCells(count, tint, barHeight) { index -> index < filled }
 }
 
 internal fun monitorGaugeReadoutWidth(filled: Int, count: Int, minimum: Float, inset: Float): Float =
@@ -169,10 +188,10 @@ private fun MonitorGaugeStepText(filled: Int, count: Int, tint: Color) {
 }
 
 @Composable
-private fun MonitorGaugeBarCells(count: Int, tint: Color, lit: (Int) -> Boolean) {
+private fun MonitorGaugeBarCells(count: Int, tint: Color, barHeight: Float, lit: (Int) -> Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp)) {
         repeat(count.coerceIn(1, 10)) { index ->
-            Box(Modifier.size(3.5.dp, 9.dp).background(tint.copy(alpha = if (lit(index)) 1f else .2f),
+            Box(Modifier.size(3.5.dp, barHeight.dp).background(tint.copy(alpha = if (lit(index)) 1f else .2f),
                 RoundedCornerShape(.75.dp)))
         }
     }
