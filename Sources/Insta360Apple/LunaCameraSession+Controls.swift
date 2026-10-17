@@ -23,7 +23,30 @@ extension LunaCameraSession {
     /// The one control model for this camera: `captureProfile` and `motion` merged with the live
     /// capabilities. `codecColor` is what the codec and colour popup lists now, when the host has it.
     public func controlCapabilities(codecColor: CaptureCodecColorChoices? = nil) -> ControlCapabilities {
-        ControlCapabilities(snapshot: current.capabilities, profile: Self.captureProfile,
+        Self.controlCapabilities(snapshot: current.capabilities,
+            backendCapabilities: backendCapabilities(), codecColor: codecColor)
+    }
+
+    /// Derives controls from camera facts and the backend's current verified operation domains.
+    /// Nil means no backend declaration. Video/audio transport and the host clock are not controls.
+    public static func controlCapabilities(snapshot: CapabilitySnapshot,
+        backendCapabilities: CameraCapabilities?, codecColor: CaptureCodecColorChoices? = nil) -> ControlCapabilities {
+        let controls = ControlCapabilities(snapshot: snapshot, profile: Self.captureProfile,
             motion: Self.motion, codecColor: codecColor)
+        guard let backendCapabilities else { return controls }
+        let domains: [(CameraCapabilities, [ControlFamily])] = [
+            (.exposure, [.iso, .shutter, .exposureCompensation, .faceMetering]),
+            (.whiteBalance, [.whiteBalance, .tint]),
+            (.captureFormat, [.recordingFormat, .codecColor]),
+            (.focus, [.focus, .tapFocus]),
+            (.zoom, [.zoom]), (.gimbal, [.gimbal, .headTracking]),
+            (.recording, [.recording]), (.cameraMedia, [.media, .mediaDelete]),
+        ]
+        var inputs: [ControlFamily: ControlStatus] = [:]
+        for (domain, families) in domains {
+            let status = ControlStatus(support: backendCapabilities.contains(domain) ? .supported : .unsupported)
+            for family in families { inputs[family] = status }
+        }
+        return controls.restricting(inputs)
     }
 }

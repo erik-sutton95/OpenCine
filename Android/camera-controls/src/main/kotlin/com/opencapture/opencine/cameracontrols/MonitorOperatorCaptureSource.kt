@@ -28,7 +28,6 @@ import com.opencapture.opencine.core.SettingValue
 import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
-import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.vocabulary.CaptureSessionState
 import com.opencapture.opencine.vocabulary.CaptureSetting
 import com.opencapture.opencine.vocabulary.FocusTrackMode
@@ -64,7 +63,7 @@ public class MonitorOperatorCaptureSource(
 
     public fun commonField(sheet: LiveSheet, status: CameraStatus): MonitorCaptureField? {
         val key = when (sheet) {
-            LiveSheet.ISO -> if (readSessionState().controls().nativeISO.ceiling == true && CaptureLists.shouldGetIsoLimit(status)) null else SettingKey.ISO
+            LiveSheet.ISO -> if (readSessionState().controlCapabilities.nativeISO.ceiling == true && CaptureLists.shouldGetIsoLimit(status)) null else SettingKey.ISO
             LiveSheet.SHUTTER -> when {
                 (nativeExposureCompensation && CaptureLists.isEvSheet(sheet, status.expoMode)) ||
                     control.state.value.snapshot?.exposureProgram?.value == com.opencapture.opencine.core.CameraExposureProgram.AUTOMATIC ->
@@ -128,9 +127,9 @@ public class MonitorOperatorCaptureSource(
         }
         return when (sheet) {
             LiveSheet.ISO -> {
-                val seat = IsoSheetLogic.reseat(status, body, floor, state.controls().nativeISO.ceiling == true)
+                val seat = IsoSheetLogic.reseat(status, body, floor, state.controlCapabilities.nativeISO.ceiling == true)
                 captured(MonitorQuickControl(if (IsoSheetLogic.isAutoTab(status, seat.selectedMode))
-                    IsoSheetLogic.autoLabels(status, body, floor, state.controls().nativeISO.ceiling == true) else CaptureLists.isoDrumLabels(status),
+                    IsoSheetLogic.autoLabels(status, body, floor, state.controlCapabilities.nativeISO.ceiling == true) else CaptureLists.isoDrumLabels(status),
                     seat.drumSelection, CaptureLists.isoMarkedLabels(status), context = "${status.colorMode}"))
             }
             LiveSheet.SHUTTER -> {
@@ -151,9 +150,9 @@ public class MonitorOperatorCaptureSource(
                     CaptureLists.wbModeRowSelected(status, locked),
                     context = "${status.wbMode}:${CaptureLists.currentKelvin(status)}:${CaptureLists.currentTint(status)}"))
             }
-            LiveSheet.FOCUS -> if (!state.controls().focus.isOffered) null
+            LiveSheet.FOCUS -> if (!state.controlCapabilities.focus.isOffered) null
                 else captured(captureQuickFocusControl(status, labels.focusLabels))
-            LiveSheet.APERTURE -> if (!state.controls().iris.isOffered) null else captured(MonitorQuickControl(
+            LiveSheet.APERTURE -> if (!state.controlCapabilities.iris.isOffered) null else captured(MonitorQuickControl(
                 CaptureLists.apertureLabels(status), ApertureStrategy.label(status.apertureStrategy).orEmpty()))
             LiveSheet.EXPO -> captured(MonitorQuickControl(CaptureLists.expoLabels(state.aeLocked),
                 CaptureLists.expoSelectedLabel(status.expoMode, state.aeLocked) ?: CaptureLists.expoLabel(status.expoMode)))
@@ -183,8 +182,8 @@ public class MonitorOperatorCaptureSource(
                 val body = host.camera?.name.orEmpty()
                 val floor = host.camera?.captureProfile?.isoAutoRangeFloor
                 when (val command = IsoSheetLogic.applyDrum(value, status,
-                    IsoSheetLogic.reseat(status, body, floor, readSessionState().controls().nativeISO.ceiling == true).selectedMode, body, floor,
-                    readSessionState().controls().nativeISO.ceiling == true)) {
+                    IsoSheetLogic.reseat(status, body, floor, readSessionState().controlCapabilities.nativeISO.ceiling == true).selectedMode, body, floor,
+                    readSessionState().controlCapabilities.nativeISO.ceiling == true)) {
                     is IsoSheetLogic.Command.SetIndex -> commit(CaptureSetting.IsoIndex(command.index))
                     is IsoSheetLogic.Command.SetLimit -> commit(CaptureSetting.IsoLimitRaw(command.raw))
                     null -> Unit

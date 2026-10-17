@@ -15,7 +15,6 @@ import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
-import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.EvComp
 
@@ -61,13 +60,13 @@ public class MonitorOperatorLiveChromeSource<Host>(
 /** All capture values use the same held editor and full typed sheet, including observed optional metering. */
 @Composable
 public fun MonitorOperatorCaptureStrip(source: MonitorOperatorCaptureSource, status: CameraStatus,
-    active: LiveSheet?, enabled: Boolean, portrait: Boolean, capabilities: MonitorLayoutCapabilities,
+    active: LiveSheet?, enabled: Boolean, portrait: Boolean,
     modifier: Modifier = Modifier, metering: MonitorOperatorMeteringTile? = null,
     onOpen: (LiveSheet) -> Unit, onTileFrame: (LiveSheet, MonitorRect) -> Unit = { _, _ -> },
     onQuickActiveChange: (Boolean) -> Unit = {}, quickBottomClearanceDp: Float = 0f): Unit {
     val controlState by source.control.state.collectAsState()
     val native = source.host.captureSessionState(status)
-    val controls = native.controls(capabilities)
+    val controls = native.controlCapabilities
     val preferences = source.host.capturePreferences
     val lifetime = rememberMonitorCaptureLifetime(source)
     // One rule for the tile and its panel: the common program, else the native report.

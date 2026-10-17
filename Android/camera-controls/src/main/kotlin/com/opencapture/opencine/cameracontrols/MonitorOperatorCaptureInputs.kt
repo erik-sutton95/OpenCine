@@ -8,11 +8,9 @@ import com.opencapture.monitorui.MonitorIcon
 import com.opencapture.monitorui.MonitorQuickControl
 import com.opencapture.opencine.appkit.MonitorOperatorCaptureInputs
 import com.opencapture.opencine.appkit.MonitorOperatorNativeCaptureQuick
-import com.opencapture.opencine.core.MonitorLayoutCapabilities
 import com.opencapture.opencine.vocabulary.ApertureStrategy
 import com.opencapture.opencine.vocabulary.CameraCommands
 import com.opencapture.opencine.vocabulary.CameraStatus
-import com.opencapture.opencine.vocabulary.controls
 import com.opencapture.opencine.vocabulary.CaptureShutterPolicy
 import com.opencapture.opencine.vocabulary.EvComp
 
@@ -25,14 +23,14 @@ public data class MonitorOperatorLegacyCaptureIdentity(public val sheet: LiveShe
 
 /** Existing native capture projection supplies values and typed actions, with no strip or drawer assembly. */
 @Composable public fun <S> captureSheetHostInputs(source: MonitorOperatorCaptureSource, status: CameraStatus,
-    capabilities: MonitorLayoutCapabilities, active: LiveSheet?, onSheet: (LiveSheet?) -> Unit,
+    active: LiveSheet?, onSheet: (LiveSheet?) -> Unit,
     section: S? = null, columns: Int? = null, metering: MonitorOperatorMeteringTile? = null,
     quickEnabled: Boolean = true,
     quickActiveChanged: (Boolean) -> Unit = {},
 ): MonitorOperatorCaptureInputs<String, S, MonitorOperatorLegacyCaptureIdentity> {
     val controlState by source.control.state.collectAsState()
     val native = source.host.captureSessionState(status)
-    val controls = native.controls(capabilities)
+    val controls = native.controlCapabilities
     val preferences = source.host.capturePreferences
     val lifetime = rememberMonitorCaptureLifetime(source)
     // One rule for the tile and its panel: the common program, else the native report.

@@ -528,7 +528,7 @@ public final class LunaCameraBackend: CameraBackend {
                 return try await self.sendAdmitted(
                     build, admission: admission, timeout: timeout,
                     didDispatch: didDispatch)
-            })
+            }, backendCapabilities: { [weak self] in self?.capabilities })
         next.configureLens(zoomDomain: 1...LunaProtocol.maximumZoomScale)
         session = next
         previous?.close(.replaced)

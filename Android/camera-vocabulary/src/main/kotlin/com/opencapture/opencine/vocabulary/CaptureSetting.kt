@@ -44,38 +44,15 @@ interface CaptureSessionState {
     val awbLockOffered: Boolean
     /** The FORMAT sheet does not reseat while a format change waits for the camera. */
     val formatPinned: Boolean
-    val focusModeSupported: Boolean
-    val irisSupported: Boolean
-    val nativeIsoHopSupported: Boolean
-    /** Original hosts remain compatible; new sources preserve unknown declarations explicitly. */
+    /** Compatibility views over the same required model; no host flags reconstruct support. */
+    val focusModeSupported: Boolean get() = controlCapabilities.focus.isOffered
+    val irisSupported: Boolean get() = controlCapabilities.iris.isOffered
+    val nativeIsoHopSupported: Boolean get() = nativeISO.hop == true
     val nativeISO: CaptureNativeISOCapabilities
-        get() = CaptureNativeISOCapabilities(hop = nativeIsoHopSupported)
+        get() = controlCapabilities.nativeISO
     /**
      * The integration's one control model for the connected camera (its static body facts merged
-     * with the live snapshot). Null keeps the flags above, for hosts that have not adopted it.
+     * with the live snapshot). The host supplies its known-model declaration before connection.
      */
-    val controlCapabilities: ControlCapabilities? get() = null
-}
-
-/**
- * What the shared capture UI reads: the host's [CaptureSessionState.controlCapabilities], else the
- * legacy flags (Swift `ControlCapabilities.overlaying(_:)`). A legacy host's tiles followed its
- * [layout] sections and its sheets the session flags, so [layout] decides focus, iris, audio,
- * zoom and gimbal where it is given. A flag that is off is unknown, never unsupported.
- */
-fun CaptureSessionState.controls(layout: com.opencapture.opencine.core.MonitorLayoutCapabilities? = null): ControlCapabilities {
-    controlCapabilities?.let { return it }
-    fun <T> flag(on: Boolean?): ControlCapability<T> =
-        if (on == true) ControlCapability.supported() else ControlCapability.unknown()
-    return ControlCapabilities(
-        iso = ControlCapability(com.opencapture.opencine.core.SupportStatus.UNKNOWN, offer = ISOOffer(nativeISO = nativeISO)),
-        focus = flag(layout?.focus ?: focusModeSupported),
-        iris = flag(layout?.iris ?: irisSupported),
-        audio = flag(layout?.audio),
-        // A legacy host showed its level meter wherever it offered the AUDIO tile.
-        liveAudioLevels = flag(layout?.audio),
-        zoom = flag(layout?.zoom),
-        gimbal = flag(layout?.gimbal),
-        headTracking = flag(layout?.headTracking),
-    )
+    val controlCapabilities: ControlCapabilities
 }

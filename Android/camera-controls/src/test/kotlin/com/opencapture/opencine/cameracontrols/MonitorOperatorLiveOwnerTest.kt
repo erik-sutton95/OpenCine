@@ -25,6 +25,29 @@ import kotlin.test.*
 /** SIMULATED releases cross the same source/lifetime seam as both production operator surfaces. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MonitorOperatorLiveOwnerTest {
+    @Test fun aReadOnlyTypedFocusKeepsItsReadoutAndRefusesTheHeldEditor() = runTest {
+        val host = Reports()
+        val original = FakeCameraSession.lunaLike()
+        val descriptor = SettingDescriptor(SettingKey.FOCUS_MODE,
+            domain = SettingDomain(listOf(SettingValue.FocusMode(FocusMode.SINGLE))))
+        val mode = original.behavior.modes.getValue(0x01).copy(descriptors = listOf(descriptor), unsupported = emptySet())
+        val camera = FakeCameraSession(original.behavior.copy(modes = mapOf(0x01 to mode)),
+            original.device.copy(settings = mapOf(SettingKey.FOCUS_MODE to SettingValue.FocusMode(FocusMode.SINGLE))))
+        camera.cameraReportsStatus()
+        val control = MonitorControlModel(backgroundScope)
+        control.bind(camera)
+        val source = host.source(control)
+        val lifetime = CaptureQuickLifetime().also { it.update(true) }
+        val held = requireNotNull(source.quick(LiveSheet.FOCUS, host.status, lifetime))
+        host.controls = host.controls.restricting(mapOf(ControlFamily.FOCUS to
+            ControlStatus(SupportStatus.SUPPORTED, SettingAccess.READ_ONLY)))
+        assertTrue(host.controls.focus.isShown)
+        assertEquals("AF-S", source.readout(LiveSheet.FOCUS, host.status, host.status.focusLabel))
+        source.release(LiveSheet.FOCUS, held, "Lock", lifetime, true)
+        assertTrue(host.commits.isEmpty(), "A held writable editor cannot outlive read-only access")
+        assertNull(source.quick(LiveSheet.FOCUS, host.status, lifetime))
+    }
+
     @Test fun emulatedAngleCannotDisplayRetainedLegacyValuesWithoutTheCommonSource() = runTest {
         val host = Reports()
         host.status = host.status.copy(shutterDenom = 50, fps = 25)
@@ -107,11 +130,11 @@ class MonitorOperatorLiveOwnerTest {
         host.status = host.status.copy(focusMode = CameraCommands.FOCUS_CONTINUOUS, focusTrack = 1)
         source.release(LiveSheet.FOCUS, held, "Lock", lifetime, true)
         val current = requireNotNull(source.quick(LiveSheet.FOCUS, host.status, lifetime))
-        host.focusSupported = false
+        host.controls = host.controls.copy(focus = ControlCapability.unsupported())
         source.release(LiveSheet.FOCUS, current, "Lock", lifetime, true)
         assertNull(source.quick(LiveSheet.FOCUS, host.status, lifetime))
         assertTrue(host.commits.isEmpty())
-        host.focusSupported = true
+        host.controls = host.controls.copy(focus = ControlCapability.supported())
         source.release(LiveSheet.FOCUS, requireNotNull(source.quick(LiveSheet.FOCUS, host.status, lifetime)),
             "Lock", lifetime, true)
         assertEquals(listOf<CaptureSetting>(CaptureSetting.Focus("Lock")), host.commits)
@@ -212,7 +235,7 @@ class MonitorOperatorLiveOwnerTest {
         assertEquals(listOf("AF-S", "AF-C", "Showcase", "Lock", "Priority"), source.quick(LiveSheet.FOCUS, host.status)?.options)
         host.status = host.status.copy(focusMode = -1, focusTrack = -1)
         assertEquals("", source.quick(LiveSheet.FOCUS, host.status)?.selection)
-        host.focusSupported = false
+        host.controls = host.controls.copy(focus = ControlCapability.unsupported())
         assertNull(source.quick(LiveSheet.FOCUS, host.status))
         host.status = host.status.copy(expoMode = CameraCommands.EXPO_AUTO, evComp = EvComp.ZERO.rawValue)
         assertFalse(requireNotNull(source.quick(LiveSheet.SHUTTER, host.status)).enabled)
@@ -264,7 +287,7 @@ class MonitorOperatorLiveOwnerTest {
             colorMode = CameraCommands.COLOR_DLOG2, iso = 100, isoIndex = 1,
             focusMode = CameraCommands.FOCUS_SINGLE, focusTrack = 0)
         var busy = false
-        var focusSupported = true
+        var controls = ControlCapabilities(focus = ControlCapability.supported())
         var refreshes = 0
         var preferenceWrites = 0
         val commits = mutableListOf<CaptureSetting>()
@@ -276,9 +299,7 @@ class MonitorOperatorLiveOwnerTest {
             override val awbLockKelvin: Int? = null
             override val awbLockOffered = false
             override val formatPinned = false
-            override val focusModeSupported get() = focusSupported
-            override val irisSupported = false
-            override val nativeIsoHopSupported = false
+            override val controlCapabilities get() = controls
         }
         fun source(control: MonitorControlModel, nativeEv: Boolean = false) = MonitorOperatorCaptureSource(
             this, control, MutableStateFlow(true), { status }, { native }, { true }, { busy }, nativeEv, { false }, {})
