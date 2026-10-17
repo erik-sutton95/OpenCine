@@ -38,6 +38,69 @@ class MonitorChromeInputTest {
 
     @Test fun disabledHoldChromeReturnsNativePointerToPickerBackdrop() = disabledChrome(hold = true)
 
+    @Test fun disabledChildLabelKeepsOriginalNativeTargetGroupingAndBounds() {
+        ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
+            var enabled by mutableStateOf(true)
+            var presented by mutableStateOf(true)
+            var dismissals = 0
+            var feedback = 0
+            val selections = mutableListOf<Int>()
+            val label = "Child-labelled native target"
+            scenario.onActivity { activity ->
+                activity.setContent {
+                    Box(Modifier.fillMaxSize()) {
+                        if (presented) MonitorReadoutDismissBackdrop(onDismiss = {
+                            dismissals++
+                            presented = false
+                        })
+                        Box(Modifier.fillMaxSize().zIndex(11f), contentAlignment = Alignment.Center) {
+                            // Same container/child label composition as MonitorStarRating. A 54dp
+                            // fixture avoids Android's 48dp accessibility touch expansion of its 44dp control.
+                            Box(Modifier.size(54.dp).monitorChromeClickable(enabled,
+                                onClickFeedback = { feedback++ }) { selections += 1 },
+                                contentAlignment = Alignment.Center) {
+                                MonitorIcon(MonitorIcon.STAR, label, Modifier.size(22.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            val target = awaitTarget(label = label)
+            assertGroupedTarget(label, enabled = true, target)
+            pointer(target, 60)
+            scenario.onActivity {
+                assertEquals(listOf(1), selections)
+                assertEquals(1, feedback)
+                assertEquals(0, dismissals)
+                assertTrue(presented)
+                enabled = false
+            }
+            settle()
+            assertEquals(target, awaitTarget(enabled = false, label = label),
+                "Disabling must preserve the labelled container's original native bounds")
+            assertGroupedTarget(label, enabled = false, target)
+            pointer(target, 60)
+            scenario.onActivity {
+                assertEquals(listOf(1), selections, "Disabled stars cannot select a rating")
+                assertEquals(1, feedback, "Disabled stars cannot emit selection feedback")
+                assertEquals(1, dismissals, "The real backdrop receives the disabled control's DOWN/UP")
+                assertFalse(presented)
+                enabled = true
+                presented = true
+            }
+            settle()
+            assertEquals(target, awaitTarget(label = label), "Re-enable must preserve the original grouped target")
+            assertGroupedTarget(label, enabled = true, target)
+            pointer(target, 60)
+            scenario.onActivity {
+                assertEquals(listOf(1, 1), selections, "Re-enabled star selects once")
+                assertEquals(2, feedback)
+                assertEquals(1, dismissals)
+                assertTrue(presented)
+            }
+        }
+    }
+
     private fun disabledChrome(hold: Boolean) {
         ActivityScenario.launch(MonitorTestActivity::class.java).use { scenario ->
             var enabled by mutableStateOf(true)
@@ -95,22 +158,49 @@ class MonitorChromeInputTest {
         }
     }
 
-    private fun findTarget(): AccessibilityNodeInfo? {
+    private fun findTarget(label: String = "Native chrome target"): AccessibilityNodeInfo? {
         fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-            if (node.contentDescription?.toString() == "Native chrome target") return node
+            if (node.contentDescription?.toString() == label) return node
             for (index in 0 until node.childCount) node.getChild(index)?.let { find(it)?.let { found -> return found } }
             return null
         }
-        return InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::find)
+        val labelled = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::find)
+        var target = labelled
+        // Android exposes child label nodes inside a merged group. The native screen-reader
+        // focus flag identifies the actual target; never synthesize or expand its bounds.
+        while (target != null) {
+            if (target.isScreenReaderFocusable) return target
+            target = target.parent
+        }
+        return labelled
     }
 
-    private fun awaitTarget(enabled: Boolean = true): AndroidRect {
+    private fun assertGroupedTarget(label: String, enabled: Boolean, bounds: AndroidRect) {
+        val labels = mutableListOf<AccessibilityNodeInfo>()
+        fun visit(node: AccessibilityNodeInfo) {
+            if (node.contentDescription?.toString() == label) labels += node
+            for (index in 0 until node.childCount) node.getChild(index)?.let(::visit)
+        }
+        checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow).let(::visit)
+        assertEquals(1, labels.size, "One native target must group the container and its child label")
+        val node = checkNotNull(findTarget(label))
+        assertTrue(node.isScreenReaderFocusable, "Android must expose the labelled container as a screen-reader target")
+        assertEquals(enabled, node.isEnabled, "Disabled state must belong to the actual labelled native node")
+        assertEquals(1, node.childCount, "The native group retains its one labelled icon child")
+        val actual = AndroidRect()
+        node.getBoundsInScreen(actual)
+        assertEquals(bounds, actual)
+    }
+
+    private fun awaitTarget(enabled: Boolean = true, label: String = "Native chrome target"): AndroidRect {
         val deadline = SystemClock.uptimeMillis() + 5_000
         var last = AndroidRect()
         var stable = 0
+        var lastEnabled: Boolean? = null
         while (SystemClock.uptimeMillis() < deadline) {
             InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-            val node = findTarget()
+            val node = findTarget(label)
+            lastEnabled = node?.isEnabled
             val next = AndroidRect()
             node?.getBoundsInScreen(next)
             if (!next.isEmpty && next == last && node?.isEnabled == enabled) stable++ else stable = 0
@@ -118,7 +208,8 @@ class MonitorChromeInputTest {
             if (stable >= 3) return next
             SystemClock.sleep(32)
         }
-        error("Native target must publish stable bounds with enabled=$enabled within the original 5s readiness guard")
+        error("Native target $label must publish stable bounds with enabled=$enabled within the original 5s readiness guard; " +
+            "last enabled=$lastEnabled bounds=$last")
     }
 
     private fun pointer(target: AndroidRect, holdMillis: Long) {

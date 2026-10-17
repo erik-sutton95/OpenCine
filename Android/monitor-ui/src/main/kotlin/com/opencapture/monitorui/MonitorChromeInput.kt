@@ -54,7 +54,7 @@ fun Modifier.monitorChromeClickable(
     val clicks =
         if (!enabled) {
             // A disabled clickable still wins Compose hit testing above a picker backdrop.
-            Modifier.semantics { disabled() }
+            Modifier.semantics(mergeDescendants = true) { disabled() }
         } else if (onLongClick != null) {
             Modifier.combinedClickable(
                 enabled = enabled,
