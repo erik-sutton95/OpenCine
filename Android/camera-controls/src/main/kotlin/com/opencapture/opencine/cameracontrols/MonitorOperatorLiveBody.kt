@@ -277,7 +277,9 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
         if (value.collapseAssists) paletteRevision++
         transitionChanged(value)
     }
-    val captureHidden = state.preview?.let { !captureInputs.isTop(it.key) } ?: (panel?.top == false)
+    // A quick preview hides its readouts in place inside the strip, preserving the held pointer.
+    // A full bottom sheet still removes the capture slot from input and accessibility.
+    val captureHidden = panel?.top == false
     MonitorScreen(control, layout, MonitorScreenPresentation(visible = !covered || editing != null,
         interactive = editing == null && interactionEnabled, statusMounted = sections.status in mounted,
         powerMounted = sections.power in mounted, captureMounted = sections.capture in mounted && !command,
