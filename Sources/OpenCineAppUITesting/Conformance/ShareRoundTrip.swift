@@ -55,10 +55,10 @@ open class ShareRoundTrip: SharedAppUITestCase {
         let title = app.staticTexts["monitor.playback.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         let clipTitle = title.label
-        let loop = app.buttons["Loop playback"]
-        if loop.value as? String != "On" { loop.tap() }
-        XCTAssertEqual(loop.value as? String, "On")
-        app.buttons["Share clip"].tap()
+        let loop = app.buttons[MonitorPlaybackCopy.loop]
+        if loop.value as? String != MonitorPlaybackCopy.on { loop.tap() }
+        XCTAssertEqual(loop.value as? String, MonitorPlaybackCopy.on)
+        app.buttons[MonitorPlaybackCopy.share].tap()
         let destination = app.buttons["monitor.share.destination.nativeShare"]
         XCTAssertTrue(destination.waitForExistence(timeout: 5))
         XCTAssertTrue(destination.isEnabled, "A cached staged clip can be shared")
@@ -69,7 +69,8 @@ open class ShareRoundTrip: SharedAppUITestCase {
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
         XCTAssertEqual(title.label, clipTitle, "Closing the share must keep the same clip")
         XCTAssertEqual(
-            loop.value as? String, "On", "Closing the share must keep the player's state")
+            loop.value as? String, MonitorPlaybackCopy.on,
+            "Closing the share must keep the player's state")
         checkpoint("after-share")
         back.tap()
         XCTAssertTrue(back.waitForNonExistence(timeout: 10))

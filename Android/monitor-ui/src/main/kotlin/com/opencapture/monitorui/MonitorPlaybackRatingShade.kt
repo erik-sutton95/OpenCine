@@ -34,7 +34,7 @@ public fun MonitorPlaybackRatingAnchor(stars: Int?, expanded: Boolean, expand: (
         .monitorChromeClickable { expand(!expanded) }.size(width = 52.dp, height = 44.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically) {
-        MonitorIcon(MonitorIcon.STAR, if (expanded) "Hide star rating" else "Show star rating",
+        MonitorIcon(MonitorIcon.STAR, MonitorPlaybackCopy.rating(expanded),
             Modifier.size(10.dp), MonitorPalette.muted, filled = true)
         MonitorIcon(if (expanded) MonitorIcon.CHEVRON_UP else MonitorIcon.CHEVRON_DOWN,
             null, Modifier.size(9.dp), MonitorPalette.muted)

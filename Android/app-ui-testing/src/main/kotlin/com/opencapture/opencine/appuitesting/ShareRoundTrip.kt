@@ -1,5 +1,6 @@
 package com.opencapture.opencine.appuitesting
 
+import com.opencapture.monitorui.MonitorPlaybackCopy
 import com.opencapture.monitorui.ReviewLaunch
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -44,9 +45,9 @@ public abstract class ShareRoundTrip(subject: ConformanceApp) : ConformanceTest(
         awaitTag(BACK, 10_000)
         val title = awaitTag(TITLE, 5_000).label
         val loop = awaitLabel(LOOP, 5_000)
-        if (loop.state != "On") tap(loop)
-        assertEquals("On", awaitLabel(LOOP).state, "Loop playback turns on")
-        tap(awaitLabel("Share clip", 5_000))
+        if (loop.state != MonitorPlaybackCopy.ON) tap(loop)
+        assertEquals(MonitorPlaybackCopy.ON, awaitLabel(LOOP).state, "Loop playback turns on")
+        tap(awaitLabel(MonitorPlaybackCopy.SHARE, 5_000))
         val destination = awaitTag(NATIVE_SHARE, 5_000)
         assertTrue(destination.enabled, "A cached staged clip can be shared")
         tap(destination)
@@ -55,7 +56,7 @@ public abstract class ShareRoundTrip(subject: ConformanceApp) : ConformanceTest(
         tap(awaitTag(CLOSE))
         assertTrue(awaitGone { it.tag == CLOSE }, "The clip share must close")
         assertEquals(title, awaitTag(TITLE).label, "Closing the share must keep the same clip")
-        assertEquals("On", awaitLabel(LOOP).state, "Closing the share must keep the player's state")
+        assertEquals(MonitorPlaybackCopy.ON, awaitLabel(LOOP).state, "Closing the share must keep the player's state")
         checkpoint("after-share")
         tap(awaitTag(BACK))
         assertTrue(awaitGone { it.tag == BACK }, "Back must close playback")
@@ -66,7 +67,7 @@ public abstract class ShareRoundTrip(subject: ConformanceApp) : ConformanceTest(
         const val CLOSE = "monitor.share.close"
         const val BACK = "monitor.playback.back"
         const val TITLE = "monitor.playback.title"
-        const val LOOP = "Loop clip"
+        const val LOOP = MonitorPlaybackCopy.LOOP
         const val NATIVE_SHARE = "monitor.share.destination.NATIVE_SHARE"
     }
 }

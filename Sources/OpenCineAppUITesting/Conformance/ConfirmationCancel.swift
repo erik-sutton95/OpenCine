@@ -19,7 +19,7 @@ open class ConfirmationCancel: SharedAppUITestCase {
     func testCancellingPlaybackDeleteKeepsTheClip() throws {
         try requireClipDelete()
         launch(ReviewLaunch(screen: .playback, source: .camera, connected: true))
-        let delete = app.buttons["Delete clip from camera"]
+        let delete = app.buttons[MonitorPlaybackCopy.delete]
         XCTAssertTrue(
             delete.waitForExistence(timeout: 15), "Connected camera playback offers Delete")
         let title = app.staticTexts["monitor.playback.title"]
