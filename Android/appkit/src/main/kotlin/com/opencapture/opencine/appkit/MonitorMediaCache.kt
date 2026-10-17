@@ -15,9 +15,12 @@ import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.CoroutineContext
 
 public enum class MonitorMediaCacheFailure { RETIRED, INVALID_ADDRESS, EMPTY, INVALID_RECEIPT }
 public class MonitorMediaCacheException(public val failure: MonitorMediaCacheFailure) : IOException(failure.name)
+/** Confirmed selective removals and every selected file that remains retryable. */
+public data class MonitorMediaCacheRemoval(public val removedBytes: Long, public val remainingFiles: List<String>)
 public data class MonitorMediaCacheAddress(
     public val thumbnail: String?,
     public val representations: Map<MediaRepresentationID, String>,
@@ -259,6 +262,107 @@ public class MonitorMediaCacheDirectory(public val root: File,
                         .mapToLong { Files.size(it) }.sum()
                 }
         }
+    }
+    /** Missing declared files count as zero; failed observations throw and retain an unknown readout. */
+    public suspend fun selectedByteCount(addresses: List<String>): Long = withContext(Dispatchers.IO) {
+        currentCoroutineContext().ensureActive()
+        selectedFiles(addresses).sumOf { address ->
+            currentCoroutineContext().ensureActive()
+            selectedFileSize(address) ?: 0L
+        }
+    }
+    /**
+     * Retires writers and removes declared files and real descendants of declared directories.
+     * Traversal/stat stays outside arbitration; each mutation checks its captured destination
+     * authority. Successors and unnamed staging survive; cancellation/deadlines belong to the caller.
+     */
+    public suspend fun removeFiles(addresses: List<String>): MonitorMediaCacheRemoval = withContext(Dispatchers.IO) {
+        val context = currentCoroutineContext()
+        context.ensureActive()
+        val selected = selectedFiles(addresses).associateWith { selectedRemovalFiles(it, context) }
+        val reservations = selectedFiles(selected.values.flatten()).associate { file(it).path to UUID.randomUUID() }
+        val (captured, retired) = synchronized(lock) {
+            context.ensureActive()
+            revision += 1; current.clear()
+            val values = resources.values.toList(); resources.clear()
+            current.putAll(reservations)
+            revision to values
+        }
+        // A selective clear cannot infer that unnamed staging bytes are disposable cache.
+        retired.forEach { it.requestClose() }
+        var bytes = 0L
+        val remaining = mutableListOf<String>()
+        try {
+            for ((declared, paths) in selected) {
+                var failed = false
+                for (address in paths) {
+                    context.ensureActive()
+                    try {
+                        val info = selectedAttributes(address) ?: continue
+                        val destination = file(address)
+                        synchronized(lock) {
+                            context.ensureActive()
+                            if (revision != captured) throw MonitorMediaCacheException(MonitorMediaCacheFailure.RETIRED)
+                            if (current[destination.path] != reservations[destination.path]) return@synchronized
+                            // deleteIfExists never recursively deletes a directory populated by a successor.
+                            if (Files.deleteIfExists(destination.toPath()) && info.isRegularFile) bytes += info.size()
+                            current.remove(destination.path)
+                        }
+                    } catch (_: NoSuchFileException) {
+                        // Another owner already removed this captured file.
+                    } catch (error: MonitorMediaCacheException) {
+                        if (error.failure == MonitorMediaCacheFailure.RETIRED) throw error
+                        failed = true
+                    } catch (_: IOException) { failed = true }
+                }
+                if (failed) remaining += declared
+            }
+        } finally {
+            synchronized(lock) {
+                reservations.forEach { (path, token) -> if (current[path] == token) current.remove(path) }
+            }
+        }
+        MonitorMediaCacheRemoval(bytes, remaining.toList())
+    }
+    private fun selectedFiles(addresses: List<String>): List<String> = addresses.distinct().sorted().also {
+        it.forEach(::file)
+    }
+    private fun selectedFileSize(address: String): Long? {
+        val info = selectedAttributes(address) ?: return null
+        if (!info.isRegularFile) throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+        return info.size()
+    }
+    private fun selectedRemovalFiles(address: String, context: CoroutineContext): List<String> {
+        context.ensureActive()
+        return try {
+            val info = selectedAttributes(address)
+            if (info?.isDirectory != true) listOf(address) else {
+                val children = Files.newDirectoryStream(file(address).toPath()).use { entries ->
+                    entries.map { it.fileName.toString() }.sorted()
+                }
+                children.flatMap { selectedRemovalFiles("$address/$it", context) } + address
+            }
+        } catch (_: IOException) { listOf(address) }
+    }
+    private fun selectedAttributes(address: String): java.nio.file.attribute.BasicFileAttributes? {
+        try {
+            val rootAttributes = Files.readAttributes(root.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
+                LinkOption.NOFOLLOW_LINKS)
+            if (!rootAttributes.isDirectory) throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+            var location = root.toPath()
+            val pieces = address.split('/')
+            pieces.forEachIndexed { index, piece ->
+                location = location.resolve(piece)
+                val info = Files.readAttributes(location, java.nio.file.attribute.BasicFileAttributes::class.java,
+                    LinkOption.NOFOLLOW_LINKS)
+                val last = index == pieces.lastIndex
+                if (if (last) !info.isRegularFile && !info.isDirectory else !info.isDirectory) {
+                    throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+                }
+                if (last) return info
+            }
+            throw MonitorMediaCacheException(MonitorMediaCacheFailure.INVALID_ADDRESS)
+        } catch (_: NoSuchFileException) { return null }
     }
     private fun retiredRoots(includeUnprepared: Boolean): List<File> = root.parentFile?.listFiles().orEmpty().filter {
         MonitorMediaCacheNamespaces.isDirectory(it) && (isRetirementName(it.name, ".clearing-${root.name}-") ||
