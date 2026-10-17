@@ -77,6 +77,12 @@ the memo. The retained Multiview fixtures exercise actual replacement pixels on 
 Android already includes the shared library's render generation in its native renderer key.
 These are simulated native checks; physical replacement behavior remains untested.
 
+Android JPEG decoding stays on the source's decode worker. The frame pump awaits its optional
+`publish` callback before synchronous frame observers or another decode. Bitmap Vulkan state
+and UI frame publication belong on Main; the app rechecks source admission after that dispatch.
+Glass and relay observers remain on the decode worker. Awaited publication preserves the pooled
+bitmap's lifetime and rejects cancelled or retired work before observers run.
+
 Verify portable changes on the mirrored Swift/Kotlin golden vectors, and runtime changes in the
 actual consuming app. Include source replacement, cancellation and picture-host lifetime when
 those paths change. Compile and simulated native checks are recorded separately from physical
@@ -101,11 +107,12 @@ and exports stay unchanged. Shared UI consumes immutable Media scope/traffic/axi
 imports no native owner or sample bus. `atlas check` derives these downward edges from manifests.
 
 Bitmap delivery keeps JPEG decoding on `MonitorFrameDecodeWorker`. A consumer whose picture
-owner is confined to a different context supplies that context to
+owner is confined to a different context supplies an awaited `publish` callback to
 `monitorPumpFramesWithSourceFrame`; the source event and decoded bitmap cross together without
-copying or resampling. Retirement and cancellation are checked after dispatch, before publication.
-OpenZCine supplies Main for its Bitmap presentation, Vulkan submission and preview callbacks.
-The original pump overload retains caller-context delivery for existing consumers. This is
+copying or resampling. OpenZCine publishes Bitmap presentation and Vulkan submission on Main,
+then observes glass and relay frames on its decode worker. Retirement and cancellation are
+checked again after publication. The dispatcher overload retains its existing delivery contract,
+and the original overload defaults to caller-context delivery for existing consumers. This is
 Android scheduling infrastructure; Apple retains its existing native presentation ownership.
 
 Apple `MonitorLiveVideoRuntime` owns Annex-B format admission, the retained display layer,

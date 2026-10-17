@@ -8,11 +8,14 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -50,6 +53,47 @@ class MonitorDecodedFramePumpTest {
                         presents++
                     })
                 assertEquals(1, presents)
+            }
+        } finally {
+            decodeWorker.close()
+            pictureOwner.close()
+        }
+    }
+
+    @Test fun publicationUsesItsOwnerAndSynchronousObserversReturnToTheDecodeWorker() {
+        val decodeThread = AtomicReference<Thread>()
+        val pictureThread = AtomicReference<Thread>()
+        val decodeWorker = Executors.newSingleThreadExecutor {
+            Thread(it, "frame-decode").also(decodeThread::set)
+        }.asCoroutineDispatcher()
+        val pictureOwner = Executors.newSingleThreadExecutor {
+            Thread(it, "picture-owner").also(pictureThread::set)
+        }.asCoroutineDispatcher()
+        try {
+            runBlocking(decodeWorker) {
+                val source = SourceFrame(1, 10)
+                val bitmap = Any()
+                val order = mutableListOf<String>()
+                monitorPumpFramesWithSourceFrame(flowOf(source), MonitorFramePacingStats(log = {}),
+                    { it.stamp }, decode = { actual ->
+                        assertSame(decodeThread.get(), Thread.currentThread())
+                        assertSame(source, actual)
+                        order += "decode"
+                        bitmap
+                    }, publish = { actual, pixels ->
+                        withContext(pictureOwner) {
+                            assertSame(pictureThread.get(), Thread.currentThread())
+                            assertSame(source, actual)
+                            assertSame(bitmap, pixels)
+                            order += "publish"
+                        }
+                    }, present = { actual, pixels ->
+                        assertSame(decodeThread.get(), Thread.currentThread())
+                        assertSame(source, actual)
+                        assertSame(bitmap, pixels)
+                        order += "observe"
+                    })
+                assertEquals(listOf("decode", "publish", "observe"), order)
             }
         } finally {
             decodeWorker.close()
@@ -123,6 +167,51 @@ class MonitorDecodedFramePumpTest {
         }
         worker.join()
         assertEquals(1, decoded)
+        assertEquals(emptyList(), presented)
+    }
+    @Test fun publicationIsAwaitedBeforeObserversAndTheNextDecode() = runTest {
+        val source = MutableSharedFlow<SourceFrame>()
+        val publication = CompletableDeferred<Unit>()
+        val decoded = mutableListOf<Int>()
+        val presented = mutableListOf<Int>()
+        val pump = launch {
+            monitorPumpFramesWithSourceFrame(source, MonitorFramePacingStats(log = {}), { it.stamp },
+                decode = { decoded += it.id; it.id },
+                publish = { _, _ -> publication.await() },
+                present = { _, value -> presented += value })
+        }
+        testScheduler.runCurrent()
+        source.emit(SourceFrame(1, null))
+        testScheduler.runCurrent()
+        source.emit(SourceFrame(2, null))
+        testScheduler.runCurrent()
+        assertEquals(listOf(1), decoded)
+        assertEquals(emptyList(), presented)
+        publication.complete(Unit)
+        testScheduler.runCurrent()
+        assertEquals(listOf(1, 2), decoded)
+        assertEquals(listOf(1, 2), presented)
+        pump.cancel()
+        pump.join()
+    }
+    @Test fun retirementDuringPublicationSuppressesObservers() = runTest {
+        var current = true
+        val presented = mutableListOf<Int>()
+        monitorPumpFramesWithSourceFrame(flowOf(SourceFrame(1, null)),
+            MonitorFramePacingStats(log = {}), { it.stamp }, decode = { it.id },
+            publish = { _, _ -> current = false },
+            present = { _, value -> presented += value }, isCurrent = { current })
+        assertEquals(emptyList(), presented)
+    }
+    @Test fun cancellationDuringPublicationSuppressesObservers() = runTest {
+        val presented = mutableListOf<Int>()
+        val pump = launch {
+            monitorPumpFramesWithSourceFrame(flowOf(SourceFrame(1, null)),
+                MonitorFramePacingStats(log = {}), { it.stamp }, decode = { it.id },
+                publish = { _, _ -> currentCoroutineContext().cancel() },
+                present = { _, value -> presented += value })
+        }
+        pump.join()
         assertEquals(emptyList(), presented)
     }
     @Test fun actualSourceClockUnknownAndFutureRemainAbsentFromPacingReports() = runTest {
