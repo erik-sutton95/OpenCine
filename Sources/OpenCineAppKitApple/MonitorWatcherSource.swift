@@ -281,9 +281,9 @@ public enum WatcherJoinStatus: Equatable, Sendable {
 public struct WatcherFeedRow: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
-    public let cameraName: String
+    public let cameraName: String?
 
-    public init(id: String, name: String, cameraName: String) {
+    public init(id: String, name: String, cameraName: String?) {
         self.id = id
         self.name = name
         self.cameraName = cameraName
