@@ -3,6 +3,7 @@
     import MonitorUI
     import OpenCineCore
     import SwiftUI
+    import UIKit
 
     /// What the shared root shows of the app's brand. Values only.
     public struct ShellBrand: Sendable {
@@ -102,7 +103,8 @@
         public var body: some View {
             ZStack {
                 if let live = model.monitor {
-                    monitor(live)
+                    ShellMonitorAccessibilityContainer(hidden: hidesMonitor) { monitor(live) }
+                        .ignoresSafeArea()
                         .id(live.id)
                         .monitorPresentationVisibility(!hidesMonitor)
                         .onAppear { model.noteHost(mounted: true) }
@@ -148,6 +150,85 @@
                     onIntegrationAction: actions.integrationAction,
                     extraNearby: extraNearby, onExtraNearby: actions.extraNearby ?? { _ in })
             }
+        }
+    }
+
+    /// One native boundary owns the accessibility child list while retaining its child host.
+    private struct ShellMonitorAccessibilityContainer<Content: View>: UIViewControllerRepresentable
+    {
+        let hidden: Bool
+        let content: Content
+        @Environment(\.self) private var environment
+
+        init(hidden: Bool, @ViewBuilder content: () -> Content) {
+            self.hidden = hidden
+            self.content = content()
+        }
+
+        func makeUIViewController(context: Context) -> ShellMonitorAccessibilityController {
+            let controller = ShellMonitorAccessibilityController()
+            controller.update(root: root, covered: hidden)
+            return controller
+        }
+
+        func updateUIViewController(
+            _ controller: ShellMonitorAccessibilityController, context: Context
+        ) {
+            controller.update(root: root, covered: hidden)
+        }
+
+        private var root: AnyView {
+            AnyView(content.environment(\.self, environment))
+        }
+    }
+
+    private final class ShellMonitorAccessibilityController: UIViewController {
+        private let container = ShellMonitorAccessibilityView()
+        private var host: UIHostingController<AnyView>?
+
+        override func loadView() {
+            container.backgroundColor = .clear
+            view = container
+        }
+
+        func update(root: AnyView, covered: Bool) {
+            loadViewIfNeeded()
+            container.covered = covered
+            if let host {
+                host.rootView = root
+            } else {
+                let host = UIHostingController(rootView: root)
+                host.safeAreaRegions = []
+                host.view.backgroundColor = .clear
+                addChild(host)
+                container.addSubview(host.view)
+                host.didMove(toParent: self)
+                self.host = host
+            }
+            placeHost()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            placeHost()
+        }
+
+        private func placeHost() {
+            host?.view.frame = container.bounds
+        }
+    }
+
+    private final class ShellMonitorAccessibilityView: UIView {
+        var covered = false {
+            didSet {
+                accessibilityElementsHidden = covered
+                isHidden = covered
+            }
+        }
+
+        override var accessibilityElements: [Any]? {
+            get { covered ? [] : subviews }
+            set {}
         }
     }
 
