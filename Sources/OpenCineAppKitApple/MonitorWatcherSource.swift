@@ -6,7 +6,6 @@ import MonitorPresentation
 import OpenCineRelayApple
 import OpenCineRelay
 import OpenCineApple
-import OpenCineCore
 
 private struct WatcherJoinDestination {
     let endpoint: NWEndpoint
@@ -24,7 +23,7 @@ private struct WatcherJoinDestination {
     @ObservationIgnored public var preparePicture: (@MainActor () -> Void)?
     @ObservationIgnored private let commandWire: (@MainActor (Data) -> Void)?
     /// The relay's poll and recovery clock; `nil` keeps the relay client's own (uptime) clock.
-    @ObservationIgnored private let clock: HostClock?
+    @ObservationIgnored private let clock: MonitorHostClock?
     @ObservationIgnored private var client: RelayAppleClient<SharedMonitorRelayCodec>?
     @ObservationIgnored private var nativeEpisode = UUID()
     @ObservationIgnored private var destination: WatcherJoinDestination?
@@ -104,7 +103,7 @@ private struct WatcherJoinDestination {
     }
     public init(decoder: Decoder, samples: LiveFrameSampleBus, versionMismatchReason: String,
         journal: @escaping @Sendable (String) -> Void = { _ in },
-        commandWire: (@MainActor (Data) -> Void)? = nil, clock: HostClock? = nil) {
+        commandWire: (@MainActor (Data) -> Void)? = nil, clock: MonitorHostClock? = nil) {
         self.decoder = decoder; self.samples = samples
         self.versionMismatchReason = versionMismatchReason; self.journal = journal; self.commandWire = commandWire
         self.clock = clock
