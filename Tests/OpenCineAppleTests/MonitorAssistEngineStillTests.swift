@@ -4,8 +4,16 @@ import CoreVideo
 import Foundation
 import OpenCineMedia
 import Testing
+import XCTest
 
 @testable import OpenCineApple
+
+private final class StillScopeClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: CFAbsoluteTime = 100
+    var now: CFAbsoluteTime { lock.withLock { value } }
+    func set(_ value: CFAbsoluteTime) { lock.withLock { self.value = value } }
+}
 
 /// A source that presents its own decoded stills (motion JPEG) runs the same scope tap, lamps
 /// and ceiling as a video source. SIMULATED frames.
@@ -98,8 +106,18 @@ import Testing
                 trafficThreshold: 0.05, previous: .empty) == expected)
     }
 
+    private static func finishPendingWork(on queue: DispatchQueue) async throws {
+        let finished = XCTestExpectation(description: "still samples and deferred drain finished")
+        // drain schedules one more pass after the submitted sample blocks.
+        queue.async { queue.async { finished.fulfill() } }
+        let result = await XCTWaiter.fulfillment(of: [finished], timeout: 0.3)
+        try #require(result == .completed, "retain the original 300 ms readiness budget")
+    }
+
     @Test func aStillBeforeTheTapIsDueIsDropped() async throws {
-        let engine = MonitorAssistEngine()
+        let clock = StillScopeClock()
+        let queue = DispatchQueue(label: "opencine.test.still-before-due")
+        let engine = MonitorAssistEngine(scopeNow: { clock.now }, queue: queue)
         var policy = MonitorAssistPolicy()
         // Three scopes share the dense (slowest) cadence.
         policy.histogram = true
@@ -116,7 +134,9 @@ import Testing
         engine.sample(image, effects: MonitorAssistPolicy(), transfer: .rec709) {
             results.continuation.yield($0)
         }
-        try await Task.sleep(for: .milliseconds(300))
+        // Frozen cadence time establishes that all three admissions are pre-due,
+        // even when native work or scheduling takes longer than a real interval.
+        try await Self.finishPendingWork(on: queue)
         results.continuation.finish()
         var count = 0
         for await result in results.stream {
@@ -124,6 +144,42 @@ import Testing
             count += 1
         }
         #expect(count == 1, "one tap per interval; later stills before it are dropped")
+    }
+
+    @Test func theNextDueStillIsAcceptedAfterAnEarlyStillIsDropped() async throws {
+        let clock = StillScopeClock()
+        let queue = DispatchQueue(label: "opencine.test.still-next-due")
+        let engine = MonitorAssistEngine(scopeNow: { clock.now }, queue: queue)
+        var policy = MonitorAssistPolicy()
+        policy.histogram = true
+        policy.waveform = true
+        policy.parade = true
+        let image = try Self.image(Self.rgba())
+        let interval = MonitorAssistEngine.minInterval(activeScopeCount: policy.activeScopeCount)
+        let results = AsyncStream<MonitorAssistEngine.Result>.makeStream()
+        let receive: @Sendable (MonitorAssistEngine.Result) -> Void = {
+            results.continuation.yield($0)
+        }
+        engine.sample(image, effects: policy, transfer: .rec709, completion: receive)
+        try await Self.finishPendingWork(on: queue)
+
+        clock.set(100 + interval - 0.001)
+        engine.sample(image, effects: policy, transfer: .rec709, completion: receive)
+        try await Self.finishPendingWork(on: queue)
+
+        clock.set(100 + interval)
+        // A scope-free still cannot consume the due tap before the scoped control.
+        engine.sample(image, effects: MonitorAssistPolicy(), transfer: .rec709, completion: receive)
+        engine.sample(image, effects: policy, transfer: .rec709, completion: receive)
+        try await Self.finishPendingWork(on: queue)
+        results.continuation.finish()
+        var count = 0
+        for await result in results.stream {
+            #expect(result.bundle != nil)
+            #expect(!result.shouldPresent)
+            count += 1
+        }
+        #expect(count == 2, "the early still is dropped and the next due still is sampled")
     }
 }
 #endif
