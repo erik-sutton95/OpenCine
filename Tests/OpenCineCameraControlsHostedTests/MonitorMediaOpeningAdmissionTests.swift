@@ -18,8 +18,8 @@
         nonisolated override func setUpWithError() throws {
             try super.setUpWithError()
             try XCTSkipIf(
-                Bundle.main.object(forInfoDictionaryKey: "OPCBuildIdentity") == nil,
-                "This media proof requires the actual stamped app host; the package runner has no gallery composition"
+                Bundle.main.bundleURL.pathExtension != "app",
+                "This media proof needs an application host with a real window scene; a hostless runner has none"
             )
         }
         func testRefusedVideoKeepsUnavailableCloseAndReturnsToGallery() async throws {
