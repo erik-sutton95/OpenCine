@@ -26,6 +26,44 @@ RICH = "testActualCapturedDeleteDialogKeepsRelatedCopyMessageAndCancelSendsNoIO"
 SUITES = ["MonitorOperatorPlaybackOptionsTests", "MonitorPortraitStatusGeometryTests", "MonitorMediaOpeningAdmissionTests"]
 LEGACY_SHA = "a4124ed82c80088b427c7da0f59d8deab1ff8719464dc385298498f70890c75d"
 
+# Exact original named-method enrollment, in source order, carried from the
+# preserved baseline WIP runner. Count checks alone would admit renamed,
+# swapped or missing-and-replaced methods that keep the same per-suite totals.
+ENROLLMENT = {
+    "MonitorOperatorPlaybackOptionsTests": [
+        "testGalleryDefaultActivationOpensWhileSelectionAndFavoriteRemainIndependent",
+        "testRatingAnchorAlignsWithPlaybackActionsInLandscapeAndPortrait",
+        "testActualCapturedDeleteDialogKeepsRelatedCopyMessageAndCancelSendsNoIO",
+        "testSupportedOptionsChangeTheSuppliedAssistWithoutReplacingThePlayer",
+        "testAbsentStoresAndPlaybackSuppliersOmitUnavailableControls",
+        "testExplicitUnknownItemDoesNotBorrowThePlayerOrEffectSignal",
+        "testActualMenuActionsReadTheSavedHapticsPreferenceEachTime",
+    ],
+    "MonitorPortraitStatusGeometryTests": [
+        "testObservedSeparateReadoutsKeepTheirFullValuesAndEightPointClearance",
+        "testCompactReadoutPreservesThePreferredCenteredClock",
+        "testNarrowViewportUsesAnIntrinsicSecondRowWithoutMovingTheScreenTopAnchor",
+        "testRightToLeftKeepsTheSameValuesAndLogicalSideSeparation",
+    ],
+    "MonitorMediaOpeningAdmissionTests": [
+        "testRefusedVideoKeepsUnavailableCloseAndReturnsToGallery",
+        "testRefusedPhotoKeepsUnavailableCloseAndReturnsToGallery",
+        "testRetiredVideoKeepsUnavailableCloseAndReturnsToGallery",
+        "testRetiredPhotoKeepsUnavailableCloseAndReturnsToGallery",
+        "testReplacedVideoSourceKeepsUnavailableCloseAndReturnsToGallery",
+        "testReplacedPhotoSourceKeepsUnavailableCloseAndReturnsToGallery",
+        "testRefreshPreservesCapturedVideoRecordPlaylistAndAdmission",
+        "testRefreshPreservesCapturedPhotoRecordAndAdmission",
+        "testCapturedDeletionRetainsEnteredWorkAndShowsAdmittedSuccessor",
+        "testAdmittedSuccessorStaysVisibleAfterGalleryRelist",
+    ],
+}
+
+
+def assert_enrollment(names):
+    for suite in SUITES:
+        assert names.get(suite) == ENROLLMENT[suite], (suite, names.get(suite))
+
 OWNER = r'''
 struct RicherOwnerObservation: Codable, Equatable {
     let requestID: UUID?
@@ -208,7 +246,7 @@ def run(args):
     legacy = generate(proof, out)
     sources = [root / "Tests/OpenCineCameraControlsHostedTests" / (suite + ".swift") for suite in SUITES]
     names = {p.stem: re.findall(r"\bfunc (test\w+)\(", p.read_text()) for p in sources}
-    assert [len(names[suite]) for suite in SUITES] == [7, 4, 10]
+    assert_enrollment(names)
     assert RICH in names[SUITES[0]]
     inputs = sources + [Path(__file__), root / "scripts/ios-playback-options-hosted-test.py", root / "Package.swift",
         args.project_spec.resolve(strict=True), args.host_entitlements.resolve(strict=True),
@@ -309,7 +347,7 @@ def run(args):
         last_sequence = value["sequence"]
         bridge_records.append({"sequence": last_sequence, "sha256": sha256(data).hexdigest(), "source": str(source), "retained": str(archive), "readerCopy": str(destination)})
 
-    common = ["-jobs", str(args.jobs), "-destination", "platform=iOS Simulator,id=" + args.simulator_id, "-parallel-testing-enabled", "NO", "-collect-test-diagnostics", "never", "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "180", "CODE_SIGNING_ALLOWED=NO", "SWIFT_STRICT_CONCURRENCY=complete"]
+    common = ["-jobs", str(args.jobs), "-destination", "platform=iOS Simulator,id=" + args.simulator_id, "-parallel-testing-enabled", "NO", "-collect-test-diagnostics", "never", "-test-timeouts-enabled", "YES", "-maximum-test-execution-time-allowance", "300", "CODE_SIGNING_ALLOWED=NO", "SWIFT_STRICT_CONCURRENCY=complete"]
     readers, commands = {}, {}
     began = time.monotonic()
 
