@@ -17,6 +17,15 @@
     @MainActor
     final class MonitorPortraitHeaderClearanceTests: XCTestCase {
         private static let safeTops: [CGFloat] = [0, 24, 30.333333, 44, 59, 62]
+        override func setUp() async throws {
+            let active = await HostedCondition.wait {
+                UIApplication.shared.applicationState == .active
+                    && UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+                        .contains { $0.activationState == .foregroundActive }
+            }
+            try XCTSkipUnless(active, "Unsupported native rendering fixture: the real app scene did not activate")
+        }
+
         func testPortraitPrimaryReadoutTopsShareOneNativeAnchor() async throws {
             for safeTop in Self.safeTops {
                 let layout = FieldMonitorLayout(width: 440, height: 956, safeArea: .init(top: Double(safeTop)))
@@ -337,6 +346,18 @@
 
 
     extension MonitorPortraitHeaderClearanceTests {
+        func testRecordingPaintReadinessAcceptsOnlyTheStandalonePipeArtifact() {
+            let expected = "REC 00:09"
+            // Retained native OCR at width 440, side safe insets 0 and 20, elapsed 9.
+            XCTAssertTrue(ProductionHeaderFixture.recordingPaintMatches("REC | 00:09", expected: expected))
+            XCTAssertTrue(ProductionHeaderFixture.recordingPaintMatches("REC 00:09", expected: expected))
+            for read in ["REC | 00:08", "REC | 00:10", "STBY | 00:09", "REC | 00:0",
+                "REC| 00:09", "REC |00:09", "REC || 00:09", "REC | 00:09 extra",
+                "extra REC | 00:09", "REC |", "| 00:09", "REC | 00:O9"] {
+                XCTAssertFalse(ProductionHeaderFixture.recordingPaintMatches(read, expected: expected), read)
+            }
+        }
+
         /// The original-red selector enters the actual common body with the observed long values.
         func testProductionLongPrimaryHasOneCompleteNativeRow() async throws {
             try await assertProductionPrimary(.init(width: 360, safeTop: 0, sideSafe: 0))
@@ -942,6 +963,10 @@
                 return (text, observation.boundingBox)
             }
         }
+        static func recordingPaintMatches(_ read: String, expected: String) -> Bool {
+            // Match only the recording chip's existing final-paint token handling.
+            read.split(separator: " ").filter { $0 != "|" }.joined(separator: " ") == expected
+        }
         /// SwiftUI updates the accessibility tree from the view graph before the text layer
         /// repaints, and under load the repaint lands later (STBY pixels with a REC tree).
         /// Waits for the actual painted recording state; the oracle below still judges it.
@@ -958,7 +983,7 @@
                     height: ceil(frame.maxY * image.scale) - top)
                 guard let tokens = try? Self.paintedTokens(image, pixels: pixels) else { return false }
                 last = tokens.sorted { $0.1.minX < $1.1.minX }.map(\.0).joined(separator: " ")
-                return last == expected
+                return Self.recordingPaintMatches(last, expected: expected)
             }
             if !painted {
                 // The paint oracle below reports the mismatch; record what the wait last read.
