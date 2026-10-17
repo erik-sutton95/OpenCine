@@ -33,6 +33,7 @@ map). Candidate entries and edges are never live dependencies.
 - Multi-repo work: [docs/EXECUTION.md](docs/EXECUTION.md), task briefs in [docs/tasks/](docs/tasks/).
 - Local paths and worktrees: [docs/LOCAL_CHECKOUTS.md](docs/LOCAL_CHECKOUTS.md).
 - Keeping the atlas correct: [docs/MAINTENANCE.md](docs/MAINTENANCE.md).
+- Linked app issues, reconciliation activation and Orca task adoption: [docs/LINKED_ISSUES.md](docs/LINKED_ISSUES.md).
 - Contracts and decisions: [docs/CONTRACTS.md](docs/CONTRACTS.md), [docs/architecture/](docs/architecture/).
 - Frozen baseline and donors: [docs/baseline/BASE-01.md](docs/baseline/BASE-01.md).
 - Publishing OpenCine and moving the apps onto it (one resumable command, `tools/publish.py`): [docs/PUBLISH.md](docs/PUBLISH.md).
@@ -52,6 +53,8 @@ python3 tools/atlas.py ensure --check      # every registered checkout present? 
 python3 tools/atlas.py issues              # open issues of every registered GitHub repository (gh)
 python3 tools/atlas.py impact MonitorTheme # owner, apps that link it, call sites (also a path)
 python3 tools/atlas.py task start openpocketcine#12 [--with opencine]   # task folder + TASK.md
+python3 tools/atlas.py task start opencine#70 --orca                   # resolve tracker, adopt physical sibling tasks in Orca
+python3 tools/linked_issues.py                                        # read-only linked issue plan; --execute needs authority
 python3 tools/atlas.py graph build --all --local-only                   # every repo, merged view
 python3 tools/atlas.py dupes --top 3       # duplicated code per repository pair vs compat/dupes-baseline.json
 python3 tools/atlas.py dupes --candidate opencine-thin-app  # apps at a candidate's consumer commits
