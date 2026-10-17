@@ -161,16 +161,14 @@ public class MonitorSettingsAutoRotate(
 
 /**
  * Controls tab. The remote shutter ([shutter]) and auto-rotate ([autoRotate]) are separate
- * optional capabilities (Swift `MonitorSettingsInputSource`); the flat `remoteShutter` and
- * `autoRotateFeed` pairs remain for hosts that have not moved to them.
+ * optional capabilities (Swift `MonitorSettingsInputSource`); the flat `autoRotateFeed` pair
+ * remains for hosts that have not moved to [autoRotate].
  */
 public class MonitorSettingsControlsSource(
     public val recordConfirmation: Boolean, public val setRecordConfirmation: (Boolean) -> Unit,
     public val haptics: Boolean, public val setHaptics: (Boolean) -> Unit,
     public val keepAwake: Boolean, public val setKeepAwake: (Boolean) -> Unit,
     public val keepAwakeHelp: String,
-    public val remoteShutter: Boolean? = null, public val setRemoteShutter: ((Boolean) -> Unit)? = null,
-    public val remoteTitle: String = "Remote shutter", public val remoteCaption: String? = null,
     public val autoRotateFeed: Boolean? = null, public val setAutoRotateFeed: ((Boolean) -> Unit)? = null,
     public val rotationTitle: String = "Auto-Rotate Feed", public val rotationHelp: String = "",
     public val hapticsHelp: String? = null,
@@ -178,12 +176,6 @@ public class MonitorSettingsControlsSource(
     public val shutter: MonitorSettingsRemoteShutter? = null,
     public val autoRotate: MonitorSettingsAutoRotate? = null,
 ) {
-    /** The declared remote shutter, else the flat pair, else none. */
-    public val remoteShutterRow: MonitorSettingsRemoteShutter?
-        get() = shutter ?: remoteShutter?.let { value ->
-            setRemoteShutter?.let { MonitorSettingsRemoteShutter(value, it, remoteTitle, remoteCaption) }
-        }
-
     /** The declared auto-rotate, else the flat pair, else none. */
     public val autoRotateRow: MonitorSettingsAutoRotate?
         get() = autoRotate ?: autoRotateFeed?.let { value ->
@@ -485,7 +477,7 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
             source.setRecordConfirmation, source.setHaptics, source.setKeepAwake,
             keepScreenAwakeHelp = source.keepAwakeHelp, feedback = feedback)
     }
-    val shutter = source.remoteShutterRow
+    val shutter = source.shutter
     val rotation = source.autoRotateRow
     MonitorInputOrientationSettings(shutter?.enabled, shutter?.setEnabled,
         remoteTitle = shutter?.title ?: "Remote shutter", remoteCaption = shutter?.caption,
