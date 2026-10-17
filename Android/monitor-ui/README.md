@@ -103,8 +103,8 @@ their own notices.
   `MonitorCommandTile<K, R>` values (`K` the persisted reorder identity, `R` its
   write request), the write state and a trailing health chip; `moveMonitorCommandTile`
   keeps an order complete and appkit `MonitorCommandTileOrderPreferences` stores
-  it under the app's key. Android only: the iOS dashboard is still OpenZCine's
-  `MonitorPanels.swift`.
+  it under the app's key. The SwiftUI twin is MonitorUI `MonitorCommandDashboard`
+  (platform differences in `docs/ui/README.md`).
 
 ## Interaction and rendering contracts
 
