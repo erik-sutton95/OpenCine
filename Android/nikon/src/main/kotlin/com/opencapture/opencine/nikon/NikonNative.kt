@@ -464,6 +464,13 @@ object NikonNative {
         )
 
         /**
+         * Validity of the optional camera angles in the immediately following frame.
+         * The native pump serializes this call with its frame callback. Older native
+         * libraries omit it, so calibration consumers must default to unavailable.
+         */
+        fun onLevelValidity(hasPitch: Boolean, hasYaw: Boolean) {}
+
+        /**
          * Additive rich live-frame callback. The Swift facade prefers this
          * descriptor when it exists, while retaining [onFrame]'s established
          * descriptor as a safe fallback for older listeners.

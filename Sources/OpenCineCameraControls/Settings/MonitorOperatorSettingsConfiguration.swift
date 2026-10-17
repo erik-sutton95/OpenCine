@@ -128,6 +128,25 @@ public struct MonitorSettingsAccountSource {
 
 public enum MonitorSettingsDocument: String, Identifiable { case privacy, licenses, notice; public var id: String { rawValue } }
 
+/// Optional phone motion logging controls; capture and storage stay with the host app.
+public struct MonitorSettingsGyroSource {
+    let enabled: Binding<Bool>
+    let status: String
+    let available: Bool
+    let openLogs: () -> Void
+    let mountName: String?
+    let configureMount: (() -> Void)?
+
+    /// Creates host-owned controls and optional callbacks for logs and phone mount configuration.
+    public init(enabled: Binding<Bool>, status: String, available: Bool = true,
+        openLogs: @escaping () -> Void, mountName: String? = nil,
+        configureMount: (() -> Void)? = nil) {
+        self.enabled = enabled; self.status = status
+        self.available = available; self.openLogs = openLogs
+        self.mountName = mountName; self.configureMount = configureMount
+    }
+}
+
 public struct MonitorSettingsSupportLink {
     let destination: MonitorSettingsBrowserDestination
     let help: String
@@ -233,6 +252,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     let lookLabel: String
     let lookCatalog: (@MainActor @Sendable () -> AnyView)?
     let assistSettings: @MainActor () -> AnyView
+    let gyro: MonitorSettingsGyroSource?
 
     public init<Palette: LiveChromePalette>(safeArea: EdgeInsets, phase: String, isLive: Bool,
         sharingSubtitle: String, close: @escaping () -> Void, disconnect: @escaping () -> Void,
@@ -274,8 +294,10 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         availableAssist: Set<MonitorAssistSelection> = [.falseColor, .zebra, .waveform, .parade, .histogram, .vectorscope, .peaking, .trafficLights],
         input: MonitorSettingsInputSource? = nil, signalOptions: MonitorOperatorSignalOptions = .init(),
         resetPolicy: MonitorOperatorAssistResetPolicy = .allOptions,
-        cacheScopeHelp: String? = nil, cacheConfirmationMessage: String? = nil) {
+        cacheScopeHelp: String? = nil, cacheConfirmationMessage: String? = nil,
+        gyro: MonitorSettingsGyroSource? = nil) {
         self.assist = assist
+        self.gyro = gyro
         self.input = input; self.signalOptions = signalOptions; self.resetPolicy = resetPolicy
         self.cacheScopeHelp = cacheScopeHelp; self.cacheConfirmationMessage = cacheConfirmationMessage
         self.safeArea = borrowedSafeArea; self.phase = phase; self.isLive = isLive; self.sharingSubtitle = sharingSubtitle
