@@ -31,6 +31,7 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
     var showsPower = true
     var metrics: MonitorTelemetryMetrics? = nil
     @State private var showsFPS = false
+    @Environment(\.monitorAdaptiveTelemetryPadding) private var adaptivePadding
     @State private var phone = MonitorOperatorPowerReading(id: "phone", title: "Phone battery", camera: false)
     static var nativeMetrics: MonitorTelemetryMetrics {
         UIDevice.current.userInterfaceIdiom == .pad ? .tablet : .phone
@@ -39,7 +40,8 @@ struct MonitorOperatorTelemetry<Palette: LiveChromePalette>: View {
 
     var body: some View {
         let axis = horizontal
-            ? AnyLayout(HStackLayout(spacing: 6))
+            ? (adaptivePadding && showsPower && !showsLink
+                ? AnyLayout(MonitorTelemetryPowerLayout()) : AnyLayout(HStackLayout(spacing: 6)))
             : AnyLayout(VStackLayout(alignment: .leading, spacing: resolvedMetrics.stackSpacing))
         axis {
             if showsLink, fps != nil || signalBars != nil {
@@ -138,8 +140,8 @@ private struct MonitorOperatorPowerTelemetry<Palette: LiveChromePalette>: View {
             .animation(reading.exhausted ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : .default, value: pulse)
             .onAppear { pulse = reading.exhausted }.onChange(of: reading.exhausted) { _, value in pulse = value }
             .accessibilityLabel(reading.title)
-            .accessibilityValue(reading.bars.map { "\($0) of \(reading.barCount) bars" }
-                ?? reading.percent.map { "\($0) percent" } ?? "Unavailable")
+            .accessibilityValue(Text(verbatim: reading.bars.map { "\($0) of \(reading.barCount) bars" }
+                ?? reading.percent.map { "\($0) percent" } ?? "Unavailable"))
             .accessibilityIdentifier(reading.camera ? "monitor.telemetry.camera" : "monitor.telemetry.phone")
             // The passive bitmap spans the viewport; native focus belongs to the visible pill.
             .contentShape(.accessibility, RoundedRectangle(cornerRadius: 7, style: .continuous))

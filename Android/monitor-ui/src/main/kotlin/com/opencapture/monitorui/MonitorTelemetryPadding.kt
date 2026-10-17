@@ -41,17 +41,19 @@ internal data class MonitorTelemetryPixelPadding(val width: Int, val padding: In
 class MonitorCompactTelemetryBudget private constructor(viewportWidth: Float,
     requestedLeading: Float, requestedTrailing: Float, safeLeading: Float, safeTrailing: Float,
     storageWidth: Float, powerWidth: Float, linkWidth: Float, minimumTarget: Float, requestedScale: Float,
-    minimumCorner: Float, gap: Float) {
+    minimumCorner: Float, gap: Float, minimumLinkWidth: Float) {
     constructor(layout: MonitorFieldLayout, safeLeading: Float, safeTrailing: Float,
-        storageWidth: Float, powerWidth: Float, linkWidth: Float, minimumTarget: Float, requestedScale: Float) :
+        storageWidth: Float, powerWidth: Float, linkWidth: Float, minimumTarget: Float, requestedScale: Float,
+        minimumLinkWidth: Float = 0f) :
         this(layout.viewport.width, layout.status.x, layout.viewport.width - layout.status.maxX,
-            safeLeading, safeTrailing, storageWidth, powerWidth, linkWidth, minimumTarget, requestedScale, 14f, 8f)
+            safeLeading, safeTrailing, storageWidth, powerWidth, linkWidth, minimumTarget, requestedScale, 14f, 8f, minimumLinkWidth)
 
     val leading: Float
     val storageWidth: Float
     val performanceX: Float
     val performanceWidth: Float
     val powerX: Float
+    val wrapsPower: Boolean
 
     init {
         val scale = requestedScale.takeIf { it.isFinite() && it > 0f } ?: 1f
@@ -68,23 +70,28 @@ class MonitorCompactTelemetryBudget private constructor(viewportWidth: Float,
         this.storageWidth = storage
         performanceX = leading + storage + storageGap
         powerX = viewportWidth - trailing - power
-        performanceWidth = (floor((powerX - powerGap - performanceX) * scale) / scale).coerceAtLeast(0f)
+        val remaining = floor((powerX - powerGap - performanceX) * scale) / scale
+        val singleRowWidth = remaining.coerceAtLeast(0f)
+        val requiredLink = if (linkWidth > 0f) ceil(maxOf(minimumTarget, minimumLinkWidth) * scale) / scale else 0f
+        wrapsPower = power > 0f && (storage > 0f || linkWidth > 0f) && requiredLink > remaining
+        performanceWidth = if (wrapsPower) (floor((viewportWidth - trailing - performanceX) * scale) / scale).coerceAtLeast(0f)
+            else singleRowWidth
     }
 
     companion object {
         /** The same budget in the native lattice, preserving each original independently rounded term. */
         internal fun pixels(viewportWidth: Int, originalLeading: Int, originalTrailing: Int,
             safeLeading: Int, safeTrailing: Int, storageWidth: Int, powerWidth: Int, linkWidth: Int,
-            minimumTarget: Int, minimumCorner: Int, gap: Int): MonitorCompactTelemetryPixels {
+            minimumTarget: Int, minimumCorner: Int, gap: Int, minimumLinkWidth: Int = 0): MonitorCompactTelemetryPixels {
             val fit = MonitorCompactTelemetryBudget(viewportWidth.toFloat(), originalLeading.toFloat(),
                 originalTrailing.toFloat(), safeLeading.toFloat(), safeTrailing.toFloat(), storageWidth.toFloat(),
                 powerWidth.toFloat(), linkWidth.toFloat(), minimumTarget.toFloat(), 1f,
-                minimumCorner.toFloat(), gap.toFloat())
+                minimumCorner.toFloat(), gap.toFloat(), minimumLinkWidth.toFloat())
             return MonitorCompactTelemetryPixels(fit.leading.toInt(), fit.storageWidth.toInt(),
-                fit.performanceX.toInt(), fit.performanceWidth.toInt(), fit.powerX.toInt())
+                fit.performanceX.toInt(), fit.performanceWidth.toInt(), fit.powerX.toInt(), fit.wrapsPower)
         }
     }
 }
 
 internal data class MonitorCompactTelemetryPixels(val leading: Int, val storageWidth: Int,
-    val performanceX: Int, val performanceWidth: Int, val powerX: Int)
+    val performanceX: Int, val performanceWidth: Int, val powerX: Int, val wrapsPower: Boolean)

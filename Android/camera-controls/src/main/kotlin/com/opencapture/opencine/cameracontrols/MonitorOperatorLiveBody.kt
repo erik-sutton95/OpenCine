@@ -195,6 +195,7 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
 ): Unit {
     val density = LocalDensity.current
     val usesCompactTelemetry = layout.portrait && !layout.tablet
+    var compactTelemetryMinimumStatusTop by remember { mutableStateOf(0f) }
     // Keep the renderer's existing default; shared measurement and rendering use the same value.
     val telemetryMetrics = MonitorTelemetryMetrics.PHONE
     val origin = LocalLiveCanvasOrigin.current
@@ -335,7 +336,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
             } else null
             CompositionLocalProvider(LocalMonitorPortraitPrimaryFit provides fit) {
             MonitorStatusChrome(layout, recording, status.showsTimecode, status.showsRecording, !usesCompactTelemetry,
-                edit(sections.status),
+                modifier = edit(sections.status),
+                minimumOccupiedTop = if (usesCompactTelemetry) compactTelemetryMinimumStatusTop else 0f,
                 recordingModifier = status.recordingSection?.let { edit(it) } ?: Modifier,
                 clockModifier = status.timecodeSection?.let { edit(it) } ?: Modifier,
                 storage = { status.storage?.let { if (it.section == null || it.section in mounted) Readout(it, opens = false, storageReadout = true) } },
@@ -516,7 +518,8 @@ internal fun <K, S, M, N> MonitorOperatorLiveComposition(
                             showsLink = linkMounted, showsPower = false, metrics = telemetryMetrics,
                             modifier = edit(sections.status).refusingInput(!(accepts && interactive && !assistInspectorPresented))
                                 .then(if (assistInspectorPresented) Modifier.clearAndSetSemantics {} else Modifier))
-                    }, power = { if (sections.power in mounted) TelemetryPower() })
+                    }, power = { if (sections.power in mounted) TelemetryPower() },
+                    minimumStatusTop = { compactTelemetryMinimumStatusTop = it })
             }
         }, panels = { accepts ->
             com.opencapture.opencine.appkit.MonitorOperatorCapturePopup(captureInputs, control, state, layout,

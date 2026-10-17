@@ -2057,29 +2057,69 @@
     }
 
     extension MonitorPortraitHeaderClearanceTests {
-        /// SIMULATED counterexample observation, not qualification of the padding-only policy.
-        func testCompactDenseGaugeCapturesUnqualifiedPaddingOnlyLimit() async throws {
+        /// SIMULATED: the original6.5pt counterexample must now meet the full native contract.
+        func testOriginalPaddingOnlyCounterexampleNowMeetsNativeClearance() async throws {
+            try await assertDeclaredGaugeScenarios(counts: [100])
+        }
+
+        /// SIMULATED: full native count glyphs and occupied action gaps, including the declared integer bound.
+        func testCompactDeclaredGaugesKeepFullFontAndOccupiedClearance() async throws {
+            try await assertDeclaredGaugeScenarios(counts: [Int(Int32.max), Int.max])
+        }
+
+        private func assertDeclaredGaugeScenarios(counts: [Int]) async throws {
             guard UIDevice.current.userInterfaceIdiom == .pad else {
-                throw XCTSkip("SIMULATED compact dense-gauge witness requires a private iPad")
+                throw XCTSkip("SIMULATED declared-gauge tablet metric proof requires a private iPad")
             }
+            for count in counts {
+                let reference = try HeaderWindow(rootView: AnyView(
+                    Text(verbatim: "\(count)/\(count)").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(.white).padding(20)
+                        .frame(width: 320, height: 80, alignment: .topLeading)
+                        .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
+                let image = try reference.renderedImage()
+                let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
+                reference.close()
+                let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
+                defer { fixture.close() }
+                try await fixture.assertDeclaredGaugeFits(filled: count, count: count, literalInk: ink)
+            }
+        }
+
+        /// SIMULATED: changing only the inset must update the measured occupied boundary.
+        func testCompactDeclaredGaugeRetainsClearanceWhenSafeTopChanges() async throws {
             let reference = try HeaderWindow(rootView: AnyView(
-                Text("100/100").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
+                Text(verbatim: "100/100").font(MonitorTheme.font(10, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(.white).padding(20)
                     .frame(width: 320, height: 80, alignment: .topLeading)
                     .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
             let image = try reference.renderedImage()
             let ink = try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size))
             reference.close()
-            let original = try CompactTabletProductFixture(width: 440, storage: "123456789 GB")
-            let originalCountInk: CGRect
-            do {
-                defer { original.close() }
-                originalCountInk = try await original.denseGaugeCountReference()
-            }
             let fixture = try CompactTabletProductFixture(width: 320, storage: "123456789 GB")
             defer { fixture.close() }
-            try await fixture.captureDenseGaugeLimit(
-                originalCountInk: originalCountInk, literalCountInk: ink)
+            for top: CGFloat in [0, 64, 84, 0] {
+                try await fixture.assertDeclaredGaugeFits(filled: 100, count: 100, literalInk: ink, safeTop: top)
+            }
+        }
+
+        /// SIMULATED actual negative paint controls calibrate the same dense-count raster oracle.
+        func testDeclaredGaugeInkOracleRejectsSmallerFontAndShortenedValue() throws {
+            var samples: [CGRect] = []
+            for (value, size) in [("100/100", CGFloat(10)), ("100/100", 9), ("100/10", 10)] {
+                let reference = try HeaderWindow(rootView: AnyView(
+                    Text(verbatim: value).font(MonitorTheme.font(size, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(.white).padding(20)
+                        .frame(width: 320, height: 80, alignment: .topLeading)
+                        .background(.black).ignoresSafeArea()), size: CGSize(width: 320, height: 80))
+                defer { reference.close() }
+                let image = try reference.renderedImage()
+                samples.append(try HeaderRaster(image).inkBounds(in: CGRect(origin: .zero, size: image.size)))
+                let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
+                XCTContext.runActivity(named: "SIMULATED count oracle \(value) at \(size)pt") { $0.add(picture) }
+            }
+            XCTAssertLessThan(samples[1].width, samples[0].width - 1, "Reject an actual9pt count at unchanged full value")
+            XCTAssertLessThan(samples[2].width, samples[0].width - 1, "Reject an actual shortened count at unchanged10pt font")
         }
 
         /// SIMULATED: relocated controls keep the bounded slots' transient VoiceOver exclusion.
@@ -2119,108 +2159,96 @@
     }
 
     extension CompactTabletProductFixture {
-        private func mountDenseGauge() async throws {
-            let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(.steps(filled: 100, of: 100)))
-            XCTAssertEqual(reading.bars, 100)
-            XCTAssertEqual(reading.barCount, 100)
+        /// Compile fixture for the original initializer with trailing power content.
+        private func retainedTelemetryContentCall(layout: FieldMonitorLayout) {
+            _ = MonitorCompactTelemetryRow(layout: layout, safeArea: .init(), metrics: .phone,
+                storage: { EmptyView() }, link: { EmptyView() }) { EmptyView() }
+        }
+
+        fileprivate func assertDeclaredGaugeFits(filled: Int, count: Int, literalInk: CGRect, safeTop: CGFloat? = nil) async throws {
+            let reading = try XCTUnwrap(MonitorOperatorPowerReading.camera(.steps(filled: filled, of: count)))
+            let initialCalls = (probe.formatCalls, probe.codecCalls, probe.colorCalls)
+            let resolvedLive = safeTop.map { top in
+                LiveMonitorLayout.fieldMonitor(size: native.window.bounds.size,
+                    safeArea: EdgeInsets(top: top, leading: observedSafeArea.left,
+                        bottom: observedSafeArea.bottom, trailing: observedSafeArea.right),
+                    sourceAspect: 16 / 9, fill: false, showsValues: false, showsBottomBars: false)
+            } ?? live
             native.host.rootView = AnyView(ProductionHeaderSurface(
-                probe: probe, live: live, telemetryMetrics: .tablet, cameraBatteryOverride: reading)
+                probe: probe, live: resolvedLive, telemetryMetrics: .tablet, cameraBatteryOverride: reading)
                 .background(.black).ignoresSafeArea())
             let visible = await HostedCondition.wait {
                 native.host.view.layoutIfNeeded()
                 return native.nodes().contains {
-                    $0.accessibilityLabel == "Camera battery" && $0.accessibilityValue == "100 of 100 bars"
+                    $0.accessibilityLabel == "Camera battery" && $0.accessibilityValue == "\(filled) of \(count) bars"
                 }
             }
-            XCTAssertTrue(visible, "The valid dense typed gauge must reach the real common body")
-        }
-
-        fileprivate func denseGaugeCountReference() async throws -> CGRect {
-            try await mountDenseGauge()
-            let camera = try XCTUnwrap(native.nodes().first { $0.accessibilityLabel == "Camera battery" })
-            let frame = native.window.convert(camera.accessibilityFrame, from: nil)
-            XCTAssertEqual(frame.width, 70, accuracy: 0.5)
-            let image = try native.renderedImage()
-            let count = try HeaderRaster(image).inkBounds(in: CGRect(x: frame.minX + 22, y: frame.minY,
-                width: frame.width - 28, height: frame.height))
-            let picture = XCTAttachment(image: image)
-            picture.name = "SIMULATED original wide native dense gauge glyph reference"
-            picture.lifetime = .keepAlways
-            XCTContext.runActivity(named: "SIMULATED unchanged native gauge at width 440") { $0.add(picture) }
-            return count
-        }
-
-        fileprivate func captureDenseGaugeLimit(originalCountInk: CGRect, literalCountInk: CGRect) async throws {
-            try await mountDenseGauge()
+            XCTAssertTrue(visible)
             let signal = try XCTUnwrap(native.nodes().first {
                 HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
             })
-            XCTAssertTrue(signal.accessibilityActivate(), "Measure the actual FPS state")
+            if signal.accessibilityHint != "Shows signal strength" { XCTAssertTrue(signal.accessibilityActivate()) }
             let toggled = await HostedCondition.wait {
                 native.host.view.layoutIfNeeded()
-                return native.nodes().contains {
-                    HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
-                        && $0.accessibilityHint == "Shows signal strength"
+                let nodes = native.nodes()
+                guard let camera = nodes.first(where: { $0.accessibilityLabel == "Camera battery" }),
+                    let format = nodes.first(where: { $0.accessibilityLabel == "Recording format" }) else { return false }
+                return format.accessibilityFrame.minY >= camera.accessibilityFrame.maxY + 8 - monitorFloorMeasurementTolerance && nodes.contains {
+                    HostedAccessibility.identifier($0) == "monitor.telemetry.signal" && $0.accessibilityHint == "Shows signal strength"
                 }
             }
             XCTAssertTrue(toggled)
+            func frame(_ node: NSObject) -> CGRect { native.window.convert(node.accessibilityFrame, from: nil) }
             let nodes = native.nodes()
-            func frame(_ label: String) throws -> CGRect {
-                let node = try XCTUnwrap(nodes.first { $0.accessibilityLabel == label })
-                return native.window.convert(node.accessibilityFrame, from: nil)
+            let storage = frame(try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Storage remaining" }))
+            let fps = frame(try XCTUnwrap(nodes.first { HostedAccessibility.identifier($0) == "monitor.telemetry.signal" }))
+            let phone = frame(try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Phone battery" }))
+            let camera = frame(try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Camera battery" }))
+            let format = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Recording format" })
+            let codec = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Codec" })
+            let color = try XCTUnwrap(nodes.first { $0.accessibilityLabel == "Color mode" })
+            for node in [format, codec, color] {
+                XCTAssertGreaterThanOrEqual(frame(node).minY, max(phone.maxY, camera.maxY) + 8 - monitorFloorMeasurementTolerance,
+                    "Wrapped power must clear the complete displaced status targets by8pt")
+                XCTAssertLessThanOrEqual(frame(node).maxY, native.window.bounds.height)
             }
-            func coordinates(_ value: CGRect) -> [CGFloat] {
-                [value.minX, value.minY, value.width, value.height]
-            }
-            let storage = try frame("Storage remaining")
-            let phone = try frame("Phone battery")
-            let camera = try frame("Camera battery")
-            let fpsNode = try XCTUnwrap(nodes.first {
-                HostedAccessibility.identifier($0) == "monitor.telemetry.signal"
-            })
-            let fps = native.window.convert(fpsNode.accessibilityFrame, from: nil)
             let image = try native.renderedImage()
             let raster = try HeaderRaster(image)
-            let count = try raster.inkBounds(in: CGRect(x: camera.minX + 22, y: camera.minY,
+            let ink = try raster.inkBounds(in: CGRect(x: camera.minX + 22, y: camera.minY,
                 width: camera.width - 28, height: camera.height))
+            XCTAssertEqual(ink.width, literalInk.width, accuracy: 1, "Every original 10pt count glyph must remain visible")
+            XCTAssertEqual(ink.height, literalInk.height, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(storage.width, 44 - monitorFloorMeasurementTolerance)
+            XCTAssertGreaterThanOrEqual(fps.width, 44 - monitorFloorMeasurementTolerance)
+            XCTAssertLessThanOrEqual(storage.maxX + 8, fps.minX + monitorFloorMeasurementTolerance)
+            for power in [phone, camera] {
+                XCTAssertTrue(power.minX >= fps.maxX + 8 - monitorFloorMeasurementTolerance
+                    || power.minY >= max(storage.maxY, fps.maxY) + 8 - monitorFloorMeasurementTolerance,
+                    "Power must clear the complete occupied action targets by 8pt")
+                XCTAssertGreaterThanOrEqual(power.minX, 14 - monitorFloorMeasurementTolerance)
+                XCTAssertLessThanOrEqual(power.maxX, image.size.width - 14 + monitorFloorMeasurementTolerance)
+                XCTAssertGreaterThanOrEqual(power.minY, 0)
+                XCTAssertLessThanOrEqual(power.maxY, image.size.height)
+            }
             let storageInk = try raster.inkBounds(in: CGRect(x: storage.minX + 17, y: storage.midY - 11,
                 width: storage.width - 17, height: 22))
             XCTAssertEqual(storage.width, 86, accuracy: 0.5)
             XCTAssertEqual(storageInk.width, 132)
             XCTAssertEqual(storageInk.height, 16)
-            XCTAssertEqual(phone.width, 64, accuracy: 0.5)
-            XCTAssertEqual(camera.width, 70, accuracy: 0.5)
-            XCTAssertEqual(phone.height, 22, accuracy: 0.5)
-            XCTAssertEqual(camera.height, 22, accuracy: 0.5)
-            XCTAssertEqual(camera.maxX - phone.minX, 140, accuracy: 0.5)
-            XCTAssertEqual(count.width, originalCountInk.width, accuracy: 1,
-                "Compact allocation must preserve the original native gauge glyphs")
-            XCTAssertEqual(count.height, originalCountInk.height, accuracy: 1)
-            XCTAssertGreaterThanOrEqual(storage.minX, 14 - 0.5)
-            XCTAssertLessThanOrEqual(camera.maxX, image.size.width - 14 + 0.5)
-            XCTAssertGreaterThanOrEqual(storage.width, 44 - monitorFloorMeasurementTolerance)
-            XCTAssertGreaterThanOrEqual(fps.width, 44 - monitorFloorMeasurementTolerance)
-            XCTAssertLessThanOrEqual(storage.maxX + 8, fps.minX + 0.5)
-            let gap = phone.minX - fps.maxX
-            // This witness deliberately records the existing violation; it does not relax the
-            // original nine-condition or real-toggle clearance guards and is not a product pass.
-            XCTAssertEqual(gap, 6.5, accuracy: 0.5)
+            XCTAssertTrue(format.accessibilityActivate()); XCTAssertEqual(probe.formatCalls, initialCalls.0 + 1)
+            XCTAssertTrue(codec.accessibilityActivate()); XCTAssertEqual(probe.codecCalls, initialCalls.1 + 1)
+            XCTAssertTrue(color.accessibilityActivate()); XCTAssertEqual(probe.colorCalls, initialCalls.2 + 1)
             let facts = XCTAttachment(data: try JSONSerialization.data(withJSONObject: [
-                "qualification": "OPEN: valid dense gauge exceeds padding-only budget",
-                "reading": "steps100of100", "scale": image.scale,
-                "storage": coordinates(storage), "performance": coordinates(fps),
-                "phone": coordinates(phone), "camera": coordinates(camera),
-                "linkPowerGap": gap, "requiredGap": 8,
-                "storageInkPixels": coordinates(storageInk), "countInkPixels": coordinates(count),
-                "originalWideCountPixels": coordinates(originalCountInk),
-                "literal10ptCountPixels": coordinates(literalCountInk),
+                "filled": filled, "count": count, "scale": image.scale,
+                "storage": [storage.minX, storage.minY, storage.width, storage.height],
+                "performance": [fps.minX, fps.minY, fps.width, fps.height],
+                "phone": [phone.minX, phone.minY, phone.width, phone.height],
+                "camera": [camera.minX, camera.minY, camera.width, camera.height],
+                "countInk": [ink.width, ink.height], "literalInk": [literalInk.width, literalInk.height],
             ], options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
             facts.lifetime = .keepAlways
-            facts.name = "SIMULATED unqualified dense gauge actual native limit"
-            let picture = XCTAttachment(image: image)
-            picture.lifetime = .keepAlways
-            picture.name = "SIMULATED valid dense gauge padding-only counterexample"
-            XCTContext.runActivity(named: "SIMULATED measured wide-gauge limit remains OPEN") {
+            let picture = XCTAttachment(image: image); picture.lifetime = .keepAlways
+            XCTContext.runActivity(named: "SIMULATED declared gauge \(filled)/\(count) native clearance and glyphs") {
                 $0.add(facts); $0.add(picture)
             }
         }

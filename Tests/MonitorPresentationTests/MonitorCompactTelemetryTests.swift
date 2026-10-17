@@ -2,6 +2,35 @@ import MonitorPresentation
 import Testing
 
 struct MonitorCompactTelemetryTests {
+    @Test func storageStillClearsPowerWhenTheLinkIsUnknown() {
+        let fit = MonitorCompactTelemetryBudget(
+            layout: FieldMonitorLayout(width: 320, height: 956), safeLeading: 0, safeTrailing: 0,
+            storageWidth: 86, powerWidth: 289, linkWidth: 0, minimumTarget: 44, scale: 2)
+        #expect(fit.wrapsPower)
+        #expect(fit.storageWidth == 86)
+    }
+
+    @Test func nativeContentThatExceedsTheSingleRowMovesPowerToASeparateLine() {
+        let fit = MonitorCompactTelemetryBudget(
+            layout: FieldMonitorLayout(width: 320, height: 956), safeLeading: 0, safeTrailing: 0,
+            storageWidth: 86, powerWidth: 140, linkWidth: 64, minimumTarget: 44, scale: 2,
+            minimumLinkWidth: 51.5)
+        #expect(fit.wrapsPower)
+        #expect(fit.performanceWidth >= 51.5)
+        #expect(fit.storageWidth == 86)
+        #expect(fit.performanceX == 108)
+        #expect(fit.powerX == 166)
+    }
+
+    @Test func fittedContentKeepsTheExistingSingleRow() {
+        let fit = MonitorCompactTelemetryBudget(
+            layout: FieldMonitorLayout(width: 320, height: 956), safeLeading: 0, safeTrailing: 0,
+            storageWidth: 86, powerWidth: 134, linkWidth: 64, minimumTarget: 44, scale: 2,
+            minimumLinkWidth: 51.5)
+        #expect(!fit.wrapsPower)
+        #expect(fit.performanceWidth == 56)
+    }
+
     @Test func compactLongStorageKeepsItsAllocationBeforePerformanceAndRealPower() {
         let fit = MonitorCompactTelemetryBudget(
             layout: FieldMonitorLayout(width: 320, height: 956), safeLeading: 0, safeTrailing: 0,

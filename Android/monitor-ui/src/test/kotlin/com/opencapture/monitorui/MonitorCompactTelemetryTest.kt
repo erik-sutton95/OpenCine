@@ -6,6 +6,37 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MonitorCompactTelemetryTest {
+    @Test fun storageStillClearsPowerWhenTheLinkIsUnknown() {
+        val fit = MonitorCompactTelemetryBudget(MonitorLayoutPolicy.fieldMonitor(320f, 956f),
+            0f, 0f, 86f, 289f, 0f, 48f, 2f)
+        assertTrue(fit.wrapsPower)
+        assertEquals(86f, fit.storageWidth)
+    }
+
+    @Test fun nativeContentThatExceedsTheSingleRowMovesPowerToASeparateLine() {
+        val fit = MonitorCompactTelemetryBudget(MonitorLayoutPolicy.fieldMonitor(320f, 956f),
+            0f, 0f, 86f, 140f, 64f, 48f, 2f, minimumLinkWidth = 51.5f)
+        assertTrue(fit.wrapsPower)
+        assertTrue(fit.performanceWidth >= 51.5f)
+        assertEquals(86f, fit.storageWidth)
+        assertEquals(108f, fit.performanceX)
+        assertEquals(166f, fit.powerX)
+    }
+
+    @Test fun fittedContentKeepsTheExistingSingleRow() {
+        val fit = MonitorCompactTelemetryBudget(MonitorLayoutPolicy.fieldMonitor(320f, 956f),
+            0f, 0f, 86f, 134f, 64f, 48f, 2f, minimumLinkWidth = 51.5f)
+        assertFalse(fit.wrapsPower)
+        assertEquals(56f, fit.performanceWidth)
+    }
+
+    @Test fun fractionalNativeContentWrapsWithoutRoundingAwayTheClearance() {
+        val fit = MonitorCompactTelemetryBudget.pixels(840, 42, 42, 0, 0,
+            226, 368, 168, 126, 37, 21, 136)
+        assertTrue(fit.wrapsPower)
+        assertTrue(fit.performanceWidth >= 136)
+    }
+
     @Test fun fractionalNativeMeasurementsStayIntegralAcrossTheWholeRow() {
         // At2.625 density the legacy158dp row rounds415px, then subtracts168px link and21px gap.
         // A real352px power measure becomes352.00003px after a Float dp round trip.

@@ -386,6 +386,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
     @State private var expanded = false
     @State private var lifecycle = MonitorInteractionLifecycle()
     @State private var captureState = MonitorOperatorCaptureState<Key, NativeIdentity>()
+    @State private var compactTelemetryMinimumStatusTop: CGFloat = 0
 
     init(host: Host, control: MonitorControlModel, session: MonitorOperatorSessionModel<Looks>,
         live: LiveMonitorLayout, source: MonitorOperatorLiveSource<Key, NativeIdentity>,
@@ -575,6 +576,7 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
                 layout: layout, status: status.recording,
                 showsTimecode: status.showsTimecode, showsRecording: status.showsRecording,
                 showsCompactTelemetry: !usesCompactTelemetry,
+                minimumOccupiedTop: usesCompactTelemetry ? compactTelemetryMinimumStatusTop : 0,
             storage: { if let storage = status.storage { storageReadout(storage) } },
             format: {
                     if inline {
@@ -678,7 +680,8 @@ where Host.ChromeSection == MonitorDisplayChrome.Section, Host.ChromeMode == Mon
             .modifier(DescriptorEditable<Host>(section: status.fpsSection, mode: editing))
     }
     private var compactTelemetry: some View {
-        MonitorCompactTelemetryRow(layout: layout, safeArea: safeArea, metrics: resolvedTelemetryMetrics) {
+        MonitorCompactTelemetryRow(layout: layout, safeArea: safeArea, metrics: resolvedTelemetryMetrics,
+            minimumStatusTop: { compactTelemetryMinimumStatusTop = $0 }) {
             if mounts(.statusBar), let storage = status.storage {
                 storageReadout(storage).monitorReadoutShadow()
                     .allowsHitTesting(!assistInspectorPresented)

@@ -32,10 +32,11 @@ public struct MonitorCompactTelemetryBudget: Equatable, Sendable {
     public let performanceX: Double
     public let performanceWidth: Double
     public let powerX: Double
+    public let wrapsPower: Bool
 
     public init(layout: FieldMonitorLayout, safeLeading: Double, safeTrailing: Double,
         storageWidth: Double, powerWidth: Double, linkWidth: Double, minimumTarget: Double,
-        scale: Double) {
+        scale: Double, minimumLinkWidth: Double = 0) {
         let scale = scale.isFinite && scale > 0 ? scale : 1
         let storage = storageWidth > 0 ? ceil(max(minimumTarget, storageWidth) * scale) / scale : 0
         let power = ceil(max(0, powerWidth) * scale) / scale
@@ -51,6 +52,12 @@ public struct MonitorCompactTelemetryBudget: Equatable, Sendable {
         self.storageWidth = storage
         performanceX = leading + storage + storageGap
         powerX = layout.viewport.width - trailing - power
-        performanceWidth = max(0, floor((powerX - powerGap - performanceX) * scale) / scale)
+        let remaining = floor((powerX - powerGap - performanceX) * scale) / scale
+        let singleRowWidth = max(0, remaining)
+        let requiredLink = linkWidth > 0 ? ceil(max(minimumTarget, minimumLinkWidth) * scale) / scale : 0
+        wrapsPower = power > 0 && (storage > 0 || linkWidth > 0) && requiredLink > remaining
+        performanceWidth = wrapsPower
+            ? max(0, floor((layout.viewport.width - trailing - performanceX) * scale) / scale)
+            : singleRowWidth
     }
 }

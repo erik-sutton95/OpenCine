@@ -30,7 +30,7 @@ public struct MonitorGaugeBars: View {
     /// Compact pills grow only for the textual fallback; ordinary gauge geometry stays fixed.
     public static func readoutWidth(filled: Int, count: Int, minimum: CGFloat, inset: CGFloat) -> CGFloat {
         guard count > 10 else { return minimum }
-        return max(minimum, min(156, CGFloat("\(filled)/\(count)".count) * 6 + inset))
+        return max(minimum, CGFloat("\(filled)/\(count)".count) * 6 + inset)
     }
 
     private var filled: Int {
