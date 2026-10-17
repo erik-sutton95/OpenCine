@@ -1,6 +1,45 @@
 import Foundation
 import OpenCineAppKit
 import OpenCineCameraVocabulary
+import OpenCineCore
+
+/// A retained editor and its exact detents, or the host's existing label/unavailable surface.
+/// Empty captured choices stay empty; they never fall back to a wider camera domain.
+@available(macOS 14, *)
+public enum LadderSheetDrum: Sendable {
+    case labels
+    case field(MonitorCaptureField, choices: [MonitorCaptureChoice])
+    case unavailable(String?)
+}
+
+/// Values owned by an existing capture panel. Observations and previews do not dispatch writes;
+/// the panel retains tab actions, delayed sends, gesture identity and captured-editor callbacks.
+@available(macOS 14, *)
+public struct LadderSheetHost {
+    public let selectedTab: Int
+    public let selection: String?
+    public let drum: LadderSheetDrum
+    public let previewPosition: Double?
+    public let interactionIdentity: () -> AnyHashable
+    public let onSelectTab: (Int) -> Void
+    public let onCommitted: (SettingValue) -> Void
+
+    public init(
+        selectedTab: Int, selection: String?, drum: LadderSheetDrum,
+        previewPosition: Double? = nil,
+        interactionIdentity: @escaping () -> AnyHashable = { AnyHashable(0) },
+        onSelectTab: @escaping (Int) -> Void,
+        onCommitted: @escaping (SettingValue) -> Void = { _ in }
+    ) {
+        self.selectedTab = selectedTab
+        self.selection = selection
+        self.drum = drum
+        self.previewPosition = previewPosition
+        self.interactionIdentity = interactionIdentity
+        self.onSelectTab = onSelectTab
+        self.onCommitted = onCommitted
+    }
+}
 
 /// One write the sheet asks the host to make: the host's own key and a camera label.
 public struct LadderWrite<Key: Equatable & Sendable>: Equatable, Sendable {
@@ -228,7 +267,7 @@ private extension String {
 
     /// Label-ladder sheet. Typed tabs draw `MonitorCaptureDrum` and commit through `control`.
     /// Label tabs draw the shared horizontal drum and report writes through `onWrite`.
-    /// Apps that already have a typed sheet do not construct this.
+    /// Existing capture panels pass their retained state and editor through `host`.
     @available(macOS 14, *)
     public struct LadderSheet<Key: Equatable & Sendable, Footer: View>: View {
         private let presentation: LadderSheetPresentation<Key>
@@ -244,6 +283,7 @@ private extension String {
         private let tintLabel: (CaptureTint) -> String
         private let tintHelp: String?
         private let footer: (LadderTab<Key>) -> Footer
+        private let host: LadderSheetHost?
         @State private var selected: Int
         @State private var landed: [String]
         @State private var applied: [String]
@@ -257,6 +297,7 @@ private extension String {
             control: MonitorControlModel? = nil, fromTop: Bool = false, chromeless: Bool = false, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
             tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
+            host: LadderSheetHost? = nil,
             @ViewBuilder footer: @escaping (LadderTab<Key>) -> Footer
         ) {
             self.presentation = presentation
@@ -272,6 +313,7 @@ private extension String {
             self.tintLabel = tintLabel
             self.tintHelp = tintHelp
             self.footer = footer
+            self.host = host
             let last = max(presentation.tabs.count - 1, 0)
             let initial = min(max(presentation.initialTab, 0), last)
             _selected = State(initialValue: initial)
@@ -295,7 +337,7 @@ private extension String {
         }
 
         private var index: Int {
-            min(max(selected, 0), presentation.tabs.count - 1)
+            min(max(host?.selectedTab ?? selected, 0), presentation.tabs.count - 1)
         }
 
         private var tab: LadderTab<Key> { presentation.tabs[index] }
@@ -305,6 +347,7 @@ private extension String {
         }
 
         private var shown: String {
+            if let host { return host.selection ?? "" }
             if tab.ladder.lock != nil { return tab.ladder.current ?? "" }
             return landed.indices.contains(index) ? landed[index] : (tab.ladder.current ?? "")
         }
@@ -313,7 +356,9 @@ private extension String {
             let top = captureTopPadding(fromTop: fromTop, portrait: portrait)
             let shape = panelShape(fromTop: fromTop, portrait: portrait)
             return Group {
-                if chromeless {
+                if chromeless, host != nil {
+                    controls
+                } else if chromeless {
                     controls.monitorCapturePanelHeader(title: presentation.title, subtitle: presentation.subtitle)
                 }
                 else {
@@ -324,7 +369,7 @@ private extension String {
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("\(presentation.title). \(presentation.subtitle)")
+            .accessibilityLabel(presentation.title.isEmpty ? "" : "\(presentation.title). \(presentation.subtitle)")
             .accessibilityIdentifier("ladder_sheet")
             .contentShape(Rectangle())
             .onTapGesture {}
@@ -409,7 +454,9 @@ private extension String {
         }
 
         @ViewBuilder private var drum: some View {
-            if let tint = tab.tint {
+            if let host {
+                hostedDrum(host)
+            } else if let tint = tab.tint {
                 TintPad(tint: tint, enabled: gates.drumEnabled, labelOf: tintLabel, help: tintHelp) { next in
                     let text = tintLabel(next)
                     if gates.drumEnabled, !text.isBlank {
@@ -443,6 +490,34 @@ private extension String {
             }
         }
 
+        @ViewBuilder private func hostedDrum(_ host: LadderSheetHost) -> some View {
+            switch host.drum {
+            case .labels:
+                LabelDrum(
+                    options: ladderOptions(tab, landed: shown), selection: shown,
+                    marked: tab.ladder.marked,
+                    enabled: gates.drumEnabled && host.previewPosition == nil,
+                    haptics: hapticsEnabled, steps: nil,
+                    previewPosition: host.previewPosition,
+                    interactionIdentity: host.interactionIdentity,
+                    onSelect: { value in
+                        guard gates.drumEnabled, host.previewPosition == nil, !value.isBlank else { return }
+                        onWrite(LadderWrite(key: tab.key, value: value))
+                    }, onStep: { _ in })
+            case .field(let field, let choices):
+                if let control {
+                    MonitorCaptureDrum(
+                        control: control, field: field, enabled: gates.drumEnabled,
+                        haptics: hapticsEnabled, previewPosition: host.previewPosition,
+                        previewSelection: host.previewPosition == nil ? nil : host.selection,
+                        choices: choices, marked: tab.ladder.marked,
+                        onCommitted: host.onCommitted)
+                }
+            case .unavailable(let message):
+                if let message { Text(message).foregroundStyle(MonitorTheme.muted) }
+            }
+        }
+
         private func coreDrum(_ field: MonitorCaptureField, control: MonitorControlModel) -> some View {
             let options = Set(ladderOptions(tab, landed: shown))
             let filtered = field.choices.filter { options.contains($0.label) }
@@ -460,6 +535,11 @@ private extension String {
             guard presentation.tabs.indices.contains(next) else { return }
             let candidate = presentation.tabs[next]
             guard next != index, !candidate.disabled, gates.tabsEnabled else { return }
+            if let host {
+                guard host.previewPosition == nil else { return }
+                host.onSelectTab(next)
+                return
+            }
             selected = next
             let landedValue =
                 candidate.ladder.lock != nil
@@ -485,12 +565,13 @@ private extension String {
             onWrite: @escaping (LadderWrite<Key>) -> Void, onClose: @escaping () -> Void,
             control: MonitorControlModel? = nil, fromTop: Bool = false, chromeless: Bool = false, error: String? = nil,
             unavailable: String? = nil, onHold: (() -> Void)? = nil,
-            tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil
+            tintLabel: @escaping (CaptureTint) -> String = { _ in "" }, tintHelp: String? = nil,
+            host: LadderSheetHost? = nil
         ) {
             self.init(
                 presentation: presentation, enabled: enabled, onWrite: onWrite, onClose: onClose,
                 control: control, fromTop: fromTop, chromeless: chromeless, error: error, unavailable: unavailable,
-                onHold: onHold, tintLabel: tintLabel, tintHelp: tintHelp, footer: { _ in EmptyView() }
+                onHold: onHold, tintLabel: tintLabel, tintHelp: tintHelp, host: host, footer: { _ in EmptyView() }
             )
         }
     }
@@ -515,6 +596,8 @@ private extension String {
         let enabled: Bool
         let haptics: Bool
         let steps: (LadderStep, LadderStep)?
+        var previewPosition: Double? = nil
+        var interactionIdentity: () -> AnyHashable = { AnyHashable(0) }
         let onSelect: (String) -> Void
         let onStep: (LadderStep) -> Void
 
@@ -526,7 +609,8 @@ private extension String {
                 MonitorValueDrum(
                     options: options,
                     selection: Binding(get: { selection }, set: onSelect),
-                    markedValues: marked, isInteractive: enabled, haptics: haptics
+                    markedValues: marked, isInteractive: enabled, haptics: haptics,
+                    previewPosition: previewPosition, interactionIdentity: interactionIdentity
                 )
                 if let steps {
                     StepButton(step: steps.1, enabled: enabled, onStep: onStep)

@@ -225,6 +225,14 @@ actual title, subtitle and panel kind; the common popup owns header, placement, 
 material and reveal. Native content consumes the common command-enabled environment, retaining
 its existing option lists, locks and write callbacks.
 
+Capture panels render label and retained-field drums through the existing
+`LadderSheet` on both platforms. `LadderSheetHost` carries the panel's selection,
+exact captured choices and preview position; observations never invoke a write.
+The original panel retains its tabs, refresh, delayed-send and cancellation
+owners, and passes typed commit callbacks through the shared renderer. Unknown
+values stay unknown and empty captured detents stay empty. Existing standalone
+ladder clients retain their tab activation and selection defaults.
+
 Movie-format panels use the common `CaptureFormatPicker`,
 `CaptureFormatPickerState`, `CaptureFormatChoice` and `CaptureFormatGroup` in
 `OpenCineCameraControls` / `camera-controls`. Pocket's existing

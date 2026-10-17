@@ -44,6 +44,9 @@ import com.opencapture.opencine.appkit.LocalOperatorHaptics
 import com.opencapture.opencine.cameracontrols.CaptureFocusChoices
 import com.opencapture.opencine.cameracontrols.chromeClickable
 import com.opencapture.opencine.vocabulary.CameraStatus
+import com.opencapture.opencine.vocabulary.CaptureLadder
+import com.opencapture.opencine.vocabulary.LadderSheetPresentation
+import com.opencapture.opencine.vocabulary.LadderTab
 
 val LocalCapturePreview = staticCompositionLocalOf<MonitorQuickPreview?> { null }
 
@@ -170,15 +173,18 @@ fun CaptureDrumWheel(
     interactive: Boolean = true,
     onSelect: (String) -> Unit,
 ) {
-    val haptics = LocalOperatorHaptics.current
     val preview = LocalCapturePreview.current
-    com.opencapture.monitorui.MonitorValueDrum(
-        preview?.control?.options ?: options, preview?.selection ?: selection,
-        markedValues = preview?.control?.marked ?: markedValues,
-        interactive = interactive && preview == null, displayPosition = preview?.position,
-        dimDisabled = preview == null, onDetent = { haptics.confirm() },
-        onSelect = { value -> if (interactive && preview == null) onSelect(value) },
-    )
+    val shown = preview?.selection ?: selection
+    LadderSheet(
+        presentation = LadderSheetPresentation("", "", listOf(
+            LadderTab("", 0, CaptureLadder(shown.takeIf { it.isNotEmpty() },
+                preview?.control?.options ?: options, preview?.control?.marked ?: markedValues),
+                applyOnActivate = false))),
+        enabled = interactive, onWrite = { write ->
+            if (interactive && preview == null) onSelect(write.value)
+        }, onClose = {}, chromeless = true,
+        host = LadderSheetHost(0, shown, LadderSheetDrum.Labels,
+            previewPosition = preview?.position, onSelectTab = {}))
 }
 
 @Composable

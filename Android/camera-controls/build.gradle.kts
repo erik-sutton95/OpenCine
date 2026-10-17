@@ -55,6 +55,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(testFixtures(project(":core")))
 }
 
 // The link chip vectors are shared with the Swift OpenCineCameraVocabularyTests (Fixtures/ at the
