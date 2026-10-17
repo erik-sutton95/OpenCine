@@ -52,7 +52,11 @@ public struct MonitorInteractionLifecycle: Sendable {
         let previous = context
         context = next
         let replaced = previous != nil && previous?.camera != next.camera
+        // A cover borrows the monitor: an open picker stays, hidden and inert, and returns
+        // with its state. Lock, chrome edit, clean view and a new camera still dismiss it.
         let enteredBlock = next.inputBlock != nil && previous?.inputBlock != next.inputBlock
+            && (next.inputBlock != .cover || previous == nil)
+        let enteredCover = next.covered && previous?.covered != true
         let enteredClean = next.clean && previous?.clean != true
         let enteredEdit = next.editing && previous?.editing != true
         let dismiss = replaced || enteredBlock || enteredClean || enteredEdit
@@ -62,7 +66,8 @@ public struct MonitorInteractionLifecycle: Sendable {
             admission = next.inputBlock.map(MonitorInputAdmission.blocked) ?? .resumed
         } else { admission = nil }
         return MonitorInteractionTransition(dismissTransients: dismiss,
-            retireReadout: dismiss || rotated,
+            // Held input (a quick drag in flight) never survives a turn or a cover.
+            retireReadout: dismiss || rotated || enteredCover,
             collapseAssists: dismiss || !next.toolbarMounted || next.transientPanelPresented,
             inputAdmission: admission)
     }

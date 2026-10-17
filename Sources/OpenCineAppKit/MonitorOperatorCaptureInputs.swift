@@ -359,8 +359,14 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
         .init(context: source, field: readout.field,
             native: readout.field == nil ? inputs.nativeQuick(readout.id) : nil)
     }
+    /// An unreported value with nothing to edit stays inert rather than opening an empty panel.
+    private var inert: Bool {
+        MonitorCapturePresentation.readoutIsInert(value: readout.value, field: readout.field,
+            nativeEnabled: capturedSource.native?.enabled, quickEnabled: readout.quickEnabled,
+            hasAction: readout.action != nil)
+    }
     private var canInspect: Bool {
-        enabled && currentSource() && scenePhase == .active
+        !inert && enabled && currentSource() && scenePhase == .active
             && (state.preview == nil || state.preview?.key == readout.id)
     }
     private var presentationOwner: UUID? {
@@ -384,7 +390,8 @@ private struct CaptureReadoutGesture<Key: Hashable, Section: Hashable,
     func body(content: Content) -> some View {
         content.modifier(MonitorReadoutGesture(snapshot: quickSnapshot, sourceIdentity: capturedSource,
             isEnabled: canInspect, ownership: $state.ownership, presentationOwner: { presentationOwner }, onEvent: handle))
-            .accessibilityLabel(readout.title).accessibilityValue(readout.value)
+            .accessibilityLabel(readout.title)
+            .accessibilityValue(MonitorCapturePresentation.spokenValue(readout.value))
             .accessibilityIdentifier(readout.accessibilityIdentifier)
             .disabled(!canInspect)
             .onChange(of: inputs.panel?.key) { _, key in
@@ -477,6 +484,10 @@ public struct MonitorOperatorCapturePopup<Key: Hashable, Section: Hashable,
                                 content(panel.key, place).disabled(!commandEnabled || !currentSource())
                             }
                         }.id(panel.key)
+                        // One container per open camera panel, as the operator reaches it: UI tests
+                        // and assistive technology find the panel itself, not only its rows.
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("monitor.capture.panel")
                     }
                 }
             } else if let preview = state.preview {

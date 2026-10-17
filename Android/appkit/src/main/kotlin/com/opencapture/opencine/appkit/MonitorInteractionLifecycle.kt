@@ -42,7 +42,11 @@ public class MonitorInteractionLifecycle {
         val previous = context
         context = next
         val replaced = previous != null && previous.camera != next.camera
-        val enteredBlock = next.inputBlock != null && previous?.inputBlock != next.inputBlock
+        // A cover borrows the monitor: an open picker stays, hidden and inert, and returns
+        // with its state. Lock, chrome edit, clean view and a new camera still dismiss it.
+        val enteredBlock = next.inputBlock != null && previous?.inputBlock != next.inputBlock &&
+            (next.inputBlock != MonitorInputBlock.COVER || previous == null)
+        val enteredCover = next.covered && previous?.covered != true
         val enteredClean = next.clean && previous?.clean != true
         val enteredEdit = next.editing && previous?.editing != true
         val dismiss = replaced || enteredBlock || enteredClean || enteredEdit
@@ -50,7 +54,8 @@ public class MonitorInteractionLifecycle {
         val admission = if (previous == null || previous.inputBlock != next.inputBlock || replaced) {
             next.inputBlock?.let { MonitorInputAdmission.Blocked(it) } ?: MonitorInputAdmission.Resumed
         } else null
-        return MonitorInteractionTransition(dismiss, dismiss || rotated,
+        // Held input (a quick drag in flight) never survives a turn or a cover.
+        return MonitorInteractionTransition(dismiss, dismiss || rotated || enteredCover,
             dismiss || !next.toolbarMounted || next.transientPanelPresented, admission)
     }
 

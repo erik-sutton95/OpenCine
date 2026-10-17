@@ -14,7 +14,14 @@
             ]
         }
 
-        open var expectedStorageText: String { "107 GB" }
+        /// Whether the app's review launch paints a generated green picture (Z's demo feed). An
+        /// app without one (Pocket and Insta review a waiting picture unless private footage is
+        /// supplied) still has its header checked; only the picture checks need the fixture.
+        open var reviewPaintsGeneratedPicture: Bool { false }
+
+        /// The DJI-wire fixture's 107 GiB free card, read in the shared decimal storage units
+        /// (138e1d6b unified every storage readout on bytes).
+        open var expectedStorageText: String { "114.89 GB" }
         open var expectedCameraPowerValue: String { "68 percent" }
         open var expectedCameraPercentText: String? { "68%" }
 
@@ -65,15 +72,17 @@
                         pictureElement.exists && pictureElement.frame.width > 0
                             && !app.staticTexts["WAITING FOR LIVE VIEW"].exists
                     }, object: nil)
-                let pictureReadiness = XCTWaiter.wait(for: [pictureReady], timeout: 15)
-                capture(
-                    app,
-                    name:
-                        "SIMULATED mock picture before readiness assertion orientation-\(orientation.rawValue)"
-                )
-                XCTAssertEqual(
-                    pictureReadiness, .completed,
-                    "The declared generated mock must publish a native picture")
+                if reviewPaintsGeneratedPicture {
+                    let pictureReadiness = XCTWaiter.wait(for: [pictureReady], timeout: 15)
+                    capture(
+                        app,
+                        name:
+                            "SIMULATED mock picture before readiness assertion orientation-\(orientation.rawValue)"
+                    )
+                    XCTAssertEqual(
+                        pictureReadiness, .completed,
+                        "The declared generated mock must publish a native picture")
+                }
                 let cameraPowerQuery = app.descendants(matching: .any).matching(
                     identifier: "monitor.telemetry.camera"
                 ).matching(NSPredicate(format: "label == %@", "Camera battery"))
@@ -168,13 +177,15 @@
                         text.first { $0.value == percent && cameraPower.frame.contains($0.frame) },
                         "Declared camera percentage must be painted inside its own badge")
                 }
-                let pixel = try greenPixel(
-                    screenshot.image,
-                    at: CGPoint(x: pictureElement.frame.midX, y: pictureElement.frame.midY))
-                XCTAssertGreaterThan(
-                    pixel.1 - max(pixel.0, pixel.2), 0.2,
-                    "Generated green fixture identity must reach the real picture, not a fallback still"
-                )
+                if reviewPaintsGeneratedPicture {
+                    let pixel = try greenPixel(
+                        screenshot.image,
+                        at: CGPoint(x: pictureElement.frame.midX, y: pictureElement.frame.midY))
+                    XCTAssertGreaterThan(
+                        pixel.1 - max(pixel.0, pixel.2), 0.2,
+                        "Generated green fixture identity must reach the real picture, not a fallback still"
+                    )
+                }
                 let evidence = XCTAttachment(
                     string: text.map { "\($0.value): \($0.frame)" }.joined(separator: "\n"))
                 evidence.name =

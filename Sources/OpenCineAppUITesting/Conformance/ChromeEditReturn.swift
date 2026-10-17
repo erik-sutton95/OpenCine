@@ -18,7 +18,7 @@ open class ChromeEditReturn: SharedAppUITestCase {
     func testDoneReturnsToDisplaySettingsAndCloseToTheMonitor() {
         launch(ReviewLaunch(screen: .live))
         XCTAssertTrue(app.buttons["monitor.system.record"].waitForExistence(timeout: 15))
-        app.buttons["monitor.system.settings"].tap()
+        tapWhenReady(app.buttons["monitor.system.settings"], in: app)
         let display = app.buttons["monitor.settings.tab.Display"]
         reveal(display, in: app.scrollViews["monitor.settings.tabs"])
         display.tap()
@@ -60,11 +60,11 @@ open class ChromeEditReturn: SharedAppUITestCase {
         app.buttons["monitor.page.back"].tap()
 
         let record = app.buttons["monitor.system.record"]
-        XCTAssertTrue(record.waitForExistence(timeout: 5))
-        XCTAssertTrue(record.isHittable, "Closing Settings returns to the monitor")
+        XCTAssertTrue(
+            waitUntilReady(record, in: app, timeout: 10), "Closing Settings returns to the monitor")
         XCTAssertTrue(app.buttons["monitor.system.settings"].isHittable)
         checkpoint("monitor")
-        app.buttons["monitor.system.settings"].tap()
+        tapWhenReady(app.buttons["monitor.system.settings"], in: app)
         reveal(display, in: app.scrollViews["monitor.settings.tabs"])
         display.tap()
         editButton(editID).tap()

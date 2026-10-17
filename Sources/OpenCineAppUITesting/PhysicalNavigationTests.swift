@@ -1,4 +1,5 @@
 #if os(iOS)
+import MonitorPresentation
 import UIKit
 import XCTest
 
@@ -27,8 +28,8 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
         expectation(for: NSPredicate { _, _ in report.exists || pair.exists }, evaluatedWith: app)
         waitForExpectations(timeout: 20)
         // The launch splash can still cover controls already in the accessibility tree.
-        Thread.sleep(forTimeInterval: 3)
-        if !report.exists { pair.tap() }
+        waitForLaunchSplash(in: app)
+        if !report.exists { tapWhenReady(pair, in: app) }
         XCTAssertTrue(report.waitForExistence(timeout: 5))
         func capturePairingScreen(_ name: String) {
             let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -36,10 +37,10 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
             attachment.lifetime = .keepAlways
             add(attachment)
         }
+        self.app = app
         for orientation in [UIDeviceOrientation.portrait, .landscapeLeft, .landscapeRight] {
-            XCUIDevice.shared.orientation = orientation
-            Thread.sleep(forTimeInterval: 2)
-            XCTAssertTrue(report.isHittable)
+            rotate(orientation, settling: report)
+            XCTAssertTrue(waitUntilReady(report, in: app))
             XCTAssertGreaterThanOrEqual(report.frame.height, 44)
             XCTAssertTrue(app.frame.contains(report.frame))
             capturePairingScreen("pairing-support-\(orientation.rawValue)")
@@ -70,8 +71,6 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
         decline.tap()
         app.terminate()
         app.launch()
-        Thread.sleep(forTimeInterval: 3)
-        XCTAssertFalse(decline.exists, "A saved decline must not prompt again")
         defer {
             app.terminate()
             XCUIDevice.shared.orientation = originalOrientation
@@ -81,10 +80,10 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
         expectation(for: NSPredicate { _, _ in home.exists || live.exists }, evaluatedWith: app)
         waitForExpectations(timeout: 20)
         // The launch splash briefly intercepts touches while the home controls
-        // already exist in the accessibility tree.
-        Thread.sleep(forTimeInterval: 3)
+        // already exist in the accessibility tree; the consent prompt would follow it.
         let settings = live.exists ? live : home
-        XCTAssertTrue(settings.isHittable)
+        XCTAssertTrue(waitUntilReady(settings, in: app))
+        XCTAssertFalse(decline.exists, "A saved decline must not prompt again")
         settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let system = app.buttons["monitor.settings.tab.System"]
         XCTAssertTrue(system.waitForExistence(timeout: 10), "Settings did not open")
@@ -191,13 +190,12 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
             XCUIDevice.shared.orientation = .portrait
         }
         let media = app.buttons["cameras.media"]
-        XCTAssertTrue(media.waitForExistence(timeout: 20))
-        Thread.sleep(forTimeInterval: 3)
+        XCTAssertTrue(waitUntilReady(media, in: app, timeout: 20))
+        self.app = app
         for orientation in [UIDeviceOrientation.landscapeLeft, .landscapeRight] {
-            XCUIDevice.shared.orientation = orientation
-            Thread.sleep(forTimeInterval: 2)
             let pair = app.buttons["cameras.pair"]
-            XCTAssertTrue(pair.isHittable)
+            rotate(orientation, settling: pair)
+            XCTAssertTrue(waitUntilReady(pair, in: app))
             XCTAssertEqual(pair.frame.midX, app.frame.midX, accuracy: 2)
             attach(app, "centered-home-\(orientation.rawValue)")
         }
@@ -210,10 +208,10 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
         let back = app.buttons["Back to media"]
         XCTAssertTrue(back.waitForExistence(timeout: 15))
         for orientation in [UIDeviceOrientation.landscapeLeft, .landscapeRight, .portrait] {
-            XCUIDevice.shared.orientation = orientation
-            Thread.sleep(forTimeInterval: 2)
-            XCTAssertTrue(back.isHittable)
-            XCTAssertEqual(back.frame.width, 54, accuracy: 1)
+            rotate(orientation, settling: back)
+            XCTAssertTrue(waitUntilReady(back, in: app))
+            // One system button size on phone and tablet (48 pt since #447).
+            XCTAssertEqual(back.frame.width, MonitorSystemButtonMetrics.side(tablet: UIDevice.current.userInterfaceIdiom == .pad), accuracy: 1)
             for title in [
                 "Favorite clip", "Clip information", "Share clip", "Delete clip from camera",
             ] {
@@ -224,8 +222,7 @@ open class PhysicalNavigationTests: SharedAppUITestCase {
             }
             attach(app, "playback-chrome-\(orientation.rawValue)")
         }
-        XCUIDevice.shared.orientation = .landscapeLeft
-        Thread.sleep(forTimeInterval: 2)
+        rotate(.landscapeLeft, settling: back)
         let expand = app.buttons["monitor.assists.expand"]
         if expand.exists { expand.tap() }
         app.buttons["monitor.assist.LUT"].press(forDuration: 0.6)
