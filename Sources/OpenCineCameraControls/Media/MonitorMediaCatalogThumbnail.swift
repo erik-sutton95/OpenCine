@@ -1,73 +1,10 @@
 #if os(iOS)
-import AVFoundation
-import ImageIO
 import MonitorUI
+import OpenCineApple
 import OpenCineCameraVocabulary
 import OpenCineMedia
 import SwiftUI
 import UIKit
-
-/// Decodes cell images downsampled to a bounded pixel size, off the main actor.
-public actor MediaCellImageLoader {
-    public static let shared = MediaCellImageLoader()
-
-    public func downsampled(
-        at url: URL, maxPixelSize: Int, fallbackOrientation: Int? = nil
-    ) -> UIImage? {
-        autoreleasepool {
-            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else {
-                return nil
-            }
-            return Self.downsampled(
-                source: source, maxPixelSize: maxPixelSize,
-                fallbackOrientation: fallbackOrientation)
-        }
-    }
-
-    public func downsampled(
-        data: Data, maxPixelSize: Int, fallbackOrientation: Int? = nil
-    ) -> UIImage? {
-        autoreleasepool {
-            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-            guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
-                return nil
-            }
-            return Self.downsampled(
-                source: source, maxPixelSize: maxPixelSize,
-                fallbackOrientation: fallbackOrientation)
-        }
-    }
-
-    private nonisolated static func exifOrientation(source: CGImageSource) -> Int? {
-        guard
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
-                as? [CFString: Any]
-        else { return nil }
-        return (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue
-    }
-
-    private static func downsampled(
-        source: CGImageSource, maxPixelSize: Int, fallbackOrientation: Int?
-    ) -> UIImage? {
-        let thumbnailOptions =
-            [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceShouldCacheImmediately: true,
-                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-            ] as [CFString: Any] as CFDictionary
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions)
-        else { return nil }
-        if let fallbackOrientation, fallbackOrientation != 1,
-            exifOrientation(source: source) == nil,
-            let exif = CGImagePropertyOrientation(rawValue: UInt32(fallbackOrientation))
-        {
-            return UIImage(cgImage: cgImage, scale: 1, orientation: UIImage.Orientation(exif))
-        }
-        return UIImage(cgImage: cgImage)
-    }
-}
 
 @MainActor
 enum MediaCellThumbnailCache {
@@ -78,20 +15,6 @@ enum MediaCellThumbnailCache {
     }()
 }
 
-extension UIImage.Orientation {
-    fileprivate init(_ exif: CGImagePropertyOrientation) {
-        switch exif {
-        case .up: self = .up
-        case .upMirrored: self = .upMirrored
-        case .down: self = .down
-        case .downMirrored: self = .downMirrored
-        case .left: self = .left
-        case .leftMirrored: self = .leftMirrored
-        case .right: self = .right
-        case .rightMirrored: self = .rightMirrored
-        }
-    }
-}
 
 /// Where a gallery cell finds a clip's cached thumbnail and asks the camera for one.
 /// Kotlin twin: `MonitorMediaThumbnailSource` in camera-controls.
@@ -207,13 +130,8 @@ public struct MonitorMediaCatalogThumbnail: View {
             return
         }
         guard isCurrent(), !Task.isCancelled, isDownloaded, !isPhoto, let localURL else { return }
-        let asset = AVURLAsset(url: localURL)
-        let generator = AVAssetImageGenerator(asset: asset)
-        generator.appliesPreferredTrackTransform = true
-        generator.maximumSize = CGSize(width: 600, height: 600)
-        let time = CMTime(seconds: 0.2, preferredTimescale: 600)
-        if let cgImage = try? await generator.image(at: time).image {
-            present(UIImage(cgImage: cgImage))
+        if let image = await MediaCellVideoFrames.poster(at: localURL) {
+            present(image)
         }
     }
 
@@ -224,11 +142,8 @@ public struct MonitorMediaCatalogThumbnail: View {
             return
         }
         guard isDownloaded, let localURL else { return }
-        let asset = AVURLAsset(url: localURL)
-        if let duration = try? await asset.load(.duration), isCurrent(), !Task.isCancelled, duration.isNumeric,
-            duration.seconds > 0
-        {
-            onDuration(MediaClipFormatting.durationLabel(seconds: Int(duration.seconds)))
+        if let seconds = await MediaCellVideoFrames.durationSeconds(at: localURL), isCurrent(), !Task.isCancelled {
+            onDuration(MediaClipFormatting.durationLabel(seconds: Int(seconds)))
         }
     }
 }

@@ -1,8 +1,7 @@
 #if os(iOS)
     import MonitorUI
-    import NetworkExtension
     import OpenCineAppKit
-    import OpenCineCore
+    import OpenCineApple
     import SwiftUI
     import UIKit
 
@@ -49,7 +48,7 @@
         /// Nil when the camera is not nearby over Bluetooth. Reports each network as it arrives.
         var scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?
         /// Saves the confirmed network as this route kind; true closes the wizard.
-        var save: @MainActor (RouteKind, String, String) async -> Bool
+        var save: @MainActor (StationNetwork) async -> Bool
         var errorMessage: String? = nil
         var close: () -> Void
         @State var path: [Page] = []
@@ -58,7 +57,7 @@
             context: Context, brand: StationNetworkBrand, services: StationNetworkServices,
             cameraSSIDs: Set<String> = [],
             scan: (@MainActor (@escaping @MainActor (String) -> Void) async throws -> Void)?,
-            save: @escaping @MainActor (RouteKind, String, String) async -> Bool, errorMessage: String? = nil,
+            save: @escaping @MainActor (StationNetwork) async -> Bool, errorMessage: String? = nil,
             close: @escaping () -> Void, path: [Page] = []
         ) {
             self.context = context
@@ -131,11 +130,7 @@
             .task {
                 await refreshCurrentNetwork()
                 // Networks this app configured before. iOS keeps other saved networks private.
-                let ssids = await withCheckedContinuation { continuation in
-                    NEHotspotConfigurationManager.shared.getConfiguredSSIDs {
-                        continuation.resume(returning: $0)
-                    }
-                }
+                let ssids = await StationConfiguredNetworks.ssids()
                 configured = ssids.filter { !isCameraNetwork($0) }
             }
             .task {
@@ -708,7 +703,7 @@
                     (password.isEmpty || password.count >= 8)
                     && services.acceptsJoin(ssid, password)
                 connectButton("Connect over Wi-Fi", enabled: valid) {
-                    await save(.infrastructureNetwork, ssid, password)
+                    await save(StationNetwork(ssid: ssid, password: password, hotspot: false))
                 }
             case .hotspot:
                 let trimmed = hotspotName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -716,7 +711,7 @@
                     hotspotPassword.count >= 8
                     && services.acceptsJoin(trimmed, hotspotPassword)
                 connectButton("Connect over Hotspot", enabled: valid) {
-                    await save(.phoneHotspot, trimmed, hotspotPassword)
+                    await save(StationNetwork(ssid: trimmed, password: hotspotPassword, hotspot: true))
                 }
             case .choose: EmptyView()
             }

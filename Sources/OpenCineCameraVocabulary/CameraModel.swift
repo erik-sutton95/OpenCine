@@ -44,3 +44,14 @@ public enum CameraBodyFamily: Equatable, Sendable {
     case pocket, nano, other
     public static let fallback: CameraBodyFamily = .pocket
 }
+
+extension CameraBodyFamily {
+    /// The family's word in diagnostic reports (Kotlin twin: the same words).
+    public var reportName: String {
+        switch self {
+        case .pocket: "pocket"
+        case .nano: "nano"
+        case .other: "other"
+        }
+    }
+}
