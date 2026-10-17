@@ -57,7 +57,11 @@ interface MonitorFeedEffectsPacker {
     fun feedAssistScalars(colorMode: Int, iso: Int, highlightIRE: Float, midtoneIRE: Float): FloatArray?
 }
 
-/** Live, playback or inspector plans for one owner, on its immutable Swift source profile. */
+/**
+ * Live, playback or inspector plans for one owner, on its immutable Swift source profile.
+ * Mutable custom looks use their library's [MonitorLutLibrary.renderGeneration]; bundled and
+ * generated looks keep their existing cache identities.
+ */
 class MonitorFeedEffectsPlans(
     private val packer: MonitorFeedEffectsPacker,
     private val cubes: MonitorLUTCubeCache = MonitorLUTCubeCache(),
@@ -74,8 +78,23 @@ class MonitorFeedEffectsPlans(
         playback: Boolean = false,
         previewTool: MonitorAssistTool? = null,
         isPhoto: Boolean = false,
+    ): FeedEffectsRenderPlan = create(context, assist, lutSelection, colorMode, iso, lookProfile,
+        playback, previewTool, isPhoto, customLutGeneration = 0L)
+
+    fun create(
+        context: Context,
+        assist: MonitorAssistState,
+        lutSelection: String,
+        colorMode: Int,
+        iso: Int,
+        lookProfile: CameraLUTProfile,
+        playback: Boolean = false,
+        previewTool: MonitorAssistTool? = null,
+        isPhoto: Boolean = false,
+        customLutGeneration: Long,
     ): FeedEffectsRenderPlan =
-        create({ lutBytes(context, it) }, assist, lutSelection, colorMode, iso, lookProfile, playback, previewTool, isPhoto)
+        create({ lutBytes(context, it) }, assist, lutSelection, colorMode, iso, lookProfile,
+            playback, previewTool, isPhoto, customLutGeneration)
 
     internal fun create(
         lutBytes: (LutLookSource) -> ByteArray?,
@@ -87,6 +106,7 @@ class MonitorFeedEffectsPlans(
         playback: Boolean = false,
         previewTool: MonitorAssistTool? = null,
         isPhoto: Boolean = false,
+        customLutGeneration: Long = 0L,
     ): FeedEffectsRenderPlan {
         // An unknown source curve (no colour report yet, Dolby Vision) withholds false colour, zebra and
         // LUT input exposure until the camera names it (product ruling 2026-10-16).
@@ -96,7 +116,7 @@ class MonitorFeedEffectsPlans(
             MonitorAssistTool.FALSE.offered(sourceTransfer)
         val look = LutLookResolver.resolve(lutSelection, lutOn, colorMode, profile = lookProfile, isPhoto = isPhoto)
         val exposureStops = if (lutExposureOffered(colorMode)) assist.lutExposureStops else 0.0
-        val lut = lutCube(lutBytes, look, exposureStops, colorMode)
+        val lut = lutCube(lutBytes, look, exposureStops, colorMode, customLutGeneration)
         val scalars = if (packer.isAvailable) packer.feedAssistScalars(colorMode, iso,
             assist.zebraHighlightIRE.toFloat(), assist.zebraMidtoneIRE.toFloat()) else null
         val vectorscope = assist.renderToolVisible(MonitorAssistTool.VECTOR, playback, previewTool) ||
@@ -104,7 +124,7 @@ class MonitorFeedEffectsPlans(
         val vectorLook = if (vectorscope && lut == null &&
             colorMode in listOf(CameraCommands.COLOR_DLOG, CameraCommands.COLOR_DLOG2)) {
             lutCube(lutBytes, LutLookResolver.resolve(LutCatalog.AUTO, true, colorMode,
-                profile = lookProfile, isPhoto = isPhoto), exposureStops, colorMode)
+                profile = lookProfile, isPhoto = isPhoto), exposureStops, colorMode, customLutGeneration)
         } else null
         return assist.renderPlan(transfer = sourceTransfer,
             iso = iso.takeIf { it in 50..102_400 }, playback = playback, previewTool = previewTool, isPhoto = isPhoto,
@@ -167,13 +187,14 @@ class MonitorFeedEffectsPlans(
         source: LutLookSource,
         exposureStops: Double,
         colorMode: Int,
+        customLutGeneration: Long = 0L,
     ): MonitorLUTCube? {
         val snapped = MonitorLUTExposureCompensation.snap(exposureStops)
         val exposureColorMode = LutLookResolver.exposureColorMode(source, colorMode)
         val key =
             when (source) {
                 is LutLookSource.Asset -> "asset:${source.fileName}:$snapped:$exposureColorMode"
-                is LutLookSource.Custom -> "custom:${source.fileName}:$snapped:$exposureColorMode"
+                is LutLookSource.Custom -> "custom:${source.fileName}:$customLutGeneration:$snapped:$exposureColorMode"
                 is LutLookSource.Creative -> "creative:${source.name}:$snapped:$exposureColorMode"
                 LutLookSource.Off -> return null
             }
@@ -256,6 +277,21 @@ fun rememberMonitorFeedEffectsPlan(
     playback: Boolean = false,
     clipColorMode: Int = -1,
     previewTool: MonitorAssistTool? = null,
+): FeedEffectsRenderPlan = rememberMonitorFeedEffectsPlan(plans, preferences, assist, lutSelection,
+    status, lookProfile, playback, clipColorMode, previewTool, customLutGeneration = 0L)
+
+@Composable
+fun rememberMonitorFeedEffectsPlan(
+    plans: MonitorFeedEffectsPlans,
+    preferences: OperatorPreferenceStore,
+    assist: MonitorAssistState,
+    lutSelection: String,
+    status: CameraStatus,
+    lookProfile: CameraLUTProfile,
+    playback: Boolean = false,
+    clipColorMode: Int = -1,
+    previewTool: MonitorAssistTool? = null,
+    customLutGeneration: Long,
 ): FeedEffectsRenderPlan {
     val context = LocalContext.current
     var plan by remember { mutableStateOf(FeedEffectsRenderPlan.IDENTITY) }
@@ -266,6 +302,7 @@ fun rememberMonitorFeedEffectsPlan(
         assist.inspectorScopeDemand,
         assist.lutOn,
         lutSelection,
+        customLutGeneration,
         assist.peaking,
         assist.falseColor,
         assist.zebra,
@@ -326,6 +363,7 @@ fun rememberMonitorFeedEffectsPlan(
                     playback = playback,
                     previewTool = previewTool,
                     isPhoto = isPhoto,
+                    customLutGeneration = customLutGeneration,
                 )
             }
     }

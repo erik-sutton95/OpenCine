@@ -70,6 +70,13 @@ must reject its late frames and clear only its own publications. Covers and rota
 the picture host. Codec, frame leases, renderer scheduling and sampling demand retain one owner
 through that host's lifetime. A captured frame is not permission to send a camera command.
 
+`MonitorUIImageGraphProcessor` qualifies its baked-image memo with the prepared cube request
+keys as well as source image identity and equal settings. A same-name stored LUT replacement
+can therefore repaint a held source on its next render, while an unchanged cube still reuses
+the memo. The retained Multiview fixtures exercise actual replacement pixels on both platforms;
+Android already includes the shared library's render generation in its native renderer key.
+These are simulated native checks; physical replacement behavior remains untested.
+
 Verify portable changes on the mirrored Swift/Kotlin golden vectors, and runtime changes in the
 actual consuming app. Include source replacement, cancellation and picture-host lifetime when
 those paths change. Compile and simulated native checks are recorded separately from physical

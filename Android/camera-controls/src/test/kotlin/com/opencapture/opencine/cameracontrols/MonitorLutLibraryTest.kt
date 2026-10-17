@@ -52,6 +52,33 @@ class MonitorLutLibraryTest {
         assertEquals(listOf<Byte>(2), File(root, "custom/Look.cube").readBytes().toList())
     }
 
+    // Catches a same-identity import that updates disk but leaves render payload/generation stale.
+    @Test fun sameNameReplacementRefreshesPackedCubeAndRenderGenerationWithoutChangingIdentity() = runTest {
+        val library = MonitorLutLibrary(directories, pack = { bytes ->
+            bytes.singleOrNull()?.takeIf { it > 0 }?.let { value -> ByteArray(32) { value } }
+        })
+        try {
+            val first = library.imported("Operator Look.cube", byteArrayOf(1))
+            val generation = library.renderGeneration.value
+            assertEquals(List<Byte>(32) { 1 }, assertNotNull(library.packedCube(first.selection)).rgba.toList())
+
+            val replacement = library.imported("Operator Look.cube", byteArrayOf(2))
+            assertEquals(first.selection, replacement.selection)
+            assertEquals(listOf(first.selection), library.entries.value.map { it.selection })
+            assertTrue(library.renderGeneration.value > generation)
+            assertEquals(List<Byte>(32) { 2 }, assertNotNull(library.packedCube(first.selection)).rgba.toList())
+            assertEquals(listOf<Byte>(2), File(root, "custom/Operator Look.cube").readBytes().toList())
+
+            val replacedGeneration = library.renderGeneration.value
+            assertIs<MonitorLutImportResult.Rejected>(
+                library.importCube(MonitorLutCategory.CUSTOM, byteArrayOf(0), "Operator Look.cube"))
+            assertEquals(replacedGeneration, library.renderGeneration.value)
+            assertEquals(listOf(first.selection), library.entries.value.map { it.selection })
+            assertEquals(List<Byte>(32) { 2 }, assertNotNull(library.packedCube(first.selection)).rgba.toList())
+            assertEquals(listOf<Byte>(2), File(root, "custom/Operator Look.cube").readBytes().toList())
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun invalidPayloadNeverReachesStorageAndCorruptStorageReportsAFailure() = runTest {
         val library = library()
         valid = false

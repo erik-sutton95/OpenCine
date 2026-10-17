@@ -107,6 +107,42 @@ class MonitorFeedEffectsPlansTest {
         assertEquals(1600, plan.scopeTap.iso)
     }
 
+    @Test fun committedCustomGenerationRefreshesOnlyTheStoredLook() {
+        val recording = RecordingPacker()
+        val packer = object : MonitorFeedEffectsPacker by recording {
+            override fun packImportedLut(utf8: ByteArray, exposureStops: Double, colorMode: Int): ByteArray {
+                recording.packImportedLut(utf8, exposureStops, colorMode)
+                return ByteArray(2 * 2 * 2 * 4) { utf8.first() }
+            }
+        }
+        val state = assist(MonitorAssistTool.LUT)
+        var document = byteArrayOf(7)
+        val lookup: (LutLookSource) -> ByteArray? = { document }
+        MonitorFeedEffectsPlans(packer).use { plans ->
+            fun custom(generation: Long) = plans.create(lookup, state, "custom:Operator Look.cube",
+                CameraCommands.COLOR_NORMAL, 800, dlogProfile, customLutGeneration = generation).lutCube
+            val first = assertNotNull(custom(1))
+            document = byteArrayOf(9)
+            assertSame(first, custom(1), "A generation changes only on a committed library mutation")
+            val replacement = assertNotNull(custom(2))
+            assertNotSame(first, replacement)
+            assertEquals(9, replacement.rgba.first().toInt())
+            assertSame(replacement, custom(2), "An unchanged committed look stays cached")
+
+            val official = plans.create(lookup, state, LutCatalog.AUTO, CameraCommands.COLOR_DLOG,
+                800, dlogProfile, customLutGeneration = 2).lutCube
+            document = byteArrayOf(11)
+            assertSame(official, plans.create(lookup, state, LutCatalog.AUTO, CameraCommands.COLOR_DLOG,
+                800, dlogProfile, customLutGeneration = 3).lutCube)
+            val creative = plans.create(lookup, state, "creativeWarm", CameraCommands.COLOR_NORMAL,
+                800, dlogProfile, customLutGeneration = 3).lutCube
+            assertSame(creative, plans.create(lookup, state, "creativeWarm", CameraCommands.COLOR_NORMAL,
+                800, dlogProfile, customLutGeneration = 4).lutCube)
+            assertEquals(3, recording.calls.count { it.startsWith("lut:") })
+            assertEquals(1, recording.calls.count { it.startsWith("creative:") })
+        }
+    }
+
     @Test fun cubesAreBakedOnceAndFailedBakesRetry() {
         val packer = RecordingPacker().apply { failLuts = true }
         val plans = MonitorFeedEffectsPlans(packer)

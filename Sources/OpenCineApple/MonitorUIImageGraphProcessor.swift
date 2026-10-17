@@ -17,6 +17,15 @@ public enum MonitorUIImageLook {
     case grade(MonitorNativeCubeRequest, splitVertical: Bool?)
     case replacement(MonitorNativeCubeRequest)
     case limits(grade: MonitorNativeCubeRequest?, splitVertical: Bool?, paint: MonitorNativeCubeRequest, weight: MonitorNativeCubeRequest)
+
+    fileprivate var cubeKeys: [String] {
+        switch self {
+        case .plain: return []
+        case .grade(let cube, _), .replacement(let cube): return [cube.key]
+        case .limits(let grade, _, let paint, let weight):
+            return [grade?.key, paint.key, weight.key].compactMap { $0 }
+        }
+    }
 }
 
 public struct MonitorPeakingOverlay {
@@ -52,6 +61,7 @@ public final class MonitorUIImageGraphProcessor<Settings: Equatable> {
     private var cubeFilters: [String: CIFilter] = [:]
     private var lastInput: UIImage?
     private var lastSettings: Settings?
+    private var lastCubeKeys: [String]?
     private var lastImage: UIImage?
 
     public init(beginReadback: @escaping () -> Void = {}, endReadback: @escaping () -> Void = {}) {
@@ -63,21 +73,25 @@ public final class MonitorUIImageGraphProcessor<Settings: Equatable> {
     }
 
     public func evictRenderCache() {
-        lastInput = nil; lastSettings = nil; lastImage = nil
+        lastInput = nil; lastSettings = nil; lastCubeKeys = nil; lastImage = nil
     }
 
     public func render(_ image: UIImage, settings: Settings, identity: Bool,
         prepare: () -> MonitorUIImageGraph) -> UIImage {
         if identity { evictRenderCache(); return image }
-        if image === lastInput, settings == lastSettings, let lastImage { return lastImage }
-        guard let output = outputCIImage(for: image, graph: prepare()) else { return image }
+        let graph = prepare()
+        let cubeKeys = graph.look.cubeKeys
+        // Stored cubes can change while the source image and selected filename stay the same.
+        if image === lastInput, settings == lastSettings, cubeKeys == lastCubeKeys,
+            let lastImage { return lastImage }
+        guard let output = outputCIImage(for: image, graph: graph) else { return image }
         beginReadback()
         defer { endReadback() }
         guard let cgImage = context.createCGImage(output, from: output.extent,
                 format: .BGRA8, colorSpace: outputColorSpace)
         else { return image }
         let rendered = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-        lastInput = image; lastSettings = settings; lastImage = rendered
+        lastInput = image; lastSettings = settings; lastCubeKeys = cubeKeys; lastImage = rendered
         return rendered
     }
 
