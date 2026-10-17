@@ -186,6 +186,12 @@ jobs:
           xcodebuild -scheme OpenCine-Package -destination "platform=iOS Simulator,id=$KIT_IOS_DEVICE_ID" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/kit-ios/kit.xcresult" \
             -only-testing:OpenCineHostedAccessibilityTests -only-testing:MonitorUITests test
+      - name: Install XcodeGen for the SIMULATED label host
+        run: brew install xcodegen
+      - name: Native playback labels and confirmation input
+        run: |
+          python3 scripts/ios-playback-label-hosted-test.py --simulator-id "$KIT_IOS_DEVICE_ID" \
+            --derived-data "$RUNNER_TEMP/kit-ios-labels-dd" --output "$RUNNER_TEMP/kit-ios/playback-labels"
       - name: Delete the private simulator
         if: always()
         run: if [ -n "${KIT_IOS_DEVICE_ID:-}" ]; then scripts/ios-private-simulator.py delete "$KIT_IOS_DEVICE_ID"; fi
@@ -194,6 +200,68 @@ jobs:
         with:
           name: kit-ios-evidence
           path: ${{ runner.temp }}/kit-ios
+          if-no-files-found: warn
+
+  # The original three-case fixture remains required in kit-ios. This separate standard UI
+  # target exercises the typed system-dismissal counterpart with the same shared screen.
+  playback-native-ios:
+    name: Playback labels, native typed cancellation (SIMULATED)
+    needs: kit-ios
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Admit actual private userdata, cache, temporary and output filesystems
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          output = Path(os.environ['RUNNER_TEMP']) / 'playback-native'
+          output.mkdir()
+          paths = [output, Path.home() / 'Library/Developer/CoreSimulator/Devices',
+                   Path.home() / 'Library/Caches/org.swift.swiftpm', Path(os.environ['TMPDIR'])]
+          facts = {}
+          for path in paths:
+              existing = path
+              while not existing.exists():
+                  existing = existing.parent
+              stat = os.statvfs(existing)
+              facts[str(path)] = {'resolved': str(path.resolve()), 'freeBytes': stat.f_bavail * stat.f_frsize}
+          (output / 'admission.json').write_text(json.dumps(facts, indent=2) + '\n')
+          assert all(value['freeBytes'] >= 20 * 2**30 for value in facts.values()), facts
+          PY
+      - name: Create the owned native playback simulator
+        run: |
+          name="opc-playback-labels-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          udid=$(scripts/ios-private-simulator.py create "$name" \
+            --report "$RUNNER_TEMP/playback-native/simulator-setup.json")
+          echo "PLAYBACK_UI_DEVICE_ID=$udid" >> "$GITHUB_ENV"
+          echo "PLAYBACK_UI_DEVICE_NAME=$name" >> "$GITHUB_ENV"
+      - name: Standard native UI target and actual callback settlement
+        run: |
+          python3 scripts/ios-playback-label-ci.py --run --simulator-id "$PLAYBACK_UI_DEVICE_ID" \
+            --expected-device-name "$PLAYBACK_UI_DEVICE_NAME" --output "$RUNNER_TEMP/playback-native/case"
+      - name: Retain the exact private simulator in Shutdown state
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${PLAYBACK_UI_DEVICE_ID:-}" ]; then
+            python3 scripts/ios-playback-label-ci.py --cleanup --simulator-id "$PLAYBACK_UI_DEVICE_ID" \
+              --expected-device-name "$PLAYBACK_UI_DEVICE_NAME" --output "$RUNNER_TEMP/playback-native/case"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: playback-native-evidence
+          path: ${{ runner.temp }}/playback-native
           if-no-files-found: warn
 
   # SHELL-05: an app fresh from `atlas new-app` builds against this commit and passes its SIMULATED
@@ -253,7 +321,7 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [meta, swift, android, atlas, kit-ios, template-ios, template-android]
+    needs: [meta, swift, android, atlas, kit-ios, playback-native-ios, template-ios, template-android]
     runs-on: ubuntu-latest
     steps:
       - name: Require every shared and template check to pass

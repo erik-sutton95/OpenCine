@@ -40,5 +40,11 @@ dependencies {
     androidTestImplementation(project(":system-hints-testing"))
 }
 
-// SharedUIRulesTest also scans the app shell sources.
-tasks.withType<Test>().configureEach { inputs.dir(rootDir.resolve("appkit/src/main")) }
+// SharedUIRulesTest also scans the app shell sources. playback-copy.tsv is shared with the Swift
+// MonitorPlaybackCopyVectorTests (Fixtures/ at the repository root).
+tasks.withType<Test>().configureEach {
+    inputs.dir(rootDir.resolve("appkit/src/main"))
+    val fixtures = rootDir.resolve("../Fixtures")
+    inputs.dir(fixtures)
+    systemProperty("opencine.fixtures", fixtures.absolutePath)
+}

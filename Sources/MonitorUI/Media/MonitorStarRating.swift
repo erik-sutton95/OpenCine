@@ -22,7 +22,7 @@ public struct MonitorStarRating: View {
                         .foregroundStyle(level <= stars ? MonitorTheme.accent : MonitorTheme.muted)
                         .frame(width: 44, height: 44)
                 }.buttonStyle(.monitorTapTarget).disabled(!enabled)
-                    .accessibilityLabel("Rate \(level) \(level == 1 ? "star" : "stars")")
+                    .accessibilityLabel(MonitorPlaybackCopy.rate(level))
                     .accessibilityIdentifier("\(identifierPrefix).\(level)")
             }
         }.padding(.horizontal, 4).padding(.vertical, 2).liquidGlass(in: Capsule())

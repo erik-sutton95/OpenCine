@@ -1,4 +1,5 @@
 #if os(iOS)
+    import MonitorPresentation
     import SwiftUI
 
     /// The common floating action appearance for both playback and photo review.
@@ -74,13 +75,16 @@
         public var body: some View {
             VStack(spacing: 0) {
                 HStack {
-                    Text("CLIP INFO").font(MonitorTheme.font(9, weight: .bold)).tracking(1.8)
+                    Text(MonitorPlaybackCopy.clipInformationTitle).font(
+                        MonitorTheme.font(9, weight: .bold)
+                    ).tracking(1.8)
                     Spacer()
                     Button(action: onClose) {
                         MonitorIcon.x.frame(width: 12, height: 12)
                             .foregroundStyle(MonitorTheme.muted).frame(width: 44, height: 44)
                     }
-                    .buttonStyle(MonitorButtonStyle()).accessibilityLabel("Close clip information")
+                    .buttonStyle(MonitorButtonStyle()).accessibilityLabel(
+                        MonitorPlaybackCopy.closeClipInformation)
                 }
                 .padding(.leading, 12).overlay(alignment: .bottom) {
                     Divider().overlay(MonitorTheme.border)

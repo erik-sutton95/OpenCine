@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -431,7 +432,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .semantics { contentDescription = "Playback picture controls" }
+                        .testTag(MonitorPlaybackTags.PICTURE)
                         .pointerInput(value.item, fitted.width, fitted.height) {
                             val source = value.item
                             var gestureEdit: MonitorPlaybackScrubToken? = null
@@ -481,7 +482,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     if (canPrev) {
                         ClipNavButton(
                             icon = MonitorIcon.CHEVRON_LEFT,
-                            label = "Previous clip",
+                            label = MonitorPlaybackCopy.PREVIOUS_CLIP,
                             modifier = Modifier.align(Alignment.CenterStart)
                                 .padding(start = MonitorPlaybackLayout.clipNavEdgePadding().dp),
                         ) { goToAdjacent(-1) }
@@ -489,7 +490,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     if (canNext) {
                         ClipNavButton(
                             icon = MonitorIcon.CHEVRON_RIGHT,
-                            label = "Next clip",
+                            label = MonitorPlaybackCopy.NEXT_CLIP,
                             modifier = Modifier.align(Alignment.CenterEnd)
                                 .padding(end = MonitorPlaybackLayout.clipNavEdgePadding().dp),
                         ) { goToAdjacent(1) }
@@ -559,16 +560,16 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                     actions = {
                         slots.headerActionAccessory()
                         MonitorPlaybackActionChip(
-                            MonitorIcon.STAR, "Favorite clip", { withItem { currentActions.favorite(it) } },
+                            MonitorIcon.STAR, MonitorPlaybackCopy.FAVORITE, { withItem { currentActions.favorite(it) } },
                             filled = favorite, tint = if (favorite) Color(0.914f, 0.674f, 0.208f) else MonitorPalette.text.copy(alpha = 0.86f),
                         )
-                        MonitorPlaybackActionChip(MonitorIcon.INFO, "Clip info", { infoOpen = !infoOpen }, active = infoOpen)
+                        MonitorPlaybackActionChip(MonitorIcon.INFO, MonitorPlaybackCopy.CLIP_INFORMATION, { infoOpen = !infoOpen }, active = infoOpen)
                         MonitorPlaybackActionChip(
-                            MonitorIcon.SHARE, "Share clip", { withItem { currentActions.share(it) } },
-                            title = if (portraitPlayback) null else "SHARE", active = true, enabled = value.shareEnabled,
+                            MonitorIcon.SHARE, MonitorPlaybackCopy.SHARE, { withItem { currentActions.share(it) } },
+                            title = if (portraitPlayback) null else MonitorPlaybackCopy.SHARE_TITLE, active = true, enabled = value.shareEnabled,
                         )
                         if (actions.delete != null || actions.deletionConfirmation != null) {
-                            MonitorPlaybackActionChip(MonitorIcon.TRASH, "Delete clip", {
+                            MonitorPlaybackActionChip(MonitorIcon.TRASH, MonitorPlaybackCopy.DELETE, {
                                 cancelDeleteConfirmation()
                                 val item = currentValue.item
                                 val typed = currentActions.deletionConfirmation
@@ -593,7 +594,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                         .offset(x = backX.dp, y = headerTop.dp)
                         .size(fieldLayout.lock.width.dp, fieldLayout.lock.height.dp)
                         .testTag("monitor.playback.back")
-                        .semantics { contentDescription = "Back to media" },
+                        .semantics { contentDescription = MonitorPlaybackCopy.BACK_TO_MEDIA },
                     onClick = { currentActions.back() },
                 ) { tint ->
                     MonitorIcon(MonitorIcon.CHEVRON_LEFT, contentDescription = null, tint = tint,
@@ -632,15 +633,15 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MonitorPlaybackLayout.TRANSPORT_SPACING.dp),
                         ) {
-                            PlaybackTransportButton(MonitorIcon.SKIP_BACK, "Back 15 seconds") { seekBy(-15f) }
+                            PlaybackTransportButton(MonitorIcon.SKIP_BACK, MonitorPlaybackCopy.BACK_FIFTEEN) { seekBy(-15f) }
                             PlaybackTransportButton(
                                 if (reachedEnd) MonitorIcon.ROTATE_CW else if (isPlaying) MonitorIcon.PAUSE else MonitorIcon.PLAY,
-                                if (reachedEnd) "Restart clip" else if (isPlaying) "Pause" else "Play",
+                                MonitorPlaybackCopy.transport(reachedEnd, isPlaying),
                                 iconSize = MonitorPlaybackLayout.PLAY_ICON_SIZE.dp,
                             ) {
                                 withItem { if (reachedEnd) currentActions.restart(it) else currentActions.play(it, !isPlaying) }
                             }
-                            PlaybackTransportButton(MonitorIcon.SKIP_FORWARD, "Forward 15 seconds") { seekBy(15f) }
+                            PlaybackTransportButton(MonitorIcon.SKIP_FORWARD, MonitorPlaybackCopy.FORWARD_FIFTEEN) { seekBy(15f) }
                         }
                     },
                     options = {
@@ -652,10 +653,11 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 conformMenu, { conformMenu = it }, { target -> withItem { currentActions.conform(it, target) } }, actions.detentFeedback)
                             MonitorPlaybackActionChip(
                                 if (isMuted) MonitorIcon.VOLUME_X else MonitorIcon.VOLUME_2,
-                                if (isMuted) "Unmute" else "Mute", { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
+                                MonitorPlaybackCopy.muteToggle(isMuted), { withItem { currentActions.mute(it, !isMuted) } }, active = isMuted,
                             )
-                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, "Loop clip", { withItem { currentActions.loop(it, !looping) } }, active = looping)
-                            MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, "Hide playback controls", { chromeVisible = false })
+                            if (value.loopAvailable) MonitorPlaybackActionChip(MonitorIcon.REPEAT, MonitorPlaybackCopy.LOOP, { withItem { currentActions.loop(it, !looping) } },
+                                Modifier.semantics { stateDescription = MonitorPlaybackCopy.toggleValue(looping) }, active = looping)
+                            MonitorPlaybackActionChip(MonitorIcon.MAXIMIZE, MonitorPlaybackCopy.HIDE_CONTROLS, { chromeVisible = false })
                         }
                     },
                 )
@@ -671,7 +673,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                 ) {
                     MonitorPlaybackActionChip(
                         MonitorIcon.MINIMIZE,
-                        "Show playback controls",
+                        MonitorPlaybackCopy.SHOW_CONTROLS,
                         { chromeVisible = true },
                     )
                 }
@@ -686,7 +688,7 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
                                 bottom = (safeBottom + 12f).dp,
                             )
                             .monitorChromeClickable(onClickFeedback = actions.selectionFeedback) { },
-                        close = { PlaybackCircleButton(MonitorIcon.X, "Close clip information", { infoOpen = false }) })
+                        close = { PlaybackCircleButton(MonitorIcon.X, MonitorPlaybackCopy.CLOSE_CLIP_INFORMATION, { infoOpen = false }) })
                 }
             }
 
@@ -696,9 +698,10 @@ fun MonitorPlaybackScreen(value: MonitorPlaybackPresentation, actions: MonitorPl
             // Inside the overlay window: in the host window it sits under the gesture well.
             if (confirmDelete != null || capturedDeletion != null) {
                 MonitorConfirmPopup(
-                    title = capturedDeletion?.title ?: "Delete this clip from the camera?",
+                    title = capturedDeletion?.title ?: MonitorPlaybackCopy.DELETE_CONFIRMATION_TITLE,
                     message = capturedDeletion?.message,
-                    confirmTitle = "Delete",
+                    confirmTitle = MonitorPlaybackCopy.DELETE_CONFIRM,
+                    cancelTitle = MonitorPlaybackCopy.DELETE_CANCEL,
                     onDismiss = ::cancelDeleteConfirmation,
                     onConfirm = {
                         val captured = capturedDeletion; val admitted = confirmDelete
@@ -839,7 +842,7 @@ private fun PlaybackConformButton(
     Box {
         MonitorPlaybackActionChip(
             MonitorIcon.TIMER,
-            "Conform preview",
+            MonitorPlaybackCopy.CONFORM_PREVIEW,
             { onMenuOpenChange(true) },
             active = selected != null,
             enabled = availability.isAvailable,
@@ -862,16 +865,16 @@ private fun PlaybackConformButton(
                     .padding(horizontal = 14.dp, vertical = 11.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("CONFORM", style = MonitorTypography.text(9f, FontWeight.SemiBold))
-                            Text(MonitorConformPreview.menuHeader(captureRate), color = MonitorPalette.muted, style = MonitorTypography.text(8.5f))
+                            Text(MonitorPlaybackCopy.CONFORM_TITLE, style = MonitorTypography.text(9f, FontWeight.SemiBold))
+                            Text(MonitorPlaybackCopy.conformSubtitle(captureRate), color = MonitorPalette.muted, style = MonitorTypography.text(8.5f))
                         }
-                        PlaybackCircleButton(MonitorIcon.X, "Close conform preview", { onMenuOpenChange(false) }, size = 34.dp)
+                        PlaybackCircleButton(MonitorIcon.X, MonitorPlaybackCopy.CLOSE_CONFORM_PREVIEW, { onMenuOpenChange(false) }, size = 34.dp)
                     }
                     val choices = listOf<Double?>(null) + availability.targets
-                    val labels = choices.map { if (it == null) "Real time" else MonitorConformPreview.targetLabel(captureRate, it) }
+                    val labels = choices.map { if (it == null) MonitorPlaybackCopy.REAL_TIME else MonitorConformPreview.targetLabel(captureRate, it) }
                     com.opencapture.monitorui.MonitorValueDrum(
                         labels,
-                        if (selected == null) "Real time" else MonitorConformPreview.targetLabel(captureRate, selected),
+                        if (selected == null) MonitorPlaybackCopy.REAL_TIME else MonitorConformPreview.targetLabel(captureRate, selected),
                         onDetent = onDetentFeedback,
                     ) { label ->
                         val index = labels.indexOf(label)
@@ -913,6 +916,7 @@ fun MonitorConfirmPopup(
     onClickFeedback: () -> Unit = LocalMonitorPlaybackSelectionFeedback.current,
     /** A line under the title that explains the consequence. */
     message: String? = null,
+    cancelTitle: String = "Cancel",
 ) {
     Box(
         Modifier
@@ -952,7 +956,7 @@ fun MonitorConfirmPopup(
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Cancel", color = MonitorPalette.muted, style = MonitorTypography.text(14f, FontWeight.SemiBold))
+                    Text(cancelTitle, color = MonitorPalette.muted, style = MonitorTypography.text(14f, FontWeight.SemiBold))
                 }
                 Box(
                     Modifier

@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -111,7 +112,8 @@ fun MonitorPlaybackScrubber(progressSeconds: Float, durationSeconds: Float,
     }
     Canvas(modifier.fillMaxWidth().height(22.dp)
         .semantics {
-            contentDescription = "Playback position"
+            contentDescription = MonitorPlaybackCopy.POSITION
+            stateDescription = MonitorPlaybackCopy.positionValue(display.toDouble())
             progressBarRangeInfo = ProgressBarRangeInfo(display.coerceIn(0f, duration), 0f..duration)
             setProgress { requested -> seek(requested.coerceIn(0f, duration)); true }
         }
