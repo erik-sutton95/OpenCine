@@ -74,7 +74,8 @@ final class MonitorSettingsCompositionTests: XCTestCase {
     }
 
     private func published(borrowed: Bool, support: MonitorSettingsSupportSource? = nil,
-        information: MonitorSettingsAppInformation? = nil, hdr: Bool = true) -> Configuration {
+        information: MonitorSettingsAppInformation? = nil, hdr: Bool = true,
+        gyro: MonitorSettingsGyroSource? = nil) -> Configuration {
         if !borrowed {
             return .init(safeArea: EdgeInsets(), phase: "SIMULATED phase", isLive: false, sharingSubtitle: "SIMULATED",
                 close: {}, disconnect: {}, feedback: {}, link: link, support: support, information: information,
@@ -84,7 +85,7 @@ final class MonitorSettingsCompositionTests: XCTestCase {
                 exposureHelp: "SIMULATED exposure", availableDisplay: MonitorSettingsDisplaySource.commonSections,
                 assist: assist, stores: stores, falseColorLooks: .signal, palette: MonitorDefaultLivePalette.self,
                 operatorHaptics: OperatorHaptics(isEnabled: { false }), transfer: .rec709, clipByte: 255,
-                lookLabel: "SIMULATED look")
+                lookLabel: "SIMULATED look", gyro: gyro)
         }
         return .init(borrowedSafeArea: EdgeInsets(), phase: "SIMULATED phase", isLive: false,
             sharingSubtitle: "SIMULATED", close: {}, disconnect: {}, feedback: {}, link: link,
@@ -95,11 +96,11 @@ final class MonitorSettingsCompositionTests: XCTestCase {
             exposureHelp: "SIMULATED exposure",
             assist: assist, stores: stores, falseColorLooks: .signal, palette: MonitorDefaultLivePalette.self,
             operatorHaptics: OperatorHaptics(isEnabled: { false }), transfer: .rec709, clipByte: 255,
-            lookLabel: "SIMULATED look")
+            lookLabel: "SIMULATED look", gyro: gyro)
     }
 
     private func typed(support: MonitorSettingsSupportSource?, information: MonitorSettingsAppInformation?,
-        input: MonitorSettingsInputSource? = nil) -> Configuration {
+        input: MonitorSettingsInputSource? = nil, gyro: MonitorSettingsGyroSource? = nil) -> Configuration {
         .init(safeArea: EdgeInsets(), phase: "SIMULATED phase", isLive: false, sharingSubtitle: "SIMULATED",
             close: {}, disconnect: {}, feedback: {}, link: link,
             assist: .init(state: assist, stores: stores, falseColorLooks: .signal, palette: MonitorDefaultLivePalette.self,
@@ -108,7 +109,7 @@ final class MonitorSettingsCompositionTests: XCTestCase {
             controls: .init(recordConfirmation: binding, haptics: .init(value: binding, help: "SIMULATED haptics"),
                 keepAwake: .init(value: binding, help: "SIMULATED awake"), input: input),
             display: .init(hdr: .init(value: binding, help: "SIMULATED hdr")),
-            support: support, information: information)
+            support: support, information: information, gyro: gyro)
     }
 
     private func signature(_ configuration: Configuration, library: Bool = false) -> [[MonitorSettingsRow]] {
@@ -131,6 +132,24 @@ final class MonitorSettingsCompositionTests: XCTestCase {
         }
         XCTAssertEqual(typed.rows(.system, library: false), [.support, .information],
             "No legal pages or links: no empty Project & Legal card")
+    }
+
+    func testGyroRowsAreOptionalAndKeepLogsReachableInEveryCallForm() {
+        let gyro = MonitorSettingsGyroSource(enabled: binding, status: "SIMULATED", available: false,
+            openLogs: {}, mountName: "SIMULATED mount", configureMount: {})
+        for configuration in [typed(support: nil, information: nil), published(borrowed: true), published(borrowed: false)] {
+            XCTAssertNil(configuration.gyro)
+            XCTAssertFalse(configuration.rows(.controls, library: false).contains(.gyro))
+            XCTAssertFalse(configuration.rows(.storage, library: false).contains(.gyroLogs))
+        }
+        for configuration in [typed(support: nil, information: nil, gyro: gyro),
+            published(borrowed: true, gyro: gyro), published(borrowed: false, gyro: gyro)] {
+            XCTAssertEqual(configuration.rows(.controls, library: false).first, .gyro)
+            XCTAssertEqual(configuration.rows(.storage, library: false), [.gyroLogs])
+            XCTAssertTrue(configuration.tabs(library: false).contains(.storage))
+            XCTAssertEqual(configuration.gyro?.available, false,
+                "An unavailable phone sensor still allows previously saved logs to open")
+        }
     }
 
     func testAbsentDomainsLeaveTheirTabsOut() {

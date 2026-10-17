@@ -24,6 +24,18 @@ class MonitorSettingsCompositionTest {
             monitorSettingsTabs(null, null, null, account))
     }
 
+    @Test
+    fun `optional gyro keeps saved logs reachable even when capture is unavailable`() {
+        val gyro = MonitorSettingsGyroSource(false, {}, "SIMULATED", available = false, openLogs = {})
+        val configuration = MonitorOperatorSettingsConfiguration("App", false, "SIMULATED", {}, null, {},
+            MonitorSettingsLinkSource("SIMULATED", "", "", "", "", "", null), null, null, null,
+            MonitorSettingsControlsSource(false, {}, false, {}, false, {}, keepAwakeHelp = ""), null,
+            support = MonitorSettingsSupportSource(report = {}), gyro = gyro)
+        assertSame(gyro, configuration.gyro)
+        assertTrue(MonitorSettingsTab.STORAGE in configuration.tabs)
+        assertEquals(monitorSettingsTabs(null, null, null, gyro = gyro), configuration.tabs)
+    }
+
     /** A2-32: the remote shutter and auto-rotate are separate optional capabilities (Swift twin: MonitorRemoteShutterTests). */
     @Test
     fun `each input capability is declared on its own`() {
@@ -68,6 +80,7 @@ class MonitorSettingsCompositionTest {
                     controls, null, support = support, tabs = tabs)
             }
         }
+        assertNull(configuration().gyro)
         assertEquals(monitorSettingsTabs(null, null, null), configuration().tabs)
         assertEquals(MonitorSettingsTab.entries.toList(), configuration(MonitorSettingsTab.entries.toList()).tabs)
     }

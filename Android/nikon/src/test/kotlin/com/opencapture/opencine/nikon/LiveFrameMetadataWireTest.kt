@@ -70,6 +70,15 @@ class LiveFrameMetadataWireTest {
     }
 
     @Test
+    fun `missing optional camera angles preserve the roll display`() {
+        val level = liveCameraLevelFromWire(true, -0.5, 0.0, 0.0, hasPitch = false, hasYaw = false)
+        requireNotNull(level)
+        assertEquals(-0.5, level.rollDegrees)
+        assertEquals(false, level.hasPitch)
+        assertEquals(false, level.hasYaw)
+    }
+
+    @Test
     fun `body rotation decodes the documented enumeration and defaults unknowns to landscape`() {
         assertEquals(LiveFeedRotation.LANDSCAPE, liveFeedRotationFromWire(0))
         assertEquals(LiveFeedRotation.PORTRAIT_GRIP_UP, liveFeedRotationFromWire(1))

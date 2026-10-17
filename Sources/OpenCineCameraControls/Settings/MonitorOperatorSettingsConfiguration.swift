@@ -165,6 +165,25 @@ public struct MonitorSettingsAccountSource {
 
 public enum MonitorSettingsDocument: String, Identifiable { case privacy, licenses, notice; public var id: String { rawValue } }
 
+/// Optional phone motion logging controls; capture and storage stay with the host app.
+public struct MonitorSettingsGyroSource {
+    let enabled: Binding<Bool>
+    let status: String
+    let available: Bool
+    let openLogs: () -> Void
+    let mountName: String?
+    let configureMount: (() -> Void)?
+
+    /// Creates host-owned controls and optional callbacks for logs and phone mount configuration.
+    public init(enabled: Binding<Bool>, status: String, available: Bool = true,
+        openLogs: @escaping () -> Void, mountName: String? = nil,
+        configureMount: (() -> Void)? = nil) {
+        self.enabled = enabled; self.status = status
+        self.available = available; self.openLogs = openLogs
+        self.mountName = mountName; self.configureMount = configureMount
+    }
+}
+
 public struct MonitorSettingsSupportLink {
     let destination: MonitorSettingsBrowserDestination
     let help: String
@@ -417,9 +436,9 @@ enum MonitorSettingsRow: String, Hashable, Sendable {
     case linkHealth, connection, processing, savedCameras, sourceGroups
     case sharingUnavailable, sharing, watchers, watchFeed
     case assistTools, assistPanels, exposureMeter, look
-    case safety, input, gimbal, joystick, controller
+    case gyro, safety, input, gimbal, joystick, controller
     case hdrPanel, displaySections
-    case account, cache
+    case gyroLogs, account, cache
     case support, diagnosticOptions, projectLegal, information
 }
 
@@ -433,6 +452,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
     let close: () -> Void, disconnect: () -> Void, feedback: () -> Void
     let link: MonitorSettingsLinkSource
     let sharing: MonitorSettingsSharingSource?
+    let gyro: MonitorSettingsGyroSource?
     let assistSource: MonitorSettingsAssistSource<Looks>
     let controls: MonitorSettingsControlsSource
     let display: MonitorSettingsDisplaySource
@@ -452,11 +472,11 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         assist: MonitorSettingsAssistSource<Looks>, controls: MonitorSettingsControlsSource,
         display: MonitorSettingsDisplaySource = .init(), cache: MonitorSettingsCachePresentation? = nil,
         account: MonitorSettingsAccountSource? = nil, support: MonitorSettingsSupportSource? = nil,
-        information: MonitorSettingsAppInformation? = nil) {
+        information: MonitorSettingsAppInformation? = nil, gyro: MonitorSettingsGyroSource? = nil) {
         self.init(safeArea: safeArea, phase: phase, isLive: isLive, sharingSubtitle: sharingSubtitle,
             close: close, disconnect: disconnect, feedback: feedback, link: link, sharing: sharing,
             assistSource: assist, controls: controls, display: display, cache: cache, libraryCacheOriginals: nil,
-            account: account, support: support, information: information)
+            account: account, support: support, information: information, gyro: gyro)
     }
 
     private init(safeArea: EdgeInsets, phase: String, isLive: Bool, sharingSubtitle: String?,
@@ -465,9 +485,10 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         assistSource: MonitorSettingsAssistSource<Looks>, controls: MonitorSettingsControlsSource,
         display: MonitorSettingsDisplaySource, cache: MonitorSettingsCachePresentation?,
         libraryCacheOriginals: Binding<Bool>?, account: MonitorSettingsAccountSource?,
-        support: MonitorSettingsSupportSource?, information: MonitorSettingsAppInformation?) {
+        support: MonitorSettingsSupportSource?, information: MonitorSettingsAppInformation?, gyro: MonitorSettingsGyroSource?) {
         self.safeArea = safeArea; self.phase = phase; self.isLive = isLive; self.sharingSubtitle = sharingSubtitle
         self.close = close; self.disconnect = disconnect; self.feedback = feedback
+        self.gyro = gyro
         self.link = link; self.sharing = sharing; self.assistSource = assistSource
         self.controls = controls; self.display = display; self.cache = cache
         self.libraryCacheOriginals = libraryCacheOriginals
@@ -488,7 +509,8 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         assist: MonitorAssistState<Looks>, stores: AssistPanelStores, falseColorLooks: FalseColorLooks,
         palette: Palette.Type, operatorHaptics: OperatorHaptics, transfer: MonitorTransfer, clipByte: Int,
         lookLabel: String, lookCatalog: (@MainActor @Sendable () -> AnyView)? = nil,
-        availableAssist: Set<MonitorAssistSelection> = [.falseColor, .zebra, .waveform, .parade, .histogram, .vectorscope, .peaking, .trafficLights]) {
+        availableAssist: Set<MonitorAssistSelection> = [.falseColor, .zebra, .waveform, .parade, .histogram, .vectorscope, .peaking, .trafficLights],
+        gyro: MonitorSettingsGyroSource? = nil) {
         self.init(borrowedSafeArea: safeArea, phase: phase, isLive: isLive, sharingSubtitle: sharingSubtitle,
             close: close, disconnect: disconnect, feedback: feedback, link: link, sharing: sharing, motion: motion,
             account: account, cache: cache, support: support, information: information,
@@ -496,7 +518,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
             hdrDisplay: hdrDisplay, cacheOriginals: cacheOriginals, hapticsHelp: hapticsHelp, keepAwakeHelp: keepAwakeHelp,
             hdrHelp: hdrHelp, cacheHelp: cacheHelp, clearHelp: clearHelp, exposureHelp: exposureHelp, availableDisplay: availableDisplay,
             assist: assist, stores: stores, falseColorLooks: falseColorLooks, palette: palette, operatorHaptics: operatorHaptics,
-            transfer: transfer, clipByte: clipByte, lookLabel: lookLabel, lookCatalog: lookCatalog, availableAssist: availableAssist)
+            transfer: transfer, clipByte: clipByte, lookLabel: lookLabel, lookCatalog: lookCatalog, availableAssist: availableAssist, gyro: gyro)
     }
 
     /// Published form: translates to the typed domains. A nil binding leaves its row out.
@@ -515,7 +537,8 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         lookLabel: String, lookCatalog: (@MainActor @Sendable () -> AnyView)? = nil,
         availableAssist: Set<MonitorAssistSelection> = [.falseColor, .zebra, .waveform, .parade, .histogram, .vectorscope, .peaking, .trafficLights],
         input: MonitorSettingsInputSource? = nil, signalOptions: MonitorOperatorSignalOptions = .init(),
-        cacheScopeHelp: String? = nil, cacheConfirmationMessage: String? = nil) {
+        cacheScopeHelp: String? = nil, cacheConfirmationMessage: String? = nil,
+        gyro: MonitorSettingsGyroSource? = nil) {
         let originals = cacheOriginals.map { MonitorSettingsToggle(value: $0, help: cacheHelp) }
         self.init(safeArea: borrowedSafeArea, phase: phase, isLive: isLive, sharingSubtitle: sharingSubtitle,
             close: close, disconnect: disconnect, feedback: feedback, link: link, sharing: sharing,
@@ -530,7 +553,7 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
             cache: cache.map { .init(source: $0, cacheOriginals: originals, clearHelp: clearHelp,
                 scopeHelp: cacheScopeHelp, confirmationMessage: cacheConfirmationMessage) },
             libraryCacheOriginals: cache == nil ? cacheOriginals : nil,
-            account: account, support: support, information: information)
+            account: account, support: support, information: information, gyro: gyro)
     }
 
     /// Stable order; a tab is left out only when its whole optional domain is absent.
@@ -555,14 +578,14 @@ public struct MonitorOperatorSettingsConfiguration<Looks: MonitorLookProvider> {
         case .controls:
             let motion = controls.motion
             let input = controls.input.map { $0.remoteShutter != nil || $0.autoRotate != nil } ?? false
-            return [.safety] + (input ? [.input] : [])
+            return (gyro == nil ? [] : [.gyro]) + [.safety] + (input ? [.input] : [])
                 + (motion?.sensitivity == nil ? [] : [.gimbal]) + (motion?.joystick == nil ? [] : [.joystick])
                 + (motion?.controller == nil ? [] : [.controller])
         case .display:
             return (display.hdr == nil ? [] : [.hdrPanel]) + [.displaySections]
         case .storage:
             let libraryCache = library && libraryCacheOriginals != nil
-            return (account == nil ? [] : [.account]) + (cache == nil && !libraryCache ? [] : [.cache])
+            return (gyro == nil ? [] : [.gyroLogs]) + (account == nil ? [] : [.account]) + (cache == nil && !libraryCache ? [] : [.cache])
         case .system:
             var rows: [MonitorSettingsRow] = []
             if let support {

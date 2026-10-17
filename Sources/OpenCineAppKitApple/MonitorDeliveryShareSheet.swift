@@ -74,7 +74,7 @@ final class MonitorDeliveryShareAnchorController: UIViewController {
             return
         }
         presentedID = share.id
-        var items: [Any] = share.payload.urls.map(MonitorDeliveryShareItem.init(fileURL:))
+        var items: [Any] = share.payload.urls.map { MonitorDeliveryShareItem(fileURL: $0) }
         if let text = share.payload.metadataText, !text.isEmpty { items.append(text) }
         let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
         let id = share.id
@@ -104,18 +104,23 @@ final class MonitorDeliveryShareAnchorController: UIViewController {
     }
 }
 
-/// A typed movie or still file through `NSItemProvider`, so Launch Services resolves share
+/// A typed file through `NSItemProvider`, so Launch Services resolves share
 /// targets without probing sandbox paths.
-final class MonitorDeliveryShareItem: NSObject, UIActivityItemSource {
+public final class MonitorDeliveryShareItem: NSObject, UIActivityItemSource {
     let fileURL: URL
     private let contentType: UTType
 
-    init(fileURL: URL) {
+    /// Creates a provider for an existing file held until its share sheet is dismissed.
+    public init(fileURL: URL, contentType: UTType? = nil) {
         self.fileURL = fileURL
+        if let contentType {
+            self.contentType = contentType
+            return
+        }
         switch fileURL.pathExtension.lowercased() {
-        case "mov": contentType = .quickTimeMovie
-        case "mp4", "m4v": contentType = .mpeg4Movie
-        default: contentType = UTType(filenameExtension: fileURL.pathExtension) ?? .data
+        case "mov": self.contentType = .quickTimeMovie
+        case "mp4", "m4v": self.contentType = .mpeg4Movie
+        default: self.contentType = UTType(filenameExtension: fileURL.pathExtension) ?? .data
         }
     }
 
@@ -132,20 +137,20 @@ final class MonitorDeliveryShareItem: NSObject, UIActivityItemSource {
         return provider
     }
 
-    func activityViewControllerPlaceholderItem(_ controller: UIActivityViewController) -> Any {
+    public func activityViewControllerPlaceholderItem(_ controller: UIActivityViewController) -> Any {
         provider()
     }
 
-    func activityViewController(
+    public func activityViewController(
         _ controller: UIActivityViewController, itemForActivityType type: UIActivity.ActivityType?
     ) -> Any? { provider() }
 
-    func activityViewController(
+    public func activityViewController(
         _ controller: UIActivityViewController,
         dataTypeIdentifierForActivityType type: UIActivity.ActivityType?
     ) -> String { contentType.identifier }
 
-    func activityViewControllerLinkMetadata(_ controller: UIActivityViewController) -> LPLinkMetadata? {
+    public func activityViewControllerLinkMetadata(_ controller: UIActivityViewController) -> LPLinkMetadata? {
         let metadata = LPLinkMetadata()
         metadata.title = fileURL.lastPathComponent
         return metadata

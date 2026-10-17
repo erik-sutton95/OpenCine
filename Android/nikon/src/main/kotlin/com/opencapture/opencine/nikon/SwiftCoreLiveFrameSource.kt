@@ -243,6 +243,13 @@ class SwiftCoreLiveFrameSource(
                     start(
                         object : NikonNative.LiveFrameListener {
                         private val frameRateEstimator = LiveFrameRateEstimator()
+                        private var hasMeasuredPitch = false
+                        private var hasMeasuredYaw = false
+
+                        override fun onLevelValidity(hasPitch: Boolean, hasYaw: Boolean) {
+                            hasMeasuredPitch = hasPitch
+                            hasMeasuredYaw = hasYaw
+                        }
 
                         override fun onFrame(
                             jpeg: ByteArray,
@@ -314,6 +321,8 @@ class SwiftCoreLiveFrameSource(
                                         rollDegrees = levelRollDegrees,
                                         pitchDegrees = levelPitchDegrees,
                                         yawDegrees = levelYawDegrees,
+                                        hasPitch = hasMeasuredPitch,
+                                        hasYaw = hasMeasuredYaw,
                                     ),
                             )
                         }
@@ -371,6 +380,8 @@ class SwiftCoreLiveFrameSource(
                                         rollDegrees = levelRollDegrees,
                                         pitchDegrees = levelPitchDegrees,
                                         yawDegrees = levelYawDegrees,
+                                        hasPitch = hasMeasuredPitch,
+                                        hasYaw = hasMeasuredYaw,
                                     ),
                                 timecode =
                                     LiveFrameTimecode(
@@ -437,6 +448,8 @@ class SwiftCoreLiveFrameSource(
                                         rollDegrees = levelRollDegrees,
                                         pitchDegrees = levelPitchDegrees,
                                         yawDegrees = levelYawDegrees,
+                                        hasPitch = hasMeasuredPitch,
+                                        hasYaw = hasMeasuredYaw,
                                     ),
                                 timecode =
                                     LiveFrameTimecode(

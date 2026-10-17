@@ -46,6 +46,8 @@ internal fun liveCameraLevelFromWire(
     rollDegrees: Double,
     pitchDegrees: Double,
     yawDegrees: Double,
+    hasPitch: Boolean = true,
+    hasYaw: Boolean = true,
 ): LiveCameraLevel? {
     if (!hasLevel || !rollDegrees.isFinite() || !pitchDegrees.isFinite() || !yawDegrees.isFinite()) {
         return null
@@ -54,6 +56,8 @@ internal fun liveCameraLevelFromWire(
         rollDegrees = rollDegrees,
         pitchDegrees = pitchDegrees,
         yawDegrees = yawDegrees,
+        hasPitch = hasPitch,
+        hasYaw = hasYaw,
     )
 }
 

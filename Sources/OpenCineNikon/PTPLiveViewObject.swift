@@ -109,14 +109,22 @@ public struct PTPLiveViewSoundIndicator: Equatable, Sendable {
 /// (0–360°, 0 = level, counter-clockwise positive per the spec), `pitch` the fore/aft lean, `yaw`
 /// the grip-axis lean. Each is a signed 16.16 fixed-point angle decoded as `value / 65536`.
 public struct PTPLevelAngles: Equatable, Sendable {
-    public init(roll: Double, pitch: Double, yaw: Double) {
+    public init(
+        roll: Double, pitch: Double, yaw: Double, hasPitch: Bool = true, hasYaw: Bool = true
+    ) {
         self.roll = roll
         self.pitch = pitch
         self.yaw = yaw
+        self.hasPitch = hasPitch
+        self.hasYaw = hasYaw
     }
     public let roll: Double
     public let pitch: Double
     public let yaw: Double
+    /// Whether pitch was measured, rather than the legacy display fallback of zero.
+    public let hasPitch: Bool
+    /// Whether the grip-axis angle was measured; it is not a compass heading.
+    public let hasYaw: Bool
 
     /// Wraps a 0–360° angle to a signed tilt about level (−180…180), e.g. 359.5 → −0.5, 270 → −90.
     public static func signedDegrees(_ degrees: Double) -> Double {
@@ -479,10 +487,14 @@ public enum PTPLiveViewObject {
             return Double(Int32(bitPattern: raw)) / 65536.0
         }
         guard let roll = angle(at: HeaderOffset.angleRolling) else { return nil }
+        let pitch = angle(at: HeaderOffset.anglePitching)
+        let yaw = angle(at: HeaderOffset.angleYawing)
         return PTPLevelAngles(
             roll: roll,
-            pitch: angle(at: HeaderOffset.anglePitching) ?? 0,
-            yaw: angle(at: HeaderOffset.angleYawing) ?? 0)
+            pitch: pitch ?? 0,
+            yaw: yaw ?? 0,
+            hasPitch: pitch != nil,
+            hasYaw: yaw != nil)
     }
 
     /// Parses the AF / subject-detection boxes from the LiveViewObject header.

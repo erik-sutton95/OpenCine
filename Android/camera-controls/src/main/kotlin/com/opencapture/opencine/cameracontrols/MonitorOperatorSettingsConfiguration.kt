@@ -237,6 +237,14 @@ public data class MonitorSettingsInformationSource(
     public val theme: String, public val protocolName: String, public val version: String,
     public val themeHelp: String, public val protocolHelp: String, public val versionHelp: String,
 )
+/** Optional phone motion controls; capture and storage remain host-owned. */
+public class MonitorSettingsGyroSource(
+    public val enabled: Boolean, public val setEnabled: (Boolean) -> Unit,
+    public val status: String, public val available: Boolean = true,
+    public val openLogs: () -> Unit,
+    public val mountName: String? = null,
+    public val configureMount: (() -> Unit)? = null,
+)
 /**
  * Every app's settings: one value per tab, built by the app from its model. Absent capability
  * sections (motion, sharing, account, cache) are null; the recipe for each tab is the same.
@@ -256,8 +264,9 @@ public class MonitorOperatorSettingsConfiguration(
     public val diagnostics: MonitorSettingsDiagnosticsSource? = null,
     public val legal: MonitorLegalDocuments? = null,
     public val information: MonitorSettingsInformationSource? = null,
+    public val gyro: MonitorSettingsGyroSource? = null,
     /** By default a tab with nothing in it is left out (iOS hides an empty Sharing tab too). */
-    public val tabs: List<MonitorSettingsTab> = monitorSettingsTabs(sharing, cache, account, unconfiguredAccount),
+    public val tabs: List<MonitorSettingsTab> = monitorSettingsTabs(sharing, cache, account, unconfiguredAccount, gyro),
     /** Legacy captured cards remain available beside typed assist composition. */
     public val assistSections: List<MonitorAssistSettingsSection> = emptyList(),
     public val assist: MonitorOperatorAssistSettingsSource? = null,
@@ -281,10 +290,11 @@ public class MonitorOperatorSettingsConfiguration(
 public fun monitorSettingsTabs(
     sharing: MonitorSettingsSharingSource?, cache: MonitorSettingsCachePresentation?,
     account: MonitorSettingsAccountSource?, unconfiguredAccount: MonitorSettingsReadoutSource? = null,
+    gyro: MonitorSettingsGyroSource? = null,
 ): List<MonitorSettingsTab> = MonitorSettingsTab.entries.filter {
     when (it) {
         MonitorSettingsTab.SHARING -> sharing != null
-        MonitorSettingsTab.STORAGE -> cache != null || account != null || unconfiguredAccount != null
+        MonitorSettingsTab.STORAGE -> gyro != null || cache != null || account != null || unconfiguredAccount != null
         else -> true
     }
 }
@@ -467,6 +477,32 @@ internal fun SettingsSharing(source: MonitorSettingsSharingSource?, feedback: ()
     }
 }
 @Composable
+internal fun SettingsGyro(source: MonitorSettingsGyroSource?, feedback: () -> Unit) {
+    source?.let { gyro ->
+        MonitorSettingsRowCard("Gyro logging") {
+            MonitorSettingsSwitchInlineRow("Log gyro with camera recordings", gyro.enabled,
+                help = "Mount this phone firmly to the camera. Synchronize exported logs in Gyroflow.",
+                showTopDivider = false) {
+                if (gyro.available) { feedback(); gyro.setEnabled(!gyro.enabled) }
+            }
+            MonitorSettingsInlineRow("Status", null) {
+                MonitorSettingsValueText(gyro.status)
+            }
+            gyro.configureMount?.let { configureMount ->
+                MonitorSettingsInlineRow("Phone mount",
+                    "Choose the phone's position relative to the camera. Keep the mount unchanged during a take; rotating the whole rig needs no new selection.") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        gyro.mountName?.let { MonitorSettingsValueText(it) }
+                        MonitorSettingsActionPill("Configure", onClick = configureMount)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: () -> Unit) {
     if (source.hapticsHelp != null) {
         MonitorOperatorSafetySettings(source.recordConfirmation, source.haptics, source.keepAwake,
@@ -495,6 +531,18 @@ internal fun SettingsControls(source: MonitorSettingsControlsSource, feedback: (
 
 @Composable
 internal fun SettingsStorage(configuration: MonitorOperatorSettingsConfiguration) {
+    configuration.gyro?.let { gyro ->
+        MonitorSettingsRowCard("Gyro logs") {
+            MonitorSettingsInlineRow("Saved motion logs",
+                if (gyro.configureMount == null)
+                    "Share a log with the matching camera video, then select its lens and mount orientation in Gyroflow."
+                else "Share a log with the matching camera video, then select its lens in Gyroflow. A configured phone mount is included in each new log.",
+                showTopDivider = false) {
+                MonitorSettingsActionPill("Open", onClick = gyro.openLogs)
+            }
+        }
+    }
+
     configuration.account?.let { SettingsAccount(it) }
     configuration.unconfiguredAccount?.let { account ->
         MonitorAccountSettings(account.title, account.help.orEmpty(), MonitorAccountState.NOT_CONFIGURED,
