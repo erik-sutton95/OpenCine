@@ -123,13 +123,15 @@ class MonitorFramePacingStats(
 
 /** A native newest-wins loop preserves the source event next to its decoded native value.
  * Native decode/present work remains outside publication locks. A retired/canceled worker cannot
- * enter presentation after a blocked synchronous decode returns. */
+ * enter presentation after a blocked synchronous decode returns. [publish] may suspend to hand
+ * the decoded frame to its owner thread; [present] then observes it on the decode worker. */
 suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
     frames: Flow<F>, stats: MonitorFramePacingStats,
     timestampNanos: (F) -> Long?, decode: (F) -> T?, present: (F, T) -> Unit,
     isCurrent: () -> Boolean = { true }, nowNanos: () -> Long = System::nanoTime,
+    publish: suspend (F, T) -> Unit = { _, _ -> },
 ) = pumpFrames(frames, stats, timestampNanos, decode, present,
-    EmptyCoroutineContext, isCurrent, nowNanos)
+    EmptyCoroutineContext, isCurrent, nowNanos, publish)
 
 /** Decodes on the caller's worker and delivers the actual source/value pair on its picture owner.
  * Retirement and cancellation are checked again after dispatch, before any publication. */
@@ -139,12 +141,13 @@ suspend fun <F : Any, T : Any> monitorPumpFramesWithSourceFrame(
     presentationDispatcher: CoroutineDispatcher,
     isCurrent: () -> Boolean = { true }, nowNanos: () -> Long = System::nanoTime,
 ) = pumpFrames(frames, stats, timestampNanos, decode, present,
-    presentationDispatcher, isCurrent, nowNanos)
+    presentationDispatcher, isCurrent, nowNanos, { _, _ -> })
 
 private suspend fun <F : Any, T : Any> pumpFrames(
     frames: Flow<F>, stats: MonitorFramePacingStats,
     timestampNanos: (F) -> Long?, decode: (F) -> T?, present: (F, T) -> Unit,
     presentationContext: CoroutineContext, isCurrent: () -> Boolean, nowNanos: () -> Long,
+    publish: suspend (F, T) -> Unit,
 ) {
     frames.onEach { stats.frameReceived() }.conflate().collect { frame ->
         currentCoroutineContext().ensureActive()
@@ -152,6 +155,9 @@ private suspend fun <F : Any, T : Any> pumpFrames(
         val start = nowNanos()
         val decoded = decode(frame) ?: return@collect
         val decodedAt = nowNanos()
+        currentCoroutineContext().ensureActive()
+        if (!isCurrent()) return@collect
+        publish(frame, decoded)
         currentCoroutineContext().ensureActive()
         if (!isCurrent()) return@collect
         val presented = withContext(presentationContext) {
