@@ -49,6 +49,15 @@ are checked before any index object is written, and writes are read back before 
 A growing record that exceeds its shard's limit leaves prior durable content intact and
 reports incomplete; it is never moved or truncated to force success.
 
+New comment copies first persist their complete origin and text as prepared index records.
+The central manifest references those shards before any carrier POST, and a separate
+attempt checkpoint is confirmed before sending it. A fresh inventory recovers an accepted
+authenticated carrier even when its response was lost. If an attempted carrier is absent,
+the result stays explicitly incomplete and retains the text without another POST: absence
+cannot distinguish a failed request from a copy that was accepted and then human-deleted.
+A prepared record whose attempt checkpoint was never accepted can resume automatically.
+Independent fields and pairs continue while an ambiguous attempt needs deliberate review.
+
 ## Identity and failure recovery
 
 A versioned marker names exactly the registered app, positive issue number and canonical
@@ -67,7 +76,8 @@ rechecks visible values before writes and checkpoints only confirmed equal field
 
 Receipts contain actual `applied`, `errors`, per-field `conflicts`, `tombstones` and any
 `uncertain` request. A partial result is not success. Uncertain creates are never retried in
-the same run; a fresh complete inventory finds their stable markers before any later create.
+the same run; a fresh complete inventory finds stable markers and durable copy attempts.
+An attempted copy with no surviving carrier requires review, never a reset or blind retry.
 Disable activation while investigating corrupted/duplicate state, retain all surviving notes
 and indexed text, and resolve the identified state deliberately. Do not delete indexes or
 reset baselines to force a green run.

@@ -267,6 +267,54 @@ class Runner:
                 raise linked.SyncError("comment write not confirmed; baseline retained")
         comment["body"] = body
 
+    def _save_index(self, tracker, owned, entries, pair):
+        # Existing membership is durable: interrupted appends never move the
+        # sole last-content/tombstone record out of its committed shard.
+        chunks, assigned = [], set()
+        for i in range(len(owned)):
+            chunk = []
+            for old in owned[i][1]["entries"]:
+                key = self._entry_key(old)
+                chunk.append(entries[key])
+                assigned.add(key)
+            chunks.append(chunk)
+        for _, entry in sorted(entries.items()):
+            if self._entry_key(entry) in assigned: continue
+            if not chunks: chunks.append([])
+            trial = [*chunks[-1], entry]
+            if len(trial) > SHARD_ENTRIES or len(_json(trial)) > LIMIT - 400:
+                chunks.append([entry])
+            else:
+                chunks[-1] = trial
+        values = [{"version": 1, "source": pair, "shard": i, "entries": chunk} for i, chunk in enumerate(chunks)]
+        bodies = [STATE_PREFIX + _json(value) + " -->" for value in values]
+        # Preflight all bodies before modifying any index, including a growing
+        # existing record. Oversize leaves prior content intact, never relocated.
+        if any(len(body) > LIMIT for body in bodies):
+            raise linked.SyncError("comment index shard too large; no content discarded")
+        ids = []
+        for i, body in enumerate(bodies):
+            if i in owned:
+                comment = owned[i][0]
+                self._comment_patch(self.central, comment, body, pair)
+            else:
+                comment = self.write("index-create", pair, "POST", f"/repos/{self.central}/issues/{tracker['number']}/comments", {"body": body})
+                if not _bot(comment, self.login) or comment.get("body") != body: raise linked.SyncError("index authority not confirmed")
+                comment = self.api.request("GET", f"/repos/{self.central}/issues/comments/{comment['id']}")
+                if not _bot(comment, self.login) or comment.get("body") != body:
+                    raise linked.SyncError("index readback not confirmed; prior manifest retained")
+            owned[i] = comment, values[i]
+            ids.append(comment["id"])
+        return ids
+
+    def _reference_index(self, app, number, tracker, state, ids, pair):
+        if ids == state["shards"]: return tracker
+        checkpoint = dict(state, shards=ids)
+        body = _render(app, number, _values(tracker, True, app, self.reg), checkpoint, self.reg, tracker["body"])
+        tracker = self.issue_patch(self.central, tracker, {"body": body}, pair, True, app)
+        state["shards"] = ids
+        return tracker
+
     def comment_sync(self, app, number, tracker, state, pair):
         source_repo = self.apps[app]
         endpoints = {source_repo: number, self.central: tracker["number"]}
@@ -291,25 +339,61 @@ class Runner:
             if key not in entries:
                 entries[key] = {"origin": value["origin"], "peer_repo": repo, "peer_id": peer["id"],
                                 "base": value["base"], "last_body": comment_body(peer["body"]), "deleted": value.get("deleted")}
+            elif entries[key].get("pending"):
+                entry = entries[key]
+                if entry["origin"] != value["origin"] or entry["peer_repo"] != repo or entry["base"] != value["base"]:
+                    raise linked.SyncError("pending copy does not match authenticated carrier")
+                entry["peer_id"] = peer["id"]
+                entry.pop("pending")
         for key, original in originals.items():
             if key in entries: continue
             repo, n, cid = key
             target = next(r for r in endpoints if r != repo)
             origin = {"repo": repo, "number": n, "id": cid, "author": original["user"]["login"], "url": original["html_url"]}
             entry = {"origin": origin, "peer_repo": target, "peer_id": None,
-                     "base": digest(original["body"]), "last_body": original["body"], "deleted": None}
+                     "base": digest(original["body"]), "last_body": original["body"], "deleted": None, "pending": "prepared"}
+            self._carrier(entry, original["body"])
+            entries[key] = entry
+        prepared = [(key, entry) for key, entry in entries.items() if entry.get("pending") == "prepared"]
+        if prepared and self.execute:
+            # First record full origins/text without claiming any carrier attempt.
+            # Reference every shard before POST, so deleting attempt evidence is
+            # detected even if the carrier response or later checkpoint is lost.
+            ids = self._save_index(tracker, owned, entries, pair)
+            tracker = self._reference_index(app, number, tracker, state, ids, pair)
+        for key, entry in prepared:
+            original = originals.get(key)
+            if not original:
+                entry.pop("pending")
+                entry["deleted"] = "origin_deleted"
+                self.result["tombstones"].append({"source": pair, "origin": entry["origin"]["url"], "reason": entry["deleted"]})
+                continue
+            entry["base"], entry["last_body"] = digest(original["body"]), original["body"]
             body = self._carrier(entry, original["body"])
+            if self.execute:
+                # An absent carrier after this confirmed intent is ambiguous:
+                # it may have been accepted and human-deleted. Never retry it.
+                entry["pending"] = "attempted"
+                self._save_index(tracker, owned, entries, pair)
+            target = entry["peer_repo"]
             peer = self.write("comment-create", pair, "POST", f"/repos/{target}/issues/{endpoints[target]}/comments", {"body": body})
             if not self.execute: continue
             if not _bot(peer, self.login) or peer.get("body") != body: raise linked.SyncError("copied comment authority not confirmed")
             entry["peer_id"] = peer["id"]
-            entries[key] = entry
-            carriers[key] = target, peer, {"origin": origin, "base": entry["base"], "version": 1}
+            entry.pop("pending")
+            carriers[key] = target, peer, {"origin": entry["origin"], "base": entry["base"], "version": 1}
         for key, entry in entries.items():
+            pending, peer_id = entry.get("pending"), entry.get("peer_id")
             if key[0] not in endpoints or key[1] != endpoints[key[0]] or entry.get("peer_repo") not in endpoints \
-                    or entry["peer_repo"] == key[0] or type(entry.get("peer_id")) is not int \
+                    or entry["peer_repo"] == key[0] or pending not in (None, "prepared", "attempted") \
+                    or (peer_id is None and not pending and not entry.get("deleted")) \
+                    or (peer_id is not None and (type(peer_id) is not int or peer_id < 1 or pending)) \
                     or not isinstance(entry.get("last_body"), str) or not re.fullmatch(r"[0-9a-f]{64}", entry.get("base", "")):
                 raise linked.SyncError("comment index crosses this authenticated issue pair")
+            if pending:
+                if self.execute or pending == "attempted":
+                    _conflict(self.result, pair, "comment:" + str(key[2]), "unconfirmed copy attempt; retained text and no carrier recreation")
+                continue
             original = originals.get(key)
             carrier = carriers.get(key)
             if carrier and carrier[1]["id"] != entry["peer_id"]:
@@ -334,47 +418,7 @@ class Runner:
             else:
                 _conflict(self.result, pair, "comment:" + str(key[2]), "competing comment edits preserved")
         if not self.execute: return state["shards"]
-        # The durable index is separate from deletable carriers. Bound both count and
-        # encoded byte size, retaining full last content in one or more bot-owned shards.
-        # Existing membership is durable: a failed append must never remove the
-        # sole last-content/tombstone record from an already committed shard.
-        chunks, assigned = [], set()
-        for i in range(len(owned)):
-            chunk = []
-            for old in owned[i][1]["entries"]:
-                key = self._entry_key(old)
-                chunk.append(entries[key])
-                assigned.add(key)
-            chunks.append(chunk)
-        for _, entry in sorted(entries.items()):
-            if self._entry_key(entry) in assigned: continue
-            if not chunks: chunks.append([])
-            trial = [*chunks[-1], entry]
-            if len(trial) > SHARD_ENTRIES or len(_json(trial)) > LIMIT - 400:
-                chunks.append([entry])
-            else:
-                chunks[-1] = trial
-        bodies = []
-        for i, values in enumerate(chunks):
-            body = STATE_PREFIX + _json({"version": 1, "source": pair, "shard": i, "entries": values}) + " -->"
-            # Validate every shard before modifying any durable index object.
-            # A growing existing record is an explicit size blocker, never an
-            # instruction to move or discard its previous confirmed content.
-            if len(body) > LIMIT: raise linked.SyncError("comment index shard too large; no content discarded")
-            bodies.append(body)
-        ids = []
-        for i, body in enumerate(bodies):
-            if i in owned:
-                comment = owned[i][0]
-                self._comment_patch(self.central, comment, body, pair)
-            else:
-                comment = self.write("index-create", pair, "POST", f"/repos/{self.central}/issues/{tracker['number']}/comments", {"body": body})
-                if not _bot(comment, self.login) or comment.get("body") != body: raise linked.SyncError("index authority not confirmed")
-                comment = self.api.request("GET", f"/repos/{self.central}/issues/comments/{comment['id']}")
-                if not _bot(comment, self.login) or comment.get("body") != body:
-                    raise linked.SyncError("index readback not confirmed; prior manifest retained")
-            ids.append(comment["id"])
-        return ids
+        return self._save_index(tracker, owned, entries, pair)
 
     def pair(self, app, source, tracker):
         pair = f"{app}#{source['number']}"

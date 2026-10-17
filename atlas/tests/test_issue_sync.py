@@ -303,23 +303,140 @@ class TwoWay(unittest.TestCase):
         self.assertEqual(self.api.writes, [])
 
     def test_uncertain_comment_post_recovers_from_carrier_without_duplicate(self):
-        self.api.comment("o/App", 12, "Uncertain copy")
-        original_request = self.api.request
-        lost = [False]
-        def lost_response(method, path, payload=None):
-            value = original_request(method, path, payload)
-            if method == "POST" and path.endswith("/comments") and not lost[0]:
-                lost[0] = True
-                raise linked.SyncError("SIMULATED lost response after server accepted copy")
-            return value
-        self.api.request = lost_response
-        result = self.run_sync()
-        self.assertFalse(result["complete"])
-        self.assertIsNotNone(result["uncertain"])
-        self.api.request = original_request
+        for origin_repo in ("o/App", "o/OpenCine"):
+            with self.subTest(origin=origin_repo):
+                self.api = API()
+                tracker = self.created()
+                number = 12 if origin_repo == "o/App" else tracker["number"]
+                original = self.api.comment(origin_repo, number, "Uncertain copy")
+                request, lost = self.api.request, [False]
+                def lost_response(method, path, payload=None):
+                    value = request(method, path, payload)
+                    if method == "POST" and payload and payload.get("body", "").startswith(sync.COMMENT_PREFIX) and not lost[0]:
+                        lost[0] = True
+                        raise linked.SyncError("SIMULATED lost response after server accepted copy")
+                    return value
+                self.api.request = lost_response
+                result = self.run_sync()
+                self.assertFalse(result["complete"])
+                self.assertIsNotNone(result["uncertain"])
+                self.api.request = request
+                result = self.run_sync()
+                self.assertTrue(result["complete"], result)
+                copies = [c for comments in self.api.comments.values() for c in comments
+                          if c["body"].startswith(sync.COMMENT_PREFIX) and original["html_url"] in c["body"]]
+                self.assertEqual(len(copies), 1)
+                count = len(self.api.writes)
+                self.assertTrue(self.run_sync()["complete"])
+                self.assertEqual(len(self.api.writes), count)
+
+    def test_deleted_uncertain_new_copy_is_never_recreated_in_either_direction(self):
+        for origin_repo in ("o/App", "o/OpenCine"):
+            for delete_index in (False, True):
+                with self.subTest(origin=origin_repo, delete_index=delete_index):
+                    self.api = API()
+                    self.api.comment("o/App", 12, "Existing indexed pair")
+                    tracker = self.created()
+                    number = 12 if origin_repo == "o/App" else tracker["number"]
+                    text = "Retain uncertain new content and human deletion intent"
+                    original = self.api.comment(origin_repo, number, text)
+                    request, accepted, checkpoints = self.api.request, [], []
+                    def lose_copy_response(method, path, payload=None):
+                        value = request(method, path, payload)
+                        if method == "POST" and payload and payload.get("body", "").startswith(sync.COMMENT_PREFIX):
+                            accepted.append((path.split("/issues/")[0].removeprefix("/repos/"), value))
+                            state = sync._one_json(tracker["body"], sync.ROOT_PREFIX)
+                            indexes = [c for c in self.api.comments["o/OpenCine", tracker["number"]] if c["id"] in state["shards"]]
+                            checkpoints.extend(e for c in indexes for e in sync._one_json(c["body"], sync.STATE_PREFIX)["entries"]
+                                               if e["origin"]["url"] == original["html_url"])
+                            raise linked.SyncError("SIMULATED lost accepted carrier response")
+                        return value
+                    self.api.request = lose_copy_response
+                    result = self.run_sync()
+                    self.assertFalse(result["complete"], result)
+                    self.assertEqual(len(accepted), 1)
+                    target, peer = accepted[0]
+                    target_number = tracker["number"] if target == "o/OpenCine" else 12
+                    self.api.comments[target, target_number] = [c for c in self.api.comments[target, target_number] if c["id"] != peer["id"]]
+                    if delete_index:
+                        self.api.comments["o/OpenCine", tracker["number"]] = [
+                            c for c in self.api.comments["o/OpenCine", tracker["number"]] if not c["body"].startswith(sync.STATE_PREFIX)]
+                    self.api.request = request
+                    count = len(self.api.writes)
+                    result = self.run_sync()
+                    self.assertFalse(result["complete"], result)
+                    self.assertFalse(any(a["action"] == "comment-create" for a in result["actions"]), result)
+                    self.assertEqual(len(checkpoints), 1, "attempt must be durable and referenced before carrier POST")
+                    self.assertEqual(checkpoints[0]["last_body"], text)
+                    self.assertEqual(checkpoints[0].get("pending"), "attempted")
+                    self.assertIn(original["id"], [c["id"] for c in self.api.comments[origin_repo, number]])
+                    if delete_index:
+                        self.assertEqual(len(self.api.writes), count)
+                    else:
+                        self.assertTrue(result["conflicts"], result)
+                        self.assertIn(text, json.dumps(list(self.api.comments.values())))
+                        self.api.source["title"] = "Independent field still progresses"
+                        self.api.issues["o/Future"] = [issue(3, "o/Future")]
+                        result = self.run_sync()
+                        self.assertFalse(result["complete"], result)
+                        self.assertIn("Independent field still progresses", tracker["title"])
+                        self.assertTrue(any(i["title"].startswith("[future#3]") for i in self.api.issues["o/OpenCine"]))
+
+    def test_unconfirmed_copy_attempt_without_acceptance_is_explicit_and_not_retried(self):
+        for origin_repo in ("o/App", "o/OpenCine"):
+            with self.subTest(origin=origin_repo):
+                self.api = API()
+                tracker = self.created()
+                number = 12 if origin_repo == "o/App" else tracker["number"]
+                self.api.comment(origin_repo, number, "Unconfirmed content retained")
+                request = self.api.request
+                def reject_copy(method, path, payload=None):
+                    if method == "POST" and payload and payload.get("body", "").startswith(sync.COMMENT_PREFIX):
+                        raise linked.SyncError("SIMULATED no accepted carrier, outcome unknown")
+                    return request(method, path, payload)
+                self.api.request = reject_copy
+                self.assertFalse(self.run_sync()["complete"])
+                self.api.request = request
+                count = len(self.api.writes)
+                result = self.run_sync()
+                self.assertFalse(result["complete"], result)
+                self.assertTrue(result["conflicts"], result)
+                self.assertEqual(len(self.api.writes), count, "ambiguous absence never authorizes another POST")
+
+    def test_prepared_index_resumes_if_attempt_checkpoint_was_not_accepted(self):
+        self.api.comment("o/App", 12, "Prepared content")
+        request, triggered = self.api.request, [False]
+        def reject_attempt_checkpoint(method, path, payload=None):
+            if method == "PATCH" and payload and '"pending":"attempted"' in payload.get("body", ""):
+                triggered[0] = True
+                raise linked.SyncError("SIMULATED before attempted checkpoint acceptance")
+            return request(method, path, payload)
+        self.api.request = reject_attempt_checkpoint
+        self.assertFalse(self.run_sync()["complete"])
+        self.assertTrue(triggered[0])
+        self.api.request = request
         self.assertTrue(self.run_sync()["complete"])
-        copies = [c for c in self.api.comments["o/OpenCine", self.api.tracker["number"]] if sync.COMMENT_PREFIX in c["body"]]
+        copies = [c for c in self.api.comments["o/OpenCine", self.api.tracker["number"]] if c["body"].startswith(sync.COMMENT_PREFIX)]
         self.assertEqual(len(copies), 1)
+
+    def test_lost_attempt_checkpoint_response_fails_closed_without_carrier(self):
+        self.api.comment("o/App", 12, "Retained before uncertain attempt checkpoint")
+        request, triggered = self.api.request, [False]
+        def lose_attempt_checkpoint(method, path, payload=None):
+            value = request(method, path, payload)
+            if method == "PATCH" and payload and '"pending":"attempted"' in payload.get("body", "") and not triggered[0]:
+                triggered[0] = True
+                raise linked.SyncError("SIMULATED lost accepted attempt checkpoint response")
+            return value
+        self.api.request = lose_attempt_checkpoint
+        self.assertFalse(self.run_sync()["complete"])
+        self.assertTrue(triggered[0])
+        self.api.request = request
+        count = len(self.api.writes)
+        result = self.run_sync()
+        self.assertFalse(result["complete"], result)
+        self.assertTrue(result["conflicts"], result)
+        self.assertEqual(len(self.api.writes), count)
 
     def test_silently_ignored_assignment_does_not_remove_original(self):
         self.api.source["assignees"] = [{"login": "alice"}]
@@ -383,7 +500,7 @@ class TwoWay(unittest.TestCase):
         original = self.api.comment(app_repo, 12, sentinel)
         self.assertTrue(run()["complete"])
         thread = self.api.comments["o/OpenCine", number]
-        peer = next(c for c in thread if original["html_url"] in c["body"])
+        peer = next(c for c in thread if c["body"].startswith(sync.COMMENT_PREFIX) and original["html_url"] in c["body"])
         self.api.comments[app_repo, 12] = [c for c in self.api.comments[app_repo, 12] if c["id"] != original["id"]]
         thread.remove(peer)
         self.assertTrue(run()["complete"])
@@ -429,7 +546,7 @@ class TwoWay(unittest.TestCase):
                 original = self.api.comment(app_repo, 12, sentinel)
                 self.assertTrue(run()["complete"])
                 thread = self.api.comments["o/OpenCine", number]
-                copied = next(c for c in thread if original["html_url"] in c["body"])
+                copied = next(c for c in thread if c["body"].startswith(sync.COMMENT_PREFIX) and original["html_url"] in c["body"])
                 thread.remove(copied)
                 self.api.comments[app_repo, 12] = [c for c in self.api.comments[app_repo, 12] if c["id"] != original["id"]]
                 self.assertTrue(run()["complete"])
