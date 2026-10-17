@@ -70,7 +70,7 @@ object ShutterPickerPolicy {
     const val SPEED_BASE: String = "1/50"
 
     /** Header subtitle (iOS `CameraPicker.shutter.subtitle`). */
-    const val SUBTITLE: String = "Angle / speed"
+    const val SUBTITLE: String = "Angle · speed"
 
     /**
      * Prefer a camera-advertised ladder when it has more than one value and

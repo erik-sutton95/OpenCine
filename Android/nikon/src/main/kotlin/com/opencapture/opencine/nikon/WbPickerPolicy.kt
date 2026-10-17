@@ -53,8 +53,11 @@ object WbPickerPolicy {
     const val KELVIN_BASE: String = "5560K"
     const val PRESET_BASE: String = "Auto"
 
-    /** Header subtitle (iOS `CameraPicker.whiteBalance.subtitle`). */
-    const val SUBTITLE: String = "Kelvin / preset / tint"
+    /** Canonical popup title (the readout keeps its short WB label). */
+    const val TITLE: String = "WHITE BALANCE"
+
+    /** Canonical popup subtitle: the Mode tab holds the body's presets, Auto among them. */
+    const val SUBTITLE: String = "Kelvin · auto · tint"
 
     /**
      * Kelvin drum: use a denser camera-advertised enum when present; otherwise

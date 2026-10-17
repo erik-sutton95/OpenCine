@@ -39,7 +39,7 @@ val LiveSheet.headerLabel: String
         when (this) {
             LiveSheet.ISO -> "ISO"
             LiveSheet.SHUTTER -> "SHUTTER"
-            LiveSheet.WB -> "WB"
+            LiveSheet.WB -> "WHITE BALANCE"
             LiveSheet.FOCUS -> "FOCUS"
             LiveSheet.APERTURE -> "APERTURE"
             LiveSheet.EXPO -> "MODE"
@@ -53,8 +53,8 @@ val LiveSheet.subtitle: String
     get() =
         when (this) {
             LiveSheet.ISO -> "Sensitivity"
-            LiveSheet.SHUTTER -> "Angle / speed"
-            LiveSheet.WB -> "Kelvin / auto / tint"
+            LiveSheet.SHUTTER -> "Angle · speed"
+            LiveSheet.WB -> "Kelvin · auto · tint"
             LiveSheet.FOCUS -> "AF-S / AF-C"
             LiveSheet.APERTURE -> "Aperture strategy"
             LiveSheet.EXPO -> "Exposure"
