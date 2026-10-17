@@ -112,8 +112,20 @@ runtime="$swift_resources/android"
 ndk_libraries="$sdk_root/usr/lib/aarch64-linux-android"
 [[ -d "$ndk_libraries" ]] || fail "Android NDK libraries are missing: $ndk_libraries"
 
-"$swift" build --swift-sdk "$target" -c release --product "$PRODUCT"
-build_directory="$($swift build --swift-sdk "$target" -c release --show-bin-path)"
+# Optional caller-owned SwiftPM paths keep resource routing outside product configuration.
+# An unset root preserves the toolchain's existing defaults exactly.
+swift_build() {
+    if [[ -n "${OPENCINE_SWIFTPM_PATHS_ROOT:-}" ]]; then
+        "$swift" build --cache-path "$OPENCINE_SWIFTPM_PATHS_ROOT/cache" \
+            --config-path "$OPENCINE_SWIFTPM_PATHS_ROOT/config" \
+            --security-path "$OPENCINE_SWIFTPM_PATHS_ROOT/security" "$@"
+    else
+        "$swift" build "$@"
+    fi
+}
+
+swift_build --swift-sdk "$target" -c release --product "$PRODUCT"
+build_directory="$(swift_build --swift-sdk "$target" -c release --show-bin-path)"
 product="$build_directory/lib${PRODUCT}.so"
 [[ -f "$product" ]] || fail "Swift product was not built: $product"
 
