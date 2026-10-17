@@ -43,11 +43,11 @@ public fun MonitorOperatorFocusLayer(hud: TrackingHud, focus: Pair<Float, Float>
     }
     fun area(box: TrackingBox): MonitorTrackingRect =
         box.flipped(mirrored, flippedVertically).let { MonitorTrackingRect(it.x, it.y, it.width, it.height) }
-    val color = when {
-        aeLocked -> LiveDesign.aeLock
-        focusConfirmed == true -> MonitorFocusConfirmed
-        focusConfirmed == false -> LiveDesign.text.copy(alpha = 0.72f)
-        else -> LiveDesign.accent
+    val color = when (MonitorOperatorFocusInk.of(aeLocked, focusConfirmed)) {
+        MonitorOperatorFocusInk.AE_LOCK -> LiveDesign.aeLock
+        MonitorOperatorFocusInk.CONFIRMED -> MonitorFocusConfirmed
+        MonitorOperatorFocusInk.UNCONFIRMED -> LiveDesign.text.copy(alpha = 0.72f)
+        MonitorOperatorFocusInk.ACCENT -> LiveDesign.accent
     }
     val mark = if (showFocus && focus != null) MonitorFocusMark(
         Offset(if (mirrored) 1f - focus.first else focus.first,
@@ -68,6 +68,23 @@ public fun MonitorOperatorTrackingCancelButton(box: TrackingBox, feedWidth: Floa
     val haptics = LocalOperatorHaptics.current
     com.opencapture.monitorui.MonitorTrackingCancelButton(MonitorRect(rect.x, rect.y, rect.width, rect.height),
         MonitorFocusConfirmed, LiveDesign.background, onClick = onClick, feedback = { haptics.selection() })
+}
+
+/**
+ * The focus mark's ink (twin of the SwiftUI `MonitorOperatorFocusInk`): AE lock wins; a camera that
+ * reports a focus result shows it confirmed or unconfirmed; otherwise the accent tap box.
+ */
+public enum class MonitorOperatorFocusInk {
+    ACCENT, AE_LOCK, CONFIRMED, UNCONFIRMED;
+
+    public companion object {
+        public fun of(aeLocked: Boolean, focusConfirmed: Boolean?): MonitorOperatorFocusInk = when {
+            aeLocked -> AE_LOCK
+            focusConfirmed == true -> CONFIRMED
+            focusConfirmed == false -> UNCONFIRMED
+            else -> ACCENT
+        }
+    }
 }
 
 /** The green of a held subject and of camera-confirmed focus. */

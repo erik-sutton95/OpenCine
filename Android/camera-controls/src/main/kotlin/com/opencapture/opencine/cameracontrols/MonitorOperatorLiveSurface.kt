@@ -80,7 +80,20 @@ public class MonitorOperatorAssistSource(public val host: AssistHost,
  * waiting plate's words when the source has no picture to wait for (no camera, a reconnect, a network hop). */
 public data class MonitorOperatorLivePicture(public val aspect: Float, public val waiting: Boolean,
     public val vertical: Boolean, public val flipped: Boolean, public val recovering: Boolean,
-    public val notice: MonitorOperatorPictureNotice? = null)
+    public val notice: MonitorOperatorPictureNotice? = null) {
+    /** The plate covers the picture well: the source's notice, else the waiting plate. */
+    public val plate: MonitorOperatorPicturePlate? get() = when {
+        notice != null -> MonitorOperatorPicturePlate.Notice(notice)
+        waiting -> MonitorOperatorPicturePlate.Waiting
+        else -> null
+    }
+}
+
+/** What covers the picture well: the waiting plate, or the plate's look with the source's notice. */
+public sealed interface MonitorOperatorPicturePlate {
+    public data object Waiting : MonitorOperatorPicturePlate
+    public data class Notice(public val notice: MonitorOperatorPictureNotice) : MonitorOperatorPicturePlate
+}
 
 /** The picture well's own words: a title, an optional detail, and whether work is under way (a spinner). */
 public data class MonitorOperatorPictureNotice(public val title: String, public val detail: String? = null,
@@ -208,9 +221,11 @@ public fun <K, N> MonitorOperatorLiveSurface(control: MonitorControlModel, sessi
                     MonitorRect(0f, 0f, layout.viewportWidth, layout.viewportHeight), zones != null, Modifier.zIndex(1f))
             views.focusControls?.invoke(this, enabled)
         }, waitingPicture = {
-            val notice = source.picture.notice
-            if (notice != null) OperatorPictureNotice(layout.onFeed, notice)
-            else if (source.picture.waiting) OperatorWaitingPicture(layout.onFeed, control, source.vpnActive)
+            when (val plate = source.picture.plate) {
+                is MonitorOperatorPicturePlate.Notice -> OperatorPictureNotice(layout.onFeed, plate.notice)
+                MonitorOperatorPicturePlate.Waiting -> OperatorWaitingPicture(layout.onFeed, control, source.vpnActive)
+                null -> Unit
+            }
             views.waitingPicture?.invoke()
         }, feedback = {
             OperatorToast(source.note, layout, MonitorDisplaySection.STATUS_BAR in mounted)

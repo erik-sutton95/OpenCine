@@ -4,6 +4,21 @@ import MonitorUI
 import SwiftUI
 import UIKit
 
+/// The live link gauge on its own: signal bars, tapping to the feed frame rate. The same gauge the
+/// status deck draws, for a host that places the link reading elsewhere (a command dashboard).
+public struct MonitorOperatorLinkGauge<Palette: LiveChromePalette>: View {
+    private let fps: String?
+    private let signalBars: Int?
+    public init(fps: String?, signalBars: Int?) {
+        self.fps = fps
+        self.signalBars = signalBars
+    }
+    public var body: some View {
+        MonitorOperatorTelemetry<Palette>(
+            fps: fps, signalBars: signalBars, camera: nil, horizontal: true, showsPower: false)
+    }
+}
+
 /// Reported power and delivery facts share one renderer: the phone's own battery, then the
 /// camera's when the source reports one. Coarse camera gauges retain their declared scale;
 /// a missing measurement never becomes a zero-percent battery.

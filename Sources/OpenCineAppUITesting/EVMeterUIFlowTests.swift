@@ -93,8 +93,7 @@ open class EVMeterUIFlowTests: SharedAppUITestCase {
         app.buttons["monitor.assists.collapse"].tap()
         XCTAssertFalse(app.otherElements["monitor.ev.resize"].exists)
         for orientation in [UIDeviceOrientation.landscapeLeft, .portrait, .landscapeRight] {
-            XCUIDevice.shared.orientation = orientation
-            Thread.sleep(forTimeInterval: 1)
+            rotate(orientation, settling: meter)
             XCTAssertTrue(app.frame.contains(meter.frame))
             XCTAssertEqual(meter.frame.width, 28, accuracy: 1)
             XCTAssertGreaterThan(meter.frame.height, meter.frame.width * 1.5)
